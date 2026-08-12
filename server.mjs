@@ -14,6 +14,9 @@ import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
+import { createScheduleWorker } from './lib/schedule-worker.mjs';
+import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
+import { createTaskScheduleStore } from './lib/task-schedule-store.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -23,6 +26,9 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
 const NIM_BASE_URL = (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+const SCHEDULE_MODEL = (process.env.HAFIZE_SCHEDULE_MODEL || '').trim();
+const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 30_000, 5_000, 300_000);
+const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
@@ -43,6 +49,11 @@ const MIME = new Map([
   ['.png', 'image/png'],
   ['.svg', 'image/svg+xml']
 ]);
+
+function boundedEnvInteger(value, fallback, min, max) {
+  const parsed = Number.parseInt(value || '', 10);
+  return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
+}
 
 function setSecurityHeaders(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -110,6 +121,53 @@ async function nvidiaJsonCompletion(payload, signal) {
 function boundedMaxTokens(body) {
   return Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048;
 }
+
+const TASK_SCHEDULE_STORE = createTaskScheduleStore();
+const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
+  registry: AGENT_REGISTRY,
+  model: SCHEDULE_MODEL,
+  nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+  githubReadConfigured: GITHUB_READ_CONFIGURED,
+  githubReadFile: GITHUB_READ_FILE,
+  async complete(payload) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), SCHEDULE_RUN_TIMEOUT_MS);
+    timeout.unref?.();
+    try {
+      return await nvidiaJsonCompletion(payload, controller.signal);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+});
+const SCHEDULE_WORKER = createScheduleWorker({
+  store: TASK_SCHEDULE_STORE,
+  registry: AGENT_REGISTRY,
+  executeAgentTask: SCHEDULED_AGENT_EXECUTOR.executeAgentTask
+});
+let scheduleTickRunning = false;
+
+async function runScheduleTick() {
+  if (scheduleTickRunning) return;
+  scheduleTickRunning = true;
+  try {
+    await SCHEDULE_WORKER.runDue();
+  } catch {
+    console.error('Hafize schedule worker tick failed');
+  } finally {
+    scheduleTickRunning = false;
+  }
+}
+
+function startScheduleWorkerLoop() {
+  if (!NVIDIA_API_KEY || !SCHEDULED_AGENT_EXECUTOR.configured) return;
+  const timer = setInterval(() => {
+    void runScheduleTick();
+  }, SCHEDULE_TICK_MS);
+  timer.unref?.();
+}
+
+startScheduleWorkerLoop();
 
 async function handleModels(res) {
   const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
@@ -380,6 +438,7 @@ const server = createServer(async (req, res) => {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
+        scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULED_AGENT_EXECUTOR.configured),
         agents: AGENT_REGISTRY.agents.length
       });
       return;
