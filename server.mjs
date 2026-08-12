@@ -11,6 +11,7 @@ import {
   resolveAgent
 } from './lib/agent-runtime.mjs';
 import { createAgentDelegator } from './lib/agent-delegation.mjs';
+import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
@@ -161,27 +162,25 @@ async function handleAgentRun(req, res) {
     parentAgent: agent,
     parentTaskId: runLedger.rootTaskId,
     runLedger,
-    async executeAgent({ agent: delegatedAgent, task, traceId: delegatedTraceId }) {
-      const delegated = await nvidiaJsonCompletion(
-        {
-          model,
-          messages: [
-            buildAgentSystemMessage(delegatedAgent, delegatedTraceId),
-            { role: 'user', content: task }
-          ],
-          stream: false,
-          max_tokens: boundedMaxTokens(body)
-        },
-        controller.signal
-      );
-      const delegatedMessage = delegated?.choices?.[0]?.message;
-      if (!delegatedMessage || delegatedMessage.role !== 'assistant') {
-        return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
-      }
-      return {
-        ok: true,
-        content: typeof delegatedMessage.content === 'string' ? delegatedMessage.content : ''
-      };
+    async executeAgent({
+      agent: delegatedAgent,
+      task,
+      traceId: delegatedTraceId,
+      parentTaskId: delegatedParentTaskId
+    }) {
+      return runDelegatedAgent({
+        agent: delegatedAgent,
+        task,
+        traceId: delegatedTraceId,
+        parentTaskId: delegatedParentTaskId,
+        registry: AGENT_REGISTRY,
+        runLedger,
+        model,
+        maxTokens: boundedMaxTokens(body),
+        githubReadConfigured: GITHUB_READ_CONFIGURED,
+        githubReadFile: GITHUB_READ_FILE,
+        complete: (payload) => nvidiaJsonCompletion(payload, controller.signal)
+      });
     }
   });
 
