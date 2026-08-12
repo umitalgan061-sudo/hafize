@@ -10,6 +10,7 @@ import {
   normalizeClientMessages,
   resolveAgent
 } from './lib/agent-runtime.mjs';
+import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
@@ -154,8 +155,41 @@ async function handleAgentRun(req, res) {
   const controller = new AbortController();
   res.on('close', () => controller.abort());
 
+  const delegator = createAgentDelegator({
+    registry: AGENT_REGISTRY,
+    traceId,
+    parentAgent: agent,
+    parentTaskId: runLedger.rootTaskId,
+    runLedger,
+    async executeAgent({ agent: delegatedAgent, task, traceId: delegatedTraceId }) {
+      const delegated = await nvidiaJsonCompletion(
+        {
+          model,
+          messages: [
+            buildAgentSystemMessage(delegatedAgent, delegatedTraceId),
+            { role: 'user', content: task }
+          ],
+          stream: false,
+          max_tokens: boundedMaxTokens(body)
+        },
+        controller.signal
+      );
+      const delegatedMessage = delegated?.choices?.[0]?.message;
+      if (!delegatedMessage || delegatedMessage.role !== 'assistant') {
+        return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
+      }
+      return {
+        ok: true,
+        content: typeof delegatedMessage.content === 'string' ? delegatedMessage.content : ''
+      };
+    }
+  });
+
   const conversation = [buildAgentSystemMessage(agent, traceId), ...messages];
-  const tools = getAllowedNvidiaTools(agent, { githubReadConfigured: GITHUB_READ_CONFIGURED });
+  const tools = getAllowedNvidiaTools(agent, {
+    githubReadConfigured: GITHUB_READ_CONFIGURED,
+    delegateAgent: delegator.delegate
+  });
   const firstPayload = {
     model,
     messages: conversation,
@@ -216,6 +250,7 @@ async function handleAgentRun(req, res) {
       nvidiaConfigured: Boolean(NVIDIA_API_KEY),
       githubReadConfigured: GITHUB_READ_CONFIGURED,
       githubReadFile: GITHUB_READ_FILE,
+      delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
       approvalGranted: false
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
