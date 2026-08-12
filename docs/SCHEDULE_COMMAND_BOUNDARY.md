@@ -12,6 +12,12 @@ Boundary token veya session doğrulamaz. Yalnızca upstream auth katmanı taraf�
 
 `authenticated !== true`, boş `subject` veya geçersiz principal `AUTH_REQUIRED` ile reddedilir. Böylece ileride Google, Firebase Auth, OIDC veya başka bir identity provider eklenirken schedule authorization mantığı değişmez.
 
+## Async store uyumluluğu
+
+`create()`, `list()` ve `cancel()` Promise döndürür. Boundary hem mevcut senkron in-memory store'u hem de Promise döndüren persistence store'larını `await` ederek kullanabilir. Böylece durable encrypted storage eklenirken sahiplik/authorization katmanı bypass edilmez veya paralel bir command sistemi kurulmaz.
+
+Store/provider exception ayrıntıları public command sonucuna taşınmaz; generic `SCHEDULE_COMMAND_FAILED` sonucuna çevrilir. Mevcut validation/capacity hataları ise daha dar public hata kodlarına map edilmeye devam eder.
+
 ## Create
 
 Client yalnızca `agentId`, `task`, `runAt` ve opsiyonel `maxAttempts` gönderebilir. `traceId`, `ownerId`, token, credential veya başka ek alanlar reddedilir.
@@ -35,6 +41,7 @@ Client yalnızca `agentId`, `task`, `runAt` ve opsiyonel `maxAttempts` göndereb
 - Schedule oluşturmak dış write/send/merge onayı vermez.
 - Secret değerleri schedule metadata'sına eklenmez.
 - Public schedule sonucunda internal `ownerId` alanı dönmez.
+- Async provider exception mesajları response'a taşınmaz.
 - `.env`, credentials ve `.github/workflows/` bu değişikliğin kapsamı değildir.
 
-Bir sonraki aşamada gerçek bir auth adapter, doğrulanmış principal üretip bu boundary'yi çağırabilir. Auth olmadan schedule endpoint'i açılmamalıdır.
+HTTP katmanı command Promise sonucunu beklemelidir. Encrypted persistence server'a bağlanırken aynı boundary korunmalı; worker'ın async mutation geçişi ayrıca test edilmelidir.
