@@ -1,0 +1,14 @@
+{
+  "name": "Hafize",
+  "short_name": "Hafize",
+  "description": "NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f5ef",
+  "theme_color": "#f7f5ef",
+  "lang": "tr",
+  "icons": [
+    { "src": "/hafize.jpeg", "sizes": "191x191", "type": "image/jpeg" }
+  ]
+}
