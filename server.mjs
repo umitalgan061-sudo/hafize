@@ -13,7 +13,8 @@ import {
 } from './lib/agent-runtime.mjs';
 import {
   READ_ONLY_TOOL_DEFINITIONS,
-  executeReadOnlyTool
+  executeReadOnlyTool,
+  getToolPermission
 } from './lib/read-only-tools.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -206,9 +207,10 @@ async function handleToolChat(req, res) {
   const traceId = createTraceId();
   res.setHeader('X-Hafize-Trace-Id', traceId);
 
-  const offeredTools = READ_ONLY_TOOL_DEFINITIONS.filter((tool) =>
-    authorizeAgentTool(agent, tool.function.name).allowed
-  );
+  const offeredTools = READ_ONLY_TOOL_DEFINITIONS.filter((tool) => {
+    const permission = getToolPermission(tool.function.name);
+    return permission && authorizeAgentTool(agent, permission).allowed;
+  });
   if (offeredTools.length === 0) {
     sendJson(res, 403, { error: 'NO_ALLOWED_TOOLS', traceId });
     return;
@@ -249,11 +251,15 @@ async function handleToolChat(req, res) {
   const auditCalls = [];
   for (const call of calls) {
     const toolName = call?.function?.name;
-    const authorization = authorizeAgentTool(agent, toolName);
+    const permission = getToolPermission(toolName);
+    const authorization = permission
+      ? authorizeAgentTool(agent, permission)
+      : { allowed: false, reason: 'unknown_tool' };
     if (!authorization.allowed) {
       sendJson(res, 403, {
         error: 'TOOL_NOT_ALLOWED',
         tool: typeof toolName === 'string' ? toolName : null,
+        permission,
         reason: authorization.reason,
         traceId
       });
@@ -278,7 +284,7 @@ async function handleToolChat(req, res) {
 
     const callId = typeof call?.id === 'string' && call.id ? call.id : `call_${auditCalls.length + 1}`;
     toolMessages.push({ role: 'tool', tool_call_id: callId, content: JSON.stringify(result) });
-    auditCalls.push({ id: callId, name: toolName, authorization: authorization.reason });
+    auditCalls.push({ id: callId, name: toolName, permission, authorization: authorization.reason });
   }
 
   const second = await nvidiaJsonCompletion({
