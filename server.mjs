@@ -14,6 +14,9 @@ import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
+import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
+import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
+import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
 import { createTaskScheduleStore } from './lib/task-schedule-store.mjs';
@@ -26,6 +29,8 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
 const NIM_BASE_URL = (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';
+const SCHEDULE_AUTH_SUBJECT = process.env.HAFIZE_SCHEDULE_AUTH_SUBJECT || '';
 const SCHEDULE_MODEL = (process.env.HAFIZE_SCHEDULE_MODEL || '').trim();
 const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 30_000, 5_000, 300_000);
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
@@ -122,7 +127,25 @@ function boundedMaxTokens(body) {
   return Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048;
 }
 
+function createOptionalScheduleAuthenticator() {
+  if (!SCHEDULE_AUTH_TOKEN || !SCHEDULE_AUTH_SUBJECT) return null;
+  try {
+    return createBearerPrincipalAuthenticator({ token: SCHEDULE_AUTH_TOKEN, subject: SCHEDULE_AUTH_SUBJECT });
+  } catch {
+    return null;
+  }
+}
+
 const TASK_SCHEDULE_STORE = createTaskScheduleStore();
+const SCHEDULE_COMMANDS = createScheduleCommandBoundary({
+  store: TASK_SCHEDULE_STORE,
+  registry: AGENT_REGISTRY,
+  createTraceId
+});
+const SCHEDULE_AUTHENTICATOR = createOptionalScheduleAuthenticator();
+const SCHEDULE_HTTP_API = SCHEDULE_AUTHENTICATOR
+  ? createScheduleHttpApi({ authenticator: SCHEDULE_AUTHENTICATOR, commands: SCHEDULE_COMMANDS, readJson })
+  : null;
 const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
   registry: AGENT_REGISTRY,
   model: SCHEDULE_MODEL,
@@ -439,8 +462,28 @@ const server = createServer(async (req, res) => {
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULED_AGENT_EXECUTOR.configured),
+        scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         agents: AGENT_REGISTRY.agents.length
       });
+      return;
+    }
+    if (url.pathname === '/api/schedules' || url.pathname.startsWith('/api/schedules/')) {
+      if (!SCHEDULE_HTTP_API) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      const scheduleResponse = await SCHEDULE_HTTP_API.handle({
+        request: req,
+        method: req.method,
+        pathname: url.pathname,
+        headers: req.headers
+      });
+      if (!scheduleResponse.matched) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      for (const [name, value] of Object.entries(scheduleResponse.headers || {})) res.setHeader(name, value);
+      sendJson(res, scheduleResponse.status, scheduleResponse.body);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/models') {
