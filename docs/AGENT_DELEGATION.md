@@ -24,10 +24,22 @@ Delegasyon yürütmesi şu kontrolleri model çağrısından önce uygular:
 
 ## Trace ve task ledger
 
-Ana run ile uzman çağrısı aynı `trace_id` değerini kullanır. Ledger'da uzman için `agent.delegate` child task açılır; görev metni, model çıktısı, tool argümanları veya secret değerleri ledger'a yazılmaz. Başarı `completed`, hata sanitize edilmiş error code ile `failed` olarak kapanır.
+Ana run ile bütün uzman çağrıları aynı `trace_id` değerini kullanır. Ledger'da her uzman için ayrı `agent.delegate` child task açılır; görev metni, model çıktısı, tool argümanları veya secret değerleri ledger'a yazılmaz. Başarı `completed`, hata sanitize edilmiş error code ile `failed` olarak kapanır.
+
+Nested zincirde parent-child ilişkisi korunur. Örneğin:
+
+`agent.run -> agent.delegate(Orchestrator) -> tool:agent_delegate -> agent.delegate(Code Reviewer) -> tool:github_read_file`
 
 ## Yetki izolasyonu
 
-Bu ilk delegasyon sürümünde uzman çağrısına parent ajanın tool listesi aktarılmaz ve uzman çağrısına herhangi bir NVIDIA tool tanımı verilmez. Böylece parent tool permission'larının alt ajana miras kalması mümkün değildir.
+Her delegated ajan için tool listesi parent'tan kopyalanmaz. Backend child agent'ın kendi registry policy'sini kullanarak tool setini sıfırdan hesaplar.
 
-Sonraki genişletme, uzmanlara yalnızca kendi registry allowlist'lerinden türetilmiş tool setlerini ayrı bir execution context içinde açabilir; parent tool setini kopyalamak yasaktır.
+Bu nedenle:
+
+- Orchestrator kendi `agent.delegate` yetkisiyle başka bir specialist ajana görev verebilir.
+- Code Reviewer kendi `repo.read` yetkisiyle `github_read_file` kullanabilir.
+- Code Reviewer veya Minimal Engineer `agent.delegate` yetkisine sahip değilse nested delegation aracı onlara sunulmaz.
+- Parent Hafize'nin `runtime.status`, GitHub veya başka araç yetkileri child'a miras kalmaz.
+- `approvalGranted` delegated execution context'inde `false` kalır; write/send/merge yetkileri delegasyonla açılamaz.
+
+Nested delegation aynı runner'ı recursive biçimde kullanır ancak her seviyede registry depth/fan-out ve default-deny policy yeniden uygulanır. Böylece `Hafize -> Orchestrator -> uzman` zinciri çalışırken izin yükseltme oluşmaz.
