@@ -10,6 +10,7 @@ import {
   normalizeClientMessages,
   resolveAgent
 } from './lib/agent-runtime.mjs';
+import { createAgentExecutor } from './lib/agent-executor.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
 
@@ -108,6 +109,19 @@ function boundedMaxTokens(body) {
   return Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048;
 }
 
+const AGENT_EXECUTOR = createAgentExecutor({
+  registry: AGENT_REGISTRY,
+  complete: nvidiaJsonCompletion,
+  buildSystemMessage: buildAgentSystemMessage,
+  getAllowedTools: getAllowedNvidiaTools,
+  executeTool: executeNvidiaToolCall,
+  toolContextFactory: () => ({
+    nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+    githubReadConfigured: GITHUB_READ_CONFIGURED,
+    githubReadFile: GITHUB_READ_FILE
+  })
+});
+
 async function handleModels(res) {
   const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
   const text = await upstream.text();
@@ -152,101 +166,21 @@ async function handleAgentRun(req, res) {
   const controller = new AbortController();
   res.on('close', () => controller.abort());
 
-  const conversation = [buildAgentSystemMessage(agent, traceId), ...messages];
-  const tools = getAllowedNvidiaTools(agent, { githubReadConfigured: GITHUB_READ_CONFIGURED });
-  const firstPayload = {
+  const result = await AGENT_EXECUTOR.run({
     model,
-    messages: conversation,
-    stream: false,
-    max_tokens: boundedMaxTokens(body)
-  };
-  if (tools.length) {
-    firstPayload.tools = tools;
-    firstPayload.tool_choice = 'auto';
-  }
-
-  const first = await nvidiaJsonCompletion(firstPayload, controller.signal);
-  const assistant = first?.choices?.[0]?.message;
-  if (!assistant || assistant.role !== 'assistant') {
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
-    return;
-  }
-
-  const toolCalls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls.slice(0, 4) : [];
-  if (!toolCalls.length) {
-    sendJson(res, 200, {
-      traceId,
-      agent: { id: agent.id, name: agent.name },
-      content: typeof assistant.content === 'string' ? assistant.content : '',
-      tools: []
-    });
-    return;
-  }
-
-  const normalizedCalls = toolCalls
-    .filter((call) => call?.id && call?.function?.name)
-    .map((call) => ({
-      id: String(call.id),
-      type: 'function',
-      function: {
-        name: String(call.function.name),
-        arguments: typeof call.function.arguments === 'string' ? call.function.arguments : '{}'
-      }
-    }));
-  if (!normalizedCalls.length) {
-    sendJson(res, 502, { error: 'INVALID_TOOL_CALL' });
-    return;
-  }
-
-  const toolMessages = [];
-  const toolSummary = [];
-  for (const call of normalizedCalls) {
-    const result = await executeNvidiaToolCall(agent, call, {
-      traceId,
-      agent,
-      registry: AGENT_REGISTRY,
-      nvidiaConfigured: Boolean(NVIDIA_API_KEY),
-      githubReadConfigured: GITHUB_READ_CONFIGURED,
-      githubReadFile: GITHUB_READ_FILE,
-      approvalGranted: false
-    });
-    toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
-    toolMessages.push({
-      role: 'tool',
-      tool_call_id: call.id,
-      name: call.function.name,
-      content: JSON.stringify(result)
-    });
-  }
-
-  const secondPayload = {
-    model,
-    messages: [
-      ...conversation,
-      {
-        role: 'assistant',
-        content: typeof assistant.content === 'string' ? assistant.content : null,
-        tool_calls: normalizedCalls
-      },
-      ...toolMessages
-    ],
-    stream: false,
-    max_tokens: boundedMaxTokens(body),
-    tools,
-    tool_choice: 'none'
-  };
-  const second = await nvidiaJsonCompletion(secondPayload, controller.signal);
-  const finalMessage = second?.choices?.[0]?.message;
-  if (!finalMessage || finalMessage.role !== 'assistant') {
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
-    return;
-  }
+    agent,
+    messages,
+    traceId,
+    signal: controller.signal,
+    maxTokens: boundedMaxTokens(body)
+  });
 
   sendJson(res, 200, {
     traceId,
     agent: { id: agent.id, name: agent.name },
-    content: typeof finalMessage.content === 'string' ? finalMessage.content : '',
-    tools: toolSummary
+    content: result.content,
+    tools: result.tools,
+    delegations: result.ledger
   });
 }
 
