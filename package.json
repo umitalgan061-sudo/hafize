@@ -4,6 +4,6 @@
   "private": true,
   "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, Claude-benzeri frontend başlangıcı.",
   "scripts": {
-    "check": "node --check public/app.js && node --check public/sw.js"
+    "check": "node --check public/app.js && node --check public/sw.js && node scripts/validate-agent-registry.mjs"
   }
 }
