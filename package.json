@@ -5,6 +5,6 @@
   "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, Claude-benzeri frontend başlangıcı.",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check lib/agent-runtime.mjs && node --check lib/tool-runtime.mjs && node --check lib/github-read.mjs && node --check public/app.js && node --check public/sw.js && node --check scripts/test-agent-runtime.mjs && node --check scripts/test-tool-runtime.mjs && node --check scripts/test-github-read.mjs && node scripts/validate-agent-registry.mjs && node scripts/test-agent-runtime.mjs && node scripts/test-tool-runtime.mjs && node scripts/test-github-read.mjs"
+    "check": "node --check server.mjs && node --check lib/agent-runtime.mjs && node --check lib/agent-executor.mjs && node --check lib/tool-runtime.mjs && node --check lib/github-read.mjs && node --check public/app.js && node --check public/sw.js && node --check scripts/test-agent-runtime.mjs && node --check scripts/test-agent-executor.mjs && node --check scripts/test-tool-runtime.mjs && node --check scripts/test-github-read.mjs && node scripts/validate-agent-registry.mjs && node scripts/test-agent-runtime.mjs && node scripts/test-agent-executor.mjs && node scripts/test-tool-runtime.mjs && node scripts/test-github-read.mjs"
   }
 }
