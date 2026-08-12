@@ -17,9 +17,9 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
 import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
+import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
-import { createTaskScheduleStore } from './lib/task-schedule-store.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -136,7 +136,8 @@ function createOptionalScheduleAuthenticator() {
   }
 }
 
-const TASK_SCHEDULE_STORE = createTaskScheduleStore();
+const SCHEDULE_STORAGE = await createScheduleStorageRuntime();
+const TASK_SCHEDULE_STORE = SCHEDULE_STORAGE.store;
 const SCHEDULE_COMMANDS = createScheduleCommandBoundary({
   store: TASK_SCHEDULE_STORE,
   registry: AGENT_REGISTRY,
@@ -463,6 +464,7 @@ const server = createServer(async (req, res) => {
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULED_AGENT_EXECUTOR.configured),
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
+        scheduleStorageDurable: SCHEDULE_STORAGE.durable,
         agents: AGENT_REGISTRY.agents.length
       });
       return;
