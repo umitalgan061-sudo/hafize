@@ -26,6 +26,7 @@ assert.equal(Object.isFrozen(memory), true);
 
 const events = [];
 const sourceKey = Buffer.alloc(32, 9);
+let runtimeKey = null;
 const persistedStore = {
   opened: false,
   async open() {
@@ -44,6 +45,7 @@ const durable = await createScheduleStorageRuntime({
   },
   createEncryptedAdapter({ filePath, key }) {
     events.push('adapter');
+    runtimeKey = key;
     assert.equal(filePath, '/tmp/hafize-schedules.enc');
     assert.equal(key.equals(sourceKey), true);
     return { keyWasCopied: Buffer.from(key) };
@@ -64,6 +66,8 @@ assert.equal(durable.durable, true);
 assert.equal(durable.store, persistedStore);
 assert.equal(durable.store.opened, true);
 assert.equal(Object.isFrozen(durable), true);
+assert.equal(runtimeKey.equals(Buffer.alloc(32)), true);
+assert.equal(sourceKey.equals(Buffer.alloc(32, 9)), true);
 
 let executionReached = false;
 await assert.rejects(
@@ -80,12 +84,12 @@ await assert.rejects(
       return {};
     }
   }),
-  /provider secret detail/
+  (error) => error?.message === 'SCHEDULE_STORAGE_STARTUP_FAILED' && !error.message.includes('secret')
 );
 assert.equal(executionReached, false);
 
-assert.throws(
-  () => createScheduleStorageRuntime({ storeOptions: [] }),
+await assert.rejects(
+  createScheduleStorageRuntime({ storeOptions: [] }),
   /INVALID_SCHEDULE_STORAGE_RUNTIME:storeOptions/
 );
 
