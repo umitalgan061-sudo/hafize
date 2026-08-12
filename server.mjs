@@ -2,6 +2,14 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  buildAgentSystemMessage,
+  createTraceId,
+  listPublicAgents,
+  loadAgentRegistry,
+  normalizeClientMessages,
+  resolveAgent
+} from './lib/agent-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -10,6 +18,7 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
 const NIM_BASE_URL = (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const MAX_BODY_BYTES = 256 * 1024;
+const AGENT_REGISTRY = await loadAgentRegistry();
 
 const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -46,18 +55,6 @@ async function readJson(req) {
   }
   const text = Buffer.concat(chunks).toString('utf8');
   return text ? JSON.parse(text) : {};
-}
-
-function validateMessages(messages) {
-  if (!Array.isArray(messages) || messages.length === 0 || messages.length > 100) return null;
-  const allowedRoles = new Set(['system', 'user', 'assistant', 'tool']);
-  const normalizedMessages = [];
-  for (const message of messages) {
-    if (!message || !allowedRoles.has(message.role) || typeof message.content !== 'string') return null;
-    if (message.content.length > 50000) return null;
-    normalizedMessages.push({ role: message.role, content: message.content });
-  }
-  return normalizedMessages;
 }
 
 async function nvidiaFetch(pathname, init = {}) {
@@ -97,21 +94,31 @@ async function handleModels(res) {
   sendJson(res, 200, { models });
 }
 
+function handleAgents(res) {
+  sendJson(res, 200, {
+    defaultAgent: AGENT_REGISTRY.defaultAgent,
+    agents: listPublicAgents(AGENT_REGISTRY)
+  });
+}
+
 async function handleChat(req, res) {
   const body = await readJson(req);
   const model = typeof body.model === 'string' ? body.model.trim() : '';
-  const messages = validateMessages(body.messages);
-  if (!model || !messages) {
-    sendJson(res, 400, { error: 'INVALID_CHAT_REQUEST' });
+  const messages = normalizeClientMessages(body.messages);
+  const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
+  if (!model || !messages || !agent) {
+    sendJson(res, 400, { error: !agent ? 'INVALID_AGENT' : 'INVALID_CHAT_REQUEST' });
     return;
   }
 
+  const traceId = createTraceId();
+  res.setHeader('X-Hafize-Trace-Id', traceId);
   const controller = new AbortController();
   res.on('close', () => controller.abort());
 
   const payload = {
     model,
-    messages,
+    messages: [buildAgentSystemMessage(agent, traceId), ...messages],
     stream: true,
     max_tokens: Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048
   };
@@ -173,11 +180,19 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'GET' && url.pathname === '/api/health') {
-      sendJson(res, 200, { status: 'ok', nvidiaConfigured: Boolean(NVIDIA_API_KEY) });
+      sendJson(res, 200, {
+        status: 'ok',
+        nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+        agents: AGENT_REGISTRY.agents.length
+      });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/models') {
       await handleModels(res);
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/agents') {
+      handleAgents(res);
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/chat') {
