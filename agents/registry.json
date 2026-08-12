@@ -22,7 +22,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write"],
+        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.list_agents"],
         "approvalRequired": ["external.write", "external.send", "repo.merge"]
       },
       "outputContract": ["answer", "delegations", "warnings"]
@@ -48,7 +48,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["agent.delegate", "agent.read_result", "task.read", "task.update_ledger", "trace.write"],
+        "allow": ["agent.delegate", "agent.read_result", "task.read", "task.update_ledger", "trace.write", "runtime.list_agents"],
         "deny": ["secret.read", "repo.delete", "repo.merge", "external.send", "external.write"]
       },
       "outputContract": ["plan", "delegations", "taskLedger", "result", "risks", "confidence"]
