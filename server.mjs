@@ -10,6 +10,7 @@ import {
   normalizeClientMessages,
   resolveAgent
 } from './lib/agent-runtime.mjs';
+import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -72,6 +73,33 @@ async function nvidiaFetch(pathname, init = {}) {
   });
 }
 
+async function nvidiaJsonCompletion(payload, signal) {
+  const upstream = await nvidiaFetch('/chat/completions', {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const text = await upstream.text();
+  if (!upstream.ok) {
+    const error = new Error('NVIDIA_CHAT_ERROR');
+    error.status = upstream.status || 502;
+    error.detail = text.slice(0, 1200);
+    throw error;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    const error = new Error('INVALID_NVIDIA_RESPONSE');
+    error.status = 502;
+    throw error;
+  }
+}
+
+function boundedMaxTokens(body) {
+  return Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048;
+}
+
 async function handleModels(res) {
   const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
   const text = await upstream.text();
@@ -101,6 +129,117 @@ function handleAgents(res) {
   });
 }
 
+async function handleAgentRun(req, res) {
+  const body = await readJson(req);
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const messages = normalizeClientMessages(body.messages);
+  const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
+  if (!model || !messages || !agent) {
+    sendJson(res, 400, { error: !agent ? 'INVALID_AGENT' : 'INVALID_CHAT_REQUEST' });
+    return;
+  }
+
+  const traceId = createTraceId();
+  res.setHeader('X-Hafize-Trace-Id', traceId);
+  const controller = new AbortController();
+  res.on('close', () => controller.abort());
+
+  const conversation = [buildAgentSystemMessage(agent, traceId), ...messages];
+  const tools = getAllowedNvidiaTools(agent);
+  const firstPayload = {
+    model,
+    messages: conversation,
+    stream: false,
+    max_tokens: boundedMaxTokens(body)
+  };
+  if (tools.length) {
+    firstPayload.tools = tools;
+    firstPayload.tool_choice = 'auto';
+  }
+
+  const first = await nvidiaJsonCompletion(firstPayload, controller.signal);
+  const assistant = first?.choices?.[0]?.message;
+  if (!assistant || assistant.role !== 'assistant') {
+    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
+    return;
+  }
+
+  const toolCalls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls.slice(0, 4) : [];
+  if (!toolCalls.length) {
+    sendJson(res, 200, {
+      traceId,
+      agent: { id: agent.id, name: agent.name },
+      content: typeof assistant.content === 'string' ? assistant.content : '',
+      tools: []
+    });
+    return;
+  }
+
+  const normalizedCalls = toolCalls
+    .filter((call) => call?.id && call?.function?.name)
+    .map((call) => ({
+      id: String(call.id),
+      type: 'function',
+      function: {
+        name: String(call.function.name),
+        arguments: typeof call.function.arguments === 'string' ? call.function.arguments : '{}'
+      }
+    }));
+  if (!normalizedCalls.length) {
+    sendJson(res, 502, { error: 'INVALID_TOOL_CALL' });
+    return;
+  }
+
+  const toolMessages = [];
+  const toolSummary = [];
+  for (const call of normalizedCalls) {
+    const result = await executeNvidiaToolCall(agent, call, {
+      traceId,
+      agent,
+      registry: AGENT_REGISTRY,
+      nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+      approvalGranted: false
+    });
+    toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
+    toolMessages.push({
+      role: 'tool',
+      tool_call_id: call.id,
+      name: call.function.name,
+      content: JSON.stringify(result)
+    });
+  }
+
+  const secondPayload = {
+    model,
+    messages: [
+      ...conversation,
+      {
+        role: 'assistant',
+        content: typeof assistant.content === 'string' ? assistant.content : null,
+        tool_calls: normalizedCalls
+      },
+      ...toolMessages
+    ],
+    stream: false,
+    max_tokens: boundedMaxTokens(body),
+    tools,
+    tool_choice: 'none'
+  };
+  const second = await nvidiaJsonCompletion(secondPayload, controller.signal);
+  const finalMessage = second?.choices?.[0]?.message;
+  if (!finalMessage || finalMessage.role !== 'assistant') {
+    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
+    return;
+  }
+
+  sendJson(res, 200, {
+    traceId,
+    agent: { id: agent.id, name: agent.name },
+    content: typeof finalMessage.content === 'string' ? finalMessage.content : '',
+    tools: toolSummary
+  });
+}
+
 async function handleChat(req, res) {
   const body = await readJson(req);
   const model = typeof body.model === 'string' ? body.model.trim() : '';
@@ -120,7 +259,7 @@ async function handleChat(req, res) {
     model,
     messages: [buildAgentSystemMessage(agent, traceId), ...messages],
     stream: true,
-    max_tokens: Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048
+    max_tokens: boundedMaxTokens(body)
   };
   if (typeof body.temperature === 'number') payload.temperature = Math.min(Math.max(body.temperature, 0), 2);
   if (typeof body.top_p === 'number') payload.top_p = Math.min(Math.max(body.top_p, 0), 1);
@@ -195,6 +334,10 @@ const server = createServer(async (req, res) => {
       handleAgents(res);
       return;
     }
+    if (req.method === 'POST' && url.pathname === '/api/agent/run') {
+      await handleAgentRun(req, res);
+      return;
+    }
     if (req.method === 'POST' && url.pathname === '/api/chat') {
       await handleChat(req, res);
       return;
@@ -207,6 +350,8 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     if (error?.message === 'BODY_TOO_LARGE') sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
     else if (error?.message === 'NVIDIA_NOT_CONFIGURED') sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' });
+    else if (error?.message === 'NVIDIA_CHAT_ERROR') sendJson(res, error.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: error.detail || '' });
+    else if (error?.message === 'INVALID_NVIDIA_RESPONSE') sendJson(res, error.status || 502, { error: 'INVALID_NVIDIA_RESPONSE' });
     else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
     else sendJson(res, 500, { error: 'INTERNAL_ERROR' });
   }
