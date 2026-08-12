@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  authorizeAgentTool,
   buildAgentSystemMessage,
   createTraceId,
   listPublicAgents,
@@ -10,6 +11,10 @@ import {
   normalizeClientMessages,
   resolveAgent
 } from './lib/agent-runtime.mjs';
+import {
+  READ_ONLY_TOOL_DEFINITIONS,
+  executeReadOnlyTool
+} from './lib/read-only-tools.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -72,6 +77,37 @@ async function nvidiaFetch(pathname, init = {}) {
   });
 }
 
+async function nvidiaJsonCompletion(payload) {
+  const upstream = await nvidiaFetch('/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const text = await upstream.text();
+  if (!upstream.ok) {
+    const error = new Error('NVIDIA_CHAT_ERROR');
+    error.status = upstream.status || 502;
+    error.detail = text.slice(0, 1200);
+    throw error;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    const error = new Error('INVALID_NVIDIA_RESPONSE');
+    error.status = 502;
+    throw error;
+  }
+}
+
+function parseToolArguments(value) {
+  if (value == null || value === '') return {};
+  if (typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string') throw new Error('INVALID_TOOL_ARGUMENTS');
+  const parsed = JSON.parse(value);
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('INVALID_TOOL_ARGUMENTS');
+  return parsed;
+}
+
 async function handleModels(res) {
   const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
   const text = await upstream.text();
@@ -101,11 +137,16 @@ function handleAgents(res) {
   });
 }
 
-async function handleChat(req, res) {
-  const body = await readJson(req);
+function normalizeChatBody(body) {
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const messages = normalizeClientMessages(body.messages);
   const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
+  return { model, messages, agent };
+}
+
+async function handleChat(req, res) {
+  const body = await readJson(req);
+  const { model, messages, agent } = normalizeChatBody(body);
   if (!model || !messages || !agent) {
     sendJson(res, 400, { error: !agent ? 'INVALID_AGENT' : 'INVALID_CHAT_REQUEST' });
     return;
@@ -154,6 +195,115 @@ async function handleChat(req, res) {
   }
 }
 
+async function handleToolChat(req, res) {
+  const body = await readJson(req);
+  const { model, messages, agent } = normalizeChatBody(body);
+  if (!model || !messages || !agent) {
+    sendJson(res, 400, { error: !agent ? 'INVALID_AGENT' : 'INVALID_CHAT_REQUEST' });
+    return;
+  }
+
+  const traceId = createTraceId();
+  res.setHeader('X-Hafize-Trace-Id', traceId);
+
+  const offeredTools = READ_ONLY_TOOL_DEFINITIONS.filter((tool) =>
+    authorizeAgentTool(agent, tool.function.name).allowed
+  );
+  if (offeredTools.length === 0) {
+    sendJson(res, 403, { error: 'NO_ALLOWED_TOOLS', traceId });
+    return;
+  }
+
+  const maxTokens = Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 4096) : 1536;
+  const baseMessages = [buildAgentSystemMessage(agent, traceId), ...messages];
+  const first = await nvidiaJsonCompletion({
+    model,
+    messages: baseMessages,
+    stream: false,
+    max_tokens: maxTokens,
+    tools: offeredTools,
+    tool_choice: 'auto'
+  });
+
+  const assistantMessage = first?.choices?.[0]?.message;
+  if (!assistantMessage || typeof assistantMessage !== 'object') {
+    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE', traceId });
+    return;
+  }
+
+  const calls = Array.isArray(assistantMessage.tool_calls) ? assistantMessage.tool_calls : [];
+  if (calls.length === 0) {
+    sendJson(res, 200, {
+      traceId,
+      answer: typeof assistantMessage.content === 'string' ? assistantMessage.content : '',
+      toolCalls: []
+    });
+    return;
+  }
+  if (calls.length > 3) {
+    sendJson(res, 422, { error: 'TOO_MANY_TOOL_CALLS', traceId });
+    return;
+  }
+
+  const toolMessages = [];
+  const auditCalls = [];
+  for (const call of calls) {
+    const toolName = call?.function?.name;
+    const authorization = authorizeAgentTool(agent, toolName);
+    if (!authorization.allowed) {
+      sendJson(res, 403, {
+        error: 'TOOL_NOT_ALLOWED',
+        tool: typeof toolName === 'string' ? toolName : null,
+        reason: authorization.reason,
+        traceId
+      });
+      return;
+    }
+
+    let args;
+    try {
+      args = parseToolArguments(call?.function?.arguments);
+    } catch {
+      sendJson(res, 400, { error: 'INVALID_TOOL_ARGUMENTS', tool: toolName, traceId });
+      return;
+    }
+
+    let result;
+    try {
+      result = executeReadOnlyTool(toolName, args, { registry: AGENT_REGISTRY, traceId });
+    } catch (error) {
+      sendJson(res, 400, { error: error?.message || 'TOOL_EXECUTION_ERROR', tool: toolName, traceId });
+      return;
+    }
+
+    const callId = typeof call?.id === 'string' && call.id ? call.id : `call_${auditCalls.length + 1}`;
+    toolMessages.push({ role: 'tool', tool_call_id: callId, content: JSON.stringify(result) });
+    auditCalls.push({ id: callId, name: toolName, authorization: authorization.reason });
+  }
+
+  const second = await nvidiaJsonCompletion({
+    model,
+    messages: [
+      ...baseMessages,
+      assistantMessage,
+      ...toolMessages
+    ],
+    stream: false,
+    max_tokens: maxTokens
+  });
+  const finalMessage = second?.choices?.[0]?.message;
+  if (!finalMessage || typeof finalMessage.content !== 'string') {
+    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE', traceId });
+    return;
+  }
+
+  sendJson(res, 200, {
+    traceId,
+    answer: finalMessage.content,
+    toolCalls: auditCalls
+  });
+}
+
 async function serveStatic(pathname, res) {
   const decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
   const filePath = resolve(PUBLIC_DIR, `.${decoded}`);
@@ -199,6 +349,10 @@ const server = createServer(async (req, res) => {
       await handleChat(req, res);
       return;
     }
+    if (req.method === 'POST' && url.pathname === '/api/tool-chat') {
+      await handleToolChat(req, res);
+      return;
+    }
     if (req.method === 'GET' || req.method === 'HEAD') {
       await serveStatic(url.pathname, res);
       return;
@@ -207,6 +361,8 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     if (error?.message === 'BODY_TOO_LARGE') sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
     else if (error?.message === 'NVIDIA_NOT_CONFIGURED') sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' });
+    else if (error?.message === 'NVIDIA_CHAT_ERROR') sendJson(res, error.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: error.detail || '' });
+    else if (error?.message === 'INVALID_NVIDIA_RESPONSE') sendJson(res, error.status || 502, { error: 'INVALID_NVIDIA_RESPONSE' });
     else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
     else sendJson(res, 500, { error: 'INTERNAL_ERROR' });
   }
