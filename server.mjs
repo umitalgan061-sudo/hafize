@@ -10,6 +10,7 @@ import {
   normalizeClientMessages,
   resolveAgent
 } from './lib/agent-runtime.mjs';
+import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -18,6 +19,13 @@ const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
 const NIM_BASE_URL = (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
+const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
+const GITHUB_READ_FILE = createGitHubReadFile({
+  token: GITHUB_TOKEN,
+  allowedRepositories: GITHUB_ALLOWED_REPOS
+});
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
 
@@ -198,6 +206,8 @@ async function handleAgentRun(req, res) {
       agent,
       registry: AGENT_REGISTRY,
       nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+      githubReadConfigured: GITHUB_READ_CONFIGURED,
+      githubReadFile: GITHUB_READ_FILE,
       approvalGranted: false
     });
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
@@ -322,6 +332,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+        githubReadConfigured: GITHUB_READ_CONFIGURED,
         agents: AGENT_REGISTRY.agents.length
       });
       return;
