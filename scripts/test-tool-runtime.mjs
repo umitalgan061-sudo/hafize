@@ -4,28 +4,51 @@ import { executeNvidiaToolCall, getAllowedNvidiaTools, listToolPermissions } fro
 
 const registry = await loadAgentRegistry();
 const hafize = resolveAgent(registry, 'hafize-general');
+const orchestrator = resolveAgent(registry, 'agency-orchestrator');
 const reviewer = resolveAgent(registry, 'agency-code-reviewer');
 const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 
 assert.ok(hafize);
+assert.ok(orchestrator);
 assert.ok(reviewer);
 assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
+  { permission: 'agent.delegate', functionName: 'agent_delegate' },
   { permission: 'repo.read', functionName: 'github_read_file' }
 ]);
 
-const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
-assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
+const delegationContext = {
+  githubReadConfigured: true,
+  delegationDepth: 0,
+  maxDelegationDepth: registry.policy.maxDelegationDepth,
+  delegateAgent: async ({ agentId, task }) => ({ agentId, task, content: 'delegated' })
+};
 assert.deepEqual(
-  getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  getAllowedNvidiaTools(hafize, delegationContext).map((tool) => tool.function.name),
+  ['runtime_status', 'agent_delegate']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(orchestrator, delegationContext).map((tool) => tool.function.name),
+  ['agent_delegate']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, delegationContext).map((tool) => tool.function.name),
   ['github_read_file']
 );
 assert.deepEqual(
-  getAllowedNvidiaTools(engineer, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  getAllowedNvidiaTools(engineer, delegationContext).map((tool) => tool.function.name),
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    delegationDepth: registry.policy.maxDelegationDepth,
+    maxDelegationDepth: registry.policy.maxDelegationDepth,
+    delegateAgent: async () => ({})
+  }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -48,9 +71,51 @@ assert.equal(result.value.githubReadConfigured, true);
 assert.ok(Array.isArray(result.value.availableAgents));
 assert.equal(JSON.stringify(result).includes('NVIDIA_API_KEY'), false);
 
+const delegated = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_2',
+    type: 'function',
+    function: {
+      name: 'agent_delegate',
+      arguments: JSON.stringify({ agentId: 'agency-orchestrator', task: 'Repo inceleme planı oluştur.' })
+    }
+  },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    delegationDepth: 0,
+    maxDelegationDepth: registry.policy.maxDelegationDepth,
+    delegateAgent: async ({ agentId, task }) => ({ agentId, task, content: 'delegated' }),
+    approvalGranted: false
+  }
+);
+assert.equal(delegated.ok, true);
+assert.equal(delegated.value.agentId, 'agency-orchestrator');
+assert.equal(delegated.value.content, 'delegated');
+
+const unavailableDelegation = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_3',
+    type: 'function',
+    function: { name: 'agent_delegate', arguments: '{"agentId":"agency-orchestrator","task":"x"}' }
+  },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    delegationDepth: registry.policy.maxDelegationDepth,
+    maxDelegationDepth: registry.policy.maxDelegationDepth,
+    delegateAgent: async () => ({})
+  }
+);
+assert.deepEqual(unavailableDelegation, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
 const deniedRuntime = await executeNvidiaToolCall(
   reviewer,
-  { id: 'call_2', type: 'function', function: { name: 'runtime_status', arguments: '{}' } },
+  { id: 'call_4', type: 'function', function: { name: 'runtime_status', arguments: '{}' } },
   { traceId, agent: reviewer, registry, nvidiaConfigured: true, githubReadConfigured: true, approvalGranted: false }
 );
 assert.equal(deniedRuntime.ok, false);
@@ -59,7 +124,7 @@ assert.equal(deniedRuntime.error, 'TOOL_NOT_AUTHORIZED');
 const githubResult = await executeNvidiaToolCall(
   reviewer,
   {
-    id: 'call_3',
+    id: 'call_5',
     type: 'function',
     function: {
       name: 'github_read_file',
@@ -83,7 +148,7 @@ assert.equal(githubResult.value.content, '# Hafize');
 const unavailableGithub = await executeNvidiaToolCall(
   reviewer,
   {
-    id: 'call_4',
+    id: 'call_6',
     type: 'function',
     function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' }
   },
@@ -94,7 +159,7 @@ assert.deepEqual(unavailableGithub, { ok: false, error: 'TOOL_UNAVAILABLE' });
 const deniedGithub = await executeNvidiaToolCall(
   hafize,
   {
-    id: 'call_5',
+    id: 'call_7',
     type: 'function',
     function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' }
   },
@@ -112,7 +177,7 @@ assert.equal(deniedGithub.error, 'TOOL_NOT_AUTHORIZED');
 const safeExecutionError = await executeNvidiaToolCall(
   reviewer,
   {
-    id: 'call_6',
+    id: 'call_8',
     type: 'function',
     function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' }
   },
@@ -134,9 +199,9 @@ assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), fal
 
 const unknown = await executeNvidiaToolCall(
   hafize,
-  { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
+  { id: 'call_9', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
   { traceId, agent: hafize, registry, nvidiaConfigured: true, approvalGranted: false }
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: runtime status and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: delegation, runtime status and configured GitHub repo.read are policy-gated');
