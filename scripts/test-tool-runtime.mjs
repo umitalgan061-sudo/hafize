@@ -12,6 +12,7 @@ assert.ok(reviewer);
 assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
+  { permission: 'agent.delegate', functionName: 'agent_delegate' },
   { permission: 'repo.read', functionName: 'github_read_file' }
 ]);
 
@@ -139,4 +140,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: runtime status and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: runtime status, delegation, and configured GitHub repo.read are policy-gated');
