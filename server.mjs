@@ -153,7 +153,7 @@ async function handleAgentRun(req, res) {
   res.on('close', () => controller.abort());
 
   const conversation = [buildAgentSystemMessage(agent, traceId), ...messages];
-  const tools = getAllowedNvidiaTools(agent);
+  const tools = getAllowedNvidiaTools(agent, { githubReadConfigured: GITHUB_READ_CONFIGURED });
   const firstPayload = {
     model,
     messages: conversation,
