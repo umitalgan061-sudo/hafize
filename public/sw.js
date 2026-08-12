@@ -1,5 +1,5 @@
 const CACHE = 'hafize-shell-v1';
-const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/hafize.jpeg', '/icons/icon-192.jpg', '/icons/icon-512.jpg'];
+const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/hafize.jpeg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
