@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
+import { createTaskSchedulePersistence } from '../lib/task-schedule-persistence.mjs';
 import { createScheduleWorker } from '../lib/schedule-worker.mjs';
 
 let clock = new Date('2026-08-12T10:00:00.000Z');
@@ -105,5 +106,119 @@ const boundedWorker = createScheduleWorker({
 const bounded = await boundedWorker.runDue({ limit: 99 });
 assert.equal(bounded.claimed, 2);
 assert.equal(boundedStore.snapshot().entries.filter((entry) => entry.status === 'scheduled').length, 1);
+
+let durableEnvelope = null;
+const durableStore = createTaskSchedulePersistence({
+  adapter: {
+    async load() {
+      return durableEnvelope;
+    },
+    async save(envelope) {
+      durableEnvelope = structuredClone(envelope);
+    }
+  },
+  storeOptions: { now }
+});
+await durableStore.open();
+const durableSuccess = await durableStore.add({
+  traceId: 'trace-durable-success',
+  agentId: 'hafize-general',
+  task: 'Kalıcı başarı.',
+  runAt: '2026-08-12T10:00:00.000Z'
+});
+const durableFailure = await durableStore.add({
+  traceId: 'trace-durable-failure',
+  agentId: 'agency-code-reviewer',
+  task: 'Kalıcı hata.',
+  runAt: '2026-08-12T10:00:00.000Z'
+});
+const durableWorker = createScheduleWorker({
+  store: durableStore,
+  registry,
+  now,
+  async executeAgentTask(input) {
+    return input.traceId === 'trace-durable-failure'
+      ? { ok: false, error: 'DURABLE_FAILURE' }
+      : { ok: true };
+  }
+});
+const durableResult = await durableWorker.runDue({ limit: 2 });
+assert.equal(durableResult.claimed, 2);
+assert.equal(durableStore.read(durableSuccess.scheduleId).status, 'completed');
+assert.equal(durableStore.read(durableFailure.scheduleId).status, 'failed');
+assert.equal(durableStore.read(durableFailure.scheduleId).lastError, 'DURABLE_FAILURE');
+assert.equal(durableEnvelope.snapshot.entries.find((entry) => entry.scheduleId === durableSuccess.scheduleId).status, 'completed');
+assert.equal(durableEnvelope.snapshot.entries.find((entry) => entry.scheduleId === durableFailure.scheduleId).status, 'failed');
+
+const claimSeed = createTaskScheduleStore({ now });
+const claimTask = claimSeed.add({
+  traceId: 'trace-claim-save-failure',
+  agentId: 'hafize-general',
+  task: 'Claim persist olmadan çalışmamalı.',
+  runAt: '2026-08-12T10:00:00.000Z'
+});
+const claimFailureStore = createTaskSchedulePersistence({
+  adapter: {
+    async load() {
+      return { schemaVersion: 1, snapshot: claimSeed.snapshot() };
+    },
+    async save() {
+      throw new Error('secret persistence detail');
+    }
+  },
+  storeOptions: { now }
+});
+await claimFailureStore.open();
+let claimFailureExecutions = 0;
+const claimFailureWorker = createScheduleWorker({
+  store: claimFailureStore,
+  registry,
+  now,
+  async executeAgentTask() {
+    claimFailureExecutions += 1;
+    return { ok: true };
+  }
+});
+await assert.rejects(() => claimFailureWorker.runDue(), /SCHEDULE_PERSISTENCE_SAVE_FAILED/);
+assert.equal(claimFailureExecutions, 0);
+assert.equal(claimFailureStore.read(claimTask.scheduleId).status, 'scheduled');
+
+const completeSeed = createTaskScheduleStore({ now });
+const completeTask = completeSeed.add({
+  traceId: 'trace-complete-save-failure',
+  agentId: 'hafize-general',
+  task: 'Completion persist hatasını gizleme.',
+  runAt: '2026-08-12T10:00:00.000Z'
+});
+let completeEnvelope = { schemaVersion: 1, snapshot: completeSeed.snapshot() };
+let completeSaveCount = 0;
+const completeFailureStore = createTaskSchedulePersistence({
+  adapter: {
+    async load() {
+      return completeEnvelope;
+    },
+    async save(envelope) {
+      completeSaveCount += 1;
+      if (completeSaveCount === 2) throw new Error('secret completion persistence detail');
+      completeEnvelope = structuredClone(envelope);
+    }
+  },
+  storeOptions: { now }
+});
+await completeFailureStore.open();
+let completeExecutions = 0;
+const completeFailureWorker = createScheduleWorker({
+  store: completeFailureStore,
+  registry,
+  now,
+  async executeAgentTask() {
+    completeExecutions += 1;
+    return { ok: true };
+  }
+});
+await assert.rejects(() => completeFailureWorker.runDue(), /SCHEDULE_PERSISTENCE_SAVE_FAILED/);
+assert.equal(completeExecutions, 1);
+assert.equal(completeFailureStore.read(completeTask.scheduleId).status, 'running');
+assert.equal(completeEnvelope.snapshot.entries[0].status, 'running');
 
 console.log('schedule worker tests passed');
