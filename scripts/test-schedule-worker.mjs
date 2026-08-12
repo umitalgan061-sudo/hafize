@@ -221,4 +221,57 @@ assert.equal(completeExecutions, 1);
 assert.equal(completeFailureStore.read(completeTask.scheduleId).status, 'running');
 assert.equal(completeEnvelope.snapshot.entries[0].status, 'running');
 
+clock = new Date('2026-08-12T11:00:00.000Z');
+let leaseEnvelope = null;
+const leaseBusyStore = createTaskSchedulePersistence({
+  adapter: {
+    async load() {
+      return leaseEnvelope;
+    },
+    async save(envelope) {
+      leaseEnvelope = structuredClone(envelope);
+    }
+  },
+  storeOptions: { now }
+});
+await leaseBusyStore.open();
+const leaseBusyTask = await leaseBusyStore.add({
+  traceId: 'trace-lease-busy',
+  agentId: 'hafize-general',
+  task: 'Lease boşalınca çalış.',
+  runAt: '2026-08-12T11:00:00.000Z',
+  maxAttempts: 1
+});
+let leaseCalls = 0;
+const leaseBusyWorker = createScheduleWorker({
+  store: leaseBusyStore,
+  registry,
+  now,
+  async executeAgentTask() {
+    leaseCalls += 1;
+    if (leaseCalls === 1) {
+      return { ok: false, error: 'SCHEDULE_LEASE_BUSY', retryAt: '2026-08-12T11:02:00.000Z' };
+    }
+    return { ok: true };
+  }
+});
+const leaseBusyResult = await leaseBusyWorker.runDue();
+assert.equal(leaseBusyResult.claimed, 1);
+assert.equal(leaseBusyResult.results[0].attemptRefunded, true);
+assert.equal(leaseBusyResult.results[0].retryAt, '2026-08-12T11:02:00.000Z');
+assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).status, 'scheduled');
+assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).attempts, 0);
+assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).lastError, 'SCHEDULE_LEASE_BUSY');
+assert.equal(leaseEnvelope.snapshot.entries[0].attempts, 0);
+assert.equal(leaseEnvelope.snapshot.entries[0].runAt, '2026-08-12T11:02:00.000Z');
+
+clock = new Date('2026-08-12T11:02:00.000Z');
+const leaseRetryResult = await leaseBusyWorker.runDue();
+assert.equal(leaseRetryResult.claimed, 1);
+assert.equal(leaseCalls, 2);
+assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).status, 'completed');
+assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).attempts, 1);
+assert.equal(leaseEnvelope.snapshot.entries[0].status, 'completed');
+assert.equal(leaseEnvelope.snapshot.entries[0].attempts, 1);
+
 console.log('schedule worker tests passed');
