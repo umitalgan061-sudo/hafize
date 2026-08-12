@@ -15,10 +15,17 @@ assert.deepEqual(listToolPermissions(), [
   { permission: 'repo.read', functionName: 'github_read_file' }
 ]);
 
-const hafizeTools = getAllowedNvidiaTools(hafize);
+const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
-assert.deepEqual(getAllowedNvidiaTools(reviewer).map((tool) => tool.function.name), ['github_read_file']);
-assert.deepEqual(getAllowedNvidiaTools(engineer).map((tool) => tool.function.name), ['github_read_file']);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  ['github_read_file']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(engineer, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  ['github_read_file']
+);
+assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -44,7 +51,7 @@ assert.equal(JSON.stringify(result).includes('NVIDIA_API_KEY'), false);
 const deniedRuntime = await executeNvidiaToolCall(
   reviewer,
   { id: 'call_2', type: 'function', function: { name: 'runtime_status', arguments: '{}' } },
-  { traceId, agent: reviewer, registry, nvidiaConfigured: true, approvalGranted: false }
+  { traceId, agent: reviewer, registry, nvidiaConfigured: true, githubReadConfigured: true, approvalGranted: false }
 );
 assert.equal(deniedRuntime.ok, false);
 assert.equal(deniedRuntime.error, 'TOOL_NOT_AUTHORIZED');
@@ -73,20 +80,19 @@ assert.equal(githubResult.ok, true);
 assert.equal(githubResult.value.repository, 'umitalgan061-sudo/hafize');
 assert.equal(githubResult.value.content, '# Hafize');
 
-const deniedGithub = await executeNvidiaToolCall(
-  hafize,
+const unavailableGithub = await executeNvidiaToolCall(
+  reviewer,
   {
     id: 'call_4',
     type: 'function',
     function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' }
   },
-  { traceId, agent: hafize, registry, githubReadFile: async () => ({}) }
+  { traceId, agent: reviewer, registry, githubReadConfigured: false }
 );
-assert.equal(deniedGithub.ok, false);
-assert.equal(deniedGithub.error, 'TOOL_NOT_AUTHORIZED');
+assert.deepEqual(unavailableGithub, { ok: false, error: 'TOOL_UNAVAILABLE' });
 
-const safeExecutionError = await executeNvidiaToolCall(
-  reviewer,
+const deniedGithub = await executeNvidiaToolCall(
+  hafize,
   {
     id: 'call_5',
     type: 'function',
@@ -94,8 +100,27 @@ const safeExecutionError = await executeNvidiaToolCall(
   },
   {
     traceId,
+    agent: hafize,
+    registry,
+    githubReadConfigured: true,
+    githubReadFile: async () => ({})
+  }
+);
+assert.equal(deniedGithub.ok, false);
+assert.equal(deniedGithub.error, 'TOOL_NOT_AUTHORIZED');
+
+const safeExecutionError = await executeNvidiaToolCall(
+  reviewer,
+  {
+    id: 'call_6',
+    type: 'function',
+    function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' }
+  },
+  {
+    traceId,
     agent: reviewer,
     registry,
+    githubReadConfigured: true,
     githubReadFile: async () => {
       const error = new Error('do not expose this internal detail');
       error.code = 'GITHUB_REPO_NOT_ALLOWED';
@@ -109,9 +134,9 @@ assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), fal
 
 const unknown = await executeNvidiaToolCall(
   hafize,
-  { id: 'call_6', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
+  { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
   { traceId, agent: hafize, registry, nvidiaConfigured: true, approvalGranted: false }
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: runtime status and GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: runtime status and configured GitHub repo.read are policy-gated');
