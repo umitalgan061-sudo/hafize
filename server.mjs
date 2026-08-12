@@ -10,6 +10,7 @@ import {
   normalizeClientMessages,
   resolveAgent
 } from './lib/agent-runtime.mjs';
+import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
 
@@ -148,6 +149,7 @@ async function handleAgentRun(req, res) {
   }
 
   const traceId = createTraceId();
+  const runLedger = createAgentRunLedger({ traceId, agentId: agent.id });
   res.setHeader('X-Hafize-Trace-Id', traceId);
   const controller = new AbortController();
   res.on('close', () => controller.abort());
@@ -168,17 +170,20 @@ async function handleAgentRun(req, res) {
   const first = await nvidiaJsonCompletion(firstPayload, controller.signal);
   const assistant = first?.choices?.[0]?.message;
   if (!assistant || assistant.role !== 'assistant') {
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
+    runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
+    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
     return;
   }
 
   const toolCalls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls.slice(0, 4) : [];
   if (!toolCalls.length) {
+    runLedger.finish({ ok: true });
     sendJson(res, 200, {
       traceId,
       agent: { id: agent.id, name: agent.name },
       content: typeof assistant.content === 'string' ? assistant.content : '',
-      tools: []
+      tools: [],
+      taskLedger: runLedger.snapshot()
     });
     return;
   }
@@ -194,13 +199,16 @@ async function handleAgentRun(req, res) {
       }
     }));
   if (!normalizedCalls.length) {
-    sendJson(res, 502, { error: 'INVALID_TOOL_CALL' });
+    runLedger.finish({ ok: false, detail: 'INVALID_TOOL_CALL' });
+    sendJson(res, 502, { error: 'INVALID_TOOL_CALL', taskLedger: runLedger.snapshot() });
     return;
   }
 
   const toolMessages = [];
   const toolSummary = [];
+  let anyToolFailed = false;
   for (const call of normalizedCalls) {
+    const toolTask = runLedger.recordToolStart(call.function.name);
     const result = await executeNvidiaToolCall(agent, call, {
       traceId,
       agent,
@@ -210,6 +218,8 @@ async function handleAgentRun(req, res) {
       githubReadFile: GITHUB_READ_FILE,
       approvalGranted: false
     });
+    runLedger.recordToolFinish(toolTask.taskId, result);
+    if (!result.ok) anyToolFailed = true;
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
     toolMessages.push({
       role: 'tool',
@@ -238,15 +248,18 @@ async function handleAgentRun(req, res) {
   const second = await nvidiaJsonCompletion(secondPayload, controller.signal);
   const finalMessage = second?.choices?.[0]?.message;
   if (!finalMessage || finalMessage.role !== 'assistant') {
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
+    runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
+    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
     return;
   }
 
+  runLedger.finish({ ok: !anyToolFailed, detail: anyToolFailed ? 'tool_failed' : null });
   sendJson(res, 200, {
     traceId,
     agent: { id: agent.id, name: agent.name },
     content: typeof finalMessage.content === 'string' ? finalMessage.content : '',
-    tools: toolSummary
+    tools: toolSummary,
+    taskLedger: runLedger.snapshot()
   });
 }
 
