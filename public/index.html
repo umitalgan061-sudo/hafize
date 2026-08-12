@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f5ef" />
+  <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
+  <title>Hafize</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icons/icon-192.jpg" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.jpg" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Hafize gezinme menüsü">
+      <div class="brand-row">
+        <img class="brand-avatar" src="/hafize.jpeg" alt="Hafize" />
+        <div>
+          <strong>Hafize</strong>
+          <span>kişisel yapay zekâ</span>
+        </div>
+      </div>
+
+      <button class="new-chat" id="newChatBtn" type="button">＋ Yeni sohbet</button>
+
+      <nav class="nav-list" aria-label="Ana menü">
+        <button class="nav-item active" type="button">✦ Sohbet</button>
+        <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">◷ Görevler</button>
+        <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">⌘ Bağlantılar</button>
+        <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">⚙ Ayarlar</button>
+      </nav>
+
+      <section class="history-block" aria-labelledby="historyTitle">
+        <div class="history-head">
+          <span id="historyTitle">Son sohbetler</span>
+          <button id="clearHistoryBtn" class="mini-btn" type="button" title="Geçmişi temizle">Temizle</button>
+        </div>
+        <div id="conversationList" class="conversation-list"></div>
+      </section>
+
+      <div class="sidebar-footer">
+        <button id="installBtn" class="soft-btn" type="button" hidden>Uygulamayı yükle</button>
+        <small><span class="status-dot" aria-hidden="true"></span> Arayüz hazır · NVIDIA backend bekleniyor</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button id="sidebarToggle" class="icon-btn" type="button" aria-label="Menüyü aç/kapat">☰</button>
+        <label class="model-wrap" for="modelSelect">
+          <span>Model</span>
+          <select id="modelSelect" aria-label="NVIDIA modeli">
+            <option value="">NVIDIA NIM bağlantısı bekleniyor</option>
+          </select>
+        </label>
+        <div class="top-actions">
+          <span class="pill">Hafize</span>
+        </div>
+      </header>
+
+      <section class="chat-stage" aria-live="polite">
+        <div id="welcome" class="welcome">
+          <img src="/hafize.jpeg" alt="Hafize avatarı" />
+          <h1>Bugün ne yapalım?</h1>
+          <p>
+            Hafize'nin Claude-benzeri sohbet kabuğu hazır. Bu ilk sürüm yalnızca güvenli arayüz ve yerel sohbet geçmişini kurar;
+            NVIDIA anahtarı istemci tarafında tutulmaz.
+          </p>
+          <div class="suggestions" aria-label="Öneriler">
+            <button type="button" data-prompt="Bugünkü işlerimi önceliklendir">Bugünkü işlerimi önceliklendir</button>
+            <button type="button" data-prompt="GitHub projem için bir geliştirme planı hazırla">GitHub planı hazırla</button>
+            <button type="button" data-prompt="Bana kısa ve uygulanabilir bir çalışma planı oluştur">Çalışma planı oluştur</button>
+          </div>
+        </div>
+        <div id="messages" class="messages"></div>
+      </section>
+
+      <form class="composer" id="composer">
+        <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Hafize'ye mesaj gönder…" aria-label="Mesaj"></textarea>
+        <div class="composer-row">
+          <div class="composer-tools">
+            <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle" title="Dosya ekleme sonraki turda etkinleştirilecek">＋</button>
+            <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" title="Sesli giriş sonraki turda etkinleştirilecek">◉</button>
+          </div>
+          <div class="composer-actions">
+            <span class="agent-hint">Enter gönder · Shift+Enter yeni satır</span>
+            <button class="send-btn" type="submit">Gönder</button>
+          </div>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
