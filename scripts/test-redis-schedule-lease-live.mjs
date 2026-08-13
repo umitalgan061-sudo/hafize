@@ -32,12 +32,36 @@ clientB.on('error', () => {});
 const nonce = randomUUID();
 const keyPrefix = `hafize:test:lease:${nonce}`;
 const scheduleId = `live_${nonce}`;
-const tag = `{${scheduleId}}`;
+const expiryScheduleId = `live_expiry_${nonce}`;
+
+function keysFor(schedule) {
+  const tag = `{${schedule}}`;
+  return [
+    `${keyPrefix}:${tag}:lease`,
+    `${keyPrefix}:${tag}:fence`,
+    `${keyPrefix}:${tag}:completed`
+  ];
+}
+
 const cleanupKeys = [
-  `${keyPrefix}:${tag}:lease`,
-  `${keyPrefix}:${tag}:fence`,
-  `${keyPrefix}:${tag}:completed`
+  ...keysFor(scheduleId),
+  ...keysFor(expiryScheduleId)
 ];
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function acquireAfterExpiry(worker, schedule, timeoutMs = 5_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const result = await worker.acquire(schedule);
+    if (result.status === 'acquired') return result;
+    assert.equal(result.status, 'busy');
+    await delay(100);
+  }
+  throw new Error('LIVE_REDIS_LEASE_EXPIRY_TIMEOUT');
+}
 
 async function closeClient(client) {
   if (!client?.isOpen) return;
@@ -103,6 +127,40 @@ try {
     status: 'completed',
     idempotencyKey: `schedule-execution:${scheduleId}`
   });
+
+  const expiryWorkerA = createScheduleExecutionLeaseBoundary({
+    adapter: adapterA,
+    holderId: 'live-expiry-worker-a',
+    leaseMs: 2_000,
+    providerTimeoutMs: 500
+  });
+  const expiryWorkerB = createScheduleExecutionLeaseBoundary({
+    adapter: adapterB,
+    holderId: 'live-expiry-worker-b',
+    leaseMs: 2_000,
+    providerTimeoutMs: 500
+  });
+
+  const expiring = await expiryWorkerA.acquire(expiryScheduleId);
+  assert.equal(expiring.status, 'acquired');
+  const expiryBusy = await expiryWorkerB.acquire(expiryScheduleId);
+  assert.equal(expiryBusy.status, 'busy');
+
+  const reacquired = await acquireAfterExpiry(expiryWorkerB, expiryScheduleId);
+  assert.equal(reacquired.fence > expiring.fence, true, 'reacquire must advance the fencing token');
+
+  assert.deepEqual(
+    await expiryWorkerA.renew({ scheduleId: expiryScheduleId, fence: expiring.fence }),
+    { status: 'stale' }
+  );
+  assert.deepEqual(
+    await expiryWorkerA.complete({ scheduleId: expiryScheduleId, fence: expiring.fence }),
+    { status: 'stale' }
+  );
+  assert.deepEqual(
+    await expiryWorkerB.complete({ scheduleId: expiryScheduleId, fence: reacquired.fence }),
+    { status: 'completed' }
+  );
 
   console.log('live Redis schedule lease integration passed');
 } finally {
