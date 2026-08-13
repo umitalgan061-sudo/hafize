@@ -10,6 +10,7 @@
   <link rel="icon" href="/hafize.jpeg" />
   <link rel="apple-touch-icon" href="/hafize.jpeg" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/theme.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -21,16 +22,13 @@
           <span>kişisel yapay zekâ</span>
         </div>
       </div>
-
       <button class="new-chat" id="newChatBtn" type="button">＋ Yeni sohbet</button>
-
       <nav class="nav-list" aria-label="Ana menü">
         <button class="nav-item active" type="button">✦ Sohbet</button>
         <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">◷ Görevler</button>
         <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">⌘ Bağlantılar</button>
         <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">⚙ Ayarlar</button>
       </nav>
-
       <section class="history-block" aria-labelledby="historyTitle">
         <div class="history-head">
           <span id="historyTitle">Son sohbetler</span>
@@ -38,41 +36,31 @@
         </div>
         <div id="conversationList" class="conversation-list"></div>
       </section>
-
       <div class="sidebar-footer">
         <button id="installBtn" class="soft-btn" type="button" hidden>Uygulamayı yükle</button>
         <small><span class="status-dot" aria-hidden="true"></span> NVIDIA NIM · server-side güvenli bağlantı</small>
       </div>
     </aside>
-
     <main class="main">
       <header class="topbar">
         <button id="sidebarToggle" class="icon-btn" type="button" aria-label="Menüyü aç/kapat">☰</button>
         <label class="model-wrap" for="modelSelect">
           <span>Model</span>
-          <select id="modelSelect" aria-label="NVIDIA modeli">
-            <option value="">NVIDIA modelleri yükleniyor…</option>
-          </select>
+          <select id="modelSelect" aria-label="NVIDIA modeli"><option value="">NVIDIA modelleri yükleniyor…</option></select>
         </label>
         <label class="model-wrap" for="agentSelect">
           <span>Ajan</span>
-          <select id="agentSelect" aria-label="Hafize ajanı" disabled>
-            <option value="">Ajanlar yükleniyor…</option>
-          </select>
+          <select id="agentSelect" aria-label="Hafize ajanı" disabled><option value="">Ajanlar yükleniyor…</option></select>
         </label>
         <div class="top-actions">
-          <span class="pill">Hafize</span>
+          <button id="themeToggle" class="theme-toggle" type="button" aria-label="Gece moduna geç" aria-pressed="false" title="Gece modu">☾</button>
         </div>
       </header>
-
       <section class="chat-stage" aria-live="polite">
         <div id="welcome" class="welcome">
           <img src="/hafize.jpeg" alt="Hafize avatarı" />
           <h1>Bugün ne yapalım?</h1>
-          <p>
-            Hafize'nin Claude-benzeri sohbet kabuğu NVIDIA NIM ile gerçek zamanlı yanıt akışına hazırdır.
-            NVIDIA API anahtarı yalnızca backend ortamında tutulur; tarayıcıya veya sohbet geçmişine gönderilmez.
-          </p>
+          <p>Hafize'nin Claude-benzeri sohbet kabuğu NVIDIA NIM ile gerçek zamanlı yanıt akışına hazırdır. NVIDIA API anahtarı yalnızca backend ortamında tutulur; tarayıcıya veya sohbet geçmişine gönderilmez.</p>
           <div class="suggestions" aria-label="Öneriler">
             <button type="button" data-prompt="Bugünkü işlerimi önceliklendir">Bugünkü işlerimi önceliklendir</button>
             <button type="button" data-prompt="GitHub projem için bir geliştirme planı hazırla">GitHub planı hazırla</button>
@@ -81,7 +69,6 @@
         </div>
         <div id="messages" class="messages"></div>
       </section>
-
       <form class="composer" id="composer">
         <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Hafize'ye mesaj gönder…" aria-label="Mesaj"></textarea>
         <div class="composer-row">
@@ -98,8 +85,8 @@
       </form>
     </main>
   </div>
-
   <div id="toast" class="toast hidden" role="status"></div>
+  <script src="/theme.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/voice-input.js" defer></script>
 </body>
