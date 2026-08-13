@@ -144,7 +144,9 @@ html[data-theme="light"] .theme-sun, html[data-theme="dark"] .theme-moon { backg
 @media (max-width: 680px) {
   .main { padding-inline: 10px; }
   .topbar { height: 66px; padding-inline: 2px; }
-  .brand-inline small, .agent-compact { display: none; }
+  .brand-inline small { display: none; }
+  .agent-compact { max-width: 108px; }
+  .agent-compact select { width: 108px; max-width: 108px; text-overflow: ellipsis; }
   .brand-inline strong { font-size: 21px; }
   .flower-logo { width: 32px; height: 32px; }
   .chat-stage { padding: 34px 8px 14px; }
