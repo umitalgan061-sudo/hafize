@@ -11,15 +11,17 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v12`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v13`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
     '/offline.html',
     '/styles.css',
     '/premium.css',
+    '/voice-output.css',
     '/app.js',
     '/voice-input.js',
+    '/voice-output.js',
     '/ui-shell.js',
     '/sw-policy.js',
     '/manifest.webmanifest',
