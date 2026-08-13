@@ -96,9 +96,13 @@
     function renderButton() {
       const unavailable = !Recognition;
       const busy = Boolean(input.disabled);
-      micButton.disabled = unavailable || busy;
+      micButton.disabled = busy;
       micButton.setAttribute?.('aria-pressed', String(listening));
-      micButton.setAttribute?.('aria-label', listening ? 'Sesli girişi durdur' : 'Sesli giriş');
+      micButton.setAttribute?.('aria-label', unavailable
+        ? 'Sesli giriş bu tarayıcıda desteklenmiyor'
+        : listening
+          ? 'Sesli girişi durdur'
+          : 'Sesli giriş');
       micButton.textContent = listening ? '●' : '◉';
       micButton.title = unavailable
         ? 'Bu tarayıcı konuşma tanımayı desteklemiyor'
@@ -116,6 +120,15 @@
       if (!recognition || !listening) return;
       try {
         recognition.stop();
+      } catch {
+        setListening(false);
+      }
+    }
+
+    function abortRecognition() {
+      if (!recognition || !listening) return;
+      try {
+        recognition.abort();
       } catch {
         setListening(false);
       }
@@ -147,7 +160,7 @@
       recognition.onend = () => {
         recognition = null;
         setListening(false);
-        input.focus?.();
+        if (!documentRef.hidden) input.focus?.();
       };
 
       try {
@@ -171,7 +184,12 @@
       else startRecognition();
     }
 
+    function handleVisibilityChange() {
+      if (documentRef.hidden && listening) abortRecognition();
+    }
+
     micButton.addEventListener?.('click', handleClick, true);
+    documentRef.addEventListener?.('visibilitychange', handleVisibilityChange);
 
     const MutationObserverCtor = root?.MutationObserver;
     const observer = typeof MutationObserverCtor === 'function'
@@ -197,6 +215,7 @@
         recognition = null;
         setListening(false);
         micButton.removeEventListener?.('click', handleClick, true);
+        documentRef.removeEventListener?.('visibilitychange', handleVisibilityChange);
       }
     });
   }
