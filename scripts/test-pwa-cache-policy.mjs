@@ -12,12 +12,23 @@ const ORIGIN = 'https://hafize.example';
 
 function request(path, options = {}) {
   const url = path.startsWith('http') ? path : new URL(path, ORIGIN).href;
-  return { url, method: options.method ?? 'GET', mode: options.mode ?? 'same-origin', headers: options.headers ?? {} };
+  return {
+    url,
+    method: options.method ?? 'GET',
+    mode: options.mode ?? 'same-origin',
+    headers: options.headers ?? {}
+  };
 }
 
 function headers(values = {}) {
-  const normalized = new Map(Object.entries(values).map(([key, value]) => [key.toLowerCase(), String(value)]));
-  return { get(name) { return normalized.get(String(name).toLowerCase()) ?? null; } };
+  const normalized = new Map(
+    Object.entries(values).map(([key, value]) => [key.toLowerCase(), String(value)])
+  );
+  return {
+    get(name) {
+      return normalized.get(String(name).toLowerCase()) ?? null;
+    }
+  };
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
@@ -25,31 +36,107 @@ assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v12');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
 assert.deepEqual(policy.SHELL_ASSETS, [
-  '/', '/index.html', '/offline.html', '/styles.css', '/theme.css', '/theme.js', '/app.js',
-  '/voice-input.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+  '/',
+  '/index.html',
+  '/offline.html',
+  '/styles.css',
+  '/theme.css',
+  '/theme.js',
+  '/app.js',
+  '/voice-input.js',
+  '/sw-policy.js',
+  '/manifest.webmanifest',
+  '/hafize.jpeg'
 ]);
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
-  assert.equal(policy.classifyRequest(request(asset), ORIGIN), 'shell', `${asset} should be an explicit shell asset`);
+  assert.equal(
+    policy.classifyRequest(request(asset), ORIGIN),
+    'shell',
+    `${asset} should be an explicit shell asset`
+  );
 }
 
-assert.equal(policy.classifyRequest(request('/styles.css?v=12'), ORIGIN), 'shell');
-assert.equal(policy.classifyRequest(request('/theme.css?v=12'), ORIGIN), 'shell');
-assert.equal(policy.classifyRequest(request('/theme.js?cache-bust=1'), ORIGIN), 'shell');
-assert.equal(policy.classifyRequest(request('/conversation/123', { mode: 'navigate' }), ORIGIN), 'navigation');
-assert.equal(policy.classifyRequest(request('/some-page', { headers: { Accept: 'text/html,application/xhtml+xml' } }), ORIGIN), 'navigation');
-assert.equal(policy.classifyRequest(request('/some-page', { headers: headers({ ACCEPT: 'text/html' }) }), ORIGIN), 'navigation');
+assert.equal(
+  policy.classifyRequest(request('/styles.css?v=12'), ORIGIN),
+  'shell',
+  'query strings must not prevent shell matching'
+);
+assert.equal(
+  policy.classifyRequest(request('/theme.css?v=12'), ORIGIN),
+  'shell'
+);
+assert.equal(
+  policy.classifyRequest(request('/theme.js?cache-bust=1'), ORIGIN),
+  'shell'
+);
+assert.equal(
+  policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
+  'shell'
+);
 
-const apiRequests = ['/api/models', '/api/agents', '/api/agent/run', '/api/tasks', '/api/private-looking-resource?token=do-not-cache'];
+assert.equal(
+  policy.classifyRequest(request('/conversation/123', { mode: 'navigate' }), ORIGIN),
+  'navigation'
+);
+assert.equal(
+  policy.classifyRequest(request('/some-page', {
+    headers: { Accept: 'text/html,application/xhtml+xml' }
+  }), ORIGIN),
+  'navigation'
+);
+assert.equal(
+  policy.classifyRequest(request('/some-page', {
+    headers: headers({ ACCEPT: 'text/html' })
+  }), ORIGIN),
+  'navigation'
+);
+
+const apiRequests = [
+  '/api/models',
+  '/api/agents',
+  '/api/agent/run',
+  '/api/tasks',
+  '/api/private-looking-resource?token=do-not-cache'
+];
 for (const path of apiRequests) {
-  assert.equal(policy.classifyRequest(request(path), ORIGIN), 'network-only', `${path} must never be a shell-cache candidate`);
+  assert.equal(
+    policy.classifyRequest(request(path), ORIGIN),
+    'network-only',
+    `${path} must never be a shell-cache candidate`
+  );
 }
-assert.equal(policy.classifyRequest(request('/api/agent/run', { mode: 'navigate', headers: { accept: 'text/html' } }), ORIGIN), 'network-only');
-assert.equal(policy.classifyRequest(request('/runtime-generated.json'), ORIGIN), 'network-only');
-assert.equal(policy.classifyRequest(request('/hafize.jpeg', { method: 'POST' }), ORIGIN), 'ignore');
-assert.equal(policy.classifyRequest(request('/video.mp4', { headers: { Range: 'bytes=0-1023' } }), ORIGIN), 'ignore');
-assert.equal(policy.classifyRequest(request('https://cdn.example/image.png'), ORIGIN), 'ignore');
+assert.equal(
+  policy.classifyRequest(request('/api/agent/run', {
+    mode: 'navigate',
+    headers: { accept: 'text/html' }
+  }), ORIGIN),
+  'network-only',
+  'API boundary wins over navigation hints'
+);
+
+assert.equal(
+  policy.classifyRequest(request('/runtime-generated.json'), ORIGIN),
+  'network-only',
+  'unknown same-origin GETs stay network-only instead of growing the cache'
+);
+assert.equal(
+  policy.classifyRequest(request('/hafize.jpeg', { method: 'POST' }), ORIGIN),
+  'ignore'
+);
+assert.equal(
+  policy.classifyRequest(request('/video.mp4', {
+    headers: { Range: 'bytes=0-1023' }
+  }), ORIGIN),
+  'ignore',
+  'range requests bypass the service worker cache policy'
+);
+assert.equal(
+  policy.classifyRequest(request('https://cdn.example/image.png'), ORIGIN),
+  'ignore',
+  'cross-origin content is not cached by Hafize'
+);
 assert.equal(policy.classifyRequest(null, ORIGIN), 'ignore');
 assert.equal(policy.classifyRequest(request('/'), ''), 'ignore');
 
@@ -60,6 +147,7 @@ assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v9'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v10'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), false);
