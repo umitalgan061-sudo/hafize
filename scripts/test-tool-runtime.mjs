@@ -4,6 +4,7 @@ import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
   getPublicToolActivity,
+  getPublicToolRunningActivity,
   listToolPermissions
 } from '../lib/tool-runtime.mjs';
 
@@ -20,6 +21,25 @@ assert.deepEqual(listToolPermissions(), [
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
   { permission: 'repo.read', functionName: 'github_read_file' }
 ]);
+
+assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
+  label: 'Runtime durumu kontrol ediliyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
+  label: 'Uzman ajan çalıştırılıyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
+  label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.equal(getPublicToolRunningActivity('repo_delete'), null);
+assert.equal(getPublicToolRunningActivity(null), null);
+const safeRunningActivity = JSON.stringify(getPublicToolRunningActivity('github_read_file'));
+assert.equal(safeRunningActivity.includes('repository'), false);
+assert.equal(safeRunningActivity.includes('path'), false);
+assert.equal(safeRunningActivity.includes('token'), false);
 
 assert.deepEqual(getPublicToolActivity('runtime_status', { ok: true }), {
   label: 'Runtime durumu kontrol edildi',
@@ -175,4 +195,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe public activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: safe running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
