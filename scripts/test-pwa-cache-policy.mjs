@@ -32,7 +32,7 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v13');
+assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
 assert.deepEqual(policy.SHELL_ASSETS, [
@@ -42,9 +42,13 @@ assert.deepEqual(policy.SHELL_ASSETS, [
   '/styles.css',
   '/premium.css',
   '/voice-output.css',
+  '/screen-share.css',
+  '/hands-free.css',
   '/app.js',
   '/voice-input.js',
   '/voice-output.js',
+  '/screen-share.js',
+  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
@@ -61,7 +65,7 @@ for (const asset of policy.SHELL_ASSETS) {
 }
 
 assert.equal(
-  policy.classifyRequest(request('/styles.css?v=13'), ORIGIN),
+  policy.classifyRequest(request('/styles.css?v=14'), ORIGIN),
   'shell',
   'query strings must not prevent shell matching'
 );
@@ -143,7 +147,8 @@ assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), false);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
