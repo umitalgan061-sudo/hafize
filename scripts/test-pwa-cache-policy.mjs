@@ -32,7 +32,7 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v11');
+assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v12');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
 assert.deepEqual(policy.SHELL_ASSETS, [
@@ -40,6 +40,8 @@ assert.deepEqual(policy.SHELL_ASSETS, [
   '/index.html',
   '/offline.html',
   '/styles.css',
+  '/theme.css',
+  '/theme.js',
   '/app.js',
   '/voice-input.js',
   '/sw-policy.js',
@@ -57,9 +59,17 @@ for (const asset of policy.SHELL_ASSETS) {
 }
 
 assert.equal(
-  policy.classifyRequest(request('/styles.css?v=10'), ORIGIN),
+  policy.classifyRequest(request('/styles.css?v=12'), ORIGIN),
   'shell',
   'query strings must not prevent shell matching'
+);
+assert.equal(
+  policy.classifyRequest(request('/theme.css?v=12'), ORIGIN),
+  'shell'
+);
+assert.equal(
+  policy.classifyRequest(request('/theme.js?cache-bust=1'), ORIGIN),
+  'shell'
 );
 assert.equal(
   policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
@@ -139,7 +149,8 @@ assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v9'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v10'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), false);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
@@ -163,4 +174,4 @@ assert.doesNotMatch(offlineSource, /api[_-]?key/i);
 assert.doesNotMatch(offlineSource, /token/i);
 assert.doesNotMatch(offlineSource, /credential/i);
 
-console.log('PWA cache policy OK: shell-only offline cache, API network-only, scoped cleanup and offline fallback');
+console.log('PWA cache policy OK: themed shell offline cache, API network-only, scoped cleanup and offline fallback');
