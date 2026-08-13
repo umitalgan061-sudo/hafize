@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/premium.css" />
   <link rel="stylesheet" href="/voice-output.css" />
+  <link rel="stylesheet" href="/screen-share.css" />
 </head>
 <body>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
@@ -72,6 +73,7 @@
           <div class="composer-row">
             <div class="composer-tools">
               <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle">＋</button>
+              <button id="screenShareBtn" class="icon-btn" type="button" aria-label="Ekran görüntüsü paylaş" aria-pressed="false">▣</button>
               <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" disabled>⌘ Araçlar</button>
               <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false">◉</button>
             </div>
@@ -80,6 +82,11 @@
               <span class="agent-hint">Yapay zekâ hata yapabilir. Önemli bilgileri kontrol et.</span>
               <button class="send-btn" type="submit" aria-label="Gönder">↑</button>
             </div>
+          </div>
+          <div id="screenSharePreview" class="utility-card" hidden>
+            <img id="screenShareImage" alt="Paylaşım için seçilen ekran görüntüsü önizlemesi" width="120" height="68" />
+            <span id="screenShareStatus">Ekran görüntüsü tutulmuyor.</span>
+            <button id="screenShareRemove" class="mini-btn" type="button">Ekran görüntüsünü kaldır</button>
           </div>
         </form>
       </div>
@@ -106,6 +113,7 @@
   <script src="/app.js" defer></script>
   <script src="/voice-input.js" defer></script>
   <script src="/voice-output.js" defer></script>
+  <script src="/screen-share.js" defer></script>
   <script src="/ui-shell.js" defer></script>
 </body>
 </html>
