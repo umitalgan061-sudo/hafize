@@ -42,7 +42,6 @@ assert.deepEqual(policy.authorize({
 
 for (const request of [
   { operation: 'browser.open', args: { url: 'https://example.com/' }, explicitUserIntent: true },
-  { operation: 'browser.open', args: { url: 'http://github.com/' }, explicitUserIntent: true },
   { operation: 'app.open', args: { appId: 'com.unknown.app' }, explicitUserIntent: true },
   { operation: 'system.info', args: { fields: ['cpuCount'] }, explicitUserIntent: true }
 ]) {
@@ -57,6 +56,7 @@ for (const request of [
   null,
   {},
   { operation: 'shell.exec', args: {}, explicitUserIntent: true },
+  { operation: 'browser.open', args: { url: 'http://github.com/' }, explicitUserIntent: true },
   { operation: 'browser.open', args: { url: 'javascript:alert(1)' }, explicitUserIntent: true },
   { operation: 'browser.open', args: { url: 'https://user:pass@github.com/' }, explicitUserIntent: true },
   { operation: 'browser.open', args: { url: 'https://github.com/', extra: true }, explicitUserIntent: true },
