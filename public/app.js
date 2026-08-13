@@ -156,10 +156,10 @@
     if (!message || message.role !== 'assistant') return;
 
     const activities = getMessageToolActivities(message);
-    if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
 
     let nextActivities;
     if (activity.state === 'running') {
+      if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
       if (activities.length >= MAX_TOOL_ACTIVITIES) return;
       nextActivities = [...activities, activity];
     } else {
@@ -174,6 +174,7 @@
         nextActivities = [...activities];
         nextActivities[runningIndex] = activity;
       } else {
+        if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
         if (activities.length >= MAX_TOOL_ACTIVITIES) return;
         nextActivities = [...activities, activity];
       }
