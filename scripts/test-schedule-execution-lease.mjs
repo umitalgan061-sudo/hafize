@@ -45,6 +45,7 @@ const workerA = createScheduleExecutionLeaseBoundary({ adapter, holderId: 'worke
 const workerB = createScheduleExecutionLeaseBoundary({ adapter, holderId: 'worker-b', leaseMs: 20_000 });
 assert.equal(Object.isFrozen(workerA), true);
 assert.equal(workerA.leaseMs, 20_000);
+assert.equal(workerA.providerTimeoutMs, 5_000);
 
 const first = await workerA.acquire('schedule_42');
 assert.deepEqual(first, {
@@ -104,5 +105,35 @@ await assert.rejects(() => broken.release({ scheduleId: 'schedule_1', fence: 1 }
 
 const bounded = createScheduleExecutionLeaseBoundary({ adapter, holderId: 'worker-d', leaseMs: 1 });
 assert.equal(bounded.leaseMs, 1_000);
+assert.equal(bounded.providerTimeoutMs, 250);
+
+const timeoutAdapter = {
+  acquire: async () => new Promise(() => {}),
+  renew: async () => ({ status: 'renewed', expiresAt: '2026-08-12T19:01:00.000Z' }),
+  complete: async () => ({ status: 'completed' }),
+  release: async () => ({ status: 'released' })
+};
+const timed = createScheduleExecutionLeaseBoundary({
+  adapter: timeoutAdapter,
+  holderId: 'worker-timeout',
+  leaseMs: 1_000,
+  providerTimeoutMs: 100
+});
+assert.equal(timed.providerTimeoutMs, 100);
+const timeoutStartedAt = Date.now();
+await assert.rejects(() => timed.acquire('schedule_timeout'), (error) => {
+  assert.equal(error.message, 'SCHEDULE_LEASE_PROVIDER_FAILED');
+  return true;
+});
+assert.equal(Date.now() - timeoutStartedAt < 1_000, true, 'provider call should not wait for the full lease TTL');
+
+const timeoutUpperBound = createScheduleExecutionLeaseBoundary({
+  adapter,
+  holderId: 'worker-timeout-upper',
+  leaseMs: 1_000,
+  providerTimeoutMs: 60_000
+});
+assert.equal(timeoutUpperBound.providerTimeoutMs, 900);
+assert.equal(timeoutUpperBound.providerTimeoutMs < timeoutUpperBound.leaseMs, true);
 
 console.log('schedule execution lease tests passed');
