@@ -15,7 +15,8 @@
     installBtn: document.querySelector('#installBtn'),
     toast: document.querySelector('#toast'),
     modelSelect: document.querySelector('#modelSelect'),
-    agentSelect: document.querySelector('#agentSelect')
+    agentSelect: document.querySelector('#agentSelect'),
+    toolModeBtn: document.querySelector('#toolModeBtn')
   };
 
   let installPrompt = null;
@@ -57,6 +58,7 @@
       id: uid(),
       title: 'Yeni sohbet',
       agentId: defaultAgentId,
+      toolsEnabled: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: []
@@ -187,10 +189,21 @@
     ui.agentSelect.title = selected?.description || 'Hafize ajanı';
   }
 
+  function syncToolMode() {
+    const enabled = Boolean(getActiveConversation()?.toolsEnabled);
+    ui.toolModeBtn.disabled = isStreaming || !getConversationAgentId();
+    ui.toolModeBtn.setAttribute('aria-pressed', String(enabled));
+    ui.toolModeBtn.textContent = enabled ? '⌘ Araçlar açık' : '⌘ Araçlar';
+    ui.toolModeBtn.title = enabled
+      ? 'Araç çağrıları backend izin politikasıyla etkin'
+      : 'Bu sohbet için backend tool-calling modunu aç';
+  }
+
   function render() {
     renderConversationList();
     renderMessages();
     syncAgentSelect();
+    syncToolMode();
   }
 
   function showToast(text) {
@@ -257,6 +270,7 @@
       }
       if (migrated) saveConversations();
       syncAgentSelect();
+      syncToolMode();
     } catch {
       availableAgents = [];
       defaultAgentId = '';
@@ -280,6 +294,12 @@
     }
   }
 
+  function getRequestMessages(conversation = getActiveConversation()) {
+    return (conversation?.messages ?? [])
+      .filter((message) => message.content)
+      .map(({ role, content }) => ({ role, content }));
+  }
+
   async function streamAssistantReply() {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
@@ -287,9 +307,7 @@
     const conversation = getActiveConversation();
     const agentId = getConversationAgentId(conversation);
     if (!agentId) throw new Error('AGENT_REQUIRED');
-    const requestMessages = (conversation?.messages ?? [])
-      .filter((message) => message.content)
-      .map(({ role, content }) => ({ role, content }));
+    const requestMessages = getRequestMessages(conversation);
 
     const assistantId = addMessage('assistant', '', { persist: false });
     const response = await fetch('/api/chat', {
@@ -335,6 +353,38 @@
     updateMessage(assistantId, content || 'NVIDIA modeli boş bir yanıt döndürdü.', { persist: true });
   }
 
+  async function runAssistantWithTools() {
+    const model = ui.modelSelect.value;
+    if (!model) throw new Error('MODEL_REQUIRED');
+
+    const conversation = getActiveConversation();
+    const agentId = getConversationAgentId(conversation);
+    if (!agentId) throw new Error('AGENT_REQUIRED');
+    const requestMessages = getRequestMessages(conversation);
+
+    const assistantId = addMessage('assistant', '', { persist: false });
+    const response = await fetch('/api/agent/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+    });
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(response.ok ? 'INVALID_AGENT_RESPONSE' : 'AGENT_RUN_FAILED');
+    }
+    if (!response.ok) throw new Error(payload?.error || 'AGENT_RUN_FAILED');
+
+    const content = typeof payload?.content === 'string' ? payload.content : '';
+    updateMessage(
+      assistantId,
+      content || 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
+      { persist: true }
+    );
+  }
+
   async function submitMessage(text) {
     const clean = text.trim();
     if (!clean || isStreaming) return;
@@ -353,9 +403,11 @@
     isStreaming = true;
     ui.messageInput.disabled = true;
     ui.agentSelect.disabled = true;
+    ui.toolModeBtn.disabled = true;
 
     try {
-      await streamAssistantReply();
+      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
+      else await streamAssistantReply();
     } catch (error) {
       const message = error?.message === 'MODEL_REQUIRED'
         ? 'Bir NVIDIA modeli seçilmedi.'
@@ -370,6 +422,7 @@
       isStreaming = false;
       ui.messageInput.disabled = false;
       syncAgentSelect();
+      syncToolMode();
       ui.messageInput.focus();
     }
   }
@@ -389,6 +442,18 @@
     conversation.agentId = selectedAgentId;
     saveConversations();
     syncAgentSelect();
+    syncToolMode();
+  });
+  ui.toolModeBtn.addEventListener('click', () => {
+    if (isStreaming || !getConversationAgentId()) return syncToolMode();
+    if (!getActiveConversation()) createConversation();
+    const conversation = getActiveConversation();
+    conversation.toolsEnabled = !Boolean(conversation.toolsEnabled);
+    saveConversations();
+    syncToolMode();
+    showToast(conversation.toolsEnabled
+      ? 'Araç modu açık: uygun çağrılar backend izin politikasıyla çalışır.'
+      : 'Araç modu kapalı: gerçek zamanlı SSE sohbetine dönüldü.');
   });
   ui.messageInput.addEventListener('input', autoResizeComposer);
   ui.messageInput.addEventListener('keydown', (event) => {
