@@ -120,11 +120,13 @@
   }
 
   function normalizeToolActivity(value) {
-    if (!value || typeof value !== 'object' || typeof value.label !== 'string' || typeof value.ok !== 'boolean') {
-      return null;
-    }
+    if (!value || typeof value !== 'object' || typeof value.label !== 'string') return null;
     const label = value.label.trim().slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH);
-    return label ? { label, ok: value.ok } : null;
+    if (!label) return null;
+    if (value.state === 'running') return { label, state: 'running' };
+    if (typeof value.ok === 'boolean') return { label, state: value.ok ? 'success' : 'failure' };
+    if (value.state === 'success' || value.state === 'failure') return { label, state: value.state };
+    return null;
   }
 
   function getMessageToolActivities(message) {
@@ -139,7 +141,7 @@
     container.replaceChildren();
     for (const activity of activities) {
       const badge = document.createElement('span');
-      badge.className = `tool-activity${activity.ok ? '' : ' failed'}`;
+      badge.className = `tool-activity${activity.state === 'failure' ? ' failed' : ''}`;
       badge.textContent = activity.label;
       container.append(badge);
     }
@@ -154,10 +156,31 @@
     if (!message || message.role !== 'assistant') return;
 
     const activities = getMessageToolActivities(message);
-    if (activities.length >= MAX_TOOL_ACTIVITIES) return;
-    if (activities.some((item) => item.label === activity.label && item.ok === activity.ok)) return;
 
-    message.toolActivities = [...activities, activity];
+    let nextActivities;
+    if (activity.state === 'running') {
+      if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
+      if (activities.length >= MAX_TOOL_ACTIVITIES) return;
+      nextActivities = [...activities, activity];
+    } else {
+      let runningIndex = -1;
+      for (let index = activities.length - 1; index >= 0; index -= 1) {
+        if (activities[index].state === 'running') {
+          runningIndex = index;
+          break;
+        }
+      }
+      if (runningIndex >= 0) {
+        nextActivities = [...activities];
+        nextActivities[runningIndex] = activity;
+      } else {
+        if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
+        if (activities.length >= MAX_TOOL_ACTIVITIES) return;
+        nextActivities = [...activities, activity];
+      }
+    }
+
+    message.toolActivities = nextActivities;
     conversation.updatedAt = new Date().toISOString();
     const container = ui.messages.querySelector(`[data-message-id="${CSS.escape(messageId)}"] .tool-activities`);
     if (container) renderToolActivities(container, message.toolActivities);
@@ -225,6 +248,7 @@
         const activities = document.createElement('div');
         activities.className = 'tool-activities';
         activities.setAttribute('aria-label', 'Araç etkinlikleri');
+        activities.setAttribute('aria-live', 'polite');
         renderToolActivities(activities, getMessageToolActivities(message));
         article.append(activities);
       }
