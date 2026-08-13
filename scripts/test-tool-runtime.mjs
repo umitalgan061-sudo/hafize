@@ -43,11 +43,11 @@ assert.equal(safeRunningActivity.includes('token'), false);
 
 assert.deepEqual(getPublicToolActivity('runtime_status', { ok: true }), {
   label: 'Runtime durumu kontrol edildi',
-  ok: true
+  state: 'success'
 });
 assert.deepEqual(getPublicToolActivity('agent_delegate', { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' }), {
   label: 'Uzman ajan çalıştırılamadı',
-  ok: false
+  state: 'failure'
 });
 assert.deepEqual(
   getPublicToolActivity('github_read_file', {
@@ -58,7 +58,7 @@ assert.deepEqual(
       content: 'NVIDIA_API_KEY=should-never-leak'
     }
   }),
-  { label: 'GitHub dosyası okundu', ok: true }
+  { label: 'GitHub dosyası okundu', state: 'success' }
 );
 assert.equal(getPublicToolActivity('repo_delete', { ok: true }), null);
 const safeActivity = JSON.stringify(getPublicToolActivity('github_read_file', {
@@ -70,6 +70,7 @@ assert.equal(safeActivity.includes('secret/repo'), false);
 assert.equal(safeActivity.includes('.env'), false);
 assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
+assert.equal(safeActivity.includes('"state":"failure"'), true);
 
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
@@ -195,4 +196,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
