@@ -13,6 +13,7 @@ function fakeNode(id) {
     classList: { contains: (value) => classes.has(value), toggle(value, enabled) { if (enabled) classes.add(value); else classes.delete(value); } },
     setAttribute(key, value) { attrs.set(key, value); },
     getAttribute(key) { return attrs.get(key); },
+    removeAttribute(key) { attrs.delete(key); },
     focus() { this.focused = true; },
     addEventListener(type, listener, capture) { listeners.set(`${type}:${Boolean(capture)}`, listener); },
     removeEventListener(type, listener, capture) { if (listeners.get(`${type}:${Boolean(capture)}`) === listener) listeners.delete(`${type}:${Boolean(capture)}`); },
@@ -46,4 +47,20 @@ assert.equal(disclosure.isOpen(), false);
 assert.equal(toggle.focused, true);
 disclosure.destroy();
 assert.equal(listeners.has('keydown'), false);
-console.log('sidebar accessibility tests passed');
+
+const stage = fakeNode('stage');
+const messages = fakeNode('messages');
+stage.setAttribute('aria-live', 'polite');
+const chatDocument = {
+  querySelector(selector) { return selector === '.chat-stage' ? stage : selector === '#messages' ? messages : null; }
+};
+assert.equal(shell.installChatAccessibility(chatDocument), true);
+assert.equal(stage.getAttribute('aria-live'), undefined);
+assert.equal(messages.getAttribute('role'), 'log');
+assert.equal(messages.getAttribute('aria-live'), 'polite');
+assert.equal(messages.getAttribute('aria-relevant'), 'additions text');
+assert.equal(messages.getAttribute('aria-atomic'), 'false');
+assert.equal(messages.getAttribute('aria-label'), 'Sohbet mesajları');
+assert.equal(shell.installChatAccessibility({ querySelector() { return null; } }), false);
+
+console.log('chat shell accessibility tests passed');
