@@ -125,13 +125,27 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
   const mic = new FakeElement();
   const input = new FakeElement({ value: initialValue, maxLength });
   const toast = new FakeElement({ classes: ['hidden'] });
+  const documentListeners = new Map();
   const documentRef = {
     documentElement: { lang: 'tr' },
+    hidden: false,
     querySelector(selector) {
       if (selector === '#micBtn') return mic;
       if (selector === '#messageInput') return input;
       if (selector === '#toast') return toast;
       return null;
+    },
+    addEventListener(type, listener) {
+      const list = documentListeners.get(type) || [];
+      list.push(listener);
+      documentListeners.set(type, list);
+    },
+    removeEventListener(type, listener) {
+      const list = documentListeners.get(type) || [];
+      documentListeners.set(type, list.filter((item) => item !== listener));
+    },
+    dispatch(type) {
+      for (const listener of documentListeners.get(type) || []) listener({ type });
     }
   };
   let timerId = 0;
@@ -180,6 +194,18 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
 }
 
 {
+  const { controller, documentRef, mic, input } = createHarness();
+  mic.clickCapture();
+  const recognition = FakeRecognition.instances.at(-1);
+  documentRef.hidden = true;
+  documentRef.dispatch('visibilitychange');
+  assert.equal(recognition.aborted, true);
+  assert.equal(controller.isListening(), false);
+  assert.equal(input.focusCount, 0);
+  controller.destroy();
+}
+
+{
   const { controller, mic, input } = createHarness({ initialValue: '12345', maxLength: 8 });
   mic.clickCapture();
   const recognition = FakeRecognition.instances.at(-1);
@@ -195,7 +221,8 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
 {
   const { controller, mic, toast } = createHarness({ supported: false });
   assert.equal(controller.isSupported, false);
-  assert.equal(mic.disabled, true);
+  assert.equal(mic.disabled, false);
+  assert.equal(mic.getAttribute('aria-label').includes('desteklenmiyor'), true);
   assert.equal(mic.title.includes('desteklemiyor'), true);
   const click = mic.clickCapture();
   assert.equal(click.stopped, true);
@@ -214,4 +241,4 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
 assert.equal(voice.getSpeechRecognitionConstructor({ webkitSpeechRecognition: FakeRecognition }), FakeRecognition);
 assert.equal(voice.getSpeechRecognitionConstructor({}), null);
 
-console.log('Voice input OK: explicit start, transcript-only composer fill, no auto-submit, streaming disable, privacy/error UX, and unsupported fallback verified');
+console.log('Voice input OK: explicit start, transcript-only composer fill, no auto-submit, streaming disable, hidden-page abort, privacy/error UX, and unsupported fallback verified');
