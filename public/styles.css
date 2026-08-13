@@ -85,6 +85,10 @@ button:disabled { cursor: not-allowed; opacity: .46; }
 .message.assistant { justify-self: start; padding: 6px 2px; }
 .message .meta { margin-bottom: 5px; color: var(--muted); font-size: 11px; }
 .message .content { overflow-wrap: anywhere; white-space: pre-wrap; }
+.tool-activities { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.tool-activities[hidden] { display: none; }
+.tool-activity { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: #edf2ef; color: #486256; font-size: 11px; line-height: 1.2; }
+.tool-activity.failed { background: #f2eeea; color: #765f55; }
 
 .composer {
   position: fixed; left: calc(280px + (100vw - 280px) / 2); bottom: 22px; transform: translateX(-50%);

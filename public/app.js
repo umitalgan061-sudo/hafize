@@ -2,6 +2,8 @@
   'use strict';
 
   const STORAGE_KEY = 'hafize.conversations.v1';
+  const MAX_TOOL_ACTIVITIES = 4;
+  const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -117,6 +119,50 @@
     if (persist) saveConversations();
   }
 
+  function normalizeToolActivity(value) {
+    if (!value || typeof value !== 'object' || typeof value.label !== 'string' || typeof value.ok !== 'boolean') {
+      return null;
+    }
+    const label = value.label.trim().slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH);
+    return label ? { label, ok: value.ok } : null;
+  }
+
+  function getMessageToolActivities(message) {
+    if (!Array.isArray(message?.toolActivities)) return [];
+    return message.toolActivities
+      .map((activity) => normalizeToolActivity(activity))
+      .filter(Boolean)
+      .slice(0, MAX_TOOL_ACTIVITIES);
+  }
+
+  function renderToolActivities(container, activities) {
+    container.replaceChildren();
+    for (const activity of activities) {
+      const badge = document.createElement('span');
+      badge.className = `tool-activity${activity.ok ? '' : ' failed'}`;
+      badge.textContent = activity.label;
+      container.append(badge);
+    }
+    container.hidden = activities.length === 0;
+  }
+
+  function appendToolActivity(messageId, value) {
+    const activity = normalizeToolActivity(value);
+    if (!activity) return;
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((item) => item.id === messageId);
+    if (!message || message.role !== 'assistant') return;
+
+    const activities = getMessageToolActivities(message);
+    if (activities.length >= MAX_TOOL_ACTIVITIES) return;
+    if (activities.some((item) => item.label === activity.label && item.ok === activity.ok)) return;
+
+    message.toolActivities = [...activities, activity];
+    conversation.updatedAt = new Date().toISOString();
+    const container = ui.messages.querySelector(`[data-message-id="${CSS.escape(messageId)}"] .tool-activities`);
+    if (container) renderToolActivities(container, message.toolActivities);
+  }
+
   function renderConversationList() {
     ui.conversationList.replaceChildren();
     if (!conversations.length) {
@@ -174,7 +220,15 @@
       content.className = 'content';
       content.textContent = message.content || '…';
 
-      article.append(meta, content);
+      article.append(meta);
+      if (message.role === 'assistant') {
+        const activities = document.createElement('div');
+        activities.className = 'tool-activities';
+        activities.setAttribute('aria-label', 'Araç etkinlikleri');
+        renderToolActivities(activities, getMessageToolActivities(message));
+        article.append(activities);
+      }
+      article.append(content);
       ui.messages.append(article);
     }
 
@@ -281,14 +335,15 @@
   }
 
   function parseSseBlock(block) {
-    const data = block
-      .split('\n')
+    const lines = block.split('\n');
+    const type = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message';
+    const data = lines
       .filter((line) => line.startsWith('data:'))
       .map((line) => line.slice(5).trim())
       .join('\n');
     if (!data || data === '[DONE]') return null;
     try {
-      return JSON.parse(data);
+      return { type, payload: JSON.parse(data) };
     } catch {
       return null;
     }
@@ -323,8 +378,14 @@
       const blocks = buffer.split('\n\n');
       buffer = blocks.pop() || '';
       for (const block of blocks) {
-        const event = parseSseBlock(block);
-        if (!event) continue;
+        const parsed = parseSseBlock(block);
+        if (!parsed) continue;
+        if (parsed.type === 'hafize-tool-activity') {
+          appendToolActivity(assistantId, parsed.payload);
+          continue;
+        }
+        if (parsed.type !== 'message') continue;
+        const event = parsed.payload;
         if (event.error) throw new Error(event.error);
         const delta = event.choices?.[0]?.delta?.content;
         if (typeof delta === 'string' && delta) {
