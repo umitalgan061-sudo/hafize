@@ -1,0 +1,96 @@
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
+html[data-theme="dark"] {
+  --bg: #171816;
+  --panel: #1d1f1c;
+  --card: #22231f;
+  --ink: #f2efe8;
+  --muted: #a8aaa3;
+  --line: #343630;
+  --accent: #73927f;
+  --accent-strong: #8eab99;
+  --shadow: 0 24px 70px rgba(0, 0, 0, .38);
+}
+
+body,
+.sidebar,
+.topbar,
+.composer,
+.model-wrap select,
+.new-chat,
+.soft-btn,
+.suggestions button,
+.message.user,
+.tool-activity,
+.toast {
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
+}
+
+.theme-toggle {
+  min-width: 38px;
+  min-height: 38px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 18px;
+  line-height: 1;
+}
+.theme-toggle:hover { background: color-mix(in srgb, var(--card) 84%, var(--accent) 16%); }
+
+html[data-theme="dark"] body { background: var(--bg); }
+html[data-theme="dark"] .sidebar { background: #1c1d1a; }
+html[data-theme="dark"] .topbar {
+  border-bottom-color: rgba(52,54,48,.82);
+  background: rgba(23,24,22,.9);
+}
+html[data-theme="dark"] .new-chat,
+html[data-theme="dark"] .model-wrap select,
+html[data-theme="dark"] .composer { background: #22231f; }
+html[data-theme="dark"] .new-chat:hover,
+html[data-theme="dark"] .soft-btn:hover,
+html[data-theme="dark"] .suggestions button:hover { background: #292b26; }
+html[data-theme="dark"] .nav-item { color: #c1c2bd; }
+html[data-theme="dark"] .nav-item.active,
+html[data-theme="dark"] .nav-item:not(:disabled):hover,
+html[data-theme="dark"] .conversation-row:hover,
+html[data-theme="dark"] .conversation-row.active,
+html[data-theme="dark"] .mini-btn:hover { background: rgba(255,255,255,.065); }
+html[data-theme="dark"] .soft-btn,
+html[data-theme="dark"] .suggestions button {
+  background: rgba(255,255,255,.035);
+  color: #c9cbc5;
+}
+html[data-theme="dark"] .pill {
+  background: #28362f;
+  color: #b6d3c2;
+}
+html[data-theme="dark"] .message.user { background: #29372f; }
+html[data-theme="dark"] .tool-activity {
+  background: #26352e;
+  color: #b8d2c3;
+}
+html[data-theme="dark"] .tool-activity.failed {
+  background: #392d2b;
+  color: #e0bbb2;
+}
+html[data-theme="dark"] .icon-btn:hover { background: #2a2c27; }
+html[data-theme="dark"] .send-btn { color: #fff; }
+html[data-theme="dark"] .toast { background: #d9e5dc; color: #1e2c25; }
+
+@media (prefers-reduced-motion: reduce) {
+  body,
+  .sidebar,
+  .topbar,
+  .composer,
+  .model-wrap select,
+  .new-chat,
+  .soft-btn,
+  .suggestions button,
+  .message.user,
+  .tool-activity,
+  .toast { transition: none; }
+}
