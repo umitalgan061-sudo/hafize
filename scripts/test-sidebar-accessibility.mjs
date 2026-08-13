@@ -63,4 +63,12 @@ assert.equal(messages.getAttribute('aria-atomic'), 'false');
 assert.equal(messages.getAttribute('aria-label'), 'Sohbet mesajları');
 assert.equal(shell.installChatAccessibility({ querySelector() { return null; } }), false);
 
+assert.deepEqual(shell.moveCalendarDate(2026, 0, 1, 'ArrowLeft'), { year: 2025, month: 11, day: 31 });
+assert.deepEqual(shell.moveCalendarDate(2026, 0, 31, 'ArrowRight'), { year: 2026, month: 1, day: 1 });
+assert.deepEqual(shell.moveCalendarDate(2026, 1, 8, 'ArrowUp'), { year: 2026, month: 1, day: 1 });
+assert.deepEqual(shell.moveCalendarDate(2026, 1, 22, 'ArrowDown'), { year: 2026, month: 2, day: 1 });
+assert.deepEqual(shell.moveCalendarDate(2024, 1, 19, 'Home'), { year: 2024, month: 1, day: 1 });
+assert.deepEqual(shell.moveCalendarDate(2024, 1, 19, 'End'), { year: 2024, month: 1, day: 29 });
+assert.equal(shell.moveCalendarDate(2026, 0, 1, 'Enter'), null);
+
 console.log('chat shell accessibility tests passed');
