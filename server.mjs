@@ -14,7 +14,9 @@ import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
+import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
+import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
 import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
@@ -137,6 +139,7 @@ function createOptionalScheduleAuthenticator() {
 }
 
 const SCHEDULE_STORAGE = await createScheduleStorageRuntime();
+const SCHEDULE_LEASE_RUNTIME = await createRedisScheduleLeaseRuntime();
 const TASK_SCHEDULE_STORE = SCHEDULE_STORAGE.store;
 const SCHEDULE_COMMANDS = createScheduleCommandBoundary({
   store: TASK_SCHEDULE_STORE,
@@ -164,31 +167,45 @@ const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
     }
   }
 });
+const SCHEDULE_EXECUTION_RUNTIME = createScheduleExecutionRuntime({
+  executor: SCHEDULED_AGENT_EXECUTOR,
+  lease: SCHEDULE_LEASE_RUNTIME.lease,
+  renewIntervalMs: SCHEDULE_LEASE_RUNTIME.renewIntervalMs
+});
 const SCHEDULE_WORKER = createScheduleWorker({
   store: TASK_SCHEDULE_STORE,
   registry: AGENT_REGISTRY,
-  executeAgentTask: SCHEDULED_AGENT_EXECUTOR.executeAgentTask
+  executeAgentTask: SCHEDULE_EXECUTION_RUNTIME.executeAgentTask
 });
-let scheduleTickRunning = false;
+let scheduleTickPromise = null;
+let scheduleWorkerTimer = null;
 
 async function runScheduleTick() {
-  if (scheduleTickRunning) return;
-  scheduleTickRunning = true;
-  try {
-    await SCHEDULE_WORKER.runDue();
-  } catch {
-    console.error('Hafize schedule worker tick failed');
-  } finally {
-    scheduleTickRunning = false;
-  }
+  if (scheduleTickPromise) return scheduleTickPromise;
+  scheduleTickPromise = (async () => {
+    try {
+      await SCHEDULE_WORKER.runDue();
+    } catch {
+      console.error('Hafize schedule worker tick failed');
+    } finally {
+      scheduleTickPromise = null;
+    }
+  })();
+  return scheduleTickPromise;
 }
 
 function startScheduleWorkerLoop() {
-  if (!NVIDIA_API_KEY || !SCHEDULED_AGENT_EXECUTOR.configured) return;
-  const timer = setInterval(() => {
+  if (!NVIDIA_API_KEY || !SCHEDULE_EXECUTION_RUNTIME.configured) return;
+  scheduleWorkerTimer = setInterval(() => {
     void runScheduleTick();
   }, SCHEDULE_TICK_MS);
-  timer.unref?.();
+  scheduleWorkerTimer.unref?.();
+}
+
+function stopScheduleWorkerLoop() {
+  if (!scheduleWorkerTimer) return;
+  clearInterval(scheduleWorkerTimer);
+  scheduleWorkerTimer = null;
 }
 
 startScheduleWorkerLoop();
@@ -462,9 +479,10 @@ const server = createServer(async (req, res) => {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
-        scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULED_AGENT_EXECUTOR.configured),
+        scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULE_EXECUTION_RUNTIME.configured),
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         scheduleStorageDurable: SCHEDULE_STORAGE.durable,
+        scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
         agents: AGENT_REGISTRY.agents.length
       });
       return;
@@ -517,6 +535,42 @@ const server = createServer(async (req, res) => {
     else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
     else sendJson(res, 500, { error: 'INTERNAL_ERROR' });
   }
+});
+
+let shutdownPromise = null;
+
+function closeHttpServer() {
+  return new Promise((resolveClose) => {
+    if (!server.listening) {
+      resolveClose();
+      return;
+    }
+    server.close(() => resolveClose());
+  });
+}
+
+async function shutdown() {
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    stopScheduleWorkerLoop();
+    const httpClose = closeHttpServer();
+    if (scheduleTickPromise) await scheduleTickPromise;
+    try {
+      await SCHEDULE_LEASE_RUNTIME.close();
+    } catch {
+      process.exitCode = 1;
+      console.error('Hafize schedule lease shutdown failed');
+    }
+    await httpClose;
+  })();
+  return shutdownPromise;
+}
+
+process.once('SIGINT', () => {
+  void shutdown();
+});
+process.once('SIGTERM', () => {
+  void shutdown();
 });
 
 server.listen(PORT, HOST, () => {
