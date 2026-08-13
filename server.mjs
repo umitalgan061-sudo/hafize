@@ -22,7 +22,7 @@ import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
-import { executeNvidiaToolCall, getAllowedNvidiaTools } from './lib/tool-runtime.mjs';
+import { executeNvidiaToolCall, getAllowedNvidiaTools, getPublicToolActivity } from './lib/tool-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -361,6 +361,7 @@ async function handleAgentRun(req, res) {
 
   const toolMessages = [];
   const toolSummary = [];
+  const publicToolActivities = [];
   let anyToolFailed = false;
   for (const call of normalizedCalls) {
     const toolTask = runLedger.recordToolStart(call.function.name);
@@ -376,6 +377,8 @@ async function handleAgentRun(req, res) {
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
+    const publicActivity = getPublicToolActivity(call.function.name, result);
+    if (publicActivity) publicToolActivities.push(publicActivity);
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
     toolMessages.push({
       role: 'tool',
@@ -417,6 +420,9 @@ async function handleAgentRun(req, res) {
     }
 
     startSse(res);
+    for (const activity of publicToolActivities) {
+      res.write(`event: hafize-tool-activity\ndata: ${JSON.stringify(activity)}\n\n`);
+    }
     let streamInterrupted = false;
     try {
       for await (const chunk of upstream.body) res.write(chunk);
