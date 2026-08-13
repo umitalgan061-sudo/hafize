@@ -1,4 +1,4 @@
-const CACHE = 'hafize-shell-v3';
+const CACHE = 'hafize-shell-v4';
 const ASSETS = ['/', '/index.html', '/styles.css', '/app.js', '/manifest.webmanifest', '/hafize.jpeg'];
 
 self.addEventListener('install', (event) => {
