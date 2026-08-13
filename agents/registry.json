@@ -73,7 +73,8 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["repo.read", "repo.write_branch", "test.run", "trace.write"],
+        "allow": ["repo.read", "test.run", "trace.write"],
+        "approvalRequired": ["repo.write_branch"],
         "deny": ["secret.read", "repo.delete", "repo.merge", "external.send"]
       },
       "outputContract": ["scope", "changedFiles", "testResults", "followUps", "confidence"]
