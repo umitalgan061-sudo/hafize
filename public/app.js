@@ -14,13 +14,16 @@
     welcome: document.querySelector('#welcome'),
     installBtn: document.querySelector('#installBtn'),
     toast: document.querySelector('#toast'),
-    modelSelect: document.querySelector('#modelSelect')
+    modelSelect: document.querySelector('#modelSelect'),
+    agentSelect: document.querySelector('#agentSelect')
   };
 
   let installPrompt = null;
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
+  let availableAgents = [];
+  let defaultAgentId = '';
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -43,10 +46,17 @@
     return conversations.find((item) => item.id === activeConversationId) ?? null;
   }
 
+  function getConversationAgentId(conversation = getActiveConversation()) {
+    const configured = typeof conversation?.agentId === 'string' ? conversation.agentId : '';
+    if (availableAgents.some((agent) => agent.id === configured)) return configured;
+    return defaultAgentId;
+  }
+
   function createConversation() {
     const conversation = {
       id: uid(),
       title: 'Yeni sohbet',
+      agentId: defaultAgentId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: []
@@ -169,9 +179,18 @@
     requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
   }
 
+  function syncAgentSelect() {
+    const agentId = getConversationAgentId();
+    ui.agentSelect.disabled = isStreaming || availableAgents.length === 0;
+    if (agentId && ui.agentSelect.value !== agentId) ui.agentSelect.value = agentId;
+    const selected = availableAgents.find((agent) => agent.id === agentId);
+    ui.agentSelect.title = selected?.description || 'Hafize ajanı';
+  }
+
   function render() {
     renderConversationList();
     renderMessages();
+    syncAgentSelect();
   }
 
   function showToast(text) {
@@ -205,6 +224,48 @@
     }
   }
 
+  async function loadAgents() {
+    ui.agentSelect.disabled = true;
+    ui.agentSelect.replaceChildren(new Option('Ajanlar yükleniyor…', ''));
+    try {
+      const response = await fetch('/api/agents', { headers: { Accept: 'application/json' } });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload?.error || 'AGENT_LIST_FAILED');
+
+      const agents = Array.isArray(payload.agents)
+        ? payload.agents.filter((agent) => agent && typeof agent.id === 'string' && typeof agent.name === 'string')
+        : [];
+      const fallback = typeof payload.defaultAgent === 'string' ? payload.defaultAgent : '';
+      if (!agents.length || !agents.some((agent) => agent.id === fallback)) throw new Error('INVALID_AGENT_LIST');
+
+      availableAgents = agents;
+      defaultAgentId = fallback;
+      ui.agentSelect.replaceChildren(
+        ...availableAgents.map((agent) => new Option(
+          agent.kind === 'specialist' ? `${agent.name} · uzman` : agent.name,
+          agent.id
+        ))
+      );
+
+      const allowedIds = new Set(availableAgents.map((agent) => agent.id));
+      let migrated = false;
+      for (const conversation of conversations) {
+        if (!allowedIds.has(conversation.agentId)) {
+          conversation.agentId = defaultAgentId;
+          migrated = true;
+        }
+      }
+      if (migrated) saveConversations();
+      syncAgentSelect();
+    } catch {
+      availableAgents = [];
+      defaultAgentId = '';
+      ui.agentSelect.replaceChildren(new Option('Ajan listesi kullanılamıyor', ''));
+      ui.agentSelect.disabled = true;
+      showToast('Hafize ajan listesi alınamadı.');
+    }
+  }
+
   function parseSseBlock(block) {
     const data = block
       .split('\n')
@@ -224,6 +285,8 @@
     if (!model) throw new Error('MODEL_REQUIRED');
 
     const conversation = getActiveConversation();
+    const agentId = getConversationAgentId(conversation);
+    if (!agentId) throw new Error('AGENT_REQUIRED');
     const requestMessages = (conversation?.messages ?? [])
       .filter((message) => message.content)
       .map(({ role, content }) => ({ role, content }));
@@ -232,7 +295,7 @@
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
     });
 
     if (!response.ok || !response.body) {
@@ -279,19 +342,26 @@
       showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
       return;
     }
+    if (!getConversationAgentId()) {
+      showToast('Önce Hafize ajan listesinin hazır olması gerekiyor.');
+      return;
+    }
 
     addMessage('user', clean);
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;
     ui.messageInput.disabled = true;
+    ui.agentSelect.disabled = true;
 
     try {
       await streamAssistantReply();
     } catch (error) {
       const message = error?.message === 'MODEL_REQUIRED'
         ? 'Bir NVIDIA modeli seçilmedi.'
-        : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+        : error?.message === 'AGENT_REQUIRED'
+          ? 'Bir Hafize ajanı seçilmedi.'
+          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
       const conversation = getActiveConversation();
       const last = conversation?.messages.at(-1);
       if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
@@ -299,6 +369,7 @@
     } finally {
       isStreaming = false;
       ui.messageInput.disabled = false;
+      syncAgentSelect();
       ui.messageInput.focus();
     }
   }
@@ -309,6 +380,16 @@
     createConversation();
   });
   ui.clearHistoryBtn.addEventListener('click', clearHistory);
+  ui.agentSelect.addEventListener('change', () => {
+    if (isStreaming) return syncAgentSelect();
+    const selectedAgentId = ui.agentSelect.value;
+    if (!availableAgents.some((agent) => agent.id === selectedAgentId)) return syncAgentSelect();
+    if (!getActiveConversation()) createConversation();
+    const conversation = getActiveConversation();
+    conversation.agentId = selectedAgentId;
+    saveConversations();
+    syncAgentSelect();
+  });
   ui.messageInput.addEventListener('input', autoResizeComposer);
   ui.messageInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
@@ -348,4 +429,5 @@
   if (!activeConversationId) createConversation();
   else render();
   loadModels();
+  loadAgents();
 })();
