@@ -30,7 +30,7 @@ const redis = new FakeRedis();
 const adapter = createRedisScheduleLeaseAdapter({ redis, keyPrefix: 'hafize:test-lease' });
 const lease = createScheduleExecutionLeaseBoundary({ adapter, holderId: 'worker-a', leaseMs: 30_000 });
 
-redis.push('acquire', ['acquired', '7', '1786572000000']);
+redis.push('acquire', ['acquired', '7', '1786591200000']);
 const acquired = await lease.acquire('schedule_1');
 assert.equal(acquired.status, 'acquired');
 assert.equal(acquired.fence, 7);
@@ -49,11 +49,11 @@ assert.equal(acquireCall.script.includes("redis.call('INCR', KEYS[2])"), true);
 assert.equal(acquireCall.script.includes("'PX', ARGV[2]"), true);
 assert.equal(acquireCall.options.keys.every((key) => key.includes('{schedule_1}')), true);
 
-redis.push('acquire', ['busy', '1786572030000']);
+redis.push('acquire', ['busy', '1786591230000']);
 const busy = await lease.acquire('schedule_1');
 assert.deepEqual(busy, { status: 'busy', retryAt: '2026-08-13T03:20:30.000Z' });
 
-redis.push('renew', ['renewed', '1786572060000']);
+redis.push('renew', ['renewed', '1786591260000']);
 const renewed = await lease.renew({ scheduleId: 'schedule_1', fence: 7 });
 assert.deepEqual(renewed, { status: 'renewed', expiresAt: '2026-08-13T03:21:00.000Z' });
 const renewCall = redis.calls.at(-1);
@@ -96,7 +96,7 @@ await assert.rejects(
 );
 
 const malformedRedis = new FakeRedis();
-malformedRedis.push('acquire', ['acquired', 'not-a-fence', '1786572000000']);
+malformedRedis.push('acquire', ['acquired', 'not-a-fence', '1786591200000']);
 const malformedAdapter = createRedisScheduleLeaseAdapter({ redis: malformedRedis });
 await assert.rejects(
   () => malformedAdapter.acquire({ scheduleId: 'schedule_1', holderId: 'worker-a', leaseMs: 30_000 }),
