@@ -4,7 +4,7 @@ Bu katman, Hafize scheduler'ın ileride birden fazla server instance üzerinde �
 
 ## Temel sözleşme
 
-`createScheduleExecutionLeaseBoundary({ adapter, holderId, leaseMs })` dört atomik provider operasyonu bekler:
+`createScheduleExecutionLeaseBoundary({ adapter, holderId, leaseMs, providerTimeoutMs })` dört atomik provider operasyonu bekler:
 
 - `acquire({ scheduleId, holderId, leaseMs })`
 - `renew({ scheduleId, holderId, fence, leaseMs })`
@@ -12,6 +12,14 @@ Bu katman, Hafize scheduler'ın ileride birden fazla server instance üzerinde �
 - `release({ scheduleId, holderId, fence })`
 
 Provider zamanın otoritesidir. Boundary provider'a client/server timestamp göndermez; böylece farklı instance saatleri arasındaki clock skew lease kararının kaynağı olmaz.
+
+## Provider çağrı timeout'u
+
+Her provider çağrısı bounded bir süre içinde sonuçlanmalıdır. Varsayılan timeout lease TTL'nin dörtte biri olarak hesaplanır; en az 100 ms, en fazla 5 saniyedir ve her durumda lease TTL'den en az 100 ms daha kısa tutulur. `providerTimeoutMs` verilirse aynı güvenli sınırlar içinde clamp edilir.
+
+Provider timeout'u veya provider exception ayrıntıları boundary dışına taşınmaz; her ikisi de `SCHEDULE_LEASE_PROVIDER_FAILED` olarak sanitize edilir. Böylece Redis bağlantı URL'si, parola veya alt provider hata metni agent/worker sonucuna sızmaz.
+
+Generic boundary alttaki provider Promise'ını zorla iptal etmez. Timeout sonrasında provider işlemi geç tamamlanırsa atomik fencing/idempotency sözleşmesi doğruluk sınırı olmaya devam eder; acquire/renew gibi geç işlemler en fazla mevcut lease TTL boyunca geçici contention yaratabilir. Bu nedenle provider adapter'ları kendi bağlantı/command timeout ve cancellation yeteneklerini ayrıca kullanabilir.
 
 ## Fencing token
 
@@ -39,8 +47,8 @@ Release: `released`, `stale`, `completed`.
 
 Provider exception ayrıntıları boundary dışına taşınmaz; `SCHEDULE_LEASE_PROVIDER_FAILED` kullanılır. Geçersiz provider response'ları `SCHEDULE_LEASE_PROVIDER_INVALID_RESPONSE:*` ile reddedilir.
 
-## Bu PR'ın yapmadıkları
+## Bu katmanın yapmadıkları
 
-Bu modül henüz worker'a bağlanmaz ve Redis/Postgres/Cloudflare KV gibi bir distributed provider seçmez. In-memory reference provider production çözümü olarak eklenmemiştir. Bunun nedeni lease güvenliğinin gerçekten atomik, ortak ve process dışı bir storage primitive'ine dayanması gerektiğidir.
+Bu modül belirli bir distributed provider seçmez. In-memory reference provider production çözümü olarak eklenmemiştir. Bunun nedeni lease güvenliğinin gerçekten atomik, ortak ve process dışı bir storage primitive'ine dayanması gerektiğidir.
 
-Bir sonraki entegrasyon, gerçek provider seçildiğinde bu sözleşmenin atomic compare-and-set / transaction yetenekleri üzerinde uygulanması olmalıdır. Daha sonra worker execution başlamadan önce acquire, uzun görevlerde renew ve terminal success'te complete akışına geçirilebilir.
+Gerçek provider adapter'ları bu sözleşmenin atomic compare-and-set / transaction yeteneklerini uygulamalı; worker execution başlamadan önce acquire, uzun görevlerde renew ve terminal success'te complete akışı fencing/idempotency sınırı üzerinden yürütülmelidir.
