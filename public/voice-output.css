@@ -1,0 +1,13 @@
+.voice-output-toggle {
+  width: 100%; margin-top: 7px; padding: 8px 10px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--premium-muted); font-size: 11px;
+}
+.voice-output-toggle:hover:not(:disabled) { color: var(--premium-orange-strong); background: color-mix(in srgb, var(--premium-orange) 8%, transparent); }
+.voice-output-toggle[aria-pressed="true"] { color: var(--premium-orange-strong); }
+.voice-card.thinking .voice-orb { animation-duration: 2.1s; opacity: .86; }
+.voice-card.speaking .voice-orb {
+  animation-duration: .78s;
+  box-shadow: inset -12px -14px 28px rgba(0,0,0,.18), 0 0 58px color-mix(in srgb, var(--premium-orange) 62%, transparent);
+}
+.voice-card.speaking .voice-orb::after { animation-duration: .9s; opacity: .52; }
+@media (prefers-reduced-motion: reduce) { .voice-card.thinking .voice-orb, .voice-card.speaking .voice-orb { animation: none !important; } }
