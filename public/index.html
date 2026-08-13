@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/premium.css" />
   <link rel="stylesheet" href="/voice-output.css" />
   <link rel="stylesheet" href="/screen-share.css" />
+  <link rel="stylesheet" href="/hands-free.css" />
 </head>
 <body>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
@@ -104,6 +105,8 @@
           <div class="voice-orb-wrap"><div class="voice-orb" aria-hidden="true"></div></div>
           <button id="voiceProxy" class="voice-proxy" type="button">Dinlemek için dokun</button>
           <button id="voiceOutputToggle" class="voice-output-toggle" type="button" aria-pressed="false">Sesli yanıt kapalı</button>
+          <button id="handsFreeToggle" class="voice-output-toggle" type="button" aria-pressed="false">Eller serbest kapalı</button>
+          <small id="handsFreeIndicator" class="hands-free-status" role="status" hidden></small>
         </section>
       </aside>
     </main>
@@ -113,6 +116,7 @@
   <script src="/app.js" defer></script>
   <script src="/voice-input.js" defer></script>
   <script src="/voice-output.js" defer></script>
+  <script src="/hands-free.js" defer></script>
   <script src="/screen-share.js" defer></script>
   <script src="/ui-shell.js" defer></script>
 </body>
