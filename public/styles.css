@@ -123,6 +123,8 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
   .model-wrap span, .pill { display: none; }
   .model-wrap { flex: 1; }
   .model-wrap select { width: 100%; max-width: 100%; }
+  .icon-btn, .mini-btn, .conversation-delete { min-width: 44px; min-height: 44px; }
+  .conversation-delete { display: grid; place-items: center; padding: 0; }
 }
 
 @media (max-width: 560px) {
