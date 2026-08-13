@@ -54,9 +54,9 @@
       </header>
 
       <div class="primary-column">
-        <section class="chat-stage" aria-live="polite">
+        <section class="chat-stage">
           <div id="welcome" class="welcome">
-            <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
+            <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
             <h1>Merhaba, bugün ne yapalım?</h1>
             <p>Hafize; yazı, araştırma, kod, planlama ve görev yönetiminde sana yardımcı olur. NVIDIA NIM bağlantısı ve araç izinleri sunucu tarafında güvenli kalır.</p>
             <div class="suggestions" aria-label="Öneriler">
@@ -66,7 +66,7 @@
               <button type="button" data-prompt="Bugünkü işlerimi planla ve önceliklendir">▣ Günlük işler</button>
             </div>
           </div>
-          <div id="messages" class="messages"></div>
+          <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Sohbet mesajları"></div>
         </section>
 
         <form class="composer" id="composer">
