@@ -88,7 +88,7 @@
           <div class="composer-tools">
             <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle" title="Dosya ekleme sonraki turda etkinleştirilecek">＋</button>
             <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" title="Backend tool-calling modu" disabled>⌘ Araçlar</button>
-            <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" title="Sesli giriş sonraki turda etkinleştirilecek">◉</button>
+            <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false" title="Sesli giriş">◉</button>
           </div>
           <div class="composer-actions">
             <span class="agent-hint">Enter gönder · Shift+Enter yeni satır</span>
@@ -101,5 +101,6 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/app.js" defer></script>
+  <script src="/voice-input.js" defer></script>
 </body>
 </html>
