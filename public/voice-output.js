@@ -75,6 +75,9 @@
     const toggle = documentRef?.querySelector?.('#voiceOutputToggle');
     const card = documentRef?.querySelector?.('.voice-card');
     const micButton = documentRef?.querySelector?.('#micBtn');
+    const messageInput = documentRef?.querySelector?.('#messageInput');
+    const composer = documentRef?.querySelector?.('#composer');
+    const messages = documentRef?.querySelector?.('#messages');
     if (!toggle || !card) return null;
 
     const synth = root?.speechSynthesis;
@@ -120,8 +123,7 @@
         render();
         return;
       }
-      const text = queue.shift();
-      const utterance = new Utterance(text);
+      const utterance = new Utterance(queue.shift());
       utterance.lang = 'tr-TR';
       utterance.rate = 0.98;
       utterance.pitch = 1;
@@ -140,7 +142,7 @@
     }
 
     function speak(value) {
-      if (!enabled || !supported) return false;
+      if (!enabled || !supported || documentRef?.hidden) return false;
       const chunks = splitSpeechText(value);
       if (!chunks.length) return false;
       cancelSpeech();
@@ -157,40 +159,47 @@
       return enabled;
     }
 
+    function latestAssistantText() {
+      const nodes = messages?.querySelectorAll?.('.message.assistant .content') || [];
+      return nodes.length ? nodes[nodes.length - 1]?.textContent || '' : '';
+    }
+
+    function syncStreamState() {
+      const busy = Boolean(messageInput?.disabled);
+      if (busy) {
+        thinking = true;
+        if (speaking) cancelSpeech();
+        render();
+        return;
+      }
+      const responseJustFinished = thinking;
+      thinking = false;
+      render();
+      if (responseJustFinished) speak(latestAssistantText());
+    }
+
     function handleToggle() { setEnabled(!enabled); }
-    function handleAssistantStart() {
-      thinking = true;
-      if (speaking) cancelSpeech();
-      render();
-    }
-    function handleAssistantComplete(event) {
-      thinking = false;
-      render();
-      speak(event?.detail?.content || '');
-    }
-    function handleAssistantIdle() {
-      thinking = false;
-      render();
-    }
-    function handleUserSubmit() { cancelSpeech(); }
+    function handleSubmit() { cancelSpeech(); }
     function handleVisibility() {
       if (documentRef.hidden) cancelSpeech();
     }
 
     toggle.addEventListener?.('click', handleToggle);
-    root?.addEventListener?.('hafize:assistant-start', handleAssistantStart);
-    root?.addEventListener?.('hafize:assistant-complete', handleAssistantComplete);
-    root?.addEventListener?.('hafize:assistant-idle', handleAssistantIdle);
-    root?.addEventListener?.('hafize:user-submit', handleUserSubmit);
+    composer?.addEventListener?.('submit', handleSubmit, true);
     documentRef.addEventListener?.('visibilitychange', handleVisibility);
 
     const Observer = root?.MutationObserver;
-    const observer = micButton && typeof Observer === 'function'
+    const micObserver = micButton && typeof Observer === 'function'
       ? new Observer(() => {
           if (micButton.getAttribute?.('aria-pressed') === 'true') cancelSpeech();
         })
       : null;
-    observer?.observe?.(micButton, { attributes: true, attributeFilter: ['aria-pressed'] });
+    micObserver?.observe?.(micButton, { attributes: true, attributeFilter: ['aria-pressed'] });
+
+    const streamObserver = messageInput && typeof Observer === 'function'
+      ? new Observer(syncStreamState)
+      : null;
+    streamObserver?.observe?.(messageInput, { attributes: true, attributeFilter: ['disabled'] });
 
     render();
     return Object.freeze({
@@ -200,14 +209,13 @@
       setEnabled,
       speak,
       cancel: cancelSpeech,
+      syncStreamState,
       destroy() {
         cancelSpeech();
-        observer?.disconnect?.();
+        micObserver?.disconnect?.();
+        streamObserver?.disconnect?.();
         toggle.removeEventListener?.('click', handleToggle);
-        root?.removeEventListener?.('hafize:assistant-start', handleAssistantStart);
-        root?.removeEventListener?.('hafize:assistant-complete', handleAssistantComplete);
-        root?.removeEventListener?.('hafize:assistant-idle', handleAssistantIdle);
-        root?.removeEventListener?.('hafize:user-submit', handleUserSubmit);
+        composer?.removeEventListener?.('submit', handleSubmit, true);
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
       }
     });
