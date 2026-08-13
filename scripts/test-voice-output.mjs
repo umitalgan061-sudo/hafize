@@ -24,21 +24,36 @@ class FakeNode {
   addEventListener(type, callback) { this.listeners.set(type, callback); }
   removeEventListener(type) { this.listeners.delete(type); }
   click() { this.listeners.get('click')?.({ preventDefault() {} }); }
+  submit() { this.listeners.get('submit')?.({ preventDefault() {} }); }
 }
 class FakeEventTarget {
   constructor() { this.listeners = new Map(); }
   addEventListener(type, callback) { const group = this.listeners.get(type) || new Set(); group.add(callback); this.listeners.set(type, group); }
   removeEventListener(type, callback) { this.listeners.get(type)?.delete(callback); }
-  dispatch(type, detail = {}) { for (const callback of this.listeners.get(type) || []) callback({ type, detail }); }
+  dispatch(type) { for (const callback of this.listeners.get(type) || []) callback({ type }); }
 }
 
 const toggle = new FakeNode();
 const card = new FakeNode();
 const mic = new FakeNode();
+const input = new FakeNode();
+const composer = new FakeNode();
+const assistantContent = new FakeNode();
+assistantContent.textContent = 'Merhaba. Sana nasıl yardımcı olabilirim?';
+const messages = new FakeNode();
+messages.querySelectorAll = () => [assistantContent];
 mic.setAttribute('aria-pressed', 'false');
+
 const documentTarget = new FakeEventTarget();
 documentTarget.hidden = false;
-documentTarget.querySelector = (selector) => ({ '#voiceOutputToggle': toggle, '.voice-card': card, '#micBtn': mic })[selector] || null;
+documentTarget.querySelector = (selector) => ({
+  '#voiceOutputToggle': toggle,
+  '.voice-card': card,
+  '#micBtn': mic,
+  '#messageInput': input,
+  '#composer': composer,
+  '#messages': messages
+})[selector] || null;
 
 const spoken = [];
 let cancelCount = 0;
@@ -53,41 +68,56 @@ const root = new FakeEventTarget();
 root.speechSynthesis = synth;
 root.SpeechSynthesisUtterance = FakeUtterance;
 root.localStorage = { getItem(key) { return storageValues.get(key) ?? null; }, setItem(key, value) { storageValues.set(key, value); } };
-root.MutationObserver = class { constructor(callback) { this.callback = callback; root.observer = this; } observe() {} disconnect() {} };
+root.observers = new Map();
+root.MutationObserver = class {
+  constructor(callback) { this.callback = callback; }
+  observe(target) { root.observers.set(target, this); }
+  disconnect() {}
+};
 
 const controller = voiceOutput.installVoiceOutput(documentTarget, root);
 assert.equal(controller.isSupported, true);
-assert.equal(controller.isEnabled(), false);
+assert.equal(controller.isEnabled(), false, 'sesli yanıt açık kullanıcı tercihi olmadan başlamamalı');
 assert.equal(toggle.getAttribute('aria-pressed'), 'false');
-root.dispatch('hafize:assistant-complete', { content: 'Bu ilk yanıt otomatik okunmamalı.' });
-assert.equal(spoken.length, 0);
+
+input.disabled = true;
+root.observers.get(input).callback();
+assert.equal(card.classList.contains('thinking'), true);
+input.disabled = false;
+root.observers.get(input).callback();
+assert.equal(spoken.length, 0, 'kapalı sesli yanıt stream sonunda konuşmamalı');
 
 toggle.click();
 assert.equal(controller.isEnabled(), true);
 assert.equal(storageValues.get(voiceOutput.STORAGE_KEY), 'true');
-root.dispatch('hafize:assistant-start');
+input.disabled = true;
+root.observers.get(input).callback();
 assert.equal(card.classList.contains('thinking'), true);
-root.dispatch('hafize:assistant-complete', { content: 'Merhaba. Sana nasıl yardımcı olabilirim?' });
+input.disabled = false;
+root.observers.get(input).callback();
 assert.equal(spoken.length, 1);
 assert.equal(spoken[0].lang, 'tr-TR');
 assert.equal(spoken[0].voice.name, 'Türkçe');
 assert.equal(card.classList.contains('speaking'), true);
 
-root.dispatch('hafize:user-submit');
+composer.submit();
 assert.equal(card.classList.contains('speaking'), false);
-assert.ok(cancelCount >= 1);
-root.dispatch('hafize:assistant-complete', { content: 'İkinci sesli yanıt.' });
+assert.ok(cancelCount >= 1, 'yeni kullanıcı mesajı aktif TTS konuşmasını kesmeli');
+
+controller.speak('İkinci sesli yanıt.');
 assert.equal(spoken.length, 2);
 mic.setAttribute('aria-pressed', 'true');
-root.observer.callback();
-assert.equal(card.classList.contains('speaking'), false);
+root.observers.get(mic).callback();
+assert.equal(card.classList.contains('speaking'), false, 'mikrofon başlayınca TTS kesilmeli');
 
 documentTarget.hidden = true;
-root.dispatch('hafize:assistant-complete', { content: 'Gizli sekme.' });
+assert.equal(controller.speak('Gizli sekmede okunmamalı.'), false);
 documentTarget.dispatch('visibilitychange');
 assert.equal(card.classList.contains('speaking'), false);
+
 toggle.click();
 assert.equal(controller.isEnabled(), false);
+assert.equal(storageValues.get(voiceOutput.STORAGE_KEY), 'false');
 controller.destroy();
 
 const unsupportedToggle = new FakeNode();
@@ -98,4 +128,5 @@ const unsupported = voiceOutput.installVoiceOutput(unsupportedDocument, new Fake
 assert.equal(unsupported.isSupported, false);
 assert.equal(unsupportedToggle.disabled, true);
 assert.match(unsupportedToggle.textContent, /desteklenmiyor/);
-console.log('Voice output OK: explicit opt-in, Turkish TTS, state and barge-in cancellation');
+
+console.log('Voice output OK: explicit opt-in, Turkish TTS, stream state and barge-in cancellation');
