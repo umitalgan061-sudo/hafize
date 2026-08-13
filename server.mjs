@@ -22,7 +22,12 @@ import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
-import { executeNvidiaToolCall, getAllowedNvidiaTools, getPublicToolActivity } from './lib/tool-runtime.mjs';
+import {
+  executeNvidiaToolCall,
+  getAllowedNvidiaTools,
+  getPublicToolActivity,
+  getPublicToolRunningActivity
+} from './lib/tool-runtime.mjs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -90,6 +95,11 @@ function sendSseContent(res, content) {
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
   }
   res.end('data: [DONE]\n\n');
+}
+
+function writeToolActivitySse(res, activity) {
+  if (!activity) return;
+  res.write(`event: hafize-tool-activity\ndata: ${JSON.stringify(activity)}\n\n`);
 }
 
 async function readJson(req) {
@@ -361,10 +371,11 @@ async function handleAgentRun(req, res) {
 
   const toolMessages = [];
   const toolSummary = [];
-  const publicToolActivities = [];
   let anyToolFailed = false;
+  if (streamResponse) startSse(res);
   for (const call of normalizedCalls) {
     const toolTask = runLedger.recordToolStart(call.function.name);
+    if (streamResponse) writeToolActivitySse(res, getPublicToolRunningActivity(call.function.name));
     const result = await executeNvidiaToolCall(agent, call, {
       traceId,
       agent,
@@ -377,8 +388,7 @@ async function handleAgentRun(req, res) {
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
-    const publicActivity = getPublicToolActivity(call.function.name, result);
-    if (publicActivity) publicToolActivities.push(publicActivity);
+    if (streamResponse) writeToolActivitySse(res, getPublicToolActivity(call.function.name, result));
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
     toolMessages.push({
       role: 'tool',
@@ -406,23 +416,30 @@ async function handleAgentRun(req, res) {
   };
 
   if (streamResponse) {
-    const upstream = await nvidiaFetch('/chat/completions', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify(secondPayload)
-    });
-    if (!upstream.ok || !upstream.body) {
-      const detail = await upstream.text();
+    let upstream;
+    try {
+      upstream = await nvidiaFetch('/chat/completions', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify(secondPayload)
+      });
+    } catch (error) {
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
-      sendJson(res, upstream.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: detail.slice(0, 1200) });
+      if (error?.name !== 'AbortError') {
+        res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
+      }
+      res.end();
+      return;
+    }
+    if (!upstream.ok || !upstream.body) {
+      await upstream.text();
+      runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
+      res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
+      res.end();
       return;
     }
 
-    startSse(res);
-    for (const activity of publicToolActivities) {
-      res.write(`event: hafize-tool-activity\ndata: ${JSON.stringify(activity)}\n\n`);
-    }
     let streamInterrupted = false;
     try {
       for await (const chunk of upstream.body) res.write(chunk);
