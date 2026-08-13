@@ -75,6 +75,23 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function startSse(res) {
+  setSecurityHeaders(res);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive'
+  });
+}
+
+function sendSseContent(res, content) {
+  startSse(res);
+  if (content) {
+    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
+  }
+  res.end('data: [DONE]\n\n');
+}
+
 async function readJson(req) {
   const chunks = [];
   let size = 0;
@@ -241,6 +258,7 @@ function handleAgents(res) {
 
 async function handleAgentRun(req, res) {
   const body = await readJson(req);
+  const streamResponse = String(req.headers.accept || '').toLowerCase().includes('text/event-stream');
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const messages = normalizeClientMessages(body.messages);
   const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
@@ -310,10 +328,15 @@ async function handleAgentRun(req, res) {
   const toolCalls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls.slice(0, 4) : [];
   if (!toolCalls.length) {
     runLedger.finish({ ok: true });
+    const content = typeof assistant.content === 'string' ? assistant.content : '';
+    if (streamResponse) {
+      sendSseContent(res, content);
+      return;
+    }
     sendJson(res, 200, {
       traceId,
       agent: { id: agent.id, name: agent.name },
-      content: typeof assistant.content === 'string' ? assistant.content : '',
+      content,
       tools: [],
       taskLedger: runLedger.snapshot()
     });
@@ -373,11 +396,45 @@ async function handleAgentRun(req, res) {
       },
       ...toolMessages
     ],
-    stream: false,
+    stream: streamResponse,
     max_tokens: boundedMaxTokens(body),
     tools,
     tool_choice: 'none'
   };
+
+  if (streamResponse) {
+    const upstream = await nvidiaFetch('/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify(secondPayload)
+    });
+    if (!upstream.ok || !upstream.body) {
+      const detail = await upstream.text();
+      runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
+      sendJson(res, upstream.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: detail.slice(0, 1200) });
+      return;
+    }
+
+    startSse(res);
+    let streamInterrupted = false;
+    try {
+      for await (const chunk of upstream.body) res.write(chunk);
+    } catch (error) {
+      streamInterrupted = true;
+      if (error?.name !== 'AbortError') {
+        res.write(`data: ${JSON.stringify({ error: 'STREAM_INTERRUPTED' })}\n\n`);
+      }
+    } finally {
+      runLedger.finish({
+        ok: !streamInterrupted && !anyToolFailed,
+        detail: streamInterrupted ? 'stream_interrupted' : anyToolFailed ? 'tool_failed' : null
+      });
+      res.end();
+    }
+    return;
+  }
+
   const second = await nvidiaJsonCompletion(secondPayload, controller.signal);
   const finalMessage = second?.choices?.[0]?.message;
   if (!finalMessage || finalMessage.role !== 'assistant') {

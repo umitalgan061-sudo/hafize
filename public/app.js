@@ -300,22 +300,7 @@
       .map(({ role, content }) => ({ role, content }));
   }
 
-  async function streamAssistantReply() {
-    const model = ui.modelSelect.value;
-    if (!model) throw new Error('MODEL_REQUIRED');
-
-    const conversation = getActiveConversation();
-    const agentId = getConversationAgentId(conversation);
-    if (!agentId) throw new Error('AGENT_REQUIRED');
-    const requestMessages = getRequestMessages(conversation);
-
-    const assistantId = addMessage('assistant', '', { persist: false });
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-    });
-
+  async function consumeAssistantStream(response, assistantId, emptyMessage) {
     if (!response.ok || !response.body) {
       let detail = response.statusText;
       try {
@@ -350,7 +335,25 @@
       if (done) break;
     }
 
-    updateMessage(assistantId, content || 'NVIDIA modeli boş bir yanıt döndürdü.', { persist: true });
+    updateMessage(assistantId, content || emptyMessage, { persist: true });
+  }
+
+  async function streamAssistantReply() {
+    const model = ui.modelSelect.value;
+    if (!model) throw new Error('MODEL_REQUIRED');
+
+    const conversation = getActiveConversation();
+    const agentId = getConversationAgentId(conversation);
+    if (!agentId) throw new Error('AGENT_REQUIRED');
+    const requestMessages = getRequestMessages(conversation);
+
+    const assistantId = addMessage('assistant', '', { persist: false });
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+    });
+    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
   }
 
   async function runAssistantWithTools() {
@@ -365,23 +368,13 @@
     const assistantId = addMessage('assistant', '', { persist: false });
     const response = await fetch('/api/agent/run', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
     });
-
-    let payload;
-    try {
-      payload = await response.json();
-    } catch {
-      throw new Error(response.ok ? 'INVALID_AGENT_RESPONSE' : 'AGENT_RUN_FAILED');
-    }
-    if (!response.ok) throw new Error(payload?.error || 'AGENT_RUN_FAILED');
-
-    const content = typeof payload?.content === 'string' ? payload.content : '';
-    updateMessage(
+    await consumeAssistantStream(
+      response,
       assistantId,
-      content || 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
-      { persist: true }
+      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
     );
   }
 
