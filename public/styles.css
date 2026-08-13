@@ -21,6 +21,10 @@ body {
 button, textarea, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .46; }
+button:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid var(--accent-strong);
+  outline-offset: 2px;
+}
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 280px 1fr; }
 .sidebar {
@@ -96,6 +100,7 @@ button:disabled { cursor: not-allowed; opacity: .46; }
   border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: var(--shadow);
 }
 .composer textarea { width: 100%; min-height: 48px; max-height: 180px; padding: 10px 10px 4px; resize: none; border: 0; outline: 0; background: transparent; }
+.composer textarea:focus-visible { border-radius: 8px; }
 .composer-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .composer-tools, .composer-actions { display: flex; align-items: center; gap: 6px; }
 .agent-hint { color: var(--muted); font-size: 11px; }
