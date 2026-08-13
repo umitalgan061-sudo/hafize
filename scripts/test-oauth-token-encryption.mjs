@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { decryptOAuthTokenRecord, encryptOAuthTokenRecord } from '../lib/oauth-token-encryption.mjs';
+
+const key = Buffer.alloc(32, 7);
+const otherKey = Buffer.alloc(32, 8);
+const record = { ownerId: 'user:123', provider: 'google', accessToken: 'access-secret', refreshToken: 'refresh-secret', expiresAt: 1_700_003_600_000 };
+const envelope = encryptOAuthTokenRecord(record, key, { createIv: () => Buffer.alloc(12, 3) });
+assert.equal(envelope.version, 1);
+assert.equal(envelope.algorithm, 'aes-256-gcm');
+assert.equal(JSON.stringify(envelope).includes('access-secret'), false);
+assert.equal(JSON.stringify(envelope).includes('refresh-secret'), false);
+assert.deepEqual(decryptOAuthTokenRecord(envelope, key), record);
+assert.throws(() => decryptOAuthTokenRecord(envelope, otherKey), /OAUTH_TOKEN_DECRYPT_FAILED/);
+assert.throws(() => decryptOAuthTokenRecord({ ...envelope, extra: true }, key), /OAUTH_TOKEN_DECRYPT_FAILED/);
+assert.throws(() => decryptOAuthTokenRecord({ ...envelope, version: 2 }, key), /OAUTH_TOKEN_DECRYPT_FAILED/);
+assert.throws(() => decryptOAuthTokenRecord({ ...envelope, iv: Buffer.alloc(8).toString('base64') }, key), /OAUTH_TOKEN_DECRYPT_FAILED/);
+assert.throws(() => decryptOAuthTokenRecord({ ...envelope, tag: Buffer.alloc(8).toString('base64') }, key), /OAUTH_TOKEN_DECRYPT_FAILED/);
+assert.throws(() => encryptOAuthTokenRecord(record, Buffer.alloc(31)), /INVALID_OAUTH_TOKEN_ENCRYPTION:key/);
+assert.throws(() => encryptOAuthTokenRecord(record, key, { createIv: () => Buffer.alloc(8) }), /OAUTH_TOKEN_ENCRYPT_FAILED/);
+console.log('oauth token encryption tests passed');
