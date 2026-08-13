@@ -1,44 +1,37 @@
 <!doctype html>
-<html lang="tr">
+<html lang="tr" data-theme="light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#f7f5ef" />
+  <meta name="theme-color" content="#f7f5f0" />
   <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
   <title>Hafize</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/hafize.jpeg" />
   <link rel="apple-touch-icon" href="/hafize.jpeg" />
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/premium.css" />
 </head>
 <body>
+  <span class="edge-beam edge-top" aria-hidden="true"></span>
+  <span class="edge-beam edge-right" aria-hidden="true"></span>
+  <span class="edge-beam edge-bottom" aria-hidden="true"></span>
+  <span class="edge-beam edge-left" aria-hidden="true"></span>
+
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="Hafize gezinme menüsü">
-      <div class="brand-row">
-        <img class="brand-avatar" src="/hafize.jpeg" alt="Hafize" />
-        <div>
-          <strong>Hafize</strong>
-          <span>kişisel yapay zekâ</span>
-        </div>
-      </div>
-
+      <div class="brand-row"><div><strong>Hafize</strong><span>kişisel yapay zekâ</span></div></div>
       <button class="new-chat" id="newChatBtn" type="button">＋ Yeni sohbet</button>
-
       <nav class="nav-list" aria-label="Ana menü">
         <button class="nav-item active" type="button">✦ Sohbet</button>
-        <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">◷ Görevler</button>
-        <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">⌘ Bağlantılar</button>
-        <button class="nav-item" type="button" disabled title="Sonraki geliştirme turlarında etkinleştirilecek">⚙ Ayarlar</button>
+        <button class="nav-item" type="button" disabled>◷ Görevler</button>
+        <button class="nav-item" type="button" disabled>⌘ Bağlantılar</button>
+        <button class="nav-item" type="button" disabled>⚙ Ayarlar</button>
       </nav>
-
       <section class="history-block" aria-labelledby="historyTitle">
-        <div class="history-head">
-          <span id="historyTitle">Son sohbetler</span>
-          <button id="clearHistoryBtn" class="mini-btn" type="button" title="Geçmişi temizle">Temizle</button>
-        </div>
+        <div class="history-head"><span id="historyTitle">Son sohbetler</span><button id="clearHistoryBtn" class="mini-btn" type="button">Temizle</button></div>
         <div id="conversationList" class="conversation-list"></div>
       </section>
-
       <div class="sidebar-footer">
         <button id="installBtn" class="soft-btn" type="button" hidden>Uygulamayı yükle</button>
         <small><span class="status-dot" aria-hidden="true"></span> NVIDIA NIM · server-side güvenli bağlantı</small>
@@ -48,59 +41,68 @@
     <main class="main">
       <header class="topbar">
         <button id="sidebarToggle" class="icon-btn" type="button" aria-label="Menüyü aç/kapat">☰</button>
-        <label class="model-wrap" for="modelSelect">
-          <span>Model</span>
-          <select id="modelSelect" aria-label="NVIDIA modeli">
-            <option value="">NVIDIA modelleri yükleniyor…</option>
-          </select>
-        </label>
-        <label class="model-wrap" for="agentSelect">
-          <span>Ajan</span>
-          <select id="agentSelect" aria-label="Hafize ajanı" disabled>
-            <option value="">Ajanlar yükleniyor…</option>
-          </select>
-        </label>
-        <div class="top-actions">
-          <span class="pill">Hafize</span>
+        <div class="brand-inline">
+          <svg class="flower-logo" viewBox="0 0 64 64" aria-label="Hafize logosu" role="img"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
+          <strong>Hafize</strong><small>kişisel yapay zekâ</small>
         </div>
+        <div class="top-spacer"></div>
+        <label class="model-wrap agent-compact" for="agentSelect"><span>Ajan</span><select id="agentSelect" aria-label="Hafize ajanı" disabled><option value="">Ajanlar yükleniyor…</option></select></label>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Gündüz/gece temasını değiştir" aria-pressed="false"><span class="theme-sun">☀</span><span class="theme-moon">☾</span></button>
       </header>
 
-      <section class="chat-stage" aria-live="polite">
-        <div id="welcome" class="welcome">
-          <img src="/hafize.jpeg" alt="Hafize avatarı" />
-          <h1>Bugün ne yapalım?</h1>
-          <p>
-            Hafize'nin Claude-benzeri sohbet kabuğu NVIDIA NIM ile gerçek zamanlı yanıt akışına hazırdır.
-            NVIDIA API anahtarı yalnızca backend ortamında tutulur; tarayıcıya veya sohbet geçmişine gönderilmez.
-          </p>
-          <div class="suggestions" aria-label="Öneriler">
-            <button type="button" data-prompt="Bugünkü işlerimi önceliklendir">Bugünkü işlerimi önceliklendir</button>
-            <button type="button" data-prompt="GitHub projem için bir geliştirme planı hazırla">GitHub planı hazırla</button>
-            <button type="button" data-prompt="Bana kısa ve uygulanabilir bir çalışma planı oluştur">Çalışma planı oluştur</button>
+      <div class="primary-column">
+        <section class="chat-stage" aria-live="polite">
+          <div id="welcome" class="welcome">
+            <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
+            <h1>Merhaba, bugün ne yapalım?</h1>
+            <p>Hafize; yazı, araştırma, kod, planlama ve görev yönetiminde sana yardımcı olur. NVIDIA NIM bağlantısı ve araç izinleri sunucu tarafında güvenli kalır.</p>
+            <div class="suggestions" aria-label="Öneriler">
+              <button type="button" data-prompt="Benim için bir metin taslağı hazırla">✎ Yaz</button>
+              <button type="button" data-prompt="Bu konuyu bana öğret ve kısa özet çıkar">◇ Öğren</button>
+              <button type="button" data-prompt="Kodumu incele ve geliştirme önerileri ver">‹› Kod</button>
+              <button type="button" data-prompt="Bugünkü işlerimi planla ve önceliklendir">▣ Günlük işler</button>
+            </div>
           </div>
-        </div>
-        <div id="messages" class="messages"></div>
-      </section>
+          <div id="messages" class="messages"></div>
+        </section>
 
-      <form class="composer" id="composer">
-        <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Hafize'ye mesaj gönder…" aria-label="Mesaj"></textarea>
-        <div class="composer-row">
-          <div class="composer-tools">
-            <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle" title="Dosya ekleme sonraki turda etkinleştirilecek">＋</button>
-            <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" title="Backend tool-calling modu" disabled>⌘ Araçlar</button>
-            <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false" title="Sesli giriş">◉</button>
+        <form class="composer" id="composer">
+          <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Bugün neye ihtiyacın var?" aria-label="Mesaj"></textarea>
+          <div class="composer-row">
+            <div class="composer-tools">
+              <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle">＋</button>
+              <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" disabled>⌘ Araçlar</button>
+              <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false">◉</button>
+            </div>
+            <div class="composer-actions">
+              <label class="model-wrap composer-model" for="modelSelect"><span>Model</span><select id="modelSelect" aria-label="NVIDIA modeli"><option value="">NVIDIA modelleri yükleniyor…</option></select></label>
+              <span class="agent-hint">Yapay zekâ hata yapabilir. Önemli bilgileri kontrol et.</span>
+              <button class="send-btn" type="submit" aria-label="Gönder">↑</button>
+            </div>
           </div>
-          <div class="composer-actions">
-            <span class="agent-hint">Enter gönder · Shift+Enter yeni satır</span>
-            <button class="send-btn" type="submit">Gönder</button>
-          </div>
-        </div>
-      </form>
+        </form>
+      </div>
+
+      <aside class="utility-rail" aria-label="Hafize yardımcı araçları">
+        <section class="utility-card calendar-card">
+          <div class="utility-head"><span class="mini-icon">▣</span><span>Takvim</span></div>
+          <div class="calendar-head"><button id="calendarPrev" class="calendar-nav" type="button" aria-label="Önceki ay">‹</button><strong id="calendarMonth"></strong><button id="calendarNext" class="calendar-nav" type="button" aria-label="Sonraki ay">›</button></div>
+          <div class="calendar-weekdays" aria-hidden="true"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div class="calendar-times" aria-label="Örnek saatler"><span>09:30</span><span>13:00</span><span>15:30</span></div>
+        </section>
+        <section class="utility-card voice-card">
+          <div class="utility-head"><span class="mini-icon">≋</span><span>Sesli asistan</span></div>
+          <div class="voice-orb-wrap"><div class="voice-orb" aria-hidden="true"></div></div>
+          <button id="voiceProxy" class="voice-proxy" type="button">Dinlemek için dokun</button>
+        </section>
+      </aside>
     </main>
   </div>
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/app.js" defer></script>
   <script src="/voice-input.js" defer></script>
+  <script src="/ui-shell.js" defer></script>
 </body>
 </html>
