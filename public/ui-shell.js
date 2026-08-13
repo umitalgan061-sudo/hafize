@@ -77,9 +77,23 @@
     });
   }
 
+  function installChatAccessibility(documentRef) {
+    const stage = documentRef?.querySelector?.('.chat-stage');
+    const messages = documentRef?.querySelector?.('#messages');
+    if (!messages) return false;
+    stage?.removeAttribute?.('aria-live');
+    messages.setAttribute?.('role', 'log');
+    messages.setAttribute?.('aria-live', 'polite');
+    messages.setAttribute?.('aria-relevant', 'additions text');
+    messages.setAttribute?.('aria-atomic', 'false');
+    messages.setAttribute?.('aria-label', 'Sohbet mesajları');
+    return true;
+  }
+
   function install(documentRef, root) {
     if (!documentRef) return null;
     const sidebarDisclosure = installSidebarDisclosure(documentRef);
+    installChatAccessibility(documentRef);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
     const storage = root?.localStorage;
@@ -115,6 +129,7 @@
         button.className = `calendar-day${cell.outside ? ' outside' : ''}${cell.selected ? ' selected' : ''}`;
         button.textContent = String(cell.day);
         button.setAttribute('aria-label', `${cell.day} ${cell.month + 1} ${cell.year}`);
+        button.setAttribute('aria-pressed', String(cell.selected));
         button.addEventListener('click', () => {
           cursor = new Date(cell.year, cell.month, 1);
           selectedDay = cell.day;
@@ -160,5 +175,5 @@
     });
   }
 
-  return Object.freeze({ THEME_KEY, WEEKDAYS, resolveTheme, createMonthCells, installSidebarDisclosure, install });
+  return Object.freeze({ THEME_KEY, WEEKDAYS, resolveTheme, createMonthCells, installSidebarDisclosure, installChatAccessibility, install });
 });
