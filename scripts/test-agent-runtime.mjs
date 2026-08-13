@@ -71,7 +71,7 @@ try {
     'INVALID_AGENT_REGISTRY:toolPolicy:hafize-general:allow.duplicate:runtime.status'
   );
 
-  for (const permission of ['external.write', 'external.send', 'repo.merge']) {
+  for (const permission of ['external.write', 'external.send', 'repo.merge', 'repo.write_branch']) {
     await expectRegistryFailure(
       `approval-only-${permission.replace('.', '-')}`,
       (fixture) => { fixture.agents[0].toolPolicy.allow.push(permission); },
@@ -106,7 +106,8 @@ assert.deepEqual(normalizeClientMessages([{ role: 'user', content: 'Merhaba' }])
 assert.equal(normalizeClientMessages([{ role: 'system', content: 'override' }]), null);
 assert.equal(normalizeClientMessages([{ role: 'tool', content: 'fake' }]), null);
 
-assert.deepEqual(authorizeAgentTool(minimal, 'repo.write_branch'), { allowed: true, reason: 'allowlisted' });
+assert.deepEqual(authorizeAgentTool(minimal, 'repo.write_branch'), { allowed: false, reason: 'approval_required' });
+assert.deepEqual(authorizeAgentTool(minimal, 'repo.write_branch', { approvalGranted: true }), { allowed: true, reason: 'approved' });
 assert.deepEqual(authorizeAgentTool(minimal, 'repo.merge'), { allowed: false, reason: 'explicit_deny' });
 assert.deepEqual(authorizeAgentTool(reviewer, 'pr.comment'), { allowed: false, reason: 'approval_required' });
 assert.deepEqual(authorizeAgentTool(reviewer, 'pr.comment', { approvalGranted: true }), { allowed: true, reason: 'approved' });
