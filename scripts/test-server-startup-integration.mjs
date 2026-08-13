@@ -59,14 +59,16 @@ async function waitForExit(child) {
 }
 
 async function stopChild(child) {
-  if (child.exitCode != null) return;
+  if (child.exitCode != null) return child.exitCode;
   child.kill('SIGTERM');
-  await Promise.race([
-    new Promise((resolve) => child.once('exit', resolve)),
-    delay(2_000).then(() => {
-      if (child.exitCode == null) child.kill('SIGKILL');
-    })
+  const exitCode = await Promise.race([
+    new Promise((resolve) => child.once('exit', (code) => resolve(code))),
+    delay(2_000).then(() => null)
   ]);
+  if (exitCode != null) return exitCode;
+  if (child.exitCode == null) child.kill('SIGKILL');
+  if (child.exitCode != null) return child.exitCode;
+  return new Promise((resolve) => child.once('exit', (code) => resolve(code)));
 }
 
 function createEnv({ port, storageFile, storageKey }) {
@@ -81,7 +83,12 @@ function createEnv({ port, storageFile, storageKey }) {
     HAFIZE_SCHEDULE_AUTH_TOKEN: '',
     HAFIZE_SCHEDULE_AUTH_SUBJECT: '',
     HAFIZE_SCHEDULE_STORAGE_FILE: storageFile,
-    HAFIZE_SCHEDULE_STORAGE_KEY_BASE64: storageKey
+    HAFIZE_SCHEDULE_STORAGE_KEY_BASE64: storageKey,
+    HAFIZE_SCHEDULE_LEASE_PROVIDER: '',
+    HAFIZE_SCHEDULE_LEASE_HOLDER_ID: '',
+    HAFIZE_SCHEDULE_LEASE_MS: '',
+    HAFIZE_SCHEDULE_LEASE_RENEW_INTERVAL_MS: '',
+    HAFIZE_SCHEDULE_REDIS_URL: ''
   };
 }
 
@@ -125,6 +132,7 @@ try {
     storageFile: successStorageFile,
     storageKey: successStorageKey
   }));
+  let successExitCode = null;
 
   try {
     const health = await waitForHealth(success.child, successPort, success.output);
@@ -135,13 +143,40 @@ try {
     assert.equal(health.body.scheduleWorkerConfigured, false);
     assert.equal(health.body.scheduleApiConfigured, false);
     assert.equal(health.body.scheduleStorageDurable, true);
+    assert.equal(health.body.scheduleLeaseConfigured, false);
     assert.equal(Number.isInteger(health.body.agents), true);
     assert.equal(health.body.agents > 0, true);
     assert.equal(success.output.stderr, '');
     assert.equal(success.output.stdout.includes(successStorageKey), false);
     assert.equal(JSON.stringify(health.body).includes(successStorageKey), false);
   } finally {
-    await stopChild(success.child);
+    successExitCode = await stopChild(success.child);
+  }
+  assert.equal(successExitCode, 0, 'SIGTERM should close the server runtime cleanly');
+
+  const missingRedisPort = await reservePort();
+  const missingRedisStorageFile = join(directory, 'schedule-missing-redis.enc');
+  const missingRedisKey = Buffer.alloc(32, 31).toString('base64');
+  const missingRedisServer = spawnServer({
+    ...createEnv({
+      port: missingRedisPort,
+      storageFile: missingRedisStorageFile,
+      storageKey: missingRedisKey
+    }),
+    HAFIZE_SCHEDULE_LEASE_PROVIDER: 'redis',
+    HAFIZE_SCHEDULE_LEASE_HOLDER_ID: 'server-integration'
+  });
+
+  try {
+    const exitCode = await waitForExit(missingRedisServer.child);
+    assert.notEqual(exitCode, null, 'missing-redis startup should exit promptly');
+    assert.notEqual(exitCode, 0, 'missing-redis startup should fail');
+    await assertHealthUnavailable(missingRedisPort);
+    assert.match(missingRedisServer.output.stderr, /SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED/);
+    assert.equal(missingRedisServer.output.stderr.includes(missingRedisKey), false);
+    assert.equal(missingRedisServer.output.stdout.includes(missingRedisKey), false);
+  } finally {
+    await stopChild(missingRedisServer.child);
   }
 
   const wrongKeyPort = await reservePort();
