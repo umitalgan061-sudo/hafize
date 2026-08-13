@@ -20,13 +20,14 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 
 ## Tur değişiklik bütçesi — 500 satır
 
-- Her self-development turunun **toplam Git diff bütçesi en fazla 500 satırdır**. Ölçüm, turun başladığı base commit/branch ile güncel head arasındaki `additions + deletions` toplamıdır; bir API aracının tam dosyayı yeniden göndermesi tek başına kota tüketimi sayılmaz.
-- Güvenli, anlamlı ve seçilen ana iyileştirmeyle ilişkili işler kaldığı sürece tur erken bitirilmez. Amaç, gereksiz değişiklik üretmeden 500 satırlık bütçeye mümkün olduğunca yaklaşmaktır; pratik hedef yaklaşık **400–500 değişen satır** aralığıdır.
-- Yeni bir alt adım 500 satır sınırını aşacaksa o alt adım mevcut tura alınmaz; sonraki stacked branch/tura bırakılır.
-- Her anlamlı alt adımdan sonra base→head diff yeniden ölçülür ve kalan satır bütçesi dikkate alınır.
+- Her self-development turunun **toplam Git diff bütçesi en fazla 500 satırdır**. Ölçüm, turun başladığı base commit/branch ile turun ulaştığı en son stacked head arasındaki `additions + deletions` toplamıdır; bir API aracının tam dosyayı yeniden göndermesi tek başına kota tüketimi sayılmaz.
+- Güvenli ve anlamlı iş kaldığı sürece tur erken bitirilmez. Amaç, gereksiz değişiklik üretmeden 500 satırlık bütçeye mümkün olduğunca yaklaşmaktır; pratik hedef yaklaşık **400–500 değişen satır** aralığıdır.
+- Bir ana iyileştirme tamamlanıp kendi tek-amaçlı PR'ı hazırlandığında toplam tur bütçesi hâlâ uygunsa kullanıcıdan yeni `devam et` komutu beklenmez; o PR'ın head'i üzerine yeni stacked branch açılarak sıradaki güvenli ve anlamlı ana iyileştirmeye geçilir.
+- Yeni bir alt adım veya yeni stacked PR 500 satır toplam tur sınırını aşacaksa mevcut tura alınmaz; sonraki tura bırakılır.
+- Her anlamlı alt adımdan ve her yeni stacked PR'dan sonra ilk tur base'i→güncel head diff'i yeniden ölçülür ve kalan satır bütçesi dikkate alınır.
 - Sırf kotayı doldurmak için yapay refactor, yorum şişirme, tekrarlı test, gereksiz dosya üretme veya davranışsız kod değişikliği yapılmaz.
-- Güvenlik sınırları, test/DoD gereksinimleri, tek ana iyileştirme kapsamı, kullanıcı onayı gerektiren işlemler ve veri kaybı riski satır kotasından daha yüksek önceliklidir. Güvenli ve anlamlı iş kalmazsa tur 400 satıra ulaşmadan da durabilir; neden PR açıklamasında açıkça belirtilir.
-- Kota yaklaşımı commit sayısını zorlamaz; küçük ve geri alınabilir commitler tercih edilir. PR toplam diff'i 500 satırı geçemez.
+- Güvenlik sınırları, test/DoD gereksinimleri, tek-amaçlı PR kapsamı, kullanıcı onayı gerektiren işlemler ve veri kaybı riski satır kotasından daha yüksek önceliklidir. Güvenli ve anlamlı iş kalmazsa tur 400 satıra ulaşmadan da durabilir; neden son PR açıklamasında açıkça belirtilir.
+- Kota yaklaşımı commit sayısını zorlamaz; küçük ve geri alınabilir commitler tercih edilir. Tek bir PR'ın kendi diff'i de 500 satırı geçemez.
 
 ## Öncelik sırası
 
