@@ -36,6 +36,21 @@
     });
   }
 
+  function moveCalendarDate(year, month, day, key) {
+    const date = new Date(year, month, day);
+    if (Number.isNaN(date.getTime())) return null;
+    switch (key) {
+      case 'ArrowLeft': date.setDate(date.getDate() - 1); break;
+      case 'ArrowRight': date.setDate(date.getDate() + 1); break;
+      case 'ArrowUp': date.setDate(date.getDate() - 7); break;
+      case 'ArrowDown': date.setDate(date.getDate() + 7); break;
+      case 'Home': date.setDate(1); break;
+      case 'End': date.setMonth(date.getMonth() + 1, 0); break;
+      default: return null;
+    }
+    return Object.freeze({ year: date.getFullYear(), month: date.getMonth(), day: date.getDate() });
+  }
+
   function installSidebarDisclosure(documentRef) {
     const sidebar = documentRef?.querySelector?.('#sidebar');
     const toggle = documentRef?.querySelector?.('#sidebarToggle');
@@ -117,37 +132,49 @@
 
     const monthLabel = documentRef.querySelector('#calendarMonth');
     const calendarGrid = documentRef.querySelector('#calendarGrid');
+    monthLabel?.setAttribute?.('aria-live', 'polite');
+    calendarGrid?.setAttribute?.('aria-label', 'Takvim günleri');
     let cursor = new Date();
     let selectedDay = cursor.getDate();
 
-    function renderCalendar() {
+    function renderCalendar({ focusSelected = false } = {}) {
       if (!calendarGrid || !monthLabel) return;
       monthLabel.textContent = new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric' }).format(cursor);
-      calendarGrid.replaceChildren(...createMonthCells(cursor.getFullYear(), cursor.getMonth(), selectedDay).map((cell) => {
+      const cells = createMonthCells(cursor.getFullYear(), cursor.getMonth(), selectedDay);
+      calendarGrid.replaceChildren(...cells.map((cell) => {
         const button = documentRef.createElement('button');
         button.type = 'button';
         button.className = `calendar-day${cell.outside ? ' outside' : ''}${cell.selected ? ' selected' : ''}`;
         button.textContent = String(cell.day);
+        button.tabIndex = cell.selected ? 0 : -1;
         button.setAttribute('aria-label', `${cell.day} ${cell.month + 1} ${cell.year}`);
         button.setAttribute('aria-pressed', String(cell.selected));
-        button.addEventListener('click', () => {
-          cursor = new Date(cell.year, cell.month, 1);
-          selectedDay = cell.day;
-          renderCalendar();
+        function selectCell(target) {
+          cursor = new Date(target.year, target.month, 1);
+          selectedDay = target.day;
+          renderCalendar({ focusSelected: true });
+        }
+        button.addEventListener('click', () => selectCell(cell));
+        button.addEventListener('keydown', (event) => {
+          const target = moveCalendarDate(cell.year, cell.month, cell.day, event.key);
+          if (!target) return;
+          event.preventDefault();
+          selectCell(target);
         });
         return button;
       }));
+      if (focusSelected) calendarGrid.querySelector?.('[aria-pressed="true"]')?.focus?.();
     }
 
     documentRef.querySelector('#calendarPrev')?.addEventListener('click', () => {
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1);
       selectedDay = 1;
-      renderCalendar();
+      renderCalendar({ focusSelected: true });
     });
     documentRef.querySelector('#calendarNext')?.addEventListener('click', () => {
       cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
       selectedDay = 1;
-      renderCalendar();
+      renderCalendar({ focusSelected: true });
     });
     renderCalendar();
 
@@ -175,5 +202,5 @@
     });
   }
 
-  return Object.freeze({ THEME_KEY, WEEKDAYS, resolveTheme, createMonthCells, installSidebarDisclosure, installChatAccessibility, install });
+  return Object.freeze({ THEME_KEY, WEEKDAYS, resolveTheme, createMonthCells, moveCalendarDate, installSidebarDisclosure, installChatAccessibility, install });
 });
