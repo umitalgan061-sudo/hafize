@@ -76,8 +76,8 @@ assert.deepEqual(await runtime.issueSendApproval({
 
 const readOnlyContext = runtime.requestContext({ headers: { authorization: `Bearer ${authToken}` } });
 assert.equal(readOnlyContext.gmailReadAuthenticated, true);
-assert.equal(readOnlyContext.gmailSendAuthenticated, false);
-assert.equal(readOnlyContext.gmailSendTool, null);
+assert.equal('gmailSendAuthenticated' in readOnlyContext, false);
+assert.equal('gmailSendTool' in readOnlyContext, false);
 
 const sendContext = runtime.requestContext({
   headers: { authorization: `Bearer ${authToken}` },
@@ -103,6 +103,7 @@ const readOnlyRuntime = createGmailAgentRuntime({
   createBoundary: () => readBoundary
 });
 assert.equal(readOnlyRuntime.sendConfigured, false);
+assert.deepEqual(readOnlyRuntime.status(), { configured: true, access: 'authenticated-read-only' });
 assert.deepEqual(await readOnlyRuntime.issueSendApproval({}), { ok: false, error: 'GMAIL_SEND_NOT_CONFIGURED' });
 assert.equal(GMAIL_AGENT_RUNTIME_ENV.sendApprovalKey, 'HAFIZE_GMAIL_SEND_APPROVAL_KEY_B64');
 
