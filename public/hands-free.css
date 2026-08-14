@@ -1,0 +1,29 @@
+.hands-free-status {
+  display: block;
+  min-height: 1.25rem;
+  margin-top: 0.35rem;
+  text-align: center;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  opacity: 0.72;
+}
+
+.hands-free-status[data-listening="true"] {
+  font-weight: 700;
+  opacity: 1;
+}
+
+#handsFreeToggle[aria-pressed="true"] {
+  font-weight: 700;
+}
+
+#handsFreeToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 760px) {
+  .hands-free-status {
+    font-size: 0.72rem;
+  }
+}
