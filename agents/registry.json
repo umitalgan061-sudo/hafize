@@ -22,7 +22,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.status", "connector.canva.read"],
+        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.status", "connector.canva.read", "connector.gmail.read"],
         "approvalRequired": ["external.write", "external.send", "repo.merge"]
       },
       "outputContract": ["answer", "delegations", "warnings"]
