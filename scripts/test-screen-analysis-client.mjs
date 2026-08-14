@@ -22,11 +22,13 @@ await assert.rejects(
 );
 
 const calls = [];
+const controller = new AbortController();
 const result = await client.analyzeCapture({
   capture,
   model: ' nvidia/vision-test ',
   prompt: ' Bu ekrandaki problemi bul. ',
   explicitUserIntent: true,
+  signal: controller.signal,
   FileReaderCtor: FakeReader,
   async fetchImpl(url, init) {
     calls.push({ url, init });
@@ -38,6 +40,7 @@ assert.equal(calls.length, 1);
 assert.equal(calls[0].url, '/api/screen-analysis');
 assert.equal(calls[0].init.method, 'POST');
 assert.equal(calls[0].init.cache, 'no-store');
+assert.equal(calls[0].init.signal, controller.signal);
 const sent = JSON.parse(calls[0].init.body);
 assert.equal(sent.explicitUserIntent, true);
 assert.equal(sent.model, 'nvidia/vision-test');
