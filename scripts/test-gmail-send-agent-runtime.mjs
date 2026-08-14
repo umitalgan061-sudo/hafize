@@ -94,7 +94,6 @@ assert.equal(calls.at(-1)[2].principal, principal);
 assert.equal(calls.at(-1)[2].approvalGranted, true);
 
 const readOnlyRuntime = createGmailAgentRuntime({
-  ...arguments,
   env: { ...env, HAFIZE_GMAIL_SEND_APPROVAL_KEY_B64: undefined },
   fetchImpl: async () => {},
   createAuthenticator: () => ({ authenticate: () => ({ ok: true, principal }) }),
