@@ -18,6 +18,7 @@ import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
 import { createPersonalMemoryServerRuntime } from './lib/personal-memory-server-runtime.mjs';
+import { createScreenAnalysisServerRuntime } from './lib/screen-analysis-server-runtime.mjs';
 import { loadBuiltinSkillRuntime } from './lib/skill-runtime.mjs';
 import { createSkillService } from './lib/skill-service.mjs';
 import { createSkillHttpApi } from './lib/skill-http-api.mjs';
@@ -65,6 +66,10 @@ const SKILL_AGENT_RUN = createSkillAgentRunBoundary({ skillService: SKILL_SERVIC
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
 const MEMORY_SERVER_RUNTIME = await createPersonalMemoryServerRuntime({ readJson });
+const SCREEN_ANALYSIS_SERVER_RUNTIME = createScreenAnalysisServerRuntime({
+  configured: Boolean(NVIDIA_API_KEY),
+  complete: nvidiaJsonCompletion
+});
 
 const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -675,6 +680,7 @@ const server = createServer(async (req, res) => {
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
+        screenAnalysisConfigured: SCREEN_ANALYSIS_SERVER_RUNTIME.configured,
         contextCompactionConfigured: true,
         skillsConfigured: SKILL_RUNTIME.size > 0,
         skills: SKILL_RUNTIME.size,
@@ -713,6 +719,19 @@ const server = createServer(async (req, res) => {
         return;
       }
       sendJson(res, memoryResponse.status, memoryResponse.body);
+      return;
+    }
+    if (url.pathname === '/api/screen-analysis') {
+      const controller = new AbortController();
+      res.on('close', () => controller.abort());
+      const analysisResponse = await SCREEN_ANALYSIS_SERVER_RUNTIME.handle({
+        request: req,
+        method: req.method,
+        pathname: url.pathname,
+        signal: controller.signal
+      });
+      for (const [name, value] of Object.entries(analysisResponse.headers || {})) res.setHeader(name, value);
+      sendJson(res, analysisResponse.status, analysisResponse.body);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/canva/status') {
