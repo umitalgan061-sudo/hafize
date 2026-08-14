@@ -573,6 +573,15 @@ const server = createServer(async (req, res) => {
       });
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/api/connectors/canva/status') {
+      const status = await CANVA_AGENT_RUNTIME.connectionStatus({ headers: req.headers });
+      if (!status.ok) {
+        sendJson(res, status.error === 'AUTH_REQUIRED' ? 401 : 404, { error: status.error });
+        return;
+      }
+      sendJson(res, 200, { linked: status.linked });
+      return;
+    }
     if (url.pathname === '/api/schedules' || url.pathname.startsWith('/api/schedules/')) {
       if (!SCHEDULE_HTTP_API) {
         sendJson(res, 404, { error: 'NOT_FOUND' });
