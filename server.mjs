@@ -338,25 +338,30 @@ async function handleAgentRun(req, res) {
     traceId,
     parentAgent: agent,
     parentTaskId: runLedger.rootTaskId,
+    parentSignal: controller.signal,
     runLedger,
     async executeAgent({
       agent: delegatedAgent,
       task,
       traceId: delegatedTraceId,
-      parentTaskId: delegatedParentTaskId
+      depth: delegatedDepth,
+      parentTaskId: delegatedParentTaskId,
+      signal: delegatedSignal
     }) {
       return runDelegatedAgent({
         agent: delegatedAgent,
         task,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
+        depth: delegatedDepth,
+        signal: delegatedSignal,
         registry: AGENT_REGISTRY,
         runLedger,
         model,
         maxTokens: boundedMaxTokens(body),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         githubReadFile: GITHUB_READ_FILE,
-        complete: (payload) => nvidiaJsonCompletion(payload, controller.signal)
+        complete: (payload, completionSignal) => nvidiaJsonCompletion(payload, completionSignal || controller.signal)
       });
     }
   });
