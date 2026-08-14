@@ -103,7 +103,7 @@ const toolCancelled = await runDelegatedAgent({
 assert.deepEqual(toolCancelled, { ok: false, error: 'DELEGATION_CANCELLED' });
 assert.equal(completionCalls, 1);
 assert.equal(toolReadFinished, false);
-const toolEntries = toolLedger.snapshot().entries.filter((entry) => entry.action === 'tool.github_read_file');
+const toolEntries = toolLedger.snapshot().entries.filter((entry) => entry.action === 'tool:github_read_file');
 assert.equal(toolEntries.length, 1);
 assert.equal(toolEntries[0].status, 'failed');
 assert.equal(toolEntries[0].detail, 'TOOL_EXECUTION_CANCELLED');
