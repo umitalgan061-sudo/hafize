@@ -26,7 +26,7 @@
     });
   }
 
-  async function analyzeCapture({ capture, model, prompt, explicitUserIntent, fetchImpl = globalThis.fetch, FileReaderCtor } = {}) {
+  async function analyzeCapture({ capture, model, prompt, explicitUserIntent, signal, fetchImpl = globalThis.fetch, FileReaderCtor } = {}) {
     if (explicitUserIntent !== true) throw new Error('SCREEN_ANALYSIS_CONFIRMATION_REQUIRED');
     if (!capture?.blob) throw new Error('SCREEN_CAPTURE_REQUIRED');
     if (typeof fetchImpl !== 'function') throw new Error('SCREEN_ANALYSIS_UNSUPPORTED');
@@ -37,6 +37,7 @@
     const image = await blobToDataUrl(capture.blob, FileReaderCtor);
     const response = await fetchImpl(ENDPOINT, {
       method: 'POST',
+      signal,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       cache: 'no-store',
       body: JSON.stringify({ model: cleanModel, prompt: cleanPrompt, image, explicitUserIntent: true })

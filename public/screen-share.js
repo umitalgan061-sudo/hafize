@@ -114,6 +114,7 @@
       panel.hidden = true;
       button.setAttribute('aria-pressed', 'false');
       status.textContent = 'Ekran görüntüsü tutulmuyor.';
+      root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-cleared'));
     }
 
     async function requestCapture() {
@@ -130,7 +131,7 @@
         button.setAttribute('aria-pressed', 'true');
         status.textContent = `${capture.width}×${capture.height} ekran görüntüsü yalnız bu sekmede hazır; Hafize'ye gönderilmedi.`;
         root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-ready', {
-          detail: { width: capture.width, height: capture.height, mimeType: capture.mimeType }
+          detail: { capture, width: capture.width, height: capture.height, mimeType: capture.mimeType }
         }));
       } catch (error) {
         if (error?.message === 'SCREEN_CAPTURE_CANCELLED') status.textContent = 'Ekran paylaşımı iptal edildi.';
