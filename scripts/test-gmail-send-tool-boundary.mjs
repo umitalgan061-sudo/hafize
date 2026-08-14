@@ -39,11 +39,14 @@ assert.equal(JSON.stringify(receipt).includes('must-not-leak'), false);
 assert.deepEqual(calls[0], ['resolve', principal]);
 assert.deepEqual(calls[1], ['send', {
   ownerId: 'owner_opaque_123',
-  operation: 'message.send',
-  to: ['alice@example.com'],
-  subject: 'Plan',
-  text: 'Toplantı saat 15:00.'
+  message: {
+    to: ['alice@example.com'],
+    subject: 'Plan',
+    text: 'Toplantı saat 15:00.'
+  }
 }]);
+assert.equal(JSON.stringify(calls[1]).includes('explicitUserIntent'), false);
+assert.equal(JSON.stringify(calls[1]).includes('approvalGranted'), false);
 
 await assert.rejects(() => boundary.execute({ ...args, approvalGranted: true }, { principal, approvalGranted: true }), /INVALID_GMAIL_SEND_FIELD/);
 assert.throws(() => createGmailSendToolBoundary({}), /INVALID_GMAIL_SEND_TOOL/);
