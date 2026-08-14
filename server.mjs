@@ -17,6 +17,7 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
+import { createPersonalMemoryServerRuntime } from './lib/personal-memory-server-runtime.mjs';
 import { loadBuiltinSkillRuntime } from './lib/skill-runtime.mjs';
 import { createSkillService } from './lib/skill-service.mjs';
 import { createSkillHttpApi } from './lib/skill-http-api.mjs';
@@ -63,6 +64,7 @@ const SKILL_HTTP_API = createSkillHttpApi({ skillRuntime: SKILL_RUNTIME });
 const SKILL_AGENT_RUN = createSkillAgentRunBoundary({ skillService: SKILL_SERVICE });
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
+const MEMORY_SERVER_RUNTIME = await createPersonalMemoryServerRuntime({ readJson });
 
 const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -672,6 +674,7 @@ const server = createServer(async (req, res) => {
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
+        memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
         contextCompactionConfigured: true,
         skillsConfigured: SKILL_RUNTIME.size > 0,
         skills: SKILL_RUNTIME.size,
@@ -691,6 +694,25 @@ const server = createServer(async (req, res) => {
       }
       for (const [name, value] of Object.entries(skillResponse.headers || {})) res.setHeader(name, value);
       sendJson(res, skillResponse.status, skillResponse.body);
+      return;
+    }
+    if (url.pathname === '/api/memory' || url.pathname.startsWith('/api/memory/')) {
+      if (!MEMORY_SERVER_RUNTIME.configured) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      const memoryResponse = await MEMORY_SERVER_RUNTIME.handle({
+        request: req,
+        method: req.method,
+        pathname: url.pathname,
+        url,
+        headers: req.headers
+      });
+      if (!memoryResponse.matched) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      sendJson(res, memoryResponse.status, memoryResponse.body);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/canva/status') {
