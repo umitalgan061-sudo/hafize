@@ -19,6 +19,14 @@ assert.equal(chat.includes('connectorContext'), false);
 assert.equal(agentRun.includes('HAFIZE_CONNECTOR_AUTH_TOKEN'), false);
 assert.equal(agentRun.includes('HAFIZE_CONNECTOR_OWNER_KEY_B64'), false);
 
+const statusStart = server.indexOf("url.pathname === '/api/connectors/canva/status'");
+const schedulesStart = server.indexOf("url.pathname === '/api/schedules'");
+assert.ok(statusStart >= 0 && schedulesStart > statusStart);
+const statusRoute = server.slice(statusStart, schedulesStart);
+assert.match(statusRoute, /CANVA_AGENT_RUNTIME\.connectionStatus\(\{ headers: req\.headers \}\)/);
+assert.match(statusRoute, /sendJson\(res, 200, \{ linked: status\.linked \}\)/);
+for (const forbidden of ['ownerId', 'accessToken', 'refreshToken', 'subject']) assert.equal(statusRoute.includes(forbidden), false);
+
 const primary = registry.agents.find((agent) => agent.id === 'hafize-general');
 assert.ok(primary?.toolPolicy?.allow.includes('connector.canva.read'));
 for (const agent of registry.agents.filter((item) => item.id !== 'hafize-general')) {
