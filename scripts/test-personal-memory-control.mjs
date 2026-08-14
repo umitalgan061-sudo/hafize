@@ -15,7 +15,8 @@ const memory = {
   read(input) { calls.push(['read', input]); return { ok: true, records: [{ ownerId: input.ownerId, id: 'memory_12345678', content: 'tenis' }] }; },
   async write(input) { calls.push(['write', input]); return { ok: true, record: { ownerId: input.ownerId, id: 'memory_12345678', content: input.content } }; },
   async remove(input) { calls.push(['remove', input]); return { ok: true, deleted: 1 }; },
-  exportOwner() {}, deleteOwner() {}
+  exportOwner(input) { calls.push(['export', input]); return { ok: true, records: [{ ownerId: input.ownerId, id: 'memory_12345678', content: 'tenis' }] }; },
+  async deleteOwner(input) { calls.push(['deleteOwner', input]); return { ok: true, deleted: 2 }; }
 };
 let authOptions, ownerOptions, memoryOptions;
 const runtime = await createPersonalMemoryControlRuntime({
@@ -56,6 +57,21 @@ let response = await api.handle({ ...base, method: 'GET', pathname: '/api/memory
 assert.equal(response.status, 200);
 assert.equal('ownerId' in response.body.records[0], false);
 assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', query: 'spor', kinds: ['preference'], limit: 3 });
+
+nextBody = { explicitUserIntent: true };
+response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory/export' });
+assert.equal(response.status, 200);
+assert.equal('ownerId' in response.body.records[0], false);
+assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', explicitUserIntent: true });
+
+nextBody = { explicitUserIntent: true, confirmDeleteAll: true };
+response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory' });
+assert.equal(response.status, 200);
+assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', confirmOwnerId: 'owner_private', explicitUserIntent: true });
+
+nextBody = { explicitUserIntent: true };
+response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory' });
+assert.equal(response.status, 400);
 
 nextBody = { kind: 'preference', content: 'Tenisi severim', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true };
 response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory' });
