@@ -49,6 +49,7 @@ assert.equal(calls[0].depth, 1);
 assert.equal(calls[0].agent, reviewer);
 assert.equal(calls[0].task, 'Bu diffi incele.');
 assert.equal(calls[0].agent.toolPolicy.allow.includes('agent.delegate'), false);
+assert.deepEqual(delegator.status(), { cancelled: false, activeDelegations: 0, maxParallel: 1 });
 
 const structuredLedger = createAgentRunLedger({
   traceId: 'trace-structured-handoff',
@@ -88,9 +89,32 @@ assert.equal(delegationEntry.parentTaskId, runLedger.rootTaskId);
 assert.equal(delegationEntry.status, 'completed');
 assert.equal(delegationEntry.detail, 'ok');
 
-const fanout = await delegator.delegate({ agentId: reviewer.id, task: 'İkinci görev.' });
-assert.deepEqual(fanout, { ok: false, error: 'DELEGATION_FANOUT_EXCEEDED' });
-assert.equal(calls.length, 1);
+const sequential = await delegator.delegate({ agentId: reviewer.id, task: 'İkinci görev.' });
+assert.equal(sequential.ok, true);
+assert.equal(calls.length, 2);
+
+let releaseParallel;
+const parallelGate = new Promise((resolve) => { releaseParallel = resolve; });
+const parallelLedger = createAgentRunLedger({ traceId: 'trace-parallel', agentId: primary.id });
+const parallelDelegator = createAgentDelegator({
+  registry,
+  traceId: 'trace-parallel',
+  parentAgent: primary,
+  parentTaskId: parallelLedger.rootTaskId,
+  runLedger: parallelLedger,
+  async executeAgent() {
+    await parallelGate;
+    return { ok: true, content: 'parallel-result' };
+  }
+});
+const firstParallel = parallelDelegator.delegate({ agentId: reviewer.id, task: 'Paralel bir.' });
+await Promise.resolve();
+assert.deepEqual(
+  await parallelDelegator.delegate({ agentId: reviewer.id, task: 'Paralel iki.' }),
+  { ok: false, error: 'DELEGATION_CONCURRENCY_EXCEEDED' }
+);
+releaseParallel();
+assert.equal((await firstParallel).ok, true);
 
 const depthLedger = createAgentRunLedger({ traceId: 'trace-depth', agentId: primary.id });
 const depthDelegator = createAgentDelegator({
