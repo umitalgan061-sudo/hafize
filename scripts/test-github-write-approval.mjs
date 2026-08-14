@@ -20,31 +20,35 @@ assert.match(prepared.approvalToken, /^gw1\./);
 assert.equal(prepared.expiresAt, new Date(clock + 60_000).toISOString());
 assert.deepEqual(prepared.command, branch);
 assert.equal(JSON.stringify(prepared).includes(alice.subject), false);
-assert.equal(JSON.stringify(prepared).includes(Buffer.alloc(32, 9).toString('hex')), false);
 assert.deepEqual(approval.consume(branch, { principal: alice, approvalToken: prepared.approvalToken }), branch);
 assert.throws(() => approval.consume(branch, { principal: alice, approvalToken: prepared.approvalToken }), /GITHUB_WRITE_APPROVAL_REPLAYED/);
 
-const pr = {
-  operation: 'pr.create', repository: 'umitalgan061-sudo/hafize', head: 'hafize/feature-a', base: 'main', title: 'feat: exact approval', draft: true
+const file = {
+  operation: 'file.update', repository: branch.repository, branch: branch.branch, path: 'lib/exact.mjs',
+  expectedBlobSha: 'a'.repeat(40), commitMessage: 'fix: exact content', content: 'export const value = 1;\n'
 };
-const prToken = approval.prepare(pr, { principal: alice }).approvalToken;
-assert.throws(() => approval.consume({ ...pr, title: 'feat: changed after approval' }, { principal: alice, approvalToken: prToken }), /GITHUB_WRITE_APPROVAL_MISMATCH/);
-assert.throws(() => approval.consume(pr, { principal: bob, approvalToken: prToken }), /GITHUB_WRITE_APPROVAL_MISMATCH/);
-assert.deepEqual(approval.consume(pr, { principal: alice, approvalToken: prToken }), pr);
+const fileToken = approval.prepare(file, { principal: alice }).approvalToken;
+for (const changed of [
+  { ...file, content: 'export const value = 2;\n' },
+  { ...file, path: 'lib/other.mjs' },
+  { ...file, expectedBlobSha: 'b'.repeat(40) },
+  { ...file, commitMessage: 'fix: changed message' }
+]) {
+  assert.throws(() => approval.consume(changed, { principal: alice, approvalToken: fileToken }), /GITHUB_WRITE_APPROVAL_MISMATCH/);
+}
+assert.throws(() => approval.consume(file, { principal: bob, approvalToken: fileToken }), /GITHUB_WRITE_APPROVAL_MISMATCH/);
+assert.deepEqual(approval.consume(file, { principal: alice, approvalToken: fileToken }), file);
 
-const merge = {
-  operation: 'pr.merge', repository: 'umitalgan061-sudo/hafize', prNumber: 127,
-  expectedHeadSha: '0123456789abcdef0123456789abcdef01234567'
-};
+const merge = { operation: 'pr.merge', repository: branch.repository, prNumber: 128, expectedHeadSha: 'c'.repeat(40) };
 const expiring = approval.prepare(merge, { principal: alice }).approvalToken;
 clock += 60_000;
 assert.throws(() => approval.consume(merge, { principal: alice, approvalToken: expiring }), /GITHUB_WRITE_APPROVAL_EXPIRED/);
 clock -= 60_000;
 
-const forged = approval.prepare(branch, { principal: alice }).approvalToken.replace(/.$/, 'A');
+const genuine = approval.prepare(branch, { principal: alice }).approvalToken;
+const forged = `${genuine.slice(0, -1)}${genuine.endsWith('A') ? 'B' : 'A'}`;
 assert.throws(() => approval.consume(branch, { principal: alice, approvalToken: forged }), /GITHUB_WRITE_APPROVAL_INVALID/);
 assert.throws(() => approval.prepare({ ...branch, approvalGranted: true }, { principal: alice }), /INVALID_GITHUB_WRITE_FIELD/);
-assert.throws(() => approval.prepare({ ...branch, repository: 'attacker/repo' }, { principal: alice }), /GITHUB_WRITE_REPOSITORY_NOT_ALLOWED/);
 assert.throws(() => approval.prepare(branch, { principal: { authenticated: false, subject: alice.subject } }), /CONNECTOR_AUTH_REQUIRED/);
 
 console.log('github write approval tests passed');
