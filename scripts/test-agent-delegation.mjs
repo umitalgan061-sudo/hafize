@@ -49,6 +49,7 @@ assert.equal(calls[0].depth, 1);
 assert.equal(calls[0].agent, reviewer);
 assert.equal(calls[0].task, 'Bu diffi incele.');
 assert.equal(calls[0].agent.toolPolicy.allow.includes('agent.delegate'), false);
+assert.equal(calls[0].signal instanceof AbortSignal, true);
 
 const structuredLedger = createAgentRunLedger({
   traceId: 'trace-structured-handoff',
@@ -88,9 +89,10 @@ assert.equal(delegationEntry.parentTaskId, runLedger.rootTaskId);
 assert.equal(delegationEntry.status, 'completed');
 assert.equal(delegationEntry.detail, 'ok');
 
-const fanout = await delegator.delegate({ agentId: reviewer.id, task: 'İkinci görev.' });
-assert.deepEqual(fanout, { ok: false, error: 'DELEGATION_FANOUT_EXCEEDED' });
-assert.equal(calls.length, 1);
+const sequential = await delegator.delegate({ agentId: reviewer.id, task: 'İkinci seri görev.' });
+assert.equal(sequential.ok, true);
+assert.equal(calls.length, 2);
+assert.equal(delegator.lifecycleSnapshot().active, 0);
 
 const depthLedger = createAgentRunLedger({ traceId: 'trace-depth', agentId: primary.id });
 const depthDelegator = createAgentDelegator({
