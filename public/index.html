@@ -86,8 +86,14 @@
           </div>
           <div id="screenSharePreview" class="utility-card" hidden>
             <img id="screenShareImage" alt="Paylaşım için seçilen ekran görüntüsü önizlemesi" width="120" height="68" />
-            <span id="screenShareStatus">Ekran görüntüsü tutulmuyor.</span>
-            <button id="screenShareRemove" class="mini-btn" type="button">Ekran görüntüsünü kaldır</button>
+            <div class="screen-share-copy">
+              <span id="screenShareStatus">Ekran görüntüsü tutulmuyor.</span>
+              <p id="screenAnalysisResult" class="screen-analysis-result" role="status" hidden></p>
+            </div>
+            <div class="screen-share-actions">
+              <button id="screenShareAnalyze" class="mini-btn" type="button">Hafize ile analiz et</button>
+              <button id="screenShareRemove" class="mini-btn" type="button">Ekran görüntüsünü kaldır</button>
+            </div>
           </div>
         </form>
       </div>
@@ -117,7 +123,9 @@
   <script src="/voice-input.js" defer></script>
   <script src="/voice-output.js" defer></script>
   <script src="/hands-free.js" defer></script>
+  <script src="/screen-analysis-client.js" defer></script>
   <script src="/screen-share.js" defer></script>
+  <script src="/screen-analysis-ui.js" defer></script>
   <script src="/ui-shell.js" defer></script>
 </body>
 </html>
