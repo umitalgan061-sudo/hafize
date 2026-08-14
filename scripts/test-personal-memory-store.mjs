@@ -181,4 +181,9 @@ assert.deepEqual(badClock.write({
   sensitivity: 'personal', explicitUserIntent: true
 }), { ok: false, error: 'INVALID_MEMORY_STORE:now' });
 
+await import('./test-personal-memory-server-runtime.mjs');
+await import('./test-personal-memory-production-runtime.mjs');
+await import('./test-personal-memory-server-wiring.mjs');
+await import('./test-personal-memory-server-http.mjs');
+
 console.log('personal memory store tests passed');
