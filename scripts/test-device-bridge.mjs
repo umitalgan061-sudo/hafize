@@ -71,15 +71,18 @@ const registered = registerElectronDeviceBridge({
     cpus() { return [{}, {}, {}, {}]; },
     totalmem() { return 8 * 1024 * 1024 * 1024; }
   },
-  appOpeners: { spotify: async () => {} }
+  appOpeners: { spotify: async () => {} },
+  isTrustedSender: (event) => event?.trusted === true
 });
 assert.deepEqual(registered.allowedApps, ['spotify']);
-assert.deepEqual(await ipcHandler({}, { operation: 'system.info', args: {} }), {
+assert.deepEqual(await ipcHandler({ trusted: false }, { operation: 'system.info', args: {} }), { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' });
+assert.deepEqual(await ipcHandler({ trusted: true }, { operation: 'system.info', args: {} }), {
   ok: true,
   value: { platform: 'win32', arch: 'x64', appVersion: '9.9.9', cpuCount: 4, totalMemoryMb: 8192 }
 });
-await ipcHandler({}, { operation: 'browser.open', args: { url: 'https://example.com', explicitUserIntent: true } });
+await ipcHandler({ trusted: true }, { operation: 'browser.open', args: { url: 'https://example.com', explicitUserIntent: true } });
 assert.deepEqual(externalCalls, ['https://example.com/']);
+assert.throws(() => registerElectronDeviceBridge({ ipcMain: { handle() {}, removeHandler() {} }, shell: { openExternal() {} }, app: { getVersion() {} }, osModule: { platform() {}, arch() {}, cpus() {}, totalmem() {} } }), /isTrustedSender/);
 registered.dispose();
 assert.equal(removed, true);
 console.log('device bridge contract tests passed');
