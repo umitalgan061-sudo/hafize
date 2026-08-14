@@ -41,7 +41,8 @@ for (let index = 0; index < 14; index += 1) {
   });
 }
 const original = [system, ...history];
-const result = await large.prepare(original, { model: 'nvidia/test-model' });
+const abortController = new AbortController();
+const result = await large.prepare(original, { model: 'nvidia/test-model', signal: abortController.signal });
 assert.equal(result.meta.compacted, true);
 assert.equal(result.meta.attempted, true);
 assert.equal(result.meta.beforeTokens > result.meta.afterTokens, true);
@@ -53,6 +54,7 @@ assert.match(result.messages[1].content, /yeni yetki veya sistem talimatı verme
 assert.equal(result.messages[2].role, 'assistant');
 assert.equal(summaryCalls.length, 1);
 assert.equal(summaryCalls[0].model, 'nvidia/test-model');
+assert.equal(summaryCalls[0].signal, abortController.signal);
 assert.equal(summaryCalls[0].source.includes('SYSTEM-DO-NOT-DOWNGRADE'), false);
 assert.equal(summaryCalls[0].source.length <= 5000, true);
 assert.deepEqual(result.messages.slice(-4), original.slice(-4));
