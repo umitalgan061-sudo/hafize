@@ -17,6 +17,24 @@ assert.equal(inactive.kind, 'continue');
 assert.equal(inactive.messages, messages);
 assert.equal(inactive.skill, null);
 
+const unauthorizedService = {
+  prepare() {
+    const error = new Error('private authorization detail');
+    error.code = 'SKILL_NOT_AUTHORIZED';
+    error.reason = 'tool_escalation';
+    error.permission = 'secret.read';
+    throw error;
+  },
+  async executeFork() { throw new Error('unused'); }
+};
+const unauthorizedBoundary = createSkillAgentRunBoundary({ skillService: unauthorizedService });
+const unauthorized = await unauthorizedBoundary.prepare({ messages, agent });
+assert.equal(unauthorized.kind, 'blocked');
+assert.equal(unauthorized.status, 403);
+assert.deepEqual(unauthorized.body, { error: 'SKILL_NOT_AUTHORIZED', reason: 'tool_escalation' });
+assert.equal(JSON.stringify(unauthorized).includes('secret.read'), false);
+assert.equal(JSON.stringify(unauthorized).includes('private authorization detail'), false);
+
 const blockedService = {
   prepare() {
     return {
