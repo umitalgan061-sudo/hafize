@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "id": "safe-repo-change",
+      "name": "Safe Repo Change",
+      "description": "Kod değişikliğini küçük, doğrulanabilir ve geri alınabilir adımlarla yürütür.",
+      "context": "inline",
+      "userInvocable": true,
+      "allowedAgents": ["agency-minimal-engineer"],
+      "requiredPermissions": ["repo.read", "test.run", "repo.write_branch"],
+      "prompt": "Önce mevcut davranışı ve ilgili dosyaları doğrula. En küçük doğru diff'i üret. İlgisiz refactor yapma. Uygun syntax/smoke testlerini çalıştır. Yazma veya başka yan etkili araç için backend onayını atlatmaya çalışma. Sonuçta değişen dosyaları, testleri, riskleri ve geri alma yolunu açıkça belirt."
+    },
+    {
+      "id": "evidence-code-review",
+      "name": "Evidence Code Review",
+      "description": "Kod incelemesini doğruluk, güvenlik ve test kanıtına bağlayan salt-okunur prosedür.",
+      "context": "inline",
+      "userInvocable": true,
+      "allowedAgents": ["agency-code-reviewer"],
+      "requiredPermissions": ["repo.read", "pr.read", "test.read_result"],
+      "prompt": "Önce davranışsal doğruluk ve güvenlik risklerini değerlendir. Her blocker bulgusunu somut dosya/konum, etki ve mümkünse test kanıtıyla ilişkilendir. Stil tercihini blocker yapma. Secret, credential veya ek yetki isteme. Bulguları önem sırasıyla sun ve test boşluklarını ayrı belirt."
+    }
+  ]
+}
