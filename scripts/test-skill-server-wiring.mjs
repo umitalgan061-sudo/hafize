@@ -31,4 +31,5 @@ const nvidiaIndex = source.indexOf('const first = await nvidiaJsonCompletion', b
 assert.ok(blockedIndex > 0 && nvidiaIndex > blockedIndex);
 
 assert.doesNotMatch(source, /skillRun\.inspection|skillRun\.plan|skillRun\.prompt/);
+await import('./test-skill-stack-integration.mjs');
 console.log('skill server wiring tests passed');
