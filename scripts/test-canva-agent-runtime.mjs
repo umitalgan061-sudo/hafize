@@ -13,8 +13,13 @@ const env = {
 const calls = [];
 const tokenStore = { load() {}, save() {}, remove() {} };
 const readClient = { read() {} };
-const boundary = { async execute() { return { ok: true }; } };
 const principal = Object.freeze({ authenticated: true, subject: 'user:123@example.com' });
+const boundary = {
+  async execute(args, context) {
+    calls.push(['execute', args, context]);
+    return { ok: true };
+  }
+};
 
 const runtime = createCanvaAgentRuntime({
   env,
@@ -50,10 +55,15 @@ const runtime = createCanvaAgentRuntime({
 
 assert.equal(runtime.configured, true);
 assert.deepEqual(runtime.status(), { configured: true, access: 'authenticated-read-only' });
-assert.deepEqual(runtime.requestContext({ headers: {} }), { canvaReadTool: null, principal: null });
+assert.deepEqual(runtime.requestContext({ headers: {} }), { canvaReadTool: null, canvaReadAuthenticated: false });
 const context = runtime.requestContext({ headers: { authorization: `Bearer ${authToken}` } });
-assert.equal(context.canvaReadTool, boundary);
-assert.equal(context.principal, principal);
+assert.equal(context.canvaReadAuthenticated, true);
+assert.equal(typeof context.canvaReadTool?.execute, 'function');
+assert.equal('principal' in context, false);
+assert.equal(JSON.stringify(context).includes('user:123@example.com'), false);
+await context.canvaReadTool.execute({ operation: 'user.get' });
+const executeCall = calls.find((item) => item[0] === 'execute');
+assert.deepEqual(executeCall, ['execute', { operation: 'user.get' }, { principal }]);
 assert.deepEqual(calls[0], ['authenticator', { token: authToken, subject: 'user:123@example.com' }]);
 assert.deepEqual(calls[1], ['ownerKey', key]);
 assert.equal(JSON.stringify(runtime.status()).includes(authToken), false);
@@ -63,7 +73,7 @@ assert.equal('ownerKey' in runtime, false);
 
 const disabled = createCanvaAgentRuntime({ env: {} });
 assert.equal(disabled.configured, false);
-assert.deepEqual(disabled.requestContext(), { canvaReadTool: null, principal: null });
+assert.deepEqual(disabled.requestContext(), { canvaReadTool: null, canvaReadAuthenticated: false });
 assert.deepEqual(disabled.status(), { configured: false, access: 'disabled' });
 
 for (const partial of [
