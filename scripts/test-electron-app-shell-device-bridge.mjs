@@ -1,0 +1,99 @@
+import assert from 'node:assert/strict';
+import { createElectronAppShell } from '../desktop/app-shell.mjs';
+import { DEVICE_BRIDGE_CHANNEL } from '../desktop/device-bridge-contract.mjs';
+
+class WebContents {
+  constructor() { this.listeners = new Map(); }
+  on(name, fn) { this.listeners.set(name, fn); }
+  removeListener(name, fn) {
+    if (this.listeners.get(name) === fn) this.listeners.delete(name);
+  }
+  setWindowOpenHandler(fn) { this.openHandler = fn; }
+}
+
+const windows = [];
+class Window {
+  static getAllWindows() { return windows.filter((window) => !window.destroyed); }
+  constructor(options) {
+    this.options = options;
+    this.webContents = new WebContents();
+    this.events = new Map();
+    windows.push(this);
+  }
+  once(name, fn) { this.events.set(name, fn); }
+  async loadURL(url) { this.url = url; }
+  isDestroyed() { return Boolean(this.destroyed); }
+  show() {}
+  destroy() {
+    this.destroyed = true;
+    this.events.get('closed')?.();
+  }
+}
+
+const ipcHandlers = new Map();
+const ipcMain = {
+  handle(name, fn) { ipcHandlers.set(name, fn); },
+  removeHandler(name) { ipcHandlers.delete(name); }
+};
+const app = {
+  async whenReady() {},
+  on() {},
+  removeListener() {},
+  quit() {},
+  getVersion() { return '2.0.0'; }
+};
+const externalUrls = [];
+const shell = { async openExternal(url) { externalUrls.push(url); } };
+const osModule = {
+  platform: () => 'linux',
+  arch: () => 'arm64',
+  cpus: () => [{}, {}, {}, {}],
+  totalmem: () => 8 * 1024 * 1024 * 1024
+};
+let appOpenCalls = 0;
+
+const desktop = createElectronAppShell({
+  app,
+  BrowserWindow: Window,
+  ipcMain,
+  shell,
+  osModule,
+  preloadPath: '/absolute/preload.mjs',
+  appOpeners: { notes: async () => { appOpenCalls += 1; } },
+  platform: 'linux'
+});
+const windowRef = await desktop.start();
+const invoke = ipcHandlers.get(DEVICE_BRIDGE_CHANNEL);
+assert.equal(typeof invoke, 'function');
+const trustedEvent = {
+  sender: windowRef.webContents,
+  senderFrame: { url: 'http://127.0.0.1:4173/' }
+};
+
+const info = await invoke(trustedEvent, { operation: 'system.info', args: {} });
+assert.deepEqual(info, {
+  ok: true,
+  value: { platform: 'linux', arch: 'arm64', appVersion: '2.0.0', cpuCount: 4, totalMemoryMb: 8192 }
+});
+const browser = await invoke(trustedEvent, {
+  operation: 'browser.open',
+  args: { url: 'https://example.com/help', explicitUserIntent: true }
+});
+assert.equal(browser.ok, true);
+assert.deepEqual(externalUrls, ['https://example.com/help']);
+const openedApp = await invoke(trustedEvent, {
+  operation: 'app.open',
+  args: { appId: 'notes', explicitUserIntent: true }
+});
+assert.equal(openedApp.ok, true);
+assert.equal(appOpenCalls, 1);
+
+const untrusted = await invoke(
+  { sender: windowRef.webContents, senderFrame: { url: 'https://evil.example/' } },
+  { operation: 'system.info', args: {} }
+);
+assert.deepEqual(untrusted, { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' });
+
+desktop.dispose();
+assert.equal(ipcHandlers.has(DEVICE_BRIDGE_CHANNEL), false);
+console.log('electron app shell device bridge integration tests passed');

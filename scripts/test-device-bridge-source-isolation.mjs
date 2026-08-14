@@ -5,7 +5,8 @@ const files = [
   '../desktop/device-bridge-contract.mjs',
   '../desktop/device-bridge-main.mjs',
   '../desktop/device-bridge-preload.mjs',
-  '../desktop/browser-window-security.mjs'
+  '../desktop/browser-window-security.mjs',
+  '../desktop/app-shell.mjs'
 ];
 const source = (await Promise.all(files.map((path) => readFile(new URL(path, import.meta.url), 'utf8')))).join('\n');
 
