@@ -14,6 +14,7 @@ import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
+import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
@@ -49,6 +50,7 @@ const GITHUB_READ_FILE = createGitHubReadFile({
 });
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
+const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 
 const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -277,6 +279,7 @@ async function handleAgentRun(req, res) {
     return;
   }
 
+  const connectorContext = CANVA_AGENT_RUNTIME.requestContext({ headers: req.headers });
   const traceId = createTraceId();
   const runLedger = createAgentRunLedger({ traceId, agentId: agent.id });
   res.setHeader('X-Hafize-Trace-Id', traceId);
@@ -314,7 +317,8 @@ async function handleAgentRun(req, res) {
   const conversation = [buildAgentSystemMessage(agent, traceId), ...messages];
   const tools = getAllowedNvidiaTools(agent, {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
-    delegateAgent: delegator.delegate
+    delegateAgent: delegator.delegate,
+    ...connectorContext
   });
   const firstPayload = {
     model,
@@ -384,7 +388,8 @@ async function handleAgentRun(req, res) {
       githubReadConfigured: GITHUB_READ_CONFIGURED,
       githubReadFile: GITHUB_READ_FILE,
       delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
-      approvalGranted: false
+      approvalGranted: false,
+      ...connectorContext
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
@@ -559,6 +564,7 @@ const server = createServer(async (req, res) => {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
+        canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULE_EXECUTION_RUNTIME.configured),
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         scheduleStorageDurable: SCHEDULE_STORAGE.durable,
