@@ -17,6 +17,10 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
+import { loadBuiltinSkillRuntime } from './lib/skill-runtime.mjs';
+import { createSkillService } from './lib/skill-service.mjs';
+import { createSkillHttpApi } from './lib/skill-http-api.mjs';
+import { createSkillAgentRunBoundary } from './lib/skill-agent-run-boundary.mjs';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
@@ -53,6 +57,10 @@ const GITHUB_READ_FILE = createGitHubReadFile({
 });
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
+const SKILL_RUNTIME = await loadBuiltinSkillRuntime();
+const SKILL_SERVICE = createSkillService({ skillRuntime: SKILL_RUNTIME, agentRegistry: AGENT_REGISTRY });
+const SKILL_HTTP_API = createSkillHttpApi({ skillRuntime: SKILL_RUNTIME });
+const SKILL_AGENT_RUN = createSkillAgentRunBoundary({ skillService: SKILL_SERVICE });
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
 
@@ -324,14 +332,6 @@ async function handleAgentRun(req, res) {
   res.setHeader('X-Hafize-Trace-Id', traceId);
   const controller = new AbortController();
   res.on('close', () => controller.abort());
-  const preparedConversation = await prepareConversation(
-    [buildAgentSystemMessage(agent, traceId), ...messages],
-    model,
-    controller.signal,
-    res
-  );
-  const conversation = preparedConversation.messages;
-  const contextMeta = preparedConversation.meta;
 
   const delegator = createAgentDelegator({
     registry: AGENT_REGISTRY,
@@ -360,6 +360,51 @@ async function handleAgentRun(req, res) {
       });
     }
   });
+
+  const skillRun = await SKILL_AGENT_RUN.prepare({
+    messages,
+    agent,
+    delegateAgent: (args) => delegator.delegate(args, { depth: 0 })
+  });
+  if (skillRun.kind === 'blocked') {
+    runLedger.finish({ ok: false, detail: 'skill_approval_required' });
+    sendJson(res, skillRun.status, {
+      ...skillRun.body,
+      traceId,
+      taskLedger: runLedger.snapshot()
+    });
+    return;
+  }
+  if (skillRun.skill?.id) res.setHeader('X-Hafize-Skill-Id', skillRun.skill.id);
+  if (skillRun.kind === 'complete') {
+    runLedger.finish({ ok: true });
+    if (streamResponse) {
+      sendSseContent(res, skillRun.content);
+      return;
+    }
+    sendJson(res, 200, {
+      traceId,
+      agent: { id: agent.id, name: agent.name },
+      content: skillRun.content,
+      tools: [],
+      skill: {
+        ...skillRun.skill,
+        delegatedAgent: skillRun.delegatedAgent
+      },
+      taskLedger: runLedger.snapshot()
+    });
+    return;
+  }
+
+  const preparedConversation = await prepareConversation(
+    [buildAgentSystemMessage(agent, traceId), ...skillRun.messages],
+    model,
+    controller.signal,
+    res
+  );
+  const conversation = preparedConversation.messages;
+  const contextMeta = preparedConversation.meta;
+  const skillMeta = skillRun.skill;
 
   const tools = getAllowedNvidiaTools(agent, {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
@@ -398,6 +443,7 @@ async function handleAgentRun(req, res) {
       agent: { id: agent.id, name: agent.name },
       content,
       tools: [],
+      skill: skillMeta,
       context: contextMeta,
       taskLedger: runLedger.snapshot()
     });
@@ -524,6 +570,7 @@ async function handleAgentRun(req, res) {
     agent: { id: agent.id, name: agent.name },
     content: typeof finalMessage.content === 'string' ? finalMessage.content : '',
     tools: toolSummary,
+    skill: skillMeta,
     context: contextMeta,
     taskLedger: runLedger.snapshot()
   });
@@ -621,12 +668,24 @@ const server = createServer(async (req, res) => {
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         contextCompactionConfigured: true,
+        skillsConfigured: SKILL_RUNTIME.size > 0,
+        skills: SKILL_RUNTIME.size,
         scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULE_EXECUTION_RUNTIME.configured),
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         scheduleStorageDurable: SCHEDULE_STORAGE.durable,
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
         agents: AGENT_REGISTRY.agents.length
       });
+      return;
+    }
+    if (url.pathname === '/api/skills') {
+      const skillResponse = await SKILL_HTTP_API.handle({ method: req.method, pathname: url.pathname });
+      if (!skillResponse.matched) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      for (const [name, value] of Object.entries(skillResponse.headers || {})) res.setHeader(name, value);
+      sendJson(res, skillResponse.status, skillResponse.body);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/canva/status') {
