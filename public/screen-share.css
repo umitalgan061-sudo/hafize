@@ -9,9 +9,13 @@
 #screenSharePreview[hidden] { display: none; }
 #screenShareImage { object-fit: cover; border-radius: 10px; background: #111; }
 #screenShareStatus { font-size: 12px; line-height: 1.35; opacity: .75; }
+.screen-share-copy { min-width: 0; display: grid; gap: 6px; }
+.screen-share-actions { display: grid; gap: 6px; justify-items: start; }
+.screen-analysis-result { margin: 0; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
+.screen-analysis-result[hidden] { display: none; }
 #screenShareBtn[aria-pressed="true"] { color: #c8571f; }
 @media (max-width: 640px) {
   #screenSharePreview { grid-template-columns: 88px minmax(0, 1fr); }
   #screenShareImage { width: 88px; height: 50px; }
-  #screenShareRemove { grid-column: 1 / -1; justify-self: start; }
+  .screen-share-actions { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, auto)); }
 }
