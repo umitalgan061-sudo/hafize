@@ -11,7 +11,14 @@ const env = {
   HAFIZE_OAUTH_TOKEN_STORAGE_DIR: '/private/oauth'
 };
 const calls = [];
-const tokenStore = { load() {}, save() {}, remove() {} };
+const tokenStore = {
+  async load(input) {
+    calls.push(['load', input]);
+    return { accessToken: 'stored-server-side' };
+  },
+  save() {},
+  remove() {}
+};
 const readClient = { read() {} };
 const principal = Object.freeze({ authenticated: true, subject: 'user:123@example.com' });
 const boundary = {
@@ -30,7 +37,12 @@ const runtime = createGmailAgentRuntime({
   },
   createOwnerResolver({ key: receivedKey }) {
     calls.push(['ownerKey', receivedKey.toString('base64')]);
-    return { resolve() { return { ownerId: 'owner_test' }; } };
+    return {
+      resolve(receivedPrincipal) {
+        calls.push(['resolve', receivedPrincipal]);
+        return { ownerId: 'owner_test' };
+      }
+    };
   },
   createTokenStoreRuntime(input) {
     calls.push(['tokenStore', input.env === env]);
@@ -57,6 +69,13 @@ assert.equal(JSON.stringify(context).includes('user:123@example.com'), false);
 const result = await context.gmailReadTool.execute({ operation: 'profile.get' });
 assert.equal(result.messages[0].id, 'm1');
 assert.equal(calls.at(-1)[2].principal, principal);
+
+assert.deepEqual(await runtime.connectionStatus({ headers: {} }), { ok: false, error: 'AUTH_REQUIRED' });
+const linked = await runtime.connectionStatus({ headers: { authorization: `Bearer ${authToken}` } });
+assert.deepEqual(linked, { ok: true, linked: true });
+assert.deepEqual(calls.at(-2), ['resolve', principal]);
+assert.deepEqual(calls.at(-1), ['load', { ownerId: 'owner_test', provider: 'google' }]);
+assert.equal(JSON.stringify(linked).includes('stored-server-side'), false);
 assert.equal(JSON.stringify(runtime.status()).includes(authToken), false);
 assert.equal('authToken' in runtime, false);
 assert.equal('ownerKey' in runtime, false);
@@ -64,6 +83,7 @@ assert.equal('ownerKey' in runtime, false);
 const disabled = createGmailAgentRuntime({ env: {} });
 assert.equal(disabled.configured, false);
 assert.deepEqual(disabled.requestContext(), { gmailReadTool: null, gmailReadAuthenticated: false });
+assert.deepEqual(await disabled.connectionStatus(), { ok: false, error: 'GMAIL_NOT_CONFIGURED' });
 for (const partial of [
   { HAFIZE_CONNECTOR_AUTH_TOKEN: authToken },
   { HAFIZE_CONNECTOR_AUTH_SUBJECT: 'user:123@example.com' },
