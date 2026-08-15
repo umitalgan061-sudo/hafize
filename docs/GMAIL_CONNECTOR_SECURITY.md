@@ -8,6 +8,10 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Doğrulanmış subject, HMAC tabanlı opak owner kimliğine backend içinde çevrilir.
 - Raw subject generic tool context'e girmez; request-scoped Gmail executor içine bağlanır.
 - Access/refresh token yalnız encrypted OAuth token store'dan owner + `google` provider scope'uyla okunur.
+- Token store deployment'ta **tam olarak bir** backend seçer: `HAFIZE_OAUTH_TOKEN_STORAGE_DIR` veya `HAFIZE_OAUTH_TOKEN_REDIS_URL`. İkisi birden ya da ikisi de yoksa startup fail-closed olur.
+- Shared Redis modunda owner/provider Redis key'ine düz yazılmaz; domain-separated SHA-256 digest kullanılır. Token record AES-256-GCM envelope olarak saklanır; access/refresh token Redis value'da plaintext değildir.
+- Google auto-refresh etkinse token store'un `encrypted-redis` olması zorunludur. Distributed refresh lease + instance-local file store kombinasyonu güvenli kabul edilmez.
+- File store'dan Redis'e geçiş otomatik plaintext/dual-read migrasyonu yapmaz. Eski file kaydı açık bir migration adımıyla taşınmalı veya connector yeniden yetkilendirilmelidir; iki backend'in eşzamanlı aktif tutulması yasaktır.
 
 ## Süreklilik ve token yenileme
 

@@ -11,7 +11,8 @@ const env = {
   HAFIZE_OAUTH_TOKEN_STORAGE_DIR: '/private/oauth'
 };
 const calls = [];
-const tokenStore = { load() {}, save() {}, remove() {} };
+let tokenStoreCloseCalls = 0;
+const tokenStore = { load() {}, save() {}, remove() {}, async close() { tokenStoreCloseCalls += 1; } };
 const readClient = { read() {} };
 const principal = Object.freeze({ authenticated: true, subject: 'user:123@example.com' });
 const boundary = {
@@ -70,11 +71,14 @@ assert.equal(JSON.stringify(runtime.status()).includes(authToken), false);
 assert.equal(JSON.stringify(runtime.status()).includes('user:123@example.com'), false);
 assert.equal('authToken' in runtime, false);
 assert.equal('ownerKey' in runtime, false);
+await runtime.close();
+assert.equal(tokenStoreCloseCalls, 1);
 
 const disabled = createCanvaAgentRuntime({ env: {} });
 assert.equal(disabled.configured, false);
 assert.deepEqual(disabled.requestContext(), { canvaReadTool: null, canvaReadAuthenticated: false });
 assert.deepEqual(disabled.status(), { configured: false, access: 'disabled' });
+await disabled.close();
 
 for (const partial of [
   { HAFIZE_CONNECTOR_AUTH_TOKEN: authToken },
