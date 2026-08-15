@@ -17,10 +17,12 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Authorization başlangıç sözleşmesi `POST /api/connectors/gmail/oauth/start` için bearer authentication ister; query string kabul etmez.
 - Production start sınırı yalnız `identity` ve `gmail.read` capability'lerini kabul eder. `gmail.send` / `gmail.modify`, generic policy primitive'inde bulunsa bile bu HTTP yüzeyinden grant edilemez.
 - Start response'u yalnız authorization URL, expiry ve capability metadata döndürür; state ayrıca response alanı olarak, verifier, owner ID, subject veya credential olarak açığa çıkarılmaz.
+- Google authorization URL'si `access_type=offline` ve `prompt=consent` kullanır; amaç 7×24 kullanım için kalıcı refresh grant'i istemektir.
 - Google browser callback'i bearer header beklemez. Tek kullanımlı, cryptographically-random state shared server-side kaydı bulur ve başlangıç owner'ını callback'e taşır.
 - Callback query'sinde bilinmeyen veya tekrar eden parametre fail-closed reddedilir. Malformed duplicate query geçerli state'i tüketmeden durur.
 - Provider denial açıklaması public response'a yansıtılmaz; callback replay ikinci token exchange'e ulaşamaz.
-- Runtime production Redis/token-store composition'ını ve bounded shutdown'ı içerir. `server.mjs` route dispatch montajı ayrı stack adımı olarak tutulur; bu PR kendi başına yeni public server route'u açmaz.
+- Token exchange sonunda kalıcı refresh token yoksa bağlantı başarılı sayılmaz; geçici token kaydı silinir ve public sınır `GOOGLE_OAUTH_REAUTH_REQUIRED` döndürür.
+- Runtime production Redis/token-store composition'ını ve bounded shutdown'ı içerir. `server.mjs` start/callback route'larını mount eder, health içinde yalnız configured boolean'ını gösterir ve shutdown sırasında runtime'ı kapatır.
 
 ## Süreklilik ve token yenileme
 
