@@ -88,6 +88,7 @@ class FakeEvent {
 
 const recognitionInstances = [];
 let beforeStartHook = null;
+let failNextStart = false;
 class FakeRecognition {
   constructor() {
     this.abortCalls = 0;
@@ -99,6 +100,10 @@ class FakeRecognition {
     const hook = beforeStartHook;
     beforeStartHook = null;
     hook?.(this);
+    if (failNextStart) {
+      failNextStart = false;
+      throw new Error('synthetic recognition start failure');
+    }
     this.started = true;
     this.onstart?.();
   }
@@ -237,8 +242,27 @@ runTimers();
 assert.equal(recognitionInstances.length, 5);
 assert.equal(wake.isListening(), true);
 
+// A synchronous push-to-talk start failure must release ownership and restore wake listening.
+const wakeBeforeFailedHandoff = recognitionInstances[4];
+const stateCountBeforeFailure = states.length;
+failNextStart = true;
+wakeBeforeFailedHandoff.emitTranscript('hafize');
+assert.equal(recognitionInstances.length, 6, 'failed handoff still constructs one push-to-talk recognition');
+const failedVoiceRecognition = recognitionInstances[5];
+assert.equal(failedVoiceRecognition.started, false);
+assert.equal(voice.isListening(), false, 'failed browser start must release push-to-talk ownership');
+assert.equal(wake.isVoiceInputListening(), false, 'hands-free must observe released ownership');
+assert.deepEqual(states.slice(stateCountBeforeFailure), [
+  { listening: true, source: 'voice-input' },
+  { listening: false, source: 'voice-input' }
+]);
+assert.equal(timers.size, 1, 'failed handoff must schedule wake recovery');
+runTimers();
+assert.equal(recognitionInstances.length, 7, 'wake recognition must recover after failed push-to-talk start');
+assert.equal(wake.isListening(), true);
+
 // Malformed/unrelated lifecycle events must not change microphone ownership.
-const currentWakeRecognition = recognitionInstances[4];
+const currentWakeRecognition = recognitionInstances[6];
 documentRef.dispatchEvent(new FakeCustomEvent(voiceInput.VOICE_INPUT_STATE_EVENT, {
   detail: { listening: true, source: 'untrusted-component' }
 }));
