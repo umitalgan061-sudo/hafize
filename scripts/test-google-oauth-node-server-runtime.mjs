@@ -20,6 +20,8 @@ let flowCloseCalls = 0;
 let tokenCloseCalls = 0;
 let exchangeCalls = 0;
 let exchangedOwner = null;
+let guardedTokenStore = null;
+let tokenSaves = 0;
 function createFlowStoreRuntime() {
   return {
     async issue(flow) {
@@ -43,11 +45,12 @@ function createFlowStoreRuntime() {
 function createTokenStoreRuntime() {
   return {
     status() { return { configured: true, storage: 'encrypted-redis' }; },
-    async save() {}, async load() { return null; }, async remove() {},
+    async save() { tokenSaves += 1; }, async load() { return null; }, async remove() {},
     async close() { tokenCloseCalls += 1; }
   };
 }
-function createTokenExchange() {
+function createTokenExchange({ tokenStore }) {
+  guardedTokenStore = tokenStore;
   return {
     async exchange(input) {
       exchangeCalls += 1;
@@ -63,6 +66,12 @@ const factories = { env, fetchImpl: async () => {}, createFlowStoreRuntime, crea
 const first = createGoogleOAuthNodeServerRuntime(factories);
 const second = createGoogleOAuthNodeServerRuntime(factories);
 assert.equal(first.configured, true);
+assert.ok(guardedTokenStore);
+await guardedTokenStore.save({ tokenRecord: { scopes: ['https://www.googleapis.com/auth/gmail.readonly'] } });
+assert.equal(tokenSaves, 1);
+await assert.rejects(() => guardedTokenStore.save({ tokenRecord: { scopes: ['https://www.googleapis.com/auth/gmail.modify'] } }), /GOOGLE_OAUTH_SCOPE_ESCALATION/);
+await assert.rejects(() => guardedTokenStore.save({ tokenRecord: { scopes: [] } }), /GOOGLE_OAUTH_SCOPE_ESCALATION/);
+assert.equal(tokenSaves, 1);
 
 let response = await first.handle({ method: 'POST', pathname: '/api/connectors/gmail/oauth/start', headers: {} });
 assert.deepEqual(response, { matched: true, status: 401, body: { error: 'AUTH_REQUIRED' } });
@@ -78,6 +87,7 @@ const authorization = new URL(response.body.authorizationUrl);
 assert.equal(authorization.origin, 'https://accounts.google.com');
 assert.equal(authorization.searchParams.get('scope'), 'https://www.googleapis.com/auth/gmail.readonly');
 assert.equal(authorization.searchParams.get('access_type'), 'offline');
+assert.equal(authorization.searchParams.get('include_granted_scopes'), 'false');
 assert.equal(authorization.searchParams.get('prompt'), 'consent');
 assert.equal(authorization.searchParams.get('code_challenge_method'), 'S256');
 assert.equal(authorization.searchParams.has('ownerId'), false);
