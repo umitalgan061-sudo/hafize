@@ -15,7 +15,8 @@ const env = {
   HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: secret,
   HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'user-bearer-token',
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'user-1',
-  HAFIZE_GITHUB_WRITE_OWNER_KEY: secret
+  HAFIZE_GITHUB_WRITE_OWNER_KEY: secret,
+  HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
 };
 let fetchCalls = 0;
 const writes = [];
