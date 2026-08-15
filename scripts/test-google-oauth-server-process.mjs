@@ -45,6 +45,9 @@ function spawnServer(env) {
 }
 
 function waitForExit(child, timeoutMs = 10_000) {
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve({ code: child.exitCode, signal: child.signalCode });
+  }
   return new Promise((resolve, reject) => {
     let timer = setTimeout(() => {
       child.kill('SIGKILL');
