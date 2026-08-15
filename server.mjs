@@ -17,6 +17,7 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
+import { createModelProviderNodeServerRuntime } from './lib/model-provider-node-server-runtime.mjs';
 import { createPersonalMemoryServerRuntime } from './lib/personal-memory-server-runtime.mjs';
 import { createScreenAnalysisServerRuntime } from './lib/screen-analysis-server-runtime.mjs';
 import { loadBuiltinSkillRuntime } from './lib/skill-runtime.mjs';
@@ -201,6 +202,16 @@ const CONTEXT_COMPACTOR = createContextCompactor({
   }
 });
 
+const MODEL_PROVIDER_NODE_SERVER_RUNTIME = createModelProviderNodeServerRuntime({
+  env: process.env,
+  fetchImpl: fetch,
+  registry: AGENT_REGISTRY,
+  baseCompactor: CONTEXT_COMPACTOR,
+  readJson,
+  sendJson,
+  setSecurityHeaders
+});
+
 async function prepareConversation(messages, model, signal, res) {
   const prepared = await CONTEXT_COMPACTOR.prepare(messages, { model, signal });
   res.setHeader('X-Hafize-Context-Compacted', prepared.meta.compacted ? '1' : '0');
@@ -289,28 +300,6 @@ function stopScheduleWorkerLoop() {
 }
 
 startScheduleWorkerLoop();
-
-async function handleModels(res) {
-  const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    sendJson(res, upstream.status, { error: 'NVIDIA_MODELS_ERROR', detail: text.slice(0, 1000) });
-    return;
-  }
-
-  let payload;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE' });
-    return;
-  }
-
-  const models = Array.isArray(payload.data)
-    ? payload.data.map((item) => item?.id).filter((id) => typeof id === 'string' && id.length > 0)
-    : [];
-  sendJson(res, 200, { models });
-}
 
 function handleAgents(res) {
   sendJson(res, 200, {
@@ -588,65 +577,6 @@ async function handleAgentRun(req, res) {
   });
 }
 
-async function handleChat(req, res) {
-  const body = await readJson(req);
-  const model = typeof body.model === 'string' ? body.model.trim() : '';
-  const messages = normalizeClientMessages(body.messages);
-  const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
-  if (!model || !messages || !agent) {
-    sendJson(res, 400, { error: !agent ? 'INVALID_AGENT' : 'INVALID_CHAT_REQUEST' });
-    return;
-  }
-
-  const traceId = createTraceId();
-  res.setHeader('X-Hafize-Trace-Id', traceId);
-  const controller = new AbortController();
-  res.on('close', () => controller.abort());
-  const preparedConversation = await prepareConversation(
-    [buildAgentSystemMessage(agent, traceId), ...messages],
-    model,
-    controller.signal,
-    res
-  );
-
-  const payload = {
-    model,
-    messages: preparedConversation.messages,
-    stream: true,
-    max_tokens: boundedMaxTokens(body)
-  };
-  if (typeof body.temperature === 'number') payload.temperature = Math.min(Math.max(body.temperature, 0), 2);
-  if (typeof body.top_p === 'number') payload.top_p = Math.min(Math.max(body.top_p, 0), 1);
-
-  const upstream = await nvidiaFetch('/chat/completions', {
-    method: 'POST',
-    signal: controller.signal,
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify(payload)
-  });
-
-  if (!upstream.ok || !upstream.body) {
-    const detail = await upstream.text();
-    sendJson(res, upstream.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: detail.slice(0, 1200) });
-    return;
-  }
-
-  setSecurityHeaders(res);
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive'
-  });
-
-  try {
-    for await (const chunk of upstream.body) res.write(chunk);
-  } catch (error) {
-    if (error?.name !== 'AbortError') res.write(`data: ${JSON.stringify({ error: 'STREAM_INTERRUPTED' })}\n\n`);
-  } finally {
-    res.end();
-  }
-}
-
 async function serveStatic(pathname, res) {
   const decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
   const filePath = resolve(PUBLIC_DIR, `.${decoded}`);
@@ -676,12 +606,14 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
+        localProviderConfigured: MODEL_PROVIDER_NODE_SERVER_RUNTIME.localConfigured,
+        defaultModelProvider: MODEL_PROVIDER_NODE_SERVER_RUNTIME.defaultProvider,
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
         screenAnalysisConfigured: SCREEN_ANALYSIS_SERVER_RUNTIME.configured,
-        contextCompactionConfigured: true,
+        contextCompactionConfigured: MODEL_PROVIDER_NODE_SERVER_RUNTIME.contextCompactionConfigured,
         skillsConfigured: SKILL_RUNTIME.size > 0,
         skills: SKILL_RUNTIME.size,
         scheduleWorkerConfigured: Boolean(NVIDIA_API_KEY && SCHEDULE_EXECUTION_RUNTIME.configured),
@@ -771,8 +703,15 @@ const server = createServer(async (req, res) => {
       sendJson(res, scheduleResponse.status, scheduleResponse.body);
       return;
     }
-    if (req.method === 'GET' && url.pathname === '/api/models') {
-      await handleModels(res);
+    if (url.pathname === '/api/models' || url.pathname === '/api/chat') {
+      const providerResponse = await MODEL_PROVIDER_NODE_SERVER_RUNTIME.handle({
+        request: req,
+        response: res,
+        method: req.method,
+        pathname: url.pathname,
+        headers: req.headers
+      });
+      if (!providerResponse.matched) sendJson(res, 404, { error: 'NOT_FOUND' });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/agents') {
@@ -781,10 +720,6 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/agent/run') {
       await handleAgentRun(req, res);
-      return;
-    }
-    if (req.method === 'POST' && url.pathname === '/api/chat') {
-      await handleChat(req, res);
       return;
     }
     if (req.method === 'GET' || req.method === 'HEAD') {
