@@ -187,6 +187,7 @@
       };
 
       try {
+        setListening(true);
         recognition.start();
       } catch {
         recognition = null;
