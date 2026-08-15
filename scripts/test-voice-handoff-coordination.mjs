@@ -124,16 +124,19 @@ class FakeRecognition {
 
 const timers = new Map();
 let timerNo = 0;
-function setTimeoutFake(callback) {
+function setTimeoutFake(callback, delay = 0) {
   const id = ++timerNo;
-  timers.set(id, callback);
+  timers.set(id, { callback, delay });
   return id;
 }
 function clearTimeoutFake(id) { timers.delete(id); }
-function runTimers() {
-  const queued = [...timers.entries()];
-  timers.clear();
-  for (const [, callback] of queued) callback();
+function restartTimerCount() {
+  return [...timers.values()].filter((entry) => entry.delay === 350).length;
+}
+function runRestartTimers() {
+  const queued = [...timers.entries()].filter(([, entry]) => entry.delay === 350);
+  for (const [id] of queued) timers.delete(id);
+  for (const [, entry] of queued) entry.callback();
 }
 
 const storage = new Map();
@@ -196,7 +199,7 @@ beforeStartHook = () => {
   assert.equal(wake.isVoiceInputListening(), true, 'hands-free must observe the pre-start claim synchronously');
   assert.equal(wakeRecognition.abortCalls, 1, 'wake recognition must abort before push-to-talk calls start()');
   assert.deepEqual(states.at(-1), { listening: true, source: 'voice-input' });
-  assert.equal(timers.size, 0, 'pre-start ownership must suppress wake restart');
+  assert.equal(restartTimerCount(), 0, 'pre-start ownership must suppress wake restart');
 };
 mic.click();
 assert.equal(beforeStartHook, null, 'manual push-to-talk must reach Recognition.start()');
@@ -214,8 +217,8 @@ manualVoiceRecognition.onend?.();
 assert.equal(voice.isListening(), false);
 assert.equal(wake.isVoiceInputListening(), false);
 assert.deepEqual(states.at(-1), { listening: false, source: 'voice-input' });
-assert.equal(timers.size, 1, 'wake recognition should be scheduled after voice input ends');
-runTimers();
+assert.equal(restartTimerCount(), 1, 'wake recognition should be scheduled after voice input ends');
+runRestartTimers();
 assert.equal(recognitionInstances.length, 3);
 assert.equal(wake.isListening(), true);
 
@@ -224,7 +227,7 @@ const resumedWakeRecognition = recognitionInstances[2];
 beforeStartHook = () => {
   assert.equal(voice.isListening(), true, 'wake handoff must claim push-to-talk before browser start()');
   assert.equal(wake.isVoiceInputListening(), true, 'wake handoff must publish ownership synchronously');
-  assert.equal(timers.size, 0, 'wake restart must remain suppressed during the pre-start handoff window');
+  assert.equal(restartTimerCount(), 0, 'wake restart must remain suppressed during the pre-start handoff window');
 };
 resumedWakeRecognition.emitTranscript('hey hafize');
 assert.equal(beforeStartHook, null, 'wake phrase must hand off through Recognition.start()');
@@ -232,13 +235,13 @@ assert.equal(recognitionInstances.length, 4, 'wake phrase should hand off to voi
 const wakeTriggeredVoiceRecognition = recognitionInstances[3];
 assert.equal(voice.isListening(), true);
 assert.equal(wake.isVoiceInputListening(), true);
-assert.equal(timers.size, 0, 'wake listener must not restart over active voice input');
+assert.equal(restartTimerCount(), 0, 'wake listener must not restart over active voice input');
 
 wakeTriggeredVoiceRecognition.emitTranscript('yarın için görev ekle');
 assert.equal(input.value, 'bugün plan yapalım yarın için görev ekle');
 wakeTriggeredVoiceRecognition.onend?.();
-assert.equal(timers.size, 1);
-runTimers();
+assert.equal(restartTimerCount(), 1);
+runRestartTimers();
 assert.equal(recognitionInstances.length, 5);
 assert.equal(wake.isListening(), true);
 
@@ -256,8 +259,8 @@ assert.deepEqual(states.slice(stateCountBeforeFailure), [
   { listening: true, source: 'voice-input' },
   { listening: false, source: 'voice-input' }
 ]);
-assert.equal(timers.size, 1, 'failed handoff must schedule wake recovery');
-runTimers();
+assert.equal(restartTimerCount(), 1, 'failed handoff must schedule wake recovery');
+runRestartTimers();
 assert.equal(recognitionInstances.length, 7, 'wake recognition must recover after failed push-to-talk start');
 assert.equal(wake.isListening(), true);
 
@@ -273,7 +276,7 @@ documentRef.hidden = true;
 documentRef.dispatchEvent({ type: 'visibilitychange' });
 assert.equal(currentWakeRecognition.abortCalls, 1);
 assert.equal(wake.isListening(), false);
-assert.equal(timers.size, 0, 'hidden document must not restart microphone listening');
+assert.equal(restartTimerCount(), 0, 'hidden document must not restart microphone listening');
 
 voice.destroy();
 wake.destroy();
