@@ -29,7 +29,7 @@ function makeRuntime(subject, instance) {
     createTokenStoreRuntime: () => ({ async save() {} }),
     createFlowStoreRuntime: async () => ({ configured: true, store: sharedStore, async close() {} }),
     createTokenExchange: () => ({
-      async exchange(input) { exchanges.push({ ...input, instance }); return { ownerId: input.ownerId }; }
+      async exchange(input) { exchanges.push({ ...input, instance }); return { ownerId: input.ownerId, refreshTokenStored: true }; }
     })
   });
 }
@@ -40,7 +40,7 @@ const started = await instanceA.handle({
   request: { body: { capabilities: ['gmail.read'] } },
   method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
   url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`),
-  headers: { authorization: `Bearer ${TOKEN}` }
+  headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
 });
 assert.equal(started.status, 200);
 const state = new URL(started.body.authorizationUrl).searchParams.get('state');
@@ -57,6 +57,7 @@ assert.equal(exchanges.length, 1);
 assert.equal(exchanges[0].instance, 'B', 'load balancer may send callback to another instance');
 assert.equal(exchanges[0].ownerId, 'owner_alpha', 'callback must retain the principal that initiated authorization');
 assert.notEqual(exchanges[0].ownerId, 'owner_bravo');
+assert.equal(exchanges[0].requireRefreshToken, true);
 assert.equal(sharedStore.size(), 0);
 
 const replayOnA = await instanceA.handle({

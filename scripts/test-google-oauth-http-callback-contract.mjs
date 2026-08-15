@@ -15,12 +15,12 @@ const runtime = await createGoogleOAuthHttpRuntime({
   readJson: async () => ({ capabilities: ['gmail.read'] }),
   createTokenStoreRuntime: () => ({ async save() {} }),
   createFlowStoreRuntime: async () => ({ configured: true, store, async close() {} }),
-  createTokenExchange: () => ({ async exchange() { exchanges += 1; } })
+  createTokenExchange: () => ({ async exchange() { exchanges += 1; return { refreshTokenStored: true }; } })
 });
 const started = await runtime.handle({
   request: {}, method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
   url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`),
-  headers: { authorization: `Bearer ${token}` }
+  headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }
 });
 const state = new URL(started.body.authorizationUrl).searchParams.get('state');
 const base = `https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}`;

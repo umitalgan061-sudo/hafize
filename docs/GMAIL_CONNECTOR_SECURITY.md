@@ -14,13 +14,18 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 ## Google OAuth HTTP sınırı
 
 - `google-oauth-http-runtime` yalnız `HAFIZE_GOOGLE_OAUTH_REDIRECT_URI` açıkça tanımlandığında etkinleşir. Redirect HTTPS olmalı ve `/api/connectors/gmail/oauth/callback` path'ini tam kullanmalıdır.
-- Authorization başlangıç sözleşmesi `POST /api/connectors/gmail/oauth/start` için bearer authentication ister; query string kabul etmez.
+- Authorization başlangıç sözleşmesi `POST /api/connectors/gmail/oauth/start` için bearer authentication ve `application/json` ister; query string kabul etmez.
+- Start request body en fazla 8 KiB'dir. Geçerli `Content-Length` bu sınırı aşıyorsa body okunmadan 413 döner; chunked body byte-byte ölçülür ve sınırı aşınca bağlantı kapatılır.
+- Start body okuma bütçesi varsayılan 10 saniyedir; tamamlanmayan/slow body 408 ile fail-closed durur ve connection reuse edilmez.
 - Production start sınırı yalnız `identity` ve `gmail.read` capability'lerini kabul eder. `gmail.send` / `gmail.modify`, generic policy primitive'inde bulunsa bile bu HTTP yüzeyinden grant edilemez.
 - Start response'u yalnız authorization URL, expiry ve capability metadata döndürür; state ayrıca response alanı olarak, verifier, owner ID, subject veya credential olarak açığa çıkarılmaz.
+- Google authorization URL'si `access_type=offline` ve `prompt=consent` kullanır; amaç 7×24 kullanım için kalıcı refresh grant'i istemektir.
 - Google browser callback'i bearer header beklemez. Tek kullanımlı, cryptographically-random state shared server-side kaydı bulur ve başlangıç owner'ını callback'e taşır.
-- Callback query'sinde bilinmeyen veya tekrar eden parametre fail-closed reddedilir. Malformed duplicate query geçerli state'i tüketmeden durur.
+- Callback query'si en fazla 4 KiB'dir. Bilinmeyen veya tekrar eden parametre ve aşırı büyük query, state consume edilmeden fail-closed reddedilir.
 - Provider denial açıklaması public response'a yansıtılmaz; callback replay ikinci token exchange'e ulaşamaz.
-- Runtime production Redis/token-store composition'ını ve bounded shutdown'ı içerir. `server.mjs` route dispatch montajı ayrı stack adımı olarak tutulur; bu PR kendi başına yeni public server route'u açmaz.
+- Token exchange sonunda provider yeni refresh token vermediyse yalnız aynı owner'a ait mevcut encrypted refresh token kullanılabilir. Hiç kalıcı refresh token yoksa **token store'a hiçbir access-only kayıt yazılmadan** 409 `GOOGLE_OAUTH_REAUTH_REQUIRED` döner.
+- `server.mjs` start/callback route'larını static fallback'ten önce mount eder, runtime response header'larını korur, health içinde yalnız `googleOAuthConfigured` boolean'ını gösterir ve shutdown sırasında OAuth runtime'ını bounded biçimde kapatır.
+- OAuth config kısmi/geçersizsa server listen aşamasına geçmeden fail-closed durur; credential değerleri startup hata çıktısına taşınmamalıdır.
 
 ## Süreklilik ve token yenileme
 
@@ -44,7 +49,7 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Token response scope alanı yoksa başlangıç flow'unda kaydedilen requested scope seti kullanılır; scope alanı varsa requested setin dışına taşamaz.
 - Beklenmeyen ek scope `GOOGLE_TOKEN_EXCHANGE_SCOPE_ESCALATION` ile token store yazımından önce fail-closed reddedilir.
 - Expiry provider response'un alındığı andan hesaplanır; geri giden veya safe-integer sınırını aşan clock değeri token mutation'dan önce reddedilir.
-- Google tekrar yetkilendirmede yeni refresh token dönmezse encrypted store'daki mevcut refresh token korunur; yeni access token uğruna çalışan refresh yetkisi silinmez.
+- Google tekrar yetkilendirmede yeni refresh token dönmezse encrypted store'daki aynı owner'a ait mevcut refresh token korunur; mevcut token da yoksa durability şartı save öncesi reddedilir.
 
 ## Redis koordinasyon deadline sınırı
 

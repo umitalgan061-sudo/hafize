@@ -16,7 +16,9 @@ const BASE_ENV = {
 
 function request(body) { return { body }; }
 function url(path, query = '') { return new URL(`https://hafize.example.test${path}${query}`); }
-function authHeaders(token = AUTH_TOKEN) { return { authorization: `Bearer ${token}` }; }
+function authHeaders(token = AUTH_TOKEN) {
+  return { authorization: `Bearer ${token}`, 'content-type': 'application/json; charset=utf-8' };
+}
 
 const store = createOAuthFlowStore({ now: () => 10_000 });
 let closes = 0;
@@ -27,7 +29,7 @@ const runtime = await createGoogleOAuthHttpRuntime({
   createTokenStoreRuntime: () => ({ async save() {} }),
   createFlowStoreRuntime: async () => ({ configured: true, store, async close() { closes += 1; } }),
   createTokenExchange: () => ({
-    async exchange(input) { exchanges.push(input); return { provider: 'google', ownerId: input.ownerId }; }
+    async exchange(input) { exchanges.push(input); return { provider: 'google', ownerId: input.ownerId, refreshTokenStored: true }; }
   })
 });
 assert.equal(runtime.configured, true);
@@ -40,6 +42,14 @@ const unauth = await runtime.handle({
 assert.deepEqual(unauth.body, { error: 'AUTH_REQUIRED' });
 assert.equal(unauth.status, 401);
 assert.equal(store.size(), 0, 'unauthenticated start must not issue state');
+
+const unsupportedMedia = await runtime.handle({
+  request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: { authorization: `Bearer ${AUTH_TOKEN}`, 'content-type': 'text/plain' }
+});
+assert.equal(unsupportedMedia.status, 415);
+assert.deepEqual(unsupportedMedia.body, { error: 'UNSUPPORTED_MEDIA_TYPE' });
+assert.equal(store.size(), 0);
 
 const writeScope = await runtime.handle({
   request: request({ capabilities: ['gmail.send'], explicitUserIntent: true }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
@@ -69,6 +79,7 @@ assert.equal(authorization.searchParams.get('redirect_uri'), BASE_ENV.HAFIZE_GOO
 assert.equal(authorization.searchParams.get('code_challenge_method'), 'S256');
 assert.equal(authorization.searchParams.get('access_type'), 'offline');
 assert.equal(authorization.searchParams.get('include_granted_scopes'), 'true');
+assert.equal(authorization.searchParams.get('prompt'), 'consent');
 assert.equal(authorization.searchParams.get('scope').includes('gmail.readonly'), true);
 
 const duplicate = await runtime.handle({
@@ -89,6 +100,7 @@ assert.match(exchanges[0].ownerId, /^owner_[A-Za-z0-9_-]{43}$/);
 assert.equal(exchanges[0].code, 'authorization-code-1');
 assert.equal(exchanges[0].redirectUri, BASE_ENV.HAFIZE_GOOGLE_OAUTH_REDIRECT_URI);
 assert.deepEqual(exchanges[0].expectedScopes, ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly']);
+assert.equal(exchanges[0].requireRefreshToken, true, 'HTTP linking must require a durable offline grant');
 assert.equal(typeof exchanges[0].verifier, 'string');
 assert.equal(exchanges[0].verifier.length >= 43, true);
 
@@ -119,8 +131,12 @@ const queryOnStart = await runtime.handle({
   url: url(GOOGLE_OAUTH_HTTP_PATHS.start, '?next=https://evil.example'), headers: authHeaders()
 });
 assert.equal(queryOnStart.status, 400);
-assert.equal((await runtime.handle({ method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.start, url: url(GOOGLE_OAUTH_HTTP_PATHS.start) })).status, 405);
-assert.equal((await runtime.handle({ method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback, url: url(GOOGLE_OAUTH_HTTP_PATHS.callback) })).status, 405);
+const wrongStartMethod = await runtime.handle({ method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.start, url: url(GOOGLE_OAUTH_HTTP_PATHS.start) });
+assert.equal(wrongStartMethod.status, 405);
+assert.deepEqual(wrongStartMethod.headers, { Allow: 'POST' });
+const wrongCallbackMethod = await runtime.handle({ method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback, url: url(GOOGLE_OAUTH_HTTP_PATHS.callback) });
+assert.equal(wrongCallbackMethod.status, 405);
+assert.deepEqual(wrongCallbackMethod.headers, { Allow: 'GET' });
 assert.deepEqual(await runtime.handle({ method: 'GET', pathname: '/unrelated' }), { matched: false });
 
 const closeA = runtime.close();
@@ -140,5 +156,8 @@ await assert.rejects(() => createGoogleOAuthHttpRuntime({
 await assert.rejects(() => createGoogleOAuthHttpRuntime({
   env: { ...BASE_ENV, HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/wrong' }, readJson: async () => ({})
 }), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:HAFIZE_GOOGLE_OAUTH_REDIRECT_URI/);
+await assert.rejects(() => createGoogleOAuthHttpRuntime({
+  env: BASE_ENV, readJson: async () => ({}), startBodyTimeoutMs: 0
+}), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:startBodyTimeoutMs/);
 
 console.log('Google OAuth HTTP runtime tests passed');
