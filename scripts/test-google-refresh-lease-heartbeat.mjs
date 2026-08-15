@@ -78,6 +78,21 @@ assert.equal(state.key, null);
 assert.equal(timers.size, 0, 'release must cancel heartbeat');
 await live.close();
 
+clock = 50_000;
+state = { key: null, value: null, expiry: 0 };
+timers.clear();
+const holder = runtime({ randomBytesImpl: () => Buffer.alloc(16, 8) });
+const holderLease = await holder.acquire({ ownerId: OWNER });
+const holderToken = state.value;
+const contender = runtime({ randomBytesImpl: () => Buffer.alloc(16, 9) });
+const contentionStarted = clock;
+await assert.rejects(() => contender.acquire({ ownerId: OWNER }), (error) => error?.code === 'GOOGLE_REFRESH_LEASE_BUSY');
+assert.equal(clock - contentionStarted, GOOGLE_REFRESH_LEASE_LIMITS.waitMs);
+assert.equal(state.value, holderToken, 'healthy heartbeat holder must keep ownership through the full wait budget');
+assert.ok(state.expiry > clock, 'healthy holder lease must still be live when contender gives up');
+await holderLease.release();
+await Promise.all([holder.close(), contender.close()]);
+
 clock = 100_000;
 state = { key: null, value: null, expiry: 0 };
 timers.clear();
