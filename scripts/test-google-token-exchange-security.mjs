@@ -28,6 +28,26 @@ const INPUT = {
 }
 
 {
+  const saves = [];
+  let loads = 0;
+  const exchange = createGoogleTokenExchange({
+    clientId: 'client',
+    tokenStore: {
+      async load() { loads += 1; return { refreshToken: 'existing-refresh-token' }; },
+      async save(value) { saves.push(value); }
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      async json() { return { access_token: 'access', token_type: 'Bearer', expires_in: 3600 }; }
+    })
+  });
+  const receipt = await exchange.exchange(INPUT);
+  assert.equal(loads, 1);
+  assert.equal(saves[0].tokenRecord.refreshToken, 'existing-refresh-token', 'reauthorization must not erase an existing refresh token');
+  assert.equal(receipt.refreshTokenStored, true);
+}
+
+{
   let saves = 0;
   const exchange = createGoogleTokenExchange({
     clientId: 'client', tokenStore: { async save() { saves += 1; } },
