@@ -12,6 +12,18 @@ Bu katman, Gmail read-only bağlantısını başlatmak ve Google Authorization C
 - `owner`, `ownerId`, `subject`, `token`, `access_token` ve `authorization` callback query alanları reddedilir.
 - Kritik callback alanlarının duplicate kullanımı reddedilir; Google'ın `scope`, `authuser`, `prompt` gibi provider metadata alanları owner binding'i etkilemeden yok sayılır.
 
+## Node HTTP adapter sınırı
+
+`lib/google-oauth-node-http-route.mjs`, core OAuth runtime ile Node HTTP response lifecycle'ı arasındaki dar adapter'dır.
+
+- Yalnız exact start ve callback path'lerini match eder; diğer route'lar OAuth runtime'a girmez.
+- Raw Node request nesnesi veya request body core OAuth runtime'a aktarılmaz.
+- Start isteğinde yalnız `authorization` header'ı aktarılır; cookie, forwarded veya başka request metadata'sı boundary'yi geçmez.
+- Public callback'te `authorization` dahil hiçbir request header'ı core runtime'a aktarılmaz; kimlik yalnız encrypted single-use state'ten çözülür.
+- Response kapanır/destroy edilirse runtime sonucu client'a yazılmaz. Adapter future cancellation kullanımı için bounded `AbortSignal` taşır.
+- Core runtime sonucu `matched + HTTP status + object body` şekline uymuyorsa response yazılmadan fail-closed durur.
+- Adapter `process.env`, OAuth secret, token store, owner resolver, NVIDIA/model tool context veya provider fetch sahibi değildir.
+
 ## Least privilege
 
 Authorization URL `include_granted_scopes=false` kullanır. Token exchange önündeki guarded token store yalnız `https://www.googleapis.com/auth/gmail.readonly` scope'unu kabul eder. Boş scope veya `gmail.modify`, `gmail.send` dahil herhangi bir genişleme Redis'e yazılmadan önce fail-closed reddedilir.
@@ -36,4 +48,4 @@ OAuth HTTP runtime şu değerlerin tamamı varsa etkinleşir:
 
 Flow store ile token store shutdown sırasında idempotent olarak kapatılır. Flow/store ve token exchange altyapı hataları raw Redis/Google credential ayrıntılarını HTTP cevabına taşımaz. Replay veya invalid callback `400`, flow backend unavailable `503`, token exchange failure `502` olarak sanitize edilir.
 
-Sonraki wiring katmanı yalnız `configured` boolean'ını health'e eklemeli, iki route'u `handle()` fonksiyonuna delege etmeli ve shutdown'da `close()` çağırmalıdır. Runtime nesnesi NVIDIA tool allowlist'ine veya agent execution context'ine eklenmemelidir.
+Sonraki wiring katmanı yalnız core runtime + Node adapter composition'ını oluşturmalı, `configured` boolean'ını health'e eklemeli, iki route'u adapter `handle()` fonksiyonuna delege etmeli ve shutdown'da core runtime `close()` çağırmalıdır. Runtime veya adapter nesnesi NVIDIA tool allowlist'ine, agent execution context'ine ya da connector request context'ine eklenmemelidir.
