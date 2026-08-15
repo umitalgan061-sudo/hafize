@@ -3,22 +3,35 @@ import { createGoogleOAuthHttpRuntime, GOOGLE_OAUTH_HTTP_PATHS } from '../lib/go
 import { createOAuthFlowStore } from '../lib/oauth-flow-store.mjs';
 
 const AUTH_TOKEN = 't'.repeat(48);
+const SESSION_COOKIE = '__Host-hafize_session=signed-session';
 const OWNER_KEY = Buffer.alloc(32, 7).toString('base64');
 const BASE_ENV = {
   HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/api/connectors/gmail/oauth/callback',
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'client-id.apps.googleusercontent.com',
   HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET: 'client-secret',
   HAFIZE_CONNECTOR_AUTH_TOKEN: AUTH_TOKEN,
-  HAFIZE_CONNECTOR_AUTH_SUBJECT: 'person@example.test',
+  HAFIZE_CONNECTOR_AUTH_SUBJECT: 'legacy-connector@example.test',
   HAFIZE_CONNECTOR_OWNER_KEY_B64: OWNER_KEY,
-  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test:6380'
+  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test:6380',
+  HAFIZE_CLOUD_SESSION_ORIGIN: 'https://hafize.example.test'
 };
 
 function request(body) { return { body }; }
 function url(path, query = '') { return new URL(`https://hafize.example.test${path}${query}`); }
-function authHeaders(token = AUTH_TOKEN) {
-  return { authorization: `Bearer ${token}`, 'content-type': 'application/json; charset=utf-8' };
+function sessionHeaders(cookie = SESSION_COOKIE, origin = 'https://hafize.example.test') {
+  return { cookie, origin, 'content-type': 'application/json; charset=utf-8' };
 }
+
+const sessionRuntime = {
+  configured: true,
+  authenticator: {
+    authenticate({ headers }) {
+      return headers?.cookie === SESSION_COOKIE
+        ? { ok: true, principal: { authenticated: true, subject: 'person@example.test' } }
+        : { ok: false, error: 'AUTH_REQUIRED' };
+    }
+  }
+};
 
 const store = createOAuthFlowStore({ now: () => 10_000 });
 let closes = 0;
@@ -26,6 +39,7 @@ const exchanges = [];
 const runtime = await createGoogleOAuthHttpRuntime({
   env: BASE_ENV,
   readJson: async (req) => req.body,
+  createSessionRuntime: () => sessionRuntime,
   createTokenStoreRuntime: () => ({ async save() {} }),
   createFlowStoreRuntime: async () => ({ configured: true, store, async close() { closes += 1; } }),
   createTokenExchange: () => ({
@@ -37,15 +51,32 @@ assert.deepEqual(runtime.status(), { configured: true, provider: 'google', callb
 
 const unauth = await runtime.handle({
   request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: authHeaders('x'.repeat(48))
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: sessionHeaders('bad-session')
 });
 assert.deepEqual(unauth.body, { error: 'AUTH_REQUIRED' });
 assert.equal(unauth.status, 401);
 assert.equal(store.size(), 0, 'unauthenticated start must not issue state');
 
+const legacyBearerOnly = await runtime.handle({
+  request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start),
+  headers: { authorization: `Bearer ${AUTH_TOKEN}`, origin: 'https://hafize.example.test', 'content-type': 'application/json' }
+});
+assert.equal(legacyBearerOnly.status, 401, 'connector bearer must no longer authenticate browser OAuth start');
+assert.deepEqual(legacyBearerOnly.body, { error: 'AUTH_REQUIRED' });
+assert.equal(store.size(), 0);
+
+const crossOrigin = await runtime.handle({
+  request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: sessionHeaders(SESSION_COOKIE, 'https://evil.example')
+});
+assert.equal(crossOrigin.status, 403);
+assert.deepEqual(crossOrigin.body, { error: 'ORIGIN_REQUIRED' });
+assert.equal(store.size(), 0, 'cross-origin session request must not issue state');
+
 const unsupportedMedia = await runtime.handle({
   request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: { authorization: `Bearer ${AUTH_TOKEN}`, 'content-type': 'text/plain' }
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: { cookie: SESSION_COOKIE, origin: 'https://hafize.example.test', 'content-type': 'text/plain' }
 });
 assert.equal(unsupportedMedia.status, 415);
 assert.deepEqual(unsupportedMedia.body, { error: 'UNSUPPORTED_MEDIA_TYPE' });
@@ -53,7 +84,7 @@ assert.equal(store.size(), 0);
 
 const writeScope = await runtime.handle({
   request: request({ capabilities: ['gmail.send'], explicitUserIntent: true }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: authHeaders()
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: sessionHeaders()
 });
 assert.equal(writeScope.status, 403);
 assert.deepEqual(writeScope.body, { error: 'OAUTH_SCOPE_NOT_ALLOWED' });
@@ -61,7 +92,7 @@ assert.equal(store.size(), 0, 'production HTTP boundary must not issue write gra
 
 const started = await runtime.handle({
   request: request({ capabilities: ['identity', 'gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: authHeaders()
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: sessionHeaders()
 });
 assert.equal(started.status, 200);
 assert.equal(typeof started.body.authorizationUrl, 'string');
@@ -114,7 +145,7 @@ assert.equal(exchanges.length, 1, 'replayed callback must not exchange twice');
 
 const deniedStart = await runtime.handle({
   request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: authHeaders()
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start), headers: sessionHeaders()
 });
 const deniedState = new URL(deniedStart.body.authorizationUrl).searchParams.get('state');
 const denied = await runtime.handle({
@@ -128,7 +159,7 @@ assert.equal(exchanges.length, 1);
 
 const queryOnStart = await runtime.handle({
   request: request({ capabilities: ['gmail.read'] }), method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: url(GOOGLE_OAUTH_HTTP_PATHS.start, '?next=https://evil.example'), headers: authHeaders()
+  url: url(GOOGLE_OAUTH_HTTP_PATHS.start, '?next=https://evil.example'), headers: sessionHeaders()
 });
 assert.equal(queryOnStart.status, 400);
 const wrongStartMethod = await runtime.handle({ method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.start, url: url(GOOGLE_OAUTH_HTTP_PATHS.start) });
@@ -151,13 +182,19 @@ assert.equal((await disabled.handle({ pathname: GOOGLE_OAUTH_HTTP_PATHS.start })
 assert.deepEqual(await disabled.handle({ pathname: '/elsewhere' }), { matched: false });
 
 await assert.rejects(() => createGoogleOAuthHttpRuntime({
-  env: { ...BASE_ENV, HAFIZE_GOOGLE_OAUTH_CLIENT_ID: '' }, readJson: async () => ({})
+  env: { ...BASE_ENV, HAFIZE_GOOGLE_OAUTH_CLIENT_ID: '' }, readJson: async () => ({}), createSessionRuntime: () => sessionRuntime
 }), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:HAFIZE_GOOGLE_OAUTH_CLIENT_ID/);
 await assert.rejects(() => createGoogleOAuthHttpRuntime({
-  env: { ...BASE_ENV, HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/wrong' }, readJson: async () => ({})
+  env: { ...BASE_ENV, HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/wrong' }, readJson: async () => ({}), createSessionRuntime: () => sessionRuntime
 }), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:HAFIZE_GOOGLE_OAUTH_REDIRECT_URI/);
 await assert.rejects(() => createGoogleOAuthHttpRuntime({
-  env: BASE_ENV, readJson: async () => ({}), startBodyTimeoutMs: 0
+  env: { ...BASE_ENV, HAFIZE_CLOUD_SESSION_ORIGIN: 'http://hafize.example.test' }, readJson: async () => ({}), createSessionRuntime: () => sessionRuntime
+}), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:HAFIZE_CLOUD_SESSION_ORIGIN/);
+await assert.rejects(() => createGoogleOAuthHttpRuntime({
+  env: BASE_ENV, readJson: async () => ({}), createSessionRuntime: () => ({ configured: false, authenticator: null })
+}), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:cloudSession/);
+await assert.rejects(() => createGoogleOAuthHttpRuntime({
+  env: BASE_ENV, readJson: async () => ({}), createSessionRuntime: () => sessionRuntime, startBodyTimeoutMs: 0
 }), /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:startBodyTimeoutMs/);
 
 console.log('Google OAuth HTTP runtime tests passed');
