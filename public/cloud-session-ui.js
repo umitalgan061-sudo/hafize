@@ -17,7 +17,8 @@
     logout: '/api/session/logout',
     gmailStatus: '/api/connectors/gmail/status',
     gmailStart: '/api/connectors/gmail/oauth/start',
-    gmailCallback: '/api/connectors/gmail/oauth/callback'
+    gmailCallback: '/api/connectors/gmail/oauth/callback',
+    gmailDisconnect: '/api/connectors/gmail/disconnect'
   });
   const GOOGLE_HOST = 'accounts.google.com';
   const GOOGLE_CAPABILITIES = Object.freeze(['identity', 'gmail.read']);
@@ -87,6 +88,13 @@
       },
       gmailStatus() {
         return request(PATHS.gmailStatus, { method: 'GET' });
+      },
+      disconnectGmail() {
+        return request(PATHS.gmailDisconnect, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ explicitUserIntent: true })
+        });
       },
       async startGmailOAuth() {
         const response = await request(PATHS.gmailStart, {
@@ -170,7 +178,10 @@
       OAUTH_PROVIDER_DENIED: 'Google izin isteği tamamlanmadı.',
       OAUTH_TEMPORARILY_UNAVAILABLE: 'Google bağlantısı geçici olarak kullanılamıyor.',
       GOOGLE_OAUTH_UPSTREAM_FAILED: 'Google bağlantısı tamamlanamadı.',
-      GOOGLE_OAUTH_UPSTREAM_TIMEOUT: 'Google yanıtı zaman aşımına uğradı.'
+      GOOGLE_OAUTH_UPSTREAM_TIMEOUT: 'Google yanıtı zaman aşımına uğradı.',
+      GOOGLE_REVOKE_UPSTREAM_FAILED: 'Google erişim izni kaldırılamadı.',
+      GOOGLE_REVOKE_UPSTREAM_TIMEOUT: 'Google izin kaldırma yanıtı zaman aşımına uğradı.',
+      GOOGLE_DISCONNECT_TEMPORARILY_UNAVAILABLE: 'Gmail bağlantısı şu anda güvenle kaldırılamıyor.'
     };
     return messages[safeText(code)] || 'İşlem tamamlanamadı.';
   }
@@ -193,6 +204,7 @@
 
     const client = createAccountClient({ fetchImpl });
     let authenticated = false;
+    let gmailLinked = false;
     let busy = false;
 
     function setBadge(kind, text) {
@@ -209,6 +221,7 @@
       nodes.loginButton.disabled = busy;
       nodes.password.disabled = busy;
       if (!authenticated) {
+        gmailLinked = false;
         nodes.gmailStatus.textContent = 'Gmail için önce güvenli oturum aç.';
         nodes.gmailStatus.dataset.state = 'idle';
       }
@@ -233,12 +246,12 @@
       try {
         const response = await client.gmailStatus();
         if (response.ok) {
-          const linked = response.payload?.linked === true;
-          nodes.gmailStatus.dataset.state = linked ? 'linked' : 'unlinked';
-          nodes.gmailStatus.textContent = linked
+          gmailLinked = response.payload?.linked === true;
+          nodes.gmailStatus.dataset.state = gmailLinked ? 'linked' : 'unlinked';
+          nodes.gmailStatus.textContent = gmailLinked
             ? 'Gmail bağlı · okuma erişimi hazır.'
             : 'Gmail henüz bağlı değil.';
-          nodes.gmailButton.textContent = linked ? 'Gmail’i yeniden bağla' : 'Gmail’i bağla';
+          nodes.gmailButton.textContent = gmailLinked ? 'Gmail bağlantısını kaldır' : 'Gmail’i bağla';
           return;
         }
         nodes.gmailStatus.dataset.state = 'error';
@@ -332,6 +345,31 @@
 
     nodes.gmailButton.addEventListener('click', async () => {
       if (busy || !authenticated) return;
+      if (gmailLinked) {
+        const confirmed = typeof windowRef.confirm === 'function' && windowRef.confirm('Gmail bağlantısını ve Google erişim iznini kaldırmak istiyor musun?');
+        if (!confirmed) return;
+        setBusy(true);
+        nodes.gmailStatus.dataset.state = 'loading';
+        nodes.gmailStatus.textContent = 'Google erişim izni kaldırılıyor…';
+        try {
+          const response = await client.disconnectGmail();
+          if (!response.ok) {
+            nodes.gmailStatus.dataset.state = 'error';
+            nodes.gmailStatus.textContent = errorMessage(response.payload?.error);
+            if (response.status === 401) await refreshSession({ quiet: true });
+            return;
+          }
+          gmailLinked = false;
+          nodes.gmailStatus.textContent = 'Gmail bağlantısı kaldırıldı.';
+          await refreshGmail();
+        } catch {
+          nodes.gmailStatus.dataset.state = 'error';
+          nodes.gmailStatus.textContent = 'Gmail bağlantısı kaldırılamadı.';
+        } finally {
+          setBusy(false);
+        }
+        return;
+      }
       const popup = windowRef.open('about:blank', POPUP_NAME, POPUP_FEATURES);
       if (!popup) {
         nodes.gmailStatus.dataset.state = 'error';

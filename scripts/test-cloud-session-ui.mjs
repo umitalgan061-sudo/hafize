@@ -18,6 +18,7 @@ const replies = [
   response(200, { authenticated: true }),
   response(200, { authenticated: false }),
   response(200, { linked: true }),
+  response(200, { linked: false, disconnected: true }),
   response(200, { authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=test&state=opaque' })
 ];
 const client = ui.createAccountClient({
@@ -47,11 +48,16 @@ assert.deepEqual(await client.gmailStatus(), {
   status: 200,
   payload: { linked: true }
 });
+assert.deepEqual(await client.disconnectGmail(), {
+  ok: true,
+  status: 200,
+  payload: { linked: false, disconnected: true }
+});
 const oauth = await client.startGmailOAuth();
 assert.equal(oauth.ok, true);
 assert.equal(oauth.authorizationUrl.startsWith('https://accounts.google.com/'), true);
 
-assert.equal(calls.length, 5);
+assert.equal(calls.length, 6);
 for (const call of calls) {
   assert.equal(call.init.credentials, 'same-origin');
   assert.equal(call.init.cache, 'no-store');
@@ -70,8 +76,12 @@ assert.equal(calls[2].path, ui.PATHS.logout);
 assert.equal(calls[2].init.body, '{}');
 assert.equal(calls[3].path, ui.PATHS.gmailStatus);
 assert.equal(calls[3].init.method, 'GET');
-assert.equal(calls[4].path, ui.PATHS.gmailStart);
-assert.deepEqual(JSON.parse(calls[4].init.body), { capabilities: ['identity', 'gmail.read'] });
+assert.equal(calls[4].path, ui.PATHS.gmailDisconnect);
+assert.equal(calls[4].init.method, 'POST');
+assert.deepEqual(JSON.parse(calls[4].init.body), { explicitUserIntent: true });
+assert.deepEqual(Object.keys(JSON.parse(calls[4].init.body)), ['explicitUserIntent']);
+assert.equal(calls[5].path, ui.PATHS.gmailStart);
+assert.deepEqual(JSON.parse(calls[5].init.body), { capabilities: ['identity', 'gmail.read'] });
 assert.deepEqual(ui.GOOGLE_CAPABILITIES, ['identity', 'gmail.read']);
 
 assert.throws(() => client.login(''), /PASSWORD_REQUIRED/);
