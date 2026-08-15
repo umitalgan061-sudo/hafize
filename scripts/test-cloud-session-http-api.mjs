@@ -39,9 +39,41 @@ const originHeaders = { origin: 'https://hafize.example.test' };
 }
 
 {
+  let gateCalls = 0;
+  const gatedApi = createCloudSessionHttpApi({
+    auth,
+    allowedOrigin: 'https://hafize.example.test',
+    readJson: async (request) => request.body,
+    loginGate: async () => { gateCalls += 1; return { ok: false, retryAfterSeconds: 17 }; }
+  });
+  assert.equal((await gatedApi.handle({ request: { body: { password: 'valid password value' } }, method: 'POST', pathname: CLOUD_SESSION_HTTP_PATHS.login, headers: { origin: 'https://evil.example' } })).status, 403);
+  assert.equal(gateCalls, 0, 'cross-origin login must fail before rate-limit accounting');
+  const limited = await gatedApi.handle({ request: { body: { password: 'valid password value' } }, method: 'POST', pathname: CLOUD_SESSION_HTTP_PATHS.login, headers: originHeaders });
+  assert.equal(limited.status, 429);
+  assert.deepEqual(limited.body, { error: 'RATE_LIMITED' });
+  assert.equal(limited.headers['retry-after'], '17');
+}
+
+{
   const result = await api.handle({ request: { body: { password: 'valid password value', ownerId: 'owner_x' } }, method: 'POST', pathname: CLOUD_SESSION_HTTP_PATHS.login, headers: originHeaders });
   assert.equal(result.status, 400);
   assert.deepEqual(result.body, { error: 'INVALID_REQUEST' });
+}
+
+for (const [code, expectedStatus, expectedError] of [
+  ['CLOUD_SESSION_BODY_TOO_LARGE', 413, 'BODY_TOO_LARGE'],
+  ['CLOUD_SESSION_BODY_TIMEOUT', 408, 'REQUEST_TIMEOUT'],
+  ['CLOUD_SESSION_UNSUPPORTED_MEDIA_TYPE', 415, 'UNSUPPORTED_MEDIA_TYPE']
+]) {
+  const defensiveApi = createCloudSessionHttpApi({
+    auth,
+    allowedOrigin: 'https://hafize.example.test',
+    readJson: async () => { const error = new Error(code); error.code = code; throw error; }
+  });
+  const result = await defensiveApi.handle({ request: {}, method: 'POST', pathname: CLOUD_SESSION_HTTP_PATHS.login, headers: originHeaders });
+  assert.equal(result.status, expectedStatus);
+  assert.equal(result.body.error, expectedError);
+  if (expectedStatus === 408 || expectedStatus === 413) assert.equal(result.headers.connection, 'close');
 }
 
 {
@@ -67,6 +99,7 @@ const originHeaders = { origin: 'https://hafize.example.test' };
 assert.equal((await api.handle({ method: 'GET', pathname: CLOUD_SESSION_HTTP_PATHS.login, headers: originHeaders })).status, 405);
 assert.deepEqual(await api.handle({ method: 'GET', pathname: '/api/other' }), { matched: false });
 assert.throws(() => createCloudSessionHttpApi({ auth, allowedOrigin: 'http://hafize.example.test', readJson: async () => ({}) }), /INVALID_CLOUD_SESSION_HTTP:origin/);
+assert.throws(() => createCloudSessionHttpApi({ auth, allowedOrigin: 'https://hafize.example.test', readJson: async () => ({}), loginGate: true }), /INVALID_CLOUD_SESSION_HTTP:loginGate/);
 assert.equal(JSON.stringify(calls).includes('valid password value'), true);
 
 console.log('cloud session HTTP boundary tests passed');

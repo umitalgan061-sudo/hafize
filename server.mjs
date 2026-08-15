@@ -16,6 +16,7 @@ import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { createGitHubWriteNodeServerRuntime } from './lib/github-write-node-server-runtime.mjs';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
+import { createCloudSessionNodeServerRuntime } from './lib/cloud-session-node-server-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createGoogleOAuthHttpRuntime } from './lib/google-oauth-http-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
@@ -67,6 +68,7 @@ const SKILL_SERVICE = createSkillService({ skillRuntime: SKILL_RUNTIME, agentReg
 const SKILL_HTTP_API = createSkillHttpApi({ skillRuntime: SKILL_RUNTIME });
 const SKILL_AGENT_RUN = createSkillAgentRunBoundary({ skillService: SKILL_SERVICE });
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
+const CLOUD_SESSION_NODE_SERVER_RUNTIME = createCloudSessionNodeServerRuntime({ env: process.env });
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
 const GOOGLE_OAUTH_HTTP_RUNTIME = await createGoogleOAuthHttpRuntime({ env: process.env, fetchImpl: fetch, readJson });
 const MEMORY_SERVER_RUNTIME = await createPersonalMemoryServerRuntime({ readJson });
@@ -622,6 +624,7 @@ const server = createServer(async (req, res) => {
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         googleOAuthConfigured: GOOGLE_OAUTH_HTTP_RUNTIME.configured,
+        cloudSessionConfigured: CLOUD_SESSION_NODE_SERVER_RUNTIME.configured,
         memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
         screenAnalysisConfigured: SCREEN_ANALYSIS_SERVER_RUNTIME.configured,
         contextCompactionConfigured: MODEL_PROVIDER_NODE_SERVER_RUNTIME.contextCompactionConfigured,
@@ -675,6 +678,21 @@ const server = createServer(async (req, res) => {
       });
       for (const [name, value] of Object.entries(analysisResponse.headers || {})) res.setHeader(name, value);
       sendJson(res, analysisResponse.status, analysisResponse.body);
+      return;
+    }
+    if (url.pathname === '/api/session/login' || url.pathname === '/api/session/status' || url.pathname === '/api/session/logout') {
+      const sessionResponse = await CLOUD_SESSION_NODE_SERVER_RUNTIME.handle({
+        request: req,
+        method: req.method,
+        pathname: url.pathname,
+        headers: req.headers
+      });
+      if (!sessionResponse.matched) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      for (const [name, value] of Object.entries(sessionResponse.headers || {})) res.setHeader(name, value);
+      sendJson(res, sessionResponse.status, sessionResponse.body);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/canva/status') {
