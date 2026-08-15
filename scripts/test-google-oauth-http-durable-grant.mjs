@@ -57,7 +57,7 @@ async function start(runtime) {
     method: 'POST',
     pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
     url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`),
-    headers: { authorization: `Bearer ${TOKEN}` }
+    headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
   });
   assert.equal(response.status, 200);
   const authorization = new URL(response.body.authorizationUrl);
