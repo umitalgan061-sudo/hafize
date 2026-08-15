@@ -190,11 +190,11 @@ for (const invalid of [
   }
 }
 
-await assert.rejects(
+assert.throws(
   () => createGoogleOAuthNodeHttpRoute({ runtime: null, sendJson() {} }),
   (error) => error?.code === 'INVALID_GOOGLE_OAUTH_NODE_HTTP:runtime'
 );
-await assert.rejects(
+assert.throws(
   () => createGoogleOAuthNodeHttpRoute({ runtime: { handle() {} }, sendJson: null }),
   (error) => error?.code === 'INVALID_GOOGLE_OAUTH_NODE_HTTP:sendJson'
 );
