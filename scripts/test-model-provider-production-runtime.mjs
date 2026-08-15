@@ -58,6 +58,17 @@ function readerResponse(chunks, status = 200, extra = {}) {
     wasCancelled: () => cancelled
   };
 }
+function abortingFetch(_url, init = {}) {
+  return new Promise((_, reject) => {
+    const rejectAbort = () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      reject(error);
+    };
+    if (init.signal?.aborted) rejectAbort();
+    else init.signal?.addEventListener?.('abort', rejectAbort, { once: true });
+  });
+}
 
 const requests = [];
 const streamBody = { async *[Symbol.asyncIterator]() { yield Buffer.from('data: x\n\n'); } };
@@ -96,6 +107,22 @@ assert.equal(requests.some((request) => request.init.headers?.Accept === 'text/e
 const disabled = createModelProviderProductionRuntime({ env: {}, fetchImpl, ...options });
 assert.deepEqual(await disabled.listModels(), { ok: true, status: 200, value: { models: [] } });
 assert.deepEqual(await disabled.complete({ model: 'nvidia/model-a', messages: [] }), { ok: false, status: 503, error: 'NVIDIA_NOT_CONFIGURED' });
+
+const timeoutRuntime = createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' }, fetchImpl: abortingFetch, jsonTimeoutMs: 1, ...options
+});
+assert.deepEqual(await timeoutRuntime.complete({ model: 'x', messages: [] }), {
+  ok: false, status: 504, error: 'NVIDIA_CHAT_TIMEOUT'
+});
+assert.deepEqual(await timeoutRuntime.listModels(), {
+  ok: false, status: 504, error: 'NVIDIA_CHAT_TIMEOUT'
+});
+assert.throws(() => createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' }, fetchImpl, jsonTimeoutMs: 0, ...options
+}), /INVALID_NVIDIA_JSON_TIMEOUT/);
+assert.throws(() => createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' }, fetchImpl, jsonTimeoutMs: MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxJsonTimeoutMs + 1, ...options
+}), /INVALID_NVIDIA_JSON_TIMEOUT/);
 
 const declaredTooLarge = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' },
@@ -196,5 +223,7 @@ assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxCompletionJsonBytes, 4 * 1024
 assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelsJsonBytes, 1024 * 1024);
 assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelCount, 4096);
 assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelIdLength, 512);
+assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.jsonTimeoutMs, 30_000);
+assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxJsonTimeoutMs, 120_000);
 
 console.log('model provider production runtime tests passed');
