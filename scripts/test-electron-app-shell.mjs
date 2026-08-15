@@ -5,6 +5,7 @@ class FakeWebContents {
   constructor() {
     this.handlers = new Map();
     this.openHandler = null;
+    this.mainFrame = { url: '' };
   }
   on(name, fn) { this.handlers.set(name, fn); }
   removeListener(name, fn) {
@@ -26,7 +27,10 @@ class FakeWindow {
     windows.push(this);
   }
   once(name, fn) { this.onceHandlers.set(name, fn); }
-  async loadURL(url) { this.loaded = url; }
+  async loadURL(url) {
+    this.loaded = url;
+    this.webContents.mainFrame.url = url;
+  }
   isDestroyed() { return this.destroyed; }
   show() { this.shown = true; }
   destroy() {
@@ -82,16 +86,23 @@ assert.equal(bridgeOptions.appOpeners.browser instanceof Function, true);
 
 assert.equal(bridgeOptions.isTrustedSender({
   sender: windowRef.webContents,
-  senderFrame: { url: 'http://127.0.0.1:4173/chat' }
+  senderFrame: windowRef.webContents.mainFrame
 }), true);
 assert.equal(bridgeOptions.isTrustedSender({
-  sender: {},
+  sender: windowRef.webContents,
   senderFrame: { url: 'http://127.0.0.1:4173/chat' }
+}), false, 'same-origin subframes must not inherit device IPC authority');
+assert.equal(bridgeOptions.isTrustedSender({
+  sender: {},
+  senderFrame: windowRef.webContents.mainFrame
 }), false);
+const trustedUrl = windowRef.webContents.mainFrame.url;
+windowRef.webContents.mainFrame.url = 'https://evil.example/';
 assert.equal(bridgeOptions.isTrustedSender({
   sender: windowRef.webContents,
-  senderFrame: { url: 'https://evil.example/' }
+  senderFrame: windowRef.webContents.mainFrame
 }), false);
+windowRef.webContents.mainFrame.url = trustedUrl;
 assert.equal(bridgeOptions.isTrustedSender({
   sender: windowRef.webContents,
   senderFrame: { url: 'file:///tmp/index.html' }
