@@ -20,7 +20,7 @@ let fetchCalls = 0;
 const writes = [];
 const runtime = createGitHubWriteNodeServerRuntime({
   env,
-  readJson: async () => ({ command: { type: 'create_branch', repository: 'umitalgan061-sudo/hafize', branch: 'hafize/test', baseSha: 'a'.repeat(40) } }),
+  readJson: async () => ({ command: { operation: 'branch.create', repository: 'umitalgan061-sudo/hafize', branch: 'hafize/test', baseRef: 'main' } }),
   sendJson(response, status, body) { writes.push({ status, body }); response.end(); },
   fetchImpl: async () => { fetchCalls += 1; throw new Error('prepare must not call GitHub'); }
 });
