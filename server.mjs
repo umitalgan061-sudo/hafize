@@ -17,6 +17,7 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createGitHubWriteNodeServerRuntime } from './lib/github-write-node-server-runtime.mjs';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
+import { createGoogleOAuthNodeServerRuntime } from './lib/google-oauth-node-server-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
 import { createModelProviderNodeServerRuntime } from './lib/model-provider-node-server-runtime.mjs';
 import { createPersonalMemoryServerRuntime } from './lib/personal-memory-server-runtime.mjs';
@@ -67,6 +68,10 @@ const SKILL_HTTP_API = createSkillHttpApi({ skillRuntime: SKILL_RUNTIME });
 const SKILL_AGENT_RUN = createSkillAgentRunBoundary({ skillService: SKILL_SERVICE });
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
+const GOOGLE_OAUTH_NODE_SERVER_RUNTIME = createGoogleOAuthNodeServerRuntime({
+  env: process.env,
+  fetchImpl: fetch
+});
 const MEMORY_SERVER_RUNTIME = await createPersonalMemoryServerRuntime({ readJson });
 const SCREEN_ANALYSIS_SERVER_RUNTIME = createScreenAnalysisServerRuntime({
   configured: Boolean(NVIDIA_API_KEY),
@@ -84,7 +89,7 @@ const MIME = new Map([
   ['.js', 'text/javascript; charset=utf-8'],
   ['.css', 'text/css; charset=utf-8'],
   ['.json', 'application/json; charset=utf-8'],
-  ['.webmanifest', 'application/manifest+json; charset=utf-8'],
+  ['.webmanifest', 'application/manifest+json'],
   ['.jpg', 'image/jpeg'],
   ['.jpeg', 'image/jpeg'],
   ['.png', 'image/png'],
@@ -619,6 +624,7 @@ const server = createServer(async (req, res) => {
         githubWriteConfigured: GITHUB_WRITE_NODE_SERVER_RUNTIME.configured,
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
+        googleOAuthConfigured: GOOGLE_OAUTH_NODE_SERVER_RUNTIME.configured,
         memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
         screenAnalysisConfigured: SCREEN_ANALYSIS_SERVER_RUNTIME.configured,
         contextCompactionConfigured: MODEL_PROVIDER_NODE_SERVER_RUNTIME.contextCompactionConfigured,
@@ -681,6 +687,17 @@ const server = createServer(async (req, res) => {
         return;
       }
       sendJson(res, 200, { linked: status.linked });
+      return;
+    }
+    if (url.pathname === '/api/connectors/gmail/oauth/start' || url.pathname === '/api/connectors/gmail/oauth/callback') {
+      const oauthResponse = await GOOGLE_OAUTH_NODE_SERVER_RUNTIME.handle({
+        method: req.method,
+        pathname: url.pathname,
+        url,
+        headers: req.headers
+      });
+      if (!oauthResponse.matched) sendJson(res, 404, { error: 'NOT_FOUND' });
+      else sendJson(res, oauthResponse.status, oauthResponse.body);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/gmail/status') {
@@ -781,6 +798,12 @@ async function shutdown() {
       console.error('Hafize schedule lease shutdown failed');
     }
     await httpClose;
+    try {
+      await GOOGLE_OAUTH_NODE_SERVER_RUNTIME.close();
+    } catch {
+      process.exitCode = 1;
+      console.error('Hafize Google OAuth runtime shutdown failed');
+    }
     try {
       await GMAIL_AGENT_RUNTIME.close();
     } catch {
