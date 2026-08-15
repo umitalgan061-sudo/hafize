@@ -21,10 +21,11 @@ const INPUT = {
       async json() { return { access_token: 'access', refresh_token: 'refresh', token_type: 'Bearer', expires_in: 60 }; }
     })
   });
-  const receipt = await exchange.exchange(INPUT);
+  const receipt = await exchange.exchange({ ...INPUT, requireRefreshToken: true });
   assert.deepEqual(saves[0].tokenRecord.scopes, INPUT.expectedScopes, 'omitted provider scope means requested scope set is unchanged');
   assert.equal(saves[0].tokenRecord.expiresAt, 61_250, 'expiry must start when provider response is received');
   assert.equal(receipt.expiresAt, 61_250);
+  assert.equal(receipt.refreshTokenStored, true);
 }
 
 {
@@ -41,10 +42,45 @@ const INPUT = {
       async json() { return { access_token: 'access', token_type: 'Bearer', expires_in: 3600 }; }
     })
   });
-  const receipt = await exchange.exchange(INPUT);
+  const receipt = await exchange.exchange({ ...INPUT, requireRefreshToken: true });
   assert.equal(loads, 1);
   assert.equal(saves[0].tokenRecord.refreshToken, 'existing-refresh-token', 'reauthorization must not erase an existing refresh token');
   assert.equal(receipt.refreshTokenStored, true);
+}
+
+{
+  let saves = 0;
+  let loads = 0;
+  const exchange = createGoogleTokenExchange({
+    clientId: 'client',
+    tokenStore: {
+      async load() { loads += 1; return null; },
+      async save() { saves += 1; }
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      async json() { return { access_token: 'temporary-access-only', token_type: 'Bearer', expires_in: 3600 }; }
+    })
+  });
+  await assert.rejects(
+    () => exchange.exchange({ ...INPUT, requireRefreshToken: true }),
+    (error) => error?.code === 'GOOGLE_TOKEN_EXCHANGE_REFRESH_TOKEN_REQUIRED'
+  );
+  assert.equal(loads, 1, 'same-owner durable refresh state must be checked before rejecting');
+  assert.equal(saves, 0, 'an access-only grant must never be persisted when a durable grant is required');
+}
+
+{
+  let fetches = 0;
+  const exchange = createGoogleTokenExchange({
+    clientId: 'client', tokenStore: { async save() {} },
+    fetchImpl: async () => { fetches += 1; throw new Error('must not fetch'); }
+  });
+  await assert.rejects(
+    () => exchange.exchange({ ...INPUT, requireRefreshToken: 'yes' }),
+    (error) => error?.code === 'INVALID_GOOGLE_TOKEN_EXCHANGE:requireRefreshToken'
+  );
+  assert.equal(fetches, 0, 'invalid durability policy must fail before provider I/O');
 }
 
 {
