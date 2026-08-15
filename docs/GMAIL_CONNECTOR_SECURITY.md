@@ -25,6 +25,19 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Refresh sonrası `gmail.readonly` scope'u veya yeterli ömür yoksa Gmail API çağrısı yapılmaz ve yeniden yetkilendirme gerekir.
 - Token yenileme bir tool permission değişikliği değildir; `gmail.send`/`gmail.modify` gibi yazma yetkilerini açmaz.
 
+## Redis koordinasyon deadline sınırı
+
+- Redis socket connect sınırı 5 saniyedir; otomatik reconnect kapalı kalır.
+- Lease `SET` ve Lua `EVAL` komutlarının her biri ayrıca 3 saniyelik uygulama deadline'ına sahiptir.
+- Komut timeout'u veya Redis komut hatası ilgili client'ı şüpheli sayar ve `destroy()` ile emekliye ayırır; socket ayrıntısı dışarı taşınmaz.
+- Emekliye ayrılmış client üzerinde yeni renew/release komutu gönderilmez. Lease holder sticky fail-closed olur ve Redis TTL son güvenlik ağı olarak kalır.
+- Sonraki bağımsız acquire, emekliye ayrılmış client'ı yeniden kullanmak yerine yeni Redis bağlantısı kurar.
+- `SET NX PX` yalnız `OK` veya contention için `null` dönebilir; başka bir dönüş protokol hatası kabul edilip fail-closed reddedilir.
+- Deadline timer'ı kurulamaz veya güvenle temizlenemezse Redis komutu başarılı sayılamaz; client emekliye ayrılır.
+- Redis `close()` da aynı bounded cleanup ilkesine tabidir. Kapanış askıda kalırsa `destroy()` fallback'i kullanılır; server shutdown sonsuza kadar Redis close beklemez.
+- Pending connect sırasında shutdown gelirse cleanup hatası saklanır ama bağlantı sürecinin toparlanması da beklenir; kapanış sonucu sabit boundary hata koduyla raporlanır.
+- Bu deadline'lar lease güvenliğini gevşetmez: koordinasyon belirsizse Google provider refresh'e devam edilmez.
+
 ## Provider network sınırı
 
 - Google token endpoint JSON'u en fazla 64 KiB, Gmail read JSON'u en fazla 2 MiB kabul edilir.
