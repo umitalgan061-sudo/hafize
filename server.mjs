@@ -14,6 +14,7 @@ import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
+import { createGitHubWriteNodeServerRuntime } from './lib/github-write-node-server-runtime.mjs';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
@@ -70,6 +71,12 @@ const MEMORY_SERVER_RUNTIME = await createPersonalMemoryServerRuntime({ readJson
 const SCREEN_ANALYSIS_SERVER_RUNTIME = createScreenAnalysisServerRuntime({
   configured: Boolean(NVIDIA_API_KEY),
   complete: nvidiaJsonCompletion
+});
+const GITHUB_WRITE_NODE_SERVER_RUNTIME = createGitHubWriteNodeServerRuntime({
+  env: process.env,
+  readJson,
+  sendJson,
+  fetchImpl: fetch
 });
 
 const MIME = new Map([
@@ -609,6 +616,7 @@ const server = createServer(async (req, res) => {
         localProviderConfigured: MODEL_PROVIDER_NODE_SERVER_RUNTIME.localConfigured,
         defaultModelProvider: MODEL_PROVIDER_NODE_SERVER_RUNTIME.defaultProvider,
         githubReadConfigured: GITHUB_READ_CONFIGURED,
+        githubWriteConfigured: GITHUB_WRITE_NODE_SERVER_RUNTIME.configured,
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
@@ -682,6 +690,17 @@ const server = createServer(async (req, res) => {
         return;
       }
       sendJson(res, 200, { linked: status.linked });
+      return;
+    }
+    if (url.pathname === '/api/github/write/prepare' || url.pathname === '/api/github/write/execute') {
+      const writeResponse = await GITHUB_WRITE_NODE_SERVER_RUNTIME.handle({
+        request: req,
+        response: res,
+        method: req.method,
+        pathname: url.pathname,
+        headers: req.headers
+      });
+      if (!writeResponse.matched) sendJson(res, 404, { error: 'NOT_FOUND' });
       return;
     }
     if (url.pathname === '/api/schedules' || url.pathname.startsWith('/api/schedules/')) {
