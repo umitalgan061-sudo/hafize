@@ -8,6 +8,19 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Doğrulanmış subject, HMAC tabanlı opak owner kimliğine backend içinde çevrilir.
 - Raw subject generic tool context'e girmez; request-scoped Gmail executor içine bağlanır.
 - Access/refresh token yalnız encrypted OAuth token store'dan owner + `google` provider scope'uyla okunur.
+- OAuth authorization başlangıcında aynı opak owner ID, server-side `state + PKCE verifier` kaydına bağlanır; raw subject OAuth flow store'a yazılmaz.
+- Callback başka bir process/instance'a düşse bile shared flow kaydındaki owner kullanılır; callback'i karşılayan instance'ın local subject'i token sahipliğini değiştiremez.
+
+## Google OAuth HTTP sınırı
+
+- `google-oauth-http-runtime` yalnız `HAFIZE_GOOGLE_OAUTH_REDIRECT_URI` açıkça tanımlandığında etkinleşir. Redirect HTTPS olmalı ve `/api/connectors/gmail/oauth/callback` path'ini tam kullanmalıdır.
+- Authorization başlangıç sözleşmesi `POST /api/connectors/gmail/oauth/start` için bearer authentication ister; query string kabul etmez.
+- Production start sınırı yalnız `identity` ve `gmail.read` capability'lerini kabul eder. `gmail.send` / `gmail.modify`, generic policy primitive'inde bulunsa bile bu HTTP yüzeyinden grant edilemez.
+- Start response'u yalnız authorization URL, expiry ve capability metadata döndürür; state ayrıca response alanı olarak, verifier, owner ID, subject veya credential olarak açığa çıkarılmaz.
+- Google browser callback'i bearer header beklemez. Tek kullanımlı, cryptographically-random state shared server-side kaydı bulur ve başlangıç owner'ını callback'e taşır.
+- Callback query'sinde bilinmeyen veya tekrar eden parametre fail-closed reddedilir. Malformed duplicate query geçerli state'i tüketmeden durur.
+- Provider denial açıklaması public response'a yansıtılmaz; callback replay ikinci token exchange'e ulaşamaz.
+- Runtime production Redis/token-store composition'ını ve bounded shutdown'ı içerir. `server.mjs` route dispatch montajı ayrı stack adımı olarak tutulur; bu PR kendi başına yeni public server route'u açmaz.
 
 ## Süreklilik ve token yenileme
 
@@ -24,6 +37,14 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Provider'ın döndürdüğü scope listesi önceki grant'i **genişletemez**. Yeni bir scope görülürse refresh fail-closed reddedilir ve token kaydı üzerine yazılmaz.
 - Refresh sonrası `gmail.readonly` scope'u veya yeterli ömür yoksa Gmail API çağrısı yapılmaz ve yeniden yetkilendirme gerekir.
 - Token yenileme bir tool permission değişikliği değildir; `gmail.send`/`gmail.modify` gibi yazma yetkilerini açmaz.
+
+## Authorization-code exchange sınırı
+
+- İlk Google authorization-code exchange de refresh ile aynı bounded provider primitive'ini kullanır: response en fazla 64 KiB ve request varsayılan 15 saniyedir.
+- Token response scope alanı yoksa başlangıç flow'unda kaydedilen requested scope seti kullanılır; scope alanı varsa requested setin dışına taşamaz.
+- Beklenmeyen ek scope `GOOGLE_TOKEN_EXCHANGE_SCOPE_ESCALATION` ile token store yazımından önce fail-closed reddedilir.
+- Expiry provider response'un alındığı andan hesaplanır; geri giden veya safe-integer sınırını aşan clock değeri token mutation'dan önce reddedilir.
+- Google tekrar yetkilendirmede yeni refresh token dönmezse encrypted store'daki mevcut refresh token korunur; yeni access token uğruna çalışan refresh yetkisi silinmez.
 
 ## Redis koordinasyon deadline sınırı
 
@@ -43,9 +64,9 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Google token endpoint JSON'u en fazla 64 KiB, Gmail read JSON'u en fazla 2 MiB kabul edilir.
 - Native fetch response'u stream halinde okunur; byte bütçesi aşılır aşılmaz reader iptal edilir, tam response önce belleğe alınmaz.
 - Geçerli `Content-Length` sınırı aşıyorsa body açılmadan fail-closed reddedilir.
-- Google refresh isteği varsayılan 15 saniye, Gmail read isteği varsayılan 20 saniye deadline ile çalışır; deadline alttaki fetch'i `AbortSignal` ile keser.
+- Google token istekleri varsayılan 15 saniye, Gmail read isteği varsayılan 20 saniye deadline ile çalışır; deadline alttaki fetch'i `AbortSignal` ile keser.
 - Provider socket/parse ayrıntıları public sonuca taşınmaz; yalnız sabit Gmail/Google boundary hata kodları dışarı çıkar.
-- Oversized, timeout veya bozuk refresh response token store'a yazılamaz.
+- Oversized, timeout veya bozuk token response encrypted token store'a yazılamaz.
 
 ## Tool sınırı
 
