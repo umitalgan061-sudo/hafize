@@ -59,6 +59,7 @@ const desktop = createElectronAppShell({
   shell,
   osModule,
   preloadPath: '/absolute/preload.mjs',
+  allowedBrowserOrigins: ['https://example.com'],
   appOpeners: { notes: async () => { appOpenCalls += 1; } },
   platform: 'linux'
 });
@@ -81,6 +82,12 @@ const browser = await invoke(trustedEvent, {
 });
 assert.equal(browser.ok, true);
 assert.deepEqual(externalUrls, ['https://example.com/help']);
+const blockedBrowser = await invoke(trustedEvent, {
+  operation: 'browser.open',
+  args: { url: 'https://evil.example/help', explicitUserIntent: true }
+});
+assert.deepEqual(blockedBrowser, { ok: false, error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED' });
+assert.deepEqual(externalUrls, ['https://example.com/help'], 'blocked origin must not reach Electron shell');
 const openedApp = await invoke(trustedEvent, {
   operation: 'app.open',
   args: { appId: 'notes', explicitUserIntent: true }

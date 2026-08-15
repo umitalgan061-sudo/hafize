@@ -63,6 +63,7 @@ export function createElectronAppShell({
   preloadPath,
   startUrl = 'http://127.0.0.1:4173/',
   appOpeners = {},
+  allowedBrowserOrigins = [],
   platform = process.platform,
   registerDeviceBridge = registerElectronDeviceBridge
 } = {}) {
@@ -104,6 +105,7 @@ export function createElectronAppShell({
       app,
       osModule,
       appOpeners,
+      allowedBrowserOrigins,
       isTrustedSender: createTrustedSender(window, appUrl.origin)
     });
     window.once?.('ready-to-show', () => window.show?.());

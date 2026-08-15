@@ -2,7 +2,15 @@ import { createDeviceBridgeHandler, DEVICE_BRIDGE_CHANNEL } from './device-bridg
 
 function fail(code) { throw new Error(code); }
 
-export function registerElectronDeviceBridge({ ipcMain, shell, app, osModule, appOpeners = {}, isTrustedSender } = {}) {
+export function registerElectronDeviceBridge({
+  ipcMain,
+  shell,
+  app,
+  osModule,
+  appOpeners = {},
+  allowedBrowserOrigins = [],
+  isTrustedSender
+} = {}) {
   if (typeof ipcMain?.handle !== 'function' || typeof ipcMain?.removeHandler !== 'function') fail('INVALID_DEVICE_MAIN:ipcMain');
   if (typeof shell?.openExternal !== 'function') fail('INVALID_DEVICE_MAIN:shell');
   if (typeof app?.getVersion !== 'function') fail('INVALID_DEVICE_MAIN:app');
@@ -13,6 +21,7 @@ export function registerElectronDeviceBridge({ ipcMain, shell, app, osModule, ap
 
   const handler = createDeviceBridgeHandler({
     appOpeners,
+    allowedBrowserOrigins,
     openExternal: (url) => shell.openExternal(url),
     getSystemInfo: async () => ({
       platform: osModule.platform(),
@@ -29,6 +38,7 @@ export function registerElectronDeviceBridge({ ipcMain, shell, app, osModule, ap
   });
   return Object.freeze({
     allowedApps: handler.allowedApps,
+    allowedBrowserOrigins: handler.allowedBrowserOrigins,
     dispose() { ipcMain.removeHandler(DEVICE_BRIDGE_CHANNEL); }
   });
 }

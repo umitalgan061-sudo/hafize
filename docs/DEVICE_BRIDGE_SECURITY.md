@@ -5,7 +5,7 @@ Bu katman Jarvis'teki yerel cihaz kontrolü fikrini Hafize için bağımsız ve 
 ## İzin verilen operasyonlar
 
 - `system.info`: yalnız platform, mimari, Hafize uygulama sürümü, CPU çekirdek sayısı ve toplam bellek gibi dar bir özet döner.
-- `browser.open`: yalnız `https:` URL kabul eder ve `explicitUserIntent:true` gerektirir.
+- `browser.open`: yalnız `https:` URL kabul eder, `explicitUserIntent:true` gerektirir ve hedef URL'nin **origin'i Electron main process tarafından verilen exact allowlist'te** bulunmalıdır.
 - `app.open`: yalnız main process tarafından önceden verilen `appOpeners` allowlist'indeki sabit `appId` değerlerini çalıştırır ve açık kullanıcı niyeti gerektirir.
 
 Dosya yolu, executable yolu, komut satırı, shell string'i, serbest uygulama adı veya komut argümanı renderer/model girdisi olarak kabul edilmez.
@@ -16,11 +16,18 @@ Dosya yolu, executable yolu, komut satırı, shell string'i, serbest uygulama ad
 - `shell.openPath` veya renderer tarafından seçilen yerel dosya/executable açma yoktur.
 - `file:`, `http:`, `javascript:` veya credential içeren URL açma yoktur.
 - Preload renderer'a ham `ipcRenderer` nesnesini vermez; yalnız üç sabit metot expose edilir.
+- Renderer/preload `allowedBrowserOrigins` değerini okuyamaz, değiştiremez veya `browser.open` request'i içine policy alanı enjekte edemez.
 - Bu bridge agent tool catalog'a kayıtlı değildir. Model `explicitUserIntent` üreterek cihaz eylemi kazanamaz.
 
 ## IPC güven sınırı
 
 Main-process kayıt fonksiyonu zorunlu `isTrustedSender(event)` doğrulaması ister. Uygulama kabuğu bunu kendi beklenen renderer URL/origin ve `webContents` kimliğiyle bağlamalıdır. Callback yoksa bridge kurulumu fail-closed olur; güvenilmeyen sender isteği `DEVICE_RENDERER_NOT_TRUSTED` ile çalıştırılmadan reddedilir.
+
+## Browser origin allowlist yaklaşımı
+
+`allowedBrowserOrigins` yalnız Electron main/app-shell composition katmanından verilir ve varsayılanı boş listedir; yani yapılandırılmamış masaüstü bridge dış tarayıcı açmayı **deny-all** yapar. Allowlist girdileri wildcard değil exact HTTPS origin değerleridir. Path, query, fragment, credential ve HTTP origin config olarak reddedilir; farklı port farklı origin sayılır. İzinli bir origin seçildikten sonra aynı origin altındaki path/query/fragment URL'leri açılabilir.
+
+Bu sınır özellikle `docs.example.com.evil.test`, beklenmeyen subdomain veya farklı port gibi suffix/prefix benzerliklerinin allowlist'i aşmasını engeller. Renderer yalnız hedef URL + açık kullanıcı niyetini gönderebilir; hangi origin'lerin izinli olduğuna karar veremez.
 
 ## BrowserWindow sözleşmesi
 
@@ -43,4 +50,4 @@ Bu ayarlar renderer içeriğinin Node/Electron ayrıcalıklarına doğrudan ula�
 
 ## Sonraki entegrasyon
 
-Bu PR Electron bağımlılığı veya masaüstü entrypoint'i eklemez. Gerçek Electron kabuğu geldiğinde `registerElectronDeviceBridge`, güvenilir sender doğrulaması ve güvenli BrowserWindow ayarları birlikte bağlanmalıdır. Device eylemlerini Hafize agent tool'larına açmak ayrı bir güvenlik tasarımı ve açık kullanıcı onay sistemi gerektirir; bu bridge tek başına model yetkisi değildir.
+Gerçek masaüstü dağıtım composition'ı `allowedBrowserOrigins` ve `appOpeners` değerlerini ürün tarafından sahip olunan sabit konfigürasyondan sağlamalıdır; renderer veya model girdisinden türetmemelidir. Device eylemlerini Hafize agent tool'larına açmak ayrı bir güvenlik tasarımı ve açık kullanıcı onay sistemi gerektirir; bu bridge tek başına model yetkisi değildir.

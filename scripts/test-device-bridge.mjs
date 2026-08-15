@@ -18,11 +18,13 @@ const handler = createDeviceBridgeHandler({
     return { platform: 'darwin', arch: 'arm64', appVersion: '1.2.3', cpuCount: 12, totalMemoryMb: 32768, secretPath: '/Users/x' };
   },
   async openExternal(url) { calls.push(['url', url]); },
+  allowedBrowserOrigins: ['https://example.com'],
   appOpeners: {
     spotify: async () => calls.push(['app', 'spotify']),
     vscode: async () => calls.push(['app', 'vscode'])
   }
 });
+assert.deepEqual(handler.allowedBrowserOrigins, ['https://example.com']);
 
 const info = await handler.handle({ operation: 'system.info', args: {} });
 assert.deepEqual(info, { ok: true, value: { platform: 'darwin', arch: 'arm64', appVersion: '1.2.3', cpuCount: 12, totalMemoryMb: 32768 } });
@@ -30,6 +32,9 @@ assert.equal(JSON.stringify(info).includes('/Users/x'), false);
 
 assert.deepEqual(await handler.handle({ operation: 'browser.open', args: { url: 'https://example.com/a', explicitUserIntent: true } }), { ok: true, value: { opened: true, kind: 'browser' } });
 assert.deepEqual(calls.shift(), ['url', 'https://example.com/a']);
+assert.deepEqual(await handler.handle({ operation: 'browser.open', args: { url: 'https://sub.example.com/a', explicitUserIntent: true } }), { ok: false, error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED' });
+assert.deepEqual(await handler.handle({ operation: 'browser.open', args: { url: 'https://example.com.evil.test/a', explicitUserIntent: true } }), { ok: false, error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED' });
+assert.equal(calls.length, 0, 'blocked browser origins must never reach shell.openExternal');
 assert.deepEqual(await handler.handle({ operation: 'app.open', args: { appId: 'spotify', explicitUserIntent: true } }), { ok: true, value: { opened: true, kind: 'app', appId: 'spotify' } });
 assert.deepEqual(calls.shift(), ['app', 'spotify']);
 assert.deepEqual(await handler.handle({ operation: 'app.open', args: { appId: 'terminal', explicitUserIntent: true } }), { ok: false, error: 'DEVICE_APP_NOT_ALLOWED' });
@@ -71,15 +76,22 @@ const registered = registerElectronDeviceBridge({
     cpus() { return [{}, {}, {}, {}]; },
     totalmem() { return 8 * 1024 * 1024 * 1024; }
   },
+  allowedBrowserOrigins: ['https://example.com'],
   appOpeners: { spotify: async () => {} },
   isTrustedSender: (event) => event?.trusted === true
 });
 assert.deepEqual(registered.allowedApps, ['spotify']);
+assert.deepEqual(registered.allowedBrowserOrigins, ['https://example.com']);
 assert.deepEqual(await ipcHandler({ trusted: false }, { operation: 'system.info', args: {} }), { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' });
 assert.deepEqual(await ipcHandler({ trusted: true }, { operation: 'system.info', args: {} }), {
   ok: true,
   value: { platform: 'win32', arch: 'x64', appVersion: '9.9.9', cpuCount: 4, totalMemoryMb: 8192 }
 });
+assert.deepEqual(await ipcHandler({ trusted: true }, { operation: 'browser.open', args: { url: 'https://evil.example', explicitUserIntent: true } }), {
+  ok: false,
+  error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED'
+});
+assert.deepEqual(externalCalls, []);
 await ipcHandler({ trusted: true }, { operation: 'browser.open', args: { url: 'https://example.com', explicitUserIntent: true } });
 assert.deepEqual(externalCalls, ['https://example.com/']);
 assert.throws(() => registerElectronDeviceBridge({ ipcMain: { handle() {}, removeHandler() {} }, shell: { openExternal() {} }, app: { getVersion() {} }, osModule: { platform() {}, arch() {}, cpus() {}, totalmem() {} } }), /isTrustedSender/);
