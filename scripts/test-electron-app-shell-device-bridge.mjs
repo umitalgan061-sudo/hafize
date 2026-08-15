@@ -3,7 +3,10 @@ import { createElectronAppShell } from '../desktop/app-shell.mjs';
 import { DEVICE_BRIDGE_CHANNEL } from '../desktop/device-bridge-contract.mjs';
 
 class WebContents {
-  constructor() { this.listeners = new Map(); }
+  constructor() {
+    this.listeners = new Map();
+    this.mainFrame = { url: '' };
+  }
   on(name, fn) { this.listeners.set(name, fn); }
   removeListener(name, fn) {
     if (this.listeners.get(name) === fn) this.listeners.delete(name);
@@ -21,7 +24,10 @@ class Window {
     windows.push(this);
   }
   once(name, fn) { this.events.set(name, fn); }
-  async loadURL(url) { this.url = url; }
+  async loadURL(url) {
+    this.url = url;
+    this.webContents.mainFrame.url = url;
+  }
   isDestroyed() { return Boolean(this.destroyed); }
   show() {}
   destroy() {
@@ -68,7 +74,7 @@ const invoke = ipcHandlers.get(DEVICE_BRIDGE_CHANNEL);
 assert.equal(typeof invoke, 'function');
 const trustedEvent = {
   sender: windowRef.webContents,
-  senderFrame: { url: 'http://127.0.0.1:4173/' }
+  senderFrame: windowRef.webContents.mainFrame
 };
 
 const info = await invoke(trustedEvent, { operation: 'system.info', args: {} });
@@ -95,11 +101,17 @@ const openedApp = await invoke(trustedEvent, {
 assert.equal(openedApp.ok, true);
 assert.equal(appOpenCalls, 1);
 
-const untrusted = await invoke(
-  { sender: windowRef.webContents, senderFrame: { url: 'https://evil.example/' } },
+const sameOriginSubframe = await invoke(
+  { sender: windowRef.webContents, senderFrame: { url: 'http://127.0.0.1:4173/embedded' } },
   { operation: 'system.info', args: {} }
 );
-assert.deepEqual(untrusted, { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' });
+assert.deepEqual(sameOriginSubframe, { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' });
+
+const originalMainUrl = windowRef.webContents.mainFrame.url;
+windowRef.webContents.mainFrame.url = 'https://evil.example/';
+const navigatedMainFrame = await invoke(trustedEvent, { operation: 'system.info', args: {} });
+assert.deepEqual(navigatedMainFrame, { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' });
+windowRef.webContents.mainFrame.url = originalMainUrl;
 
 desktop.dispose();
 assert.equal(ipcHandlers.has(DEVICE_BRIDGE_CHANNEL), false);

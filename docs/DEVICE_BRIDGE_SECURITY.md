@@ -21,7 +21,7 @@ Dosya yolu, executable yolu, komut satırı, shell string'i, serbest uygulama ad
 
 ## IPC güven sınırı
 
-Main-process kayıt fonksiyonu zorunlu `isTrustedSender(event)` doğrulaması ister. Uygulama kabuğu bunu kendi beklenen renderer URL/origin ve `webContents` kimliğiyle bağlamalıdır. Callback yoksa bridge kurulumu fail-closed olur; güvenilmeyen sender isteği `DEVICE_RENDERER_NOT_TRUSTED` ile çalıştırılmadan reddedilir.
+Main-process kayıt fonksiyonu zorunlu `isTrustedSender(event)` doğrulaması ister. Uygulama kabuğu bunu kendi beklenen renderer origin'i, pencerenin exact `webContents` kimliği ve **exact `webContents.mainFrame` kimliği** ile bağlar. Aynı-origin bir iframe/subframe ana frame'in device IPC yetkisini devralamaz. Ana frame beklenen renderer origin'inden ayrılırsa istek reddedilir. Callback yoksa bridge kurulumu fail-closed olur; güvenilmeyen sender isteği `DEVICE_RENDERER_NOT_TRUSTED` ile çalıştırılmadan reddedilir.
 
 ## Browser origin allowlist yaklaşımı
 
