@@ -19,6 +19,15 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Refresh sonrası `gmail.readonly` scope'u veya yeterli ömür yoksa Gmail API çağrısı yapılmaz ve yeniden yetkilendirme gerekir.
 - Token yenileme bir tool permission değişikliği değildir; `gmail.send`/`gmail.modify` gibi yazma yetkilerini açmaz.
 
+## Provider network sınırı
+
+- Google token endpoint JSON'u en fazla 64 KiB, Gmail read JSON'u en fazla 2 MiB kabul edilir.
+- Native fetch response'u stream halinde okunur; byte bütçesi aşılır aşılmaz reader iptal edilir, tam response önce belleğe alınmaz.
+- Geçerli `Content-Length` sınırı aşıyorsa body açılmadan fail-closed reddedilir.
+- Google refresh isteği varsayılan 15 saniye, Gmail read isteği varsayılan 20 saniye deadline ile çalışır; deadline alttaki fetch'i `AbortSignal` ile keser.
+- Provider socket/parse ayrıntıları public sonuca taşınmaz; yalnız sabit Gmail/Google boundary hata kodları dışarı çıkar.
+- Oversized, timeout veya bozuk refresh response token store'a yazılamaz.
+
 ## Tool sınırı
 
 `gmail_read` yalnız şu operasyonları destekler:
