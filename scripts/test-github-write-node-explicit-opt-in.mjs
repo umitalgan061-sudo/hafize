@@ -20,7 +20,7 @@ const dependencies = {
   fetchImpl: async () => { fetches += 1; throw new Error('network must remain unreachable'); }
 };
 
-for (const enabled of [undefined, '', ' false ', 'FALSE']) {
+for (const enabled of [undefined, '', ' false ']) {
   const env = { ...completeEnv };
   if (enabled !== undefined) env.HAFIZE_GITHUB_WRITE_ENABLED = enabled;
   const runtime = createGitHubWriteNodeServerRuntime({ env, ...dependencies });
@@ -37,7 +37,7 @@ assert.equal(reads, 0, 'disabled write runtime must not parse request bodies');
 assert.equal(writes, 0, 'disabled write runtime must not emit HTTP responses');
 assert.equal(fetches, 0, 'disabled write runtime must not call GitHub');
 
-for (const enabled of ['1', 'yes', 'on', 'TRUE-ish']) {
+for (const enabled of ['FALSE', 'TRUE', '1', 'yes', 'on', 'TRUE-ish']) {
   assert.throws(
     () => createGitHubWriteNodeServerRuntime({
       env: { ...completeEnv, HAFIZE_GITHUB_WRITE_ENABLED: enabled },
