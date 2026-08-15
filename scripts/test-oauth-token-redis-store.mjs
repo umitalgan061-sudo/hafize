@@ -95,4 +95,19 @@ assert.throws(
   /INVALID_OAUTH_TOKEN_REDIS_STORE:redisUrl/
 );
 
+const closeFailure = createOAuthTokenRedisStore({
+  redisUrl: 'redis://shared.example.test:6379/0',
+  key,
+  loadRedisModule: async () => ({
+    createClient: () => ({
+      isReady: false, isOpen: false, on() {},
+      async connect() { this.isReady = this.isOpen = true; },
+      async set() { return 'OK'; }, async get() { return null; }, async del() { return 0; },
+      async close() { throw new Error('redis password must not escape'); }, destroy() { this.isOpen = false; }
+    })
+  })
+});
+await closeFailure.save({ ownerId, provider, tokenRecord: record });
+await assert.rejects(closeFailure.close(), (error) => error?.code === 'OAUTH_TOKEN_STORE_CLOSE_FAILED');
+
 console.log('oauth token shared Redis store tests passed');
