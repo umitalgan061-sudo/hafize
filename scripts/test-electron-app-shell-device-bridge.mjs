@@ -67,6 +67,7 @@ const desktop = createElectronAppShell({
   preloadPath: '/absolute/preload.mjs',
   allowedBrowserOrigins: ['https://example.com'],
   appOpeners: { notes: async () => { appOpenCalls += 1; } },
+  installPermissionPolicy: () => ({ dispose() {} }),
   platform: 'linux'
 });
 const windowRef = await desktop.start();
