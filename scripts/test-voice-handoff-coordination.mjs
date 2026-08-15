@@ -1,0 +1,286 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const voiceInput = require('../public/voice-input.js');
+const handsFree = require('../public/hands-free.js');
+
+assert.equal(voiceInput.VOICE_INPUT_STATE_EVENT, 'hafize:voice-input-state');
+assert.equal(handsFree.VOICE_INPUT_STATE_EVENT, voiceInput.VOICE_INPUT_STATE_EVENT);
+
+class FakeClassList {
+  constructor() { this.values = new Set(); }
+  add(value) { this.values.add(value); }
+  remove(value) { this.values.delete(value); }
+  toggle(value, force) {
+    if (force === true) this.values.add(value);
+    else if (force === false) this.values.delete(value);
+    else if (this.values.has(value)) this.values.delete(value);
+    else this.values.add(value);
+    return this.values.has(value);
+  }
+}
+
+class FakeTarget {
+  constructor() { this.listeners = new Map(); }
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+  removeEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    this.listeners.set(type, listeners.filter((item) => item !== listener));
+  }
+  dispatchEvent(event) {
+    event.target ??= this;
+    event.currentTarget = this;
+    event.preventDefault ??= () => { event.defaultPrevented = true; };
+    event.stopImmediatePropagation ??= () => { event.immediateStopped = true; };
+    for (const listener of [...(this.listeners.get(event.type) || [])]) {
+      listener(event);
+      if (event.immediateStopped) break;
+    }
+    return !event.defaultPrevented;
+  }
+}
+
+class FakeElement extends FakeTarget {
+  constructor(id = '') {
+    super();
+    this.id = id;
+    this.attributes = new Map();
+    this.classList = new FakeClassList();
+    this.disabled = false;
+    this.hidden = false;
+    this.maxLength = 12000;
+    this.textContent = '';
+    this.title = '';
+    this.value = '';
+    this.focusCount = 0;
+  }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name) ?? null; }
+  focus() { this.focusCount += 1; }
+  click() { this.dispatchEvent({ type: 'click' }); }
+}
+
+class FakeDocument extends FakeTarget {
+  constructor(elements) {
+    super();
+    this.elements = elements;
+    this.hidden = false;
+    this.documentElement = { lang: 'tr-TR' };
+  }
+  querySelector(selector) { return this.elements.get(selector) || null; }
+}
+
+class FakeCustomEvent {
+  constructor(type, init = {}) {
+    this.type = type;
+    this.detail = init.detail;
+  }
+}
+
+class FakeEvent {
+  constructor(type) { this.type = type; }
+}
+
+const recognitionInstances = [];
+let beforeStartHook = null;
+let failNextStart = false;
+class FakeRecognition {
+  constructor() {
+    this.abortCalls = 0;
+    this.stopCalls = 0;
+    this.started = false;
+    recognitionInstances.push(this);
+  }
+  start() {
+    const hook = beforeStartHook;
+    beforeStartHook = null;
+    hook?.(this);
+    if (failNextStart) {
+      failNextStart = false;
+      throw new Error('synthetic recognition start failure');
+    }
+    this.started = true;
+    this.onstart?.();
+  }
+  stop() {
+    this.stopCalls += 1;
+    this.onend?.();
+  }
+  abort() {
+    this.abortCalls += 1;
+    this.onend?.();
+  }
+  emitTranscript(transcript) {
+    const result = [{ transcript }];
+    result.isFinal = true;
+    this.onresult?.({ resultIndex: 0, results: [result] });
+  }
+}
+
+const timers = new Map();
+let timerNo = 0;
+function setTimeoutFake(callback, delay = 0) {
+  const id = ++timerNo;
+  timers.set(id, { callback, delay });
+  return id;
+}
+function clearTimeoutFake(id) { timers.delete(id); }
+function restartTimerCount() {
+  return [...timers.values()].filter((entry) => entry.delay === 350).length;
+}
+function runRestartTimers() {
+  const queued = [...timers.entries()].filter(([, entry]) => entry.delay === 350);
+  for (const [id] of queued) timers.delete(id);
+  for (const [, entry] of queued) entry.callback();
+}
+
+const storage = new Map();
+const localStorage = {
+  getItem: (key) => storage.get(key) ?? null,
+  setItem: (key, value) => storage.set(key, String(value)),
+  removeItem: (key) => storage.delete(key)
+};
+
+class FakeMutationObserver {
+  constructor(callback) { this.callback = callback; }
+  observe() {}
+  disconnect() {}
+}
+
+const mic = new FakeElement('micBtn');
+const input = new FakeElement('messageInput');
+const toggle = new FakeElement('handsFreeToggle');
+const indicator = new FakeElement('handsFreeIndicator');
+const toast = new FakeElement('toast');
+const elements = new Map([
+  ['#micBtn', mic],
+  ['#messageInput', input],
+  ['#handsFreeToggle', toggle],
+  ['#handsFreeIndicator', indicator],
+  ['#toast', toast]
+]);
+const documentRef = new FakeDocument(elements);
+const root = {
+  SpeechRecognition: FakeRecognition,
+  CustomEvent: FakeCustomEvent,
+  Event: FakeEvent,
+  MutationObserver: FakeMutationObserver,
+  navigator: { language: 'tr-TR' },
+  localStorage,
+  setTimeout: setTimeoutFake,
+  clearTimeout: clearTimeoutFake
+};
+
+const states = [];
+documentRef.addEventListener(voiceInput.VOICE_INPUT_STATE_EVENT, (event) => states.push(event.detail));
+
+const voice = voiceInput.installVoiceInput(documentRef, root);
+const wake = handsFree.installHandsFree(documentRef, root);
+assert.ok(voice);
+assert.ok(wake);
+assert.equal(voice.isListening(), false);
+assert.equal(wake.isEnabled(), false);
+
+// Manual push-to-talk must claim ownership before Recognition.start(), then suspend wake listening.
+wake.enable();
+assert.equal(wake.isEnabled(), true);
+assert.equal(recognitionInstances.length, 1);
+const wakeRecognition = recognitionInstances[0];
+assert.equal(wakeRecognition.started, true);
+assert.equal(wake.isListening(), true);
+
+beforeStartHook = () => {
+  assert.equal(voice.isListening(), true, 'push-to-talk must claim ownership before browser recognition starts');
+  assert.equal(wake.isVoiceInputListening(), true, 'hands-free must observe the pre-start claim synchronously');
+  assert.equal(wakeRecognition.abortCalls, 1, 'wake recognition must abort before push-to-talk calls start()');
+  assert.deepEqual(states.at(-1), { listening: true, source: 'voice-input' });
+  assert.equal(restartTimerCount(), 0, 'pre-start ownership must suppress wake restart');
+};
+mic.click();
+assert.equal(beforeStartHook, null, 'manual push-to-talk must reach Recognition.start()');
+assert.equal(recognitionInstances.length, 2);
+const manualVoiceRecognition = recognitionInstances[1];
+assert.equal(voice.isListening(), true);
+assert.equal(wake.isVoiceInputListening(), true);
+assert.equal(wakeRecognition.abortCalls, 1, 'wake recognition must abort while push-to-talk owns the microphone');
+assert.deepEqual(states.at(-1), { listening: true, source: 'voice-input' });
+assert.equal(indicator.textContent, '○ Sesli giriş etkin');
+
+manualVoiceRecognition.emitTranscript('bugün plan yapalım');
+assert.equal(input.value, 'bugün plan yapalım');
+manualVoiceRecognition.onend?.();
+assert.equal(voice.isListening(), false);
+assert.equal(wake.isVoiceInputListening(), false);
+assert.deepEqual(states.at(-1), { listening: false, source: 'voice-input' });
+assert.equal(restartTimerCount(), 1, 'wake recognition should be scheduled after voice input ends');
+runRestartTimers();
+assert.equal(recognitionInstances.length, 3);
+assert.equal(wake.isListening(), true);
+
+// Wake phrase handoff must retain the claim through the stop -> click -> start transition.
+const resumedWakeRecognition = recognitionInstances[2];
+beforeStartHook = () => {
+  assert.equal(voice.isListening(), true, 'wake handoff must claim push-to-talk before browser start()');
+  assert.equal(wake.isVoiceInputListening(), true, 'wake handoff must publish ownership synchronously');
+  assert.equal(restartTimerCount(), 0, 'wake restart must remain suppressed during the pre-start handoff window');
+};
+resumedWakeRecognition.emitTranscript('hey hafize');
+assert.equal(beforeStartHook, null, 'wake phrase must hand off through Recognition.start()');
+assert.equal(recognitionInstances.length, 4, 'wake phrase should hand off to voice input');
+const wakeTriggeredVoiceRecognition = recognitionInstances[3];
+assert.equal(voice.isListening(), true);
+assert.equal(wake.isVoiceInputListening(), true);
+assert.equal(restartTimerCount(), 0, 'wake listener must not restart over active voice input');
+
+wakeTriggeredVoiceRecognition.emitTranscript('yarın için görev ekle');
+assert.equal(input.value, 'bugün plan yapalım yarın için görev ekle');
+wakeTriggeredVoiceRecognition.onend?.();
+assert.equal(restartTimerCount(), 1);
+runRestartTimers();
+assert.equal(recognitionInstances.length, 5);
+assert.equal(wake.isListening(), true);
+
+// A synchronous push-to-talk start failure must release ownership and restore wake listening.
+const wakeBeforeFailedHandoff = recognitionInstances[4];
+const stateCountBeforeFailure = states.length;
+failNextStart = true;
+wakeBeforeFailedHandoff.emitTranscript('hafize');
+assert.equal(recognitionInstances.length, 6, 'failed handoff still constructs one push-to-talk recognition');
+const failedVoiceRecognition = recognitionInstances[5];
+assert.equal(failedVoiceRecognition.started, false);
+assert.equal(voice.isListening(), false, 'failed browser start must release push-to-talk ownership');
+assert.equal(wake.isVoiceInputListening(), false, 'hands-free must observe released ownership');
+assert.deepEqual(states.slice(stateCountBeforeFailure), [
+  { listening: true, source: 'voice-input' },
+  { listening: false, source: 'voice-input' }
+]);
+assert.equal(restartTimerCount(), 1, 'failed handoff must schedule wake recovery');
+runRestartTimers();
+assert.equal(recognitionInstances.length, 7, 'wake recognition must recover after failed push-to-talk start');
+assert.equal(wake.isListening(), true);
+
+// Malformed/unrelated lifecycle events must not change microphone ownership.
+const currentWakeRecognition = recognitionInstances[6];
+documentRef.dispatchEvent(new FakeCustomEvent(voiceInput.VOICE_INPUT_STATE_EVENT, {
+  detail: { listening: true, source: 'untrusted-component' }
+}));
+assert.equal(currentWakeRecognition.abortCalls, 0);
+assert.equal(wake.isVoiceInputListening(), false);
+
+documentRef.hidden = true;
+documentRef.dispatchEvent({ type: 'visibilitychange' });
+assert.equal(currentWakeRecognition.abortCalls, 1);
+assert.equal(wake.isListening(), false);
+assert.equal(restartTimerCount(), 0, 'hidden document must not restart microphone listening');
+
+voice.destroy();
+wake.destroy();
+assert.equal(voice.isListening(), false);
+assert.equal(wake.isListening(), false);
+
+console.log('voice handoff coordination tests passed');

@@ -12,6 +12,7 @@
   'use strict';
 
   const STORAGE_KEY = 'hafize.voiceOutput.v1';
+  const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
   const MAX_SPEECH_LENGTH = 2400;
   const MAX_CHUNK_LENGTH = 240;
 
@@ -183,10 +184,16 @@
     function handleVisibility() {
       if (documentRef.hidden) cancelSpeech();
     }
+    function handleVoiceInputState(event) {
+      const detail = event?.detail;
+      if (detail?.source !== 'voice-input' || detail.listening !== true) return;
+      cancelSpeech();
+    }
 
     toggle.addEventListener?.('click', handleToggle);
     composer?.addEventListener?.('submit', handleSubmit, true);
     documentRef.addEventListener?.('visibilitychange', handleVisibility);
+    documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
 
     const Observer = root?.MutationObserver;
     const micObserver = micButton && typeof Observer === 'function'
@@ -217,9 +224,16 @@
         toggle.removeEventListener?.('click', handleToggle);
         composer?.removeEventListener?.('submit', handleSubmit, true);
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
+        documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
       }
     });
   }
 
-  return Object.freeze({ STORAGE_KEY, normalizeSpeechText, splitSpeechText, installVoiceOutput });
+  return Object.freeze({
+    STORAGE_KEY,
+    VOICE_INPUT_STATE_EVENT,
+    normalizeSpeechText,
+    splitSpeechText,
+    installVoiceOutput
+  });
 });
