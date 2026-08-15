@@ -30,9 +30,10 @@ function isAllowedRendererUrl(value, origin) {
 function createTrustedSender(windowRef, origin) {
   return (event) => {
     if (!windowRef || windowRef.isDestroyed?.()) return false;
-    if (event?.sender !== windowRef.webContents) return false;
-    const frameUrl = event?.senderFrame?.url;
-    return isAllowedRendererUrl(frameUrl, origin);
+    const contents = windowRef.webContents;
+    if (!contents || event?.sender !== contents) return false;
+    if (!contents.mainFrame || event?.senderFrame !== contents.mainFrame) return false;
+    return isAllowedRendererUrl(contents.mainFrame.url, origin);
   };
 }
 
