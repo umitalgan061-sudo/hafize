@@ -18,6 +18,7 @@ import { createGitHubWriteNodeServerRuntime } from './lib/github-write-node-serv
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createCloudSessionNodeServerRuntime } from './lib/cloud-session-node-server-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
+import { createGoogleDisconnectHttpRuntime } from './lib/google-disconnect-http-runtime.mjs';
 import { createGoogleOAuthHttpRuntime } from './lib/google-oauth-http-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
 import { createModelProviderNodeServerRuntime } from './lib/model-provider-node-server-runtime.mjs';
@@ -70,6 +71,7 @@ const SKILL_AGENT_RUN = createSkillAgentRunBoundary({ skillService: SKILL_SERVIC
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const CLOUD_SESSION_NODE_SERVER_RUNTIME = createCloudSessionNodeServerRuntime({ env: process.env });
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
+const GOOGLE_DISCONNECT_HTTP_RUNTIME = createGoogleDisconnectHttpRuntime({ env: process.env, fetchImpl: fetch });
 const GOOGLE_OAUTH_HTTP_RUNTIME = await createGoogleOAuthHttpRuntime({ env: process.env, fetchImpl: fetch, readJson });
 const MEMORY_SERVER_RUNTIME = await createPersonalMemoryServerRuntime({ readJson });
 const SCREEN_ANALYSIS_SERVER_RUNTIME = createScreenAnalysisServerRuntime({
@@ -624,6 +626,7 @@ const server = createServer(async (req, res) => {
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         googleOAuthConfigured: GOOGLE_OAUTH_HTTP_RUNTIME.configured,
+        googleDisconnectConfigured: GOOGLE_DISCONNECT_HTTP_RUNTIME.configured,
         cloudSessionConfigured: CLOUD_SESSION_NODE_SERVER_RUNTIME.configured,
         memoryConfigured: MEMORY_SERVER_RUNTIME.configured,
         screenAnalysisConfigured: SCREEN_ANALYSIS_SERVER_RUNTIME.configured,
@@ -702,6 +705,22 @@ const server = createServer(async (req, res) => {
         return;
       }
       sendJson(res, 200, { linked: status.linked });
+      return;
+    }
+    if (url.pathname === '/api/connectors/gmail/disconnect') {
+      const disconnectResponse = await GOOGLE_DISCONNECT_HTTP_RUNTIME.handle({
+        request: req,
+        method: req.method,
+        pathname: url.pathname,
+        url,
+        headers: req.headers
+      });
+      if (!disconnectResponse.matched) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      for (const [name, value] of Object.entries(disconnectResponse.headers || {})) res.setHeader(name, value);
+      sendJson(res, disconnectResponse.status, disconnectResponse.body);
       return;
     }
     if (url.pathname === '/api/connectors/gmail/oauth/start' || url.pathname === '/api/connectors/gmail/oauth/callback') {
@@ -823,6 +842,12 @@ async function shutdown() {
     } catch {
       process.exitCode = 1;
       console.error('Hafize Google OAuth runtime shutdown failed');
+    }
+    try {
+      await GOOGLE_DISCONNECT_HTTP_RUNTIME.close();
+    } catch {
+      process.exitCode = 1;
+      console.error('Hafize Google disconnect runtime shutdown failed');
     }
     try {
       await GMAIL_AGENT_RUNTIME.close();
