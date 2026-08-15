@@ -61,6 +61,7 @@
     let restartTimer = null;
     let handoffPending = false;
     let voiceInputListening = false;
+    let destroyed = false;
 
     function announce(message) {
       const toast = documentRef.querySelector?.('#toast');
@@ -105,13 +106,13 @@
 
     function scheduleRestart() {
       clearRestart();
-      if (!enabled || handoffPending || voiceInputListening || documentRef.hidden || input.disabled) return;
+      if (destroyed || !enabled || handoffPending || voiceInputListening || documentRef.hidden || input.disabled) return;
       if (typeof root?.setTimeout === 'function') restartTimer = root.setTimeout(startRecognition, RESTART_DELAY_MS);
     }
 
     function startRecognition() {
       clearRestart();
-      if (!enabled || !Recognition || recognition || voiceInputListening || documentRef.hidden || input.disabled) return;
+      if (destroyed || !enabled || !Recognition || recognition || voiceInputListening || documentRef.hidden || input.disabled) return;
       const current = new Recognition();
       current.lang = documentRef.documentElement?.lang || root?.navigator?.language || 'tr-TR';
       current.continuous = true;
@@ -161,6 +162,7 @@
     }
 
     function setEnabled(next, { persist = true } = {}) {
+      if (destroyed) return;
       const requested = Boolean(next) && Boolean(Recognition);
       if (enabled === requested) return;
       enabled = requested;
@@ -224,6 +226,12 @@
       enable: () => setEnabled(true),
       disable: () => setEnabled(false),
       destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        enabled = false;
+        handoffPending = false;
+        voiceInputListening = false;
+        clearRestart();
         observer?.disconnect?.();
         stopRecognition({ abort: true });
         toggle.removeEventListener?.('click', handleToggle);
