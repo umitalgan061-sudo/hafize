@@ -16,8 +16,10 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Refresh etkinse `HAFIZE_GOOGLE_REFRESH_REDIS_URL` zorunludur; eksik/tek taraflı config startup'ta fail-closed reddedilir.
 - Aynı owner için process içi singleflight'a ek olarak Redis lease uygulanır; owner ID Redis key'ine düz yazılmaz, domain-separated SHA-256 digest kullanılır.
 - Lease tokenı `SET NX + PX` ile alınır, token-doğrulamalı Lua renew/release kullanılır ve automatic reconnect kapalıdır.
+- Holder, 30 saniyelik lease'i 10 saniyelik otomatik heartbeat ile canlı tutar; heartbeat veya timer altyapısı kaybı sticky fail-closed duruma dönüşür.
 - İkinci instance lease'i aldıktan sonra encrypted token kaydını yeniden okur; ilk holder zaten fresh token yazdıysa Google'a ikinci refresh isteği göndermez.
-- Provider sonucu token store'a yazılmadan hemen önce lease yenilenir; ownership kaybedilmişse kayıt mutasyonu yapılmaz.
+- Provider sonucu token store'a yazılmadan hemen önce ve yazımdan hemen sonra lease sahipliği doğrulanır; uzun provider/store işlemleri boyunca heartbeat devam eder.
+- Bekleyen instance bir dead-holder TTL'sini aşan sınırlı bir pencere bekler; heartbeat'i durmuş holder'ın lease'i süresi dolunca güvenli devralma yapabilir.
 - Google refresh response'u yeni refresh token vermiyorsa mevcut token korunur; verirse encrypted store içinde döndürülür.
 - Provider'ın döndürdüğü scope listesi önceki grant'i **genişletemez**. Yeni bir scope görülürse refresh fail-closed reddedilir ve token kaydı üzerine yazılmaz.
 - Refresh sonrası `gmail.readonly` scope'u veya yeterli ömür yoksa Gmail API çağrısı yapılmaz ve yeniden yetkilendirme gerekir.
