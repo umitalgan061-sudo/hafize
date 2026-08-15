@@ -98,6 +98,29 @@ await fallbackStore.close();
 assert.equal(fallbackCloseCalls, 1);
 assert.equal(fallbackDestroyCalls, 1, 'failed graceful close must force-destroy the Redis socket');
 
+const recycledClients = [];
+const recyclingStore = createGitHubWriteReplayStore({
+  redisUrl: 'redis://shared-replay:6379/0',
+  createClient() {
+    const next = {
+      isReady: false, isOpen: false, closeCalls: 0,
+      on() { return this; },
+      async connect() { this.isOpen = true; this.isReady = true; },
+      async set() { return 'OK'; },
+      async close() { this.closeCalls += 1; this.isOpen = false; this.isReady = false; }
+    };
+    recycledClients.push(next);
+    return next;
+  }
+});
+assert.equal(await recyclingStore.claim({ nonce: '1111111111111111111111', expiresAt, now }), true);
+recycledClients[0].isReady = false;
+assert.equal(await recyclingStore.claim({ nonce: '2222222222222222222222', expiresAt, now }), true);
+assert.equal(recycledClients.length, 2, 'stale client must be replaced exactly once');
+assert.equal(recycledClients[0].closeCalls, 1, 'stale client must close before replacement');
+await recyclingStore.close();
+assert.equal(recycledClients[1].closeCalls, 1, 'replacement client remains owned by store shutdown');
+
 const brokenClient = {
   isReady: false,
   isOpen: false,
