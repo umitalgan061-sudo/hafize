@@ -9,6 +9,7 @@ class Response extends EventEmitter {
 
 const secret = Buffer.alloc(32, 7).toString('base64url');
 const env = {
+  HAFIZE_GITHUB_WRITE_ENABLED: 'true',
   GITHUB_TOKEN: 'server-held-github-token',
   HAFIZE_GITHUB_WRITE_REPOS: 'umitalgan061-sudo/hafize',
   HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: secret,
