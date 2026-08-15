@@ -4,38 +4,23 @@ import { createServer as createNetServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
+function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 async function reservePort() {
   const probe = createNetServer();
-  await new Promise((resolve, reject) => {
-    probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', resolve);
-  });
+  await new Promise((resolve, reject) => { probe.once('error', reject); probe.listen(0, '127.0.0.1', resolve); });
   const port = probe.address()?.port || 0;
   await new Promise((resolve, reject) => probe.close((error) => error ? reject(error) : resolve()));
   return port;
 }
-
 async function runStartup(env) {
-  const child = spawn(process.execPath, ['server.mjs'], {
-    cwd: ROOT,
-    env,
-    stdio: ['ignore', 'pipe', 'pipe']
-  });
+  const child = spawn(process.execPath, ['server.mjs'], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   let stderr = '';
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
   child.stdout.on('data', (chunk) => { stdout += chunk; });
   child.stderr.on('data', (chunk) => { stderr += chunk; });
-  const exitCode = await Promise.race([
-    new Promise((resolve) => child.once('exit', (code) => resolve(code))),
-    delay(3_000).then(() => null)
-  ]);
+  const exitCode = await Promise.race([new Promise((resolve) => child.once('exit', (code) => resolve(code))), delay(3_000).then(() => null)]);
   if (exitCode == null) child.kill('SIGKILL');
   return { exitCode, stdout, stderr };
 }
@@ -53,6 +38,7 @@ const base = {
   HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'config-test-owner-token',
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'config-test-owner',
   HAFIZE_GITHUB_WRITE_OWNER_KEY: ownerKey,
+  HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0',
   HAFIZE_SCHEDULE_STORAGE_FILE: '',
   HAFIZE_SCHEDULE_STORAGE_KEY_BASE64: '',
   HAFIZE_SCHEDULE_LEASE_PROVIDER: '',
@@ -65,9 +51,9 @@ const required = [
   'HAFIZE_GITHUB_WRITE_APPROVAL_SECRET',
   'HAFIZE_GITHUB_WRITE_AUTH_TOKEN',
   'HAFIZE_GITHUB_WRITE_AUTH_SUBJECT',
-  'HAFIZE_GITHUB_WRITE_OWNER_KEY'
+  'HAFIZE_GITHUB_WRITE_OWNER_KEY',
+  'HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL'
 ];
-
 for (const missing of required) {
   const port = await reservePort();
   const env = { ...base, PORT: String(port), [missing]: '' };
@@ -81,5 +67,4 @@ for (const missing of required) {
     assert.equal(result.stderr.includes(secret), false);
   }
 }
-
 console.log('GitHub write production configuration fail-closed tests passed');
