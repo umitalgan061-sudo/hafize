@@ -63,4 +63,25 @@ await closeA;
 assert.equal(closeCalls, 1);
 await assert.rejects(() => runtime.acquire({ ownerId: OWNER }), (error) => error?.code === 'GOOGLE_REFRESH_LEASE_UNAVAILABLE');
 assert.equal(createCalls, 1, 'closed runtime must never reconnect');
+
+let releaseConnect;
+const connectGate = new Promise((resolve) => { releaseConnect = resolve; });
+let pendingCloseCalls = 0;
+const pending = createGoogleRefreshLease({
+  redisUrl: 'redis://shared:6379/0', randomBytesImpl: () => Buffer.alloc(16, 9),
+  createClient: () => ({
+    isReady: false, isOpen: true, on() {},
+    async connect() { await connectGate; this.isReady = true; },
+    async set() { return 'OK'; }, async eval() { return 1; },
+    async close() { pendingCloseCalls += 1; this.isOpen = this.isReady = false; }
+  })
+});
+const pendingAcquire = pending.acquire({ ownerId: OWNER });
+await Promise.resolve();
+const pendingClose = pending.close();
+releaseConnect();
+await assert.rejects(pendingAcquire, (error) => error?.code === 'GOOGLE_REFRESH_LEASE_UNAVAILABLE');
+await pendingClose;
+assert.equal(pendingCloseCalls, 1, 'shutdown during connect must retire the pending Redis client');
+
 console.log('Google refresh distributed lease tests passed');
