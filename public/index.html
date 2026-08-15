@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/premium.css" />
   <link rel="stylesheet" href="/cloud-session-ui.css" />
+  <link rel="stylesheet" href="/memory-ui.css" />
   <link rel="stylesheet" href="/voice-output.css" />
   <link rel="stylesheet" href="/screen-share.css" />
   <link rel="stylesheet" href="/hands-free.css" />
@@ -116,6 +117,26 @@
           </div>
           <p id="gmailConnectionStatus" class="gmail-connection-status" data-state="idle" role="status">Gmail için önce güvenli oturum aç.</p>
         </section>
+        <section class="utility-card memory-card" id="memoryCard" aria-labelledby="memoryTitle" aria-busy="false">
+          <div class="utility-head"><span class="mini-icon" aria-hidden="true">◇</span><span id="memoryTitle">Kişisel bellek</span></div>
+          <p id="memoryStatus" class="memory-status" data-state="idle" role="status">Bellek için güvenli oturum kontrol ediliyor…</p>
+          <form id="memorySearchForm" class="memory-search-form">
+            <div class="memory-search-row">
+              <input id="memoryQuery" type="search" maxlength="1000" placeholder="Bellekte ara" aria-label="Kişisel bellekte ara" />
+              <button id="memorySearchBtn" type="submit">Ara</button>
+            </div>
+            <select id="memoryKindFilter" aria-label="Bellek türü filtresi">
+              <option value="">Tüm türler</option><option value="identity">Kimlik</option><option value="preference">Tercih</option><option value="project">Proje</option><option value="note">Not</option>
+            </select>
+          </form>
+          <div id="memoryResults" class="memory-results" aria-live="polite" hidden></div>
+          <form id="memoryWriteForm" class="memory-write-form">
+            <label class="memory-write-label" for="memoryWriteKind"><span>Tür</span><select id="memoryWriteKind"><option value="note">Not</option><option value="preference">Tercih</option><option value="project">Proje</option><option value="identity">Kimlik</option></select></label>
+            <label class="memory-write-label" for="memoryContent"><span>Açıkça kaydet</span><textarea id="memoryContent" maxlength="4000" placeholder="Hafize’nin hatırlamasını istediğin bilgiyi yaz"></textarea></label>
+            <button id="memoryWriteBtn" class="memory-submit" type="submit">Belleğe kaydet</button>
+          </form>
+          <p class="memory-privacy-note">Yalnız senin açıkça kaydettiğin kişisel bilgiler tutulur. API anahtarı veya parola kaydetme.</p>
+        </section>
         <section class="utility-card calendar-card">
           <div class="utility-head"><span class="mini-icon">▣</span><span>Takvim</span></div>
           <div class="calendar-head"><button id="calendarPrev" class="calendar-nav" type="button" aria-label="Önceki ay">‹</button><strong id="calendarMonth"></strong><button id="calendarNext" class="calendar-nav" type="button" aria-label="Sonraki ay">›</button></div>
@@ -138,6 +159,7 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/app.js" defer></script>
   <script src="/cloud-session-ui.js" defer></script>
+  <script src="/memory-ui.js" defer></script>
   <script src="/voice-input.js" defer></script>
   <script src="/voice-output.js" defer></script>
   <script src="/hands-free.js" defer></script>
