@@ -781,6 +781,12 @@ async function shutdown() {
       console.error('Hafize schedule lease shutdown failed');
     }
     await httpClose;
+    try {
+      await GITHUB_WRITE_NODE_SERVER_RUNTIME.close();
+    } catch {
+      process.exitCode = 1;
+      console.error('Hafize GitHub write shutdown failed');
+    }
   })();
   return shutdownPromise;
 }

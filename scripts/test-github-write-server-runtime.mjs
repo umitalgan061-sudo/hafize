@@ -5,6 +5,7 @@ const readJson = async () => ({});
 const disabled = createGitHubWriteServerRuntime({ env: {}, readJson, fetchImpl: async () => { throw new Error('network must not run'); } });
 assert.equal(disabled.configured, false);
 assert.deepEqual(await disabled.handle({}), { matched: false });
+await disabled.close();
 
 for (const partial of [
   { HAFIZE_GITHUB_WRITE_REPOS: 'umitalgan061-sudo/hafize' },
@@ -27,15 +28,22 @@ const env = {
   HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
 };
 const replayKeys = new Set();
+let replayCloseCalls = 0;
 function createRedisClient() {
   return {
     isReady: false,
+    isOpen: false,
     on() {},
-    async connect() { this.isReady = true; },
+    async connect() { this.isOpen = true; this.isReady = true; },
     async set(key, _value, { NX }) {
       if (NX && replayKeys.has(key)) return null;
       replayKeys.add(key);
       return 'OK';
+    },
+    async close() {
+      replayCloseCalls += 1;
+      this.isReady = false;
+      this.isOpen = false;
     }
   };
 }
@@ -58,6 +66,7 @@ const runtime = createGitHubWriteServerRuntime({
   readJson: async () => requestBody
 });
 assert.equal(runtime.configured, true);
+assert.equal(typeof runtime.close, 'function');
 
 const command = {
   operation: 'branch.create',
@@ -119,5 +128,26 @@ assert.throws(
   }),
   /INVALID_GITHUB_WRITE_SERVER_RUNTIME:ownerKey/
 );
+
+requestBody = { command };
+const preparedBeforeClose = await runtime.handle({
+  method: 'POST', pathname: '/api/github/write/prepare',
+  headers: { authorization: `Bearer ${env.HAFIZE_GITHUB_WRITE_AUTH_TOKEN}` }
+});
+assert.equal(preparedBeforeClose.status, 200);
+const firstClose = runtime.close();
+const secondClose = runtime.close();
+assert.strictEqual(secondClose, firstClose);
+await firstClose;
+assert.equal(replayCloseCalls, 1);
+
+requestBody = { command, approvalToken: preparedBeforeClose.body.approvalToken };
+const afterClose = await runtime.handle({
+  method: 'POST', pathname: '/api/github/write/execute',
+  headers: { authorization: `Bearer ${env.HAFIZE_GITHUB_WRITE_AUTH_TOKEN}` }
+});
+assert.equal(afterClose.status, 503);
+assert.equal(afterClose.body.error, 'GITHUB_WRITE_REPLAY_STORE_UNAVAILABLE');
+assert.equal(calls.length, 2, 'closed runtime must fail before GitHub network writes');
 
 console.log('github write server runtime tests passed');
