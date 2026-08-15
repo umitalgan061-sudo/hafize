@@ -14,6 +14,10 @@ The backend normalizes an allowlisted `branch.create`, branch-only `file.update`
 
 The token is single-use. A changed branch, file path, expected blob SHA, commit message, file-content digest, PR title, PR number, expected merge head SHA, repository, or authenticated user cannot reuse it. Invalid or expired tokens fail before a writer callback is invoked.
 
+Production replay protection is shared across server instances. `HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL` configures a server-held Redis endpoint; execution atomically claims a domain-separated SHA-256 digest of the approval nonce with `SET NX` and a TTL no longer than the token lifetime. The raw nonce and approval token are never stored as Redis keys or values. If Redis is unavailable, execution fails closed with `GITHUB_WRITE_REPLAY_STORE_UNAVAILABLE` and the GitHub writer is not called.
+
+The low-level approval boundary retains an in-process replay store only for isolated/embedded use and unit tests. Production server composition always injects the shared Redis replay store, so a process restart or a second cloud instance cannot make an already consumed approval reusable.
+
 `approvalGranted` is backend execution state, not request data. Public callers cannot set that field to authorize themselves.
 
 ## Execution contract
@@ -24,4 +28,4 @@ Writer receipts are reduced to fixed public fields and provider failures become 
 
 ## Deployment boundary
 
-The repository now contains a server-side GitHub REST writer adapter for branch creation, exact-SHA file update, draft PR creation, and head-pinned merge. It is still not registered in the model tool catalog and no production HTTP write route exists. Future production wiring must use a separate write-repository allowlist and a server-held approval secret, keep approval tokens request-scoped, and preserve the rule that self-development never writes directly to `main` or modifies `.github/workflows` automatically.
+The production Node server exposes only the explicit opt-in `/api/github/write/prepare` and `/api/github/write/execute` routes. Activation requires exact `HAFIZE_GITHUB_WRITE_ENABLED=true`, a dedicated repository allowlist, server-held GitHub/auth/approval/owner secrets, and `HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL`. The write runtime remains outside the model tool catalog and agent permission context. Self-development still never writes directly to `main` or modifies `.github/workflows` automatically.
