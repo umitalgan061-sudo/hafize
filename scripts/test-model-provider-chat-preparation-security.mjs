@@ -12,6 +12,7 @@ let compactCalls = 0;
 const preparer = createModelProviderChatPreparer({
   registry,
   contextCompactor: {
+    thresholdTokens: 10_000,
     async prepare(messages, { signal }) {
       compactCalls += 1;
       return { messages, meta: { compacted: true, beforeTokens: 100, afterTokens: 40, signalSeen: Boolean(signal) } };

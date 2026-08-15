@@ -18,6 +18,7 @@ const registry = {
 };
 const calls = [];
 const contextCompactor = {
+  thresholdTokens: 10_000,
   async prepare(messages, options) {
     calls.push({ messages, options });
     return {

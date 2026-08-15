@@ -53,6 +53,10 @@ Sistem bilgisi, uygulama açma, tarayıcı açma ve medya kontrolü masaüstü H
 
 PR #7 Ollama sağlayıcısı fikrini ekliyor. Hafize'nin NVIDIA NIM ana sağlayıcısını bozmadan gelecekte isteğe bağlı `local` provider katmanı düşünülebilir. Tool izin sözleşmesi sağlayıcıdan bağımsız kalmalıdır.
 
+Hafize'deki bağımsız uygulama artık ek bir provider-gizlilik sınırı taşır: `local:` model seçili bir konuşma NVIDIA tabanlı context-compaction eşiğini aşarsa geçmiş sessizce NVIDIA'ya özetletilmez. İstek provider stream başlamadan `LOCAL_CONTEXT_COMPACTION_UNAVAILABLE` ile fail-closed durur. Kısa local konuşmalar normal local inference yolunu kullanabilir; NVIDIA sohbetlerinde mevcut compaction davranışı korunur. Ayrıntılı sözleşme `docs/LOCAL_PROVIDER_CONTEXT_BOUNDARY.md` içindedir.
+
+Bu kural local provider seçimini yalnız model routing tercihi olmaktan çıkarıp veri-akışı sınırı olarak da korur. İleride local summarizer eklenecekse NVIDIA fallback otomatik varsayılmayacak; ayrı provider-aware compaction, cancellation ve test sözleşmesi gerekecektir.
+
 ### 6. Wake phrase / eller serbest kullanım
 
 Jarvis çevresindeki issue ve belgeler sürekli dinleme yerine uyandırma ifadesi ihtiyacını gösteriyor. Hafize'de bu özellik ancak açık opt-in, görünür mikrofon göstergesi ve kolay kapatma ile masaüstü uygulamasında değerlendirilmelidir.

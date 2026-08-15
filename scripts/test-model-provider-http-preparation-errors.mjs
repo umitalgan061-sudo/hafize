@@ -25,7 +25,8 @@ for (const [error, status, code] of [
   [Object.assign(new Error('INVALID_CHAT_REQUEST'), { code: 'INVALID_CHAT_REQUEST' }), 400, 'INVALID_CHAT_REQUEST'],
   [Object.assign(new Error('INVALID_AGENT'), { code: 'INVALID_AGENT' }), 400, 'INVALID_AGENT'],
   [new SyntaxError('private JSON detail'), 400, 'INVALID_JSON'],
-  [Object.assign(new Error('BODY_TOO_LARGE'), { code: 'BODY_TOO_LARGE' }), 413, 'BODY_TOO_LARGE']
+  [Object.assign(new Error('BODY_TOO_LARGE'), { code: 'BODY_TOO_LARGE' }), 413, 'BODY_TOO_LARGE'],
+  [Object.assign(new Error('LOCAL_CONTEXT_COMPACTION_UNAVAILABLE'), { code: 'LOCAL_CONTEXT_COMPACTION_UNAVAILABLE' }), 413, 'LOCAL_CONTEXT_COMPACTION_UNAVAILABLE']
 ]) {
   const api = createApi({
     async readJson() { if (error instanceof SyntaxError || error.code === 'BODY_TOO_LARGE') throw error; return {}; },

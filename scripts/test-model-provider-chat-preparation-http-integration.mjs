@@ -13,6 +13,7 @@ const registry = {
 const preparer = createModelProviderChatPreparer({
   registry,
   contextCompactor: {
+    thresholdTokens: 10_000,
     async prepare(messages) {
       return { messages, meta: { compacted: false, beforeTokens: 22, afterTokens: 22 } };
     }
