@@ -58,6 +58,8 @@ function createFakeApp() {
 const app = createFakeApp();
 let bridgeOptions = null;
 let bridgeDisposeCalls = 0;
+let permissionOptions = null;
+let permissionDisposeCalls = 0;
 const appShell = createElectronAppShell({
   app,
   BrowserWindow: FakeWindow,
@@ -71,6 +73,10 @@ const appShell = createElectronAppShell({
   registerDeviceBridge(options) {
     bridgeOptions = options;
     return { dispose() { bridgeDisposeCalls += 1; } };
+  },
+  installPermissionPolicy(options) {
+    permissionOptions = options;
+    return { dispose() { permissionDisposeCalls += 1; } };
   }
 });
 
@@ -83,6 +89,9 @@ assert.equal(windowRef.options.webPreferences.webSecurity, true);
 assert.equal(typeof bridgeOptions.isTrustedSender, 'function');
 assert.equal(bridgeOptions.app, app);
 assert.equal(bridgeOptions.appOpeners.browser instanceof Function, true);
+assert.equal(permissionOptions.webContents, windowRef.webContents);
+assert.equal(permissionOptions.rendererOrigin, 'http://127.0.0.1:4173');
+assert.equal(permissionOptions.allowAudioMedia, false);
 
 assert.equal(bridgeOptions.isTrustedSender({
   sender: windowRef.webContents,
@@ -129,6 +138,7 @@ assert.equal(sameWindow, windowRef);
 
 windowRef.destroy();
 assert.equal(bridgeDisposeCalls, 1);
+assert.equal(permissionDisposeCalls, 1);
 assert.equal(appShell.getWindow(), null);
 app.emit('activate');
 await new Promise((resolve) => setImmediate(resolve));
@@ -146,13 +156,15 @@ assert.throws(() => createElectronAppShell({
   BrowserWindow: FakeWindow,
   preloadPath: '/x',
   startUrl: 'https://example.com',
-  registerDeviceBridge() {}
+  registerDeviceBridge() {},
+  installPermissionPolicy() {}
 }), /INVALID_DESKTOP_APP_URL/);
 assert.throws(() => createElectronAppShell({
   app: createFakeApp(),
   BrowserWindow: FakeWindow,
   preloadPath: 'relative/preload.mjs',
-  registerDeviceBridge() {}
+  registerDeviceBridge() {},
+  installPermissionPolicy() {}
 }), /INVALID_DESKTOP_WINDOW:preloadPath/);
 
 console.log('desktop app shell tests passed');

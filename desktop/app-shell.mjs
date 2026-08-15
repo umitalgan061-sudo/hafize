@@ -1,5 +1,6 @@
 import { createSecureWebPreferences } from './browser-window-security.mjs';
 import { registerElectronDeviceBridge } from './device-bridge-main.mjs';
+import { installElectronSessionPermissionPolicy } from './session-permission-policy.mjs';
 
 function fail(code) {
   const error = new Error(code);
@@ -65,17 +66,21 @@ export function createElectronAppShell({
   startUrl = 'http://127.0.0.1:4173/',
   appOpeners = {},
   allowedBrowserOrigins = [],
+  allowAudioMedia = false,
   platform = process.platform,
-  registerDeviceBridge = registerElectronDeviceBridge
+  registerDeviceBridge = registerElectronDeviceBridge,
+  installPermissionPolicy = installElectronSessionPermissionPolicy
 } = {}) {
   if (typeof app?.whenReady !== 'function' || typeof app?.on !== 'function' || typeof app?.quit !== 'function') fail('INVALID_DESKTOP_APP_SHELL:app');
   if (typeof BrowserWindow !== 'function' || typeof BrowserWindow.getAllWindows !== 'function') fail('INVALID_DESKTOP_APP_SHELL:BrowserWindow');
   if (typeof registerDeviceBridge !== 'function') fail('INVALID_DESKTOP_APP_SHELL:registerDeviceBridge');
+  if (typeof installPermissionPolicy !== 'function') fail('INVALID_DESKTOP_APP_SHELL:installPermissionPolicy');
   if (typeof platform !== 'string' || !platform) fail('INVALID_DESKTOP_APP_SHELL:platform');
   const appUrl = normalizeAppUrl(startUrl);
   const webPreferences = createSecureWebPreferences({ preloadPath });
   let windowRef = null;
   let bridgeRef = null;
+  let permissionRef = null;
   let removeNavigationGuards = null;
   let disposed = false;
 
@@ -84,6 +89,8 @@ export function createElectronAppShell({
     removeNavigationGuards = null;
     bridgeRef?.dispose?.();
     bridgeRef = null;
+    permissionRef?.dispose?.();
+    permissionRef = null;
   }
 
   async function createWindow() {
@@ -100,6 +107,7 @@ export function createElectronAppShell({
     });
     windowRef = window;
     removeNavigationGuards = installNavigationGuards(window, appUrl.origin);
+    permissionRef = installPermissionPolicy({ webContents: window.webContents, rendererOrigin: appUrl.origin, allowAudioMedia });
     bridgeRef = registerDeviceBridge({
       ipcMain,
       shell,

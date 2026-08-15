@@ -29,6 +29,10 @@ Main-process kayıt fonksiyonu zorunlu `isTrustedSender(event)` doğrulaması is
 
 Bu sınır özellikle `docs.example.com.evil.test`, beklenmeyen subdomain veya farklı port gibi suffix/prefix benzerliklerinin allowlist'i aşmasını engeller. Renderer yalnız hedef URL + açık kullanıcı niyetini gönderebilir; hangi origin'lerin izinli olduğuna karar veremez.
 
+## Electron permission yaklaşımı
+
+App shell hem `setPermissionRequestHandler` hem `setPermissionCheckHandler` kurar ve varsayılan olarak tüm Electron web permission'larını reddeder. Sesli kullanım için yalnız ürün composition'ı `allowAudioMedia:true` verdiğinde, exact Hafize renderer origin'inden ve main frame'den gelen yalnız `audio` media isteği kabul edilir; video/kamera, geolocation, notifications, filesystem ve diğer permission türleri reddedilir. Pencere kapatıldığında policy Electron'ın varsayılan davranışına geri dönmek yerine deny-all handler bırakır.
+
 ## BrowserWindow sözleşmesi
 
 Hafize masaüstü penceresi bridge'i kullanacaksa `createSecureWebPreferences()` çıktısı temel alınmalıdır:
@@ -50,4 +54,4 @@ Bu ayarlar renderer içeriğinin Node/Electron ayrıcalıklarına doğrudan ula�
 
 ## Sonraki entegrasyon
 
-Gerçek masaüstü dağıtım composition'ı `allowedBrowserOrigins` ve `appOpeners` değerlerini ürün tarafından sahip olunan sabit konfigürasyondan sağlamalıdır; renderer veya model girdisinden türetmemelidir. Device eylemlerini Hafize agent tool'larına açmak ayrı bir güvenlik tasarımı ve açık kullanıcı onay sistemi gerektirir; bu bridge tek başına model yetkisi değildir.
+Gerçek masaüstü dağıtım composition'ı `allowedBrowserOrigins`, `appOpeners` ve gerekiyorsa `allowAudioMedia` değerlerini ürün tarafından sahip olunan sabit konfigürasyondan sağlamalıdır; renderer veya model girdisinden türetmemelidir. Device eylemlerini Hafize agent tool'larına açmak ayrı bir güvenlik tasarımı ve açık kullanıcı onay sistemi gerektirir; bu bridge tek başına model yetkisi değildir.
