@@ -43,6 +43,8 @@ assert.equal(createCalls, 0);
 firstLease = await runtime.acquire({ ownerId: OWNER });
 assert.equal(createCalls, 1);
 assert.deepEqual(options.socket, { connectTimeout: GOOGLE_REFRESH_LEASE_LIMITS.connectTimeoutMs, reconnectStrategy: false });
+assert.ok(GOOGLE_REFRESH_LEASE_LIMITS.commandTimeoutMs < GOOGLE_REFRESH_LEASE_LIMITS.heartbeatMs);
+assert.ok(GOOGLE_REFRESH_LEASE_LIMITS.heartbeatMs < GOOGLE_REFRESH_LEASE_LIMITS.leaseMs);
 assert.match(state.key, /^hafize:google-refresh:v1:[a-f0-9]{64}$/);
 assert.equal(state.key.includes(OWNER), false);
 assert.equal(state.value.length, 22);
@@ -83,5 +85,14 @@ releaseConnect();
 await assert.rejects(pendingAcquire, (error) => error?.code === 'GOOGLE_REFRESH_LEASE_UNAVAILABLE');
 await pendingClose;
 assert.equal(pendingCloseCalls, 1, 'shutdown during connect must retire the pending Redis client');
+
+assert.throws(
+  () => createGoogleRefreshLease({ redisUrl: 'redis://shared:6379/0', createClient, setCommandTimer: null }),
+  (error) => error?.code === 'INVALID_GOOGLE_REFRESH_LEASE_RUNTIME'
+);
+assert.throws(
+  () => createGoogleRefreshLease({ redisUrl: 'redis://shared:6379/0', createClient, clearCommandTimer: null }),
+  (error) => error?.code === 'INVALID_GOOGLE_REFRESH_LEASE_RUNTIME'
+);
 
 console.log('Google refresh distributed lease tests passed');
