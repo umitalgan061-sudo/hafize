@@ -58,7 +58,7 @@ Push-to-talk tarayıcıda desteklenmiyorsa veya `start()` çağrısı başarıs�
 
 ## Sesli yanıt ile etkileşim
 
-`public/voice-output.js` mikrofon aktif olduğunda konuşmayı keser. Böylece kullanıcı barge-in yaptığında Hafize'nin TTS çıktısı mikrofon tanımasını bastırmaz. Sesli yanıt tercihi ile hands-free tercihi birbirinden bağımsız kalır.
+`public/voice-output.js`, doğrulanmış `source: "voice-input"` ve `listening: true` lifecycle olayını doğrudan dinler. Push-to-talk mikrofonu `SpeechRecognition.start()` öncesinde claim ettiği anda devam eden TTS senkron olarak iptal edilir; böylece MutationObserver turunu bekleyen bir ses çakışma penceresi kalmaz. `#micBtn[aria-pressed="true"]` gözlemi geriye uyumluluk için ikinci savunma olarak korunur. Sesli yanıt tercihi ile hands-free tercihi birbirinden bağımsız kalır.
 
 ## Regresyon kanıtı
 
@@ -69,10 +69,13 @@ Push-to-talk tarayıcıda desteklenmiyorsa veya `start()` çağrısı başarıs�
 - push-to-talk bittiğinde wake dinlemenin geri gelmesi;
 - `Hafize` wake phrase sonrası pre-start sahiplik korunarak push-to-talk handoff'u;
 - aktif push-to-talk sırasında ikinci wake recognition açılmaması;
+- senkron `start()` hatasında sahipliğin bırakılması ve wake listener'ın geri gelmesi;
 - tanınmayan lifecycle event'lerinin ignored kalması;
 - görünmeyen sekmede recognition'ın durması ve restart edilmemesi;
 - transcript'in composer'a eklenmesi fakat form submit edilmemesi.
 
+`scripts/test-voice-output-barge-in.mjs` ayrıca güvenilir `listening: true` event'inin TTS'i MutationObserver callback'i olmadan anında kestiğini, yanlış source/false event'lerinin konuşmayı kesmediğini ve `destroy()` sonrasında listener'ın kaldırıldığını doğrular.
+
 ## Geri alma
 
-Bu özellik geri alınacaksa `voice-input` state event'i ile `hands-free` listener/restart koordinasyonu birlikte geri alınmalıdır. Yalnız bir tarafın revert edilmesi tekrar çift recognition veya wake-listener'ın tek handoff sonrası sessiz kalması riskini doğurur.
+Bu özellik geri alınacaksa `voice-input` state event'i, `hands-free` listener/restart koordinasyonu ve `voice-output` doğrudan barge-in listener'ı birlikte değerlendirilmelidir. Yalnız bir tarafın revert edilmesi tekrar çift recognition, wake-listener'ın tek handoff sonrası sessiz kalması veya TTS ile mikrofon arasında kısa bir çakışma penceresi riskini doğurur.
