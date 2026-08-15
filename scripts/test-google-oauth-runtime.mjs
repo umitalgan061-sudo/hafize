@@ -4,11 +4,11 @@ import { createGoogleOAuthRuntime, GOOGLE_AUTHORIZATION_ENDPOINT } from '../lib/
 const starts = [];
 const finishes = [];
 const flowRuntime = {
-  start(input) {
+  async start(input) {
     starts.push(input);
     return { authorizationUrl: 'https://accounts.google.com/authorize?state=test', state: 'state-test' };
   },
-  finish(input) {
+  async finish(input) {
     finishes.push(input);
     return { ok: true, provider: 'google', code: input.code, verifier: 'server-only', redirectUri: 'https://hafize.example.test/oauth/google', scopes: ['openid'] };
   }
@@ -19,7 +19,7 @@ const runtime = createGoogleOAuthRuntime({
   redirectUri: 'https://hafize.example.test/oauth/google',
   flowRuntime
 });
-const started = runtime.start({ capabilities: ['identity', 'gmail.read'] });
+const started = await runtime.start({ capabilities: ['identity', 'gmail.read'] });
 assert.equal(started.state, 'state-test');
 assert.equal('verifier' in started, false);
 assert.deepEqual(started.capabilities, ['identity', 'gmail.read']);
@@ -30,15 +30,15 @@ assert.equal(starts[0].authorizationEndpoint, GOOGLE_AUTHORIZATION_ENDPOINT);
 assert.deepEqual(starts[0].scopes, ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly']);
 assert.deepEqual(starts[0].extraParams, { access_type: 'offline', include_granted_scopes: 'true' });
 
-const finished = runtime.finish({ state: 'state-test', code: 'code-test' });
+const finished = await runtime.finish({ state: 'state-test', code: 'code-test' });
 assert.equal(finished.ok, true);
 assert.equal(finishes.length, 1);
 
 const mismatch = createGoogleOAuthRuntime({
   clientId: 'client-id', redirectUri: 'https://hafize.example.test/oauth/google',
-  flowRuntime: { start: flowRuntime.start, finish: () => ({ ok: true, provider: 'canva' }) }
+  flowRuntime: { start: flowRuntime.start, finish: async () => ({ ok: true, provider: 'canva' }) }
 });
-assert.throws(() => mismatch.finish({ state: 'x', code: 'y' }), /GOOGLE_OAUTH_FLOW_PROVIDER_MISMATCH/);
+await assert.rejects(() => mismatch.finish({ state: 'x', code: 'y' }), /GOOGLE_OAUTH_FLOW_PROVIDER_MISMATCH/);
 for (const invalid of [
   { clientId: '', redirectUri: 'https://hafize.example.test/oauth/google', flowRuntime },
   { clientId: 'id', redirectUri: 'http://hafize.example.test/oauth/google', flowRuntime },
