@@ -87,6 +87,7 @@ class FakeEvent {
 }
 
 const recognitionInstances = [];
+let beforeStartHook = null;
 class FakeRecognition {
   constructor() {
     this.abortCalls = 0;
@@ -95,6 +96,9 @@ class FakeRecognition {
     recognitionInstances.push(this);
   }
   start() {
+    const hook = beforeStartHook;
+    beforeStartHook = null;
+    hook?.(this);
     this.started = true;
     this.onstart?.();
   }
@@ -174,7 +178,7 @@ assert.ok(wake);
 assert.equal(voice.isListening(), false);
 assert.equal(wake.isEnabled(), false);
 
-// Manual push-to-talk must publish state and suspend the wake recognizer.
+// Manual push-to-talk must claim ownership before Recognition.start(), then suspend wake listening.
 wake.enable();
 assert.equal(wake.isEnabled(), true);
 assert.equal(recognitionInstances.length, 1);
@@ -182,7 +186,15 @@ const wakeRecognition = recognitionInstances[0];
 assert.equal(wakeRecognition.started, true);
 assert.equal(wake.isListening(), true);
 
+beforeStartHook = () => {
+  assert.equal(voice.isListening(), true, 'push-to-talk must claim ownership before browser recognition starts');
+  assert.equal(wake.isVoiceInputListening(), true, 'hands-free must observe the pre-start claim synchronously');
+  assert.equal(wakeRecognition.abortCalls, 1, 'wake recognition must abort before push-to-talk calls start()');
+  assert.deepEqual(states.at(-1), { listening: true, source: 'voice-input' });
+  assert.equal(timers.size, 0, 'pre-start ownership must suppress wake restart');
+};
 mic.click();
+assert.equal(beforeStartHook, null, 'manual push-to-talk must reach Recognition.start()');
 assert.equal(recognitionInstances.length, 2);
 const manualVoiceRecognition = recognitionInstances[1];
 assert.equal(voice.isListening(), true);
@@ -202,9 +214,15 @@ runTimers();
 assert.equal(recognitionInstances.length, 3);
 assert.equal(wake.isListening(), true);
 
-// Wake phrase handoff should start push-to-talk, then return to wake listening.
+// Wake phrase handoff must retain the claim through the stop -> click -> start transition.
 const resumedWakeRecognition = recognitionInstances[2];
+beforeStartHook = () => {
+  assert.equal(voice.isListening(), true, 'wake handoff must claim push-to-talk before browser start()');
+  assert.equal(wake.isVoiceInputListening(), true, 'wake handoff must publish ownership synchronously');
+  assert.equal(timers.size, 0, 'wake restart must remain suppressed during the pre-start handoff window');
+};
 resumedWakeRecognition.emitTranscript('hey hafize');
+assert.equal(beforeStartHook, null, 'wake phrase must hand off through Recognition.start()');
 assert.equal(recognitionInstances.length, 4, 'wake phrase should hand off to voice input');
 const wakeTriggeredVoiceRecognition = recognitionInstances[3];
 assert.equal(voice.isListening(), true);
