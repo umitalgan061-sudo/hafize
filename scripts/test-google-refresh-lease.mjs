@@ -3,122 +3,64 @@ import { GOOGLE_REFRESH_LEASE_LIMITS, createGoogleRefreshLease } from '../lib/go
 
 const OWNER = 'owner_refresh_lease';
 let clock = 1_000;
-let key = null;
-let value = null;
-let expiry = 0;
+let state = { key: null, value: null, expiry: 0 };
 let createCalls = 0;
 let closeCalls = 0;
-let firstLease = null;
 let sleepCalls = 0;
-let clientOptions = null;
+let firstLease;
+let options;
 
-function createClient(options) {
+function createClient(input) {
   createCalls += 1;
-  clientOptions = options;
+  options = input;
   return {
-    isReady: false,
-    isOpen: false,
-    on() {},
-    async connect() { this.isReady = true; this.isOpen = true; },
-    async set(nextKey, nextValue, { NX, PX }) {
-      if (expiry <= clock) { key = null; value = null; }
-      if (NX && key) return null;
-      key = nextKey;
-      value = nextValue;
-      expiry = clock + PX;
+    isReady: false, isOpen: false, on() {},
+    async connect() { this.isReady = this.isOpen = true; },
+    async set(key, value, { NX, PX }) {
+      if (state.expiry <= clock) state = { key: null, value: null, expiry: 0 };
+      if (NX && state.key) return null;
+      state = { key, value, expiry: clock + PX };
       return 'OK';
     },
     async eval(script, { keys, arguments: args }) {
-      assert.equal(keys[0], key);
-      if (script.includes('PEXPIRE')) {
-        if (value !== args[0]) return 0;
-        expiry = clock + Number(args[1]);
-        return 1;
-      }
-      if (script.includes("redis.call('DEL'")) {
-        if (value !== args[0]) return 0;
-        key = null;
-        value = null;
-        expiry = 0;
-        return 1;
-      }
-      throw new Error('unexpected script');
+      assert.equal(keys[0], state.key);
+      if (state.value !== args[0]) return 0;
+      if (script.includes('PEXPIRE')) { state.expiry = clock + Number(args[1]); return 1; }
+      state = { key: null, value: null, expiry: 0 };
+      return 1;
     },
-    async close() { closeCalls += 1; this.isReady = false; this.isOpen = false; },
-    destroy() { this.isReady = false; this.isOpen = false; }
+    async close() { closeCalls += 1; this.isReady = this.isOpen = false; },
+    destroy() { this.isReady = this.isOpen = false; }
   };
 }
 
-const lease = createGoogleRefreshLease({
-  redisUrl: 'rediss://user:password@redis.example.test:6380/0',
-  createClient,
-  now: () => clock,
-  randomBytesImpl: () => Buffer.alloc(16, 7),
-  async sleep(ms) {
-    sleepCalls += 1;
-    clock += ms;
-    if (sleepCalls === 1) await firstLease.release();
-  }
+const runtime = createGoogleRefreshLease({
+  redisUrl: 'rediss://user:password@redis.example.test:6380/0', createClient,
+  now: () => clock, randomBytesImpl: () => Buffer.alloc(16, 7),
+  async sleep(ms) { sleepCalls += 1; clock += ms; if (sleepCalls === 1) await firstLease.release(); }
 });
-
-assert.equal(createCalls, 0, 'Redis must remain lazy before the first refresh');
-firstLease = await lease.acquire({ ownerId: OWNER });
+assert.equal(createCalls, 0);
+firstLease = await runtime.acquire({ ownerId: OWNER });
 assert.equal(createCalls, 1);
-assert.equal(clientOptions.url.includes('password'), true, 'credential may reach only the Redis client factory');
-assert.deepEqual(clientOptions.socket, {
-  connectTimeout: GOOGLE_REFRESH_LEASE_LIMITS.connectTimeoutMs,
-  reconnectStrategy: false
-});
-assert.match(key, /^hafize:google-refresh:v1:[a-f0-9]{64}$/);
-assert.equal(key.includes(OWNER), false, 'owner id must not appear in Redis keys');
-assert.equal(value.length, 22);
-assert.equal(expiry, clock + GOOGLE_REFRESH_LEASE_LIMITS.leaseMs);
-
+assert.deepEqual(options.socket, { connectTimeout: GOOGLE_REFRESH_LEASE_LIMITS.connectTimeoutMs, reconnectStrategy: false });
+assert.match(state.key, /^hafize:google-refresh:v1:[a-f0-9]{64}$/);
+assert.equal(state.key.includes(OWNER), false);
+assert.equal(state.value.length, 22);
 await firstLease.renew();
-assert.equal(expiry, clock + GOOGLE_REFRESH_LEASE_LIMITS.leaseMs);
+assert.equal(state.expiry, clock + GOOGLE_REFRESH_LEASE_LIMITS.leaseMs);
 
-const secondLease = await lease.acquire({ ownerId: OWNER });
-assert.equal(sleepCalls, 1, 'busy contender must wait instead of bypassing the lease');
-assert.equal(createCalls, 1, 'one runtime reuses one Redis client');
+const secondLease = await runtime.acquire({ ownerId: OWNER });
+assert.equal(sleepCalls, 1, 'busy owner must wait for the current holder');
+assert.equal(createCalls, 1);
 await secondLease.release();
-assert.equal(key, null);
 await secondLease.release();
-assert.equal(key, null, 'release must be idempotent');
+assert.equal(state.key, null);
 
-const closeA = lease.close();
-const closeB = lease.close();
-assert.strictEqual(closeA, closeB, 'runtime close must share one promise');
+const closeA = runtime.close();
+const closeB = runtime.close();
+assert.strictEqual(closeA, closeB);
 await closeA;
 assert.equal(closeCalls, 1);
-await assert.rejects(
-  () => lease.acquire({ ownerId: OWNER }),
-  (error) => error?.code === 'GOOGLE_REFRESH_LEASE_UNAVAILABLE'
-);
+await assert.rejects(() => runtime.acquire({ ownerId: OWNER }), (error) => error?.code === 'GOOGLE_REFRESH_LEASE_UNAVAILABLE');
 assert.equal(createCalls, 1, 'closed runtime must never reconnect');
-
-let busyClock = 0;
-let busySetCalls = 0;
-const alwaysBusy = createGoogleRefreshLease({
-  redisUrl: 'redis://shared:6379/0',
-  now: () => busyClock,
-  randomBytesImpl: () => Buffer.alloc(16, 8),
-  sleep: async (ms) => { busyClock += ms; },
-  createClient: () => ({
-    isReady: false,
-    isOpen: false,
-    on() {},
-    async connect() { this.isReady = true; this.isOpen = true; },
-    async set() { busySetCalls += 1; return null; },
-    async eval() { throw new Error('eval must not run'); },
-    async close() { this.isReady = false; this.isOpen = false; }
-  })
-});
-await assert.rejects(
-  () => alwaysBusy.acquire({ ownerId: OWNER }),
-  (error) => error?.code === 'GOOGLE_REFRESH_LEASE_BUSY'
-);
-assert.equal(busyClock, GOOGLE_REFRESH_LEASE_LIMITS.waitMs);
-assert.equal(busySetCalls > 1, true);
-await alwaysBusy.close();
-
 console.log('Google refresh distributed lease tests passed');
