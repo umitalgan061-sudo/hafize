@@ -6,12 +6,13 @@ const paths = [
   '../desktop/device-bridge-main.mjs',
   '../desktop/device-bridge-preload.mjs',
   '../desktop/browser-window-security.mjs',
+  '../desktop/session-permission-policy.mjs',
   '../desktop/app-shell.mjs'
 ];
-const [contract, main, preload, browserSecurity, appShell] = await Promise.all(
+const [contract, main, preload, browserSecurity, permissionPolicy, appShell] = await Promise.all(
   paths.map((path) => readFile(new URL(path, import.meta.url), 'utf8'))
 );
-const source = [contract, main, preload, browserSecurity, appShell].join('\n');
+const source = [contract, main, preload, browserSecurity, permissionPolicy, appShell].join('\n');
 
 for (const forbidden of [
   "node:child_process",
@@ -33,6 +34,8 @@ assert.match(source, /DEVICE_RENDERER_NOT_TRUSTED/);
 assert.match(source, /DEVICE_BROWSER_ORIGIN_NOT_ALLOWED/);
 assert.match(source, /contextIsolation: true/);
 assert.match(source, /sandbox: true/);
+assert.match(permissionPolicy, /setPermissionRequestHandler/);
+assert.match(permissionPolicy, /setPermissionCheckHandler/);
 
 assert.equal(preload.includes('allowedBrowserOrigins'), false,
   'renderer preload must not expose browser allowlist configuration');
