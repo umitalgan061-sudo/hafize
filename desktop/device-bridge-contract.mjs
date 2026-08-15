@@ -1,6 +1,7 @@
 const CHANNEL = 'hafize:device:invoke';
 const APP_ID_PATTERN = /^[a-z][a-z0-9._-]{1,63}$/;
 const MAX_URL_LENGTH = 2048;
+const MAX_BROWSER_ORIGINS = 32;
 
 function fail(code) {
   const error = new Error(code);
@@ -19,6 +20,21 @@ function normalizeHttpsUrl(value) {
   try { url = new URL(value); } catch { fail('INVALID_DEVICE_URL'); }
   if (url.protocol !== 'https:' || url.username || url.password) fail('INVALID_DEVICE_URL');
   return url.toString();
+}
+
+function normalizeBrowserOrigins(value) {
+  if (!Array.isArray(value) || value.length > MAX_BROWSER_ORIGINS) fail('INVALID_DEVICE_BROWSER_ORIGINS');
+  const origins = new Set();
+  for (const candidate of value) {
+    if (typeof candidate !== 'string' || !candidate.trim() || candidate.length > MAX_URL_LENGTH) fail('INVALID_DEVICE_BROWSER_ORIGIN');
+    let url;
+    try { url = new URL(candidate); } catch { fail('INVALID_DEVICE_BROWSER_ORIGIN'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.pathname !== '/' || url.search || url.hash || url.origin !== candidate.trim().replace(/\/$/, '')) {
+      fail('INVALID_DEVICE_BROWSER_ORIGIN');
+    }
+    origins.add(url.origin);
+  }
+  return Object.freeze([...origins]);
 }
 
 function normalizeAppId(value) {
@@ -69,10 +85,12 @@ function sanitizeSystemInfo(value) {
   return Object.freeze({ platform, arch, appVersion, cpuCount, totalMemoryMb });
 }
 
-export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpeners = {} } = {}) {
+export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpeners = {}, allowedBrowserOrigins = [] } = {}) {
   if (typeof getSystemInfo !== 'function') fail('INVALID_DEVICE_BRIDGE:getSystemInfo');
   if (typeof openExternal !== 'function') fail('INVALID_DEVICE_BRIDGE:openExternal');
   if (!appOpeners || Array.isArray(appOpeners) || typeof appOpeners !== 'object') fail('INVALID_DEVICE_BRIDGE:appOpeners');
+  const browserOrigins = normalizeBrowserOrigins(allowedBrowserOrigins);
+  const allowedBrowserOriginSet = new Set(browserOrigins);
 
   const allowedApps = new Map();
   for (const [appId, opener] of Object.entries(appOpeners)) {
@@ -91,6 +109,8 @@ export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpen
         return { ok: true, value: sanitizeSystemInfo(await getSystemInfo()) };
       }
       if (request.operation === 'browser.open') {
+        const origin = new URL(request.args.url).origin;
+        if (!allowedBrowserOriginSet.has(origin)) return { ok: false, error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED' };
         await openExternal(request.args.url);
         return { ok: true, value: { opened: true, kind: 'browser' } };
       }
@@ -103,7 +123,12 @@ export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpen
     }
   }
 
-  return Object.freeze({ channel: CHANNEL, handle, allowedApps: Object.freeze([...allowedApps.keys()]) });
+  return Object.freeze({
+    channel: CHANNEL,
+    handle,
+    allowedApps: Object.freeze([...allowedApps.keys()]),
+    allowedBrowserOrigins: browserOrigins
+  });
 }
 
 export const DEVICE_BRIDGE_CHANNEL = CHANNEL;
