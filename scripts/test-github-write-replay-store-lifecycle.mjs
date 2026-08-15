@@ -98,6 +98,25 @@ await fallbackStore.close();
 assert.equal(fallbackCloseCalls, 1);
 assert.equal(fallbackDestroyCalls, 1, 'failed graceful close must force-destroy the Redis socket');
 
+const brokenClient = {
+  isReady: false,
+  isOpen: false,
+  on() { return this; },
+  async connect() { this.isOpen = true; this.isReady = true; },
+  async set() { return 'OK'; },
+  async close() { throw new Error('close failed'); },
+  destroy() { throw new Error('destroy failed'); }
+};
+const brokenStore = createGitHubWriteReplayStore({
+  redisUrl: 'redis://shared-replay:6379/0',
+  createClient: () => brokenClient
+});
+assert.equal(await brokenStore.claim({ nonce: '0000000000000000000000', expiresAt, now }), true);
+await assert.rejects(
+  () => brokenStore.close(),
+  (error) => error?.code === 'GITHUB_WRITE_REPLAY_STORE_SHUTDOWN_FAILED'
+);
+
 let pendingReject = null;
 let pendingDestroyCalls = 0;
 let pendingFactoryCalls = 0;
