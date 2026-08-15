@@ -71,6 +71,33 @@ await assert.rejects(
 );
 assert.equal(factoryCalls, 1, 'closed replay store must never reconnect');
 
+let fallbackCloseCalls = 0;
+let fallbackDestroyCalls = 0;
+const fallbackClient = {
+  isReady: false,
+  isOpen: false,
+  on() { return this; },
+  async connect() { this.isOpen = true; this.isReady = true; },
+  async set() { return 'OK'; },
+  async close() {
+    fallbackCloseCalls += 1;
+    throw new Error('synthetic close failure');
+  },
+  destroy() {
+    fallbackDestroyCalls += 1;
+    this.isOpen = false;
+    this.isReady = false;
+  }
+};
+const fallbackStore = createGitHubWriteReplayStore({
+  redisUrl: 'redis://shared-replay:6379/0',
+  createClient: () => fallbackClient
+});
+assert.equal(await fallbackStore.claim({ nonce: 'ZYXWVUTSRQPONMLKJIHGFE', expiresAt, now }), true);
+await fallbackStore.close();
+assert.equal(fallbackCloseCalls, 1);
+assert.equal(fallbackDestroyCalls, 1, 'failed graceful close must force-destroy the Redis socket');
+
 let pendingReject = null;
 let pendingDestroyCalls = 0;
 let pendingFactoryCalls = 0;
