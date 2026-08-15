@@ -71,16 +71,24 @@ const env = {
   HAFIZE_CONNECTOR_AUTH_SUBJECT: 'owner@example.test',
   HAFIZE_CONNECTOR_OWNER_KEY_B64: secret,
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'google-client-id.apps.example',
-  HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET: 'server-only-google-secret'
+  HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET: 'server-only-google-secret',
+  HAFIZE_GOOGLE_REFRESH_REDIS_URL: 'rediss://redis.example.test:6380/0'
 };
 let refreshFactoryInput = null;
+let leaseFactoryInput = null;
 let readFactoryInput = null;
+let leaseCloseCalls = 0;
 const runtime = createGmailAgentRuntime({
   env,
   fetchImpl: async () => { throw new Error('network must remain unused during composition'); },
   createAuthenticator: () => ({ authenticate: () => ({ ok: true, principal: { authenticated: true, subject: 'owner@example.test' } }) }),
   createOwnerResolver: () => ({ resolve: () => ({ ownerId: OWNER }) }),
   createTokenStoreRuntime: () => tokenStore,
+  createRedisClient: () => {},
+  createRefreshLease(input) {
+    leaseFactoryInput = input;
+    return { acquire: async () => ({}), close: async () => { leaseCloseCalls += 1; } };
+  },
   createTokenRefresh(input) {
     refreshFactoryInput = input;
     return { refresh: async () => ({ provider: 'google' }) };
@@ -92,11 +100,20 @@ const runtime = createGmailAgentRuntime({
   createBoundary: () => ({ execute: async () => ({ ok: true }) })
 });
 assert.equal(runtime.configured, true);
+assert.equal(leaseFactoryInput.redisUrl, env.HAFIZE_GOOGLE_REFRESH_REDIS_URL);
 assert.equal(refreshFactoryInput.clientId, env.HAFIZE_GOOGLE_OAUTH_CLIENT_ID);
 assert.equal(refreshFactoryInput.clientSecret, env.HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET);
 assert.strictEqual(refreshFactoryInput.tokenStore, tokenStore);
+assert.equal(typeof refreshFactoryInput.refreshLease.acquire, 'function');
 assert.equal(typeof readFactoryInput.refreshAccessToken, 'function');
 assert.equal(JSON.stringify(runtime).includes(env.HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET), false);
+assert.equal(JSON.stringify(runtime).includes(env.HAFIZE_GOOGLE_REFRESH_REDIS_URL), false);
+await runtime.close();
+assert.equal(leaseCloseCalls, 1);
+assert.throws(
+  () => createGmailAgentRuntime({ env: { ...env, HAFIZE_GOOGLE_REFRESH_REDIS_URL: '' }, createTokenStoreRuntime: () => tokenStore }),
+  /INVALID_GMAIL_AGENT_RUNTIME:googleRefreshCoordination/
+);
 assert.throws(
   () => createGmailAgentRuntime({
     env: { ...env, HAFIZE_GOOGLE_OAUTH_CLIENT_ID: '' },
