@@ -27,7 +27,7 @@ const finished = await runtime.finish({ state: started.state, code: 'authorizati
 assert.equal(finished.ownerId, 'owner_runtime_1');
 assert.equal(finished.verifier, flow.verifier);
 assert.equal(finished.code, 'authorization-code-123');
-await assert.rejects(() => runtime.finish({ state: started.state, code: 'again' }), /OAUTH_FLOW_NOT_FOUND/);
+await assert.rejects(() => runtime.finish({ state: started.state, code: 'again-again' }), /OAUTH_FLOW_NOT_FOUND/);
 const deniedStart = await runtime.start({
   provider: 'google', ownerId: 'owner_runtime_2', authorizationEndpoint: 'https://accounts.example.test/oauth/authorize',
   clientId: 'client-123', redirectUri: 'https://hafize.example.test/oauth/callback', scopes: ['gmail.readonly']
