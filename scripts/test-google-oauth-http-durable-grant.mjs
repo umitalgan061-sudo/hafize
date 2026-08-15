@@ -16,14 +16,18 @@ function callbackUrl(state) {
   return new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=authorization-code`);
 }
 
-async function makeRuntime({ remove } = {}) {
+async function makeRuntime({ existingRefreshToken = null, providerRefreshToken = null } = {}) {
   const store = createOAuthFlowStore();
+  const saves = [];
   const removals = [];
   const tokenStore = {
-    async save() {},
+    async load() {
+      return existingRefreshToken ? { refreshToken: existingRefreshToken } : null;
+    },
+    async save(input) { saves.push(input); },
     async remove(input) {
       removals.push(input);
-      if (remove) return remove(input);
+      throw new Error('OAuth HTTP callback must not use post-save cleanup');
     }
   };
   const runtime = await createGoogleOAuthHttpRuntime({
@@ -31,13 +35,20 @@ async function makeRuntime({ remove } = {}) {
     readJson: async (request) => request.body,
     createTokenStoreRuntime: () => tokenStore,
     createFlowStoreRuntime: async () => ({ configured: true, store, async close() {} }),
-    createTokenExchange: () => ({
-      async exchange() {
-        return { provider: 'google', refreshTokenStored: false };
+    fetchImpl: async () => ({
+      ok: true,
+      async json() {
+        return {
+          access_token: 'access-token',
+          ...(providerRefreshToken ? { refresh_token: providerRefreshToken } : {}),
+          token_type: 'Bearer',
+          expires_in: 3600,
+          scope: 'https://www.googleapis.com/auth/gmail.readonly'
+        };
       }
     })
   });
-  return { runtime, removals };
+  return { runtime, saves, removals };
 }
 
 async function start(runtime) {
@@ -55,28 +66,41 @@ async function start(runtime) {
   return authorization.searchParams.get('state');
 }
 
-{
-  const { runtime, removals } = await makeRuntime();
-  const state = await start(runtime);
-  const response = await runtime.handle({
-    method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback, url: callbackUrl(state), headers: {}
+async function callback(runtime, state) {
+  return runtime.handle({
+    method: 'GET',
+    pathname: GOOGLE_OAUTH_HTTP_PATHS.callback,
+    url: callbackUrl(state),
+    headers: {}
   });
-  assert.equal(response.status, 409);
-  assert.deepEqual(response.body, { error: 'GOOGLE_OAUTH_REAUTH_REQUIRED' });
-  assert.equal(removals.length, 1, 'non-durable access token must be removed');
-  assert.equal(removals[0].provider, 'google');
-  assert.match(removals[0].ownerId, /^owner_[A-Za-z0-9_-]{43}$/);
 }
 
 {
-  const { runtime } = await makeRuntime({ remove: async () => { throw new Error('storage path secret'); } });
-  const state = await start(runtime);
-  const response = await runtime.handle({
-    method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback, url: callbackUrl(state), headers: {}
-  });
-  assert.equal(response.status, 500);
-  assert.deepEqual(response.body, { error: 'GOOGLE_OAUTH_INTERNAL_ERROR' });
-  assert.equal(JSON.stringify(response.body).includes('storage path secret'), false);
+  const { runtime, saves, removals } = await makeRuntime();
+  const response = await callback(runtime, await start(runtime));
+  assert.equal(response.status, 409);
+  assert.deepEqual(response.body, { linked: false, error: 'GOOGLE_OAUTH_REAUTH_REQUIRED' });
+  assert.equal(saves.length, 0, 'access-only grant must be rejected before encrypted token-store mutation');
+  assert.equal(removals.length, 0, 'pre-save rejection must not rely on destructive cleanup');
+}
+
+{
+  const { runtime, saves, removals } = await makeRuntime({ existingRefreshToken: 'existing-refresh-token' });
+  const response = await callback(runtime, await start(runtime));
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body, { linked: true });
+  assert.equal(saves.length, 1);
+  assert.equal(saves[0].tokenRecord.refreshToken, 'existing-refresh-token', 'same-owner durable grant must survive reauthorization');
+  assert.equal(removals.length, 0);
+}
+
+{
+  const { runtime, saves, removals } = await makeRuntime({ providerRefreshToken: 'new-refresh-token' });
+  const response = await callback(runtime, await start(runtime));
+  assert.equal(response.status, 200);
+  assert.equal(saves.length, 1);
+  assert.equal(saves[0].tokenRecord.refreshToken, 'new-refresh-token');
+  assert.equal(removals.length, 0);
 }
 
 console.log('Google OAuth HTTP durable-grant tests passed');
