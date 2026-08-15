@@ -69,6 +69,14 @@ function abortingFetch(_url, init = {}) {
     else init.signal?.addEventListener?.('abort', rejectAbort, { once: true });
   });
 }
+async function readStream(body) {
+  const chunks = [];
+  for await (const chunk of body) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+function streamResponse(body) {
+  return { ok: true, status: 200, headers: headers({ 'content-type': 'text/event-stream' }), body };
+}
 
 const requests = [];
 const streamBody = { async *[Symbol.asyncIterator]() { yield Buffer.from('data: x\n\n'); } };
@@ -98,7 +106,7 @@ const completion = await runtime.complete({ model: 'nvidia/model-a', messages: [
 assert.equal(completion.value.provider, 'nvidia');
 assert.equal(completion.value.result.choices[0].message.content, 'nvidia-ok');
 const streamed = await runtime.stream({ model: 'nvidia/model-a', messages: [], stream: true });
-assert.equal(streamed.value.body, streamBody);
+assert.equal((await readStream(streamed.value.body)).toString('utf8'), 'data: x\n\n');
 assert.equal(requests.every((request) => request.init.headers?.Authorization === 'Bearer nvidia-test-key'), true);
 assert.equal(requests.every((request) => request.init.redirect === 'error'), true, 'NVIDIA credential requests must never auto-follow redirects');
 assert.equal(requests.some((request) => request.init.headers?.Accept === 'application/json'), true);
@@ -210,6 +218,26 @@ assert.deepEqual(await wrongStreamType.stream({ model: 'x', messages: [], stream
   ok: false, status: 502, error: 'INVALID_NVIDIA_RESPONSE_TYPE'
 });
 
+const hugeChunkBody = { async *[Symbol.asyncIterator]() { yield Buffer.alloc(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxStreamChunkBytes + 1); } };
+const hugeChunkRuntime = createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' }, fetchImpl: async () => streamResponse(hugeChunkBody), ...options
+});
+const hugeChunkStream = await hugeChunkRuntime.stream({ model: 'x', messages: [], stream: true });
+await assert.rejects(() => readStream(hugeChunkStream.value.body), /NVIDIA_STREAM_CHUNK_TOO_LARGE/);
+
+const totalOverflowBody = {
+  async *[Symbol.asyncIterator]() {
+    const chunk = Buffer.alloc(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxStreamChunkBytes);
+    const count = Math.floor(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxStreamBytes / chunk.length) + 1;
+    for (let index = 0; index < count; index += 1) yield chunk;
+  }
+};
+const totalOverflowRuntime = createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' }, fetchImpl: async () => streamResponse(totalOverflowBody), ...options
+});
+const totalOverflowStream = await totalOverflowRuntime.stream({ model: 'x', messages: [], stream: true });
+await assert.rejects(() => readStream(totalOverflowStream.value.body), /NVIDIA_STREAM_TOO_LARGE/);
+
 const upstreamFailure = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' },
   fetchImpl: async () => ({ ok: false, status: 429, headers: headers({ 'content-type': 'application/json' }), async text() { return 'rate limited'; } }),
@@ -225,5 +253,7 @@ assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelCount, 4096);
 assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelIdLength, 512);
 assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.jsonTimeoutMs, 30_000);
 assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxJsonTimeoutMs, 120_000);
+assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxStreamBytes, 8 * 1024 * 1024);
+assert.equal(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxStreamChunkBytes, 512 * 1024);
 
 console.log('model provider production runtime tests passed');
