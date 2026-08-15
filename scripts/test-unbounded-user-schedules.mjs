@@ -89,7 +89,7 @@ assert.equal(moved.ok, true);
 assert.equal(moved.schedule.runAt, '2026-08-15T11:30:00.000Z');
 assert.deepEqual(
   await commands.reschedule({ principal: alice, scheduleId: moved.schedule.scheduleId, input: { runAt: 'bad-date' } }),
-  { ok: false, error: 'INVALID_SCHEDULE' }
+  { ok: false, error: 'INVALID_SCHEDULE_COMMAND' }
 );
 
 const token = 'z'.repeat(48);
@@ -115,6 +115,6 @@ const runningPatch = await http.handle({
   headers: { authorization: `Bearer ${token}` }
 });
 assert.equal(runningPatch.status, 409);
-assert.equal(runningPatch.body.error, 'SCHEDULE_NOT_MUTABLE');
+assert.equal(runningPatch.body.error, 'SCHEDULE_NOT_RESCHEDULABLE');
 
 console.log('unbounded user schedule tests passed');
