@@ -28,7 +28,7 @@ assert.equal(starts.length, 1);
 assert.equal(starts[0].provider, 'google');
 assert.equal(starts[0].authorizationEndpoint, GOOGLE_AUTHORIZATION_ENDPOINT);
 assert.deepEqual(starts[0].scopes, ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/gmail.readonly']);
-assert.deepEqual(starts[0].extraParams, { access_type: 'offline', include_granted_scopes: 'true' });
+assert.deepEqual(starts[0].extraParams, { access_type: 'offline', include_granted_scopes: 'true', prompt: 'consent' });
 
 const finished = await runtime.finish({ state: 'state-test', code: 'code-test' });
 assert.equal(finished.ok, true);
