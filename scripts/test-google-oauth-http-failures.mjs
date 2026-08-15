@@ -12,7 +12,7 @@ const ENV = {
   HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test'
 };
 const startUrl = new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`);
-const headers = { authorization: `Bearer ${TOKEN}` };
+const headers = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
 
 async function createRuntime({ store = createOAuthFlowStore(), exchange, readJson, close } = {}) {
   return createGoogleOAuthHttpRuntime({
@@ -20,7 +20,7 @@ async function createRuntime({ store = createOAuthFlowStore(), exchange, readJso
     readJson: readJson || (async (request) => request.body),
     createTokenStoreRuntime: () => ({ async save() {} }),
     createFlowStoreRuntime: async () => ({ configured: true, store, close: close || (async () => {}) }),
-    createTokenExchange: () => ({ exchange: exchange || (async () => ({ ownerId: 'owner' })) })
+    createTokenExchange: () => ({ exchange: exchange || (async () => ({ ownerId: 'owner', refreshTokenStored: true })) })
   });
 }
 
@@ -53,16 +53,17 @@ async function callback(runtime, state) {
   assert.equal(JSON.stringify(response.body).includes('socket secret'), false);
 }
 
-for (const [code, expectedStatus, expectedError] of [
-  ['GOOGLE_TOKEN_EXCHANGE_FAILED:timeout', 504, 'GOOGLE_OAUTH_UPSTREAM_TIMEOUT'],
-  ['GOOGLE_TOKEN_EXCHANGE_FAILED:network', 502, 'GOOGLE_OAUTH_UPSTREAM_FAILED'],
-  ['GOOGLE_TOKEN_EXCHANGE_SCOPE_ESCALATION', 502, 'GOOGLE_OAUTH_UPSTREAM_FAILED']
+for (const [code, expectedStatus, expectedBody] of [
+  ['GOOGLE_TOKEN_EXCHANGE_FAILED:timeout', 504, { error: 'GOOGLE_OAUTH_UPSTREAM_TIMEOUT' }],
+  ['GOOGLE_TOKEN_EXCHANGE_FAILED:network', 502, { error: 'GOOGLE_OAUTH_UPSTREAM_FAILED' }],
+  ['GOOGLE_TOKEN_EXCHANGE_SCOPE_ESCALATION', 502, { error: 'GOOGLE_OAUTH_UPSTREAM_FAILED' }],
+  ['GOOGLE_TOKEN_EXCHANGE_REFRESH_TOKEN_REQUIRED', 409, { linked: false, error: 'GOOGLE_OAUTH_REAUTH_REQUIRED' }]
 ]) {
   const runtime = await createRuntime({ exchange: async () => { const error = new Error('provider detail'); error.code = code; throw error; } });
   const state = await start(runtime);
   const response = await callback(runtime, state);
   assert.equal(response.status, expectedStatus);
-  assert.deepEqual(response.body, { error: expectedError });
+  assert.deepEqual(response.body, expectedBody);
   assert.equal(JSON.stringify(response.body).includes('provider detail'), false);
   assert.equal((await callback(runtime, state)).status, 400, 'failed exchange still burns the one-time callback flow');
 }
