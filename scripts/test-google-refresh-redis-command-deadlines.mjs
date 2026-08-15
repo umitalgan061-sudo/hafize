@@ -175,4 +175,68 @@ function runtime({ createClient, deadlines, setTimer, clearTimer, setCommandTime
   await leaseRuntime.close();
 }
 
+{
+  const deadlines = deadlineHarness();
+  const counters = { set: 0, eval: 0, close: 0, destroy: 0 };
+  const leaseRuntime = runtime({
+    deadlines,
+    createClient: clientFactory({ setImpl: async () => 'OK', evalImpl: async () => 1, counters })
+  });
+  const lease = await leaseRuntime.acquire({ ownerId: OWNER });
+  await lease.release();
+  assert.equal(counters.close, 0);
+  const second = await leaseRuntime.acquire({ ownerId: `${OWNER}_close` });
+  const liveClientClose = leaseRuntime.close();
+  await second.release();
+  await liveClientClose;
+  assert.equal(counters.close, 1, 'normal bounded close must remain graceful');
+}
+
+{
+  const deadlines = deadlineHarness();
+  const counters = { set: 0, eval: 0, close: 0, destroy: 0 };
+  const createClient = () => ({
+    isReady: false, isOpen: false, on() {},
+    async connect() { this.isReady = this.isOpen = true; },
+    async set() { counters.set += 1; return 'OK'; },
+    async eval() { counters.eval += 1; return 1; },
+    async close() { counters.close += 1; return never(); },
+    destroy() { counters.destroy += 1; this.isReady = this.isOpen = false; }
+  });
+  const leaseRuntime = runtime({ deadlines, createClient });
+  const lease = await leaseRuntime.acquire({ ownerId: OWNER });
+  await lease.release();
+  const closing = leaseRuntime.close();
+  const deadline = await deadlines.next();
+  await deadlines.fire(deadline);
+  await assert.rejects(closing, (error) => error?.code === 'GOOGLE_REFRESH_LEASE_CLOSE_FAILED');
+  assert.equal(counters.close, 1);
+  assert.equal(counters.destroy, 1, 'hung close must fall back to immediate client destruction');
+}
+
+{
+  const deadlines = deadlineHarness();
+  const counters = { set: 0, eval: 0, close: 0, destroy: 0 };
+  let releaseConnect;
+  const connectGate = new Promise((resolve) => { releaseConnect = resolve; });
+  const createClient = () => ({
+    isReady: false, isOpen: true, on() {},
+    async connect() { await connectGate; this.isReady = true; },
+    async set() { counters.set += 1; return 'OK'; },
+    async eval() { counters.eval += 1; return 1; },
+    async close() { counters.close += 1; return never(); },
+    destroy() { counters.destroy += 1; this.isReady = this.isOpen = false; }
+  });
+  const leaseRuntime = runtime({ deadlines, createClient });
+  const acquiring = leaseRuntime.acquire({ ownerId: OWNER });
+  await Promise.resolve();
+  const closing = leaseRuntime.close();
+  const deadline = await deadlines.next();
+  await deadlines.fire(deadline);
+  releaseConnect();
+  await assert.rejects(acquiring, (error) => error?.code === 'GOOGLE_REFRESH_LEASE_UNAVAILABLE');
+  await assert.rejects(closing, (error) => error?.code === 'GOOGLE_REFRESH_LEASE_CLOSE_FAILED');
+  assert.equal(counters.destroy, 1, 'pending connection close timeout must destroy the pending client');
+}
+
 console.log('Google refresh Redis command deadline tests passed');
