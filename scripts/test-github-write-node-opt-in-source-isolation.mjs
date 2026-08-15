@@ -15,7 +15,7 @@ assert.match(runtimeSource, /return \{ matched: false \}/);
 assert.match(runtimeSource, /if \(runtime\.configured !== true\) fail\('configuration'\)/);
 
 assert.doesNotMatch(runtimeSource, /process\.env\.GITHUB_TOKEN/);
-assert.doesNotMatch(runtimeSource, /process\.env\.HAFIZE_GITHUB_WRITE_(?:APPROVAL_SECRET|AUTH_TOKEN|OWNER_KEY)/);
+assert.doesNotMatch(runtimeSource, /process\.env\.HAFIZE_GITHUB_WRITE_(?:APPROVAL_SECRET|AUTH_TOKEN|OWNER_KEY|REPLAY_REDIS_URL)/);
 assert.doesNotMatch(runtimeSource, /console\.(?:log|error).*env/i);
 assert.doesNotMatch(runtimeSource, /JSON\.stringify\(env\)/);
 
@@ -24,6 +24,7 @@ assert.match(serverRuntimeSource, /env\.GITHUB_TOKEN/);
 assert.match(serverRuntimeSource, /HAFIZE_GITHUB_WRITE_APPROVAL_SECRET/);
 assert.match(serverRuntimeSource, /HAFIZE_GITHUB_WRITE_AUTH_TOKEN/);
 assert.match(serverRuntimeSource, /HAFIZE_GITHUB_WRITE_OWNER_KEY/);
+assert.match(serverRuntimeSource, /HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL/);
 assert.match(serverRuntimeSource, /return Object\.freeze\(\{\s*configured: true,/s);
 assert.doesNotMatch(serverRuntimeSource, /approvalSecret:/);
 assert.doesNotMatch(serverRuntimeSource, /ownerKey:/);
@@ -33,6 +34,7 @@ assert.doesNotMatch(publicIndex, /HAFIZE_GITHUB_WRITE_ENABLED/);
 assert.doesNotMatch(publicIndex, /HAFIZE_GITHUB_WRITE_APPROVAL_SECRET/);
 assert.doesNotMatch(publicIndex, /HAFIZE_GITHUB_WRITE_AUTH_TOKEN/);
 assert.doesNotMatch(publicIndex, /HAFIZE_GITHUB_WRITE_OWNER_KEY/);
+assert.doesNotMatch(publicIndex, /HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL/);
 assert.doesNotMatch(publicIndex, /GITHUB_TOKEN/);
 
 console.log('GitHub write opt-in source isolation tests passed');

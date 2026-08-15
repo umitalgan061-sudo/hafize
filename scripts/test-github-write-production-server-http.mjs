@@ -36,6 +36,7 @@ function baseEnv(port) {
     HAFIZE_GITHUB_WRITE_AUTH_TOKEN: '',
     HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: '',
     HAFIZE_GITHUB_WRITE_OWNER_KEY: '',
+    HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: '',
     HAFIZE_SCHEDULE_MODEL: '',
     HAFIZE_SCHEDULE_AUTH_TOKEN: '',
     HAFIZE_SCHEDULE_AUTH_SUBJECT: '',
@@ -61,7 +62,8 @@ function enabledEnv(port) {
       HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: approvalSecret,
       HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'production-test-owner-token',
       HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'production-test-owner',
-      HAFIZE_GITHUB_WRITE_OWNER_KEY: ownerKey
+      HAFIZE_GITHUB_WRITE_OWNER_KEY: ownerKey,
+      HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
     },
     secrets: [approvalSecret, ownerKey, 'production-test-github-token', 'production-test-owner-token']
   };
@@ -130,7 +132,6 @@ const command = {
   baseRef: 'main'
 };
 
-// Default-deny deployment: the public write paths exist only as 404s and health reports false.
 const disabledPort = await reservePort();
 const disabled = spawnServer(baseEnv(disabledPort));
 try {
@@ -149,7 +150,6 @@ try {
   assert.equal(await stopServer(disabled.child), 0);
 }
 
-// Explicit opt-in: health exposes only a boolean and prepare performs no GitHub write/network operation.
 const enabledPort = await reservePort();
 const enabledConfig = enabledEnv(enabledPort);
 const enabled = spawnServer(enabledConfig.env);
@@ -169,10 +169,7 @@ try {
 
   const prepared = await request(enabledPort, '/api/github/write/prepare', {
     method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: 'Bearer production-test-owner-token'
-    },
+    headers: { 'content-type': 'application/json', authorization: 'Bearer production-test-owner-token' },
     body: JSON.stringify({ command })
   });
   assert.equal(prepared.status, 200);
@@ -188,7 +185,6 @@ try {
   assert.equal(await stopServer(enabled.child), 0);
 }
 
-// Ambiguous opt-in aliases must fail closed before the HTTP socket is opened.
 const invalidPort = await reservePort();
 const invalidConfig = enabledEnv(invalidPort);
 invalidConfig.env.HAFIZE_GITHUB_WRITE_ENABLED = 'yes';

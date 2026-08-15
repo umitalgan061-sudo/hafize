@@ -23,8 +23,22 @@ const env = {
   HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: Buffer.alloc(32, 1).toString('base64url'),
   HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'u'.repeat(40),
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'owner@example.com',
-  HAFIZE_GITHUB_WRITE_OWNER_KEY: Buffer.alloc(32, 2).toString('base64url')
+  HAFIZE_GITHUB_WRITE_OWNER_KEY: Buffer.alloc(32, 2).toString('base64url'),
+  HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
 };
+const replayKeys = new Set();
+function createRedisClient() {
+  return {
+    isReady: false,
+    on() {},
+    async connect() { this.isReady = true; },
+    async set(key, _value, { NX }) {
+      if (NX && replayKeys.has(key)) return null;
+      replayKeys.add(key);
+      return 'OK';
+    }
+  };
+}
 const calls = [];
 const fetchImpl = async (url, init) => {
   calls.push({ url: String(url), init });
@@ -40,6 +54,7 @@ let requestBody = {};
 const runtime = createGitHubWriteServerRuntime({
   env,
   fetchImpl,
+  createRedisClient,
   readJson: async () => requestBody
 });
 assert.equal(runtime.configured, true);
@@ -84,9 +99,7 @@ assert.equal(replay.body.error, 'GITHUB_WRITE_APPROVAL_REPLAYED');
 assert.equal(calls.length, 2);
 
 requestBody = { command };
-const unauthorized = await runtime.handle({
-  method: 'POST', pathname: '/api/github/write/prepare', headers: {}
-});
+const unauthorized = await runtime.handle({ method: 'POST', pathname: '/api/github/write/prepare', headers: {} });
 assert.deepEqual(unauthorized, { matched: true, status: 401, body: { error: 'AUTH_REQUIRED' } });
 assert.equal(calls.length, 2);
 
@@ -102,7 +115,7 @@ assert.equal(calls.length, 2);
 
 assert.throws(
   () => createGitHubWriteServerRuntime({
-    env: { ...env, HAFIZE_GITHUB_WRITE_OWNER_KEY: Buffer.alloc(31).toString('base64url') }, readJson
+    env: { ...env, HAFIZE_GITHUB_WRITE_OWNER_KEY: Buffer.alloc(31).toString('base64url') }, readJson, createRedisClient
   }),
   /INVALID_GITHUB_WRITE_SERVER_RUNTIME:ownerKey/
 );
