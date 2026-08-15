@@ -27,7 +27,7 @@ const runtime = createGitHubWriteNodeServerRuntime({
   fetchImpl: async () => { fetchCalls += 1; throw new Error('prepare must not call GitHub'); }
 });
 assert.equal(runtime.configured, true);
-assert.deepEqual(Object.keys(runtime).sort(), ['configured', 'handle']);
+assert.deepEqual(Object.keys(runtime).sort(), ['close', 'configured', 'handle']);
 
 const unauthorized = await runtime.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/prepare', headers: {} });
 assert.deepEqual(unauthorized, { matched: true, status: 401 });
@@ -43,5 +43,6 @@ assert.ok(writes.at(-1).body.approvalToken.length > 20);
 assert.equal(fetchCalls, 0);
 assert.equal(JSON.stringify(runtime).includes('server-held-github-token'), false);
 assert.equal(JSON.stringify(runtime).includes(secret), false);
+await runtime.close();
 
 console.log('GitHub write Node server enabled tests passed');
