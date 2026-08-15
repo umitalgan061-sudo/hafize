@@ -788,6 +788,12 @@ async function shutdown() {
       console.error('Hafize Gmail runtime shutdown failed');
     }
     try {
+      await CANVA_AGENT_RUNTIME.close();
+    } catch {
+      process.exitCode = 1;
+      console.error('Hafize Canva runtime shutdown failed');
+    }
+    try {
       await GITHUB_WRITE_NODE_SERVER_RUNTIME.close();
     } catch {
       process.exitCode = 1;
