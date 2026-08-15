@@ -16,6 +16,7 @@
 
   const DEFAULT_LANGUAGE = 'tr-TR';
   const TOAST_DURATION_MS = 4200;
+  const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
 
   function getSpeechRecognitionConstructor(root) {
     return root?.SpeechRecognition || root?.webkitSpeechRecognition || null;
@@ -68,6 +69,26 @@
     else input.dispatchEvent({ type: 'input', bubbles: true });
   }
 
+  function dispatchVoiceInputState(documentRef, root, listening) {
+    if (typeof documentRef?.dispatchEvent !== 'function') return false;
+    const detail = Object.freeze({ listening: Boolean(listening), source: 'voice-input' });
+    const CustomEventCtor = root?.CustomEvent;
+    let event;
+    if (typeof CustomEventCtor === 'function') {
+      event = new CustomEventCtor(VOICE_INPUT_STATE_EVENT, { detail });
+    } else {
+      const EventCtor = root?.Event;
+      if (typeof EventCtor === 'function') {
+        event = new EventCtor(VOICE_INPUT_STATE_EVENT);
+        try { Object.defineProperty(event, 'detail', { value: detail }); } catch { return false; }
+      } else {
+        event = { type: VOICE_INPUT_STATE_EVENT, detail };
+      }
+    }
+    documentRef.dispatchEvent(event);
+    return true;
+  }
+
   function createAnnouncer(toast, root) {
     let timeoutId = null;
     return (message) => {
@@ -112,8 +133,10 @@
     }
 
     function setListening(next) {
+      const changed = listening !== Boolean(next);
       listening = Boolean(next);
       renderButton();
+      if (changed) dispatchVoiceInputState(documentRef, root, listening);
     }
 
     function stopRecognition() {
@@ -222,6 +245,8 @@
 
   return Object.freeze({
     DEFAULT_LANGUAGE,
+    VOICE_INPUT_STATE_EVENT,
+    dispatchVoiceInputState,
     getSpeechRecognitionConstructor,
     installVoiceInput,
     mapSpeechError,
