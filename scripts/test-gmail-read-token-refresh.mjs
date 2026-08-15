@@ -11,12 +11,15 @@ let record = {
   scopes: [READ_SCOPE],
   expiresAt: 10_000
 };
+let tokenStoreCloseCalls = 0;
 const tokenStore = {
   async load({ ownerId, provider }) {
     assert.equal(ownerId, OWNER);
     assert.equal(provider, 'google');
     return structuredClone(record);
-  }
+  },
+  status() { return { configured: true, storage: 'encrypted-redis' }; },
+  async close() { tokenStoreCloseCalls += 1; }
 };
 let refreshCalls = 0;
 let gmailCalls = 0;
@@ -72,7 +75,8 @@ const env = {
   HAFIZE_CONNECTOR_OWNER_KEY_B64: secret,
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'google-client-id.apps.example',
   HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET: 'server-only-google-secret',
-  HAFIZE_GOOGLE_REFRESH_REDIS_URL: 'rediss://redis.example.test:6380/0'
+  HAFIZE_GOOGLE_REFRESH_REDIS_URL: 'rediss://refresh.example.test:6380/0',
+  HAFIZE_OAUTH_TOKEN_REDIS_URL: 'rediss://tokens.example.test:6380/0'
 };
 let refreshFactoryInput = null;
 let leaseFactoryInput = null;
@@ -108,8 +112,17 @@ assert.equal(typeof refreshFactoryInput.refreshLease.acquire, 'function');
 assert.equal(typeof readFactoryInput.refreshAccessToken, 'function');
 assert.equal(JSON.stringify(runtime).includes(env.HAFIZE_GOOGLE_OAUTH_CLIENT_SECRET), false);
 assert.equal(JSON.stringify(runtime).includes(env.HAFIZE_GOOGLE_REFRESH_REDIS_URL), false);
+assert.equal(JSON.stringify(runtime).includes(env.HAFIZE_OAUTH_TOKEN_REDIS_URL), false);
 await runtime.close();
 assert.equal(leaseCloseCalls, 1);
+assert.equal(tokenStoreCloseCalls, 1);
+assert.throws(
+  () => createGmailAgentRuntime({
+    env,
+    createTokenStoreRuntime: () => ({ ...tokenStore, status: () => ({ configured: true, storage: 'encrypted-file' }) })
+  }),
+  /INVALID_GMAIL_AGENT_RUNTIME:googleRefreshTokenStorage/
+);
 assert.throws(
   () => createGmailAgentRuntime({ env: { ...env, HAFIZE_GOOGLE_REFRESH_REDIS_URL: '' }, createTokenStoreRuntime: () => tokenStore }),
   /INVALID_GMAIL_AGENT_RUNTIME:googleRefreshCoordination/
