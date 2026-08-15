@@ -40,6 +40,27 @@ const second = await runtime.start({
 const denied = await runtime.finish({ state: second.state, error: 'access_denied' });
 assert.deepEqual(denied, { ok: false, provider: 'example', error: 'access_denied', errorDescription: null });
 assert.equal(issued.size, 0);
+
+let releaseIssue;
+const issueGate = new Promise((resolve) => { releaseIssue = resolve; });
+let persisted = false;
+const gatedRuntime = createOAuthFlowRuntime({
+  store: {
+    async issue() { await issueGate; persisted = true; },
+    async consume() { return { provider: 'example', verifier: 'v'.repeat(64), redirectUri: 'https://hafize.example.test/oauth/callback', scopes: ['identity.read'] }; }
+  }
+});
+let startSettled = false;
+const gatedStart = gatedRuntime.start({
+  provider: 'example', authorizationEndpoint: 'https://accounts.example.test/oauth/authorize',
+  clientId: 'client-123', redirectUri: 'https://hafize.example.test/oauth/callback', scopes: ['identity.read']
+}).then((value) => { startSettled = true; return value; });
+await Promise.resolve();
+assert.equal(startSettled, false, 'authorization URL must not escape before durable issue completes');
+releaseIssue();
+await gatedStart;
+assert.equal(persisted, true);
+
 assert.throws(() => createOAuthFlowRuntime({ store: {} }), /INVALID_OAUTH_FLOW_RUNTIME/);
 
 console.log('oauth flow runtime tests passed');
