@@ -8,6 +8,7 @@ Aynı anda iki `SpeechRecognition` oturumu aktif tutulmaz.
 
 - Hands-free yalnız wake phrase beklerken mikrofon sahibidir.
 - Kullanıcı mikrofon düğmesine bastığında push-to-talk oturumu mikrofon sahipliğini alır.
+- Push-to-talk sahipliği tarayıcı `SpeechRecognition.start()` çağrısından **önce** ilan edilir. Böylece tarayıcının `onstart` callback'i gecikse bile wake recognition aynı mikrofon üzerinde yeniden başlayamaz.
 - Hands-free açıkken `Hafize` wake phrase algılanırsa mevcut wake recognition durur ve push-to-talk düğmesine kontrollü handoff yapılır.
 - Push-to-talk bittiğinde, hands-free hâlâ kullanıcı tarafından açık bırakılmışsa wake recognition kısa gecikmeyle yeniden başlar.
 - Sekme gizliyken veya mesaj input'u backend yanıtı nedeniyle kilitliyken hands-free yeniden başlatılmaz.
@@ -29,7 +30,7 @@ Event detail yalnız iki alan taşır:
 }
 ```
 
-`listening` yalnız boolean kabul edilir. Hands-free yalnız `source === "voice-input"` olan olayları dikkate alır; başka component veya rastgele DOM olayı mikrofon sahipliğini değiştiremez.
+`listening` yalnız boolean kabul edilir. Buradaki `true`, tarayıcı `onstart` sinyalini beklemekten ziyade push-to-talk'ın mikrofon sahipliğini claim ettiği andan itibaren geçerlidir; `start()` senkron olarak başarısız olursa aynı akış hemen `listening: false` yayınlar. Hands-free yalnız `source === "voice-input"` olan olayları dikkate alır; başka component veya rastgele DOM olayı mikrofon sahipliğini değiştiremez.
 
 Olay yeni bir tool permission veya backend yetkisi değildir. Yalnız aynı sayfadaki ses UI modüllerinin durum senkronizasyonu için kullanılır.
 
@@ -39,10 +40,11 @@ Olay yeni bir tool permission veya backend yetkisi değildir. Yalnız aynı sayf
 2. Görünür gösterge `Hafize` için dinlendiğini bildirir.
 3. Wake phrase bulunduğunda hands-free recognition durur.
 4. Mevcut `#micBtn` push-to-talk akışı tetiklenir.
-5. Push-to-talk `listening: true` yayınladığında hands-free restart planını iptal eder.
-6. Push-to-talk `listening: false` yayınladığında hands-free uygunsa wake dinlemeyi yeniden planlar.
+5. Push-to-talk, browser recognition'ı başlatmadan önce `listening: true` yayınlar; hands-free bunu senkron görür, restart planını iptal eder ve varsa wake recognition'ı abort eder.
+6. Browser recognition daha sonra `onstart` verse bile ikinci bir sahiplik geçişi oluşmaz.
+7. Push-to-talk `listening: false` yayınladığında hands-free uygunsa wake dinlemeyi yeniden planlar.
 
-Push-to-talk tarayıcıda desteklenmiyorsa handoff sonrası hands-free kalıcı biçimde sessiz kalmaz; fallback restart yolu tekrar wake dinlemeye döner.
+Push-to-talk tarayıcıda desteklenmiyorsa veya `start()` çağrısı başarısız olursa handoff sonrası hands-free kalıcı biçimde sessiz kalmaz; `listening: false` sonrası fallback restart yolu tekrar wake dinlemeye döner.
 
 ## Kullanıcı kontrolü ve gizlilik
 
@@ -62,9 +64,10 @@ Push-to-talk tarayıcıda desteklenmiyorsa handoff sonrası hands-free kalıcı 
 
 `scripts/test-voice-handoff-coordination.mjs` şu davranışları doğrular:
 
-- manuel push-to-talk başladığında wake recognition'ın abort edilmesi;
+- manuel push-to-talk'ta sahiplik event'inin `SpeechRecognition.start()` çağrısından önce yayınlanması;
+- manuel push-to-talk başladığında wake recognition'ın browser start çağrısından önce abort edilmesi;
 - push-to-talk bittiğinde wake dinlemenin geri gelmesi;
-- `Hafize` wake phrase sonrası push-to-talk handoff'u;
+- `Hafize` wake phrase sonrası pre-start sahiplik korunarak push-to-talk handoff'u;
 - aktif push-to-talk sırasında ikinci wake recognition açılmaması;
 - tanınmayan lifecycle event'lerinin ignored kalması;
 - görünmeyen sekmede recognition'ın durması ve restart edilmemesi;
