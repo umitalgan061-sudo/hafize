@@ -43,12 +43,22 @@ Login body varsayılan 1 KiB ile sınırlıdır ve 10 saniye deadline taşır. L
 
 Tüm cevaplar `Cache-Control: no-store` taşır. Unknown login alanları, owner/token enjeksiyonu, cross-origin mutation ve raw backend error detail reddedilir. Oversized body 413, body deadline 408, unsupported media type 415 ve aşılmış login bütçesi 429 + `Retry-After` döndürür.
 
+## Google OAuth start sınırı
+
+`POST /api/connectors/gmail/oauth/start` artık connector bearer credential kabul etmez. Browser isteği hem geçerli `__Host-hafize_session` cookie'si hem de exact `HAFIZE_CLOUD_SESSION_ORIGIN` ister. Origin kontrolü cookie doğrulamasından ve OAuth state üretiminden önce yapılır; cross-origin veya unauthenticated istek state store'a kayıt oluşturamaz.
+
+Authenticated session principal doğrudan provider callback'e taşınmaz. Principal subject mevcut connector owner HMAC resolver ile opaque `owner_*` kimliğine dönüştürülür ve yalnız server-side one-time OAuth flow state içine bağlanır. Authorization response subject, owner key, session token veya connector bearer secret yayınlamaz.
+
+Google callback `GET /api/connectors/gmail/oauth/callback` browser session cookie'sine veya Origin header'ına güvenmez. Callback owner yalnız tüketilen one-time state'teki owner binding'den çözülür; state replay ikinci token exchange üretemez. Durable Gmail bağlantısı için refresh token zorunluluğu korunur.
+
+Production OAuth scope sınırı değişmez: yalnız identity ve `gmail.read` capability'leri start üzerinden kabul edilir. Cloud session varlığı Gmail send/write, `external.write`, `external.send`, `repo.merge` veya başka tool approval yetkisi üretmez.
+
 ## Yetki ayrımı
 
 Session doğrulaması yalnız kullanıcı principal'ı üretir. Ajan registry ve backend default-deny tool enforcement değişmez. `external.write`, `external.send`, `repo.merge` veya connector write işlemleri session var diye otomatik onaylanmaz; kendi explicit approval kapıları korunur.
 
 ## Sonraki güvenli adım
 
-Google OAuth start endpoint'i connector bearer yerine `CLOUD_SESSION_NODE_SERVER_RUNTIME.authenticator` üzerinden doğrulanmış cloud-session principal kabul edecek şekilde composition seviyesinde yeniden bağlanmalıdır. Callback owner binding yine server-side one-time OAuth state'ten çözülmeli; cookie subject veya client owner alanı callback'te yetki kaynağı olmamalıdır.
+Browser/PWA tarafında session status/login UX'i ile Gmail “bağla” aksiyonu bu same-origin OAuth start sözleşmesine bağlanmalıdır. Frontend hiçbir noktada connector bearer token, password hash veya signing key taşımamalıdır; yalnız HttpOnly cookie browser tarafından otomatik gönderilmelidir.
 
 Signing-key rotation/revocation stratejisi ayrı bir değişiklik olarak ele alınmalıdır; mevcut stateless cookie sözleşmesi aktif signing key değiştiğinde eski session'ları doğal olarak geçersiz kılar.
