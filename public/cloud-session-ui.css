@@ -1,0 +1,123 @@
+.account-card { display: grid; gap: 11px; }
+.account-card .utility-head { margin-bottom: 0; justify-content: space-between; }
+.account-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.session-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--premium-line);
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--premium-muted);
+  background: color-mix(in srgb, var(--premium-surface-strong) 80%, transparent);
+}
+.session-badge[data-state="active"] {
+  color: #39705a;
+  border-color: color-mix(in srgb, #39705a 35%, var(--premium-line));
+  background: color-mix(in srgb, #5d9a7f 12%, var(--premium-surface));
+}
+.session-badge[data-state="error"] {
+  color: #9a4e3c;
+  border-color: color-mix(in srgb, #b85f48 35%, var(--premium-line));
+}
+.session-badge[data-state="loading"] { color: var(--premium-orange-strong); }
+.session-badge[data-state="disabled"] { opacity: .72; }
+.session-copy,
+.gmail-connection-status {
+  margin: 0;
+  color: var(--premium-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.gmail-connection-status {
+  min-height: 34px;
+  padding: 8px 9px;
+  border: 1px solid var(--premium-line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--premium-surface-strong) 56%, transparent);
+}
+.gmail-connection-status[data-state="linked"] {
+  color: #39705a;
+  border-color: color-mix(in srgb, #39705a 30%, var(--premium-line));
+}
+.gmail-connection-status[data-state="error"] { color: #9a4e3c; }
+.session-login-form { display: grid; gap: 8px; }
+.session-password-label { display: grid; gap: 5px; }
+.session-password-label span {
+  color: var(--premium-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+.session-password-label input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--premium-line);
+  border-radius: 12px;
+  padding: 10px 11px;
+  background: color-mix(in srgb, var(--premium-surface-strong) 88%, transparent);
+  color: var(--premium-text);
+  font: inherit;
+}
+.session-password-label input::placeholder { color: var(--premium-muted); }
+.session-password-label input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--premium-orange) 65%, transparent);
+  outline-offset: 2px;
+}
+.session-primary,
+.session-secondary,
+.gmail-connect-button {
+  min-height: 39px;
+  border-radius: 12px;
+  padding: 9px 11px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.session-primary,
+.gmail-connect-button {
+  border: 1px solid color-mix(in srgb, var(--premium-orange) 40%, var(--premium-line));
+  background: color-mix(in srgb, var(--premium-orange) 13%, var(--premium-surface-strong));
+  color: var(--premium-text);
+}
+.session-primary:hover:not(:disabled),
+.gmail-connect-button:hover:not(:disabled) {
+  border-color: var(--premium-orange);
+  background: color-mix(in srgb, var(--premium-orange) 20%, var(--premium-surface-strong));
+}
+.session-secondary {
+  border: 1px solid var(--premium-line);
+  background: transparent;
+  color: var(--premium-muted);
+}
+.session-secondary:hover:not(:disabled) {
+  color: var(--premium-text);
+  background: color-mix(in srgb, var(--premium-surface-strong) 70%, transparent);
+}
+.session-actions { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+.session-actions[hidden],
+.session-login-form[hidden] { display: none; }
+.account-card button:focus-visible,
+.account-card input:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--premium-orange) 64%, transparent);
+  outline-offset: 2px;
+}
+.account-card[aria-busy="true"] { cursor: progress; }
+.account-card[aria-busy="true"] .session-badge[data-state="loading"]::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border: 1px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: hafizeSessionSpin .8s linear infinite;
+}
+@keyframes hafizeSessionSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .account-card[aria-busy="true"] .session-badge[data-state="loading"]::before { animation: none; }
+}
+@media (max-width: 680px) {
+  .session-actions { grid-template-columns: 1fr; }
+  .session-secondary { width: 100%; }
+}
