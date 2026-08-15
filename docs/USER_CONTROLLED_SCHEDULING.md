@@ -1,6 +1,6 @@
 # User-controlled scheduling
 
-Hafize zamanlanmış görev runtime'ı uygulama seviyesinde sabit bir toplam görev veya eşzamanlı due-task tavanı dayatmaz. Kullanıcı, sahip olduğu her görevin çalışma zamanını ayrı belirler; backend authorization, lease ve tool-policy sınırları ise değişmeden kalır.
+Hafize zamanlanmış görev runtime'ı uygulama seviyesinde sabit bir toplam görev veya eşzamanlı due-task tavanı dayatmaz. Kullanıcı, sahip olduğu her görevin çalışma zamanını ve retry gecikmesini ayrı belirler; backend authorization, lease ve tool-policy sınırları ise değişmeden kalır.
 
 ## Kapasite sözleşmesi
 
@@ -14,17 +14,24 @@ Bu yaklaşım “sonsuz fiziksel kaynak” garantisi vermez. Gerçek paralellik;
 
 ## Kullanıcının zaman kararı
 
-Yeni görev oluştururken `runAt` kullanıcı girdisidir. Görev henüz `scheduled` durumundayken aynı owner şu endpoint ile zamanı değiştirebilir:
+Yeni görev oluştururken `runAt` kullanıcı girdisidir. Public schedule API zaman dilimini tahmin etmez: `runAt` değeri RFC3339 biçiminde açık `Z` veya `±HH:MM` offset'i taşımalıdır. Store değeri UTC ISO biçimine normalize eder.
+
+Görev henüz `scheduled` durumundayken aynı owner şu endpoint ile zamanı veya retry gecikmesini değiştirebilir:
 
 `PATCH /api/schedules/:scheduleId`
 
-Body yalnız şu alanı kabul eder:
+Body yalnız `runAt` ve/veya `retryDelayMs` kabul eder:
 
 ```json
-{ "runAt": "2026-08-15T18:30:00+03:00" }
+{
+  "runAt": "2026-08-15T18:30:00+03:00",
+  "retryDelayMs": 30000
+}
 ```
 
-- Zaman RFC3339/ISO uyumlu bir offset ile verilebilir ve store UTC ISO biçimine normalize eder.
+- `retryDelayMs` görev bazındadır ve 1 saniye ile 24 saat arasında tam sayı milisaniye olmalıdır.
+- Retry gerektiğinde worker gizli sabit 60 saniye yerine görevin kendi `retryDelayMs` değerini kullanır; alan verilmezse geriye uyumluluk için 60 saniye varsayılanı uygulanır.
+- Lease provider geçerli, gelecekte bir `retryAt` döndürürse fencing/lease kararı korunur ve bu zaman önceliklidir.
 - Başka owner'ın görevi `SCHEDULE_NOT_FOUND` olarak görünür; sahiplik bilgisi sızdırılmaz.
 - `running`, `completed`, `failed` veya `cancelled` görev yeniden zamanlanamaz.
 - PATCH body içine token, ownerId, agentId, task veya başka alan eklenirse komut reddedilir.
@@ -41,21 +48,24 @@ Paralel görev sayısının artması tool yetkilerini genişletmez:
 - secret değerleri schedule kaydına veya agent context'ine eklenmez;
 - selector/specialist delegasyon topolojisi değiştirilmez.
 
-## Hata ve retry davranışı
+## Dayanıklılık
 
-Worker executor exception ayrıntılarını dışarı sızdırmaz. Başarısız görevler mevcut `maxAttempts` bütçesine göre retry veya terminal failure alır. Lease-busy defer davranışı attempt'i iade eder ve mevcut fencing sözleşmesini korur.
+Kalıcı schedule adapter'ında task execution paralel olabilir fakat snapshot mutasyonları ve disk save sırası serialize edilmeye devam eder. Böylece çok sayıda completion aynı anda gelse bile persistence katmanında lost-update yarışı açılmaz. Eski schema-v1 snapshot'larında `retryDelayMs` yoksa yükleme sırasında güvenli 60 saniye varsayılanı kullanılır; veri migrasyonu zorunlu değildir.
 
 ## Doğrulama
 
-`scripts/test-unbounded-user-schedules.mjs` şu regresyonları kilitler:
+Scheduler regresyonları şunları kilitler:
 
 - 128 kayıt ve 16 claim üstündeki varsayılan kullanım;
 - aynı anda 32 due execution'ın başlayabilmesi;
-- owner-scoped reschedule;
-- timezone offset'inin UTC'ye normalize edilmesi;
+- durable store üzerinde parallel execution + serialize persistence;
+- owner-scoped `runAt` ve `retryDelayMs` değişikliği;
+- timezone'suz zamanların public command katmanında reddedilmesi;
+- retry gecikme sınırları ve per-task retry hesabı;
 - başka owner'ın zamanı değiştirememesi;
-- running görevin PATCH ile değiştirilememesi.
+- running görevin PATCH ile değiştirilememesi;
+- PATCH ile ownerId/token/task enjeksiyonunun reddedilmesi.
 
 ## Geri alma
 
-Bu özellik geri alınacaksa store/worker default limitleri ve PATCH reschedule yolu birlikte geri alınmalıdır. Persistent şema değişmediği için veri migrasyonu gerektirmez.
+Bu özellik geri alınacaksa store/worker default limitleri, per-task retry timing ve PATCH reschedule yolu birlikte geri alınmalıdır. Persistent şema geriye uyumlu tutulduğu için zorunlu veri migrasyonu yoktur.
