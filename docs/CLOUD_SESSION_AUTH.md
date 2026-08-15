@@ -17,15 +17,31 @@ Cookie adı `__Host-hafize_session` olarak sabittir. Üretilen cookie `Path=/; H
 
 Session ömrü en fazla 12 saattir. Expired, future-issued, tamper edilmiş, duplicate veya oversized cookie fail-closed reddedilir. Logout stateless cookie expiry üretir; server-side revocation listesi bu ilk primitive'in kapsamında değildir.
 
+## Production bootstrap
+
+Cloud session runtime artık `server.mjs` içine mount edilir. Hiçbir cloud-session env alanı verilmezse runtime kapalıdır ve session yolları 404 döner; alanlardan yalnız bir kısmı verilirse sunucu listen aşamasına gelmeden fail-closed başlatma hatası üretir.
+
+Gerekli environment alanları:
+
+- `HAFIZE_CLOUD_SESSION_PASSWORD_HASH` — strict scrypt verifier.
+- `HAFIZE_CLOUD_SESSION_SIGNING_KEY` — en az 256 bit base64url session signing key.
+- `HAFIZE_CLOUD_SESSION_SUBJECT` — server-configured principal subject.
+- `HAFIZE_CLOUD_SESSION_ORIGIN` — exact HTTPS browser origin.
+- `HAFIZE_CLOUD_SESSION_TTL_MS` — opsiyonel; 1 dakika ile 12 saat arasında session TTL.
+
+Health yalnız `cloudSessionConfigured` boolean'ını yayınlar; hash, signing key, subject veya origin dışarı verilmez.
+
 ## HTTP contract
 
-Hazırlanan fakat henüz production `server.mjs` içine mount edilmeyen yollar:
+Production yolları:
 
-- `POST /api/session/login` — exact `{password}` body ve exact HTTPS Origin ister.
+- `POST /api/session/login` — exact `{password}` JSON body ve exact HTTPS Origin ister.
 - `GET /api/session/status` — cookie doğrular, yalnız authenticated boolean + expiry döndürür.
 - `POST /api/session/logout` — authenticated session ve exact HTTPS Origin ister.
 
-Tüm cevaplar `Cache-Control: no-store` taşır. Unknown login alanları, owner/token enjeksiyonu, cross-origin mutation ve raw backend error detail reddedilir.
+Login body varsayılan 1 KiB ile sınırlıdır ve 10 saniye deadline taşır. Login denemeleri doğrudan socket peer adresine göre varsayılan 5 deneme / 60 saniye ile sınırlandırılır; `X-Forwarded-For` güven kaynağı olarak kullanılmaz. Rate-limit anahtar havuzu bounded tutulur. Cross-origin istekler login kotasını tüketmeden reddedilir.
+
+Tüm cevaplar `Cache-Control: no-store` taşır. Unknown login alanları, owner/token enjeksiyonu, cross-origin mutation ve raw backend error detail reddedilir. Oversized body 413, body deadline 408, unsupported media type 415 ve aşılmış login bütçesi 429 + `Retry-After` döndürür.
 
 ## Yetki ayrımı
 
@@ -33,6 +49,6 @@ Session doğrulaması yalnız kullanıcı principal'ı üretir. Ajan registry ve
 
 ## Sonraki güvenli adım
 
-Ayrı stacked PR'da bu runtime için environment bootstrap + `server.mjs` mount yapılmalıdır. Google OAuth start endpoint'i connector bearer yerine doğrulanmış cloud-session principal kabul edecek şekilde composition seviyesinde yeniden bağlanabilir. Callback owner binding yine server-side one-time OAuth state'ten çözülmeli; cookie subject veya client owner alanı callback'te yetki kaynağı olmamalıdır.
+Google OAuth start endpoint'i connector bearer yerine `CLOUD_SESSION_NODE_SERVER_RUNTIME.authenticator` üzerinden doğrulanmış cloud-session principal kabul edecek şekilde composition seviyesinde yeniden bağlanmalıdır. Callback owner binding yine server-side one-time OAuth state'ten çözülmeli; cookie subject veya client owner alanı callback'te yetki kaynağı olmamalıdır.
 
-Production mount öncesinde HTTPS origin config, body limit/deadline, login rate limiting ve session signing-key rotation/revocation stratejisi ayrıca testlenmelidir.
+Signing-key rotation/revocation stratejisi ayrı bir değişiklik olarak ele alınmalıdır; mevcut stateless cookie sözleşmesi aktif signing key değiştiğinde eski session'ları doğal olarak geçersiz kılar.
