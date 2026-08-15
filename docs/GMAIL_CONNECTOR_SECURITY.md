@@ -9,6 +9,16 @@ Hafize'nin ilk Gmail tool yüzeyi yalnız **salt-okunur** çalışır. Model ve 
 - Raw subject generic tool context'e girmez; request-scoped Gmail executor içine bağlanır.
 - Access/refresh token yalnız encrypted OAuth token store'dan owner + `google` provider scope'uyla okunur.
 
+## Süreklilik ve token yenileme
+
+- Gmail access tokenı bitmek üzereyse backend, yalnız encrypted store'daki aynı owner'a ait Google refresh tokenını kullanabilir.
+- Google client ID ve varsa client secret yalnız server ortamından alınır; frontend, model veya ajan bağlamına aktarılmaz.
+- Aynı owner için eşzamanlı refresh talepleri tek provider isteğinde birleştirilir.
+- Google refresh response'u yeni refresh token vermiyorsa mevcut token korunur; verirse encrypted store içinde döndürülür.
+- Provider'ın döndürdüğü scope listesi önceki grant'i **genişletemez**. Yeni bir scope görülürse refresh fail-closed reddedilir ve token kaydı üzerine yazılmaz.
+- Refresh sonrası `gmail.readonly` scope'u veya yeterli ömür yoksa Gmail API çağrısı yapılmaz ve yeniden yetkilendirme gerekir.
+- Token yenileme bir tool permission değişikliği değildir; `gmail.send`/`gmail.modify` gibi yazma yetkilerini açmaz.
+
 ## Tool sınırı
 
 `gmail_read` yalnız şu operasyonları destekler:
