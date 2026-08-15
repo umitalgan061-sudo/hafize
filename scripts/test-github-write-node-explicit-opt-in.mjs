@@ -26,12 +26,13 @@ for (const enabled of [undefined, '', ' false ']) {
   if (enabled !== undefined) env.HAFIZE_GITHUB_WRITE_ENABLED = enabled;
   const runtime = createGitHubWriteNodeServerRuntime({ env, ...dependencies });
   assert.equal(runtime.configured, false);
-  assert.deepEqual(Object.keys(runtime).sort(), ['configured', 'handle']);
+  assert.deepEqual(Object.keys(runtime).sort(), ['close', 'configured', 'handle']);
   assert.deepEqual(await runtime.handle({
     method: 'POST',
     pathname: '/api/github/write/prepare',
     headers: { authorization: 'Bearer owner-bearer-token' }
   }), { matched: false });
+  await runtime.close();
 }
 
 assert.equal(reads, 0, 'disabled write runtime must not parse request bodies');
