@@ -27,7 +27,7 @@ function jsonResponse(value, status = 200, extra = {}) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: headers(extra.headers),
+    headers: headers({ 'content-type': 'application/json; charset=utf-8', ...(extra.headers || {}) }),
     async text() { return encoded; },
     async json() { return value; }
   };
@@ -36,7 +36,7 @@ function textResponse(text, status = 200, extra = {}) {
   return {
     ok: status >= 200 && status < 300,
     status,
-    headers: headers(extra.headers),
+    headers: headers({ 'content-type': 'application/json', ...(extra.headers || {}) }),
     async text() { return text; }
   };
 }
@@ -52,7 +52,7 @@ function readerResponse(chunks, status = 200, extra = {}) {
     response: {
       ok: status >= 200 && status < 300,
       status,
-      headers: headers(extra.headers),
+      headers: headers({ 'content-type': 'application/json', ...(extra.headers || {}) }),
       body: { getReader() { return reader; } }
     },
     wasCancelled: () => cancelled
@@ -73,7 +73,9 @@ const fetchImpl = async (url, init = {}) => {
       { id: 'x'.repeat(MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelIdLength + 1) }
     ] });
   }
-  if (init.headers?.Accept === 'text/event-stream') return { ok: true, status: 200, body: streamBody };
+  if (init.headers?.Accept === 'text/event-stream') {
+    return { ok: true, status: 200, headers: headers({ 'content-type': 'text/event-stream; charset=utf-8' }), body: streamBody };
+  }
   return jsonResponse({ choices: [{ message: { role: 'assistant', content: 'nvidia-ok' } }] });
 };
 const options = { createLocalRuntime: routerFactory, createBoundary: boundaryFactory };
@@ -87,6 +89,7 @@ assert.equal(completion.value.result.choices[0].message.content, 'nvidia-ok');
 const streamed = await runtime.stream({ model: 'nvidia/model-a', messages: [], stream: true });
 assert.equal(streamed.value.body, streamBody);
 assert.equal(requests.every((request) => request.init.headers?.Authorization === 'Bearer nvidia-test-key'), true);
+assert.equal(requests.every((request) => request.init.redirect === 'error'), true, 'NVIDIA credential requests must never auto-follow redirects');
 assert.equal(requests.some((request) => request.init.headers?.Accept === 'application/json'), true);
 assert.equal(requests.some((request) => request.init.headers?.Accept === 'text/event-stream'), true);
 
@@ -124,6 +127,15 @@ assert.deepEqual(await malformed.complete({ model: 'x', messages: [] }), {
   ok: false, status: 502, error: 'INVALID_NVIDIA_RESPONSE'
 });
 
+const wrongCompletionType = createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' },
+  fetchImpl: async () => textResponse('{"choices":[]}', 200, { headers: { 'content-type': 'text/html' } }),
+  ...options
+});
+assert.deepEqual(await wrongCompletionType.complete({ model: 'x', messages: [] }), {
+  ok: false, status: 502, error: 'INVALID_NVIDIA_RESPONSE_TYPE'
+});
+
 const modelListTooLarge = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' },
   fetchImpl: async () => textResponse('{}', 200, { headers: { 'content-length': MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelsJsonBytes + 1 } }),
@@ -131,6 +143,15 @@ const modelListTooLarge = createModelProviderProductionRuntime({
 });
 assert.deepEqual(await modelListTooLarge.listModels(), {
   ok: false, status: 502, error: 'NVIDIA_RESPONSE_TOO_LARGE'
+});
+
+const wrongModelsType = createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' },
+  fetchImpl: async () => textResponse('{"data":[]}', 200, { headers: { 'content-type': 'text/plain' } }),
+  ...options
+});
+assert.deepEqual(await wrongModelsType.listModels(), {
+  ok: false, status: 502, error: 'INVALID_NVIDIA_RESPONSE_TYPE'
 });
 
 const cappedModels = Array.from({ length: MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxModelCount + 10 }, (_, index) => ({ id: `model-${index}` }));
@@ -146,16 +167,25 @@ assert.equal(capped.value.models.at(-1), `model-${MODEL_PROVIDER_PRODUCTION_DEFA
 
 const invalidStream = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' },
-  fetchImpl: async () => ({ ok: true, status: 200, body: {} }),
+  fetchImpl: async () => ({ ok: true, status: 200, headers: headers({ 'content-type': 'text/event-stream' }), body: {} }),
   ...options
 });
 assert.deepEqual(await invalidStream.stream({ model: 'x', messages: [], stream: true }), {
   ok: false, status: 502, error: 'INVALID_PROVIDER_STREAM'
 });
 
+const wrongStreamType = createModelProviderProductionRuntime({
+  env: { NVIDIA_API_KEY: 'key' },
+  fetchImpl: async () => ({ ok: true, status: 200, headers: headers({ 'content-type': 'application/json' }), body: streamBody }),
+  ...options
+});
+assert.deepEqual(await wrongStreamType.stream({ model: 'x', messages: [], stream: true }), {
+  ok: false, status: 502, error: 'INVALID_NVIDIA_RESPONSE_TYPE'
+});
+
 const upstreamFailure = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' },
-  fetchImpl: async () => ({ ok: false, status: 429, headers: headers(), async text() { return 'rate limited'; } }),
+  fetchImpl: async () => ({ ok: false, status: 429, headers: headers({ 'content-type': 'application/json' }), async text() { return 'rate limited'; } }),
   ...options
 });
 assert.deepEqual(await upstreamFailure.complete({ model: 'x', messages: [] }), {
