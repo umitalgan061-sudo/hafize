@@ -13,7 +13,7 @@
     const script = documentRef.createElement('script');
     script.src = '/message-copy.js';
     script.defer = true;
-    script.dataset.hafizeMessageCopy = '1';
+    script.setAttribute('data-hafize-message-copy', '1');
     documentRef.head.append(script);
   }
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
