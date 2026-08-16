@@ -13,6 +13,7 @@
 
   const MAX_QUERY_CHARS = 120;
   const CONTROL_ID = 'inChatFindControl';
+  const TRIGGER_ID = 'inChatFindTrigger';
   const ACTIVE_CLASS = 'in-chat-find-match';
   const CURRENT_CLASS = 'in-chat-find-current';
   const STYLE_ID = 'hafize-in-chat-find-style';
@@ -22,6 +23,7 @@
 +.in-chat-find input{width:min(220px,48vw);border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;padding:7px 8px;font:inherit;font-size:12px}
 +.in-chat-find button{border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;padding:6px 8px;font:inherit;font-size:11px;cursor:pointer}
 +.in-chat-find-status{min-width:48px;color:var(--muted,#777);font-size:11px;text-align:center}
++.in-chat-find-trigger{white-space:nowrap}
 +.message.${ACTIVE_CLASS}{outline:1px solid color-mix(in srgb,var(--accent,#d97706) 40%,transparent);outline-offset:3px;border-radius:10px}
 +.message.${CURRENT_CLASS}{outline-width:2px}
 +`;
@@ -54,12 +56,12 @@
 
   function createController({
     documentRef = globalThis.document,
-    windowRef = globalThis,
     MutationObserverImpl = globalThis.MutationObserver
   } = {}) {
     if (!documentRef || typeof documentRef.querySelector !== 'function') throw new Error('INVALID_IN_CHAT_FIND_DOCUMENT');
 
     let control = null;
+    let trigger = null;
     let input = null;
     let status = null;
     let previous = null;
@@ -84,7 +86,7 @@
 
     function updateStatus() {
       if (!status) return;
-      status.textContent = matches.length && index >= 0 ? `${index + 1}/${matches.length}` : matches.length ? `${matches.length}` : '0/0';
+      status.textContent = matches.length && index >= 0 ? `${index + 1}/${matches.length}` : '0/0';
       if (previous) previous.disabled = matches.length === 0;
       if (next) next.disabled = matches.length === 0;
     }
@@ -123,10 +125,11 @@
       return true;
     }
 
-    function open() {
+    function open(source = documentRef.activeElement) {
       if (!control) return false;
-      returnFocus = documentRef.activeElement || null;
+      returnFocus = source && typeof source.focus === 'function' ? source : trigger;
       control.hidden = false;
+      trigger?.setAttribute?.('aria-expanded', 'true');
       input?.focus?.();
       input?.select?.();
       apply();
@@ -136,12 +139,28 @@
     function dismiss() {
       if (!control || control.hidden) return false;
       control.hidden = true;
+      trigger?.setAttribute?.('aria-expanded', 'false');
       clearClasses();
       matches = [];
       index = -1;
       returnFocus?.focus?.();
       returnFocus = null;
       return true;
+    }
+
+    function createTrigger(host) {
+      const existing = documentRef.querySelector(`#${TRIGGER_ID}`);
+      if (existing) return existing;
+      const button = documentRef.createElement('button');
+      button.id = TRIGGER_ID;
+      button.type = 'button';
+      button.className = 'mini-btn in-chat-find-trigger';
+      button.textContent = 'Sohbette ara';
+      button.setAttribute('aria-controls', CONTROL_ID);
+      button.setAttribute('aria-expanded', 'false');
+      button.setAttribute('aria-label', 'Aktif sohbet mesajlarında ara');
+      host.append?.(button);
+      return button;
     }
 
     function createControl() {
@@ -188,10 +207,9 @@
 
     function onKeydown(event) {
       const key = typeof event?.key === 'string' ? event.key.toLowerCase() : '';
-      const editable = event?.target?.matches?.('input,textarea,select,[contenteditable="true"]');
       if ((event?.ctrlKey || event?.metaKey) && key === 'f' && !event?.altKey) {
         event.preventDefault?.();
-        open();
+        open(event.target);
         return;
       }
       if (key === 'escape' && !control?.hidden) {
@@ -202,21 +220,22 @@
       if (key === 'enter' && event?.target === input) {
         event.preventDefault?.();
         step(event.shiftKey ? -1 : 1);
-        return;
       }
-      if (editable) return;
     }
 
     function mount() {
       messages = documentRef.querySelector('#messages');
-      if (!messages || !documentRef.body) return false;
+      const historyHead = documentRef.querySelector('.history-head');
+      if (!messages || !historyHead || !documentRef.body) return false;
       installStyles(documentRef);
+      trigger = createTrigger(historyHead);
       control = createControl();
       input = control.querySelector?.('input');
       status = control.querySelector?.('.in-chat-find-status');
       const buttons = control.querySelectorAll?.('button') || [];
       [previous, next, close] = buttons;
-      if (!input || !status || !previous || !next || !close) return false;
+      if (!trigger || !input || !status || !previous || !next || !close) return false;
+      trigger.addEventListener('click', () => open(trigger));
       input.addEventListener('input', apply);
       previous.addEventListener('click', () => step(-1));
       next.addEventListener('click', () => step(1));
@@ -235,7 +254,9 @@
       documentRef.removeEventListener?.('keydown', onKeydown, true);
       clearClasses();
       control?.remove?.();
+      trigger?.remove?.();
       control = null;
+      trigger = null;
       matches = [];
       index = -1;
     }
@@ -252,5 +273,5 @@
     }
   }
 
-  return Object.freeze({ MAX_QUERY_CHARS, CONTROL_ID, ACTIVE_CLASS, CURRENT_CLASS, STYLE_ID, normalizeQuery, messageText, matchingMessages, installStyles, createController, mount });
+  return Object.freeze({ MAX_QUERY_CHARS, CONTROL_ID, TRIGGER_ID, ACTIVE_CLASS, CURRENT_CLASS, STYLE_ID, normalizeQuery, messageText, matchingMessages, installStyles, createController, mount });
 });
