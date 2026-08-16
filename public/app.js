@@ -4,6 +4,7 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
+  const STOPPED_MESSAGE = 'Yanıt kullanıcı tarafından durduruldu.';
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -12,6 +13,7 @@
     conversationList: document.querySelector('#conversationList'),
     composer: document.querySelector('#composer'),
     messageInput: document.querySelector('#messageInput'),
+    sendButton: document.querySelector('.send-btn'),
     messages: document.querySelector('#messages'),
     welcome: document.querySelector('#welcome'),
     installBtn: document.querySelector('#installBtn'),
@@ -25,6 +27,7 @@
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
+  let activeRun = null;
   let availableAgents = [];
   let defaultAgentId = '';
 
@@ -277,11 +280,27 @@
       : 'Bu sohbet için backend tool-calling modunu aç';
   }
 
+  function syncComposerRunState() {
+    ui.messageInput.disabled = isStreaming;
+    ui.composer.setAttribute('aria-busy', String(isStreaming));
+    ui.sendButton.textContent = isStreaming ? '■' : '↑';
+    ui.sendButton.setAttribute('aria-label', isStreaming ? 'Yanıtı durdur' : 'Gönder');
+    ui.sendButton.title = isStreaming ? 'Yanıtı durdur' : 'Gönder';
+  }
+
+  function setStreaming(value) {
+    isStreaming = Boolean(value);
+    syncComposerRunState();
+    syncAgentSelect();
+    syncToolMode();
+  }
+
   function render() {
     renderConversationList();
     renderMessages();
     syncAgentSelect();
     syncToolMode();
+    syncComposerRunState();
   }
 
   function showToast(text) {
@@ -379,7 +398,7 @@
       .map(({ role, content }) => ({ role, content }));
   }
 
-  async function consumeAssistantStream(response, assistantId, emptyMessage) {
+  async function consumeAssistantStream(response, assistantId, emptyMessage, signal) {
     if (!response.ok || !response.body) {
       let detail = response.statusText;
       try {
@@ -396,34 +415,46 @@
     let buffer = '';
     let content = '';
 
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() || '';
-      for (const block of blocks) {
-        const parsed = parseSseBlock(block);
-        if (!parsed) continue;
-        if (parsed.type === 'hafize-tool-activity') {
-          appendToolActivity(assistantId, parsed.payload);
-          continue;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          const parsed = parseSseBlock(block);
+          if (!parsed) continue;
+          if (parsed.type === 'hafize-tool-activity') {
+            appendToolActivity(assistantId, parsed.payload);
+            continue;
+          }
+          if (parsed.type !== 'message') continue;
+          const event = parsed.payload;
+          if (event.error) throw new Error(event.error);
+          const delta = event.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string' && delta) {
+            content += delta;
+            updateMessage(assistantId, content);
+          }
         }
-        if (parsed.type !== 'message') continue;
-        const event = parsed.payload;
-        if (event.error) throw new Error(event.error);
-        const delta = event.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
-          content += delta;
-          updateMessage(assistantId, content);
-        }
+        if (done) break;
       }
-      if (done) break;
+    } catch (error) {
+      if (signal?.aborted || error?.name === 'AbortError') {
+        updateMessage(assistantId, content || STOPPED_MESSAGE, { persist: true });
+        const aborted = new Error('CHAT_ABORTED');
+        aborted.name = 'AbortError';
+        throw aborted;
+      }
+      throw error;
+    } finally {
+      try { reader.releaseLock?.(); } catch { /* reader already released */ }
     }
 
     updateMessage(assistantId, content || emptyMessage, { persist: true });
   }
 
-  async function streamAssistantReply() {
+  async function streamAssistantReply(run) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -433,15 +464,17 @@
     const requestMessages = getRequestMessages(conversation);
 
     const assistantId = addMessage('assistant', '', { persist: false });
+    run.assistantId = assistantId;
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal: run.controller.signal
     });
-    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.', run.controller.signal);
   }
 
-  async function runAssistantWithTools() {
+  async function runAssistantWithTools(run) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -451,16 +484,25 @@
     const requestMessages = getRequestMessages(conversation);
 
     const assistantId = addMessage('assistant', '', { persist: false });
+    run.assistantId = assistantId;
     const response = await fetch('/api/agent/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal: run.controller.signal
     });
     await consumeAssistantStream(
       response,
       assistantId,
-      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
+      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
+      run.controller.signal
     );
+  }
+
+  function stopActiveRun() {
+    if (!activeRun || activeRun.controller.signal.aborted) return;
+    activeRun.controller.abort();
+    showToast('Yanıt durduruluyor…');
   }
 
   async function submitMessage(text) {
@@ -478,29 +520,28 @@
     addMessage('user', clean);
     ui.messageInput.value = '';
     autoResizeComposer();
-    isStreaming = true;
-    ui.messageInput.disabled = true;
-    ui.agentSelect.disabled = true;
-    ui.toolModeBtn.disabled = true;
+    const run = { controller: new AbortController(), assistantId: null };
+    activeRun = run;
+    setStreaming(true);
 
     try {
-      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
-      else await streamAssistantReply();
+      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools(run);
+      else await streamAssistantReply(run);
     } catch (error) {
-      const message = error?.message === 'MODEL_REQUIRED'
-        ? 'Bir NVIDIA modeli seçilmedi.'
-        : error?.message === 'AGENT_REQUIRED'
-          ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
-      const conversation = getActiveConversation();
-      const last = conversation?.messages.at(-1);
-      if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
-      else addMessage('assistant', message);
+      if (error?.name !== 'AbortError') {
+        const message = error?.message === 'MODEL_REQUIRED'
+          ? 'Bir NVIDIA modeli seçilmedi.'
+          : error?.message === 'AGENT_REQUIRED'
+            ? 'Bir Hafize ajanı seçilmedi.'
+            : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+        const conversation = getActiveConversation();
+        const last = conversation?.messages.at(-1);
+        if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
+        else addMessage('assistant', message);
+      }
     } finally {
-      isStreaming = false;
-      ui.messageInput.disabled = false;
-      syncAgentSelect();
-      syncToolMode();
+      if (activeRun === run) activeRun = null;
+      setStreaming(false);
       ui.messageInput.focus();
     }
   }
@@ -542,6 +583,10 @@
   });
   ui.composer.addEventListener('submit', (event) => {
     event.preventDefault();
+    if (isStreaming) {
+      stopActiveRun();
+      return;
+    }
     submitMessage(ui.messageInput.value);
   });
 
