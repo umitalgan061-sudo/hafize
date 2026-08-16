@@ -7,6 +7,15 @@
     return;
   }
   root.HafizeChatRunController = api;
+
+  const documentRef = root.document;
+  if (documentRef?.head && !root.HafizeMessageCopy && !documentRef.querySelector('script[data-hafize-message-copy]')) {
+    const script = documentRef.createElement('script');
+    script.src = '/message-copy.js';
+    script.defer = true;
+    script.setAttribute('data-hafize-message-copy', '1');
+    documentRef.head.append(script);
+  }
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
