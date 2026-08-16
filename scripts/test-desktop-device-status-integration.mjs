@@ -12,11 +12,15 @@ const [loader, policy, source, contract, preload] = await Promise.all([
 assert.match(loader, /HafizeDesktopDeviceStatus/);
 assert.match(loader, /\/desktop-device-status\.js/);
 assert.match(loader, /data-hafize-desktop-device-status/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v56`/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v57`/);
 assert.match(policy, /'\/desktop-device-status\.js'/);
 assert.match(policy, /pathname\.startsWith\('\/api\/'\).*network-only/s);
-assert.match(contract, /system\.info/);
-assert.match(preload, /getSystemInfo/);
+assert.match(contract, /capabilities\.read/);
+assert.match(contract, /DEVICE_BROWSER_ORIGIN_NOT_ALLOWED/);
+assert.match(contract, /DEVICE_APP_NOT_ALLOWED/);
+assert.match(preload, /navigator\?\.userActivation\?\.isActive/);
+assert.match(preload, /DEVICE_ACTION_REQUIRES_ACTIVE_USER_GESTURE/);
+assert.match(preload, /getCapabilities/);
 
 for (const forbidden of [
   /\bfetch\s*\(/,
@@ -29,8 +33,6 @@ for (const forbidden of [
   /navigator\.clipboard/,
   /requestSubmit/,
   /\.submit\s*\(/,
-  /openBrowser\s*\(/,
-  /openApp\s*\(/,
   /ipcRenderer/,
   /child_process/,
   /\bexec\s*\(/,
@@ -40,7 +42,10 @@ for (const forbidden of [
 }
 
 assert.match(source, /bridge\.getSystemInfo\(\)/);
-assert.match(source, /salt-okunur/);
+assert.match(source, /bridge\.getCapabilities\(\)/);
+assert.match(source, /bridge\.openBrowser\(value\)/);
+assert.match(source, /bridge\.openApp\(value\)/);
+assert.match(source, /görünür düğme tıklaması/);
 assert.match(source, /aria-busy/);
 assert.match(source, /prefers-reduced-motion/);
 assert.match(source, /forced-colors/);
