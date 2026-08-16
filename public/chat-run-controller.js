@@ -9,13 +9,16 @@
   root.HafizeChatRunController = api;
 
   const documentRef = root.document;
-  if (documentRef?.head && !root.HafizeMessageCopy && !documentRef.querySelector('script[data-hafize-message-copy]')) {
+  function loadShellEnhancement(globalName, path, marker) {
+    if (!documentRef?.head || root[globalName] || documentRef.querySelector(`script[${marker}]`)) return;
     const script = documentRef.createElement('script');
-    script.src = '/message-copy.js';
+    script.src = path;
     script.defer = true;
-    script.setAttribute('data-hafize-message-copy', '1');
+    script.setAttribute(marker, '1');
     documentRef.head.append(script);
   }
+  loadShellEnhancement('HafizeMessageCopy', '/message-copy.js', 'data-hafize-message-copy');
+  loadShellEnhancement('HafizeKeyboardShortcuts', '/keyboard-shortcuts.js', 'data-hafize-keyboard-shortcuts');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
