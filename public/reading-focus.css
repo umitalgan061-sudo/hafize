@@ -1,0 +1,173 @@
+.reading-focus-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reading-focus-toggle,
+.reading-bookmark-navigator,
+.reading-bookmark-button {
+  border: 1px solid var(--premium-line, var(--line));
+  background: var(--premium-surface, var(--card));
+  color: var(--premium-text, var(--ink));
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 7px 10px;
+  font: inherit;
+}
+
+.reading-focus-toggle,
+.reading-bookmark-navigator {
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.reading-focus-toggle:hover,
+.reading-bookmark-navigator:not(:disabled):hover,
+.reading-bookmark-button:hover {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 48%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, var(--premium-surface, var(--card)));
+}
+
+.reading-focus-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 55%, var(--premium-line, var(--line)));
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.reading-bookmark-navigator:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.reading-bookmark-actions {
+  display: flex;
+  justify-content: flex-end;
+  min-height: 28px;
+  margin-top: 6px;
+}
+
+.message.assistant .reading-bookmark-actions {
+  justify-content: flex-start;
+}
+
+.reading-bookmark-button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 4px 8px;
+  color: var(--premium-muted, var(--muted));
+  opacity: .62;
+  transition: opacity .16s ease, transform .16s ease, border-color .16s ease;
+}
+
+.message:hover .reading-bookmark-button,
+.message:focus-within .reading-bookmark-button,
+.reading-bookmark-button[aria-pressed="true"] {
+  opacity: 1;
+}
+
+.reading-bookmark-button[aria-pressed="true"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.message.reading-bookmarked {
+  position: relative;
+}
+
+.message.reading-bookmarked::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--premium-orange, var(--accent));
+}
+
+.message.assistant.reading-bookmarked::before {
+  left: -10px;
+}
+
+.message.user.reading-bookmarked::before {
+  right: -10px;
+}
+
+.message.reading-bookmark-current {
+  outline: 3px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 60%, transparent);
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
+body.reading-focus-mode .sidebar,
+body.reading-focus-mode .utility-rail,
+body.reading-focus-mode #sidebarToggle {
+  display: none !important;
+}
+
+body.reading-focus-mode .main {
+  grid-template-columns: minmax(0, 1fr) !important;
+  padding-inline: clamp(10px, 3vw, 42px);
+}
+
+body.reading-focus-mode .topbar {
+  grid-column: 1 !important;
+}
+
+body.reading-focus-mode .primary-column {
+  max-width: 1040px;
+}
+
+body.reading-focus-mode .messages,
+body.reading-focus-mode .composer {
+  max-width: 880px;
+}
+
+@media (max-width: 760px) {
+  .reading-focus-toggle {
+    width: 38px;
+    overflow: hidden;
+    white-space: nowrap;
+    color: transparent;
+    position: relative;
+  }
+
+  .reading-focus-toggle::before {
+    content: "◫";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--premium-text, var(--ink));
+    font-size: 16px;
+  }
+
+  .reading-bookmark-navigator {
+    min-width: 42px;
+    padding-inline: 8px;
+  }
+
+  .reading-bookmark-button {
+    opacity: 1;
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reading-bookmark-button {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .reading-focus-toggle,
+  .reading-bookmark-navigator,
+  .reading-bookmark-button,
+  .message.reading-bookmark-current {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .message.reading-bookmarked::before {
+    background: Highlight;
+  }
+}
