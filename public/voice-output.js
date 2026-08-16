@@ -13,6 +13,7 @@
 
   const STORAGE_KEY = 'hafize.voiceOutput.v1';
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
+  const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
   const MAX_SPEECH_LENGTH = 2400;
   const MAX_CHUNK_LENGTH = 240;
 
@@ -88,6 +89,22 @@
     let speaking = false;
     let thinking = false;
     let queue = [];
+    let speechGeneration = 0;
+    let activeUtterance = null;
+    let lastPublishedState = '';
+
+    function publishState() {
+      const state = speaking ? 'speaking' : thinking ? 'thinking' : 'idle';
+      const signature = `${state}:${enabled}:${supported}`;
+      if (signature === lastPublishedState) return;
+      lastPublishedState = signature;
+      if (typeof documentRef?.dispatchEvent !== 'function' || typeof root?.CustomEvent !== 'function') return;
+      try {
+        documentRef.dispatchEvent(new root.CustomEvent(VOICE_OUTPUT_STATE_EVENT, {
+          detail: Object.freeze({ source: 'voice-output', state, speaking, thinking, enabled, supported })
+        }));
+      } catch { /* status event is best-effort; speech behavior stays local */ }
+    }
 
     function render() {
       toggle.disabled = !supported;
@@ -100,11 +117,14 @@
         : 'Bu tarayıcı Speech Synthesis API desteklemiyor';
       card.classList?.toggle?.('speaking', speaking);
       card.classList?.toggle?.('thinking', thinking && !speaking);
+      publishState();
     }
 
     function cancelSpeech() {
+      speechGeneration += 1;
       queue = [];
       speaking = false;
+      activeUtterance = null;
       try { synth?.cancel?.(); } catch { /* no-op */ }
       render();
     }
@@ -118,21 +138,31 @@
       }
     }
 
-    function speakNext() {
+    function speakNext(generation = speechGeneration) {
+      if (generation !== speechGeneration) return;
       if (!enabled || !supported || !queue.length) {
+        activeUtterance = null;
         speaking = false;
         render();
         return;
       }
       const utterance = new Utterance(queue.shift());
+      activeUtterance = utterance;
       utterance.lang = 'tr-TR';
       utterance.rate = 0.98;
       utterance.pitch = 1;
       const voice = findTurkishVoice();
       if (voice) utterance.voice = voice;
-      utterance.onend = speakNext;
+      utterance.onend = () => {
+        if (generation !== speechGeneration || activeUtterance !== utterance) return;
+        activeUtterance = null;
+        speakNext(generation);
+      };
       utterance.onerror = () => {
+        if (generation !== speechGeneration || activeUtterance !== utterance) return;
+        speechGeneration += 1;
         queue = [];
+        activeUtterance = null;
         speaking = false;
         render();
       };
@@ -148,7 +178,7 @@
       if (!chunks.length) return false;
       cancelSpeech();
       queue = chunks;
-      speakNext();
+      speakNext(speechGeneration);
       return true;
     }
 
@@ -156,7 +186,7 @@
       enabled = supported && Boolean(next);
       writeStoredEnabled(root?.localStorage, enabled);
       if (!enabled) cancelSpeech();
-      render();
+      else render();
       return enabled;
     }
 
@@ -232,6 +262,7 @@
   return Object.freeze({
     STORAGE_KEY,
     VOICE_INPUT_STATE_EVENT,
+    VOICE_OUTPUT_STATE_EVENT,
     normalizeSpeechText,
     splitSpeechText,
     installVoiceOutput

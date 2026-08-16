@@ -18,6 +18,7 @@
   const RESTART_DELAY_MS = 350;
   const HANDOFF_TIMEOUT_MS = 1500;
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
+  const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
 
   function getRecognitionConstructor(root) {
     return root?.SpeechRecognition || root?.webkitSpeechRecognition || null;
@@ -62,6 +63,7 @@
     let handoffTimer = null;
     let handoffWaiting = false;
     let voiceInputListening = false;
+    let voiceOutputSpeaking = false;
     let destroyed = false;
 
     function announce(message) {
@@ -81,13 +83,16 @@
             ? '○ Sesli giriş etkin'
             : handoffWaiting
               ? '○ Sesli giriş hazırlanıyor'
-              : listening
-                ? '● “Hafize” için dinliyor'
-                : '○ Eller serbest beklemede')
+              : voiceOutputSpeaking
+                ? '○ Hafize konuşuyor'
+                : listening
+                  ? '● “Hafize” için dinliyor'
+                  : '○ Eller serbest beklemede')
         : '';
       indicator.setAttribute?.('data-listening', String(listening));
       indicator.setAttribute?.('data-handoff-waiting', String(handoffWaiting));
       indicator.setAttribute?.('data-voice-input-listening', String(voiceInputListening));
+      indicator.setAttribute?.('data-voice-output-speaking', String(voiceOutputSpeaking));
     }
 
     function clearRestart() {
@@ -116,7 +121,7 @@
 
     function scheduleRestart() {
       clearRestart();
-      if (destroyed || !enabled || handoffWaiting || voiceInputListening || documentRef.hidden || input.disabled) return;
+      if (destroyed || !enabled || handoffWaiting || voiceInputListening || voiceOutputSpeaking || documentRef.hidden || input.disabled) return;
       if (typeof root?.setTimeout === 'function') restartTimer = root.setTimeout(startRecognition, RESTART_DELAY_MS);
     }
 
@@ -139,7 +144,7 @@
     }
 
     function beginVoiceHandoff() {
-      if (handoffWaiting || voiceInputListening) return;
+      if (handoffWaiting || voiceInputListening || voiceOutputSpeaking) return;
       handoffWaiting = true;
       render();
       stopRecognition();
@@ -147,7 +152,7 @@
 
     function startRecognition() {
       clearRestart();
-      if (destroyed || !enabled || !Recognition || recognition || handoffWaiting || voiceInputListening || documentRef.hidden || input.disabled) return;
+      if (destroyed || !enabled || !Recognition || recognition || handoffWaiting || voiceInputListening || voiceOutputSpeaking || documentRef.hidden || input.disabled) return;
       const current = new Recognition();
       current.lang = documentRef.documentElement?.lang || root?.navigator?.language || 'tr-TR';
       current.continuous = true;
@@ -161,7 +166,7 @@
         render();
       };
       current.onresult = (event) => {
-        if (!containsWakePhrase(readRecognitionText(event))) return;
+        if (voiceOutputSpeaking || !containsWakePhrase(readRecognitionText(event))) return;
         beginVoiceHandoff();
       };
       current.onerror = (event) => {
@@ -242,9 +247,23 @@
       render();
     }
 
+    function handleVoiceOutputState(event) {
+      const detail = event?.detail;
+      if (!detail || detail.source !== 'voice-output' || typeof detail.speaking !== 'boolean') return;
+      voiceOutputSpeaking = detail.speaking;
+      if (voiceOutputSpeaking) {
+        clearRestart();
+        stopRecognition({ abort: true });
+      } else {
+        scheduleRestart();
+      }
+      render();
+    }
+
     toggle.addEventListener?.('click', handleToggle);
     documentRef.addEventListener?.('visibilitychange', handleVisibility);
     documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
+    documentRef.addEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
 
     const MutationObserverCtor = root?.MutationObserver;
     const observer = typeof MutationObserverCtor === 'function'
@@ -266,6 +285,7 @@
       isListening: () => listening,
       isHandoffWaiting: () => handoffWaiting,
       isVoiceInputListening: () => voiceInputListening,
+      isVoiceOutputSpeaking: () => voiceOutputSpeaking,
       enable: () => setEnabled(true),
       disable: () => setEnabled(false),
       destroy() {
@@ -273,6 +293,7 @@
         destroyed = true;
         enabled = false;
         voiceInputListening = false;
+        voiceOutputSpeaking = false;
         clearHandoff();
         clearRestart();
         observer?.disconnect?.();
@@ -280,6 +301,7 @@
         toggle.removeEventListener?.('click', handleToggle);
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
         documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
+        documentRef.removeEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
       }
     });
   }
@@ -288,6 +310,7 @@
     DEFAULT_WAKE_PHRASE,
     HANDOFF_TIMEOUT_MS,
     VOICE_INPUT_STATE_EVENT,
+    VOICE_OUTPUT_STATE_EVENT,
     containsWakePhrase,
     getRecognitionConstructor,
     installHandsFree,
