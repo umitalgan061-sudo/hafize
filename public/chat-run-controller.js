@@ -31,6 +31,7 @@
   loadShellEnhancement('HafizeShortcutHelp', '/shortcut-help.js', 'data-hafize-shortcut-help');
   loadShellEnhancement('HafizeNetworkStatus', '/network-status.js', 'data-hafize-network-status');
   loadShellEnhancement('HafizeConversationCopy', '/conversation-copy.js', 'data-hafize-conversation-copy');
+  loadShellEnhancement('HafizeInChatFind', '/in-chat-find.js', 'data-hafize-in-chat-find');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
