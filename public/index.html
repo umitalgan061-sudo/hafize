@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/voice-output.css" />
   <link rel="stylesheet" href="/screen-share.css" />
   <link rel="stylesheet" href="/hands-free.css" />
+  <link rel="stylesheet" href="/chat-run-controller.css" />
 </head>
 <body>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
@@ -83,7 +84,7 @@
             <div class="composer-actions">
               <label class="model-wrap composer-model" for="modelSelect"><span>Model</span><select id="modelSelect" aria-label="NVIDIA modeli"><option value="">NVIDIA modelleri yükleniyor…</option></select></label>
               <span class="agent-hint">Yapay zekâ hata yapabilir. Önemli bilgileri kontrol et.</span>
-              <button class="send-btn" type="submit" aria-label="Gönder">↑</button>
+              <button id="sendBtn" class="send-btn" type="submit" aria-label="Gönder">↑</button>
             </div>
           </div>
           <div id="screenSharePreview" class="utility-card" hidden>
@@ -157,6 +158,7 @@
   </div>
 
   <div id="toast" class="toast hidden" role="status"></div>
+  <script src="/chat-run-controller.js" defer></script>
   <script src="/app.js" defer></script>
   <script src="/cloud-session-ui.js" defer></script>
   <script src="/memory-ui.js" defer></script>

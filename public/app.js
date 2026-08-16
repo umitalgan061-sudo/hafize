@@ -4,6 +4,11 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
+  const runApi = globalThis.HafizeChatRunController;
+  if (!runApi || typeof runApi.createChatRunController !== 'function' || typeof runApi.isAbortError !== 'function') {
+    throw new Error('CHAT_RUN_CONTROLLER_UNAVAILABLE');
+  }
+  const runController = runApi.createChatRunController();
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -18,7 +23,8 @@
     toast: document.querySelector('#toast'),
     modelSelect: document.querySelector('#modelSelect'),
     agentSelect: document.querySelector('#agentSelect'),
-    toolModeBtn: document.querySelector('#toolModeBtn')
+    toolModeBtn: document.querySelector('#toolModeBtn'),
+    sendButton: document.querySelector('#sendBtn')
   };
 
   let installPrompt = null;
@@ -277,11 +283,19 @@
       : 'Bu sohbet için backend tool-calling modunu aç';
   }
 
+  function syncRunUi() {
+    ui.sendButton.classList.toggle('streaming', isStreaming);
+    ui.sendButton.textContent = isStreaming ? '■' : '↑';
+    ui.sendButton.setAttribute('aria-label', isStreaming ? 'Yanıtı durdur' : 'Gönder');
+    ui.sendButton.title = isStreaming ? 'Yanıtı durdur' : 'Gönder';
+  }
+
   function render() {
     renderConversationList();
     renderMessages();
     syncAgentSelect();
     syncToolMode();
+    syncRunUi();
   }
 
   function showToast(text) {
@@ -379,7 +393,7 @@
       .map(({ role, content }) => ({ role, content }));
   }
 
-  async function consumeAssistantStream(response, assistantId, emptyMessage) {
+  async function consumeAssistantStream(response, assistantId, emptyMessage, signal) {
     if (!response.ok || !response.body) {
       let detail = response.statusText;
       try {
@@ -396,34 +410,41 @@
     let buffer = '';
     let content = '';
 
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() || '';
-      for (const block of blocks) {
-        const parsed = parseSseBlock(block);
-        if (!parsed) continue;
-        if (parsed.type === 'hafize-tool-activity') {
-          appendToolActivity(assistantId, parsed.payload);
-          continue;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          const parsed = parseSseBlock(block);
+          if (!parsed) continue;
+          if (parsed.type === 'hafize-tool-activity') {
+            appendToolActivity(assistantId, parsed.payload);
+            continue;
+          }
+          if (parsed.type !== 'message') continue;
+          const event = parsed.payload;
+          if (event.error) throw new Error(event.error);
+          const delta = event.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string' && delta) {
+            content += delta;
+            updateMessage(assistantId, content);
+          }
         }
-        if (parsed.type !== 'message') continue;
-        const event = parsed.payload;
-        if (event.error) throw new Error(event.error);
-        const delta = event.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
-          content += delta;
-          updateMessage(assistantId, content);
-        }
+        if (done) break;
       }
-      if (done) break;
+    } catch (error) {
+      if (!runApi.isAbortError(error, signal)) throw error;
+      updateMessage(assistantId, content || 'Yanıt durduruldu.', { persist: true });
+      return Object.freeze({ aborted: true });
     }
 
     updateMessage(assistantId, content || emptyMessage, { persist: true });
+    return Object.freeze({ aborted: false });
   }
 
-  async function streamAssistantReply() {
+  async function streamAssistantReply(signal) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -436,12 +457,13 @@
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal
     });
-    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    return consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.', signal);
   }
 
-  async function runAssistantWithTools() {
+  async function runAssistantWithTools(signal) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -454,12 +476,14 @@
     const response = await fetch('/api/agent/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal
     });
-    await consumeAssistantStream(
+    return consumeAssistantStream(
       response,
       assistantId,
-      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
+      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
+      signal
     );
   }
 
@@ -475,32 +499,43 @@
       return;
     }
 
+    const run = runController.begin();
     addMessage('user', clean);
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;
-    ui.messageInput.disabled = true;
     ui.agentSelect.disabled = true;
     ui.toolModeBtn.disabled = true;
+    syncRunUi();
 
     try {
-      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
-      else await streamAssistantReply();
+      const outcome = getActiveConversation()?.toolsEnabled
+        ? await runAssistantWithTools(run.signal)
+        : await streamAssistantReply(run.signal);
+      if (outcome?.aborted) showToast('Yanıt durduruldu; üretilen bölüm geçmişte korundu.');
     } catch (error) {
-      const message = error?.message === 'MODEL_REQUIRED'
-        ? 'Bir NVIDIA modeli seçilmedi.'
-        : error?.message === 'AGENT_REQUIRED'
-          ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
-      const conversation = getActiveConversation();
-      const last = conversation?.messages.at(-1);
-      if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
-      else addMessage('assistant', message);
+      if (runApi.isAbortError(error, run.signal)) {
+        const conversation = getActiveConversation();
+        const last = conversation?.messages.at(-1);
+        if (last?.role === 'assistant' && !last.content) updateMessage(last.id, 'Yanıt durduruldu.', { persist: true });
+        showToast('Yanıt durduruldu.');
+      } else {
+        const message = error?.message === 'MODEL_REQUIRED'
+          ? 'Bir NVIDIA modeli seçilmedi.'
+          : error?.message === 'AGENT_REQUIRED'
+            ? 'Bir Hafize ajanı seçilmedi.'
+            : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+        const conversation = getActiveConversation();
+        const last = conversation?.messages.at(-1);
+        if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
+        else addMessage('assistant', message);
+      }
     } finally {
+      runController.finish(run.token);
       isStreaming = false;
-      ui.messageInput.disabled = false;
       syncAgentSelect();
       syncToolMode();
+      syncRunUi();
       ui.messageInput.focus();
     }
   }
@@ -539,6 +574,11 @@
       event.preventDefault();
       ui.composer.requestSubmit();
     }
+  });
+  ui.sendButton.addEventListener('click', (event) => {
+    if (!isStreaming) return;
+    event.preventDefault();
+    runController.abort('user');
   });
   ui.composer.addEventListener('submit', (event) => {
     event.preventDefault();
