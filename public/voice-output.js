@@ -142,6 +142,30 @@
       generatedRateWrap = Boolean(rateWrap.parentNode);
     }
 
+    let generatedPlaybackActions = false;
+    let playbackActions = documentRef?.querySelector?.('#voicePlaybackActions');
+    let replayButton = documentRef?.querySelector?.('#voiceReplayButton');
+    let stopButton = documentRef?.querySelector?.('#voiceStopButton');
+    if ((!replayButton || !stopButton) && typeof documentRef?.createElement === 'function') {
+      playbackActions = documentRef.createElement('div');
+      playbackActions.id = 'voicePlaybackActions';
+      playbackActions.className = 'voice-playback-actions';
+      replayButton = documentRef.createElement('button');
+      replayButton.id = 'voiceReplayButton';
+      replayButton.type = 'button';
+      replayButton.textContent = 'Tekrar oku';
+      replayButton.setAttribute?.('aria-label', 'Son Hafize yanıtını tekrar oku');
+      stopButton = documentRef.createElement('button');
+      stopButton.id = 'voiceStopButton';
+      stopButton.type = 'button';
+      stopButton.textContent = 'Durdur';
+      stopButton.setAttribute?.('aria-label', 'Sesli yanıtı durdur');
+      playbackActions.append?.(replayButton, stopButton);
+      const anchor = rateWrap || status || pauseToggle || toggle;
+      anchor.insertAdjacentElement?.('afterend', playbackActions) || anchor.parentNode?.append?.(playbackActions);
+      generatedPlaybackActions = Boolean(playbackActions.parentNode);
+    }
+
     const synth = root?.speechSynthesis;
     const Utterance = root?.SpeechSynthesisUtterance;
     const supported = Boolean(synth && typeof synth.speak === 'function' && typeof Utterance === 'function');
@@ -204,6 +228,16 @@
         rateSelect.disabled = !supported || !enabled || speaking;
         rateSelect.value = String(speechRate);
       }
+      const replayReady = supported && enabled && !speaking && !thinking && Boolean(normalizeSpeechText(latestAssistantText()));
+      if (replayButton) {
+        replayButton.hidden = !replayReady;
+        replayButton.disabled = !replayReady;
+      }
+      if (stopButton) {
+        stopButton.hidden = !supported || !enabled || !speaking;
+        stopButton.disabled = !supported || !enabled || !speaking;
+      }
+      if (playbackActions) playbackActions.hidden = !replayReady && !speaking;
 
       card.classList?.toggle?.('speaking', speaking && !paused);
       card.classList?.toggle?.('paused', paused);
@@ -322,6 +356,17 @@
       return nodes.length ? nodes[nodes.length - 1]?.textContent || '' : '';
     }
 
+    function replayLatest() {
+      if (!enabled || !supported || speaking || thinking) return false;
+      return speak(latestAssistantText());
+    }
+
+    function stopSpeech() {
+      if (!speaking) return false;
+      cancelSpeech();
+      return true;
+    }
+
     function syncStreamState() {
       const busy = Boolean(messageInput?.disabled);
       if (busy) {
@@ -338,6 +383,8 @@
 
     function handleToggle() { setEnabled(!enabled); }
     function handlePause() { togglePause(); }
+    function handleReplay() { replayLatest(); }
+    function handleStop() { stopSpeech(); }
     function handleSubmit() { cancelSpeech(); }
     function handleVisibility() {
       if (documentRef.hidden) cancelSpeech();
@@ -351,6 +398,8 @@
     toggle.addEventListener?.('click', handleToggle);
     pauseToggle?.addEventListener?.('click', handlePause);
     rateSelect?.addEventListener?.('change', handleRateChange);
+    replayButton?.addEventListener?.('click', handleReplay);
+    stopButton?.addEventListener?.('click', handleStop);
     composer?.addEventListener?.('submit', handleSubmit, true);
     documentRef.addEventListener?.('visibilitychange', handleVisibility);
     documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
@@ -377,6 +426,8 @@
       isPaused: () => paused,
       getSpeechRate: () => speechRate,
       setSpeechRate,
+      replayLatest,
+      stopSpeech,
       setEnabled,
       speak,
       togglePause,
@@ -389,12 +440,15 @@
         toggle.removeEventListener?.('click', handleToggle);
         pauseToggle?.removeEventListener?.('click', handlePause);
         rateSelect?.removeEventListener?.('change', handleRateChange);
+        replayButton?.removeEventListener?.('click', handleReplay);
+        stopButton?.removeEventListener?.('click', handleStop);
         composer?.removeEventListener?.('submit', handleSubmit, true);
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
         documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
         if (generatedPauseToggle) pauseToggle?.remove?.();
         if (generatedStatus) status?.remove?.();
         if (generatedRateWrap) rateWrap?.remove?.();
+        if (generatedPlaybackActions) playbackActions?.remove?.();
       }
     });
   }
