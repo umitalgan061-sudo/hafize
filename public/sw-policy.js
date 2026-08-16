@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v48`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v49`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -26,6 +26,7 @@
     '/chat-run-controller.css',
     '/app.js',
     '/chat-run-controller.js',
+    '/enhancements-loader.js',
     '/message-copy.js',
     '/message-edit.js',
     '/keyboard-shortcuts.js',
