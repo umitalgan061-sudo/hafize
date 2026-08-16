@@ -15,14 +15,18 @@
   const MARKER = 'hafizeCodeCopyReady';
   const RESET_DELAY_MS = 1800;
   const STYLE_ID = 'hafize-code-copy-style';
+  const WRAP_CLASS = 'hafize-code-wrap';
   const STYLE_TEXT = `
 .hafize-code-shell{position:relative}
-.hafize-code-copy{position:absolute;top:7px;right:7px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--surface,#fff);color:inherit;padding:4px 7px;font:inherit;font-size:11px;cursor:pointer;opacity:.86}
-.hafize-code-copy:hover,.hafize-code-copy:focus-visible{opacity:1}
-.hafize-code-copy:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}
+.hafize-code-copy,.hafize-code-wrap-toggle{position:absolute;top:7px;border:1px solid var(--line,#ddd);border-radius:8px;background:var(--surface,#fff);color:inherit;padding:4px 7px;font:inherit;font-size:11px;cursor:pointer;opacity:.86}
+.hafize-code-copy{right:7px}
+.hafize-code-wrap-toggle{right:92px}
+.hafize-code-copy:hover,.hafize-code-copy:focus-visible,.hafize-code-wrap-toggle:hover,.hafize-code-wrap-toggle:focus-visible{opacity:1}
+.hafize-code-copy:focus-visible,.hafize-code-wrap-toggle:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}
 .hafize-code-copy:disabled{cursor:progress;opacity:.65}
 .hafize-code-language{display:inline-block;margin:0 0 5px;color:var(--muted,#777);font-size:10px;line-height:1.2}
 .hafize-code-shell pre{padding-top:34px}
+.hafize-code-shell pre.${WRAP_CLASS}{white-space:pre-wrap;overflow-wrap:anywhere}
 `;
 
   function codeText(value) {
@@ -35,6 +39,20 @@
   function languageLabel(code) {
     const raw = typeof code?.dataset?.language === 'string' ? code.dataset.language.trim() : '';
     return raw && /^[\w.+-]{1,32}$/.test(raw) ? raw : '';
+  }
+
+  function setWrap(pre, button, enabled) {
+    if (!pre?.classList || !button?.setAttribute) return false;
+    pre.classList.toggle(WRAP_CLASS, Boolean(enabled));
+    button.setAttribute('aria-pressed', String(Boolean(enabled)));
+    button.textContent = enabled ? 'Kaydır' : 'Satırı sar';
+    button.title = enabled ? 'Yatay kaydırmaya dön' : 'Uzun kod satırlarını sar';
+    return true;
+  }
+
+  function toggleWrap(pre, button) {
+    const enabled = !pre?.classList?.contains?.(WRAP_CLASS);
+    return setWrap(pre, button, enabled);
   }
 
   function installStyles(documentRef) {
@@ -119,6 +137,13 @@
         shell.prepend(label);
       }
 
+      const wrapButton = documentRef.createElement('button');
+      wrapButton.type = 'button';
+      wrapButton.className = 'hafize-code-wrap-toggle';
+      wrapButton.setAttribute('aria-label', 'Kod bloğunda uzun satırları sar');
+      setWrap(pre, wrapButton, false);
+      wrapButton.addEventListener('click', () => { toggleWrap(pre, wrapButton); });
+
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'hafize-code-copy';
@@ -126,7 +151,7 @@
       button.textContent = 'Kodu kopyala';
       button.setAttribute('aria-label', language ? `${language} kod bloğunu kopyala` : 'Kod bloğunu kopyala');
       button.addEventListener('click', () => { void copy(button, code); });
-      shell.append(button);
+      shell.append(wrapButton, button);
       if (pre.dataset) pre.dataset[MARKER] = '1';
       return true;
     }
@@ -172,8 +197,11 @@
     MARKER,
     RESET_DELAY_MS,
     STYLE_ID,
+    WRAP_CLASS,
     codeText,
     languageLabel,
+    setWrap,
+    toggleWrap,
     installStyles,
     createController,
     mount
