@@ -1,0 +1,192 @@
+.schedule-list-card {
+  display: grid;
+  gap: 10px;
+}
+
+.schedule-list-head {
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.schedule-list-status,
+.schedule-list-empty,
+.schedule-list-task,
+.schedule-list-meta {
+  margin: 0;
+}
+
+.schedule-list-status {
+  color: var(--premium-muted, var(--muted));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.schedule-list-status[data-state="error"] {
+  color: #9a4d42;
+}
+
+.schedule-list-status[data-state="auth"],
+.schedule-list-status[data-state="disabled"] {
+  color: #8a6a3b;
+}
+
+.schedule-list-items {
+  display: grid;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scrollbar-gutter: stable;
+}
+
+.schedule-list-item {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 14px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--premium-surface-strong, var(--card)) 82%, transparent);
+}
+
+.schedule-list-item[data-state="running"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 42%, var(--premium-line, var(--line)));
+}
+
+.schedule-list-item[data-state="failed"] {
+  border-color: color-mix(in srgb, #a65349 42%, var(--premium-line, var(--line)));
+}
+
+.schedule-list-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.schedule-list-agent {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.schedule-list-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 999px;
+  padding: 3px 7px;
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--premium-muted, var(--muted));
+}
+
+.schedule-list-badge[data-state="scheduled"] {
+  color: #7a633b;
+  background: color-mix(in srgb, #c59b54 10%, transparent);
+}
+
+.schedule-list-badge[data-state="running"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 10%, transparent);
+}
+
+.schedule-list-badge[data-state="completed"] {
+  color: #466b58;
+  background: color-mix(in srgb, #5e8c71 10%, transparent);
+}
+
+.schedule-list-badge[data-state="failed"] {
+  color: #8f493f;
+  background: color-mix(in srgb, #a65349 10%, transparent);
+}
+
+.schedule-list-badge[data-state="cancelled"] {
+  color: var(--premium-muted, var(--muted));
+  background: color-mix(in srgb, var(--premium-muted, var(--muted)) 8%, transparent);
+}
+
+.schedule-list-task {
+  color: var(--premium-text, var(--ink));
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.schedule-list-meta {
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.schedule-list-empty {
+  border: 1px dashed var(--premium-line, var(--line));
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.schedule-list-refresh {
+  min-width: 52px;
+}
+
+.schedule-list-refresh:focus-visible,
+.schedule-list-item:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 1040px) {
+  .schedule-list-items {
+    max-height: 280px;
+  }
+}
+
+@media (max-width: 680px) {
+  .schedule-list-card {
+    min-width: 0;
+  }
+
+  .schedule-list-items {
+    max-height: 360px;
+  }
+
+  .schedule-list-refresh {
+    min-height: 40px;
+    min-width: 64px;
+  }
+
+  .schedule-list-item {
+    padding: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-list-card *,
+  .schedule-list-card *::before,
+  .schedule-list-card *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-list-item,
+  .schedule-list-badge,
+  .schedule-list-empty,
+  .schedule-list-refresh {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .schedule-list-item[data-state="running"] {
+    outline: 1px solid Highlight;
+  }
+}
