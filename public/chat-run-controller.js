@@ -23,6 +23,7 @@
   loadShellEnhancement('HafizeConversationSearch', '/conversation-search.js', 'data-hafize-conversation-search');
   loadShellEnhancement('HafizeScrollToLatest', '/scroll-to-latest.js', 'data-hafize-scroll-to-latest');
   loadShellEnhancement('HafizeComposerLimitFeedback', '/composer-limit-feedback.js', 'data-hafize-composer-limit-feedback');
+  loadShellEnhancement('HafizeMobileSidebarDismiss', '/mobile-sidebar-dismiss.js', 'data-hafize-mobile-sidebar-dismiss');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
