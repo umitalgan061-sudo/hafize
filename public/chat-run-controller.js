@@ -20,6 +20,7 @@
   loadShellEnhancement('HafizeMessageCopy', '/message-copy.js', 'data-hafize-message-copy');
   loadShellEnhancement('HafizeMessageEdit', '/message-edit.js', 'data-hafize-message-edit');
   loadShellEnhancement('HafizeKeyboardShortcuts', '/keyboard-shortcuts.js', 'data-hafize-keyboard-shortcuts');
+  loadShellEnhancement('HafizeConversationSearch', '/conversation-search.js', 'data-hafize-conversation-search');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
