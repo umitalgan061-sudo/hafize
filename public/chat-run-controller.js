@@ -46,6 +46,8 @@
   loadShellEnhancement('HafizeModelSelectorEnhancement', '/model-selector-enhancement.js', 'data-hafize-model-selector-enhancement');
   loadShellEnhancement('HafizeResponseProgress', '/response-progress.js', 'data-hafize-response-progress');
   loadShellEnhancement('HafizeConversationModelState', '/conversation-model-state.js', 'data-hafize-conversation-model-state');
+  loadShellEnhancement('HafizeScheduleRuntimeStyle', '/schedule-runtime-status-style.js', 'data-hafize-schedule-runtime-style-loader');
+  loadShellEnhancement('HafizeScheduleRuntimeStatus', '/schedule-runtime-status.js', 'data-hafize-schedule-runtime-status');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
