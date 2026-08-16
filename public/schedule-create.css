@@ -1,0 +1,167 @@
+.schedule-create-open {
+  margin-left: auto;
+  min-height: 32px;
+  padding-inline: 9px;
+}
+
+.schedule-create-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--premium-line, var(--line));
+}
+
+.schedule-create-panel[hidden] {
+  display: none;
+}
+
+.schedule-create-form {
+  display: grid;
+  gap: 10px;
+}
+
+.schedule-create-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.schedule-create-form select,
+.schedule-create-form textarea,
+.schedule-create-form input[type="datetime-local"] {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  padding: 8px 9px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.schedule-create-form textarea {
+  min-height: 78px;
+  max-height: 180px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.schedule-create-form select:focus-visible,
+.schedule-create-form textarea:focus-visible,
+.schedule-create-form input:focus-visible,
+.schedule-create-open:focus-visible,
+.schedule-create-submit:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+.schedule-create-note,
+.schedule-create-status {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.schedule-create-note {
+  color: var(--premium-muted, var(--muted));
+}
+
+.schedule-create-status {
+  padding: 7px 8px;
+  border-radius: 9px;
+  border: 1px solid var(--premium-line, var(--line));
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 92%, transparent);
+}
+
+.schedule-create-status[data-state="success"] {
+  border-color: color-mix(in srgb, #3f7a58 45%, var(--premium-line, var(--line)));
+}
+
+.schedule-create-status[data-state="error"],
+.schedule-create-status[data-state="auth"] {
+  border-color: color-mix(in srgb, #a65a4b 45%, var(--premium-line, var(--line)));
+}
+
+.schedule-create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.schedule-create-submit {
+  min-height: 34px;
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 11px;
+  background: var(--premium-orange, var(--accent));
+  color: white;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.schedule-create-submit:hover:not(:disabled) {
+  background: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.schedule-create-form[aria-busy="true"] {
+  opacity: .82;
+}
+
+.schedule-create-form button:disabled,
+.schedule-create-form select:disabled,
+.schedule-create-form textarea:disabled,
+.schedule-create-form input:disabled {
+  cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+  .schedule-create-open {
+    min-width: 44px;
+    min-height: 40px;
+  }
+
+  .schedule-create-form select,
+  .schedule-create-form textarea,
+  .schedule-create-form input[type="datetime-local"] {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .schedule-create-form textarea {
+    min-height: 96px;
+  }
+
+  .schedule-create-actions .mini-btn,
+  .schedule-create-submit {
+    min-height: 44px;
+    padding-inline: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-create-panel,
+  .schedule-create-form,
+  .schedule-create-submit {
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-create-form select,
+  .schedule-create-form textarea,
+  .schedule-create-form input[type="datetime-local"],
+  .schedule-create-status,
+  .schedule-create-submit,
+  .schedule-create-open {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .schedule-create-submit {
+    background: ButtonFace;
+    color: ButtonText;
+  }
+}
