@@ -45,6 +45,7 @@
   loadShellEnhancement('HafizeMessageKeyboardNav', '/message-keyboard-nav.js', 'data-hafize-message-keyboard-nav');
   loadShellEnhancement('HafizeModelSelectorEnhancement', '/model-selector-enhancement.js', 'data-hafize-model-selector-enhancement');
   loadShellEnhancement('HafizeResponseProgress', '/response-progress.js', 'data-hafize-response-progress');
+  loadShellEnhancement('HafizeConversationModelState', '/conversation-model-state.js', 'data-hafize-conversation-model-state');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
