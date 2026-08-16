@@ -16,6 +16,7 @@
   const STYLE_ID = 'hafize-shortcut-help-style';
   const SHORTCUTS = Object.freeze([
     ['Ctrl/⌘ + K', 'Mesaj yazara odaklan'],
+    ['Ctrl/⌘ + F', 'Aktif sohbette ara'],
     ['/', 'Mesaj yazara odaklan'],
     ['Esc', 'Üretilen yanıtı durdur'],
     ['↑ / ↓', 'Sohbet geçmişinde odak taşı'],
