@@ -36,6 +36,7 @@
   loadShellEnhancement('HafizeCodeBlockCopy', '/code-block-copy.js', 'data-hafize-code-block-copy');
   loadShellEnhancement('HafizeConversationExport', '/conversation-export.js', 'data-hafize-conversation-export');
   loadShellEnhancement('HafizeResponseFold', '/response-fold.js', 'data-hafize-response-fold');
+  loadShellEnhancement('HafizeCodeBlockFocus', '/code-block-focus.js', 'data-hafize-code-block-focus');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
