@@ -40,7 +40,8 @@
     '/text-file-import.js',
     '/composer-paste-guard.js',
     '/message-timeline.js',
-    '/message-keyboard-nav.js'
+    '/message-keyboard-nav.js',
+    '/command-palette.js'
   ]);
 
   const LOAD_STATE = Object.freeze({ IDLE: 'idle', LOADING: 'loading', READY: 'ready', FAILED: 'failed' });
