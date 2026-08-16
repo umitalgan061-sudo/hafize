@@ -13,12 +13,33 @@
 
   const MAX_COPY_CHARS = 256 * 1024;
   const RESET_DELAY_MS = 1800;
+  const STYLE_ID = 'hafize-message-copy-style';
+  const STYLE_TEXT = `
+.message-copy-actions{display:flex;justify-content:flex-end;margin-top:7px;min-height:26px}
+.message.user .message-copy-actions{justify-content:flex-start}
+.message-copy-btn{border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted,#777);padding:4px 7px;font:inherit;font-size:11px;line-height:1.2;cursor:pointer;opacity:.72}
+.message-copy-btn:hover:not(:disabled),.message-copy-btn:focus-visible{opacity:1;border-color:var(--line,#ddd);background:color-mix(in srgb,var(--surface,#fff) 82%,transparent)}
+.message-copy-btn:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}
+.message-copy-btn[data-state="success"]{opacity:1}
+.message-copy-btn[data-state="error"]{opacity:1}
+.message-copy-btn:disabled{cursor:progress}
+@media (prefers-reduced-motion:no-preference){.message-copy-btn{transition:opacity .15s ease,background-color .15s ease,border-color .15s ease}}
+`;
 
   function copyText(value) {
     if (typeof value !== 'string') return null;
     const text = value.replace(/\r\n/g, '\n');
     if (!text.trim() || text.length > MAX_COPY_CHARS) return null;
     return text;
+  }
+
+  function installStyles(documentRef) {
+    if (!documentRef?.head || documentRef.querySelector?.(`#${STYLE_ID}`)) return false;
+    const style = documentRef.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = STYLE_TEXT;
+    documentRef.head.append(style);
+    return true;
   }
 
   function createController({
@@ -110,6 +131,7 @@
     function mount() {
       const messages = documentRef.querySelector('#messages');
       if (!messages) return false;
+      installStyles(documentRef);
       decorateAll(messages);
       if (typeof MutationObserverImpl === 'function') {
         observer = new MutationObserverImpl(() => decorateAll(messages));
@@ -135,5 +157,13 @@
     }
   }
 
-  return Object.freeze({ MAX_COPY_CHARS, RESET_DELAY_MS, copyText, createController, mount });
+  return Object.freeze({
+    MAX_COPY_CHARS,
+    RESET_DELAY_MS,
+    STYLE_ID,
+    copyText,
+    installStyles,
+    createController,
+    mount
+  });
 });
