@@ -26,6 +26,11 @@
   opacity: 0.56;
 }
 
+.schedule-runtime-refresh:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
 .schedule-runtime-summary {
   margin: 0;
   padding: 9px 10px;
@@ -132,5 +137,30 @@
   .schedule-runtime-card *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-runtime-summary,
+  .schedule-runtime-row {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  .schedule-runtime-summary[data-state='warning'],
+  .schedule-runtime-summary[data-state='off'],
+  .schedule-runtime-summary[data-state='error'] {
+    border-style: solid;
+  }
+
+  .schedule-runtime-row dd[data-state='off'],
+  .schedule-runtime-row dd[data-state='unknown'] {
+    opacity: 1;
+  }
+
+  .schedule-runtime-refresh:focus-visible {
+    outline-color: Highlight;
   }
 }
