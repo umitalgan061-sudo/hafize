@@ -5,8 +5,24 @@
   else {
     root.HafizeUiShell = api;
     const install = () => api.install(root.document, root);
-    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
-    else install();
+    const loadEnhancements = () => {
+      const documentRef = root.document;
+      if (!documentRef?.head || documentRef.querySelector?.('script[data-hafize-enhancements-entry="1"]')) return;
+      const script = documentRef.createElement('script');
+      script.src = '/enhancements-loader.js';
+      script.defer = true;
+      script.dataset.hafizeEnhancementsEntry = '1';
+      documentRef.head.append(script);
+    };
+    if (root.document?.readyState === 'loading') {
+      root.document.addEventListener('DOMContentLoaded', () => {
+        install();
+        loadEnhancements();
+      }, { once: true });
+    } else {
+      install();
+      loadEnhancements();
+    }
   }
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeUiShell() {
   'use strict';
