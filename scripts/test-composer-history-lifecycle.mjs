@@ -67,29 +67,30 @@ assert.equal(nav('ArrowUp'), 1);
 assert.equal(input.value, 'üç');
 assert.deepEqual(range, [3, 3]);
 assert.match(status.textContent, /3\/3/);
-input.selectionStart = input.selectionEnd = 0;
 assert.equal(nav('ArrowUp'), 1);
 assert.equal(input.value, 'iki');
-input.selectionStart = input.selectionEnd = 0;
 assert.equal(nav('ArrowUp'), 1);
 assert.equal(input.value, 'bir');
-input.selectionStart = input.selectionEnd = 0;
 assert.equal(nav('ArrowUp'), 1);
 assert.equal(input.value, 'bir');
 assert.match(status.textContent, /En eski/);
 
-input.selectionStart = input.selectionEnd = input.value.length;
 assert.equal(nav('ArrowDown'), 1);
 assert.equal(input.value, 'iki');
-input.selectionStart = input.selectionEnd = input.value.length;
 assert.equal(nav('ArrowDown'), 1);
 assert.equal(input.value, 'üç');
-input.selectionStart = input.selectionEnd = input.value.length;
 assert.equal(nav('ArrowDown'), 1);
 assert.equal(input.value, 'korunan taslak');
 assert.equal(controller.snapshot().navigating, false);
 assert.match(status.textContent, /taslağa/);
 assert.ok(focusCount >= 6);
+
+input.selectionStart = input.selectionEnd = 0;
+assert.equal(nav('ArrowUp'), 1);
+assert.equal(controller.snapshot().navigating, true);
+assert.equal(nav('ArrowLeft'), 0);
+assert.equal(controller.snapshot().navigating, false);
+assert.equal(status.hidden, true);
 
 input.value = 'manuel';
 input.emit('input', new FakeEvent('input'));
