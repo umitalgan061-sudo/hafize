@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v39`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v40`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -46,6 +46,7 @@
     '/conversation-export.js',
     '/response-fold.js',
     '/code-block-focus.js',
+    '/composer-history.js',
     '/cloud-session-ui.js',
     '/memory-ui.js',
     '/voice-input.js',
