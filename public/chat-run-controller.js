@@ -42,6 +42,7 @@
   loadShellEnhancement('HafizeTextFileImport', '/text-file-import.js', 'data-hafize-text-file-import');
   loadShellEnhancement('HafizeComposerPasteGuard', '/composer-paste-guard.js', 'data-hafize-composer-paste-guard');
   loadShellEnhancement('HafizeMessageTimeline', '/message-timeline.js', 'data-hafize-message-timeline');
+  loadShellEnhancement('HafizeMessageKeyboardNav', '/message-keyboard-nav.js', 'data-hafize-message-keyboard-nav');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
