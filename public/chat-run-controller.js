@@ -55,6 +55,8 @@
   loadShellEnhancement('HafizeResponseRetry', '/response-retry.js', 'data-hafize-response-retry');
   loadShellEnhancement('HafizeReadingFocus', '/reading-focus.js', 'data-hafize-reading-focus');
   loadShellEnhancement('HafizeConversationOutline', '/conversation-outline.js', 'data-hafize-conversation-outline');
+  loadShellEnhancement('HafizeCanvaConnectionStatusStyle', '/canva-connection-status-style.js', 'data-hafize-canva-connection-status-style-loader');
+  loadShellEnhancement('HafizeCanvaConnectionStatus', '/canva-connection-status.js', 'data-hafize-canva-connection-status');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
