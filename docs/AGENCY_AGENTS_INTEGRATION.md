@@ -11,15 +11,17 @@ Agency Agents esas olarak uzman kişilikleri, görev akışlarını, teslimat be
 Buna karşılık üç fikir Hafize için doğrudan değerlidir:
 
 1. **Uzmanlaşmış roller:** Tek dev sistem promptu yerine dar sorumluluklara sahip uzman ajanlar.
-2. **Hiyerarşik orkestrasyon:** Ana Hafize, alt ajanlara görev verir; alt ajanlar birbirlerinin yetkilerini miras almaz.
+2. **Hiyerarşik orkestrasyon:** Selector ajan, specialist ajana dar görev verir; specialist parent yetkilerini miras almaz.
 3. **Rol bazlı güvenlik:** Her ajan yalnızca görevi için gereken araçlara erişir; yazma, gönderme ve merge gibi yan etkiler ayrıca onay gerektirir.
 
-İlk entegrasyon `agents/registry.json` içinde dört profil ile başlar:
+Aktif runtime roster'ı tam olarak dört profildir ve `lib/agent-runtime.mjs` bu sayıyı/kimlikleri fail-closed doğrular:
 
-- `hafize-general` — kullanıcıya görünen ana Hafize.
-- `agency-orchestrator` — görev ayrıştırma, delegasyon, task ledger ve sentez.
-- `agency-minimal-engineer` — küçük, geri alınabilir ve test edilebilir kod değişiklikleri.
-- `agency-code-reviewer` — varsayılan olarak salt-okunur kalite/güvenlik incelemesi.
+- `minimal-engineer` — varsayılan selector; küçük, geri alınabilir ve test edilebilir geliştirme kapsamını seçer.
+- `agency-code-reviewer` — salt-okunur kalite/güvenlik specialist'i; Agency Agents Code Reviewer fikirlerini seçici kullanır.
+- `movie-coordinator` — film ve izleme istekleri için selector.
+- `handyman-advisor` — pratik bakım/onarım soruları için specialist.
+
+`hafize-general`, `agency-orchestrator` ve `agency-minimal-engineer` artık aktif runtime kimlikleri değildir. Skills prosedürdür; yeni agent sayılmaz. Exact sözleşme `docs/AGENT_ROSTER_CONTRACT.md` içindedir.
 
 ## Neden tüm ajanları şimdi almıyoruz?
 
@@ -38,7 +40,7 @@ Kaynak projenin kendi kurulum yaklaşımı da takım veya ajan bazında seçime 
 
 ### Hiyerarşik yapı varsayılan
 
-Hafize'nin ana ajanı karmaşık işi alt görevlere ayırabilir, fakat uzman ajanlar birbirleriyle serbest mesh kurmaz. Mesh/peer görüşmesi ancak somut ihtiyaç varsa ve tur/sonlandırma sınırı tanımlanmışsa açılır.
+Hafize'nin selector ajanları karmaşık işi alt görevlere ayırabilir, fakat yalnız registry'deki `kind: specialist` hedeflere delege edebilir. Specialist ajanlar birbirleriyle serbest mesh kurmaz. Mesh/peer görüşmesi ancak somut ihtiyaç varsa ve tur/sonlandırma sınırı tanımlanmışsa ayrıca tasarlanabilir; mevcut runtime bunu açmaz.
 
 ### Yapılandırılmış ajan sözleşmeleri
 
@@ -53,45 +55,33 @@ Her ajan için en az şu alanlar tanımlanır:
 
 ### Least privilege
 
-Ajan kimliği ile tool yetkisi birbirinden ayrılmaz. Örneğin Code Reviewer repo okuyabilir fakat branch'e yazamaz; Minimal Engineer branch'e yazabilir fakat merge edemez; Orchestrator ise varsayılan olarak dış sisteme yazamaz.
+Ajan kimliği ile tool yetkisi birbirinden ayrılmaz. Örneğin Code Reviewer repo okuyabilir fakat branch'e yazamaz; Minimal Engineer branch yazımı için ayrıca backend onayı gerektirir ve merge yetkisi almaz. Diğer selector/specialist profilleri repo yazımını explicit deny eder.
 
 ### Gözlemlenebilirlik
 
-Her alt görev ortak `trace_id` ile loglanacak. Orchestrator bir `task ledger` tutacak. Böylece yanlış bir sonucun hangi alt ajan/araç çağrısından geldiği daha sonra izlenebilir olacak.
+Her alt görev ortak `trace_id` ile loglanır. Delegasyon lifecycle ve task ledger aynı trace altında tutulur. Böylece yanlış bir sonucun hangi alt ajan/araç çağrısından geldiği daha sonra izlenebilir olur.
 
 ### Harici içerik = veri
 
-Web sayfası, e-posta, dosya veya üçüncü taraf içerik ajan talimatı olarak kabul edilmeyecek. Harici içerik system/developer prompt'una doğrudan birleştirilmeyecek; gerekli alanlar ayrıştırılıp şemaya göre doğrulanacak.
+Web sayfası, e-posta, dosya veya üçüncü taraf içerik ajan talimatı olarak kabul edilmez. Harici içerik system/developer prompt'una doğrudan yeni yetki olarak birleştirilmez; gerekli alanlar ayrıştırılıp şemaya göre doğrulanır.
 
 ## Hafize runtime'ına bağlama sırası
 
-Bu PR yalnızca güvenli ajan kayıt sözleşmesini ekler. Runtime entegrasyonu aşağıdaki sırayla yapılmalıdır:
+Temel runtime katmanları artık vardır. Yeni Agency Agents fikri eklenirken sıra şöyledir:
 
-1. NVIDIA NIM server-side chat/streaming katmanı.
-2. `agents/registry.json` için doğrulayıcı loader.
-3. Kullanıcı isteğine göre ajan seçimi/router.
-4. Alt ajan çağrıları için ortak `trace_id` + task ledger.
-5. Tool permission enforcement — prompt seviyesinde değil, backend kodunda.
-6. Yazma/gönderme/merge işlemleri için kullanıcı onay kapısı.
-7. Ajan ve pipeline eval testleri.
-8. Gerektikçe yeni uzman rollerin seçici eklenmesi.
+1. Mevcut dört rolden hangisinin sorumluluğuna girdiğini belirle.
+2. Mümkünse yeni ajan yerine mevcut role prosedür/skill ekle.
+3. Tool permission enforcement'i prompt seviyesinde değil backend kodunda uygula.
+4. Yazma/gönderme/merge işlemlerini exact kullanıcı approval sınırında tut.
+5. Aynı `trace_id`, cancellation ve task-ledger sözleşmesini koru.
+6. Yeni davranışı eval/regresyon testiyle kilitle.
+7. Roster genişletmesini normal feature yolu olarak kullanma.
 
-## Sonradan değerlendirilecek uzmanlıklar
+## Sonradan değerlendirilecek uzmanlık fikirleri
 
-Kaynak katalogdan Hafize'nin yol haritasıyla özellikle ilişkili görünen roller şunlardır:
+Kaynak katalogdan AI Engineer, Backend Architect, Frontend Developer, DevOps Automator, Voice AI Integration Engineer, Prompt Engineer, Identity & Access Engineer, Privacy Engineer, Desktop App Engineer ve SRE gibi roller yararlı prosedür fikirleri sağlayabilir.
 
-- AI Engineer
-- Backend Architect
-- Frontend Developer
-- DevOps Automator
-- Voice AI Integration Engineer
-- Prompt Engineer
-- Identity & Access Engineer
-- Privacy Engineer
-- Desktop App Engineer
-- SRE
-
-Bunların hiçbiri yalnızca mevcut olduğu için eklenmeyecek. Somut özellik geldiğinde, rol gerçekten ayrı bir sorumluluk ve farklı tool policy gerektiriyorsa eklenir.
+Bunlar aktif registry'ye yeni ajan olarak eklenmez. Somut özellik geldiğinde önce mevcut dört ajandan uygun olanının skill/prosedürüne dar biçimde uyarlanır. Roster değişikliği gerekiyorsa bu ayrı mimari karar ve açık inceleme gerektirir.
 
 ## Lisans
 

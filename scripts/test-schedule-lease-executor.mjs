@@ -158,4 +158,5 @@ assert.throws(
   /INVALID_SCHEDULE_LEASE_EXECUTOR:executeAgentTask/
 );
 
+await import('./test-schedule-cancellation.mjs');
 console.log('schedule lease executor tests passed');

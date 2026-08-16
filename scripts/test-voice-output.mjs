@@ -11,6 +11,7 @@ const chunks = voiceOutput.splitSpeechText('Birinci cümle kısa. İkinci cümle
 assert.ok(chunks.length >= 1);
 assert.ok(chunks.every((chunk) => chunk.length <= 80));
 assert.deepEqual(voiceOutput.splitSpeechText('   '), []);
+assert.equal(voiceOutput.VOICE_OUTPUT_STATE_EVENT, 'hafize:voice-output-state');
 
 class FakeClassList {
   constructor() { this.values = new Set(); }
@@ -30,7 +31,11 @@ class FakeEventTarget {
   constructor() { this.listeners = new Map(); }
   addEventListener(type, callback) { const group = this.listeners.get(type) || new Set(); group.add(callback); this.listeners.set(type, group); }
   removeEventListener(type, callback) { this.listeners.get(type)?.delete(callback); }
-  dispatch(type) { for (const callback of this.listeners.get(type) || []) callback({ type }); }
+  dispatch(type, detail) { for (const callback of this.listeners.get(type) || []) callback({ type, detail }); }
+  dispatchEvent(event) { this.dispatch(event.type, event.detail); return true; }
+}
+class FakeCustomEvent {
+  constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
 }
 
 const toggle = new FakeNode();
@@ -65,6 +70,7 @@ const synth = {
 class FakeUtterance { constructor(text) { this.text = text; } }
 const storageValues = new Map();
 const root = new FakeEventTarget();
+root.CustomEvent = FakeCustomEvent;
 root.speechSynthesis = synth;
 root.SpeechSynthesisUtterance = FakeUtterance;
 root.localStorage = { getItem(key) { return storageValues.get(key) ?? null; }, setItem(key, value) { storageValues.set(key, value); } };
@@ -75,17 +81,24 @@ root.MutationObserver = class {
   disconnect() {}
 };
 
+const outputStates = [];
+documentTarget.addEventListener(voiceOutput.VOICE_OUTPUT_STATE_EVENT, (event) => outputStates.push(event.detail));
 const controller = voiceOutput.installVoiceOutput(documentTarget, root);
 assert.equal(controller.isSupported, true);
 assert.equal(controller.isEnabled(), false, 'sesli yanıt açık kullanıcı tercihi olmadan başlamamalı');
 assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+assert.deepEqual(outputStates.at(-1), {
+  source: 'voice-output', state: 'idle', speaking: false, thinking: false, enabled: false, supported: true
+});
 
 input.disabled = true;
 root.observers.get(input).callback();
 assert.equal(card.classList.contains('thinking'), true);
+assert.equal(outputStates.at(-1).state, 'thinking');
 input.disabled = false;
 root.observers.get(input).callback();
 assert.equal(spoken.length, 0, 'kapalı sesli yanıt stream sonunda konuşmamalı');
+assert.equal(outputStates.at(-1).state, 'idle');
 
 toggle.click();
 assert.equal(controller.isEnabled(), true);
@@ -99,9 +112,12 @@ assert.equal(spoken.length, 1);
 assert.equal(spoken[0].lang, 'tr-TR');
 assert.equal(spoken[0].voice.name, 'Türkçe');
 assert.equal(card.classList.contains('speaking'), true);
+assert.equal(outputStates.at(-1).state, 'speaking');
+assert.equal(outputStates.at(-1).speaking, true);
 
 composer.submit();
 assert.equal(card.classList.contains('speaking'), false);
+assert.equal(outputStates.at(-1).speaking, false);
 assert.ok(cancelCount >= 1, 'yeni kullanıcı mesajı aktif TTS konuşmasını kesmeli');
 
 controller.speak('İkinci sesli yanıt.');
@@ -109,6 +125,32 @@ assert.equal(spoken.length, 2);
 mic.setAttribute('aria-pressed', 'true');
 root.observers.get(mic).callback();
 assert.equal(card.classList.contains('speaking'), false, 'mikrofon başlayınca TTS kesilmeli');
+
+mic.setAttribute('aria-pressed', 'false');
+const longFirst = `${'A'.repeat(220)}. ${'B'.repeat(220)}.`;
+assert.equal(controller.speak(longFirst), true);
+const staleUtterance = spoken.at(-1);
+assert.equal(staleUtterance.text.startsWith('A'), true);
+assert.equal(controller.speak(`${'C'.repeat(220)}. ${'D'.repeat(220)}.`), true);
+const freshFirst = spoken.at(-1);
+const spokenBeforeStaleEnd = spoken.length;
+staleUtterance.onend?.();
+assert.equal(spoken.length, spokenBeforeStaleEnd, 'iptal edilmiş generation onend yeni kuyruğu ilerletmemeli');
+assert.equal(controller.isSpeaking(), true);
+freshFirst.onend?.();
+assert.equal(spoken.length, spokenBeforeStaleEnd + 1, 'aktif generation kendi ikinci chunkına ilerlemeli');
+assert.equal(spoken.at(-1).text.startsWith('D'), true);
+spoken.at(-1).onend?.();
+assert.equal(controller.isSpeaking(), false);
+assert.equal(outputStates.at(-1).state, 'idle');
+
+controller.speak('Ses hatası testi.');
+const errorUtterance = spoken.at(-1);
+errorUtterance.onerror?.();
+assert.equal(controller.isSpeaking(), false);
+assert.equal(outputStates.at(-1).state, 'idle');
+errorUtterance.onend?.();
+assert.equal(controller.isSpeaking(), false, 'error sonrası stale onend state değiştirmemeli');
 
 documentTarget.hidden = true;
 assert.equal(controller.speak('Gizli sekmede okunmamalı.'), false);
@@ -124,9 +166,15 @@ const unsupportedToggle = new FakeNode();
 const unsupportedCard = new FakeNode();
 const unsupportedDocument = new FakeEventTarget();
 unsupportedDocument.querySelector = (selector) => ({ '#voiceOutputToggle': unsupportedToggle, '.voice-card': unsupportedCard })[selector] || null;
-const unsupported = voiceOutput.installVoiceOutput(unsupportedDocument, new FakeEventTarget());
+const unsupportedRoot = new FakeEventTarget();
+unsupportedRoot.CustomEvent = FakeCustomEvent;
+const unsupportedStates = [];
+unsupportedDocument.addEventListener(voiceOutput.VOICE_OUTPUT_STATE_EVENT, (event) => unsupportedStates.push(event.detail));
+const unsupported = voiceOutput.installVoiceOutput(unsupportedDocument, unsupportedRoot);
 assert.equal(unsupported.isSupported, false);
 assert.equal(unsupportedToggle.disabled, true);
 assert.match(unsupportedToggle.textContent, /desteklenmiyor/);
+assert.equal(unsupportedStates.at(-1).supported, false);
+assert.equal(unsupportedStates.at(-1).speaking, false);
 
-console.log('Voice output OK: explicit opt-in, Turkish TTS, stream state and barge-in cancellation');
+console.log('Voice output OK: explicit opt-in, state events, Turkish TTS, generation guard and barge-in cancellation');

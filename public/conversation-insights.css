@@ -1,0 +1,8 @@
+.conversation-insights-card[hidden] { display: none; }
+.conversation-insights-summary { margin: 0 0 10px; color: var(--premium-text); font-size: 12px; line-height: 1.45; }
+.conversation-insights-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.conversation-insights-grid div { min-width: 0; border: 1px solid var(--premium-line); border-radius: 11px; padding: 7px 6px; text-align: center; }
+.conversation-insights-grid dt { color: var(--premium-muted); font-size: 9px; }
+.conversation-insights-grid dd { margin: 2px 0 0; color: var(--premium-text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.conversation-insights-privacy { display: block; margin-top: 9px; color: var(--premium-muted); font-size: 9px; line-height: 1.35; }
+@media (max-width: 680px) { .conversation-insights-grid div { padding-block: 8px; } }

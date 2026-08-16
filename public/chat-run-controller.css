@@ -1,0 +1,13 @@
+.send-btn.streaming {
+  min-width: 43px;
+  background: color-mix(in srgb, var(--ink) 88%, var(--card));
+}
+.send-btn.streaming:hover {
+  background: var(--ink);
+}
+.send-btn.streaming:focus-visible {
+  outline-color: var(--ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-btn.streaming { transition: none; }
+}
