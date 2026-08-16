@@ -116,6 +116,7 @@
     const storage = root.localStorage;
     let state = loadState(storage);
     let bookmarks = new Set(state.bookmarkIds);
+    let bookmarksOnly = false;
     let navigationIndex = -1;
     let highlightTimer = null;
 
@@ -133,7 +134,13 @@
     bookmarkNavigator.className = 'reading-bookmark-navigator';
     bookmarkNavigator.disabled = true;
 
-    tools.append(focusButton, bookmarkNavigator);
+    const bookmarkFilter = documentRef.createElement('button');
+    bookmarkFilter.type = 'button';
+    bookmarkFilter.className = 'reading-bookmark-filter';
+    bookmarkFilter.setAttribute('aria-pressed', 'false');
+    bookmarkFilter.disabled = true;
+
+    tools.append(focusButton, bookmarkNavigator, bookmarkFilter);
     const themeToggle = topbar.querySelector?.('#themeToggle');
     if (themeToggle?.parentNode === topbar) topbar.insertBefore(tools, themeToggle);
     else topbar.append(tools);
@@ -154,13 +161,32 @@
       persistState(storage, state);
     }
 
+    function allMessageArticles() {
+      return Array.from(messages.querySelectorAll?.('.message[data-message-id]') || []);
+    }
+
     function bookmarkedArticles() {
-      const result = [];
-      for (const article of messages.querySelectorAll?.('.message[data-message-id]') || []) {
+      return allMessageArticles().filter((article) => {
         const id = normalizeMessageId(article.dataset?.messageId);
-        if (id && bookmarks.has(id)) result.push(article);
+        return Boolean(id && bookmarks.has(id));
+      });
+    }
+
+    function syncBookmarkFilter() {
+      const visible = bookmarkedArticles();
+      if (!visible.length) bookmarksOnly = false;
+      bookmarkFilter.disabled = visible.length === 0;
+      bookmarkFilter.setAttribute('aria-pressed', String(bookmarksOnly));
+      bookmarkFilter.textContent = bookmarksOnly ? '★ Tümünü göster' : '★ Yalnız';
+      bookmarkFilter.setAttribute('aria-label', bookmarksOnly
+        ? 'Tüm sohbet mesajlarını yeniden göster'
+        : 'Yalnız yer imli mesajları göster');
+      bookmarkFilter.title = bookmarksOnly ? 'Tüm mesajları göster' : 'Yalnız yer imlerini göster';
+      for (const article of allMessageArticles()) {
+        const id = normalizeMessageId(article.dataset?.messageId);
+        article.classList?.toggle?.('reading-bookmark-filtered-out', bookmarksOnly && !bookmarks.has(id));
       }
-      return result;
+      messages.classList?.toggle?.('reading-bookmark-filter-active', bookmarksOnly);
     }
 
     function syncNavigator() {
@@ -172,6 +198,7 @@
         : 'Bu sohbette yer imi yok');
       bookmarkNavigator.title = visible.length ? 'Sonraki yer imine git' : 'Bu sohbette yer imi yok';
       if (navigationIndex >= visible.length) navigationIndex = -1;
+      syncBookmarkFilter();
     }
 
     function syncBookmarkButton(button, article) {
@@ -214,7 +241,7 @@
     }
 
     function decorateAll() {
-      for (const article of messages.querySelectorAll?.('.message[data-message-id]') || []) decorateMessage(article);
+      for (const article of allMessageArticles()) decorateMessage(article);
       syncNavigator();
     }
 
@@ -250,6 +277,13 @@
       syncFocusMode();
     }
 
+    function onBookmarkFilterToggle() {
+      if (bookmarkFilter.disabled) return;
+      bookmarksOnly = !bookmarksOnly;
+      syncBookmarkFilter();
+      if (!bookmarksOnly) navigationIndex = -1;
+    }
+
     function onStorage(event) {
       if (event?.key !== STORAGE_KEY) return;
       state = parseState(event.newValue || '');
@@ -264,6 +298,7 @@
 
     focusButton.addEventListener('click', onFocusToggle);
     bookmarkNavigator.addEventListener('click', goToNextBookmark);
+    bookmarkFilter.addEventListener('click', onBookmarkFilterToggle);
     root.addEventListener?.('storage', onStorage);
 
     const observer = typeof root.MutationObserver === 'function'
@@ -275,19 +310,21 @@
     decorateAll();
 
     return Object.freeze({
-      getState: () => Object.freeze({ focusMode: state.focusMode, bookmarkIds: Object.freeze(Array.from(bookmarks)) }),
+      getState: () => Object.freeze({ focusMode: state.focusMode, bookmarkIds: Object.freeze(Array.from(bookmarks)), bookmarksOnly }),
       goToNextBookmark,
       destroy() {
         observer?.disconnect?.();
         root.removeEventListener?.('storage', onStorage);
         focusButton.removeEventListener?.('click', onFocusToggle);
         bookmarkNavigator.removeEventListener?.('click', goToNextBookmark);
+        bookmarkFilter.removeEventListener?.('click', onBookmarkFilterToggle);
         clearHighlight();
         tools.remove?.();
         documentRef.body.classList?.remove?.('reading-focus-mode');
+        messages.classList?.remove?.('reading-bookmark-filter-active');
         for (const action of messages.querySelectorAll?.('.reading-bookmark-actions') || []) action.remove?.();
-        for (const article of messages.querySelectorAll?.('.reading-bookmarked, .reading-bookmark-current') || []) {
-          article.classList?.remove?.('reading-bookmarked', 'reading-bookmark-current');
+        for (const article of messages.querySelectorAll?.('.reading-bookmarked, .reading-bookmark-current, .reading-bookmark-filtered-out') || []) {
+          article.classList?.remove?.('reading-bookmarked', 'reading-bookmark-current', 'reading-bookmark-filtered-out');
         }
       }
     });
