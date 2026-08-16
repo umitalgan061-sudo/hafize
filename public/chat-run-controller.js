@@ -27,6 +27,7 @@
   loadShellEnhancement('HafizeDraftClearUndo', '/draft-clear-undo.js', 'data-hafize-draft-clear-undo');
   loadShellEnhancement('HafizeDraftNavigationGuard', '/draft-navigation-guard.js', 'data-hafize-draft-navigation-guard');
   loadShellEnhancement('HafizeConversationKeyboardNav', '/conversation-keyboard-nav.js', 'data-hafize-conversation-keyboard-nav');
+  loadShellEnhancement('HafizeConversationDeleteConfirm', '/conversation-delete-confirm.js', 'data-hafize-conversation-delete-confirm');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
