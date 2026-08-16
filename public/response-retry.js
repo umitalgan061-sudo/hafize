@@ -45,7 +45,11 @@
     return null;
   }
 
-  function createController({ documentRef = globalThis.document, EventImpl = globalThis.Event } = {}) {
+  function createController({
+    documentRef = globalThis.document,
+    EventImpl = globalThis.Event,
+    MutationObserverImpl = globalThis.MutationObserver
+  } = {}) {
     if (!documentRef || typeof documentRef.querySelector !== 'function') {
       throw new Error('INVALID_RESPONSE_RETRY_DOCUMENT');
     }
@@ -53,6 +57,9 @@
     let observer = null;
     let mounted = false;
     let status = null;
+    let inputListener = null;
+    let renderedAssistant = null;
+    let renderedPrompt = '';
 
     function nodes() {
       return Object.freeze({
@@ -84,6 +91,8 @@
 
     function clearActions(messages) {
       messages?.querySelectorAll?.(`.${ACTION_CLASS}`)?.forEach?.((node) => node.remove());
+      renderedAssistant = null;
+      renderedPrompt = '';
     }
 
     function getRenderedPair(messages) {
@@ -120,11 +129,19 @@
     function render() {
       const { messages, composer, send } = nodes();
       if (!messages || !composer || !send) return false;
-      clearActions(messages);
-      if (isStreaming(send)) return false;
+      if (isStreaming(send)) {
+        clearActions(messages);
+        return false;
+      }
       const pair = getRenderedPair(messages);
-      if (!pair) return false;
+      if (!pair) {
+        clearActions(messages);
+        return false;
+      }
+      const existing = pair.assistant.querySelector?.(`.${ACTION_CLASS}`);
+      if (existing && renderedAssistant === pair.assistant && renderedPrompt === pair.prompt) return true;
 
+      clearActions(messages);
       const wrap = documentRef.createElement('div');
       wrap.className = ACTION_CLASS;
       const button = documentRef.createElement('button');
@@ -136,6 +153,8 @@
       button.addEventListener('click', () => submitPrompt(pair.prompt));
       wrap.append(button);
       pair.assistant.append(wrap);
+      renderedAssistant = pair.assistant;
+      renderedPrompt = pair.prompt;
       return true;
     }
 
@@ -144,10 +163,10 @@
       const { messages, composer, input, send } = nodes();
       if (!messages || !composer || !input || !send) return false;
       status = ensureStatus(composer);
-      const onInput = () => { if (!hasDraft(input.value)) showStatus(''); };
-      input.addEventListener?.('input', onInput);
-      observer = typeof globalThis.MutationObserver === 'function'
-        ? new globalThis.MutationObserver(() => render())
+      inputListener = () => { if (!hasDraft(input.value)) showStatus(''); };
+      input.addEventListener?.('input', inputListener);
+      observer = typeof MutationObserverImpl === 'function'
+        ? new MutationObserverImpl(() => render())
         : null;
       observer?.observe?.(messages, { childList: true, subtree: true, characterData: true });
       observer?.observe?.(send, { attributes: true, attributeFilter: ['class'] });
@@ -158,9 +177,11 @@
 
     function destroy() {
       if (!mounted) return false;
-      const { messages } = nodes();
+      const { messages, input } = nodes();
       observer?.disconnect?.();
       observer = null;
+      if (inputListener) input?.removeEventListener?.('input', inputListener);
+      inputListener = null;
       clearActions(messages);
       status?.remove?.();
       status = null;
