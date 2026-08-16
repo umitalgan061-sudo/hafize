@@ -15,8 +15,8 @@
   'use strict';
 
   const DEFAULT_WAKE_PHRASE = 'hafize';
-  const STORAGE_KEY = 'hafize.handsfree.v1';
   const RESTART_DELAY_MS = 350;
+  const HANDOFF_TIMEOUT_MS = 1500;
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
 
   function getRecognitionConstructor(root) {
@@ -59,7 +59,8 @@
     let listening = false;
     let recognition = null;
     let restartTimer = null;
-    let handoffPending = false;
+    let handoffTimer = null;
+    let handoffWaiting = false;
     let voiceInputListening = false;
     let destroyed = false;
 
@@ -78,17 +79,26 @@
       indicator.textContent = enabled
         ? (voiceInputListening
             ? '○ Sesli giriş etkin'
-            : listening
-              ? '● “Hafize” için dinliyor'
-              : '○ Eller serbest beklemede')
+            : handoffWaiting
+              ? '○ Sesli giriş hazırlanıyor'
+              : listening
+                ? '● “Hafize” için dinliyor'
+                : '○ Eller serbest beklemede')
         : '';
       indicator.setAttribute?.('data-listening', String(listening));
+      indicator.setAttribute?.('data-handoff-waiting', String(handoffWaiting));
       indicator.setAttribute?.('data-voice-input-listening', String(voiceInputListening));
     }
 
     function clearRestart() {
       if (restartTimer != null && typeof root?.clearTimeout === 'function') root.clearTimeout(restartTimer);
       restartTimer = null;
+    }
+
+    function clearHandoff() {
+      if (handoffTimer != null && typeof root?.clearTimeout === 'function') root.clearTimeout(handoffTimer);
+      handoffTimer = null;
+      handoffWaiting = false;
     }
 
     function stopRecognition({ abort = false } = {}) {
@@ -106,13 +116,38 @@
 
     function scheduleRestart() {
       clearRestart();
-      if (destroyed || !enabled || handoffPending || voiceInputListening || documentRef.hidden || input.disabled) return;
+      if (destroyed || !enabled || handoffWaiting || voiceInputListening || documentRef.hidden || input.disabled) return;
       if (typeof root?.setTimeout === 'function') restartTimer = root.setTimeout(startRecognition, RESTART_DELAY_MS);
+    }
+
+    function armHandoffFallback() {
+      if (!handoffWaiting || voiceInputListening || destroyed || !enabled) return;
+      if (typeof root?.setTimeout !== 'function') {
+        handoffWaiting = false;
+        render();
+        scheduleRestart();
+        return;
+      }
+      handoffTimer = root.setTimeout(() => {
+        handoffTimer = null;
+        if (!handoffWaiting || voiceInputListening || destroyed || !enabled) return;
+        handoffWaiting = false;
+        render();
+        announce('Sesli giriş başlatılamadı; “Hafize” dinlemesi yeniden açıldı.');
+        scheduleRestart();
+      }, HANDOFF_TIMEOUT_MS);
+    }
+
+    function beginVoiceHandoff() {
+      if (handoffWaiting || voiceInputListening) return;
+      handoffWaiting = true;
+      render();
+      stopRecognition();
     }
 
     function startRecognition() {
       clearRestart();
-      if (destroyed || !enabled || !Recognition || recognition || voiceInputListening || documentRef.hidden || input.disabled) return;
+      if (destroyed || !enabled || !Recognition || recognition || handoffWaiting || voiceInputListening || documentRef.hidden || input.disabled) return;
       const current = new Recognition();
       current.lang = documentRef.documentElement?.lang || root?.navigator?.language || 'tr-TR';
       current.continuous = true;
@@ -127,14 +162,15 @@
       };
       current.onresult = (event) => {
         if (!containsWakePhrase(readRecognitionText(event))) return;
-        handoffPending = true;
-        stopRecognition();
+        beginVoiceHandoff();
       };
       current.onerror = (event) => {
         if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
           enabled = false;
-          try { root?.localStorage?.removeItem?.(STORAGE_KEY); } catch { /* storage unavailable */ }
+          clearHandoff();
+          clearRestart();
           announce('Eller serbest için mikrofon izni verilmedi.');
+          render();
         }
       };
       current.onend = () => {
@@ -143,10 +179,9 @@
           listening = false;
         }
         render();
-        if (handoffPending) {
-          handoffPending = false;
+        if (handoffWaiting) {
           micButton.click?.();
-          scheduleRestart();
+          if (handoffWaiting && !voiceInputListening) armHandoffFallback();
           return;
         }
         scheduleRestart();
@@ -161,20 +196,14 @@
       }
     }
 
-    function setEnabled(next, { persist = true } = {}) {
+    function setEnabled(next) {
       if (destroyed) return;
       const requested = Boolean(next) && Boolean(Recognition);
       if (enabled === requested) return;
       enabled = requested;
-      handoffPending = false;
-      if (persist) {
-        try {
-          if (enabled) root?.localStorage?.setItem?.(STORAGE_KEY, 'on');
-          else root?.localStorage?.removeItem?.(STORAGE_KEY);
-        } catch { /* preference persistence is best effort */ }
-      }
+      clearHandoff();
       if (enabled) {
-        announce('Eller serbest açıldı. Mikrofon görünür şekilde “Hafize” uyandırma ifadesini dinler; mesaj otomatik gönderilmez.');
+        announce('Eller serbest bu oturum için açıldı. Mikrofon görünür şekilde “Hafize” uyandırma ifadesini dinler; mesaj otomatik gönderilmez.');
         startRecognition();
       } else {
         stopRecognition({ abort: true });
@@ -191,16 +220,25 @@
     }
 
     function handleVisibility() {
-      if (documentRef.hidden) stopRecognition({ abort: true });
-      else scheduleRestart();
+      if (documentRef.hidden) {
+        clearHandoff();
+        stopRecognition({ abort: true });
+      } else {
+        scheduleRestart();
+      }
     }
 
     function handleVoiceInputState(event) {
       const detail = event?.detail;
       if (!detail || detail.source !== 'voice-input' || typeof detail.listening !== 'boolean') return;
       voiceInputListening = detail.listening;
-      if (voiceInputListening) stopRecognition({ abort: true });
-      else scheduleRestart();
+      if (voiceInputListening) {
+        clearHandoff();
+        stopRecognition({ abort: true });
+      } else {
+        clearHandoff();
+        scheduleRestart();
+      }
       render();
     }
 
@@ -211,8 +249,12 @@
     const MutationObserverCtor = root?.MutationObserver;
     const observer = typeof MutationObserverCtor === 'function'
       ? new MutationObserverCtor(() => {
-          if (input.disabled) stopRecognition({ abort: true });
-          else scheduleRestart();
+          if (input.disabled) {
+            clearHandoff();
+            stopRecognition({ abort: true });
+          } else {
+            scheduleRestart();
+          }
         })
       : null;
     observer?.observe?.(input, { attributes: true, attributeFilter: ['disabled'] });
@@ -222,6 +264,7 @@
       isSupported: Boolean(Recognition),
       isEnabled: () => enabled,
       isListening: () => listening,
+      isHandoffWaiting: () => handoffWaiting,
       isVoiceInputListening: () => voiceInputListening,
       enable: () => setEnabled(true),
       disable: () => setEnabled(false),
@@ -229,8 +272,8 @@
         if (destroyed) return;
         destroyed = true;
         enabled = false;
-        handoffPending = false;
         voiceInputListening = false;
+        clearHandoff();
         clearRestart();
         observer?.disconnect?.();
         stopRecognition({ abort: true });
@@ -243,7 +286,7 @@
 
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
-    STORAGE_KEY,
+    HANDOFF_TIMEOUT_MS,
     VOICE_INPUT_STATE_EVENT,
     containsWakePhrase,
     getRecognitionConstructor,
