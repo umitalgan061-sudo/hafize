@@ -33,7 +33,7 @@
     return Number.isInteger(start) && Number.isInteger(end) && start === end ? start : null;
   }
 
-  function canRecall(event, input, direction) {
+  function canRecall(event, input, direction, navigating = false) {
     if (!event || event.defaultPrevented || event.repeat || event.isComposing) return false;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
     if (direction !== -1 && direction !== 1) return false;
@@ -42,6 +42,7 @@
     if (!input || input.disabled === true || input.readOnly === true || typeof input.value !== 'string') return false;
     const caret = collapsedSelection(input);
     if (caret === null) return false;
+    if (navigating) return true;
     return direction === -1 ? caret === 0 : caret === input.value.length;
   }
 
@@ -123,22 +124,24 @@
         return true;
       }
       cursor = next;
-      writeValue(history[cursor], direction === 1);
+      writeValue(history[cursor], false);
       announce(`Önceki mesaj ${cursor + 1}/${history.length}`);
       return true;
     }
 
     function onKeydown(event) {
-      if (canRecall(event, input, -1)) {
+      const navigating = cursor !== null;
+      if (canRecall(event, input, -1, navigating)) {
         const changed = recall(-1);
         if (changed || cursor !== null) event.preventDefault?.();
         return changed;
       }
-      if (canRecall(event, input, 1)) {
+      if (canRecall(event, input, 1, navigating)) {
         const changed = recall(1);
         if (changed || cursor !== null) event.preventDefault?.();
         return changed;
       }
+      if (navigating && ['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event?.key)) reset();
       return false;
     }
 
