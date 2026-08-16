@@ -18,6 +18,12 @@
 .voice-rate-wrap select { min-width: 118px; border: 1px solid color-mix(in srgb, var(--premium-orange) 20%, transparent); border-radius: 9px; background: transparent; color: inherit; padding: 5px 7px; font: inherit; }
 .voice-rate-wrap select:focus-visible { outline: 2px solid var(--premium-orange); outline-offset: 2px; }
 .voice-rate-wrap select:disabled { opacity: .55; }
+.voice-playback-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 7px; }
+.voice-playback-actions[hidden] { display: none; }
+.voice-playback-actions button { border: 1px solid color-mix(in srgb, var(--premium-orange) 20%, transparent); border-radius: 10px; background: transparent; color: var(--premium-muted); padding: 6px 8px; font: inherit; font-size: 10px; cursor: pointer; }
+.voice-playback-actions button[hidden] { display: none; }
+.voice-playback-actions button:hover:not(:disabled), .voice-playback-actions button:focus-visible { color: var(--premium-orange-strong); background: color-mix(in srgb, var(--premium-orange) 8%, transparent); }
+.voice-playback-actions button:focus-visible { outline: 2px solid var(--premium-orange); outline-offset: 2px; }
 .voice-card.thinking .voice-orb { animation-duration: 2.1s; opacity: .86; }
 .voice-card.speaking .voice-orb {
   animation-duration: .78s;
