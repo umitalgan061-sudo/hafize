@@ -1,0 +1,53 @@
+.response-retry-action {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 8px;
+}
+
+.response-retry-button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.response-retry-button:hover {
+  transform: translateY(-1px);
+}
+
+.response-retry-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.response-retry-status {
+  margin: 6px 4px 0;
+}
+
+@media (max-width: 680px) {
+  .response-retry-action {
+    margin-top: 6px;
+  }
+
+  .response-retry-button {
+    min-height: 40px;
+    padding-inline: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .response-retry-button {
+    transition: none !important;
+  }
+
+  .response-retry-button:hover {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .response-retry-button {
+    border: 1px solid ButtonText;
+  }
+}
