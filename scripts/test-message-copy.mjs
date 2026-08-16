@@ -275,7 +275,7 @@ assert.equal(copySource.includes("input.focus?.()"), true, 'quote must return fo
 assert.equal(copySource.includes('fetch('), false, 'message actions must not create a parallel network path');
 assert.equal(loaderSource.includes("script.src = '/message-copy.js'"), true, 'loader must use fixed same-origin asset path');
 assert.equal(loaderSource.includes('data-hafize-message-copy'), true, 'loader must be idempotent');
-assert.equal(swSource.includes("`${CACHE_PREFIX}v18`"), true);
+assert.equal(swSource.includes("`${CACHE_PREFIX}v19`"), true);
 assert.equal(swSource.includes("'/message-copy.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 
