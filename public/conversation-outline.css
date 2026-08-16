@@ -1,0 +1,267 @@
+.conversation-outline-trigger {
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 7px 11px;
+  background: var(--premium-surface, var(--card));
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.conversation-outline-trigger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 45%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, var(--premium-surface, var(--card)));
+}
+
+.conversation-outline-trigger[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 55%, var(--premium-line, var(--line)));
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.conversation-outline-trigger:disabled {
+  opacity: .46;
+  cursor: default;
+}
+
+.conversation-outline-panel {
+  position: fixed;
+  z-index: 80;
+  top: var(--conversation-outline-top, 72px);
+  left: var(--conversation-outline-left, 12px);
+  width: var(--conversation-outline-width, min(420px, calc(100vw - 24px)));
+  max-height: min(68vh, 620px);
+  overflow: hidden;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 18px;
+  padding: 14px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  box-shadow: var(--premium-shadow, 0 22px 60px rgba(43, 48, 43, .18));
+  backdrop-filter: blur(22px);
+}
+
+.conversation-outline-panel[hidden] {
+  display: none !important;
+}
+
+.conversation-outline-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.conversation-outline-title-wrap {
+  display: grid;
+  gap: 2px;
+}
+
+.conversation-outline-title-wrap strong {
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+.conversation-outline-count {
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.conversation-outline-close {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--premium-muted, var(--muted));
+  font-size: 22px;
+  line-height: 1;
+}
+
+.conversation-outline-close:hover {
+  border-color: var(--premium-line, var(--line));
+  color: var(--premium-text, var(--ink));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 7%, transparent);
+}
+
+.conversation-outline-search-label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.conversation-outline-search {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 12px;
+  padding: 9px 11px;
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 88%, transparent);
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+  font-size: 13px;
+}
+
+.conversation-outline-search::placeholder {
+  color: var(--premium-muted, var(--muted));
+}
+
+.conversation-outline-search:focus-visible,
+.conversation-outline-trigger:focus-visible,
+.conversation-outline-close:focus-visible,
+.conversation-outline-item:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+.conversation-outline-status {
+  min-height: 18px;
+  margin: 0 2px 8px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.conversation-outline-list {
+  display: grid;
+  gap: 4px;
+  max-height: min(48vh, 430px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+  scrollbar-gutter: stable;
+}
+
+.conversation-outline-row {
+  min-width: 0;
+}
+
+.conversation-outline-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 7px 9px;
+  background: transparent;
+  color: var(--premium-text, var(--ink));
+  text-align: left;
+  font: inherit;
+}
+
+.conversation-outline-item:hover {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 18%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 7%, transparent);
+}
+
+.conversation-outline-turn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 9px;
+  color: var(--premium-orange-strong, var(--accent-strong));
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.conversation-outline-preview {
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.42;
+}
+
+.conversation-outline-empty {
+  border: 1px dashed var(--premium-line, var(--line));
+  border-radius: 12px;
+  padding: 18px 12px;
+  color: var(--premium-muted, var(--muted));
+  text-align: center;
+  font-size: 12px;
+}
+
+.message.conversation-outline-target {
+  outline: 3px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 60%, transparent);
+  outline-offset: 7px;
+  border-radius: 12px;
+}
+
+@media (max-width: 760px) {
+  .conversation-outline-trigger {
+    width: 40px;
+    min-width: 40px;
+    overflow: hidden;
+    color: transparent;
+    position: relative;
+    padding-inline: 0;
+  }
+
+  .conversation-outline-trigger::before {
+    content: "☷";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--premium-text, var(--ink));
+    font-size: 16px;
+  }
+
+  .conversation-outline-panel {
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right));
+    width: auto !important;
+    max-height: min(72dvh, 620px);
+    border-radius: 16px;
+  }
+
+  .conversation-outline-list {
+    max-height: min(52dvh, 430px);
+  }
+
+  .conversation-outline-item {
+    min-height: 52px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conversation-outline-trigger,
+  .conversation-outline-item,
+  .conversation-outline-panel,
+  .message.conversation-outline-target {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .conversation-outline-trigger,
+  .conversation-outline-panel,
+  .conversation-outline-close,
+  .conversation-outline-search,
+  .conversation-outline-item,
+  .conversation-outline-turn,
+  .conversation-outline-empty,
+  .message.conversation-outline-target {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .conversation-outline-trigger[aria-expanded="true"] {
+    color: Highlight;
+  }
+}
