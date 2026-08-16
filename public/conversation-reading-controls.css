@@ -1,0 +1,17 @@
+.conversation-reading-controls { display: grid; gap: 8px; }
+.conversation-reading-controls label { display: grid; grid-template-columns: 1fr minmax(118px, auto); align-items: center; gap: 8px; color: var(--premium-muted); font-size: 10px; }
+.conversation-reading-controls select { min-width: 118px; border: 1px solid var(--premium-line); border-radius: 9px; background: transparent; color: var(--premium-text); padding: 6px 7px; font: inherit; }
+.conversation-reading-controls select:focus-visible, .conversation-focus-toggle:focus-visible { outline: 2px solid var(--premium-orange); outline-offset: 2px; }
+.conversation-reading-note { display: block; margin-top: 9px; color: var(--premium-muted); font-size: 9px; line-height: 1.35; }
+.conversation-focus-toggle { border: 1px solid var(--premium-line); border-radius: 999px; background: var(--premium-surface); color: var(--premium-text); padding: 7px 10px; font: inherit; font-size: 11px; white-space: nowrap; }
+.conversation-focus-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--premium-orange) 42%, var(--premium-line)); color: var(--premium-orange-strong); }
+.messages[data-reading-scale="90"] .message .content { font-size: .9em; }
+.messages[data-reading-scale="110"] .message .content { font-size: 1.1em; }
+.messages[data-reading-scale="125"] .message .content { font-size: 1.25em; }
+.messages[data-reading-spacing="compact"] .message .content { line-height: 1.45; }
+.messages[data-reading-spacing="normal"] .message .content { line-height: 1.65; }
+.messages[data-reading-spacing="relaxed"] .message .content { line-height: 1.9; }
+.app-shell.hafize-reading-focus .main { grid-template-columns: minmax(0, 1fr); }
+.app-shell.hafize-reading-focus .utility-rail { display: none; }
+.app-shell.hafize-reading-focus .primary-column { max-width: 980px; }
+@media (max-width: 680px) { .conversation-focus-toggle { padding-inline: 8px; font-size: 10px; } }
