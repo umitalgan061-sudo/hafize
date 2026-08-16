@@ -30,6 +30,7 @@
   loadShellEnhancement('HafizeConversationDeleteConfirm', '/conversation-delete-confirm.js', 'data-hafize-conversation-delete-confirm');
   loadShellEnhancement('HafizeShortcutHelp', '/shortcut-help.js', 'data-hafize-shortcut-help');
   loadShellEnhancement('HafizeNetworkStatus', '/network-status.js', 'data-hafize-network-status');
+  loadShellEnhancement('HafizeConversationCopy', '/conversation-copy.js', 'data-hafize-conversation-copy');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
