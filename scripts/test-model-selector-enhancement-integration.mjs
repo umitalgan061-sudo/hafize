@@ -10,7 +10,7 @@ const [loader, policy, moduleSource] = await Promise.all([
 assert.match(loader, /HafizeModelSelectorEnhancement/);
 assert.match(loader, /\/model-selector-enhancement\.js/);
 assert.match(loader, /data-hafize-model-selector-enhancement/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v51`/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v52`/);
 assert.match(policy, /'\/model-selector-enhancement\.js'/);
 assert.match(policy, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
