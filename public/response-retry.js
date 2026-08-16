@@ -1,0 +1,196 @@
+(function exposeHafizeResponseRetry(root, factory) {
+  'use strict';
+
+  const api = factory();
+  if (typeof module === 'object' && module?.exports) {
+    module.exports = api;
+    return;
+  }
+  root.HafizeResponseRetry = api;
+  api.mount();
+})(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeResponseRetry() {
+  'use strict';
+
+  const ACTION_CLASS = 'response-retry-action';
+  const STATUS_ID = 'responseRetryStatus';
+  const MAX_PROMPT_CHARS = 12_000;
+  const DRAFT_BLOCKED = 'Gönderilmemiş taslağın var. Tekrar denemeden önce taslağı gönder veya temizle.';
+  const PROMPT_UNAVAILABLE = 'Tekrar gönderilecek son kullanıcı isteği bulunamadı.';
+
+  function normalizePrompt(value) {
+    if (typeof value !== 'string') return '';
+    const text = value.trim();
+    if (!text || text.length > MAX_PROMPT_CHARS) return '';
+    return text;
+  }
+
+  function hasDraft(value) {
+    return Boolean(normalizePrompt(value));
+  }
+
+  function isStreaming(sendButton) {
+    return Boolean(sendButton?.classList?.contains?.('streaming'));
+  }
+
+  function lastRetryPair(messages) {
+    if (!Array.isArray(messages) || messages.length < 2) return null;
+    for (let index = messages.length - 1; index > 0; index -= 1) {
+      const assistant = messages[index];
+      const user = messages[index - 1];
+      if (assistant?.role !== 'assistant' || user?.role !== 'user') continue;
+      const prompt = normalizePrompt(user.content);
+      if (!prompt) return null;
+      return Object.freeze({ assistantId: assistant.id || '', prompt });
+    }
+    return null;
+  }
+
+  function createController({ documentRef = globalThis.document, EventImpl = globalThis.Event } = {}) {
+    if (!documentRef || typeof documentRef.querySelector !== 'function') {
+      throw new Error('INVALID_RESPONSE_RETRY_DOCUMENT');
+    }
+
+    let observer = null;
+    let mounted = false;
+    let status = null;
+
+    function nodes() {
+      return Object.freeze({
+        messages: documentRef.querySelector('#messages'),
+        composer: documentRef.querySelector('#composer'),
+        input: documentRef.querySelector('#messageInput'),
+        send: documentRef.querySelector('#sendBtn')
+      });
+    }
+
+    function ensureStatus(composer) {
+      const existing = documentRef.querySelector(`#${STATUS_ID}`);
+      if (existing) return existing;
+      const node = documentRef.createElement('p');
+      node.id = STATUS_ID;
+      node.className = 'agent-hint response-retry-status';
+      node.hidden = true;
+      node.setAttribute('role', 'status');
+      node.setAttribute('aria-live', 'polite');
+      composer.append(node);
+      return node;
+    }
+
+    function showStatus(text) {
+      if (!status) return;
+      status.textContent = text;
+      status.hidden = !text;
+    }
+
+    function clearActions(messages) {
+      messages?.querySelectorAll?.(`.${ACTION_CLASS}`)?.forEach?.((node) => node.remove());
+    }
+
+    function getRenderedPair(messages) {
+      const articles = Array.from(messages?.querySelectorAll?.('.message') || []);
+      if (articles.length < 2) return null;
+      const assistant = articles.at(-1);
+      const user = articles.at(-2);
+      if (!assistant?.classList?.contains?.('assistant') || !user?.classList?.contains?.('user')) return null;
+      const prompt = normalizePrompt(user.querySelector?.('.content')?.textContent || '');
+      return prompt ? { assistant, prompt } : null;
+    }
+
+    function submitPrompt(prompt) {
+      const { composer, input, send } = nodes();
+      if (!composer || !input || !send || isStreaming(send)) return false;
+      if (hasDraft(input.value)) {
+        showStatus(DRAFT_BLOCKED);
+        input.focus?.();
+        return false;
+      }
+      const clean = normalizePrompt(prompt);
+      if (!clean) {
+        showStatus(PROMPT_UNAVAILABLE);
+        return false;
+      }
+      input.value = clean;
+      if (typeof EventImpl === 'function') input.dispatchEvent?.(new EventImpl('input', { bubbles: true }));
+      showStatus('Son istek yeniden gönderiliyor…');
+      if (typeof composer.requestSubmit === 'function') composer.requestSubmit();
+      else send.click?.();
+      return true;
+    }
+
+    function render() {
+      const { messages, composer, send } = nodes();
+      if (!messages || !composer || !send) return false;
+      clearActions(messages);
+      if (isStreaming(send)) return false;
+      const pair = getRenderedPair(messages);
+      if (!pair) return false;
+
+      const wrap = documentRef.createElement('div');
+      wrap.className = ACTION_CLASS;
+      const button = documentRef.createElement('button');
+      button.type = 'button';
+      button.className = 'mini-btn response-retry-button';
+      button.textContent = '↻ Tekrar dene';
+      button.setAttribute('aria-label', 'Son kullanıcı isteğini yeniden gönder');
+      button.title = 'Önceki yanıtı silmeden son kullanıcı isteğini yeniden gönderir';
+      button.addEventListener('click', () => submitPrompt(pair.prompt));
+      wrap.append(button);
+      pair.assistant.append(wrap);
+      return true;
+    }
+
+    function mount() {
+      if (mounted) return false;
+      const { messages, composer, input, send } = nodes();
+      if (!messages || !composer || !input || !send) return false;
+      status = ensureStatus(composer);
+      const onInput = () => { if (!hasDraft(input.value)) showStatus(''); };
+      input.addEventListener?.('input', onInput);
+      observer = typeof globalThis.MutationObserver === 'function'
+        ? new globalThis.MutationObserver(() => render())
+        : null;
+      observer?.observe?.(messages, { childList: true, subtree: true, characterData: true });
+      observer?.observe?.(send, { attributes: true, attributeFilter: ['class'] });
+      mounted = true;
+      render();
+      return true;
+    }
+
+    function destroy() {
+      if (!mounted) return false;
+      const { messages } = nodes();
+      observer?.disconnect?.();
+      observer = null;
+      clearActions(messages);
+      status?.remove?.();
+      status = null;
+      mounted = false;
+      return true;
+    }
+
+    return Object.freeze({ mount, destroy, render, submitPrompt });
+  }
+
+  function mount(options) {
+    try {
+      const controller = createController(options);
+      return controller.mount() ? controller : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return Object.freeze({
+    ACTION_CLASS,
+    STATUS_ID,
+    MAX_PROMPT_CHARS,
+    DRAFT_BLOCKED,
+    PROMPT_UNAVAILABLE,
+    normalizePrompt,
+    hasDraft,
+    isStreaming,
+    lastRetryPair,
+    createController,
+    mount
+  });
+});
