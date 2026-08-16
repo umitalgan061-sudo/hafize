@@ -18,6 +18,15 @@ Kalıcı veri mevcut `personal-memory-runtime` üzerinden AES-256-GCM şifreli s
 
 Export/read/write response'larında dahili `ownerId` alanı temizlenir. Request gövdesinde owner, token veya bilinmeyen alan kabul edilmez.
 
+## Kullanıcı sahiplik kontrolleri
+
+PWA bellek kartı backend'deki mevcut owner-control sözleşmesini doğrudan kullanıcıya açar:
+
+- **Tümünü dışa aktar** yalnız açık düğme etkileşiminden sonra `POST /api/memory/export` çağırır. Dönen kayıtlar istemcide tekrar şema ve `ownerId` sızıntısı açısından doğrulanır, en fazla 4 MiB JSON dosyasına dönüştürülür ve yalnız yerel tarayıcı indirmesi olarak sunulur.
+- **Tüm belleği sil** iki ayrı tarayıcı onayı tamamlanmadan hiçbir mutation çağrısı yapmaz. İkinci onaydan sonra backend'e hem `explicitUserIntent:true` hem `confirmDeleteAll:true` gönderilir.
+- Export veya tam silme agent tool catalog'a eklenmez; model bu düğmeleri kendiliğinden çalıştıramaz.
+- Her iki kontrol de yalnız authenticated session sırasında etkinleşir; same-origin/no-store istemci politikası korunur.
+
 ## Yapılandırma
 
 Bellek storage kapalıysa control runtime disabled döner. Storage yapılandırılmışsa şu server-side değerlerin tamamı gerekir:
@@ -36,8 +45,9 @@ Kısmi yapılandırma fail-closed kabul edilir. Bu dosyada veya repoda gerçek s
 - `memory.write` / `memory.delete` agent tool catalog'a açılmaz.
 - Plaintext memory JSON storage yoktur.
 - Client-provided owner scope yoktur.
-- Delete-all işlemi tek bir genel boolean ile çalışmaz; ayrı confirmation ister.
+- Delete-all işlemi tek bir genel boolean ile çalışmaz; backend confirmation alanına ek olarak arayüzde iki ayrı kullanıcı onayı vardır.
+- Export dosyası sunucuda yeni kalıcı kopya oluşturmaz; browser indirmesi dışında otomatik dış gönderim yoktur.
 
-## Sonraki wiring
+## Runtime wiring
 
-Bu PR güvenli runtime + HTTP boundary sözleşmesini tamamlar. `server.mjs` route wiring'i ayrı küçük PR olarak yapılmalıdır; büyük server dosyasını bu turda test kapsamı olmadan full-file replacement ile değiştirmek tercih edilmedi. Wiring sırasında API yalnız `runtime.configured === true` ise açılmalı ve health sadece boolean capability bilgisi yayınlamalıdır.
+`server.mjs` bellek route'unu yalnız `MEMORY_SERVER_RUNTIME.configured === true` olduğunda etkinleştirir. Health endpoint yalnız boolean capability durumu yayınlar; encryption key, auth token, owner kimliği veya kayıt içeriği health yanıtına girmez.
