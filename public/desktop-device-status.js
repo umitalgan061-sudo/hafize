@@ -14,6 +14,7 @@
   const CARD_ID = 'desktopDeviceStatusCard';
   const STYLE_ID = 'desktopDeviceStatusStyle';
   const MAX_TEXT = 64;
+  const MAX_ACTIONS = 12;
 
   function cleanText(value) {
     return typeof value === 'string' ? value.trim().slice(0, MAX_TEXT) : '';
@@ -30,6 +31,17 @@
       : 0;
     if (!platform && !arch && !appVersion && !cpuCount && !totalMemoryMb) return null;
     return Object.freeze({ platform, arch, appVersion, cpuCount, totalMemoryMb });
+  }
+
+  function normalizeCapabilities(value) {
+    if (!value || Array.isArray(value) || typeof value !== 'object') return Object.freeze({ browserOrigins: [], appIds: [] });
+    const browserOrigins = Array.isArray(value.browserOrigins)
+      ? value.browserOrigins.filter((item) => typeof item === 'string' && /^https:\/\/[^\s/]+(?::\d+)?$/.test(item)).slice(0, MAX_ACTIONS)
+      : [];
+    const appIds = Array.isArray(value.appIds)
+      ? value.appIds.filter((item) => typeof item === 'string' && /^[a-z][a-z0-9._-]{1,63}$/.test(item)).slice(0, MAX_ACTIONS)
+      : [];
+    return Object.freeze({ browserOrigins: [...new Set(browserOrigins)], appIds: [...new Set(appIds)] });
   }
 
   function formatMemory(totalMemoryMb) {
@@ -56,10 +68,12 @@
       .desktop-device-card .desktop-device-label{display:block;font-size:11px;opacity:.68;margin-bottom:3px}
       .desktop-device-card .desktop-device-value{display:block;font-size:12px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .desktop-device-card .desktop-device-state{margin:8px 0 0;font-size:12px;line-height:1.45;opacity:.76}
-      .desktop-device-card .desktop-device-actions{display:flex;justify-content:flex-end;margin-top:8px}
-      @media (max-width:520px){.desktop-device-card .desktop-device-grid{grid-template-columns:1fr}}
+      .desktop-device-card .desktop-device-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:8px}
+      .desktop-device-card .desktop-device-launchers{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line,#ded8ce)}
+      .desktop-device-card .desktop-device-launchers[hidden]{display:none}
+      @media (max-width:520px){.desktop-device-card .desktop-device-grid{grid-template-columns:1fr}.desktop-device-card .desktop-device-launchers button{flex:1 1 100%}}
       @media (prefers-reduced-motion:reduce){.desktop-device-card *{scroll-behavior:auto!important;transition:none!important}}
-      @media (forced-colors:active){.desktop-device-card .desktop-device-item{border-color:CanvasText}}
+      @media (forced-colors:active){.desktop-device-card .desktop-device-item,.desktop-device-card .desktop-device-launchers{border-color:CanvasText}}
     `;
     documentRef.head?.append(style);
   }
@@ -69,6 +83,7 @@
     let card = null;
     let status = null;
     let values = null;
+    let launchers = null;
     let refreshButton = null;
     let mounted = false;
     let generation = 0;
@@ -99,7 +114,38 @@
         );
         values.append(item);
       }
-      status.textContent = 'Masaüstü cihaz köprüsü hazır. Bu kart yalnız salt-okunur sistem bilgisini gösterir.';
+      status.textContent = 'Masaüstü cihaz köprüsü hazır. Dış açma işlemleri yalnız görünür düğme tıklamasıyla çalışır.';
+    }
+
+    async function runAction(kind, value) {
+      if (!mounted) return false;
+      status.textContent = kind === 'browser' ? 'Tarayıcı açılıyor…' : 'Uygulama açılıyor…';
+      try {
+        const result = kind === 'browser' ? await bridge.openBrowser(value) : await bridge.openApp(value);
+        status.textContent = result?.ok === true ? 'İstek cihaz köprüsüne gönderildi.' : 'Cihaz eylemi güvenlik politikası tarafından reddedildi.';
+        return result?.ok === true;
+      } catch {
+        status.textContent = 'Cihaz eylemi güvenli biçimde tamamlanamadı.';
+        return false;
+      }
+    }
+
+    function renderCapabilities(capabilities) {
+      launchers.replaceChildren();
+      for (const origin of capabilities.browserOrigins) {
+        const button = createElement(documentRef, 'button', 'mini-btn', new URL(origin).hostname);
+        button.type = 'button';
+        button.title = origin;
+        button.addEventListener('click', () => runAction('browser', `${origin}/`), { once: false });
+        launchers.append(button);
+      }
+      for (const appId of capabilities.appIds) {
+        const button = createElement(documentRef, 'button', 'mini-btn', `Uygulama · ${appId}`);
+        button.type = 'button';
+        button.addEventListener('click', () => runAction('app', appId), { once: false });
+        launchers.append(button);
+      }
+      launchers.hidden = launchers.children.length === 0;
     }
 
     async function refresh() {
@@ -108,19 +154,27 @@
       setBusy(true);
       status.textContent = 'Cihaz bilgisi okunuyor…';
       try {
-        const result = await bridge.getSystemInfo();
+        const [infoResult, capabilityResult] = await Promise.all([
+          bridge.getSystemInfo(),
+          typeof bridge.getCapabilities === 'function' ? bridge.getCapabilities() : Promise.resolve({ ok: true, value: {} })
+        ]);
         if (!mounted || token !== generation) return false;
-        const info = result?.ok === true ? normalizeSystemInfo(result.value) : null;
+        const info = infoResult?.ok === true ? normalizeSystemInfo(infoResult.value) : null;
         if (!info) {
           values.replaceChildren();
+          launchers.replaceChildren();
+          launchers.hidden = true;
           status.textContent = 'Cihaz bilgisi güvenli köprüden alınamadı.';
           return false;
         }
         renderInfo(info);
+        renderCapabilities(capabilityResult?.ok === true ? normalizeCapabilities(capabilityResult.value) : normalizeCapabilities({}));
         return true;
       } catch {
         if (mounted && token === generation) {
           values.replaceChildren();
+          launchers.replaceChildren();
+          launchers.hidden = true;
           status.textContent = 'Cihaz bilgisi güvenli köprüden alınamadı.';
         }
         return false;
@@ -146,12 +200,15 @@
       status.setAttribute('role', 'status');
       status.setAttribute('aria-live', 'polite');
       values = createElement(documentRef, 'div', 'desktop-device-grid');
+      launchers = createElement(documentRef, 'div', 'desktop-device-launchers');
+      launchers.hidden = true;
+      launchers.setAttribute('aria-label', 'İzin verilen masaüstü açma eylemleri');
       const actions = createElement(documentRef, 'div', 'desktop-device-actions');
       refreshButton = createElement(documentRef, 'button', 'mini-btn', 'Yenile');
       refreshButton.type = 'button';
       refreshButton.addEventListener('click', refresh);
       actions.append(refreshButton);
-      card.append(head, status, values, actions);
+      card.append(head, status, values, launchers, actions);
       rail.append(card);
       return true;
     }
@@ -170,11 +227,11 @@
       generation += 1;
       refreshButton?.removeEventListener('click', refresh);
       card?.remove();
-      card = status = values = refreshButton = null;
+      card = status = values = launchers = refreshButton = null;
       return true;
     }
 
-    return Object.freeze({ mount, destroy, refresh, hasBridge });
+    return Object.freeze({ mount, destroy, refresh, hasBridge, runAction });
   }
 
   function mount(options) {
@@ -186,5 +243,5 @@
     }
   }
 
-  return Object.freeze({ CARD_ID, STYLE_ID, normalizeSystemInfo, formatMemory, createController, mount });
+  return Object.freeze({ CARD_ID, STYLE_ID, normalizeSystemInfo, normalizeCapabilities, formatMemory, createController, mount });
 });
