@@ -12,9 +12,11 @@
   'use strict';
 
   const MEMORY_PATH = '/api/memory';
+  const MEMORY_EXPORT_PATH = '/api/memory/export';
   const SESSION_STATUS_PATH = '/api/session/status';
   const MEMORY_ID = /^memory_[A-Za-z0-9_-]{8,80}$/;
   const MEMORY_KINDS = Object.freeze(['identity', 'preference', 'project', 'note']);
+  const MAX_EXPORT_BYTES = 4 * 1024 * 1024;
   const KIND_LABELS = Object.freeze({
     identity: 'Kimlik',
     preference: 'Tercih',
@@ -88,7 +90,51 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ exactMatch: true, explicitUserIntent: true })
         });
+      },
+      exportAll() {
+        return request(MEMORY_EXPORT_PATH, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ explicitUserIntent: true })
+        });
+      },
+      removeAll() {
+        return request(MEMORY_PATH, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ explicitUserIntent: true, confirmDeleteAll: true })
+        });
       }
+    });
+  }
+
+  function normalizeExportRecords(value) {
+    if (!Array.isArray(value)) throw new Error('INVALID_MEMORY_EXPORT');
+    const records = [];
+    for (const record of value) {
+      if (!record || Array.isArray(record) || typeof record !== 'object') throw new Error('INVALID_MEMORY_EXPORT');
+      const memoryId = typeof record.memoryId === 'string' && MEMORY_ID.test(record.memoryId) ? record.memoryId : '';
+      const kind = typeof record.kind === 'string' && MEMORY_KINDS.includes(record.kind) ? record.kind : '';
+      const content = typeof record.content === 'string' ? record.content : '';
+      if (!memoryId || !kind || !content.trim()) throw new Error('INVALID_MEMORY_EXPORT');
+      if ('ownerId' in record) throw new Error('INVALID_MEMORY_EXPORT_OWNER');
+      records.push({ ...record });
+    }
+    return records;
+  }
+
+  function createExportText(records, { now = () => new Date() } = {}) {
+    const safeRecords = normalizeExportRecords(records);
+    const createdAt = now();
+    const exportedAt = createdAt instanceof Date && Number.isFinite(createdAt.getTime())
+      ? createdAt.toISOString()
+      : new Date(0).toISOString();
+    const text = `${JSON.stringify({ schemaVersion: 1, exportedAt, records: safeRecords }, null, 2)}\n`;
+    if (new TextEncoder().encode(text).byteLength > MAX_EXPORT_BYTES) throw new Error('MEMORY_EXPORT_TOO_LARGE');
+    return Object.freeze({
+      text,
+      filename: `hafize-memory-${exportedAt.slice(0, 10)}.json`,
+      count: safeRecords.length
     });
   }
 
@@ -101,7 +147,14 @@
     return 'Bellek işlemi tamamlanamadı.';
   }
 
-  function mount({ documentRef = globalThis.document, fetchImpl = globalThis.fetch } = {}) {
+  function mount({
+    documentRef = globalThis.document,
+    fetchImpl = globalThis.fetch,
+    confirmImpl = globalThis.confirm,
+    BlobImpl = globalThis.Blob,
+    urlApi = globalThis.URL,
+    now = () => new Date()
+  } = {}) {
     if (!documentRef) return false;
     const nodes = {
       card: documentRef.querySelector('#memoryCard'),
@@ -114,7 +167,9 @@
       writeForm: documentRef.querySelector('#memoryWriteForm'),
       writeKind: documentRef.querySelector('#memoryWriteKind'),
       content: documentRef.querySelector('#memoryContent'),
-      writeButton: documentRef.querySelector('#memoryWriteBtn')
+      writeButton: documentRef.querySelector('#memoryWriteBtn'),
+      exportButton: documentRef.querySelector('#memoryExportBtn'),
+      deleteAllButton: documentRef.querySelector('#memoryDeleteAllBtn')
     };
     if (Object.values(nodes).some((node) => !node)) return false;
 
@@ -135,6 +190,8 @@
       nodes.writeKind.disabled = disabled;
       nodes.content.disabled = disabled;
       nodes.writeButton.disabled = disabled;
+      nodes.exportButton.disabled = disabled;
+      nodes.deleteAllButton.disabled = disabled;
       nodes.card.setAttribute('aria-busy', String(busy));
     }
 
@@ -191,7 +248,7 @@
           clearResults();
           setStatus(messageFor(response), response.status === 404 ? 'disabled' : 'idle');
         } else {
-          setStatus('Kişisel belleğini ara veya açıkça yeni bir not kaydet.', 'active');
+          setStatus('Kişisel belleğini ara, dışa aktar veya açıkça yeni bir not kaydet.', 'active');
         }
       } catch {
         authenticated = false;
@@ -288,10 +345,90 @@
       }
     });
 
+    nodes.exportButton.addEventListener('click', async () => {
+      if (busy || !authenticated) return;
+      if (typeof BlobImpl !== 'function' || typeof urlApi?.createObjectURL !== 'function' || typeof urlApi?.revokeObjectURL !== 'function') {
+        setStatus('Bu tarayıcı bellek dışa aktarmayı desteklemiyor.', 'error');
+        return;
+      }
+      busy = true;
+      updateControls();
+      setStatus('Kişisel bellek dışa aktarılıyor…', 'loading');
+      let objectUrl = '';
+      try {
+        const response = await client.exportAll();
+        if (!response.ok) {
+          setStatus(messageFor(response), 'error');
+          if (response.status === 401) await refreshSession();
+          return;
+        }
+        const exported = createExportText(response.payload?.records, { now });
+        const blob = new BlobImpl([exported.text], { type: 'application/json;charset=utf-8' });
+        objectUrl = urlApi.createObjectURL(blob);
+        const link = documentRef.createElement('a');
+        link.href = objectUrl;
+        link.download = exported.filename;
+        link.hidden = true;
+        documentRef.body.append(link);
+        link.click();
+        link.remove();
+        setStatus(`${exported.count} kişisel bellek kaydı JSON olarak dışa aktarıldı.`, 'active');
+      } catch (error) {
+        setStatus(error?.message === 'MEMORY_EXPORT_TOO_LARGE'
+          ? 'Bellek dışa aktarma dosyası tarayıcı sınırını aşıyor.'
+          : 'Kişisel bellek dışa aktarılamadı.', 'error');
+      } finally {
+        if (objectUrl) urlApi.revokeObjectURL(objectUrl);
+        busy = false;
+        updateControls();
+      }
+    });
+
+    nodes.deleteAllButton.addEventListener('click', async () => {
+      if (busy || !authenticated) return;
+      if (typeof confirmImpl !== 'function') {
+        setStatus('Tam silme onayı bu ortamda kullanılamıyor.', 'error');
+        return;
+      }
+      const first = confirmImpl('Tüm kişisel bellek kayıtlarını kalıcı olarak silmek istiyor musun?');
+      if (!first) return;
+      const second = confirmImpl('Bu işlem geri alınamaz. Tüm kişisel belleği silmeyi onaylıyor musun?');
+      if (!second) {
+        setStatus('Tüm belleği silme işlemi iptal edildi.', 'idle');
+        return;
+      }
+      busy = true;
+      updateControls();
+      setStatus('Tüm kişisel bellek kayıtları siliniyor…', 'loading');
+      try {
+        const response = await client.removeAll();
+        if (!response.ok) {
+          setStatus(messageFor(response), 'error');
+          if (response.status === 401) await refreshSession();
+          return;
+        }
+        clearResults();
+        const deleted = Number.isInteger(response.payload?.deleted) ? response.payload.deleted : 0;
+        setStatus(`${deleted} kişisel bellek kaydı kalıcı olarak silindi.`, 'active');
+      } catch {
+        setStatus('Tüm kişisel bellek silinemedi.', 'error');
+      } finally {
+        busy = false;
+        updateControls();
+      }
+    });
+
     updateControls();
     refreshSession();
     return true;
   }
 
-  return Object.freeze({ MEMORY_KINDS, createMemoryClient, mount });
+  return Object.freeze({
+    MEMORY_KINDS,
+    MAX_EXPORT_BYTES,
+    createMemoryClient,
+    normalizeExportRecords,
+    createExportText,
+    mount
+  });
 });
