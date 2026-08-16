@@ -1,0 +1,91 @@
+.github-write-readiness-card {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.github-write-readiness-head,
+.github-write-readiness-title,
+.github-write-readiness-boundary {
+  display: flex;
+  align-items: center;
+}
+
+.github-write-readiness-head,
+.github-write-readiness-boundary {
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.github-write-readiness-title {
+  gap: 0.45rem;
+  font-weight: 700;
+}
+
+.github-write-readiness-summary {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0.84;
+}
+
+.github-write-readiness-summary[data-state="ready"] {
+  opacity: 1;
+}
+
+.github-write-readiness-summary[data-state="error"] {
+  font-weight: 650;
+}
+
+.github-write-readiness-boundary {
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+  border-radius: 0.7rem;
+  font-size: 0.78rem;
+}
+
+.github-write-readiness-badge {
+  max-width: 58%;
+  text-align: right;
+}
+
+.github-write-readiness-badge[data-state="ready"] {
+  font-weight: 750;
+}
+
+.github-write-readiness-rules {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  opacity: 0.72;
+}
+
+.github-write-readiness-refresh:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .github-write-readiness-summary,
+  .github-write-readiness-boundary {
+    font-size: 0.76rem;
+  }
+
+  .github-write-readiness-rules {
+    font-size: 0.71rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .github-write-readiness-card * {
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .github-write-readiness-boundary {
+    border-color: CanvasText;
+  }
+}
