@@ -36,6 +36,14 @@ assert.equal(app.includes("isStreaming ? 'Yanıtı durdur' : 'Gönder'"), true);
 assert.equal(app.includes('ui.messageInput.disabled = true'), false,
   'composer text area should remain editable while generation is active');
 
+const sendClick = app.slice(app.indexOf("ui.sendButton.addEventListener('click'"), app.indexOf("ui.composer.addEventListener('submit'"));
+assert.equal(sendClick.includes('if (!isStreaming) return;'), true);
+assert.equal(sendClick.includes('event.preventDefault();'), true);
+assert.equal(sendClick.includes("runController.abort('user')"), true);
+const keydown = app.slice(app.indexOf("ui.messageInput.addEventListener('keydown'"), app.indexOf("ui.sendButton.addEventListener('click'"));
+assert.equal(keydown.includes('runController.abort'), false,
+  'Enter while streaming must not silently become a stop command');
+
 const chatFetch = app.slice(app.indexOf("fetch('/api/chat'"), app.indexOf('async function runAssistantWithTools'));
 assert.equal(chatFetch.includes('signal'), true, 'plain chat fetch must carry the active run signal');
 const toolFetch = app.slice(app.indexOf("fetch('/api/agent/run'"), app.indexOf('async function submitMessage'));
