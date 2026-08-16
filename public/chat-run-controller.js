@@ -26,6 +26,7 @@
   loadShellEnhancement('HafizeMobileSidebarDismiss', '/mobile-sidebar-dismiss.js', 'data-hafize-mobile-sidebar-dismiss');
   loadShellEnhancement('HafizeDraftClearUndo', '/draft-clear-undo.js', 'data-hafize-draft-clear-undo');
   loadShellEnhancement('HafizeDraftNavigationGuard', '/draft-navigation-guard.js', 'data-hafize-draft-navigation-guard');
+  loadShellEnhancement('HafizeConversationKeyboardNav', '/conversation-keyboard-nav.js', 'data-hafize-conversation-keyboard-nav');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
