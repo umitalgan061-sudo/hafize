@@ -4,26 +4,31 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const swPolicy = require('../public/sw-policy.js');
-const [loader, source, styleLoader, css, server] = await Promise.all([
+const [loader, source, styleLoader, sessionSync, css, server] = await Promise.all([
   readFile(new URL('../public/chat-run-controller.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/canva-connection-status.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/canva-connection-status-style.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/canva-session-sync.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/canva-connection-status.css', import.meta.url), 'utf8'),
   readFile(new URL('../server.mjs', import.meta.url), 'utf8')
 ]);
 
 const statusLoader = "loadShellEnhancement('HafizeCanvaConnectionStatus', '/canva-connection-status.js', 'data-hafize-canva-connection-status')";
 const styleLoaderCall = "loadShellEnhancement('HafizeCanvaConnectionStatusStyle', '/canva-connection-status-style.js', 'data-hafize-canva-connection-status-style-loader')";
+const syncLoader = "loadShellEnhancement('HafizeCanvaSessionSync', '/canva-session-sync.js', 'data-hafize-canva-session-sync')";
 assert.equal(loader.includes(statusLoader), true);
 assert.equal(loader.includes(styleLoaderCall), true);
+assert.equal(loader.includes(syncLoader), true);
 assert.equal(loader.split("'/canva-connection-status.js'").length - 1, 1);
 assert.equal(loader.split("'/canva-connection-status-style.js'").length - 1, 1);
+assert.equal(loader.split("'/canva-session-sync.js'").length - 1, 1);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v63');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v64');
 for (const asset of [
   '/canva-connection-status.js',
   '/canva-connection-status-style.js',
-  '/canva-connection-status.css'
+  '/canva-connection-status.css',
+  '/canva-session-sync.js'
 ]) {
   assert.equal(swPolicy.SHELL_ASSETS.includes(asset), true, `${asset} must be offline shell asset`);
   assert.equal(swPolicy.classifyRequest({
@@ -57,6 +62,10 @@ assert.equal(source.includes('Salt-okunur bağlantı'), true);
 
 assert.equal(styleLoader.includes("const HREF = '/canva-connection-status.css'"), true);
 assert.equal(styleLoader.includes("data-hafize-canva-connection-status-style"), true);
+assert.equal(sessionSync.includes("new Set(['active', 'idle', 'disabled', 'error'])"), true);
+assert.equal(sessionSync.includes("querySelector('#sessionBadge')"), true);
+assert.equal(sessionSync.includes("querySelector('#canvaConnectionCard .canva-connection-refresh')"), true);
+assert.equal(sessionSync.includes("attributeFilter: ['data-state']"), true);
 assert.equal(css.includes('@media (max-width: 520px)'), true);
 assert.equal(css.includes('@media (prefers-reduced-motion: reduce)'), true);
 assert.equal(css.includes('@media (forced-colors: active)'), true);
