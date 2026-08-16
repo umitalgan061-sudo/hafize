@@ -47,9 +47,9 @@ export function normalizeDeviceRequest(input) {
   if (typeof input.operation !== 'string') fail('INVALID_DEVICE_REQUEST');
   const args = input.args ?? {};
 
-  if (input.operation === 'system.info') {
+  if (input.operation === 'system.info' || input.operation === 'capabilities.read') {
     if (!exactObject(args, new Set())) fail('INVALID_DEVICE_REQUEST');
-    return Object.freeze({ operation: 'system.info', args: Object.freeze({}) });
+    return Object.freeze({ operation: input.operation, args: Object.freeze({}) });
   }
 
   if (input.operation === 'browser.open') {
@@ -98,6 +98,10 @@ export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpen
     if (typeof opener !== 'function') fail('INVALID_DEVICE_BRIDGE:appOpener');
     allowedApps.set(appId, opener);
   }
+  const capabilities = Object.freeze({
+    browserOrigins,
+    appIds: Object.freeze([...allowedApps.keys()])
+  });
 
   async function handle(rawRequest) {
     let request;
@@ -107,6 +111,9 @@ export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpen
     try {
       if (request.operation === 'system.info') {
         return { ok: true, value: sanitizeSystemInfo(await getSystemInfo()) };
+      }
+      if (request.operation === 'capabilities.read') {
+        return { ok: true, value: capabilities };
       }
       if (request.operation === 'browser.open') {
         const origin = new URL(request.args.url).origin;
@@ -126,7 +133,7 @@ export function createDeviceBridgeHandler({ getSystemInfo, openExternal, appOpen
   return Object.freeze({
     channel: CHANNEL,
     handle,
-    allowedApps: Object.freeze([...allowedApps.keys()]),
+    allowedApps: capabilities.appIds,
     allowedBrowserOrigins: browserOrigins
   });
 }
