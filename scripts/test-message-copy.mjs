@@ -25,6 +25,7 @@ class FakeNode {
     this.listeners = new Map();
     this.dispatched = [];
     this.submitCount = 0;
+    this.focusCount = 0;
     this.classList = new FakeClassList(this);
   }
   append(...nodes) { this.children.push(...nodes); }
@@ -32,6 +33,7 @@ class FakeNode {
   addEventListener(name, handler) { this.listeners.set(name, handler); }
   dispatchEvent(event) { this.dispatched.push(event?.type || 'unknown'); return true; }
   requestSubmit() { this.submitCount += 1; }
+  focus() { this.focusCount += 1; }
   querySelector(selector) {
     if (selector === '.content') return this.children.find((child) => child.classList?.contains('content')) || null;
     if (selector === '.message-copy-actions') return this.children.find((child) => child.classList?.contains('message-copy-actions')) || null;
@@ -81,9 +83,13 @@ assert.equal(copyApi.copyText('   '), null);
 assert.equal(copyApi.copyText(null), null);
 assert.equal(copyApi.copyText('x'.repeat(copyApi.MAX_COPY_CHARS + 1)), null);
 assert.equal(copyApi.copyText(' x '), ' x ');
+assert.equal(copyApi.composerText('yeniden gönder'), 'yeniden gönder');
+assert.equal(copyApi.composerText('x'.repeat(copyApi.MAX_COMPOSER_CHARS + 1)), null);
+assert.equal(copyApi.quoteText('bir\niki'), '> bir\n> iki');
+assert.equal(copyApi.quoteText('x'.repeat(copyApi.MAX_COMPOSER_CHARS)), null, 'quote prefix must count toward composer bound');
 
 const user = message('user', 'Kullanıcı mesajı');
-const assistant = message('assistant', 'Hafize yanıtı');
+const assistant = message('assistant', 'Hafize\nyanıtı');
 const messages = new FakeNode('div');
 messages.id = 'messages';
 messages.append(user.article, assistant.article);
@@ -127,12 +133,15 @@ assert.strictEqual(observed.target, messages);
 assert.deepEqual(observed.options, { childList: true, subtree: true });
 
 const userActions = user.article.querySelector('.message-copy-actions');
-assert.equal(userActions.children.length, 2, 'user message must expose resend and copy actions');
+assert.equal(userActions.children.length, 3, 'user message must expose resend, quote and copy actions');
 const resendButton = userActions.children[0];
-const userCopyButton = userActions.children[1];
+const userQuoteButton = userActions.children[1];
+const userCopyButton = userActions.children[2];
 assert.equal(resendButton.type, 'button');
 assert.equal(resendButton.textContent, 'Tekrar gönder');
 assert.equal(resendButton.attributes.get('aria-label'), 'kendi mesajını tekrar gönder');
+assert.equal(userQuoteButton.textContent, 'Alıntıla');
+assert.equal(userQuoteButton.attributes.get('aria-label'), 'kendi mesajını yazara alıntıla');
 assert.equal(userCopyButton.textContent, 'Kopyala');
 assert.equal(userCopyButton.attributes.get('aria-label'), 'kendi mesajını kopyala');
 assert.equal(await controller.copyMessage(userCopyButton, user.content), true);
@@ -149,12 +158,44 @@ assert.equal(resendButton.dataset.state, 'success');
 assert.equal(resendButton.textContent, 'Tekrar gönderildi');
 
 const assistantActions = assistant.article.querySelector('.message-copy-actions');
-assert.equal(assistantActions.children.length, 1, 'assistant message must not expose resend action');
-const assistantButton = assistantActions.children[0];
-assert.equal(assistantButton.attributes.get('aria-label'), 'Hafize yanıtını kopyala');
-assert.equal(await controller.copyMessage(assistantButton, assistant.content), true);
-assert.deepEqual(writes, ['Kullanıcı mesajı', 'Hafize yanıtı']);
+assert.equal(assistantActions.children.length, 2, 'assistant message must expose quote and copy only');
+const assistantQuoteButton = assistantActions.children[0];
+const assistantCopyButton = assistantActions.children[1];
+assert.equal(assistantQuoteButton.attributes.get('aria-label'), 'Hafize yanıtını yazara alıntıla');
+assert.equal(assistantCopyButton.attributes.get('aria-label'), 'Hafize yanıtını kopyala');
+assert.equal(await controller.copyMessage(assistantCopyButton, assistant.content), true);
+assert.deepEqual(writes, ['Kullanıcı mesajı', 'Hafize\nyanıtı']);
 
+// Quoting preserves an unsent draft and never submits it automatically.
+documentRef.input.value = 'Kendi taslağım';
+const submitsBeforeQuote = documentRef.composer.submitCount;
+assert.equal(controller.quoteMessage(assistantQuoteButton, assistant.content), true);
+assert.equal(documentRef.input.value, 'Kendi taslağım\n\n> Hafize\n> yanıtı');
+assert.equal(documentRef.composer.submitCount, submitsBeforeQuote);
+assert.equal(documentRef.input.focusCount, 1);
+assert.equal(documentRef.input.dispatched.at(-1), 'input');
+assert.equal(assistantQuoteButton.textContent, 'Alıntı eklendi');
+
+// Composer bounds apply to resend and quote even though clipboard copy has a larger bound.
+const oversizedContent = new FakeNode('div');
+oversizedContent.textContent = 'x'.repeat(copyApi.MAX_COMPOSER_CHARS + 1);
+const oversizedResend = new FakeNode('button');
+oversizedResend.dataset.idleLabel = 'Tekrar gönder';
+assert.equal(controller.resendMessage(oversizedResend, oversizedContent), false);
+assert.equal(documentRef.composer.submitCount, submitsBeforeQuote);
+const oversizedQuote = new FakeNode('button');
+oversizedQuote.dataset.idleLabel = 'Alıntıla';
+assert.equal(controller.quoteMessage(oversizedQuote, oversizedContent), false);
+
+const almostFullDraft = 'd'.repeat(copyApi.MAX_COMPOSER_CHARS - 2);
+documentRef.input.value = almostFullDraft;
+const quoteOverflowButton = new FakeNode('button');
+quoteOverflowButton.dataset.idleLabel = 'Alıntıla';
+assert.equal(controller.quoteMessage(quoteOverflowButton, user.content), false);
+assert.equal(documentRef.input.value, almostFullDraft, 'failed quote must preserve existing draft');
+assert.equal(quoteOverflowButton.textContent, 'Yazar dolu');
+
+documentRef.input.value = '';
 const beforeBusySubmit = documentRef.composer.submitCount;
 documentRef.sendButton.className = 'send-btn streaming';
 const busyButton = new FakeNode('button');
@@ -210,7 +251,6 @@ emptyButton.dataset.idleLabel = 'Tekrar gönder';
 const emptyContent = new FakeNode('div');
 emptyContent.textContent = '';
 assert.equal(controller.resendMessage(emptyButton, emptyContent), false);
-assert.equal(documentRef.composer.submitCount, 1);
 controller.destroy();
 assert.equal(disconnected, true);
 
@@ -230,6 +270,8 @@ assert.equal(copySource.includes("button.addEventListener('click'"), true, 'mess
 assert.equal(copySource.includes("documentRef.querySelector('#composer')"), true, 'resend must reuse the canonical composer');
 assert.equal(copySource.includes('composer.requestSubmit()'), true, 'resend must enter the normal submit path');
 assert.equal(copySource.includes("classList?.contains('streaming')"), true, 'resend must fail closed while a response is active');
+assert.equal(copySource.includes('MAX_COMPOSER_CHARS = 12_000'), true, 'composer actions must share the existing 12k message bound');
+assert.equal(copySource.includes("input.focus?.()"), true, 'quote must return focus to composer');
 assert.equal(copySource.includes('fetch('), false, 'message actions must not create a parallel network path');
 assert.equal(loaderSource.includes("script.src = '/message-copy.js'"), true, 'loader must use fixed same-origin asset path');
 assert.equal(loaderSource.includes('data-hafize-message-copy'), true, 'loader must be idempotent');
@@ -237,4 +279,4 @@ assert.equal(swSource.includes("`${CACHE_PREFIX}v18`"), true);
 assert.equal(swSource.includes("'/message-copy.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 
-console.log('message copy and resend control tests passed');
+console.log('message copy, resend and quote control tests passed');
