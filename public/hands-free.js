@@ -17,6 +17,8 @@
   const DEFAULT_WAKE_PHRASE = 'hafize';
   const RESTART_DELAY_MS = 350;
   const HANDOFF_TIMEOUT_MS = 1500;
+  const POST_OUTPUT_COOLDOWN_MS = 1800;
+  const SESSION_LIMIT_MS = 30 * 60 * 1000;
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
   const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
 
@@ -34,7 +36,8 @@
     const speech = normalizeSpeech(value);
     const wake = normalizeSpeech(wakePhrase);
     if (!speech || !wake) return false;
-    return speech.split(' ').includes(wake);
+    if (!wake.includes(' ')) return speech.split(' ').includes(wake);
+    return ` ${speech} `.includes(` ${wake} `);
   }
 
   function readRecognitionText(event) {
@@ -61,7 +64,10 @@
     let recognition = null;
     let restartTimer = null;
     let handoffTimer = null;
+    let sessionTimer = null;
+    let cooldownTimer = null;
     let handoffWaiting = false;
+    let coolingDown = false;
     let voiceInputListening = false;
     let voiceOutputSpeaking = false;
     let destroyed = false;
@@ -85,12 +91,15 @@
               ? '○ Sesli giriş hazırlanıyor'
               : voiceOutputSpeaking
                 ? '○ Hafize konuşuyor'
-                : listening
-                  ? '● “Hafize” için dinliyor'
-                  : '○ Eller serbest beklemede')
+                : coolingDown
+                  ? '○ Yankı koruması etkin'
+                  : listening
+                    ? '● “Hafize” için dinliyor'
+                    : '○ Eller serbest beklemede')
         : '';
       indicator.setAttribute?.('data-listening', String(listening));
       indicator.setAttribute?.('data-handoff-waiting', String(handoffWaiting));
+      indicator.setAttribute?.('data-cooling-down', String(coolingDown));
       indicator.setAttribute?.('data-voice-input-listening', String(voiceInputListening));
       indicator.setAttribute?.('data-voice-output-speaking', String(voiceOutputSpeaking));
     }
@@ -104,6 +113,17 @@
       if (handoffTimer != null && typeof root?.clearTimeout === 'function') root.clearTimeout(handoffTimer);
       handoffTimer = null;
       handoffWaiting = false;
+    }
+
+    function clearSessionTimer() {
+      if (sessionTimer != null && typeof root?.clearTimeout === 'function') root.clearTimeout(sessionTimer);
+      sessionTimer = null;
+    }
+
+    function clearCooldown() {
+      if (cooldownTimer != null && typeof root?.clearTimeout === 'function') root.clearTimeout(cooldownTimer);
+      cooldownTimer = null;
+      coolingDown = false;
     }
 
     function stopRecognition({ abort = false } = {}) {
@@ -121,8 +141,54 @@
 
     function scheduleRestart() {
       clearRestart();
-      if (destroyed || !enabled || handoffWaiting || voiceInputListening || voiceOutputSpeaking || documentRef.hidden || input.disabled) return;
+      if (
+        destroyed
+        || !enabled
+        || handoffWaiting
+        || coolingDown
+        || voiceInputListening
+        || voiceOutputSpeaking
+        || documentRef.hidden
+        || input.disabled
+      ) return;
       if (typeof root?.setTimeout === 'function') restartTimer = root.setTimeout(startRecognition, RESTART_DELAY_MS);
+    }
+
+    function expireSession() {
+      sessionTimer = null;
+      if (destroyed || !enabled) return;
+      enabled = false;
+      clearHandoff();
+      clearCooldown();
+      stopRecognition({ abort: true });
+      render();
+      announce('Eller serbest dinleme 30 dakikalık güvenlik süresi sonunda kapatıldı. Devam etmek için yeniden aç.');
+    }
+
+    function armSessionTimer() {
+      clearSessionTimer();
+      if (!enabled || destroyed || typeof root?.setTimeout !== 'function') return;
+      sessionTimer = root.setTimeout(expireSession, SESSION_LIMIT_MS);
+    }
+
+    function beginPostOutputCooldown() {
+      clearCooldown();
+      if (!enabled || destroyed) return;
+      coolingDown = true;
+      render();
+      if (typeof root?.setTimeout !== 'function') {
+        coolingDown = false;
+        render();
+        scheduleRestart();
+        return;
+      }
+      cooldownTimer = root.setTimeout(() => {
+        cooldownTimer = null;
+        if (destroyed || !enabled) return;
+        coolingDown = false;
+        render();
+        scheduleRestart();
+      }, POST_OUTPUT_COOLDOWN_MS);
     }
 
     function armHandoffFallback() {
@@ -144,7 +210,7 @@
     }
 
     function beginVoiceHandoff() {
-      if (handoffWaiting || voiceInputListening || voiceOutputSpeaking) return;
+      if (handoffWaiting || coolingDown || voiceInputListening || voiceOutputSpeaking) return;
       handoffWaiting = true;
       render();
       stopRecognition();
@@ -152,7 +218,18 @@
 
     function startRecognition() {
       clearRestart();
-      if (destroyed || !enabled || !Recognition || recognition || handoffWaiting || voiceInputListening || voiceOutputSpeaking || documentRef.hidden || input.disabled) return;
+      if (
+        destroyed
+        || !enabled
+        || !Recognition
+        || recognition
+        || handoffWaiting
+        || coolingDown
+        || voiceInputListening
+        || voiceOutputSpeaking
+        || documentRef.hidden
+        || input.disabled
+      ) return;
       const current = new Recognition();
       current.lang = documentRef.documentElement?.lang || root?.navigator?.language || 'tr-TR';
       current.continuous = true;
@@ -166,13 +243,15 @@
         render();
       };
       current.onresult = (event) => {
-        if (voiceOutputSpeaking || !containsWakePhrase(readRecognitionText(event))) return;
+        if (coolingDown || voiceOutputSpeaking || !containsWakePhrase(readRecognitionText(event))) return;
         beginVoiceHandoff();
       };
       current.onerror = (event) => {
         if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
           enabled = false;
+          clearSessionTimer();
           clearHandoff();
+          clearCooldown();
           clearRestart();
           announce('Eller serbest için mikrofon izni verilmedi.');
           render();
@@ -207,8 +286,11 @@
       if (enabled === requested) return;
       enabled = requested;
       clearHandoff();
+      clearCooldown();
+      clearSessionTimer();
       if (enabled) {
-        announce('Eller serbest bu oturum için açıldı. Mikrofon görünür şekilde “Hafize” uyandırma ifadesini dinler; mesaj otomatik gönderilmez.');
+        announce('Eller serbest bu oturum için 30 dakika açıldı. Mikrofon görünür şekilde “Hafize” uyandırma ifadesini dinler; mesaj otomatik gönderilmez.');
+        armSessionTimer();
         startRecognition();
       } else {
         stopRecognition({ abort: true });
@@ -227,6 +309,7 @@
     function handleVisibility() {
       if (documentRef.hidden) {
         clearHandoff();
+        clearCooldown();
         stopRecognition({ abort: true });
       } else {
         scheduleRestart();
@@ -239,6 +322,7 @@
       voiceInputListening = detail.listening;
       if (voiceInputListening) {
         clearHandoff();
+        clearCooldown();
         stopRecognition({ abort: true });
       } else {
         clearHandoff();
@@ -252,10 +336,11 @@
       if (!detail || detail.source !== 'voice-output' || typeof detail.speaking !== 'boolean') return;
       voiceOutputSpeaking = detail.speaking;
       if (voiceOutputSpeaking) {
+        clearCooldown();
         clearRestart();
         stopRecognition({ abort: true });
       } else {
-        scheduleRestart();
+        beginPostOutputCooldown();
       }
       render();
     }
@@ -270,6 +355,7 @@
       ? new MutationObserverCtor(() => {
           if (input.disabled) {
             clearHandoff();
+            clearCooldown();
             stopRecognition({ abort: true });
           } else {
             scheduleRestart();
@@ -284,6 +370,7 @@
       isEnabled: () => enabled,
       isListening: () => listening,
       isHandoffWaiting: () => handoffWaiting,
+      isCoolingDown: () => coolingDown,
       isVoiceInputListening: () => voiceInputListening,
       isVoiceOutputSpeaking: () => voiceOutputSpeaking,
       enable: () => setEnabled(true),
@@ -294,7 +381,9 @@
         enabled = false;
         voiceInputListening = false;
         voiceOutputSpeaking = false;
+        clearSessionTimer();
         clearHandoff();
+        clearCooldown();
         clearRestart();
         observer?.disconnect?.();
         stopRecognition({ abort: true });
@@ -309,6 +398,8 @@
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
     HANDOFF_TIMEOUT_MS,
+    POST_OUTPUT_COOLDOWN_MS,
+    SESSION_LIMIT_MS,
     VOICE_INPUT_STATE_EVENT,
     VOICE_OUTPUT_STATE_EVENT,
     containsWakePhrase,
