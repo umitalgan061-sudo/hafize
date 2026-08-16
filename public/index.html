@@ -1,12 +1,13 @@
 <!doctype html>
-<html lang="tr">
+<html lang="tr" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f7f5ef" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f5f0" />
+  <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
+  <title>Hafize</title>
   <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/hafize.jpeg" />
   <link rel="apple-touch-icon" href="/hafize.jpeg" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="stylesheet" href="/premium.css" />
@@ -15,22 +16,47 @@
   <link rel="stylesheet" href="/voice-output.css" />
   <link rel="stylesheet" href="/screen-share.css" />
   <link rel="stylesheet" href="/hands-free.css" />
-  <title>Hafize</title>
 </head>
 <body>
+  <span class="edge-beam edge-top" aria-hidden="true"></span>
+  <span class="edge-beam edge-right" aria-hidden="true"></span>
+  <span class="edge-beam edge-bottom" aria-hidden="true"></span>
+  <span class="edge-beam edge-left" aria-hidden="true"></span>
+
   <div class="app-shell">
-    <aside id="sidebar" class="sidebar" aria-label="Sohbet geçmişi">
-      <div class="brand-row"><img class="brand-avatar" src="/hafize.jpeg" alt="Hafize" /><div><strong>Hafize</strong><span>Kişisel yapay zekâ çalışma alanı</span></div></div>
-      <button id="newChatBtn" class="new-chat" type="button">＋ Yeni sohbet</button>
-      <nav class="nav-list" aria-label="Ana menü"><button class="nav-item active" type="button">Sohbetler</button><button class="nav-item" type="button" disabled>Görevler</button><button class="nav-item" type="button" disabled>Bağlantılar</button></nav>
-      <section class="history-block"><div class="history-head"><span>Geçmiş</span><button id="clearHistoryBtn" class="mini-btn" type="button">Temizle</button></div><div id="conversationList" class="conversation-list"></div></section>
-      <div class="sidebar-footer"><small><span class="status-dot"></span>Hafize güvenli backend sınırlarını kullanır.</small><button id="installBtn" class="soft-btn" type="button" hidden>Uygulamayı yükle</button></div>
+    <aside class="sidebar" id="sidebar" aria-label="Hafize gezinme menüsü">
+      <div class="brand-row"><div><strong>Hafize</strong><span>kişisel yapay zekâ</span></div></div>
+      <button class="new-chat" id="newChatBtn" type="button">＋ Yeni sohbet</button>
+      <nav class="nav-list" aria-label="Ana menü">
+        <button class="nav-item active" type="button">✦ Sohbet</button>
+        <button class="nav-item" type="button" disabled>◷ Görevler</button>
+        <button class="nav-item" type="button" disabled>⌘ Bağlantılar</button>
+        <button class="nav-item" type="button" disabled>⚙ Ayarlar</button>
+      </nav>
+      <section class="history-block" aria-labelledby="historyTitle">
+        <div class="history-head"><span id="historyTitle">Son sohbetler</span><button id="clearHistoryBtn" class="mini-btn" type="button">Temizle</button></div>
+        <div id="conversationList" class="conversation-list"></div>
+      </section>
+      <div class="sidebar-footer">
+        <button id="installBtn" class="soft-btn" type="button" hidden>Uygulamayı yükle</button>
+        <small><span class="status-dot" aria-hidden="true"></span> NVIDIA NIM · server-side güvenli bağlantı</small>
+      </div>
     </aside>
 
     <main class="main">
-      <header class="topbar"><button id="sidebarToggle" class="icon-btn" type="button" aria-label="Menüyü aç">☰</button><label class="model-wrap" for="agentSelect"><span>Ajan</span><select id="agentSelect" aria-label="Hafize ajanı"><option value="">Ajanlar yükleniyor…</option></select></label><div class="top-actions"><span class="pill">Güvenli çalışma alanı</span></div></header>
-      <div class="workspace-grid">
-        <section class="chat-stage" aria-label="Hafize sohbeti">
+      <header class="topbar">
+        <button id="sidebarToggle" class="icon-btn" type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="sidebar">☰</button>
+        <div class="brand-inline">
+          <svg class="flower-logo" viewBox="0 0 64 64" aria-label="Hafize logosu" role="img"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
+          <strong>Hafize</strong><small>kişisel yapay zekâ</small>
+        </div>
+        <div class="top-spacer"></div>
+        <label class="model-wrap agent-compact" for="agentSelect"><span>Ajan</span><select id="agentSelect" aria-label="Hafize ajanı" disabled><option value="">Ajanlar yükleniyor…</option></select></label>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Gündüz/gece temasını değiştir" aria-pressed="false"><span class="theme-sun">☀</span><span class="theme-moon">☾</span></button>
+      </header>
+
+      <div class="primary-column">
+        <section class="chat-stage">
           <div id="welcome" class="welcome">
             <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
             <h1>Merhaba, bugün ne yapalım?</h1>
@@ -57,35 +83,75 @@
             <div class="composer-actions">
               <label class="model-wrap composer-model" for="modelSelect"><span>Model</span><select id="modelSelect" aria-label="NVIDIA modeli"><option value="">NVIDIA modelleri yükleniyor…</option></select></label>
               <span class="agent-hint">Yapay zekâ hata yapabilir. Önemli bilgileri kontrol et.</span>
-              <button id="sendBtn" class="send-btn" type="submit" aria-label="Gönder" title="Gönder">↑</button>
+              <button id="sendBtn" class="send-btn" type="submit" aria-label="Gönder">↑</button>
             </div>
           </div>
           <div id="screenSharePreview" class="utility-card" hidden>
             <img id="screenShareImage" alt="Paylaşım için seçilen ekran görüntüsü önizlemesi" width="120" height="68" />
-            <div class="screen-share-copy"><span id="screenShareStatus">Ekran görüntüsü tutulmuyor.</span><p id="screenAnalysisResult" class="screen-analysis-result" role="status" hidden></p></div>
-            <div class="screen-share-actions"><button id="screenShareAnalyze" class="mini-btn" type="button">Hafize ile analiz et</button><button id="screenShareRemove" class="mini-btn" type="button">Ekran görüntüsünü kaldır</button></div>
+            <div class="screen-share-copy">
+              <span id="screenShareStatus">Ekran görüntüsü tutulmuyor.</span>
+              <p id="screenAnalysisResult" class="screen-analysis-result" role="status" hidden></p>
+            </div>
+            <div class="screen-share-actions">
+              <button id="screenShareAnalyze" class="mini-btn" type="button">Hafize ile analiz et</button>
+              <button id="screenShareRemove" class="mini-btn" type="button">Ekran görüntüsünü kaldır</button>
+            </div>
           </div>
         </form>
       </div>
 
       <aside class="utility-rail" aria-label="Hafize yardımcı araçları">
         <section class="utility-card account-card" id="accountConnectionCard" aria-labelledby="accountConnectionTitle" aria-busy="false">
-          <div class="utility-head"><span class="account-title"><span class="mini-icon" aria-hidden="true">◎</span><span id="accountConnectionTitle">Hesap & Gmail</span></span><span id="sessionBadge" class="session-badge" data-state="loading">Kontrol</span></div>
+          <div class="utility-head">
+            <span class="account-title"><span class="mini-icon" aria-hidden="true">◎</span><span id="accountConnectionTitle">Hesap & Gmail</span></span>
+            <span id="sessionBadge" class="session-badge" data-state="loading">Kontrol</span>
+          </div>
           <p id="sessionStatusText" class="session-copy" role="status">Güvenli oturum kontrol ediliyor…</p>
-          <form id="sessionLoginForm" class="session-login-form" autocomplete="on"><label class="session-password-label" for="sessionPassword"><span>Hafize parolası</span><input id="sessionPassword" name="password" type="password" autocomplete="current-password" maxlength="512" required placeholder="Parolanı gir" /></label><button id="sessionLoginBtn" class="session-primary" type="submit">Güvenli oturum aç</button></form>
-          <div id="sessionActions" class="session-actions" hidden><button id="gmailConnectBtn" class="gmail-connect-button" type="button">Gmail’i bağla</button><button id="sessionLogoutBtn" class="session-secondary" type="button">Çıkış</button></div>
+          <form id="sessionLoginForm" class="session-login-form" autocomplete="on">
+            <label class="session-password-label" for="sessionPassword"><span>Hafize parolası</span><input id="sessionPassword" name="password" type="password" autocomplete="current-password" maxlength="512" required placeholder="Parolanı gir" /></label>
+            <button id="sessionLoginBtn" class="session-primary" type="submit">Güvenli oturum aç</button>
+          </form>
+          <div id="sessionActions" class="session-actions" hidden>
+            <button id="gmailConnectBtn" class="gmail-connect-button" type="button">Gmail’i bağla</button>
+            <button id="sessionLogoutBtn" class="session-secondary" type="button">Çıkış</button>
+          </div>
           <p id="gmailConnectionStatus" class="gmail-connection-status" data-state="idle" role="status">Gmail için önce güvenli oturum aç.</p>
         </section>
         <section class="utility-card memory-card" id="memoryCard" aria-labelledby="memoryTitle" aria-busy="false">
           <div class="utility-head"><span class="mini-icon" aria-hidden="true">◇</span><span id="memoryTitle">Kişisel bellek</span></div>
           <p id="memoryStatus" class="memory-status" data-state="idle" role="status">Bellek için güvenli oturum kontrol ediliyor…</p>
-          <form id="memorySearchForm" class="memory-search-form"><div class="memory-search-row"><input id="memoryQuery" type="search" maxlength="1000" placeholder="Bellekte ara" aria-label="Kişisel bellekte ara" /><button id="memorySearchBtn" type="submit">Ara</button></div><select id="memoryKindFilter" aria-label="Bellek türü filtresi"><option value="">Tüm türler</option><option value="identity">Kimlik</option><option value="preference">Tercih</option><option value="project">Proje</option><option value="note">Not</option></select></form>
+          <form id="memorySearchForm" class="memory-search-form">
+            <div class="memory-search-row">
+              <input id="memoryQuery" type="search" maxlength="1000" placeholder="Bellekte ara" aria-label="Kişisel bellekte ara" />
+              <button id="memorySearchBtn" type="submit">Ara</button>
+            </div>
+            <select id="memoryKindFilter" aria-label="Bellek türü filtresi">
+              <option value="">Tüm türler</option><option value="identity">Kimlik</option><option value="preference">Tercih</option><option value="project">Proje</option><option value="note">Not</option>
+            </select>
+          </form>
           <div id="memoryResults" class="memory-results" aria-live="polite" hidden></div>
-          <form id="memoryWriteForm" class="memory-write-form"><label class="memory-write-label" for="memoryWriteKind"><span>Tür</span><select id="memoryWriteKind"><option value="note">Not</option><option value="preference">Tercih</option><option value="project">Proje</option><option value="identity">Kimlik</option></select></label><label class="memory-write-label" for="memoryContent"><span>Açıkça kaydet</span><textarea id="memoryContent" maxlength="4000" placeholder="Hafize’nin hatırlamasını istediğin bilgiyi yaz"></textarea></label><button id="memoryWriteBtn" class="memory-submit" type="submit">Belleğe kaydet</button></form>
+          <form id="memoryWriteForm" class="memory-write-form">
+            <label class="memory-write-label" for="memoryWriteKind"><span>Tür</span><select id="memoryWriteKind"><option value="note">Not</option><option value="preference">Tercih</option><option value="project">Proje</option><option value="identity">Kimlik</option></select></label>
+            <label class="memory-write-label" for="memoryContent"><span>Açıkça kaydet</span><textarea id="memoryContent" maxlength="4000" placeholder="Hafize’nin hatırlamasını istediğin bilgiyi yaz"></textarea></label>
+            <button id="memoryWriteBtn" class="memory-submit" type="submit">Belleğe kaydet</button>
+          </form>
           <p class="memory-privacy-note">Yalnız senin açıkça kaydettiğin kişisel bilgiler tutulur. API anahtarı veya parola kaydetme.</p>
         </section>
-        <section class="utility-card calendar-card"><div class="utility-head"><span class="mini-icon">▣</span><span>Takvim</span></div><div class="calendar-head"><button id="calendarPrev" class="calendar-nav" type="button" aria-label="Önceki ay">‹</button><strong id="calendarMonth"></strong><button id="calendarNext" class="calendar-nav" type="button" aria-label="Sonraki ay">›</button></div><div class="calendar-weekdays" aria-hidden="true"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div><div id="calendarGrid" class="calendar-grid"></div><div class="calendar-times" aria-label="Örnek saatler"><span>09:30</span><span>13:00</span><span>15:30</span></div></section>
-        <section class="utility-card voice-card"><div class="utility-head"><span class="mini-icon">≋</span><span>Sesli asistan</span></div><div class="voice-orb-wrap"><div class="voice-orb" aria-hidden="true"></div></div><button id="voiceProxy" class="voice-proxy" type="button">Dinlemek için dokun</button><button id="voiceOutputToggle" class="voice-output-toggle" type="button" aria-pressed="false">Sesli yanıt kapalı</button><button id="handsFreeToggle" class="voice-output-toggle" type="button" aria-pressed="false">Eller serbest kapalı</button><small id="handsFreeIndicator" class="hands-free-status" role="status" hidden></small></section>
+        <section class="utility-card calendar-card">
+          <div class="utility-head"><span class="mini-icon">▣</span><span>Takvim</span></div>
+          <div class="calendar-head"><button id="calendarPrev" class="calendar-nav" type="button" aria-label="Önceki ay">‹</button><strong id="calendarMonth"></strong><button id="calendarNext" class="calendar-nav" type="button" aria-label="Sonraki ay">›</button></div>
+          <div class="calendar-weekdays" aria-hidden="true"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+          <div class="calendar-times" aria-label="Örnek saatler"><span>09:30</span><span>13:00</span><span>15:30</span></div>
+        </section>
+        <section class="utility-card voice-card">
+          <div class="utility-head"><span class="mini-icon">≋</span><span>Sesli asistan</span></div>
+          <div class="voice-orb-wrap"><div class="voice-orb" aria-hidden="true"></div></div>
+          <button id="voiceProxy" class="voice-proxy" type="button">Dinlemek için dokun</button>
+          <button id="voiceOutputToggle" class="voice-output-toggle" type="button" aria-pressed="false">Sesli yanıt kapalı</button>
+          <button id="handsFreeToggle" class="voice-output-toggle" type="button" aria-pressed="false">Eller serbest kapalı</button>
+          <small id="handsFreeIndicator" class="hands-free-status" role="status" hidden></small>
+        </section>
       </aside>
     </main>
   </div>
