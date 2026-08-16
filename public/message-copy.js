@@ -139,6 +139,12 @@
         showState(button, 'error', 'Yanıt sürüyor');
         return false;
       }
+      const draft = typeof input.value === 'string' ? input.value : '';
+      if (draft.trim() && draft !== text) {
+        input.focus?.();
+        showState(button, 'error', 'Taslak korunuyor');
+        return false;
+      }
 
       showState(button, 'sending', 'Gönderiliyor…');
       input.value = text;
