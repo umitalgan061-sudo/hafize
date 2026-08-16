@@ -1,0 +1,136 @@
+.schedule-runtime-card {
+  display: grid;
+  gap: 12px;
+}
+
+.schedule-runtime-head {
+  align-items: center;
+  gap: 10px;
+}
+
+.schedule-runtime-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 650;
+}
+
+.schedule-runtime-refresh {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.schedule-runtime-refresh:disabled {
+  cursor: progress;
+  opacity: 0.56;
+}
+
+.schedule-runtime-summary {
+  margin: 0;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+}
+
+.schedule-runtime-summary[data-state='ready'] {
+  font-weight: 650;
+}
+
+.schedule-runtime-summary[data-state='warning'],
+.schedule-runtime-summary[data-state='off'],
+.schedule-runtime-summary[data-state='error'] {
+  border-style: dashed;
+}
+
+.schedule-runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.schedule-runtime-row {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, currentColor 9%, transparent);
+  border-radius: 10px;
+}
+
+.schedule-runtime-row dt {
+  overflow: hidden;
+  color: var(--muted, #777);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule-runtime-row dd {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.schedule-runtime-row dd[data-state='off'],
+.schedule-runtime-row dd[data-state='unknown'] {
+  font-weight: 500;
+  opacity: 0.72;
+}
+
+.schedule-runtime-note {
+  margin: 0;
+  color: var(--muted, #777);
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.schedule-runtime-card[aria-busy='true'] .schedule-runtime-summary {
+  opacity: 0.72;
+}
+
+.schedule-runtime-card[aria-busy='true'] .schedule-runtime-row dd {
+  opacity: 0.5;
+}
+
+@media (max-width: 1180px) {
+  .schedule-runtime-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .schedule-runtime-card {
+    gap: 10px;
+  }
+
+  .schedule-runtime-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .schedule-runtime-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-runtime-summary,
+  .schedule-runtime-row {
+    padding: 8px 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-runtime-card *,
+  .schedule-runtime-card *::before,
+  .schedule-runtime-card *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
