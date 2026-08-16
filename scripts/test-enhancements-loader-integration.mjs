@@ -10,7 +10,7 @@ const swPolicy = require('../public/sw-policy.js');
 assert.match(uiShell, /script\.src = '\/enhancements-loader\.js'/);
 assert.match(uiShell, /data-hafize-enhancements-entry/);
 assert.match(uiShell, /querySelector\?\.\('script\[data-hafize-enhancements-entry="1"\]'/);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v49');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v50');
 assert.ok(swPolicy.SHELL_ASSETS.includes('/enhancements-loader.js'));
 
 const expected = [
@@ -39,7 +39,8 @@ const expected = [
   '/text-file-import.js',
   '/composer-paste-guard.js',
   '/message-timeline.js',
-  '/message-keyboard-nav.js'
+  '/message-keyboard-nav.js',
+  '/command-palette.js'
 ];
 assert.deepEqual(loader.ENHANCEMENTS, expected);
 for (const path of expected) assert.ok(swPolicy.SHELL_ASSETS.includes(path), `${path} must remain offline shell-cached`);
