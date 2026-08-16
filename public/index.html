@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="tr">
+<html lang="tr" data-theme="light">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f7f5ef" />
-  <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zeka çalışma alanı" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f5f0" />
+  <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
+  <title>Hafize</title>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/hafize.jpeg" />
   <link rel="apple-touch-icon" href="/hafize.jpeg" />
@@ -18,70 +19,94 @@
   <link rel="stylesheet" href="/chat-run-controller.css" />
   <link rel="stylesheet" href="/conversation-insights.css" />
   <link rel="stylesheet" href="/conversation-reading-controls.css" />
-  <title>Hafize</title>
 </head>
 <body>
+  <span class="edge-beam edge-top" aria-hidden="true"></span>
+  <span class="edge-beam edge-right" aria-hidden="true"></span>
+  <span class="edge-beam edge-bottom" aria-hidden="true"></span>
+  <span class="edge-beam edge-left" aria-hidden="true"></span>
+
   <div class="app-shell">
-    <aside id="sidebar" class="sidebar" aria-label="Sohbet geçmişi">
-      <div class="brand-row">
-        <div class="brand-mark">H</div>
-        <div><strong>Hafize</strong><small>NVIDIA NIM</small></div>
-      </div>
-      <button id="newChatBtn" class="new-chat" type="button"><span>＋</span> Yeni sohbet</button>
-      <div id="conversationList" class="conversation-list"></div>
+    <aside class="sidebar" id="sidebar" aria-label="Hafize gezinme menüsü">
+      <div class="brand-row"><div><strong>Hafize</strong><span>kişisel yapay zekâ</span></div></div>
+      <button class="new-chat" id="newChatBtn" type="button">＋ Yeni sohbet</button>
+      <nav class="nav-list" aria-label="Ana menü">
+        <button class="nav-item active" type="button">✦ Sohbet</button>
+        <button class="nav-item" type="button" disabled>◷ Görevler</button>
+        <button class="nav-item" type="button" disabled>⌘ Bağlantılar</button>
+        <button class="nav-item" type="button" disabled>⚙ Ayarlar</button>
+      </nav>
+      <section class="history-block" aria-labelledby="historyTitle">
+        <div class="history-head"><span id="historyTitle">Son sohbetler</span><button id="clearHistoryBtn" class="mini-btn" type="button">Temizle</button></div>
+        <div id="conversationList" class="conversation-list"></div>
+      </section>
       <div class="sidebar-footer">
-        <button id="clearHistoryBtn" class="ghost-btn" type="button">Geçmişi temizle</button>
+        <button id="installBtn" class="soft-btn" type="button" hidden>Uygulamayı yükle</button>
+        <small><span class="status-dot" aria-hidden="true"></span> NVIDIA NIM · server-side güvenli bağlantı</small>
       </div>
     </aside>
 
-    <main class="main-panel">
+    <main class="main">
       <header class="topbar">
-        <button id="sidebarToggle" class="icon-btn mobile-only" aria-label="Menüyü aç" type="button">☰</button>
-        <div class="model-area">
-          <span class="status-dot" aria-hidden="true"></span>
-          <select id="modelSelect" aria-label="NVIDIA modeli">
-            <option value="">NVIDIA modelleri yükleniyor…</option>
-          </select>
-          <select id="agentSelect" aria-label="Hafize ajanı" disabled>
-            <option value="">Ajanlar yükleniyor…</option>
-          </select>
-          <button id="toolModeBtn" class="tool-mode-btn" type="button" aria-pressed="false" disabled>⌘ Araçlar</button>
+        <button id="sidebarToggle" class="icon-btn" type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="sidebar">☰</button>
+        <div class="brand-inline">
+          <svg class="flower-logo" viewBox="0 0 64 64" aria-label="Hafize logosu" role="img"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
+          <strong>Hafize</strong><small>kişisel yapay zekâ</small>
         </div>
-        <div class="top-actions">
-          <button id="installBtn" class="pill-btn" type="button" hidden>Uygulamayı yükle</button>
-          <button class="icon-btn" aria-label="Ayarlar" type="button">⚙</button>
-        </div>
+        <div class="top-spacer"></div>
+        <label class="model-wrap agent-compact" for="agentSelect"><span>Ajan</span><select id="agentSelect" aria-label="Hafize ajanı" disabled><option value="">Ajanlar yükleniyor…</option></select></label>
+        <button id="themeToggle" class="theme-toggle" type="button" aria-label="Gündüz/gece temasını değiştir" aria-pressed="false"><span class="theme-sun">☀</span><span class="theme-moon">☾</span></button>
       </header>
 
-      <section class="chat-stage" aria-label="Hafize sohbeti">
-        <div id="welcome" class="welcome-card">
-          <img src="/hafize.jpeg" alt="Hafize" class="hafize-avatar" />
-          <p class="eyebrow">KİŞİSEL YAPAY ZEKA ÇALIŞMA ALANI</p>
-          <h1>Merhaba, ben Hafize.</h1>
-          <p>NVIDIA NIM modelleriyle sohbet et, araçları güvenli izinlerle kullan ve görevlerini tek yerde yönet.</p>
-          <div class="suggestion-grid">
-            <button type="button" data-prompt="Bugünkü önceliklerimi planlamama yardım et."><strong>Bugünü planla</strong><span>Öncelikleri birlikte sırala</span></button>
-            <button type="button" data-prompt="Bu fikri daha iyi bir projeye dönüştürmeme yardım et."><strong>Bir fikir geliştir</strong><span>Fikri uygulanabilir hale getir</span></button>
-            <button type="button" data-prompt="Bir konuyu derinlemesine araştırmak için plan çıkar."><strong>Derin araştır</strong><span>Kaynak ve araştırma planı oluştur</span></button>
+      <div class="primary-column">
+        <section class="chat-stage">
+          <div id="welcome" class="welcome">
+            <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
+            <h1>Merhaba, bugün ne yapalım?</h1>
+            <p>Hafize; yazı, araştırma, kod, planlama ve görev yönetiminde sana yardımcı olur. NVIDIA NIM bağlantısı ve araç izinleri sunucu tarafında güvenli kalır.</p>
+            <div class="suggestions" aria-label="Öneriler">
+              <button type="button" data-prompt="Benim için bir metin taslağı hazırla">✎ Yaz</button>
+              <button type="button" data-prompt="Bu konuyu bana öğret ve kısa özet çıkar">◇ Öğren</button>
+              <button type="button" data-prompt="Kodumu incele ve geliştirme önerileri ver">‹› Kod</button>
+              <button type="button" data-prompt="Bugünkü işlerimi planla ve önceliklendir">▣ Günlük işler</button>
+            </div>
           </div>
-        </div>
-        <div id="messages" class="messages" aria-live="polite"></div>
-      </section>
+          <div id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions text" aria-atomic="false" aria-label="Sohbet mesajları"></div>
+        </section>
 
-      <form id="composer" class="composer">
-        <div class="composer-tools">
-          <button id="attachBtn" class="composer-icon" type="button" aria-label="Dosya ekle">＋</button>
-          <button id="micBtn" class="composer-icon" type="button" aria-label="Sesli giriş">⌁</button>
-        </div>
-        <textarea id="messageInput" rows="1" maxlength="24000" placeholder="Hafize’ye mesaj yaz…" aria-label="Mesaj"></textarea>
-        <button id="sendBtn" class="send-btn" type="submit" aria-label="Gönder">↑</button>
-      </form>
+        <form class="composer" id="composer">
+          <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Bugün neye ihtiyacın var?" aria-label="Mesaj"></textarea>
+          <div class="composer-row">
+            <div class="composer-tools">
+              <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle">＋</button>
+              <button id="screenShareBtn" class="icon-btn" type="button" aria-label="Ekran görüntüsü paylaş" aria-pressed="false">▣</button>
+              <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" disabled>⌘ Araçlar</button>
+              <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false">◉</button>
+            </div>
+            <div class="composer-actions">
+              <label class="model-wrap composer-model" for="modelSelect"><span>Model</span><select id="modelSelect" aria-label="NVIDIA modeli"><option value="">NVIDIA modelleri yükleniyor…</option></select></label>
+              <span class="agent-hint">Yapay zekâ hata yapabilir. Önemli bilgileri kontrol et.</span>
+              <button id="sendBtn" class="send-btn" type="submit" aria-label="Gönder">↑</button>
+            </div>
+          </div>
+          <div id="screenSharePreview" class="utility-card" hidden>
+            <img id="screenShareImage" alt="Paylaşım için seçilen ekran görüntüsü önizlemesi" width="120" height="68" />
+            <div class="screen-share-copy">
+              <span id="screenShareStatus">Ekran görüntüsü tutulmuyor.</span>
+              <p id="screenAnalysisResult" class="screen-analysis-result" role="status" hidden></p>
+            </div>
+            <div class="screen-share-actions">
+              <button id="screenShareAnalyze" class="mini-btn" type="button">Hafize ile analiz et</button>
+              <button id="screenShareRemove" class="mini-btn" type="button">Ekran görüntüsünü kaldır</button>
+            </div>
+          </div>
+        </form>
+      </div>
 
-      <aside class="utility-rail" aria-label="Hafize araçları">
-        <section class="utility-card session-card" id="sessionCard" aria-labelledby="sessionTitle">
+      <aside class="utility-rail" aria-label="Hafize yardımcı araçları">
+        <section class="utility-card account-card" id="accountConnectionCard" aria-labelledby="accountConnectionTitle" aria-busy="false">
           <div class="utility-head">
-            <span class="mini-icon" aria-hidden="true">⌁</span>
-            <span id="sessionTitle">Güvenli oturum</span>
+            <span class="account-title"><span class="mini-icon" aria-hidden="true">◎</span><span id="accountConnectionTitle">Hesap & Gmail</span></span>
             <span id="sessionBadge" class="session-badge" data-state="loading">Kontrol</span>
           </div>
           <p id="sessionStatusText" class="session-copy" role="status">Güvenli oturum kontrol ediliyor…</p>
