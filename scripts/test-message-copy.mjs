@@ -17,16 +17,21 @@ class FakeNode {
     this.className = '';
     this.id = '';
     this.textContent = '';
+    this.value = '';
     this.dataset = {};
     this.disabled = false;
     this.children = [];
     this.attributes = new Map();
     this.listeners = new Map();
+    this.dispatched = [];
+    this.submitCount = 0;
     this.classList = new FakeClassList(this);
   }
   append(...nodes) { this.children.push(...nodes); }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
   addEventListener(name, handler) { this.listeners.set(name, handler); }
+  dispatchEvent(event) { this.dispatched.push(event?.type || 'unknown'); return true; }
+  requestSubmit() { this.submitCount += 1; }
   querySelector(selector) {
     if (selector === '.content') return this.children.find((child) => child.classList?.contains('content')) || null;
     if (selector === '.message-copy-actions') return this.children.find((child) => child.classList?.contains('message-copy-actions')) || null;
@@ -42,10 +47,19 @@ class FakeDocument {
   constructor(messages) {
     this.messages = messages;
     this.head = new FakeNode('head');
+    this.input = new FakeNode('textarea');
+    this.input.id = 'messageInput';
+    this.composer = new FakeNode('form');
+    this.composer.id = 'composer';
+    this.sendButton = new FakeNode('button');
+    this.sendButton.id = 'sendBtn';
   }
   createElement(tag) { return new FakeNode(tag); }
   querySelector(selector) {
     if (selector === '#messages') return this.messages;
+    if (selector === '#messageInput') return this.input;
+    if (selector === '#composer') return this.composer;
+    if (selector === '#sendBtn') return this.sendButton;
     if (selector === `#${copyApi.STYLE_ID}`) return this.head.children.find((child) => child.id === copyApi.STYLE_ID) || null;
     return null;
   }
@@ -112,20 +126,43 @@ assert.equal(controller.decorateAll(messages), 0, 'rerender decoration must be i
 assert.strictEqual(observed.target, messages);
 assert.deepEqual(observed.options, { childList: true, subtree: true });
 
-const userButton = user.article.querySelector('.message-copy-actions').children[0];
-assert.equal(userButton.type, 'button');
-assert.equal(userButton.textContent, 'Kopyala');
-assert.equal(userButton.attributes.get('aria-label'), 'kendi mesajını kopyala');
-assert.equal(await controller.copyMessage(userButton, user.content), true);
+const userActions = user.article.querySelector('.message-copy-actions');
+assert.equal(userActions.children.length, 2, 'user message must expose resend and copy actions');
+const resendButton = userActions.children[0];
+const userCopyButton = userActions.children[1];
+assert.equal(resendButton.type, 'button');
+assert.equal(resendButton.textContent, 'Tekrar gönder');
+assert.equal(resendButton.attributes.get('aria-label'), 'kendi mesajını tekrar gönder');
+assert.equal(userCopyButton.textContent, 'Kopyala');
+assert.equal(userCopyButton.attributes.get('aria-label'), 'kendi mesajını kopyala');
+assert.equal(await controller.copyMessage(userCopyButton, user.content), true);
 assert.deepEqual(writes, ['Kullanıcı mesajı']);
-assert.equal(userButton.dataset.state, 'success');
-assert.equal(userButton.textContent, 'Kopyalandı');
+assert.equal(userCopyButton.dataset.state, 'success');
+assert.equal(userCopyButton.textContent, 'Kopyalandı');
 assert.equal([...timers.values()].some((timer) => timer.delay === copyApi.RESET_DELAY_MS), true);
 
-const assistantButton = assistant.article.querySelector('.message-copy-actions').children[0];
+assert.equal(controller.resendMessage(resendButton, user.content), true);
+assert.equal(documentRef.input.value, 'Kullanıcı mesajı');
+assert.deepEqual(documentRef.input.dispatched, ['input']);
+assert.equal(documentRef.composer.submitCount, 1, 'resend must reuse normal composer submit path');
+assert.equal(resendButton.dataset.state, 'success');
+assert.equal(resendButton.textContent, 'Tekrar gönderildi');
+
+const assistantActions = assistant.article.querySelector('.message-copy-actions');
+assert.equal(assistantActions.children.length, 1, 'assistant message must not expose resend action');
+const assistantButton = assistantActions.children[0];
 assert.equal(assistantButton.attributes.get('aria-label'), 'Hafize yanıtını kopyala');
 assert.equal(await controller.copyMessage(assistantButton, assistant.content), true);
 assert.deepEqual(writes, ['Kullanıcı mesajı', 'Hafize yanıtı']);
+
+const beforeBusySubmit = documentRef.composer.submitCount;
+documentRef.sendButton.className = 'send-btn streaming';
+const busyButton = new FakeNode('button');
+busyButton.dataset.idleLabel = 'Tekrar gönder';
+assert.equal(controller.resendMessage(busyButton, user.content), false);
+assert.equal(busyButton.textContent, 'Yanıt sürüyor');
+assert.equal(documentRef.composer.submitCount, beforeBusySubmit, 'active response must block resend');
+documentRef.sendButton.className = 'send-btn';
 
 const unavailable = copyApi.createController({
   documentRef,
@@ -136,6 +173,7 @@ const unavailable = copyApi.createController({
   clearTimeoutImpl
 });
 const unavailableButton = new FakeNode('button');
+unavailableButton.dataset.idleLabel = 'Kopyala';
 assert.equal(await unavailable.copyMessage(unavailableButton, assistant.content), false);
 assert.equal(unavailableButton.dataset.state, 'error');
 assert.equal(unavailableButton.textContent, 'Clipboard kapalı');
@@ -149,6 +187,7 @@ const insecure = copyApi.createController({
   clearTimeoutImpl
 });
 const insecureButton = new FakeNode('button');
+insecureButton.dataset.idleLabel = 'Kopyala';
 assert.equal(await insecure.copyMessage(insecureButton, assistant.content), false);
 assert.equal(writes.length, 2, 'insecure context must never call clipboard.writeText');
 
@@ -161,15 +200,17 @@ const failing = copyApi.createController({
   clearTimeoutImpl
 });
 const failingButton = new FakeNode('button');
+failingButton.dataset.idleLabel = 'Kopyala';
 assert.equal(await failing.copyMessage(failingButton, assistant.content), false);
 assert.equal(failingButton.textContent, 'Kopyalanamadı');
 assert.equal(failingButton.textContent.includes('provider detail'), false);
 
 const emptyButton = new FakeNode('button');
+emptyButton.dataset.idleLabel = 'Tekrar gönder';
 const emptyContent = new FakeNode('div');
 emptyContent.textContent = '';
-assert.equal(await controller.copyMessage(emptyButton, emptyContent), false);
-assert.equal(writes.length, 2);
+assert.equal(controller.resendMessage(emptyButton, emptyContent), false);
+assert.equal(documentRef.composer.submitCount, 1);
 controller.destroy();
 assert.equal(disconnected, true);
 
@@ -181,16 +222,19 @@ const sourcePaths = [
 const [copySource, loaderSource, swSource] = await Promise.all(sourcePaths.map((path) => readFile(path, 'utf8')));
 
 for (const forbidden of ['clipboard.read', 'readText(', 'execCommand(', 'localStorage', 'sessionStorage', 'innerHTML', 'Authorization', 'Bearer ']) {
-  assert.equal(copySource.includes(forbidden), false, `message copy source must not contain ${forbidden}`);
+  assert.equal(copySource.includes(forbidden), false, `message action source must not contain ${forbidden}`);
 }
 assert.equal(copySource.includes('clipboard.writeText(text)'), true);
 assert.equal(copySource.includes('content?.textContent'), true);
-assert.equal(copySource.includes("button.addEventListener('click'"), true, 'copy must require explicit user click');
-assert.equal(copySource.includes('fetch('), false, 'copy feature must not create a network path');
+assert.equal(copySource.includes("button.addEventListener('click'"), true, 'message actions must require explicit user click');
+assert.equal(copySource.includes("documentRef.querySelector('#composer')"), true, 'resend must reuse the canonical composer');
+assert.equal(copySource.includes('composer.requestSubmit()'), true, 'resend must enter the normal submit path');
+assert.equal(copySource.includes("classList?.contains('streaming')"), true, 'resend must fail closed while a response is active');
+assert.equal(copySource.includes('fetch('), false, 'message actions must not create a parallel network path');
 assert.equal(loaderSource.includes("script.src = '/message-copy.js'"), true, 'loader must use fixed same-origin asset path');
 assert.equal(loaderSource.includes('data-hafize-message-copy'), true, 'loader must be idempotent');
 assert.equal(swSource.includes("`${CACHE_PREFIX}v18`"), true);
 assert.equal(swSource.includes("'/message-copy.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 
-console.log('message copy control tests passed');
+console.log('message copy and resend control tests passed');
