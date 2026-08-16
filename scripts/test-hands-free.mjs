@@ -7,6 +7,7 @@ assert.equal(api.normalizeSpeech(' HAFİZE!!! '), 'hafize');
 assert.equal(api.containsWakePhrase('Merhaba Hafize nasılsın'), true);
 assert.equal(api.containsWakePhrase('hafızaya kaydet'), false);
 assert.equal(api.HANDOFF_TIMEOUT_MS, 1500);
+assert.equal(api.VOICE_OUTPUT_STATE_EVENT, 'hafize:voice-output-state');
 
 function element() {
   const listeners = new Map();
@@ -83,6 +84,12 @@ function createHarness({ handoffStartsVoice = true } = {}) {
     });
   }
 
+  function outputState(speaking, state = speaking ? 'speaking' : 'idle') {
+    docListeners.get(api.VOICE_OUTPUT_STATE_EVENT)?.({
+      detail: { source: 'voice-output', speaking, state }
+    });
+  }
+
   mic.click = () => {
     mic.clicked = (mic.clicked || 0) + 1;
     if (handoffStartsVoice) voiceState(true);
@@ -109,6 +116,7 @@ function createHarness({ handoffStartsVoice = true } = {}) {
     timers,
     root,
     voiceState,
+    outputState,
     pendingTimers,
     runTimer
   };
@@ -118,6 +126,7 @@ const harness = createHarness();
 const controller = api.installHandsFree(harness.documentRef, harness.root);
 assert.equal(controller.isSupported, true);
 assert.equal(controller.isEnabled(), false);
+assert.equal(controller.isVoiceOutputSpeaking(), false);
 assert.equal(harness.indicator.hidden, true);
 
 harness.toggle.fire('click');
@@ -130,10 +139,35 @@ assert.equal(harness.indicator.hidden, false);
 assert.match(harness.indicator.textContent, /Hafize/);
 assert.match(harness.toast.textContent, /bu oturum için açıldı/);
 
-harness.recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'merhaba dünya' }]] });
+harness.outputState(true);
+assert.equal(controller.isVoiceOutputSpeaking(), true);
+assert.equal(harness.recognitions[0].aborted, true, 'TTS başlarken wake recognizer hemen durmalı');
+assert.equal(controller.isListening(), false);
+assert.equal(harness.pendingTimers(350).length, 0, 'TTS sırasında wake restart kuyruğa alınmamalı');
+assert.match(harness.indicator.textContent, /Hafize konuşuyor/);
+
+harness.outputState(false);
+assert.equal(controller.isVoiceOutputSpeaking(), false);
+assert.equal(harness.pendingTimers(350).length, 1, 'TTS bittikten sonra wake restart gecikmeli olmalı');
+harness.runTimer(harness.pendingTimers(350)[0]);
+assert.equal(harness.recognitions.length, 2);
+assert.equal(controller.isListening(), true);
+
+harness.outputState(true);
+assert.equal(harness.recognitions[1].aborted, true);
+const recognitionCountWhileSpeaking = harness.recognitions.length;
+harness.input.disabled = false;
+harness.outputState(true, 'speaking');
+assert.equal(harness.pendingTimers(350).length, 0);
+assert.equal(harness.recognitions.length, recognitionCountWhileSpeaking, 'duplicate speaking state yeni recognizer başlatmamalı');
+harness.outputState(false);
+harness.runTimer(harness.pendingTimers(350)[0]);
+assert.equal(harness.recognitions.length, 3);
+
+harness.recognitions[2].onresult?.({ resultIndex: 0, results: [[{ transcript: 'merhaba dünya' }]] });
 assert.equal(harness.mic.clicked || 0, 0);
-harness.recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }]] });
-assert.equal(harness.recognitions[0].stopped, true);
+harness.recognitions[2].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }]] });
+assert.equal(harness.recognitions[2].stopped, true);
 assert.equal(harness.mic.clicked, 1);
 assert.equal(controller.isListening(), false);
 assert.equal(controller.isVoiceInputListening(), true);
@@ -145,12 +179,12 @@ harness.voiceState(false);
 assert.equal(controller.isVoiceInputListening(), false);
 assert.equal(harness.pendingTimers(350).length, 1, 'wake listening resumes only after voice input ends');
 harness.runTimer(harness.pendingTimers(350)[0]);
-assert.equal(harness.recognitions.length, 2);
+assert.equal(harness.recognitions.length, 4);
 assert.equal(controller.isListening(), true);
 
 harness.documentRef.hidden = true;
 harness.docListeners.get('visibilitychange')?.();
-assert.equal(harness.recognitions[1].aborted, true);
+assert.equal(harness.recognitions[3].aborted, true);
 assert.equal(controller.isListening(), false);
 assert.equal(controller.isHandoffWaiting(), false);
 
@@ -171,9 +205,12 @@ assert.equal(failedController.isHandoffWaiting(), true);
 assert.match(failed.indicator.textContent, /hazırlanıyor/);
 assert.equal(failed.pendingTimers(api.HANDOFF_TIMEOUT_MS).length, 1);
 
+failed.outputState(true);
+assert.equal(failedController.isVoiceOutputSpeaking(), true);
 failed.runTimer(failed.pendingTimers(api.HANDOFF_TIMEOUT_MS)[0]);
 assert.equal(failedController.isHandoffWaiting(), false);
-assert.match(failed.toast.textContent, /yeniden açıldı/);
+assert.equal(failed.pendingTimers(350).length, 0, 'TTS aktifken failed handoff wake restart etmemeli');
+failed.outputState(false);
 assert.equal(failed.pendingTimers(350).length, 1);
 failed.runTimer(failed.pendingTimers(350)[0]);
 assert.equal(failed.recognitions.length, 2);
@@ -206,4 +243,5 @@ assert.equal(unsupportedToggle.disabled, true);
 
 controller.destroy();
 failedController.destroy();
-console.log('hands-free tests passed');
+assert.equal(controller.isVoiceOutputSpeaking(), false);
+console.log('hands-free tests passed: wake handoff and TTS echo suppression');
