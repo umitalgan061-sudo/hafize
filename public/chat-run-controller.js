@@ -54,6 +54,7 @@
   loadShellEnhancement('HafizeResponseRetryStyle', '/response-retry-style.js', 'data-hafize-response-retry-style-loader');
   loadShellEnhancement('HafizeResponseRetry', '/response-retry.js', 'data-hafize-response-retry');
   loadShellEnhancement('HafizeReadingFocus', '/reading-focus.js', 'data-hafize-reading-focus');
+  loadShellEnhancement('HafizeConversationOutline', '/conversation-outline.js', 'data-hafize-conversation-outline');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
