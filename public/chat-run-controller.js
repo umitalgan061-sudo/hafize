@@ -34,6 +34,7 @@
   loadShellEnhancement('HafizeInChatFind', '/in-chat-find.js', 'data-hafize-in-chat-find');
   loadShellEnhancement('HafizeSafeMarkdown', '/safe-markdown-render.js', 'data-hafize-safe-markdown');
   loadShellEnhancement('HafizeCodeBlockCopy', '/code-block-copy.js', 'data-hafize-code-block-copy');
+  loadShellEnhancement('HafizeCodeWrapToggle', '/code-wrap-toggle.js', 'data-hafize-code-wrap-toggle');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
