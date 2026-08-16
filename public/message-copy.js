@@ -15,7 +15,7 @@
   const RESET_DELAY_MS = 1800;
   const STYLE_ID = 'hafize-message-copy-style';
   const STYLE_TEXT = `
-.message-copy-actions{display:flex;justify-content:flex-end;margin-top:7px;min-height:26px}
+.message-copy-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:7px;min-height:26px;flex-wrap:wrap}
 .message.user .message-copy-actions{justify-content:flex-start}
 .message-copy-btn{border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted,#777);padding:4px 7px;font:inherit;font-size:11px;line-height:1.2;cursor:pointer;opacity:.72}
 .message-copy-btn:hover:not(:disabled),.message-copy-btn:focus-visible{opacity:1;border-color:var(--line,#ddd);background:color-mix(in srgb,var(--surface,#fff) 82%,transparent)}
@@ -56,11 +56,11 @@
     const timers = new WeakMap();
     let observer = null;
 
-    function resetButton(button, label = 'Kopyala') {
+    function resetButton(button) {
       const pending = timers.get(button);
       if (pending !== undefined) clearTimeoutImpl(pending);
       timers.delete(button);
-      button.textContent = label;
+      button.textContent = button.dataset.idleLabel || 'Kopyala';
       button.dataset.state = 'idle';
       button.disabled = false;
     }
@@ -70,7 +70,7 @@
       if (pending !== undefined) clearTimeoutImpl(pending);
       button.dataset.state = state;
       button.textContent = label;
-      button.disabled = state === 'copying';
+      button.disabled = state === 'copying' || state === 'sending';
       const timer = setTimeoutImpl(() => resetButton(button), RESET_DELAY_MS);
       timers.set(button, timer);
     }
@@ -97,6 +97,51 @@
       }
     }
 
+    function resendMessage(button, content) {
+      const text = copyText(content?.textContent);
+      if (!text) {
+        showState(button, 'error', 'Gönderilemedi');
+        return false;
+      }
+      const input = documentRef.querySelector('#messageInput');
+      const composer = documentRef.querySelector('#composer');
+      const sendButton = documentRef.querySelector('#sendBtn');
+      if (!input || !composer || typeof composer.requestSubmit !== 'function') {
+        showState(button, 'error', 'Gönderilemedi');
+        return false;
+      }
+      if (sendButton?.classList?.contains('streaming')) {
+        showState(button, 'error', 'Yanıt sürüyor');
+        return false;
+      }
+
+      showState(button, 'sending', 'Gönderiliyor…');
+      input.value = text;
+      try {
+        if (typeof input.dispatchEvent === 'function' && typeof globalThis.Event === 'function') {
+          input.dispatchEvent(new globalThis.Event('input', { bubbles: true }));
+        }
+        composer.requestSubmit();
+        showState(button, 'success', 'Tekrar gönderildi');
+        return true;
+      } catch {
+        showState(button, 'error', 'Gönderilemedi');
+        return false;
+      }
+    }
+
+    function makeButton(label, ariaLabel, handler) {
+      const button = documentRef.createElement('button');
+      button.type = 'button';
+      button.className = 'message-copy-btn';
+      button.dataset.state = 'idle';
+      button.dataset.idleLabel = label;
+      button.textContent = label;
+      button.setAttribute('aria-label', ariaLabel);
+      button.addEventListener('click', handler);
+      return button;
+    }
+
     function decorate(article) {
       if (!article || typeof article.querySelector !== 'function') return false;
       if (!article.classList?.contains('message') || article.querySelector('.message-copy-actions')) return false;
@@ -107,16 +152,12 @@
       actions.className = 'message-copy-actions';
       actions.setAttribute('aria-live', 'polite');
 
-      const button = documentRef.createElement('button');
-      button.type = 'button';
-      button.className = 'message-copy-btn';
-      button.dataset.state = 'idle';
-      button.textContent = 'Kopyala';
+      if (article.classList.contains('user')) {
+        actions.append(makeButton('Tekrar gönder', 'kendi mesajını tekrar gönder', () => { resendMessage(actions.children[0], content); }));
+      }
       const sender = article.classList.contains('user') ? 'kendi mesajını' : 'Hafize yanıtını';
-      button.setAttribute('aria-label', `${sender} kopyala`);
-      button.addEventListener('click', () => { void copyMessage(button, content); });
-
-      actions.append(button);
+      const copyButton = makeButton('Kopyala', `${sender} kopyala`, () => { void copyMessage(copyButton, content); });
+      actions.append(copyButton);
       article.append(actions);
       return true;
     }
@@ -145,7 +186,7 @@
       observer = null;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, copyMessage });
+    return Object.freeze({ mount, destroy, decorate, decorateAll, copyMessage, resendMessage });
   }
 
   function mount(options) {
