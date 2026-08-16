@@ -49,6 +49,8 @@
   loadShellEnhancement('HafizeScheduleRuntimeStyle', '/schedule-runtime-status-style.js', 'data-hafize-schedule-runtime-style-loader');
   loadShellEnhancement('HafizeScheduleRuntimeStatus', '/schedule-runtime-status.js', 'data-hafize-schedule-runtime-status');
   loadShellEnhancement('HafizeDesktopDeviceStatus', '/desktop-device-status.js', 'data-hafize-desktop-device-status');
+  loadShellEnhancement('HafizeGitHubWriteReadinessStyle', '/github-write-readiness-style.js', 'data-hafize-github-write-readiness-style-loader');
+  loadShellEnhancement('HafizeGitHubWriteReadiness', '/github-write-readiness.js', 'data-hafize-github-write-readiness');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
