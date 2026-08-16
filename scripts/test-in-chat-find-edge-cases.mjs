@@ -15,7 +15,9 @@ function article(text, isMessage = true) {
 assert.equal(api.normalizeQuery(null), null);
 assert.equal(api.normalizeQuery('   '), '');
 assert.equal(api.normalizeQuery('İSTANBUL'), 'istanbul');
-assert.deepEqual(api.matchingMessages([article('abc'), article('abc', false)], 'abc'), [api.matchingMessages([article('abc')], 'abc')[0]].map(() => undefined), 'placeholder');
+const real = article('abc');
+const fake = article('abc', false);
+assert.deepEqual(api.matchingMessages([real, fake], 'abc'), [real]);
 
 const one = article('aynı kelime');
 const two = article('aynı başka');
