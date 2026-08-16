@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source = fs.readFileSync(new URL('../public/code-block-focus.js', import.meta.url), 'utf8');
+const module = { exports: {} }; vm.runInNewContext(source, { module, exports: module.exports, globalThis: {}, self: {} }); const api = module.exports;
+assert.equal(api.codeText('a\r\nb\rc\u0000'), 'a\nb\nc');
+assert.equal(api.codeText('x'.repeat(api.MAX_CODE_CHARS)).length, api.MAX_CODE_CHARS);
+assert.equal(api.codeText('x'.repeat(api.MAX_CODE_CHARS + 1)), null);
+assert.equal(api.languageText({ dataset: { language: 'typescript' } }), 'typescript');
+assert.equal(api.languageText({ dataset: { language: '<script>' } }), 'Kod');
+assert.throws(() => api.createController({ documentRef: null }), /INVALID_CODE_FOCUS_DOCUMENT/);
+for (const token of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'localStorage', 'sessionStorage', 'navigator.clipboard', 'requestSubmit', 'innerHTML', 'eval(']) assert.equal(source.includes(token), false, token);
+assert.match(source, /role', 'dialog'/); assert.match(source, /aria-modal/); assert.match(source, /aria-haspopup/); assert.match(source, /aria-controls/); assert.match(source, /Escape/); assert.match(source, /previousFocus\?\.focus/); assert.match(source, /event\.target === backdrop/); assert.match(source, /observer\?\.disconnect/);
+const loader = fs.readFileSync(new URL('../public/chat-run-controller.js', import.meta.url), 'utf8'); const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+assert.match(loader, /HafizeCodeBlockFocus/); assert.match(loader, /\/code-block-focus\.js/); assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v39`/); assert.match(sw, /'\/code-block-focus\.js'/); assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
+console.log('code block focus contract ok');
