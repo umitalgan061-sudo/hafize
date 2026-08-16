@@ -6,6 +6,7 @@
 
 .reading-focus-toggle,
 .reading-bookmark-navigator,
+.reading-bookmark-filter,
 .reading-bookmark-button {
   border: 1px solid var(--premium-line, var(--line));
   background: var(--premium-surface, var(--card));
@@ -17,24 +18,28 @@
 }
 
 .reading-focus-toggle,
-.reading-bookmark-navigator {
+.reading-bookmark-navigator,
+.reading-bookmark-filter {
   white-space: nowrap;
   font-size: 12px;
 }
 
 .reading-focus-toggle:hover,
 .reading-bookmark-navigator:not(:disabled):hover,
+.reading-bookmark-filter:not(:disabled):hover,
 .reading-bookmark-button:hover {
   border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 48%, var(--premium-line, var(--line)));
   background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, var(--premium-surface, var(--card)));
 }
 
-.reading-focus-toggle[aria-pressed="true"] {
+.reading-focus-toggle[aria-pressed="true"],
+.reading-bookmark-filter[aria-pressed="true"] {
   border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 55%, var(--premium-line, var(--line)));
   color: var(--premium-orange-strong, var(--accent-strong));
 }
 
-.reading-bookmark-navigator:disabled {
+.reading-bookmark-navigator:disabled,
+.reading-bookmark-filter:disabled {
   opacity: .5;
   cursor: default;
 }
@@ -97,6 +102,10 @@
   border-radius: 12px;
 }
 
+.messages.reading-bookmark-filter-active .message.reading-bookmark-filtered-out {
+  display: none !important;
+}
+
 body.reading-focus-mode .sidebar,
 body.reading-focus-mode .utility-rail,
 body.reading-focus-mode #sidebarToggle {
@@ -122,7 +131,8 @@ body.reading-focus-mode .composer {
 }
 
 @media (max-width: 760px) {
-  .reading-focus-toggle {
+  .reading-focus-toggle,
+  .reading-bookmark-filter {
     width: 38px;
     overflow: hidden;
     white-space: nowrap;
@@ -138,6 +148,16 @@ body.reading-focus-mode .composer {
     place-items: center;
     color: var(--premium-text, var(--ink));
     font-size: 16px;
+  }
+
+  .reading-bookmark-filter::before {
+    content: "★";
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--premium-text, var(--ink));
+    font-size: 14px;
   }
 
   .reading-bookmark-navigator {
@@ -161,6 +181,7 @@ body.reading-focus-mode .composer {
 @media (forced-colors: active) {
   .reading-focus-toggle,
   .reading-bookmark-navigator,
+  .reading-bookmark-filter,
   .reading-bookmark-button,
   .message.reading-bookmark-current {
     border: 1px solid ButtonText;
