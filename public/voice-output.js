@@ -16,6 +16,8 @@
   const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
   const MAX_SPEECH_LENGTH = 2400;
   const MAX_CHUNK_LENGTH = 240;
+  const DEFAULT_SPEECH_RATE = 0.98;
+  const SPEECH_RATE_OPTIONS = Object.freeze([0.85, 0.98, 1.15, 1.3]);
 
   function normalizeSpeechText(value) {
     if (typeof value !== 'string') return '';
@@ -65,6 +67,11 @@
     return chunks;
   }
 
+  function normalizeSpeechRate(value) {
+    const rate = Number(value);
+    return SPEECH_RATE_OPTIONS.includes(rate) ? rate : DEFAULT_SPEECH_RATE;
+  }
+
   function readStoredEnabled(storage) {
     try { return storage?.getItem?.(STORAGE_KEY) === 'true'; } catch { return false; }
   }
@@ -110,11 +117,37 @@
       generatedStatus = Boolean(status.parentNode);
     }
 
+    let generatedRateWrap = false;
+    let rateWrap = documentRef?.querySelector?.('#voiceRateWrap');
+    let rateSelect = documentRef?.querySelector?.('#voiceRateSelect');
+    if (!rateSelect && typeof documentRef?.createElement === 'function') {
+      rateWrap = documentRef.createElement('label');
+      rateWrap.id = 'voiceRateWrap';
+      rateWrap.className = 'voice-rate-wrap';
+      const rateLabel = documentRef.createElement('span');
+      rateLabel.textContent = 'Konuşma hızı';
+      rateSelect = documentRef.createElement('select');
+      rateSelect.id = 'voiceRateSelect';
+      rateSelect.setAttribute?.('aria-label', 'Sesli yanıt konuşma hızı');
+      const rateLabels = new Map([[0.85, 'Yavaş · 0,85×'], [0.98, 'Normal · 0,98×'], [1.15, 'Hızlı · 1,15×'], [1.3, 'Çok hızlı · 1,30×']]);
+      for (const rate of SPEECH_RATE_OPTIONS) {
+        const option = documentRef.createElement('option');
+        option.value = String(rate);
+        option.textContent = rateLabels.get(rate);
+        rateSelect.append?.(option);
+      }
+      rateWrap.append?.(rateLabel, rateSelect);
+      const anchor = status || pauseToggle || toggle;
+      anchor.insertAdjacentElement?.('afterend', rateWrap) || anchor.parentNode?.append?.(rateWrap);
+      generatedRateWrap = Boolean(rateWrap.parentNode);
+    }
+
     const synth = root?.speechSynthesis;
     const Utterance = root?.SpeechSynthesisUtterance;
     const supported = Boolean(synth && typeof synth.speak === 'function' && typeof Utterance === 'function');
     const pauseSupported = supported && typeof synth.pause === 'function' && typeof synth.resume === 'function';
     let enabled = supported && readStoredEnabled(root?.localStorage);
+    let speechRate = DEFAULT_SPEECH_RATE;
     let speaking = false;
     let paused = false;
     let thinking = false;
@@ -166,6 +199,11 @@
                   ? 'Hafize yanıt hazırlıyor.'
                   : 'Sesli yanıt hazır.';
       }
+      if (rateWrap) rateWrap.hidden = !supported || !enabled;
+      if (rateSelect) {
+        rateSelect.disabled = !supported || !enabled || speaking;
+        rateSelect.value = String(speechRate);
+      }
 
       card.classList?.toggle?.('speaking', speaking && !paused);
       card.classList?.toggle?.('paused', paused);
@@ -204,7 +242,7 @@
       const utterance = new Utterance(queue.shift());
       activeUtterance = utterance;
       utterance.lang = 'tr-TR';
-      utterance.rate = 0.98;
+      utterance.rate = speechRate;
       utterance.pitch = 1;
       const voice = findTurkishVoice();
       if (voice) utterance.voice = voice;
@@ -258,6 +296,19 @@
       return true;
     }
 
+    function setSpeechRate(value) {
+      const next = normalizeSpeechRate(value);
+      if (speaking) return speechRate;
+      speechRate = next;
+      render();
+      return speechRate;
+    }
+
+    function handleRateChange() {
+      if (!rateSelect || speaking) return;
+      setSpeechRate(rateSelect.value);
+    }
+
     function setEnabled(next) {
       enabled = supported && Boolean(next);
       writeStoredEnabled(root?.localStorage, enabled);
@@ -299,6 +350,7 @@
 
     toggle.addEventListener?.('click', handleToggle);
     pauseToggle?.addEventListener?.('click', handlePause);
+    rateSelect?.addEventListener?.('change', handleRateChange);
     composer?.addEventListener?.('submit', handleSubmit, true);
     documentRef.addEventListener?.('visibilitychange', handleVisibility);
     documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
@@ -323,6 +375,8 @@
       isEnabled: () => enabled,
       isSpeaking: () => speaking,
       isPaused: () => paused,
+      getSpeechRate: () => speechRate,
+      setSpeechRate,
       setEnabled,
       speak,
       togglePause,
@@ -334,11 +388,13 @@
         streamObserver?.disconnect?.();
         toggle.removeEventListener?.('click', handleToggle);
         pauseToggle?.removeEventListener?.('click', handlePause);
+        rateSelect?.removeEventListener?.('change', handleRateChange);
         composer?.removeEventListener?.('submit', handleSubmit, true);
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
         documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
         if (generatedPauseToggle) pauseToggle?.remove?.();
         if (generatedStatus) status?.remove?.();
+        if (generatedRateWrap) rateWrap?.remove?.();
       }
     });
   }
@@ -347,6 +403,9 @@
     STORAGE_KEY,
     VOICE_INPUT_STATE_EVENT,
     VOICE_OUTPUT_STATE_EVENT,
+    DEFAULT_SPEECH_RATE,
+    SPEECH_RATE_OPTIONS,
+    normalizeSpeechRate,
     normalizeSpeechText,
     splitSpeechText,
     installVoiceOutput
