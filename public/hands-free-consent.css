@@ -1,0 +1,35 @@
+.hands-free-consent {
+  margin-top: .65rem;
+  padding: .75rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: .85rem;
+  background: color-mix(in srgb, var(--surface, Canvas) 92%, currentColor 8%);
+}
+
+.hands-free-consent[hidden] { display: none; }
+.hands-free-consent strong { display: block; font-size: .82rem; }
+.hands-free-consent p { margin: .35rem 0 .65rem; font-size: .74rem; line-height: 1.45; opacity: .82; }
+.hands-free-consent-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; }
+.hands-free-consent button {
+  min-height: 44px;
+  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-radius: .7rem;
+  padding: .55rem .65rem;
+  font: inherit;
+  cursor: pointer;
+}
+.hands-free-consent-confirm { font-weight: 700; }
+.hands-free-consent button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+#handsFreeToggle[data-consent-pending="true"] { font-weight: 700; }
+
+@media (max-width: 760px) {
+  .hands-free-consent-actions { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hands-free-consent, .hands-free-consent button { transition: none !important; animation: none !important; }
+}
+
+@media (forced-colors: active) {
+  .hands-free-consent, .hands-free-consent button { border: 1px solid CanvasText; }
+}
