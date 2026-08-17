@@ -139,6 +139,16 @@
       if (announce && status) status.textContent = 'Cihaz eylemi iptal edildi.';
     }
 
+    function onCancel() {
+      if (!actionBusy) clearPendingAction({ announce: true });
+    }
+
+    function onKeydown(event) {
+      if (event?.key !== 'Escape' || !pendingAction || actionBusy) return;
+      event.preventDefault?.();
+      onCancel();
+    }
+
     function prepareAction(kind, value) {
       if (!mounted || actionBusy) return false;
       const normalized = normalizePendingAction(kind, value);
@@ -278,7 +288,7 @@
       cancelButton = createElement(documentRef, 'button', 'mini-btn', 'Vazgeç');
       cancelButton.type = 'button';
       confirmButton.addEventListener('click', confirmPendingAction);
-      cancelButton.addEventListener('click', () => clearPendingAction({ announce: true }));
+      cancelButton.addEventListener('click', onCancel);
       reviewActions.append(confirmButton, cancelButton);
       review.append(reviewText, reviewActions);
 
@@ -289,6 +299,7 @@
       actions.append(refreshButton);
       card.append(head, status, values, launchers, review, actions);
       rail.append(card);
+      documentRef.addEventListener?.('keydown', onKeydown);
       return true;
     }
 
@@ -305,8 +316,10 @@
       mounted = false;
       generation += 1;
       pendingAction = null;
+      documentRef.removeEventListener?.('keydown', onKeydown);
       refreshButton?.removeEventListener('click', refresh);
       confirmButton?.removeEventListener('click', confirmPendingAction);
+      cancelButton?.removeEventListener('click', onCancel);
       card?.remove();
       card = status = values = launchers = review = reviewText = confirmButton = cancelButton = refreshButton = null;
       return true;
