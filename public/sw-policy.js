@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v72`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v73`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -83,6 +83,9 @@
     '/github-file-update-style.js',
     '/github-file-update.js',
     '/github-file-update.css',
+    '/github-write-activity-style.js',
+    '/github-write-activity.js',
+    '/github-write-activity.css',
     '/response-retry-style.js',
     '/response-retry.js',
     '/response-retry.css',
