@@ -53,6 +53,7 @@
   loadShellEnhancement('HafizeScheduleCancel', '/schedule-cancel.js', 'data-hafize-schedule-cancel');
   loadShellEnhancement('HafizeScheduleReschedule', '/schedule-reschedule.js', 'data-hafize-schedule-reschedule');
   loadShellEnhancement('HafizeScheduleRetryPolicy', '/schedule-retry-policy.js', 'data-hafize-schedule-retry-policy');
+  loadShellEnhancement('HafizeScheduleActivity', '/schedule-activity.js', 'data-hafize-schedule-activity');
   loadShellEnhancement('HafizeDesktopDeviceStatus', '/desktop-device-status.js', 'data-hafize-desktop-device-status');
   loadShellEnhancement('HafizeGitHubWriteReadinessStyle', '/github-write-readiness-style.js', 'data-hafize-github-write-readiness-style-loader');
   loadShellEnhancement('HafizeGitHubWriteReadiness', '/github-write-readiness.js', 'data-hafize-github-write-readiness');
