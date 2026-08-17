@@ -60,6 +60,8 @@
   loadShellEnhancement('HafizeGitHubBranchCreate', '/github-branch-create.js', 'data-hafize-github-branch-create');
   loadShellEnhancement('HafizeGitHubDraftPrCreateStyle', '/github-draft-pr-create-style.js', 'data-hafize-github-draft-pr-create-style-loader');
   loadShellEnhancement('HafizeGitHubDraftPrCreate', '/github-draft-pr-create.js', 'data-hafize-github-draft-pr-create');
+  loadShellEnhancement('HafizeGitHubFileUpdateStyle', '/github-file-update-style.js', 'data-hafize-github-file-update-style-loader');
+  loadShellEnhancement('HafizeGitHubFileUpdate', '/github-file-update.js', 'data-hafize-github-file-update');
   loadShellEnhancement('HafizeResponseRetryStyle', '/response-retry-style.js', 'data-hafize-response-retry-style-loader');
   loadShellEnhancement('HafizeResponseRetry', '/response-retry.js', 'data-hafize-response-retry');
   loadShellEnhancement('HafizeReadingFocus', '/reading-focus.js', 'data-hafize-reading-focus');
