@@ -36,7 +36,7 @@ function expectAcceptedCost(N, r, p) {
 }
 
 assert.equal(CLOUD_SESSION_LIMITS.maxScryptMemoryBytes, 256 * 1024 * 1024);
-assert.equal(CLOUD_SESSION_LIMITS.maxScryptWorkUnits, 16 * 1024 * 1024);
+assert.equal(CLOUD_SESSION_LIMITS.maxScryptWorkUnits, 4 * 1024 * 1024);
 assert.equal(CLOUD_SESSION_LIMITS.scryptMemoryOverheadBytes, 1024 * 1024);
 
 // Common interactive-login profiles remain valid.
@@ -45,9 +45,10 @@ expectAcceptedCost(32_768, 8, 1);
 expectAcceptedCost(65_536, 8, 1);
 expectAcceptedCost(131_072, 8, 1);
 
-// Higher p is acceptable while the combined work budget remains bounded.
-expectAcceptedCost(65_536, 8, 8);
-expectAcceptedCost(131_072, 8, 8);
+// Parallelization is allowed only while the separate work budget remains bounded.
+expectAcceptedCost(65_536, 8, 8); // exactly 4,194,304 work units
+expectAcceptedCost(131_072, 8, 4); // exactly 4,194,304 work units
+expectInvalidCost(131_072, 8, 5);
 
 // Individually legal N/r values must not be able to request multi-gigabyte maxmem.
 expectInvalidCost(1_048_576, 8, 1);
@@ -56,21 +57,15 @@ expectInvalidCost(262_144, 8, 1);
 expectInvalidCost(131_072, 16, 1);
 expectInvalidCost(65_536, 32, 1);
 
-// Memory can fit while CPU/parallelization still exceeds the separate work budget.
-expectInvalidCost(131_072, 8, 9); // p itself is invalid before cost policy; verify below separately.
-
+// Scalar schema guards remain distinct from combined resource guards.
 assert.throws(
   () => create(hash(131_072, 8, 9)),
   (error) => error?.code === 'INVALID_CLOUD_SESSION_AUTH:passwordHash.p'
 );
-
-// N must remain a power of two, independent from the resource budget.
 assert.throws(
   () => create(hash(24_576, 8, 1)),
   (error) => error?.code === 'INVALID_CLOUD_SESSION_AUTH:passwordHash.N'
 );
-
-// Existing scalar guards remain fail-closed and are not replaced by the combined guard.
 for (const [N, r, p, code] of [
   [8192, 8, 1, 'INVALID_CLOUD_SESSION_AUTH:passwordHash.N'],
   [16_384, 7, 1, 'INVALID_CLOUD_SESSION_AUTH:passwordHash.r'],
