@@ -13,6 +13,7 @@ import {
 import { createAgentDelegator } from './lib/agent-delegation.mjs';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
+import { createAgentSseNodeSession } from './lib/agent-sse-node-session.mjs';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { createGitHubWriteNodeServerRuntime } from './lib/github-write-node-server-runtime.mjs';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
@@ -113,28 +114,6 @@ function sendJson(res, status, payload) {
   setSecurityHeaders(res);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(payload));
-}
-
-function startSse(res) {
-  setSecurityHeaders(res);
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive'
-  });
-}
-
-function sendSseContent(res, content) {
-  startSse(res);
-  if (content) {
-    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
-  }
-  res.end('data: [DONE]\n\n');
-}
-
-function writeToolActivitySse(res, activity) {
-  if (!activity) return;
-  res.write(`event: hafize-tool-activity\ndata: ${JSON.stringify(activity)}\n\n`);
 }
 
 async function readJson(req) {
@@ -340,7 +319,10 @@ async function handleAgentRun(req, res) {
   const runLedger = createAgentRunLedger({ traceId, agentId: agent.id });
   res.setHeader('X-Hafize-Trace-Id', traceId);
   const controller = new AbortController();
-  res.on('close', () => controller.abort());
+  res.once('close', () => controller.abort());
+  const sseSession = streamResponse
+    ? createAgentSseNodeSession({ response: res, signal: controller.signal, setSecurityHeaders })
+    : null;
 
   const delegator = createAgentDelegator({
     registry: AGENT_REGISTRY,
@@ -393,7 +375,8 @@ async function handleAgentRun(req, res) {
   if (skillRun.kind === 'complete') {
     runLedger.finish({ ok: true });
     if (streamResponse) {
-      sendSseContent(res, skillRun.content);
+      await sseSession.sendContent(skillRun.content);
+      sseSession.end();
       return;
     }
     sendJson(res, 200, {
@@ -449,7 +432,8 @@ async function handleAgentRun(req, res) {
     runLedger.finish({ ok: true });
     const content = typeof assistant.content === 'string' ? assistant.content : '';
     if (streamResponse) {
-      sendSseContent(res, content);
+      await sseSession.sendContent(content);
+      sseSession.end();
       return;
     }
     sendJson(res, 200, {
@@ -483,10 +467,17 @@ async function handleAgentRun(req, res) {
   const toolMessages = [];
   const toolSummary = [];
   let anyToolFailed = false;
-  if (streamResponse) startSse(res);
   for (const call of normalizedCalls) {
     const toolTask = runLedger.recordToolStart(call.function.name);
-    if (streamResponse) writeToolActivitySse(res, getPublicToolRunningActivity(call.function.name));
+    if (streamResponse) {
+      const runningWrite = await sseSession.writeToolActivity(getPublicToolRunningActivity(call.function.name));
+      if (!runningWrite.ok) {
+        controller.abort();
+        runLedger.finish({ ok: false, detail: 'client_stream_closed' });
+        sseSession.end();
+        return;
+      }
+    }
     const result = await executeNvidiaToolCall(agent, call, {
       traceId,
       agent,
@@ -500,7 +491,15 @@ async function handleAgentRun(req, res) {
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
-    if (streamResponse) writeToolActivitySse(res, getPublicToolActivity(call.function.name, result));
+    if (streamResponse) {
+      const resultWrite = await sseSession.writeToolActivity(getPublicToolActivity(call.function.name, result));
+      if (!resultWrite.ok) {
+        controller.abort();
+        runLedger.finish({ ok: false, detail: 'client_stream_closed' });
+        sseSession.end();
+        return;
+      }
+    }
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
     toolMessages.push({
       role: 'tool',
@@ -538,35 +537,28 @@ async function handleAgentRun(req, res) {
       });
     } catch (error) {
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
-      if (error?.name !== 'AbortError') {
-        res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
-      }
-      res.end();
+      if (error?.name !== 'AbortError') await sseSession.writePublicError('NVIDIA_CHAT_ERROR');
+      sseSession.end();
       return;
     }
     if (!upstream.ok || !upstream.body) {
-      await upstream.text();
+      try {
+        await upstream.body?.cancel?.();
+      } catch {
+        // Ignore upstream cancellation failure; only a fixed public error is exposed.
+      }
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
-      res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
-      res.end();
+      await sseSession.writePublicError('NVIDIA_CHAT_ERROR');
+      sseSession.end();
       return;
     }
 
-    let streamInterrupted = false;
-    try {
-      for await (const chunk of upstream.body) res.write(chunk);
-    } catch (error) {
-      streamInterrupted = true;
-      if (error?.name !== 'AbortError') {
-        res.write(`data: ${JSON.stringify({ error: 'STREAM_INTERRUPTED' })}\n\n`);
-      }
-    } finally {
-      runLedger.finish({
-        ok: !streamInterrupted && !anyToolFailed,
-        detail: streamInterrupted ? 'stream_interrupted' : anyToolFailed ? 'tool_failed' : null
-      });
-      res.end();
-    }
+    const streamResult = await sseSession.pipe(upstream.body);
+    runLedger.finish({
+      ok: streamResult.ok && !anyToolFailed,
+      detail: !streamResult.ok ? 'stream_interrupted' : anyToolFailed ? 'tool_failed' : null
+    });
+    sseSession.end();
     return;
   }
 
