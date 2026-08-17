@@ -64,6 +64,8 @@
   loadShellEnhancement('HafizeGitHubFileUpdate', '/github-file-update.js', 'data-hafize-github-file-update');
   loadShellEnhancement('HafizeGitHubWriteActivityStyle', '/github-write-activity-style.js', 'data-hafize-github-write-activity-style-loader');
   loadShellEnhancement('HafizeGitHubWriteActivity', '/github-write-activity.js', 'data-hafize-github-write-activity');
+  loadShellEnhancement('HafizeGitHubPrMergeStyle', '/github-pr-merge-style.js', 'data-hafize-github-pr-merge-style-loader');
+  loadShellEnhancement('HafizeGitHubPrMerge', '/github-pr-merge.js', 'data-hafize-github-pr-merge');
   loadShellEnhancement('HafizeResponseRetryStyle', '/response-retry-style.js', 'data-hafize-response-retry-style-loader');
   loadShellEnhancement('HafizeResponseRetry', '/response-retry.js', 'data-hafize-response-retry');
   loadShellEnhancement('HafizeReadingFocus', '/reading-focus.js', 'data-hafize-reading-focus');
