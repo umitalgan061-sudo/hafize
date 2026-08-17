@@ -259,6 +259,7 @@
         showStatus(`Tek seferde en fazla ${MAX_FILES} dosya seçilebilir.`, 'error');
         return false;
       }
+      clearStaged();
       const currentGeneration = ++generation;
       const next = [];
       for (const { file } of selection) {
