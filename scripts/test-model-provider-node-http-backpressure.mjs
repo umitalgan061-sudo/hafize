@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { createModelProviderNodeHttpRoute } from '../lib/model-provider-node-http-route.mjs';
+import { createSseNodeWriter } from '../lib/sse-node-writer.mjs';
 
 class FakeResponse extends EventEmitter {
   constructor({ backpressureAt = [] } = {}) {
@@ -36,9 +37,10 @@ class FakeResponse extends EventEmitter {
   }
 }
 
-function createRoute(runtime) {
+function createRoute(runtime, createStreamWriter) {
   return createModelProviderNodeHttpRoute({
     runtime,
+    createStreamWriter,
     sendJson(response, status, body) {
       response.writeHead(status);
       response.end(JSON.stringify(body));
@@ -167,12 +169,15 @@ const timeoutRuntime = {
 };
 const timedOut = new FakeResponse({ backpressureAt: [0, 1] });
 const startedAt = Date.now();
-const timeoutResult = await createRoute(timeoutRuntime).handle({
+const timeoutResult = await createRoute(
+  timeoutRuntime,
+  (options) => createSseNodeWriter({ ...options, drainTimeoutMs: 100 })
+).handle({
   request: {}, response: timedOut, method: 'POST', pathname: '/api/chat'
 });
 assert.equal(timeoutResult.interrupted, true);
 assert.equal(timeoutResult.aborted, false);
-assert.ok(Date.now() - startedAt >= 29_000, 'route must enforce the bounded default drain wait');
+assert.ok(Date.now() - startedAt >= 70, 'route must honor injected bounded drain timeout');
 assert.deepEqual(timedOut.writes, ['data: blocked\n\n', 'data: {"error":"STREAM_INTERRUPTED"}\n\n']);
 assert.equal(timedOut.endCount, 1);
 
