@@ -56,6 +56,8 @@
   loadShellEnhancement('HafizeDesktopDeviceStatus', '/desktop-device-status.js', 'data-hafize-desktop-device-status');
   loadShellEnhancement('HafizeGitHubWriteReadinessStyle', '/github-write-readiness-style.js', 'data-hafize-github-write-readiness-style-loader');
   loadShellEnhancement('HafizeGitHubWriteReadiness', '/github-write-readiness.js', 'data-hafize-github-write-readiness');
+  loadShellEnhancement('HafizeGitHubBranchCreateStyle', '/github-branch-create-style.js', 'data-hafize-github-branch-create-style-loader');
+  loadShellEnhancement('HafizeGitHubBranchCreate', '/github-branch-create.js', 'data-hafize-github-branch-create');
   loadShellEnhancement('HafizeResponseRetryStyle', '/response-retry-style.js', 'data-hafize-response-retry-style-loader');
   loadShellEnhancement('HafizeResponseRetry', '/response-retry.js', 'data-hafize-response-retry');
   loadShellEnhancement('HafizeReadingFocus', '/reading-focus.js', 'data-hafize-reading-focus');
