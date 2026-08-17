@@ -1,0 +1,200 @@
+.github-pr-merge {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.github-pr-merge-toggle,
+.github-pr-merge-primary,
+.github-pr-merge-danger,
+.github-pr-merge-cancel {
+  min-height: 40px;
+}
+
+.github-pr-merge-toggle {
+  justify-self: start;
+}
+
+.github-pr-merge-form {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 94%, transparent);
+}
+
+.github-pr-merge-form[hidden] {
+  display: none;
+}
+
+.github-pr-merge-warning,
+.github-pr-merge-repo,
+.github-pr-merge-status,
+.github-pr-merge-summary {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.github-pr-merge-warning {
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, #b85645 45%, var(--premium-line, var(--line)));
+  border-radius: 10px;
+  background: color-mix(in srgb, #b85645 8%, var(--premium-surface, var(--card)));
+  font-size: 12px;
+}
+
+.github-pr-merge-repo {
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.github-pr-merge-label {
+  display: grid;
+  gap: 5px;
+}
+
+.github-pr-merge-label > span {
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.github-pr-merge-input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+}
+
+.github-pr-merge-sha {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.github-pr-merge-input:focus-visible,
+.github-pr-merge-toggle:focus-visible,
+.github-pr-merge-primary:focus-visible,
+.github-pr-merge-danger:focus-visible,
+.github-pr-merge-cancel:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+.github-pr-merge-summary {
+  padding: 8px 9px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, transparent);
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.github-pr-merge-status {
+  min-height: 34px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.github-pr-merge-status[data-state="error"] {
+  color: #a4493d;
+}
+
+.github-pr-merge-status[data-state="success"],
+.github-pr-merge-status[data-state="ready"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.github-pr-merge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.github-pr-merge-primary,
+.github-pr-merge-danger {
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.github-pr-merge-primary {
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 12%, var(--premium-surface-strong, var(--card)));
+  color: var(--premium-text, var(--ink));
+}
+
+.github-pr-merge-danger {
+  background: #9f493b;
+  border-color: #9f493b;
+  color: #fff;
+  font-weight: 650;
+}
+
+.github-pr-merge-danger:hover:not(:disabled) {
+  background: #873c31;
+}
+
+.github-pr-merge-primary:disabled,
+.github-pr-merge-danger:disabled,
+.github-pr-merge-cancel:disabled,
+.github-pr-merge-input:disabled {
+  opacity: .56;
+  cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+  .github-pr-merge-form {
+    padding: 10px;
+  }
+
+  .github-pr-merge-toggle,
+  .github-pr-merge-primary,
+  .github-pr-merge-danger,
+  .github-pr-merge-cancel,
+  .github-pr-merge-input {
+    min-height: 44px;
+  }
+
+  .github-pr-merge-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .github-pr-merge-actions > button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .github-pr-merge-form,
+  .github-pr-merge-input,
+  .github-pr-merge-toggle,
+  .github-pr-merge-primary,
+  .github-pr-merge-danger {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .github-pr-merge-form,
+  .github-pr-merge-warning,
+  .github-pr-merge-input,
+  .github-pr-merge-primary,
+  .github-pr-merge-danger,
+  .github-pr-merge-toggle {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .github-pr-merge-danger {
+    background: ButtonFace;
+    color: ButtonText;
+  }
+}
