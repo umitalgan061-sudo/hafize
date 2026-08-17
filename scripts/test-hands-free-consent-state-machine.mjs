@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('../public/hands-free-consent.js', import.meta.url), 'utf8');
+assert.match(source, /function canReview\(/);
 assert.match(source, /function begin\(\)/);
 assert.match(source, /function cancel\(/);
 assert.match(source, /function expire\(\)/);
 assert.match(source, /function onConfirm\(/);
 assert.match(source, /function onToggleCapture\(/);
-assert.match(source, /if \(destroyed \|\| pending \|\| toggle\.disabled/);
-assert.match(source, /if \(destroyed \|\| !pending \|\| toggle\.disabled/);
+assert.match(source, /documentRef\?\.hidden !== true/);
+assert.match(source, /root\?\.isSecureContext !== false/);
+assert.match(source, /if \(destroyed \|\| pending \|\| !canReview/);
+assert.match(source, /if \(destroyed \|\| !pending \|\| !canReview/);
 assert.match(source, /root\.setTimeout\(expire, CONSENT_TIMEOUT_MS\)/);
 assert.equal([...source.matchAll(/root\.setTimeout\(/g)].length, 1);
 for (const token of ['input.value','event.detail','postMessage','location.search','document.referrer']) assert.equal(source.includes(token), false);
