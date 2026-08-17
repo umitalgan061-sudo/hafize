@@ -167,7 +167,7 @@
         trailingCr = '';
       }
       const frames = drain();
-      if (pending) frames.push(`${pending}\n\n`);
+      if (pending) frames.push(pending.endsWith('\n') ? `${pending}\n` : `${pending}\n\n`);
       pending = '';
       closed = true;
       return frames;
@@ -182,7 +182,8 @@
 
   function createNormalizedSseResponse(response, root, { maxPendingChars = MAX_SSE_PENDING_CHARS } = {}) {
     if (!isEventStreamResponse(response)) return response;
-    if (typeof root?.TransformStream !== 'function' || typeof root?.TextDecoder !== 'function' || typeof root?.TextEncoder !== 'function' || typeof root?.Response !== 'function') {
+    const HeadersImpl = root?.Headers || globalThis.Headers;
+    if (typeof root?.TransformStream !== 'function' || typeof root?.TextDecoder !== 'function' || typeof root?.TextEncoder !== 'function' || typeof root?.Response !== 'function' || typeof HeadersImpl !== 'function') {
       return response;
     }
     const normalizer = createSseFrameNormalizer({ maxPendingChars });
@@ -198,7 +199,7 @@
         for (const frame of normalizer.finish(tail)) controller.enqueue(encoder.encode(frame));
       }
     });
-    const headers = new Headers(response.headers);
+    const headers = new HeadersImpl(response.headers);
     headers.set('Cache-Control', 'no-store');
     return new root.Response(response.body.pipeThrough(transform), {
       status: response.status,
