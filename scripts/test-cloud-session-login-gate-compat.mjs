@@ -3,6 +3,11 @@ import { Readable } from 'node:stream';
 import { createCloudSessionHttpApi } from '../lib/cloud-session-http-api.mjs';
 
 function request(body) { return Readable.from([Buffer.from(JSON.stringify(body))]); }
+async function readJson(stream) {
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
 const headers = { origin: 'https://hafize.example', 'content-type': 'application/json' };
 let gateCalls = 0;
 const auth = {
@@ -13,7 +18,7 @@ const auth = {
 const api = createCloudSessionHttpApi({
   auth,
   allowedOrigin: 'https://hafize.example',
-  readJson: async (stream) => JSON.parse((await Array.fromAsync(stream)).map(String).join('')),
+  readJson,
   loginGate() { gateCalls += 1; return { ok: true }; }
 });
 
