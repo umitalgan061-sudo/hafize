@@ -1,0 +1,107 @@
+.schedule-cancel-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--premium-line, var(--line));
+}
+
+.schedule-cancel-inline-status {
+  min-width: 0;
+  flex: 1;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.schedule-cancel-inline-status[hidden] {
+  display: none;
+}
+
+.schedule-cancel-inline-status[data-state="loading"] {
+  opacity: .78;
+}
+
+.schedule-cancel-inline-status[data-state="success"] {
+  color: var(--accent-strong, #3f6556);
+}
+
+.schedule-cancel-inline-status[data-state="auth"],
+.schedule-cancel-inline-status[data-state="error"] {
+  color: #8a5548;
+}
+
+.schedule-cancel-button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, #a85b4a 35%, var(--premium-line, var(--line)));
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: transparent;
+  color: #8a5548;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.schedule-cancel-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #a85b4a 65%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, #a85b4a 8%, var(--premium-surface, var(--card)));
+}
+
+.schedule-cancel-button:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+.schedule-cancel-button:disabled {
+  cursor: wait;
+  opacity: .52;
+}
+
+.schedule-cancel-action[aria-busy="true"] .schedule-cancel-button {
+  pointer-events: none;
+}
+
+.schedule-list-item[data-state="cancelled"] .schedule-cancel-action {
+  justify-content: flex-start;
+}
+
+@media (max-width: 680px) {
+  .schedule-cancel-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .schedule-cancel-button {
+    width: 100%;
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-cancel-button {
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-cancel-action {
+    border-color: CanvasText;
+  }
+
+  .schedule-cancel-button {
+    border: 1px solid ButtonText;
+    color: ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .schedule-cancel-inline-status[data-state="success"],
+  .schedule-cancel-inline-status[data-state="auth"],
+  .schedule-cancel-inline-status[data-state="error"] {
+    color: CanvasText;
+  }
+}
