@@ -1,0 +1,185 @@
+.gmail-workspace {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--premium-line, var(--line));
+}
+
+.gmail-workspace[hidden] {
+  display: none !important;
+}
+
+.gmail-workspace-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.gmail-workspace-head strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gmail-workspace-tool-state {
+  flex: 0 0 auto;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.gmail-workspace-tool-state[data-state="ready"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 38%, var(--premium-line, var(--line)));
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.gmail-workspace-intro,
+.gmail-workspace-status {
+  margin: 0;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.gmail-workspace-intro {
+  margin-bottom: 9px;
+}
+
+.gmail-workspace-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.gmail-workspace-preset,
+.gmail-workspace-search button,
+.gmail-workspace-tool-action {
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  background: transparent;
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+}
+
+.gmail-workspace-preset {
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 6px;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.gmail-workspace-preset:hover:not(:disabled),
+.gmail-workspace-search button:hover:not(:disabled),
+.gmail-workspace-tool-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 45%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, transparent);
+}
+
+.gmail-workspace-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.gmail-workspace-search input {
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 11px;
+}
+
+.gmail-workspace-search input::placeholder {
+  color: var(--premium-muted, var(--muted));
+}
+
+.gmail-workspace-search button,
+.gmail-workspace-tool-action {
+  min-height: 38px;
+  padding: 7px 9px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.gmail-workspace-tool-action {
+  width: 100%;
+  margin-top: 7px;
+}
+
+.gmail-workspace-status {
+  min-height: 16px;
+  margin-top: 8px;
+}
+
+.gmail-workspace-status[data-state="warning"] {
+  color: #9a652f;
+}
+
+.gmail-workspace-status[data-state="ready"] {
+  color: color-mix(in srgb, var(--premium-orange-strong, var(--accent-strong)) 78%, var(--premium-text, var(--ink)));
+}
+
+.gmail-workspace button:disabled,
+.gmail-workspace input:disabled {
+  cursor: not-allowed;
+  opacity: .52;
+}
+
+.gmail-workspace button:focus-visible,
+.gmail-workspace input:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 680px) {
+  .gmail-workspace-presets {
+    grid-template-columns: 1fr;
+  }
+
+  .gmail-workspace-preset,
+  .gmail-workspace-search input,
+  .gmail-workspace-search button,
+  .gmail-workspace-tool-action {
+    min-height: 44px;
+  }
+
+  .gmail-workspace-search {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gmail-workspace *,
+  .gmail-workspace *::before,
+  .gmail-workspace *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .gmail-workspace,
+  .gmail-workspace-tool-state,
+  .gmail-workspace-preset,
+  .gmail-workspace-search input,
+  .gmail-workspace-search button,
+  .gmail-workspace-tool-action {
+    border-color: CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  .gmail-workspace button:focus-visible,
+  .gmail-workspace input:focus-visible {
+    outline-color: Highlight;
+  }
+}
