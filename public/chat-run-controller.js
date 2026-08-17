@@ -7,6 +7,7 @@
     return;
   }
   root.HafizeChatRunController = api;
+  api.installSseIntegrity(root);
 
   const documentRef = root.document;
   function loadShellEnhancement(globalName, path, marker) {
@@ -81,10 +82,153 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
+  const SSE_STREAM_PATHS = Object.freeze(['/api/chat', '/api/agent/run']);
+  const MAX_SSE_PENDING_CHARS = 256 * 1024;
+  const SSE_FETCH_MARKER = Symbol.for('hafize.sse.integrity.fetch.v1');
+
   function fail(code) {
     const error = new Error(code);
     error.code = code;
     throw error;
+  }
+
+  function requestMethod(input, init) {
+    const value = init?.method ?? input?.method ?? 'GET';
+    return String(value || 'GET').toUpperCase();
+  }
+
+  function requestUrl(input) {
+    if (typeof input === 'string' || input instanceof URL) return String(input);
+    return typeof input?.url === 'string' ? input.url : '';
+  }
+
+  function shouldGuardSseRequest(input, init, origin) {
+    if (requestMethod(input, init) !== 'POST' || typeof origin !== 'string' || !origin) return false;
+    const raw = requestUrl(input);
+    if (!raw) return false;
+    try {
+      const parsed = new URL(raw, origin);
+      return parsed.origin === origin && SSE_STREAM_PATHS.includes(parsed.pathname) && !parsed.search && !parsed.hash;
+    } catch {
+      return false;
+    }
+  }
+
+  function isEventStreamResponse(response) {
+    if (!response?.body || typeof response.headers?.get !== 'function') return false;
+    const type = String(response.headers.get('content-type') || '').toLowerCase();
+    return type.split(';', 1)[0].trim() === 'text/event-stream';
+  }
+
+  function createSseFrameNormalizer({ maxPendingChars = MAX_SSE_PENDING_CHARS } = {}) {
+    if (!Number.isSafeInteger(maxPendingChars) || maxPendingChars < 1024 || maxPendingChars > MAX_SSE_PENDING_CHARS) {
+      fail('INVALID_SSE_PENDING_LIMIT');
+    }
+    let pending = '';
+    let trailingCr = '';
+    let closed = false;
+
+    function appendNormalized(text) {
+      if (typeof text !== 'string') fail('INVALID_SSE_CHUNK');
+      let combined = `${trailingCr}${text}`;
+      trailingCr = '';
+      if (combined.endsWith('\r')) {
+        trailingCr = '\r';
+        combined = combined.slice(0, -1);
+      }
+      pending += combined.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    }
+
+    function drain() {
+      const frames = [];
+      while (true) {
+        const boundary = pending.indexOf('\n\n');
+        if (boundary < 0) break;
+        const frame = pending.slice(0, boundary);
+        pending = pending.slice(boundary + 2);
+        if (frame.length > maxPendingChars) fail('SSE_FRAME_TOO_LARGE');
+        frames.push(`${frame}\n\n`);
+      }
+      if (pending.length + trailingCr.length > maxPendingChars) fail('SSE_FRAME_TOO_LARGE');
+      return frames;
+    }
+
+    function push(text) {
+      if (closed) fail('SSE_NORMALIZER_CLOSED');
+      appendNormalized(text);
+      return drain();
+    }
+
+    function finish(text = '') {
+      if (closed) fail('SSE_NORMALIZER_CLOSED');
+      appendNormalized(text);
+      if (trailingCr) {
+        pending += '\n';
+        trailingCr = '';
+      }
+      const frames = drain();
+      if (pending) frames.push(`${pending}\n\n`);
+      pending = '';
+      closed = true;
+      return frames;
+    }
+
+    function snapshot() {
+      return Object.freeze({ pendingChars: pending.length + trailingCr.length, closed });
+    }
+
+    return Object.freeze({ push, finish, snapshot });
+  }
+
+  function createNormalizedSseResponse(response, root, { maxPendingChars = MAX_SSE_PENDING_CHARS } = {}) {
+    if (!isEventStreamResponse(response)) return response;
+    if (typeof root?.TransformStream !== 'function' || typeof root?.TextDecoder !== 'function' || typeof root?.TextEncoder !== 'function' || typeof root?.Response !== 'function') {
+      return response;
+    }
+    const normalizer = createSseFrameNormalizer({ maxPendingChars });
+    const decoder = new root.TextDecoder();
+    const encoder = new root.TextEncoder();
+    const transform = new root.TransformStream({
+      transform(chunk, controller) {
+        const text = decoder.decode(chunk || new Uint8Array(), { stream: true });
+        for (const frame of normalizer.push(text)) controller.enqueue(encoder.encode(frame));
+      },
+      flush(controller) {
+        const tail = decoder.decode();
+        for (const frame of normalizer.finish(tail)) controller.enqueue(encoder.encode(frame));
+      }
+    });
+    const headers = new Headers(response.headers);
+    headers.set('Cache-Control', 'no-store');
+    return new root.Response(response.body.pipeThrough(transform), {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+  }
+
+  function installSseIntegrity(root = globalThis) {
+    if (!root || typeof root.fetch !== 'function') return null;
+    if (root.fetch[SSE_FETCH_MARKER]) return root.fetch[SSE_FETCH_MARKER];
+    const originalFetch = root.fetch.bind(root);
+    const origin = typeof root.location?.origin === 'string' ? root.location.origin : '';
+
+    async function guardedFetch(input, init) {
+      const shouldGuard = shouldGuardSseRequest(input, init, origin);
+      const response = await originalFetch(input, init);
+      if (!shouldGuard || !isEventStreamResponse(response)) return response;
+      return createNormalizedSseResponse(response, root);
+    }
+
+    const controller = Object.freeze({
+      originalFetch,
+      restore() {
+        if (root.fetch === guardedFetch) root.fetch = originalFetch;
+      }
+    });
+    Object.defineProperty(guardedFetch, SSE_FETCH_MARKER, { value: controller });
+    root.fetch = guardedFetch;
+    return controller;
   }
 
   function createChatRunController({ AbortControllerImpl = globalThis.AbortController } = {}) {
@@ -135,5 +279,17 @@
     return Boolean(signal?.aborted || error?.name === 'AbortError' || error?.code === 'ABORT_ERR');
   }
 
-  return Object.freeze({ createChatRunController, isAbortError });
+  return Object.freeze({
+    SSE_STREAM_PATHS,
+    MAX_SSE_PENDING_CHARS,
+    requestMethod,
+    requestUrl,
+    shouldGuardSseRequest,
+    isEventStreamResponse,
+    createSseFrameNormalizer,
+    createNormalizedSseResponse,
+    installSseIntegrity,
+    createChatRunController,
+    isAbortError
+  });
 });
