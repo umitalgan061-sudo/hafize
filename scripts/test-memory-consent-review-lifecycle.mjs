@@ -38,25 +38,42 @@ class FakeNode {
     this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
     this.parentNode = null;
   }
-  setAttribute(name, value) { this.attributes.set(name, String(value)); }
-  removeAttribute(name) { this.attributes.delete(name); }
-  addEventListener(type, listener) {
+  setAttribute(name, value) {
+    this.attributes.set(name, String(value));
+    if (name.startsWith('data-')) {
+      const key = name.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      this.dataset[key] = String(value);
+    }
+  }
+  removeAttribute(name) {
+    this.attributes.delete(name);
+    if (name.startsWith('data-')) {
+      const key = name.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+      delete this.dataset[key];
+    }
+  }
+  addEventListener(type, listener, options = false) {
+    const capture = options === true || options?.capture === true;
     const list = this.listeners.get(type) || [];
-    list.push(listener);
+    list.push({ listener, capture });
     this.listeners.set(type, list);
   }
-  removeEventListener(type, listener) {
-    this.listeners.set(type, (this.listeners.get(type) || []).filter((item) => item !== listener));
+  removeEventListener(type, listener, options = false) {
+    const capture = options === true || options?.capture === true;
+    this.listeners.set(type, (this.listeners.get(type) || []).filter((item) => item.listener !== listener || item.capture !== capture));
   }
   dispatchEvent(event) {
     event.target ||= this;
-    event.prevented ||= false;
-    event.stopped ||= false;
+    event.prevented = false;
+    event.immediateStopped = false;
     event.preventDefault ||= () => { event.prevented = true; };
-    event.stopImmediatePropagation ||= () => { event.stopped = true; };
-    for (const listener of [...(this.listeners.get(event.type) || [])]) {
-      listener(event);
-      if (event.stopped) break;
+    event.stopImmediatePropagation ||= () => { event.immediateStopped = true; };
+    const entries = [...(this.listeners.get(event.type) || [])];
+    for (const capture of [true, false]) {
+      for (const item of entries.filter((entry) => entry.capture === capture)) {
+        item.listener(event);
+        if (event.immediateStopped) return !event.prevented;
+      }
     }
     return !event.prevented;
   }
@@ -119,8 +136,8 @@ const root = {
 };
 
 let writes = 0;
-form.addEventListener('submit', () => { writes += 1; });
 let deletes = 0;
+form.addEventListener('submit', () => { writes += 1; });
 results.addEventListener('click', () => { deletes += 1; });
 
 const controller = consent.install(documentRef, root);
@@ -128,7 +145,7 @@ assert.ok(controller);
 assert.equal(head.children.some((node) => node.href === '/memory-consent-review.css'), true);
 
 form.requestSubmit();
-assert.equal(writes, 0, 'first submit must be intercepted before the memory write handler');
+assert.equal(writes, 0, 'first submit must stop before the existing memory write handler');
 assert.ok(controller.getReview());
 const reviewNode = form.children.find((node) => node.dataset?.hafizeMemoryReview === '1');
 assert.ok(reviewNode);
@@ -148,15 +165,14 @@ content.value = 'Onaydan sonra değiştirilmiş içerik';
 content.dispatchEvent({ type: 'input', target: content });
 assert.equal(controller.getReview(), null, 'editing must invalidate the prepared review');
 
-const firstDelete = { type: 'click', target: deleteButton };
-results.dispatchEvent(firstDelete);
+results.dispatchEvent({ type: 'click', target: deleteButton });
 assert.equal(deletes, 0, 'first delete click must not reach the existing delete handler');
 assert.equal(deleteButton.dataset.confirming, 'true');
 assert.match(deleteButton.textContent, /Tekrar tıkla/i);
 assert.equal(typeof timerCallback, 'function');
 
 results.dispatchEvent({ type: 'click', target: deleteButton });
-assert.equal(deletes, 1, 'second click on the same record should release one delete');
+assert.equal(deletes, 1, 'second click on the same record should release exactly one delete');
 assert.equal(deleteButton.dataset.confirming, undefined);
 
 results.dispatchEvent({ type: 'click', target: deleteButton });
