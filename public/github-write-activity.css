@@ -1,0 +1,190 @@
+.github-write-activity {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--premium-line, var(--line));
+}
+
+.github-write-activity-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  color: var(--premium-text, var(--ink));
+}
+
+.github-write-activity-count {
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 12%, transparent);
+  color: var(--premium-orange-strong, var(--accent-strong));
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.github-write-activity-panel {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 88%, transparent);
+}
+
+.github-write-activity-panel[hidden] {
+  display: none;
+}
+
+.github-write-activity-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.github-write-activity-title {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.github-write-activity-title strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.github-write-activity-title small,
+.github-write-activity-status,
+.github-write-activity-empty {
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.github-write-activity-clear {
+  flex: 0 0 auto;
+  min-height: 32px;
+}
+
+.github-write-activity-empty,
+.github-write-activity-status {
+  margin: 0;
+}
+
+.github-write-activity-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.github-write-activity-list[hidden] {
+  display: none;
+}
+
+.github-write-activity-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--premium-line, var(--line)) 84%, transparent);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--premium-surface-strong, var(--card)) 82%, transparent);
+}
+
+.github-write-activity-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 10%, transparent);
+  color: var(--premium-orange-strong, var(--accent-strong));
+  font-size: 13px;
+}
+
+.github-write-activity-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.github-write-activity-copy strong,
+.github-write-activity-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-write-activity-copy strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.github-write-activity-copy small,
+.github-write-activity-item time {
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+}
+
+.github-write-activity-item time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.github-write-activity-toggle:focus-visible,
+.github-write-activity-clear:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 680px) {
+  .github-write-activity-panel {
+    padding: 9px;
+  }
+
+  .github-write-activity-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .github-write-activity-item time {
+    grid-column: 2;
+  }
+
+  .github-write-activity-toggle,
+  .github-write-activity-clear {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .github-write-activity-toggle,
+  .github-write-activity-clear,
+  .github-write-activity-item {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .github-write-activity-panel,
+  .github-write-activity-item,
+  .github-write-activity-toggle,
+  .github-write-activity-clear {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .github-write-activity-count,
+  .github-write-activity-icon {
+    background: Canvas;
+    color: ButtonText;
+  }
+}
