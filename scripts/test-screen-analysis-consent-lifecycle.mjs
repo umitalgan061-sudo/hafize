@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-
 const require = createRequire(import.meta.url);
 const api = require('../public/screen-analysis-ui.js');
-
 function classList() {
   const values = new Set();
   return {
@@ -12,7 +10,6 @@ function classList() {
     contains(item) { return values.has(item); }
   };
 }
-
 function element(tag = 'div') {
   const listeners = new Map();
   const attributes = new Map();
@@ -62,7 +59,6 @@ function element(tag = 'div') {
     focus() { this.focusCount += 1; }
   };
 }
-
 const nodes = {
   '#screenShareAnalyze': element('button'),
   '#screenAnalysisResult': element('p'),
@@ -75,7 +71,6 @@ const nodes = {
 nodes['#screenShareAnalyze'].textContent = 'Hafize ile analiz et';
 nodes['#modelSelect'].value = 'nvidia/vision';
 nodes['#messageInput'].value = 'BU SOHBET TASLAĞI GÖNDERİLMEMELİ';
-
 const head = element('head');
 const documentListeners = new Map();
 const document = {
@@ -100,7 +95,6 @@ const document = {
     for (const fn of [...(documentListeners.get(type) || [])]) await fn({ type, ...event });
   }
 };
-
 const rootListeners = new Map();
 let calls = [];
 const root = {
@@ -125,12 +119,10 @@ const root = {
     for (const fn of [...(rootListeners.get(type) || [])]) await fn({ type, detail });
   }
 };
-
 const mounted = api.mountScreenAnalysisUi({ root });
 assert.ok(mounted);
 assert.equal(head.children.length, 1, 'consent stylesheet should be mounted once');
 assert.equal(nodes['#screenSharePreview'].children.length, 1, 'dedicated consent section should be appended');
-
 const consent = nodes['#screenSharePreview'].children[0];
 const promptInput = consent.children.find((child) => child.id === 'screenAnalysisPrompt');
 const review = consent.children.find((child) => child.className === 'screen-analysis-review');
@@ -138,36 +130,30 @@ assert.ok(promptInput);
 assert.ok(review);
 assert.equal(promptInput.value, '');
 assert.equal(review.hidden, true);
-
 const capture = { blob: new Blob(['jpeg'], { type: 'image/jpeg' }), width: 1280, height: 720 };
 await root.dispatch('hafize:screen-capture-ready', { capture });
 assert.equal(calls.length, 0);
-
 await nodes['#screenShareAnalyze'].dispatch('click');
 assert.equal(calls.length, 0, 'first click must only prepare review');
 assert.equal(review.hidden, false);
 assert.equal(nodes['#screenShareAnalyze'].textContent, 'Onayla ve gönder');
 assert.equal(mounted.getReviewSnapshot().prompt, api.DEFAULT_PROMPT);
 assert.notEqual(mounted.getReviewSnapshot().prompt, nodes['#messageInput'].value, 'composer draft must stay isolated');
-
 promptInput.value = 'Yalnız hata mesajını açıkla.';
 await promptInput.dispatch('input');
 assert.equal(mounted.getReviewSnapshot(), null, 'prompt edit must invalidate prepared review');
 assert.equal(review.hidden, true);
 assert.equal(calls.length, 0);
-
 await nodes['#screenShareAnalyze'].dispatch('click');
 assert.equal(calls.length, 0);
 assert.equal(mounted.getReviewSnapshot().prompt, 'Yalnız hata mesajını açıkla.');
 nodes['#modelSelect'].value = 'nvidia/other';
 await nodes['#modelSelect'].dispatch('change');
 assert.equal(mounted.getReviewSnapshot(), null, 'model edit must invalidate prepared review');
-
 nodes['#modelSelect'].value = 'local:qwen';
 await nodes['#screenShareAnalyze'].dispatch('click');
 assert.equal(calls.length, 0);
 assert.match(nodes['#screenShareStatus'].textContent, /NVIDIA/);
-
 nodes['#modelSelect'].value = 'nvidia/vision';
 await nodes['#screenShareAnalyze'].dispatch('click');
 assert.equal(calls.length, 0);
@@ -178,7 +164,6 @@ assert.equal(calls[0].model, 'nvidia/vision');
 assert.equal(calls[0].capture, capture);
 assert.equal(calls[0].explicitUserIntent, true);
 assert.equal(nodes['#screenAnalysisResult'].textContent, 'Analiz sonucu');
-
 await nodes['#screenShareAnalyze'].dispatch('click');
 assert.equal(calls.length, 1, 'new review cycle first click must remain network-free');
 let prevented = false;
@@ -186,9 +171,7 @@ await document.dispatch('keydown', { key: 'Escape', preventDefault() { prevented
 assert.equal(prevented, true);
 assert.equal(mounted.getReviewSnapshot(), null);
 assert.equal(calls.length, 1);
-
 mounted.destroy();
 assert.equal(nodes['#screenSharePreview'].children.includes(consent), false);
 assert.equal(nodes['#screenShareAnalyze'].textContent, 'Hafize ile analiz et');
-
 console.log('screen analysis consent lifecycle tests passed');
