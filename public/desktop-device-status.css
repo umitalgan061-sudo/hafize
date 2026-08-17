@@ -1,0 +1,19 @@
+.desktop-device-card[hidden]{display:none!important}
+.desktop-device-card .desktop-device-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.desktop-device-card .desktop-device-item{min-width:0;padding:8px 9px;border:1px solid var(--line,#ded8ce);border-radius:10px;background:color-mix(in srgb,var(--panel,#fff) 82%,transparent)}
+.desktop-device-card .desktop-device-label{display:block;font-size:11px;opacity:.68;margin-bottom:3px}
+.desktop-device-card .desktop-device-value{display:block;font-size:12px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.desktop-device-card .desktop-device-state{margin:8px 0 0;font-size:12px;line-height:1.45;opacity:.8}
+.desktop-device-card .desktop-device-actions{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-top:8px}
+.desktop-device-card .desktop-device-launchers{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line,#ded8ce)}
+.desktop-device-card .desktop-device-launchers[hidden],.desktop-device-card .desktop-device-review[hidden]{display:none!important}
+.desktop-device-card .desktop-device-launchers button{min-height:44px}
+.desktop-device-card .desktop-device-review{margin-top:10px;padding:10px;border:1px solid var(--line,#ded8ce);border-radius:12px;background:color-mix(in srgb,var(--panel,#fff) 90%,var(--accent,#6d5dfc) 10%)}
+.desktop-device-card .desktop-device-review-copy{margin:0;font-size:12px;font-weight:650;line-height:1.45;overflow-wrap:anywhere}
+.desktop-device-card .desktop-device-review-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.desktop-device-card .desktop-device-review-actions button{min-height:44px;flex:1 1 120px}
+.desktop-device-card .desktop-device-confirm{font-weight:700}
+.desktop-device-card button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+@media (max-width:520px){.desktop-device-card .desktop-device-grid{grid-template-columns:1fr}.desktop-device-card .desktop-device-launchers button{flex:1 1 100%}.desktop-device-card .desktop-device-review-actions{flex-direction:column}.desktop-device-card .desktop-device-review-actions button{width:100%}}
+@media (prefers-reduced-motion:reduce){.desktop-device-card *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+@media (forced-colors:active){.desktop-device-card .desktop-device-item,.desktop-device-card .desktop-device-launchers,.desktop-device-card .desktop-device-review{border-color:CanvasText}.desktop-device-card .desktop-device-review{background:Canvas}}
