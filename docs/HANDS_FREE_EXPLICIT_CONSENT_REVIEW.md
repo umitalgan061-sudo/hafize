@@ -25,6 +25,12 @@ Consent token veya imzalı capability üretmez; bu davranış cihaz içi UI niye
 
 Güvenli kapatma önceliklidir: hands-free zaten aktifse toggle click'i review tarafından bloke edilmez. Kullanıcı mikrofonu tek tıklamayla kapatabilmelidir. Bu ilke, consent UX'in güvenlik çıkış yolunu yanlışlıkla zorlaştırmasını önler.
 
+## Ses tanıma gizlilik sınırı
+
+Hafize bu katmanda ham mikrofon sesini kendi backend'ine yükleyen yeni bir endpoint açmaz. Web Speech API'nin ses tanıma uygulaması ise kullanılan tarayıcıya ve işletim sistemine bağlıdır; bazı sağlayıcılar sesi kendi hizmetlerinde işleyebilir. Bu nedenle review metni “yalnız cihazda işlenir” gibi doğrulanamayacak bir garanti vermez.
+
+Hands-free katmanı yalnız wake phrase algılama ve mevcut voice-input handoff'unu yönetir. Transcript ancak mevcut `voice-input.js` yolu tarafından composer taslağına aktarılır ve otomatik gönderilmez. Kullanıcı mesajı göndermedikçe bu consent katmanı sohbet, agent veya connector isteği üretmez.
+
 ## Veri ve izin sınırı
 
 Consent katmanı transcript, sohbet mesajı, model, ajan, tool sonucu, connector sonucu veya kişisel bellek okumaz. Pending durum yalnız sayfa belleğinde boolean/timer olarak yaşar. `localStorage`, `sessionStorage`, IndexedDB, cookie, clipboard veya backend endpoint kullanılmaz.
