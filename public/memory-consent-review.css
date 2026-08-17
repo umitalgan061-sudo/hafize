@@ -1,0 +1,109 @@
+.memory-consent-review {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 11px;
+  border: 1px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 34%, var(--premium-line, var(--line)));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 6%, var(--premium-surface, var(--card)));
+}
+
+.memory-consent-review[hidden] {
+  display: none;
+}
+
+.memory-consent-review strong {
+  font-size: 12px;
+}
+
+.memory-consent-meta,
+.memory-consent-preview {
+  margin: 0;
+}
+
+.memory-consent-meta {
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.memory-consent-preview {
+  max-height: 112px;
+  overflow: auto;
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--premium-surface-strong, var(--card)) 88%, transparent);
+  color: var(--premium-text, var(--ink));
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.memory-consent-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.memory-consent-actions button,
+.memory-delete-btn.memory-delete-confirming {
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.memory-consent-cancel {
+  border: 1px solid var(--premium-line, var(--line));
+  background: transparent;
+  color: var(--premium-text, var(--ink));
+  padding: 7px 10px;
+}
+
+.memory-consent-confirm {
+  border: 1px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 46%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 14%, var(--premium-surface, var(--card)));
+  color: var(--premium-text, var(--ink));
+  padding: 7px 10px;
+  font-weight: 650;
+}
+
+.memory-delete-btn.memory-delete-confirming {
+  min-width: 108px;
+  border-color: color-mix(in srgb, #b53b32 55%, var(--premium-line, var(--line)));
+  color: #9b2f28;
+  font-weight: 650;
+}
+
+.memory-consent-actions button:focus-visible,
+.memory-delete-btn.memory-delete-confirming:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 680px) {
+  .memory-consent-actions button,
+  .memory-delete-btn.memory-delete-confirming {
+    min-height: 44px;
+  }
+  .memory-consent-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-consent-review,
+  .memory-consent-actions button {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .memory-consent-review,
+  .memory-consent-actions button,
+  .memory-delete-btn.memory-delete-confirming {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+}
