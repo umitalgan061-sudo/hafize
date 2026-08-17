@@ -47,6 +47,16 @@
     return Object.freeze({ panel, confirm, cancel });
   }
 
+  function canReview(documentRef, root, toggle) {
+    return Boolean(
+      toggle
+      && !toggle.disabled
+      && documentRef?.hidden !== true
+      && root?.isSecureContext !== false
+      && toggle.getAttribute?.('aria-pressed') !== 'true'
+    );
+  }
+
   function installHandsFreeConsent(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
@@ -92,7 +102,7 @@
     }
 
     function begin() {
-      if (destroyed || pending || toggle.disabled || toggle.getAttribute?.('aria-pressed') === 'true') return false;
+      if (destroyed || pending || !canReview(documentRef, root, toggle)) return false;
       pending = true;
       render();
       if (typeof root?.setTimeout === 'function') timeoutId = root.setTimeout(expire, CONSENT_TIMEOUT_MS);
@@ -114,7 +124,7 @@
 
     function onConfirm(event) {
       event?.preventDefault?.();
-      if (destroyed || !pending || toggle.disabled || toggle.getAttribute?.('aria-pressed') === 'true') {
+      if (destroyed || !pending || !canReview(documentRef, root, toggle)) {
         cancel({ focusToggle: true });
         return;
       }
@@ -167,5 +177,5 @@
     });
   }
 
-  return Object.freeze({ CONSENT_TIMEOUT_MS, REVIEW_ID, createReview, installHandsFreeConsent });
+  return Object.freeze({ CONSENT_TIMEOUT_MS, REVIEW_ID, canReview, createReview, installHandsFreeConsent });
 });
