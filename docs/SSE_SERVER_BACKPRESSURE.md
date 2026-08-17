@@ -19,6 +19,19 @@ Bekleme sırasında şu olaylardan biri gerçekleşirse yazım fail-closed durur
 
 Listener'lar sonuç ne olursa olsun temizlenir. Aynı writer üzerinde drain beklenirken ikinci eşzamanlı write reddedilir.
 
+## Bounded drain süresi
+
+`drain` olayı hiçbir zaman gelmezse bir streaming request'in sonsuza kadar açık kalmaması gerekir. Bu nedenle drain beklemesi varsayılan **30 saniye** ile bounded'dır.
+
+- yapılandırılabilir aralık **100 ms–120 saniye**,
+- varsayılan değer `30_000 ms`,
+- süre aşımı `SSE_OUTPUT_DRAIN_TIMEOUT` hatası üretir,
+- timeout timer'ı `unref()` destekleniyorsa process yaşam döngüsünü tek başına açık tutmaz,
+- drain/close/error/abort önce gerçekleşirse timeout temizlenir,
+- timeout sonrasında drain/close/error listener'ları geride bırakılmaz.
+
+Bu timeout bir provider retry mekanizması değildir. Aynı request yeniden gönderilmez ve model çıktısı tekrar üretilmez; yalnız sıkışmış outbound HTTP yazımı sonlandırılır.
+
 ## Chunk sınırı
 
 Tek bir outbound chunk varsayılan olarak en fazla **256 KiB** olabilir. Bu sınır normal NVIDIA SSE token akışının çok üzerindedir ve yanlışlıkla büyük bir payload'ın tek write ile response buffer'a taşınmasına karşı ek koruma sağlar.
@@ -37,7 +50,7 @@ Upstream async iterable gerçek bir hata ile kesilirse ve istemci hâlâ bağlı
 
 `STREAM_INTERRUPTED`
 
-İstemci zaten kapanmış veya signal abort edilmişse hata frame'i yazılmaz.
+İstemci zaten kapanmış veya signal abort edilmişse hata frame'i yazılmaz. Drain timeout sonrasında da route yeni bir provider isteği başlatmaz.
 
 ## Güvenlik sınırı
 
@@ -61,6 +74,9 @@ Regresyon testleri şu davranışları kilitler:
 - `write(false)` sonrası `drain` bekleme,
 - drain öncesi upstream iterator'ın ilerlememesi,
 - close/error/abort sırasında beklemenin sonlanması,
+- varsayılan 30 saniyelik drain timeout ve bounded 100 ms–120 saniye konfigürasyonu,
+- timeout'un `SSE_OUTPUT_DRAIN_TIMEOUT` üretmesi,
+- drain/abort timeout'tan önce gelirse timer/listener cleanup,
 - listener cleanup,
 - eşzamanlı write reddi,
 - 256 KiB chunk sınırı ve UTF-8 byte hesabı,
