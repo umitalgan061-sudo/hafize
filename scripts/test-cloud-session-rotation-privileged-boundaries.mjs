@@ -16,7 +16,7 @@ const oldKey = Buffer.alloc(32, 52).toString('base64url');
 const newKey = Buffer.alloc(32, 53).toString('base64url');
 const subject = 'privileged-rotation-user';
 const origin = 'https://hafize.example';
-const now = 1_800_000_300_000;
+const now = Date.now();
 const ttlMs = 60_000;
 
 function tokenFrom(setCookie) {
