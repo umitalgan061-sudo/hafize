@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v77`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v78`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -22,6 +22,7 @@
     '/memory-ui.css',
     '/voice-output.css',
     '/screen-share.css',
+    '/screen-analysis-consent.css',
     '/hands-free.css',
     '/chat-run-controller.css',
     '/conversation-insights.css',
@@ -113,6 +114,8 @@
     '/memory-ui.js',
     '/voice-input.js',
     '/voice-output.js',
+    '/screen-analysis-client.js',
+    '/screen-analysis-ui.js',
     '/screen-share.js',
     '/hands-free.js',
     '/ui-shell.js',
