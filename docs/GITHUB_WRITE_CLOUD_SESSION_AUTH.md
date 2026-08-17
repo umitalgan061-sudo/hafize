@@ -13,9 +13,9 @@ Privileged authenticator iki kaynağı destekler:
 1. Mevcut `HAFIZE_GITHUB_WRITE_AUTH_TOKEN` + `HAFIZE_GITHUB_WRITE_AUTH_SUBJECT` bearer kimliği.
 2. Hafize cloud-session HttpOnly cookie'si.
 
-Bearer geçerliyse doğrudan kullanılır. Bearer yoksa veya geçersizse ve cloud session yapılandırılmışsa imzalı session cookie doğrulanır. İki yöntem de başarısızsa sonuç `AUTH_REQUIRED` olur.
+Bearer geçerliyse doğrudan kullanılır ve browser `Origin` başlığı aranmaz. Bearer yoksa veya geçersizse cloud-session cookie fallback denenebilir; bu browser-authority yolunda request `Origin` değeri exact `HAFIZE_CLOUD_SESSION_ORIGIN` ile eşleşmelidir. Origin eksik, yabancı veya path/query/hash taşıyan bir değer ise cookie geçerli olsa bile sonuç `AUTH_REQUIRED` olur.
 
-Bu sıra mevcut server-to-server bearer istemcilerini bozmadan tarayıcıdaki authenticated Hafize oturumunun aynı approval boundary'ye ulaşmasını sağlar.
+Bu sıra mevcut server-to-server bearer istemcilerini bozmadan tarayıcıdaki authenticated Hafize oturumunun aynı approval boundary'ye güvenli biçimde ulaşmasını sağlar.
 
 ## Cloud-session sınırı
 
@@ -29,6 +29,8 @@ Cloud session yalnız şu server-side environment alanları tam yapılandırılm
 TTL varsa `HAFIZE_CLOUD_SESSION_TTL_MS` mevcut 1 dakika–12 saat sınırında olmalıdır. Partial veya geçersiz cloud-session konfigürasyonu sessizce kabul edilmez; runtime fail-closed yapılandırma hatası verir.
 
 Password hash yalnız cloud-session auth nesnesinin mevcut sözleşmesini doğrulamak için gereklidir. GitHub write runtime parola istemez, login yapmaz ve password hash değerini hiçbir response veya agent context'e taşımaz.
+
+GitHub write fallback artık plain session doğrulayıcı yerine revocable cloud-session auth kullanır. `/api/session/logout` ile revoke edilen cookie aynı Node process içinde sonradan oluşturulmuş privileged auth tüketicilerinde de reddedilir. Store ham cookie tutmaz; bounded process-local HMAC fingerprint deny-set'i kullanır. Gerçek process restart/deploy bu belleği temizlediği için restart-surviving revocation ayrı durable-store follow-up'ıdır.
 
 ## Principal davranışı
 
@@ -83,8 +85,10 @@ Authenticator yalnız request header/cookie verisini server-side doğrular.
 
 ## Failure davranışı
 
-- Bearer invalid + cloud session valid → cloud principal kullanılabilir.
-- Bearer valid → cloud fallback'e gerek kalmaz.
+- Bearer invalid + cloud session valid + exact Origin → cloud principal kullanılabilir.
+- Bearer valid → cloud fallback ve browser Origin kontrolüne gerek kalmaz.
+- Cloud cookie valid fakat Origin eksik/yabancı → `AUTH_REQUIRED`.
+- Logout ile revoke edilmiş cloud cookie + exact Origin → `AUTH_REQUIRED`.
 - Bearer invalid + cloud invalid/yok → `AUTH_REQUIRED`.
 - Partial cloud config → runtime configuration error; sessiz auth downgrade yok.
 - Expired, malformed veya yanlış imzalı cookie → `AUTH_REQUIRED`.
@@ -100,17 +104,19 @@ Bu bilinçli bir migration yaklaşımıdır: browser session fallback eklenir, m
 
 Regresyon testleri en az şunları doğrulamalıdır:
 
-- bearer-only başarı,
-- cloud-only fallback başarısı,
-- bearer precedence,
-- geçersiz bearer + geçerli cookie fallback'i,
+- bearer-only başarı ve Origin'den bağımsız precedence,
+- cloud-only fallback'in yalnız exact Origin ile başarısı,
+- missing/foreign Origin'in body parsing ve command execution'dan önce reddi,
+- geçersiz bearer + exact-origin geçerli cookie fallback'i,
+- logout/revoke edilmiş cookie'nin bağımsız privileged auth tüketicilerinde reddi,
+- fresh session nonce'ın eski revocation'dan etkilenmemesi,
 - expired/malformed cookie reddi,
 - partial cloud config fail-closed,
 - cloud fallback devre dışıyken bearer-only davranışı,
-- GitHub write server runtime'ın yeni authenticator'ı kullanması,
+- GitHub write server runtime'ın revocable authenticator sınırını kullanması,
 - approval/owner/replay modüllerinin değiştirilmemesi,
 - secret değerlerin response veya client asset'e taşınmaması.
 
 ## Geri alma
 
-Revert için `privileged-principal-auth.mjs`, ilgili testler/bu belge kaldırılır ve `github-write-server-runtime.mjs` tekrar doğrudan bearer authenticator kullanır. GitHub repository state veya persistent storage migration'ı yoktur.
+Revert için privileged origin/revocation wiring'i, ilgili testler ve bu belge güncellemesi kaldırılır. GitHub repository state veya persistent storage migration'ı yoktur.
