@@ -8,6 +8,7 @@
 
   const ENDPOINT = '/api/screen-analysis';
   const MAX_IMAGE_BYTES = 1024 * 1024;
+  const MAX_PROMPT_CHARS = 4000;
 
   function blobToDataUrl(blob, FileReaderCtor = globalThis.FileReader) {
     if (!(blob instanceof Blob) || blob.type !== 'image/jpeg' || blob.size <= 0 || blob.size > MAX_IMAGE_BYTES) {
@@ -26,13 +27,28 @@
     });
   }
 
+  function normalizeNvidiaModel(value) {
+    if (typeof value !== 'string') return null;
+    const clean = value.trim();
+    if (!clean || clean.length > 200 || /[\r\n\0]/.test(clean) || clean.startsWith('local:')) return null;
+    return clean;
+  }
+
+  function normalizePrompt(value) {
+    if (typeof value !== 'string') return null;
+    const clean = value.replace(/\r\n?/g, '\n').trim();
+    if (!clean || clean.length > MAX_PROMPT_CHARS || /[\0\u000b\u000c]/.test(clean)) return null;
+    return clean;
+  }
+
   async function analyzeCapture({ capture, model, prompt, explicitUserIntent, signal, fetchImpl = globalThis.fetch, FileReaderCtor } = {}) {
     if (explicitUserIntent !== true) throw new Error('SCREEN_ANALYSIS_CONFIRMATION_REQUIRED');
     if (!capture?.blob) throw new Error('SCREEN_CAPTURE_REQUIRED');
     if (typeof fetchImpl !== 'function') throw new Error('SCREEN_ANALYSIS_UNSUPPORTED');
-    const cleanModel = typeof model === 'string' ? model.trim() : '';
-    const cleanPrompt = typeof prompt === 'string' ? prompt.trim() : '';
-    if (!cleanModel || !cleanPrompt) throw new Error('SCREEN_ANALYSIS_INPUT_REQUIRED');
+    const cleanModel = normalizeNvidiaModel(model);
+    const cleanPrompt = normalizePrompt(prompt);
+    if (!cleanModel) throw new Error('SCREEN_ANALYSIS_NVIDIA_MODEL_REQUIRED');
+    if (!cleanPrompt) throw new Error('SCREEN_ANALYSIS_INPUT_REQUIRED');
 
     const image = await blobToDataUrl(capture.blob, FileReaderCtor);
     const response = await fetchImpl(ENDPOINT, {
@@ -49,5 +65,13 @@
     return Object.freeze({ content: payload.content.trim(), model: typeof payload.model === 'string' ? payload.model : cleanModel });
   }
 
-  return Object.freeze({ ENDPOINT, MAX_IMAGE_BYTES, blobToDataUrl, analyzeCapture });
+  return Object.freeze({
+    ENDPOINT,
+    MAX_IMAGE_BYTES,
+    MAX_PROMPT_CHARS,
+    blobToDataUrl,
+    normalizeNvidiaModel,
+    normalizePrompt,
+    analyzeCapture
+  });
 });

@@ -1,0 +1,146 @@
+.screen-analysis-consent {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--premium-line, var(--line));
+}
+
+.screen-analysis-prompt-label {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--premium-text, var(--ink));
+}
+
+.screen-analysis-prompt {
+  width: 100%;
+  min-height: 76px;
+  max-height: 180px;
+  resize: vertical;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  line-height: 1.45;
+  font: inherit;
+}
+
+.screen-analysis-prompt::placeholder {
+  color: var(--premium-muted, var(--muted));
+  opacity: .82;
+}
+
+.screen-analysis-prompt:focus-visible,
+#screenShareAnalyze:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+.screen-analysis-prompt:disabled {
+  opacity: .65;
+  cursor: progress;
+}
+
+.screen-analysis-privacy {
+  margin: 0;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.screen-analysis-review {
+  display: grid;
+  gap: 5px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 32%, var(--premium-line, var(--line)));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 7%, var(--premium-surface, var(--card)));
+}
+
+.screen-analysis-review[hidden] {
+  display: none;
+}
+
+.screen-analysis-review strong {
+  font-size: 12px;
+  color: var(--premium-text, var(--ink));
+}
+
+.screen-analysis-review-meta,
+.screen-analysis-review-prompt,
+.screen-analysis-review-note {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.screen-analysis-review-meta {
+  color: var(--premium-text, var(--ink));
+}
+
+.screen-analysis-review-prompt,
+.screen-analysis-review-note {
+  color: var(--premium-muted, var(--muted));
+}
+
+#screenShareAnalyze[data-stage="confirm"] {
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 55%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 14%, var(--premium-surface, var(--card)));
+  color: var(--premium-orange-strong, var(--accent-strong));
+  font-weight: 650;
+}
+
+#screenShareAnalyze[data-stage="confirm"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 22%, var(--premium-surface, var(--card)));
+}
+
+#screenShareAnalyze:disabled {
+  cursor: progress;
+}
+
+@media (max-width: 640px) {
+  .screen-analysis-consent {
+    gap: 10px;
+  }
+
+  .screen-analysis-prompt {
+    min-height: 92px;
+    font-size: 16px;
+  }
+
+  #screenShareAnalyze,
+  #screenShareRemove {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .screen-analysis-review {
+    padding: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-analysis-prompt,
+  #screenShareAnalyze {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .screen-analysis-prompt,
+  .screen-analysis-review,
+  #screenShareAnalyze[data-stage="confirm"] {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  #screenShareAnalyze[data-stage="confirm"] {
+    color: ButtonText;
+    background: ButtonFace;
+  }
+}
