@@ -12,9 +12,12 @@
   'use strict';
 
   const MAX_FILE_BYTES = 128 * 1024;
+  const MAX_FILES = 4;
   const MAX_COMPOSER_CHARS = 12_000;
+  const MAX_PREVIEW_CHARS = 180;
   const INPUT_ID = 'hafizeTextFileInput';
   const STATUS_ID = 'hafizeTextFileImportStatus';
+  const REVIEW_ID = 'hafizeTextFileImportReview';
   const ALLOWED_EXTENSIONS = Object.freeze(new Set([
     'txt', 'md', 'markdown', 'json', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx',
     'css', 'html', 'htm', 'xml', 'yaml', 'yml', 'toml', 'ini', 'csv', 'sql',
@@ -63,15 +66,28 @@
   function formatImport(name, text) {
     const normalized = normalizeFileText(text);
     if (normalized === null) return null;
-    const label = safeFileName(name);
-    return `--- Dosya: ${label} ---\n${normalized}\n--- Dosya sonu ---`;
+    return `--- Dosya: ${safeFileName(name)} ---\n${normalized}\n--- Dosya sonu ---`;
   }
 
-  function composeNextValue(current, imported) {
-    if (typeof current !== 'string' || typeof imported !== 'string' || !imported) return null;
-    const separator = current.length ? '\n\n' : '';
-    const next = `${current}${separator}${imported}`;
+  function composeNextValue(current, imports) {
+    if (typeof current !== 'string' || !Array.isArray(imports) || !imports.length) return null;
+    if (imports.some((value) => typeof value !== 'string' || !value)) return null;
+    const addition = imports.join('\n\n');
+    const next = `${current}${current.length ? '\n\n' : ''}${addition}`;
     return next.length <= MAX_COMPOSER_CHARS ? next : null;
+  }
+
+  function previewText(value) {
+    const normalized = normalizeFileText(value);
+    if (normalized === null) return '';
+    const compact = normalized.replace(/\s+/g, ' ').trim();
+    if (compact.length <= MAX_PREVIEW_CHARS) return compact;
+    return `${compact.slice(0, MAX_PREVIEW_CHARS - 1)}…`;
+  }
+
+  function normalizeSelection(files) {
+    const source = Array.from(files || []).slice(0, MAX_FILES);
+    return Object.freeze(source.map((file, index) => Object.freeze({ file, index })));
   }
 
   function installStatus(documentRef, button) {
@@ -79,12 +95,11 @@
     if (existing) return existing;
     const status = documentRef.createElement('span');
     status.id = STATUS_ID;
-    status.className = 'agent-hint';
+    status.className = 'text-file-import-status';
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     status.hidden = true;
-    const parent = button?.parentNode;
-    parent?.append?.(status);
+    button?.parentNode?.append?.(status);
     return status;
   }
 
@@ -94,12 +109,37 @@
     const input = documentRef.createElement('input');
     input.id = INPUT_ID;
     input.type = 'file';
+    input.multiple = true;
     input.accept = '.txt,.md,.markdown,.json,.js,.mjs,.cjs,.ts,.tsx,.jsx,.css,.html,.htm,.xml,.yaml,.yml,.toml,.ini,.csv,.sql,.py,.rb,.php,.java,.kt,.kts,.go,.rs,.c,.h,.cpp,.hpp,.cs,.swift,.sh,.bash,.zsh,.fish,.ps1,.graphql,.gql,.env.example,text/plain,text/markdown,text/csv,application/json';
     input.hidden = true;
     input.tabIndex = -1;
     input.setAttribute('aria-hidden', 'true');
     documentRef.body?.append?.(input);
     return input;
+  }
+
+  function installReview(documentRef, composer) {
+    const existing = documentRef.querySelector?.(`#${REVIEW_ID}`);
+    if (existing) return existing;
+    const review = documentRef.createElement('section');
+    review.id = REVIEW_ID;
+    review.className = 'text-file-import-review';
+    review.hidden = true;
+    review.setAttribute('aria-label', 'Dosya ekleme incelemesi');
+    review.innerHTML = [
+      '<div class="text-file-import-review-head">',
+      '<strong>Dosyaları yazara eklemeden önce kontrol et</strong>',
+      '<button type="button" class="text-file-import-close" aria-label="Dosya incelemesini kapat">×</button>',
+      '</div>',
+      '<p class="text-file-import-summary" role="status" aria-live="polite"></p>',
+      '<div class="text-file-import-items"></div>',
+      '<div class="text-file-import-actions">',
+      '<button type="button" class="text-file-import-cancel">Vazgeç</button>',
+      '<button type="button" class="text-file-import-confirm">Yazara ekle</button>',
+      '</div>'
+    ].join('');
+    composer?.append?.(review);
+    return review;
   }
 
   function createController({
@@ -114,12 +154,17 @@
     let mounted = false;
     let input = null;
     let status = null;
+    let review = null;
+    let staged = [];
     let hideTimer = null;
+    let generation = 0;
 
     function nodes() {
       return Object.freeze({
         button: documentRef.querySelector('#attachBtn'),
-        composerInput: documentRef.querySelector('#messageInput')
+        composer: documentRef.querySelector('#composer'),
+        composerInput: documentRef.querySelector('#messageInput'),
+        sendButton: documentRef.querySelector('#sendBtn')
       });
     }
 
@@ -146,45 +191,123 @@
       return true;
     }
 
-    async function importFile(file) {
+    function isStreaming() {
+      return nodes().sendButton?.classList?.contains?.('streaming') === true;
+    }
+
+    function clearStaged({ focusButton = false } = {}) {
+      generation += 1;
+      staged = [];
+      if (review) {
+        review.hidden = true;
+        review.querySelector?.('.text-file-import-items')?.replaceChildren?.();
+        const summary = review.querySelector?.('.text-file-import-summary');
+        if (summary) summary.textContent = '';
+      }
+      if (focusButton) nodes().button?.focus?.();
+    }
+
+    function renderReview() {
+      if (!review) return;
+      const items = review.querySelector('.text-file-import-items');
+      const summary = review.querySelector('.text-file-import-summary');
+      const confirm = review.querySelector('.text-file-import-confirm');
+      if (!items || !summary || !confirm) return;
+      items.replaceChildren();
+
+      staged.forEach((entry, index) => {
+        const row = documentRef.createElement('article');
+        row.className = 'text-file-import-item';
+        const copy = documentRef.createElement('div');
+        copy.className = 'text-file-import-copy';
+        const name = documentRef.createElement('strong');
+        name.textContent = entry.name;
+        const meta = documentRef.createElement('span');
+        meta.textContent = `${entry.size.toLocaleString('tr-TR')} bayt · ${entry.text.length.toLocaleString('tr-TR')} karakter`;
+        const preview = documentRef.createElement('p');
+        preview.textContent = previewText(entry.text) || 'Boş metin dosyası';
+        const remove = documentRef.createElement('button');
+        remove.type = 'button';
+        remove.className = 'text-file-import-remove';
+        remove.textContent = 'Kaldır';
+        remove.setAttribute('aria-label', `${entry.name} dosyasını listeden kaldır`);
+        remove.addEventListener('click', () => {
+          staged = staged.filter((_, stagedIndex) => stagedIndex !== index);
+          if (!staged.length) clearStaged({ focusButton: true });
+          else renderReview();
+        });
+        copy.append(name, meta, preview);
+        row.append(copy, remove);
+        items.append(row);
+      });
+
+      summary.textContent = staged.length
+        ? `${staged.length} dosya yalnız bu sayfada geçici olarak hazır. Yazara henüz eklenmedi.`
+        : '';
+      confirm.disabled = staged.length === 0 || isStreaming();
+      review.hidden = staged.length === 0;
+    }
+
+    async function stageFiles(files) {
+      if (isStreaming()) {
+        showStatus('Yanıt sürerken dosya hazırlanamaz.', 'error');
+        return false;
+      }
+      const selection = normalizeSelection(files);
+      if (!selection.length) return false;
+      if (Array.from(files || []).length > MAX_FILES) {
+        showStatus(`Tek seferde en fazla ${MAX_FILES} dosya seçilebilir.`, 'error');
+        return false;
+      }
+      const currentGeneration = ++generation;
+      const next = [];
+      for (const { file } of selection) {
+        if (!isAllowedFile(file)) {
+          showStatus(Number(file?.size) > MAX_FILE_BYTES
+            ? `${safeFileName(file?.name)} 128 KiB sınırını aşıyor.`
+            : `${safeFileName(file?.name)} desteklenen bir metin/kod dosyası değil.`, 'error');
+          return false;
+        }
+        if (typeof file.text !== 'function') {
+          showStatus('Bu tarayıcı seçilen dosyayı okuyamıyor.', 'error');
+          return false;
+        }
+        let text;
+        try {
+          text = normalizeFileText(await file.text());
+        } catch {
+          showStatus(`${safeFileName(file?.name)} okunamadı.`, 'error');
+          return false;
+        }
+        if (currentGeneration !== generation) return false;
+        if (text === null) return false;
+        next.push(Object.freeze({ name: safeFileName(file.name), size: Number(file.size), text }));
+      }
+      if (currentGeneration !== generation) return false;
+      staged = next;
+      renderReview();
+      review?.querySelector?.('.text-file-import-confirm')?.focus?.();
+      return true;
+    }
+
+    function confirmStaged() {
       const { composerInput } = nodes();
-      if (!composerInput || typeof composerInput.value !== 'string') {
-        showStatus('Yazar kullanılamıyor.', 'error');
-        return false;
-      }
-      if (!isAllowedFile(file)) {
-        const size = Number(file?.size);
-        showStatus(Number.isFinite(size) && size > MAX_FILE_BYTES
-          ? 'Dosya 128 KiB sınırını aşıyor.'
-          : 'Yalnız küçük metin/kod dosyaları eklenebilir.', 'error');
-        return false;
-      }
-      if (typeof file.text !== 'function') {
-        showStatus('Bu tarayıcı dosyayı okuyamıyor.', 'error');
-        return false;
-      }
-
-      let text;
-      try {
-        text = await file.text();
-      } catch {
-        showStatus('Dosya okunamadı.', 'error');
-        return false;
-      }
-      const imported = formatImport(file.name, text);
-      const next = imported && composeNextValue(composerInput.value, imported);
+      if (!staged.length || !composerInput || isStreaming()) return false;
+      const imports = staged.map((entry) => formatImport(entry.name, entry.text));
+      const next = composeNextValue(composerInput.value, imports);
       if (!next) {
-        showStatus('Dosya yazarın 12.000 karakter sınırına sığmıyor.', 'error');
+        showStatus('Seçilen dosyalar yazarın 12.000 karakter sınırına sığmıyor.', 'error');
         return false;
       }
-
+      const count = staged.length;
       composerInput.value = next;
       dispatchComposerInput(composerInput);
+      clearStaged();
       composerInput.focus?.();
       if (typeof composerInput.setSelectionRange === 'function') {
         try { composerInput.setSelectionRange(next.length, next.length); } catch { /* unsupported */ }
       }
-      showStatus(`${safeFileName(file.name)} yazara eklendi. Göndermek için sen onaylamalısın.`, 'success');
+      showStatus(`${count} dosya yazara eklendi. Mesajı göndermek için ayrıca sen onaylamalısın.`, 'success');
       return true;
     }
 
@@ -193,32 +316,43 @@
       if (!button || event?.currentTarget !== button) return false;
       event.preventDefault?.();
       event.stopImmediatePropagation?.();
-      if (!input || typeof input.click !== 'function') {
-        showStatus('Dosya seçici kullanılamıyor.', 'error');
+      if (isStreaming()) {
+        showStatus('Yanıt sürerken dosya seçilemez.', 'error');
         return false;
       }
-      input.click();
+      input?.click?.();
       return true;
     }
 
     function onInputChange() {
-      const file = input?.files?.[0];
+      const files = Array.from(input?.files || []);
       if (input) input.value = '';
-      if (!file) return;
-      void importFile(file);
+      if (files.length) void stageFiles(files);
+    }
+
+    function onKeydown(event) {
+      if (event?.key !== 'Escape' || !staged.length) return;
+      event.preventDefault?.();
+      clearStaged({ focusButton: true });
+      showStatus('Dosya ekleme iptal edildi.', 'idle');
     }
 
     function mount() {
       if (mounted) return true;
-      const { button } = nodes();
-      if (!button || !documentRef.body) return false;
+      const { button, composer } = nodes();
+      if (!button || !composer || !documentRef.body) return false;
       input = installInput(documentRef);
       status = installStatus(documentRef, button);
-      if (!input || !status) return false;
-      button.setAttribute?.('title', 'Küçük bir metin veya kod dosyasını yazara ekle');
+      review = installReview(documentRef, composer);
+      if (!input || !status || !review) return false;
+      button.setAttribute?.('title', `En fazla ${MAX_FILES} küçük metin veya kod dosyası ekle`);
       button.setAttribute?.('aria-describedby', STATUS_ID);
       button.addEventListener?.('click', onAttachClick, true);
       input.addEventListener?.('change', onInputChange);
+      review.querySelector?.('.text-file-import-confirm')?.addEventListener?.('click', confirmStaged);
+      review.querySelector?.('.text-file-import-cancel')?.addEventListener?.('click', () => clearStaged({ focusButton: true }));
+      review.querySelector?.('.text-file-import-close')?.addEventListener?.('click', () => clearStaged({ focusButton: true }));
+      documentRef.addEventListener?.('keydown', onKeydown);
       mounted = true;
       return true;
     }
@@ -226,18 +360,31 @@
     function destroy() {
       if (!mounted) return;
       const { button } = nodes();
+      generation += 1;
       button?.removeEventListener?.('click', onAttachClick, true);
       input?.removeEventListener?.('change', onInputChange);
+      documentRef.removeEventListener?.('keydown', onKeydown);
       input?.remove?.();
+      review?.remove?.();
       status?.remove?.();
       if (hideTimer !== null) clearTimeoutImpl(hideTimer);
       hideTimer = null;
+      staged = [];
       input = null;
+      review = null;
       status = null;
       mounted = false;
     }
 
-    return Object.freeze({ mount, destroy, importFile, onAttachClick, snapshot: () => Object.freeze({ mounted }) });
+    return Object.freeze({
+      mount,
+      destroy,
+      stageFiles,
+      confirmStaged,
+      clearStaged,
+      onAttachClick,
+      snapshot: () => Object.freeze({ mounted, stagedCount: staged.length })
+    });
   }
 
   function mount(options) {
@@ -251,9 +398,12 @@
 
   return Object.freeze({
     MAX_FILE_BYTES,
+    MAX_FILES,
     MAX_COMPOSER_CHARS,
+    MAX_PREVIEW_CHARS,
     INPUT_ID,
     STATUS_ID,
+    REVIEW_ID,
     ALLOWED_EXTENSIONS,
     MIME_ALLOWLIST,
     safeFileName,
@@ -262,6 +412,8 @@
     normalizeFileText,
     formatImport,
     composeNextValue,
+    previewText,
+    normalizeSelection,
     createController,
     mount
   });
