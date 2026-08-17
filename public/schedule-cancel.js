@@ -3,12 +3,13 @@
   const api = factory();
   if (typeof module === 'object' && module?.exports) { module.exports = api; return; }
   root.HafizeScheduleCancel = api;
-  api.mount(root.document, root);
+  api.autoMount(root.document, root);
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeScheduleCancel() {
   'use strict';
 
   const PATH = '/api/schedules';
   const MAX_SCHEDULE_ID_CHARS = 120;
+  const AUTO_MOUNT_TIMEOUT_MS = 10_000;
   const SCHEDULE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const CANCELLED_EVENT = 'hafize:schedule-cancelled';
 
@@ -75,19 +76,16 @@
     if (!article || article.querySelector?.('.schedule-cancel-action')) return null;
     const row = documentRef.createElement('div');
     row.className = 'schedule-cancel-action';
-
     const status = documentRef.createElement('span');
     status.className = 'schedule-cancel-inline-status';
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     status.hidden = true;
-
     const button = documentRef.createElement('button');
     button.type = 'button';
     button.className = 'schedule-cancel-button';
     button.textContent = 'İptal et';
     button.setAttribute('aria-label', 'Bu zamanlanmış görevi iptal et');
-
     row.append(status, button);
     article.append(row);
     return { row, status, button };
@@ -98,12 +96,10 @@
     const card = documentRef.querySelector?.('#scheduleListCard');
     const list = card?.querySelector?.('.schedule-list-items');
     if (!card || !list || documentRef.querySelector?.('[data-hafize-schedule-cancel-mounted]')) return null;
-
     let client;
     try { client = createClient({ fetchImpl }); } catch { return null; }
     ensureStyles(documentRef);
     card.setAttribute('data-hafize-schedule-cancel-mounted', '1');
-
     let destroyed = false;
     const busyIds = new Set();
     const actionNodes = new Map();
@@ -114,42 +110,32 @@
       nodes.status.textContent = text;
       nodes.status.dataset.state = state;
     }
-
     function clearInline(nodes) {
       if (!nodes?.status) return;
       nodes.status.hidden = true;
       nodes.status.textContent = '';
       delete nodes.status.dataset.state;
     }
-
     function setBusy(nodes, value) {
       if (!nodes) return;
       nodes.button.disabled = Boolean(value);
       nodes.row.setAttribute('aria-busy', String(Boolean(value)));
     }
-
     function cleanRemovedActions() {
       for (const [id, nodes] of actionNodes.entries()) {
-        if (!nodes.row?.isConnected) {
-          actionNodes.delete(id);
-          busyIds.delete(id);
-        }
+        if (!nodes.row?.isConnected) { actionNodes.delete(id); busyIds.delete(id); }
       }
     }
-
     function decorateArticle(article) {
       if (!article || article.dataset?.state !== 'scheduled') return false;
       const id = normalizeScheduleId(article.dataset?.scheduleId);
-      if (!id) return false;
-      const existing = article.querySelector?.('.schedule-cancel-action');
-      if (existing) return false;
+      if (!id || article.querySelector?.('.schedule-cancel-action')) return false;
       const nodes = createAction(documentRef, article);
       if (!nodes) return false;
       nodes.button.dataset.scheduleId = id;
       actionNodes.set(id, nodes);
       return true;
     }
-
     function decorateAll() {
       if (destroyed) return;
       cleanRemovedActions();
@@ -162,30 +148,16 @@
       if (destroyed || busyIds.has(id) || article.dataset?.state !== 'scheduled') return false;
       const confirmed = confirmImpl('Bu zamanlanmış görev iptal edilsin mi? İptal edilen görev çalıştırılmaz.');
       if (!confirmed) return false;
-
       busyIds.add(id);
       setBusy(nodes, true);
       showInline(nodes, 'İptal ediliyor…', 'loading');
       try {
         const result = await client.cancel(id);
         if (destroyed || !nodes.row?.isConnected) return false;
-        if (result.status === 401) {
-          showInline(nodes, 'İptal için güvenli cloud oturumu gerekli.', 'auth');
-          return false;
-        }
-        if (result.status === 404) {
-          showInline(nodes, 'Görev artık bulunamıyor; listeyi yenile.', 'error');
-          return false;
-        }
-        if (result.status === 409) {
-          showInline(nodes, 'Görev artık iptal edilebilir durumda değil.', 'error');
-          return false;
-        }
-        if (!result.ok || result.payload?.ok !== true) {
-          showInline(nodes, 'Görev iptal edilemedi.', 'error');
-          return false;
-        }
-
+        if (result.status === 401) { showInline(nodes, 'İptal için güvenli cloud oturumu gerekli.', 'auth'); return false; }
+        if (result.status === 404) { showInline(nodes, 'Görev artık bulunamıyor; listeyi yenile.', 'error'); return false; }
+        if (result.status === 409) { showInline(nodes, 'Görev artık iptal edilebilir durumda değil.', 'error'); return false; }
+        if (!result.ok || result.payload?.ok !== true) { showInline(nodes, 'Görev iptal edilemedi.', 'error'); return false; }
         article.dataset.state = 'cancelled';
         nodes.button.remove?.();
         showInline(nodes, 'Görev iptal edildi.', 'success');
@@ -211,7 +183,6 @@
       if (!nodes || nodes.button !== button) return;
       cancelArticle(article, id, nodes);
     }
-
     function onListRefresh() {
       decorateAll();
       for (const nodes of actionNodes.values()) clearInline(nodes);
@@ -219,9 +190,7 @@
 
     list.addEventListener('click', onClick);
     root.addEventListener?.('hafize:schedule-created', onListRefresh);
-    const observer = typeof root.MutationObserver === 'function'
-      ? new root.MutationObserver(decorateAll)
-      : null;
+    const observer = typeof root.MutationObserver === 'function' ? new root.MutationObserver(decorateAll) : null;
     observer?.observe(list, { childList: true, subtree: true });
     decorateAll();
 
@@ -243,15 +212,39 @@
     });
   }
 
+  function autoMount(documentRef, root, options = {}) {
+    if (!documentRef || !root) return null;
+    let controller = mount(documentRef, root, options);
+    if (controller) return Object.freeze({ getController: () => controller, destroy: () => controller.destroy() });
+    if (!documentRef.body || documentRef.querySelector?.('[data-hafize-schedule-cancel-mounted]')) return null;
+    if (typeof root.MutationObserver !== 'function') return null;
+    let stopped = false;
+    const observer = new root.MutationObserver(() => {
+      if (stopped || controller) return;
+      controller = mount(documentRef, root, options);
+      if (controller) stopWaiting();
+    });
+    let timeoutId = null;
+    function stopWaiting() {
+      if (stopped) return;
+      stopped = true;
+      observer.disconnect?.();
+      if (timeoutId !== null) root.clearTimeout?.(timeoutId);
+      timeoutId = null;
+    }
+    observer.observe(documentRef.body, { childList: true, subtree: true });
+    timeoutId = root.setTimeout?.(stopWaiting, AUTO_MOUNT_TIMEOUT_MS) ?? null;
+    return Object.freeze({
+      getController: () => controller,
+      destroy() {
+        stopWaiting();
+        return controller?.destroy?.() ?? true;
+      }
+    });
+  }
+
   return Object.freeze({
-    PATH,
-    MAX_SCHEDULE_ID_CHARS,
-    SCHEDULE_ID_PATTERN,
-    CANCELLED_EVENT,
-    normalizeScheduleId,
-    schedulePath,
-    createClient,
-    scheduleArticleFor,
-    mount
+    PATH, MAX_SCHEDULE_ID_CHARS, AUTO_MOUNT_TIMEOUT_MS, SCHEDULE_ID_PATTERN, CANCELLED_EVENT,
+    normalizeScheduleId, schedulePath, createClient, scheduleArticleFor, mount, autoMount
   });
 });
