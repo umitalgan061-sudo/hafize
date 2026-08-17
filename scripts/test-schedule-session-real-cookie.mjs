@@ -15,11 +15,12 @@ const signingKey = Buffer.alloc(32, 7).toString('base64url');
 const subject = 'browser-owner';
 const ttlMs = 60 * 60 * 1000;
 const nowValue = 2_000_000_000_000;
+const ORIGIN = 'https://hafize.example';
 const env = {
   HAFIZE_CLOUD_SESSION_PASSWORD_HASH: passwordHash,
   HAFIZE_CLOUD_SESSION_SIGNING_KEY: signingKey,
   HAFIZE_CLOUD_SESSION_SUBJECT: subject,
-  HAFIZE_CLOUD_SESSION_ORIGIN: 'https://hafize.example',
+  HAFIZE_CLOUD_SESSION_ORIGIN: ORIGIN,
   HAFIZE_CLOUD_SESSION_TTL_MS: String(ttlMs)
 };
 
@@ -42,6 +43,7 @@ assert.match(login.setCookie, /SameSite=Strict/);
 const cookie = login.setCookie.split(';', 1)[0];
 
 const sessionAuthenticator = createOptionalScheduleSessionAuthenticator({ env, createAuth: authFactory });
+assert.equal(sessionAuthenticator.allowedOrigin, ORIGIN);
 assert.equal(sessionAuthenticator.authenticate({ headers: { cookie } }).ok, true);
 assert.equal(sessionAuthenticator.authenticate({ headers: { cookie } }).principal.subject, subject);
 
@@ -84,11 +86,19 @@ assert.equal(response.status, 200);
 assert.equal(response.body.schedules[0].owner, 'browser-owner');
 assert.deepEqual(calls.at(-1), ['list', 'browser-owner']);
 
+const beforeDeniedMutation = calls.length;
+response = await api.handle({
+  request: { body: { agentId: 'minimal-engineer', task: 'Sabah özeti', runAt: '2030-01-01T07:00:00.000Z' } },
+  method: 'POST', pathname: '/api/schedules', headers: { cookie }
+});
+assert.equal(response.status, 401);
+assert.equal(calls.length, beforeDeniedMutation);
+
 response = await api.handle({
   request: { body: { agentId: 'minimal-engineer', task: 'Sabah özeti', runAt: '2030-01-01T07:00:00.000Z' } },
   method: 'POST',
   pathname: '/api/schedules',
-  headers: { cookie }
+  headers: { cookie, origin: ORIGIN }
 });
 assert.equal(response.status, 201);
 assert.equal(response.body.schedule.owner, 'browser-owner');
@@ -97,7 +107,7 @@ assert.deepEqual(calls.at(-1), ['create', 'browser-owner', 'Sabah özeti']);
 response = await api.handle({
   method: 'GET',
   pathname: '/api/schedules',
-  headers: { authorization: 'Bearer server-token', cookie }
+  headers: { authorization: 'Bearer server-token', cookie, origin: 'https://evil.example' }
 });
 assert.equal(response.status, 200);
 assert.equal(response.body.schedules[0].owner, 'server-owner', 'explicit valid bearer keeps server-to-server identity');

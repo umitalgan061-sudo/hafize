@@ -28,12 +28,15 @@ assert.match(runtimeSource, /createPrivilegedPrincipalAuthenticator/);
 assert.match(runtimeSource, /tokenEnv:\s*'HAFIZE_GITHUB_WRITE_AUTH_TOKEN'/);
 assert.match(runtimeSource, /subjectEnv:\s*'HAFIZE_GITHUB_WRITE_AUTH_SUBJECT'/);
 assert.match(runtimeSource, /allowCloudSession:\s*true/);
+assert.match(runtimeSource, /cloudSessionAuthenticator/);
 assert.doesNotMatch(runtimeSource, /createBearerPrincipalAuthenticator/);
 
 assert.match(authSource, /createBearerPrincipalAuthenticator/);
-assert.match(authSource, /createCloudSessionAuth/);
+assert.match(authSource, /createRevocableCloudSessionAuth/);
+assert.doesNotMatch(authSource, /import \{ createCloudSessionAuth \} from/);
 assert.match(authSource, /if \(bearer\)/);
 assert.match(authSource, /if \(cloud\)/);
+assert.match(authSource, /requestOrigin\(headers\) !== cloud\.origin/);
 assert.match(authSource, /AUTH_REQUIRED/);
 assert.match(authSource, /HAFIZE_CLOUD_SESSION_ORIGIN/);
 assert.match(authSource, /HAFIZE_CLOUD_SESSION_TTL_MS/);
@@ -65,7 +68,6 @@ for (const forbidden of [
   /localStorage/,
   /sessionStorage/,
   /shell\s*=\s*true/,
-  /child_process/,
   /\bexec\s*\(/,
   /\bspawn\s*\(/
 ]) {

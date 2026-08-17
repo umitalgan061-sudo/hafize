@@ -9,6 +9,7 @@ function b64(bytes, fill) {
 const TOKEN = 't'.repeat(48);
 const SUBJECT = 'service:privileged';
 const CLOUD_SUBJECT = 'user:browser';
+const ORIGIN = 'https://hafize.example';
 
 function config(overrides = {}) {
   return {
@@ -17,7 +18,7 @@ function config(overrides = {}) {
     HAFIZE_CLOUD_SESSION_PASSWORD_HASH: `scrypt$16384$8$1$${b64(16, 7)}$${b64(32, 8)}`,
     HAFIZE_CLOUD_SESSION_SIGNING_KEY: b64(32, 9),
     HAFIZE_CLOUD_SESSION_SUBJECT: CLOUD_SUBJECT,
-    HAFIZE_CLOUD_SESSION_ORIGIN: 'https://hafize.example',
+    HAFIZE_CLOUD_SESSION_ORIGIN: ORIGIN,
     HAFIZE_CLOUD_SESSION_TTL_MS: '14400000',
     ...overrides
   };
@@ -50,14 +51,14 @@ function cookie(env, {
   const auth = create(env);
   const valid = cookie(env);
   const duplicate = `${valid}; ${valid}`;
-  assert.deepEqual(auth.authenticate({ headers: { cookie: duplicate } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(auth.authenticate({ headers: { cookie: duplicate, origin: ORIGIN } }), { ok: false, error: 'AUTH_REQUIRED' });
 }
 
 {
   const env = config();
   const auth = create(env);
   const wrongKeyCookie = cookie(env, { signingKey: b64(32, 10) });
-  assert.deepEqual(auth.authenticate({ headers: { cookie: wrongKeyCookie } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(auth.authenticate({ headers: { cookie: wrongKeyCookie, origin: ORIGIN } }), { ok: false, error: 'AUTH_REQUIRED' });
 }
 
 {
@@ -65,7 +66,7 @@ function cookie(env, {
   const auth = create(env);
   const future = Date.now() + 60_000;
   const futureCookie = cookie(env, { issuedAt: future, expiresAt: future + 14_400_000 });
-  assert.deepEqual(auth.authenticate({ headers: { cookie: futureCookie } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(auth.authenticate({ headers: { cookie: futureCookie, origin: ORIGIN } }), { ok: false, error: 'AUTH_REQUIRED' });
 }
 
 {
@@ -73,7 +74,7 @@ function cookie(env, {
   const auth = create(env);
   const now = Date.now();
   const wrongTtlCookie = cookie(env, { issuedAt: now - 1_000, expiresAt: now - 1_000 + 120_000 });
-  assert.deepEqual(auth.authenticate({ headers: { cookie: wrongTtlCookie } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(auth.authenticate({ headers: { cookie: wrongTtlCookie, origin: ORIGIN } }), { ok: false, error: 'AUTH_REQUIRED' });
 }
 
 {
@@ -81,6 +82,8 @@ function cookie(env, {
   const auth = create(env);
   assert.deepEqual(auth.authenticate({ headers: { authorization: 'Basic abc' } }), { ok: false, error: 'AUTH_REQUIRED' });
   assert.deepEqual(auth.authenticate({ headers: { authorization: 'Bearer short' } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(auth.authenticate({ headers: { cookie: cookie(env) } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(auth.authenticate({ headers: { cookie: cookie(env), origin: 'https://evil.example' } }), { ok: false, error: 'AUTH_REQUIRED' });
 }
 
 {
@@ -112,7 +115,8 @@ assert.throws(
   const onlyCloud = config({ HAFIZE_PRIV_AUTH_TOKEN: '', HAFIZE_PRIV_AUTH_SUBJECT: '' });
   const auth = create(onlyCloud);
   assert.deepEqual(auth.modes, { bearer: false, cloudSession: true });
-  assert.equal(auth.authenticate({ headers: { cookie: cookie(onlyCloud) } }).principal.subject, CLOUD_SUBJECT);
+  assert.deepEqual(auth.authenticate({ headers: { cookie: cookie(onlyCloud) } }), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.equal(auth.authenticate({ headers: { cookie: cookie(onlyCloud), origin: ORIGIN } }).principal.subject, CLOUD_SUBJECT);
 }
 
 {

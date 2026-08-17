@@ -6,7 +6,7 @@ Hafize cloud session logout işlemi yalnız tarayıcı cookie'sini silmekle yeti
 
 ## Tehdit modeli
 
-Bir saldırgan geçerli `__Host-hafize_session` cookie değerini logout öncesinde ele geçirmiş olabilir. Yalnız `Max-Age=0` göndermek saldırganın kopyasını silmez. Bu nedenle logout, clearing cookie dönmeden önce mevcut token'ı revoke eder. Sonraki `/api/session/status`, schedule auth veya aynı cloud-session authenticator kullanan backend yolları aynı token'ı `AUTH_REQUIRED` ile reddeder.
+Bir saldırgan geçerli `__Host-hafize_session` cookie değerini logout öncesinde ele geçirmiş olabilir. Yalnız `Max-Age=0` göndermek saldırganın kopyasını silmez. Bu nedenle logout, clearing cookie dönmeden önce mevcut token'ı revoke eder. Sonraki `/api/session/status`, schedule auth veya cloud-session kullanan privileged backend yolları aynı token'ı `AUTH_REQUIRED` ile reddeder.
 
 ## Veri minimizasyonu
 
@@ -23,13 +23,17 @@ Varsayılan store kapasitesi 4096 aktif revocation kaydıdır. Süresi dolmuş k
 
 Revocation kaydı yalnız token'ın mevcut expiry zamanına kadar tutulur; logout session ömrünü uzatmaz.
 
+Production varsayılanındaki revocable authenticator'lar aynı **process-local backing map** üzerinde çalışır. Bu paylaşım auth instance kimliğine veya aynı `now` fonksiyon nesnesini kullanmaya bağlı değildir. Böylece session HTTP runtime'ında revoke edilen token, aynı process içinde ayrı oluşturulmuş GitHub privileged veya schedule cookie authenticator tarafından da reddedilir. Özel `revocationStore` enjekte eden test/embedding kullanımları ise kendi store sınırını korur.
+
 ## Origin ve authentication sınırı
 
 Logout hâlâ exact HTTPS Origin kontrolünden sonra çalışır. Foreign origin revocation başlatamaz. Token önce mevcut imza, subject, TTL ve nonce sözleşmesiyle doğrulanır; malformed, expired veya yanlış imzalı cookie revocation store'a eklenmez.
 
+Ayrıcalıklı cookie fallback için origin sınırı logout'tan sonra da devam eder: GitHub write POST işlemleri ve schedule mutation işlemleri geçerli cookie yanında exact `HAFIZE_CLOUD_SESSION_ORIGIN` gerektirir. Server-to-server bearer kimliği bu browser-origin gereksiniminden bağımsızdır.
+
 ## Süreklilik sınırı
 
-Bu ilk uygulama process-local ve bounded memory store kullanır. **Process restart/deploy revocation listesini temizler.** Bu nedenle revocation dayanıklılığı session TTL'sinden bağımsız bir kalıcı güvenlik garantisi değildir. Dağıtık veya çok-instance production kurulumunda aynı fingerprint sözleşmesini kullanan Redis/ortak durable store ayrı bir geliştirme olarak eklenmelidir. Bu PR bu sınırı saklamaz veya “logout her restart sonrasında da revoke kalır” iddiası yapmaz.
+Store hâlâ process-local ve bounded memory kullanır. **Gerçek process restart/deploy revocation listesini temizler.** Yeni bir authenticator veya runtime nesnesi oluşturmak tek başına restart değildir; aynı Node process içindeki bu tüketiciler ortak deny-set'i görür. Dağıtık veya çok-instance production kurulumunda aynı fingerprint sözleşmesini kullanan Redis/ortak durable store ayrı bir geliştirme olarak eklenmelidir. Bu sınır “logout her restart sonrasında da revoke kalır” iddiası yapmaz.
 
 ## Mimari sınırlar
 
@@ -57,7 +61,9 @@ Test sözleşmesi şunları kapsar:
 6. Wrong-origin logout revocation yapmaz.
 7. Store capacity doluysa logout 503 olur ve clearing cookie dönmez.
 8. Production Node runtime revocable auth'ı varsayılan olarak kullanır.
-9. Agent roster ve backend default-deny sözleşmesi değişmez.
+9. Aynı process içinde farklı runtime/auth instance'ları revocation fingerprint deny-set'ini paylaşır.
+10. Privileged cookie mutation'ları exact Origin gerektirirken bearer otomasyon kimliği geriye uyumlu kalır.
+11. Agent roster ve backend default-deny sözleşmesi değişmez.
 
 ## Geri alma
 
