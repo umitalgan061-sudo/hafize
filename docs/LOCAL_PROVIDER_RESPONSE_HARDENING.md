@@ -35,6 +35,20 @@ JSON çağrıları parent AbortSignal'i dahili bounded controller'a bağlar. Par
 
 Streaming çağrısı kullanıcının/request'in mevcut AbortSignal'ini doğrudan fetch'e taşır. Bu katman retry yapmaz ve farklı sağlayıcıya sessiz fallback gerçekleştirmez.
 
+## Public hata sözleşmesi
+
+Backend boundary yalnız sabit allowlist'teki local-provider hata kodlarını dışarı taşır. Ham Ollama body, exception mesajı, stack trace veya URL ayrıntısı public cevaba kopyalanmaz.
+
+- `LOCAL_PROVIDER_TIMEOUT` → HTTP 504.
+- `LOCAL_PROVIDER_CANCELLED` → ortak `MODEL_PROVIDER_CANCELLED`, HTTP 499.
+- `LOCAL_PROVIDER_RESPONSE_TOO_LARGE` → HTTP 502.
+- `LOCAL_PROVIDER_STREAM_TOO_LARGE` → HTTP 502.
+- `LOCAL_PROVIDER_STREAM_CHUNK_TOO_LARGE` → HTTP 502.
+- `INVALID_LOCAL_PROVIDER_RESPONSE_TYPE` → HTTP 502.
+- Tanınmayan provider hataları → genel `MODEL_PROVIDER_FAILED`, HTTP 502.
+
+Provider'ın güvenilir olmayan bir `status` alanı güvenli mapped statüyü 2xx'e veya allowlist dışı davranışa çeviremez. Yalnız 400–599 aralığındaki explicit status, zaten allowlist'te bulunan hata kodu için kullanılabilir.
+
 ## Tool permission ayrımı
 
 `local:` model seçimi ajan yetkilerini değiştirmez. Tool allowlist/deny-by-default sözleşmesi `agents/registry.json` ve backend runtime tarafından uygulanmaya devam eder. Model sağlayıcısı prompt içeriğiyle veya provider kimliğiyle yeni tool yetkisi kazanamaz. Dış write/send/merge işlemleri mevcut açık kullanıcı onayı sınırlarını ayrıca geçmek zorundadır.
@@ -46,8 +60,13 @@ Bu geliştirme yeni ajan, endpoint, kalıcı storage veya credential mekanizmas�
 Canonical check suite otomatik olarak aşağıdaki testleri keşfeder:
 
 - `test-local-provider-response-hardening.mjs`: redirect, JSON media type, declared body limiti, timeout, abort ve model-ID sınırları.
+- `test-local-provider-readable-stream-bounds.mjs`: production `ReadableStream.getReader()` yolu, byte toplamı, cancel ve release lifecycle.
 - `test-local-provider-stream-bounds.mjs`: SSE media type, per-chunk ve cumulative stream byte limitleri, byte-only stream sözleşmesi.
 - `test-local-provider-model-list-safety.mjs`: dedupe, ID allowlist, maksimum model sayısı, bozuk discovery yanıtlarında fail-soft davranış ve explicit abort.
+- `test-local-provider-config-boundaries.mjs`: loopback base URL, credential/query/fragment reddi ve bounded timeout konfigürasyonu.
+- `test-local-provider-boundary-errors.mjs`: public error allowlist, 504 timeout, cancellation normalizasyonu ve bilinmeyen hata redaksiyonu.
+- `test-local-provider-no-silent-fallback.mjs`: `local:` hatasında NVIDIA'ya sessiz fallback yapılmaması ve tool-required fail-closed davranışı.
+- `test-local-provider-provider-parity.mjs`: NVIDIA/local response limit paritesi ve NVIDIA'nın varsayılan provider kalması.
 - `test-local-provider-security-contract.mjs`: loopback/redirect/secret/tool-policy/default-provider kaynak sözleşmesi.
 
-Geri alma için yalnız `lib/local-ollama-provider.mjs`, bu belge ve ilgili regresyon testleri revert edilir. Kalıcı veri veya schema migrasyonu yoktur.
+Geri alma için yalnız local-provider hardening, boundary public-error girdileri, bu belge ve ilgili regresyon testleri revert edilir. Kalıcı veri veya schema migrasyonu yoktur.
