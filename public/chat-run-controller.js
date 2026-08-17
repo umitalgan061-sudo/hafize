@@ -39,6 +39,7 @@
   loadShellEnhancement('HafizeCodeBlockFocus', '/code-block-focus.js', 'data-hafize-code-block-focus');
   loadShellEnhancement('HafizeComposerHistory', '/composer-history.js', 'data-hafize-composer-history');
   loadShellEnhancement('HafizeCodeBlockDownload', '/code-block-download.js', 'data-hafize-code-block-download');
+  loadShellEnhancement('HafizeTextFileImportStyle', '/text-file-import-style.js', 'data-hafize-text-file-import-style-loader');
   loadShellEnhancement('HafizeTextFileImport', '/text-file-import.js', 'data-hafize-text-file-import');
   loadShellEnhancement('HafizeComposerPasteGuard', '/composer-paste-guard.js', 'data-hafize-composer-paste-guard');
   loadShellEnhancement('HafizeMessageTimeline', '/message-timeline.js', 'data-hafize-message-timeline');
