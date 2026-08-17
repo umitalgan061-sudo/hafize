@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createScheduleHttpApi } from '../lib/schedule-http-api.mjs';
 
+const ORIGIN = 'https://hafize.example';
 function createCommands(log) {
   return {
     async list({ principal }) {
@@ -30,6 +31,7 @@ const bearer = {
   }
 };
 const session = {
+  allowedOrigin: ORIGIN,
   authenticate({ headers }) {
     return headers?.cookie === '__Host-hafize_session=web-good'
       ? { ok: true, principal: Object.freeze({ authenticated: true, subject: 'web-owner' }), expiresAt: 999999 }
@@ -56,11 +58,20 @@ assert.equal(response.status, 200);
 assert.equal(response.body.schedules[0].owner, 'api-owner');
 assert.deepEqual(log.at(-1), ['list', 'api-owner']);
 
+const beforeOriginDenial = log.length;
+response = await api.handle({
+  request: { json: { agentId: 'minimal-engineer', task: 'Günlük özeti hazırla', runAt: '2030-01-01T09:00:00.000Z' } },
+  method: 'POST', pathname: '/api/schedules', headers: { cookie: '__Host-hafize_session=web-good' }
+});
+assert.equal(response.status, 401);
+assert.equal(log.length, beforeOriginDenial);
+assert.equal(readBodies.length, 0, 'origin denial must happen before body parsing');
+
 response = await api.handle({
   request: { json: { agentId: 'minimal-engineer', task: 'Günlük özeti hazırla', runAt: '2030-01-01T09:00:00.000Z' } },
   method: 'POST',
   pathname: '/api/schedules',
-  headers: { cookie: '__Host-hafize_session=web-good' }
+  headers: { cookie: '__Host-hafize_session=web-good', origin: ORIGIN }
 });
 assert.equal(response.status, 201);
 assert.deepEqual(log.at(-1), ['create', 'web-owner', { agentId: 'minimal-engineer', task: 'Günlük özeti hazırla', runAt: '2030-01-01T09:00:00.000Z' }]);
@@ -68,20 +79,27 @@ assert.equal(readBodies.length, 1);
 
 response = await api.handle({
   request: { json: { runAt: '2030-01-02T10:00:00.000Z' } },
-  method: 'PATCH',
-  pathname: '/api/schedules/schedule-1',
-  headers: { cookie: '__Host-hafize_session=web-good' }
+  method: 'PATCH', pathname: '/api/schedules/schedule-1',
+  headers: { cookie: '__Host-hafize_session=web-good', origin: ORIGIN }
 });
 assert.equal(response.status, 200);
 assert.deepEqual(log.at(-1), ['reschedule', 'web-owner', 'schedule-1', { runAt: '2030-01-02T10:00:00.000Z' }]);
 
 response = await api.handle({
-  method: 'DELETE',
-  pathname: '/api/schedules/schedule-1',
-  headers: { cookie: '__Host-hafize_session=web-good' }
+  method: 'DELETE', pathname: '/api/schedules/schedule-1',
+  headers: { cookie: '__Host-hafize_session=web-good', origin: ORIGIN }
 });
 assert.equal(response.status, 200);
 assert.deepEqual(log.at(-1), ['cancel', 'web-owner', 'schedule-1']);
+
+// A valid server bearer is still origin-independent for mutations.
+response = await api.handle({
+  request: { json: { agentId: 'minimal-engineer', task: 'Server task', runAt: '2030-01-03T10:00:00.000Z' } },
+  method: 'POST', pathname: '/api/schedules',
+  headers: { authorization: 'Bearer api-good', origin: 'https://evil.example' }
+});
+assert.equal(response.status, 201);
+assert.deepEqual(log.at(-1), ['create', 'api-owner', { agentId: 'minimal-engineer', task: 'Server task', runAt: '2030-01-03T10:00:00.000Z' }]);
 
 const beforeUnauthorized = log.length;
 response = await api.handle({ method: 'GET', pathname: '/api/schedules', headers: {} });
@@ -114,9 +132,8 @@ assert.equal(response.status, 401);
 
 const throwingSession = createScheduleHttpApi({
   authenticator: bearer,
-  sessionAuthenticator: { authenticate() { throw new Error('do not expose this'); } },
-  commands: createCommands([]),
-  readJson
+  sessionAuthenticator: { allowedOrigin: ORIGIN, authenticate() { throw new Error('do not expose this'); } },
+  commands: createCommands([]), readJson
 });
 response = await throwingSession.handle({ method: 'GET', pathname: '/api/schedules', headers: {} });
 assert.equal(response.status, 401);
