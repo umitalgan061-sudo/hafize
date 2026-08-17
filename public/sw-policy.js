@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v74`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v75`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -96,6 +96,8 @@
     '/reading-focus.css',
     '/conversation-outline.js',
     '/conversation-outline.css',
+    '/conversation-organize.js',
+    '/conversation-organize.css',
     '/canva-connection-status-style.js',
     '/canva-connection-status.js',
     '/canva-connection-status.css',
