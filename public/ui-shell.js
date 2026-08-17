@@ -13,10 +13,47 @@
 
   const THEME_KEY = 'hafize.theme.v1';
   const WEEKDAYS = Object.freeze(['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']);
+  const DESKTOP_DEVICE_SCRIPT = '/desktop-device-status.js';
+  const DESKTOP_DEVICE_STYLE = '/desktop-device-status.css';
+  const DESKTOP_DEVICE_SCRIPT_ID = 'hafizeDesktopDeviceScript';
+  const DESKTOP_DEVICE_STYLE_ID = 'hafizeDesktopDeviceStyle';
 
   function resolveTheme(stored, prefersDark) {
     if (stored === 'light' || stored === 'dark') return stored;
     return prefersDark ? 'dark' : 'light';
+  }
+
+  function hasDesktopDeviceBridge(root) {
+    const bridge = root?.hafizeDevice;
+    return Boolean(
+      bridge
+      && typeof bridge.getSystemInfo === 'function'
+      && typeof bridge.getCapabilities === 'function'
+      && typeof bridge.openBrowser === 'function'
+      && typeof bridge.openApp === 'function'
+    );
+  }
+
+  function installDesktopDeviceAssets(documentRef, root) {
+    if (!documentRef || !hasDesktopDeviceBridge(root)) return false;
+    const head = documentRef.head || documentRef.querySelector?.('head');
+    if (!head || typeof documentRef.createElement !== 'function') return false;
+
+    if (!documentRef.getElementById?.(DESKTOP_DEVICE_STYLE_ID)) {
+      const link = documentRef.createElement('link');
+      link.id = DESKTOP_DEVICE_STYLE_ID;
+      link.rel = 'stylesheet';
+      link.href = DESKTOP_DEVICE_STYLE;
+      head.append(link);
+    }
+    if (!documentRef.getElementById?.(DESKTOP_DEVICE_SCRIPT_ID)) {
+      const script = documentRef.createElement('script');
+      script.id = DESKTOP_DEVICE_SCRIPT_ID;
+      script.src = DESKTOP_DEVICE_SCRIPT;
+      script.async = false;
+      head.append(script);
+    }
+    return true;
   }
 
   function createMonthCells(year, month, selectedDay) {
@@ -109,6 +146,7 @@
     if (!documentRef) return null;
     const sidebarDisclosure = installSidebarDisclosure(documentRef);
     installChatAccessibility(documentRef);
+    installDesktopDeviceAssets(documentRef, root);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
     const storage = root?.localStorage;
@@ -202,5 +240,18 @@
     });
   }
 
-  return Object.freeze({ THEME_KEY, WEEKDAYS, resolveTheme, createMonthCells, moveCalendarDate, installSidebarDisclosure, installChatAccessibility, install });
+  return Object.freeze({
+    THEME_KEY,
+    WEEKDAYS,
+    DESKTOP_DEVICE_SCRIPT,
+    DESKTOP_DEVICE_STYLE,
+    resolveTheme,
+    hasDesktopDeviceBridge,
+    installDesktopDeviceAssets,
+    createMonthCells,
+    moveCalendarDate,
+    installSidebarDisclosure,
+    installChatAccessibility,
+    install
+  });
 });
