@@ -74,6 +74,8 @@
   loadShellEnhancement('HafizeCanvaConnectionStatusStyle', '/canva-connection-status-style.js', 'data-hafize-canva-connection-status-style-loader');
   loadShellEnhancement('HafizeCanvaConnectionStatus', '/canva-connection-status.js', 'data-hafize-canva-connection-status');
   loadShellEnhancement('HafizeCanvaSessionSync', '/canva-session-sync.js', 'data-hafize-canva-session-sync');
+  loadShellEnhancement('HafizeGmailWorkspaceStyle', '/gmail-workspace-style.js', 'data-hafize-gmail-workspace-style-loader');
+  loadShellEnhancement('HafizeGmailWorkspace', '/gmail-workspace.js', 'data-hafize-gmail-workspace');
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatRunControllerApi() {
   'use strict';
 
