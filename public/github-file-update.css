@@ -1,0 +1,204 @@
+.github-file-update {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.github-file-update-toggle {
+  justify-self: start;
+}
+
+.github-file-update-form {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 92%, transparent);
+}
+
+.github-file-update-form[hidden] {
+  display: none;
+}
+
+.github-file-update-repo,
+.github-file-update-summary,
+.github-file-update-status {
+  margin: 0;
+}
+
+.github-file-update-repo {
+  overflow-wrap: anywhere;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.github-file-update-label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.github-file-update-label > span {
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.github-file-update-input,
+.github-file-update-content {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+}
+
+.github-file-update-input {
+  min-height: 40px;
+  padding: 8px 10px;
+}
+
+.github-file-update-sha,
+.github-file-update-content {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.github-file-update-sha {
+  font-size: 11px;
+}
+
+.github-file-update-content {
+  min-height: 190px;
+  max-height: 46vh;
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.45;
+  tab-size: 2;
+}
+
+.github-file-update-input:focus-visible,
+.github-file-update-content:focus-visible,
+.github-file-update-primary:focus-visible,
+.github-file-update-toggle:focus-visible,
+.github-file-update-close:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+.github-file-update-content[aria-invalid="true"] {
+  border-color: #a94343;
+}
+
+.github-file-update-bytes {
+  justify-self: end;
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+}
+
+.github-file-update-summary {
+  padding: 8px 9px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, transparent);
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+.github-file-update-status {
+  min-height: 2.6em;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.github-file-update-status[data-state="error"] {
+  color: #9b3f3f;
+}
+
+.github-file-update-status[data-state="success"],
+.github-file-update-status[data-state="ready"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.github-file-update-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.github-file-update-primary {
+  min-height: 40px;
+  border: 1px solid color-mix(in srgb, var(--premium-orange, var(--accent)) 50%, var(--premium-line, var(--line)));
+  border-radius: 10px;
+  padding: 8px 11px;
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 12%, var(--premium-surface, var(--card)));
+  color: var(--premium-text, var(--ink));
+  font-weight: 650;
+}
+
+.github-file-update-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 18%, var(--premium-surface, var(--card)));
+}
+
+.github-file-update-approve {
+  background: var(--premium-orange, var(--accent));
+  color: #fff;
+}
+
+.github-file-update-approve:hover:not(:disabled) {
+  background: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.github-file-update-form[aria-busy="true"],
+#githubWriteReadinessCard[aria-busy="true"] .github-file-update-form {
+  cursor: progress;
+}
+
+@media (max-width: 680px) {
+  .github-file-update-form {
+    padding: 10px;
+  }
+
+  .github-file-update-content {
+    min-height: 160px;
+    max-height: 40vh;
+  }
+
+  .github-file-update-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .github-file-update-primary,
+  .github-file-update-close {
+    width: 100%;
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .github-file-update-form,
+  .github-file-update-primary {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .github-file-update-form,
+  .github-file-update-input,
+  .github-file-update-content,
+  .github-file-update-primary,
+  .github-file-update-summary {
+    border: 1px solid CanvasText;
+    forced-color-adjust: auto;
+  }
+
+  .github-file-update-approve {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
