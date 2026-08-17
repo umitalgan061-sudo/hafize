@@ -14,6 +14,16 @@ Hafize'nin mevcut `hands-free.js` wake phrase akışı görünür, süreli ve ku
 6. `Escape`, sekmenin görünmez olması, `Vazgeç` veya controller destroy pending consent'i iptal eder.
 7. Onay kalıcı değildir. Hands-free kapatıldıktan sonraki her yeniden açma girişimi yeni review ister.
 8. Mikrofon zaten aktifken `Eller serbest` düğmesine basmak tek tıklamayla kapatmaya devam eder. Güvenlik kapatma yoluna ikinci onay eklenmez.
+9. Review ve confirm yalnız görünür document üzerinde çalışır. Sekme hidden durumuna geçerse pending onay geçersizleşir ve confirm boundary bunu yeniden kontrol eder.
+10. Tarayıcı `isSecureContext === false` bildirirse yeni hands-free onayı oluşturulmaz; mevcut açık mikrofonu kapatma yolu yine engellenmez.
+
+## Tehdit modeli
+
+Bu katman özellikle yanlışlıkla sürekli dinleme başlatma, eski/pending bir onayı daha sonra kullanma ve UI görünmezken consent yarışına girme risklerini azaltır. Capture-phase guard sayesinde ilk tıklama mevcut hands-free bubble handler'ına ulaşmaz. Confirm sırasında visibility, secure-context, disabled-state ve active-state yeniden doğrulanır; yani yalnız review açılmış olması yeterli değildir.
+
+Consent token veya imzalı capability üretmez; bu davranış cihaz içi UI niyet sınırıdır. Bu nedenle onay başka sekmeye, reload'a, yeni pencereye veya gelecekteki oturuma taşınamaz. Review DOM'u ve timer destroy sırasında kaldırılır. Bu katman tarayıcının mikrofon izin diyaloğunun yerine geçmez; işletim sistemi/tarayıcı mikrofon izni ayrıca geçerlidir.
+
+Güvenli kapatma önceliklidir: hands-free zaten aktifse toggle click'i review tarafından bloke edilmez. Kullanıcı mikrofonu tek tıklamayla kapatabilmelidir. Bu ilke, consent UX'in güvenlik çıkış yolunu yanlışlıkla zorlaştırmasını önler.
 
 ## Veri ve izin sınırı
 
@@ -40,6 +50,7 @@ Review `role=group` ve sabit bir `aria-label` kullanır. Pending durumda toggle 
 - Aktif mikrofonda tek tıklamayla kapatma.
 - Consent'in sticky olmaması.
 - 15 saniyelik timeout, Escape ve visibility fail-closed davranışı.
+- Hidden/secure-context yarışının confirm boundary'de yeniden reddedilmesi.
 - Destroy sırasında timer/listener/panel cleanup.
 - Storage/network/secret/shell/HTML yüzeyi bulunmaması.
 - PWA v82 ve asset wiring.
