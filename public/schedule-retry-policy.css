@@ -1,0 +1,157 @@
+.schedule-retry-policy-action {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.schedule-retry-policy-toggle,
+.schedule-retry-policy-save,
+.schedule-retry-policy-close {
+  min-height: 36px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  background: var(--premium-surface, var(--card));
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+}
+
+.schedule-retry-policy-toggle {
+  justify-self: start;
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.schedule-retry-policy-toggle:hover,
+.schedule-retry-policy-save:hover,
+.schedule-retry-policy-close:hover {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 45%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 7%, var(--premium-surface, var(--card)));
+}
+
+.schedule-retry-policy-toggle[aria-expanded="true"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 55%, var(--premium-line, var(--line)));
+}
+
+.schedule-retry-policy-form {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 94%, transparent);
+}
+
+.schedule-retry-policy-form[hidden] {
+  display: none;
+}
+
+.schedule-retry-policy-label {
+  display: grid;
+  gap: 6px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.schedule-retry-policy-select {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  font: inherit;
+  font-size: 12px;
+}
+
+.schedule-retry-policy-note {
+  margin: 0;
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.schedule-retry-policy-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schedule-retry-policy-save,
+.schedule-retry-policy-close {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.schedule-retry-policy-save {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 45%, var(--premium-line, var(--line)));
+}
+
+.schedule-retry-policy-status {
+  display: block;
+  min-height: 16px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.schedule-retry-policy-status[hidden] {
+  display: none;
+}
+
+.schedule-retry-policy-status[data-state="success"] {
+  color: #47705d;
+}
+
+.schedule-retry-policy-status[data-state="error"] {
+  color: #8b5748;
+}
+
+.schedule-retry-policy-status[data-state="auth"] {
+  color: #7b6543;
+}
+
+.schedule-retry-policy-action[aria-busy="true"] {
+  opacity: .72;
+}
+
+.schedule-retry-policy-toggle:focus-visible,
+.schedule-retry-policy-save:focus-visible,
+.schedule-retry-policy-close:focus-visible,
+.schedule-retry-policy-select:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 680px) {
+  .schedule-retry-policy-toggle,
+  .schedule-retry-policy-save,
+  .schedule-retry-policy-close,
+  .schedule-retry-policy-select {
+    min-height: 44px;
+  }
+
+  .schedule-retry-policy-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-retry-policy-action * {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-retry-policy-toggle,
+  .schedule-retry-policy-save,
+  .schedule-retry-policy-close,
+  .schedule-retry-policy-select,
+  .schedule-retry-policy-form {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+}

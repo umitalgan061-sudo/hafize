@@ -207,6 +207,7 @@
         article.className = 'schedule-list-item';
         article.dataset.state = item.status;
         article.dataset.scheduleId = item.scheduleId;
+        article.dataset.maxAttempts = String(item.maxAttempts);
 
         const top = documentRef.createElement('div');
         top.className = 'schedule-list-item-head';
