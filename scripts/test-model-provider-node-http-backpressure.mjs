@@ -154,6 +154,28 @@ assert.deepEqual(errored.writes, [
 ]);
 assert.equal(errored.endCount, 1);
 
+const timeoutRuntime = {
+  async handle() {
+    return {
+      matched: true,
+      kind: 'stream',
+      status: 200,
+      headers: { 'content-type': 'text/event-stream' },
+      body: chunks(['data: blocked\n\n', 'data: must-not-advance\n\n'])
+    };
+  }
+};
+const timedOut = new FakeResponse({ backpressureAt: [0, 1] });
+const startedAt = Date.now();
+const timeoutResult = await createRoute(timeoutRuntime).handle({
+  request: {}, response: timedOut, method: 'POST', pathname: '/api/chat'
+});
+assert.equal(timeoutResult.interrupted, true);
+assert.equal(timeoutResult.aborted, false);
+assert.ok(Date.now() - startedAt >= 29_000, 'route must enforce the bounded default drain wait');
+assert.deepEqual(timedOut.writes, ['data: blocked\n\n', 'data: {"error":"STREAM_INTERRUPTED"}\n\n']);
+assert.equal(timedOut.endCount, 1);
+
 const jsonRuntime = {
   async handle() {
     return { matched: true, kind: 'json', status: 400, headers: {}, body: { error: 'BAD' } };
