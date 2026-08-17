@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const css = await readFile(new URL('../public/hands-free-consent.css', import.meta.url), 'utf8');
+assert.match(css, /\.hands-free-consent\[hidden\]\s*\{\s*display:\s*none/);
+assert.match(css, /min-height:\s*44px/);
+assert.match(css, /outline:\s*2px solid currentColor/);
+assert.match(css, /@media \(max-width:\s*760px\)/);
+assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)/);
+assert.match(css, /@media \(forced-colors:\s*active\)/);
+assert.match(css, /#handsFreeToggle\[data-consent-pending="true"\]/);
+assert.doesNotMatch(css, /url\(|@import|content:\s*['"]http/i);
+console.log('hands-free consent CSS contract tests passed');

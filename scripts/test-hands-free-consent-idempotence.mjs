@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const source = await readFile(new URL('../public/hands-free-consent.js', import.meta.url), 'utf8');
+assert.match(source, /const REVIEW_ID = 'handsFreeConsentReview'/);
+assert.match(source, /getElementById\?\.\(REVIEW_ID\)/);
+assert.match(source, /review\.panel\.remove\?\.\(\)/);
+assert.equal((source.match(/#handsFreeToggle/g) || []).length, 1);
+assert.equal((source.match(/#handsFreeIndicator/g) || []).length, 1);
+assert.match(source, /toggle\.removeEventListener\?\.\('click', onToggleCapture, true\)/);
+assert.match(source, /review\.confirm\.removeEventListener\?\.\('click', onConfirm\)/);
+assert.match(source, /review\.cancel\.removeEventListener\?\.\('click', onCancel\)/);
+assert.match(source, /documentRef\.removeEventListener\?\.\('keydown', onKeydown\)/);
+assert.match(source, /documentRef\.removeEventListener\?\.\('visibilitychange', onVisibility\)/);
+assert.doesNotMatch(source, /HafizeHandsFree\./);
+console.log('hands-free consent idempotence tests passed');
