@@ -34,7 +34,7 @@ assert.match(scheduleHttpSource, /requireSessionOrigin: verb === 'POST' \|\| ver
 assert.doesNotMatch(scheduleHttpSource, /requireSessionOrigin: verb === 'GET'/);
 
 // Production-default auth instances share only bounded process-local revocation fingerprints.
-assert.match(revocationSource, /SHARED_PROCESS_REVOCATION_STORE/);
+assert.match(revocationSource, /SHARED_PROCESS_REVOCATIONS/);
 assert.match(revocationSource, /DEFAULT_MAX_REVOCATIONS = 4096/);
 assert.match(revocationSource, /fingerprintCloudSessionToken/);
 assert.match(revocationSource, /createHmac\('sha256'/);
