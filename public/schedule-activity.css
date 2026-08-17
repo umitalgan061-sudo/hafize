@@ -1,0 +1,230 @@
+.schedule-activity-card {
+  display: grid;
+  gap: 10px;
+}
+
+.schedule-activity-head {
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.schedule-activity-status,
+.schedule-activity-summary,
+.schedule-activity-time,
+.schedule-activity-empty {
+  margin: 0;
+}
+
+.schedule-activity-status {
+  color: var(--premium-muted, var(--muted));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.schedule-activity-status[data-state="auth"],
+.schedule-activity-status[data-state="error"] {
+  color: #8a6a3b;
+}
+
+.schedule-activity-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.schedule-activity-filter {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 999px;
+  padding: 6px 8px;
+  background: transparent;
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.schedule-activity-filter[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 42%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 10%, transparent);
+  color: var(--premium-orange-strong, var(--accent-strong));
+}
+
+.schedule-activity-items {
+  display: grid;
+  gap: 8px;
+  max-height: 300px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scrollbar-gutter: stable;
+}
+
+.schedule-activity-item {
+  display: grid;
+  gap: 7px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 14px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--premium-surface-strong, var(--card)) 82%, transparent);
+}
+
+.schedule-activity-item[data-state="running"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 48%, var(--premium-line, var(--line)));
+}
+
+.schedule-activity-item[data-state="failed"] {
+  border-color: color-mix(in srgb, #a65349 44%, var(--premium-line, var(--line)));
+}
+
+.schedule-activity-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.schedule-activity-agent {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.schedule-activity-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.schedule-activity-badge[data-state="scheduled"] {
+  color: #7a633b;
+  background: color-mix(in srgb, #c59b54 10%, transparent);
+}
+
+.schedule-activity-badge[data-state="running"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 10%, transparent);
+}
+
+.schedule-activity-badge[data-state="completed"] {
+  color: #466b58;
+  background: color-mix(in srgb, #5e8c71 10%, transparent);
+}
+
+.schedule-activity-badge[data-state="failed"] {
+  color: #8f493f;
+  background: color-mix(in srgb, #a65349 10%, transparent);
+}
+
+.schedule-activity-summary {
+  color: var(--premium-text, var(--ink));
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.schedule-activity-time {
+  color: var(--premium-muted, var(--muted));
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.schedule-activity-progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--premium-line, var(--line)) 70%, transparent);
+}
+
+.schedule-activity-progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--premium-line, var(--line)) 70%, transparent);
+}
+
+.schedule-activity-progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--premium-orange, var(--accent));
+}
+
+.schedule-activity-progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--premium-orange, var(--accent));
+}
+
+.schedule-activity-empty {
+  border: 1px dashed var(--premium-line, var(--line));
+  border-radius: 12px;
+  padding: 10px;
+  text-align: center;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.schedule-activity-refresh {
+  min-width: 52px;
+}
+
+.schedule-activity-refresh:focus-visible,
+.schedule-activity-filter:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 1040px) {
+  .schedule-activity-items {
+    max-height: 270px;
+  }
+}
+
+@media (max-width: 680px) {
+  .schedule-activity-items {
+    max-height: 340px;
+  }
+
+  .schedule-activity-refresh,
+  .schedule-activity-filter {
+    min-height: 40px;
+  }
+
+  .schedule-activity-item {
+    padding: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-activity-card *,
+  .schedule-activity-card *::before,
+  .schedule-activity-card *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-activity-item,
+  .schedule-activity-badge,
+  .schedule-activity-filter,
+  .schedule-activity-empty,
+  .schedule-activity-refresh,
+  .schedule-activity-progress {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .schedule-activity-filter[aria-pressed="true"],
+  .schedule-activity-item[data-state="running"] {
+    outline: 1px solid Highlight;
+  }
+}
