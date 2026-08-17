@@ -1,0 +1,173 @@
+.schedule-reschedule-action {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--premium-line, var(--line));
+}
+
+.schedule-reschedule-toggle,
+.schedule-reschedule-save,
+.schedule-reschedule-close {
+  min-height: 38px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 10px;
+  font: inherit;
+}
+
+.schedule-reschedule-toggle {
+  justify-self: start;
+  padding: 7px 10px;
+  background: transparent;
+  color: var(--premium-text, var(--ink));
+  font-size: 12px;
+}
+
+.schedule-reschedule-toggle:hover:not(:disabled),
+.schedule-reschedule-close:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 8%, transparent);
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 38%, var(--premium-line, var(--line)));
+}
+
+.schedule-reschedule-toggle[aria-expanded="true"] {
+  color: var(--premium-orange-strong, var(--accent-strong));
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 52%, var(--premium-line, var(--line)));
+}
+
+.schedule-reschedule-form {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--premium-surface, var(--card)) 88%, transparent);
+}
+
+.schedule-reschedule-form[hidden] { display: none !important; }
+
+.schedule-reschedule-label {
+  display: grid;
+  gap: 5px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+}
+
+.schedule-reschedule-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 9px;
+  border: 1px solid var(--premium-line, var(--line));
+  border-radius: 9px;
+  background: var(--premium-surface-strong, var(--card));
+  color: var(--premium-text, var(--ink));
+  color-scheme: light dark;
+  font: inherit;
+  font-size: 12px;
+}
+
+html[data-theme="light"] .schedule-reschedule-input { color-scheme: light; }
+html[data-theme="dark"] .schedule-reschedule-input { color-scheme: dark; }
+
+.schedule-reschedule-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.schedule-reschedule-save,
+.schedule-reschedule-close {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+.schedule-reschedule-save {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 50%, var(--premium-line, var(--line)));
+  background: var(--premium-orange, var(--accent));
+  color: #fff;
+}
+
+.schedule-reschedule-save:hover:not(:disabled) { background: var(--premium-orange-strong, var(--accent-strong)); }
+
+.schedule-reschedule-close {
+  background: transparent;
+  color: var(--premium-text, var(--ink));
+}
+
+.schedule-reschedule-toggle:disabled,
+.schedule-reschedule-save:disabled,
+.schedule-reschedule-close:disabled,
+.schedule-reschedule-input:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.schedule-reschedule-status {
+  display: block;
+  min-height: 16px;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.schedule-reschedule-status[hidden] { display: none !important; }
+.schedule-reschedule-status[data-state="success"] { color: var(--accent-strong, #35634d); }
+.schedule-reschedule-status[data-state="error"],
+.schedule-reschedule-status[data-state="auth"] { color: #9a493d; }
+.schedule-reschedule-status[data-state="loading"] { opacity: .8; }
+
+.schedule-reschedule-action[aria-busy="true"] .schedule-reschedule-toggle,
+.schedule-reschedule-action[aria-busy="true"] .schedule-reschedule-form { cursor: progress; }
+
+.schedule-reschedule-toggle:focus-visible,
+.schedule-reschedule-save:focus-visible,
+.schedule-reschedule-close:focus-visible,
+.schedule-reschedule-input:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 680px) {
+  .schedule-reschedule-toggle,
+  .schedule-reschedule-save,
+  .schedule-reschedule-close,
+  .schedule-reschedule-input { min-height: 44px; }
+
+  .schedule-reschedule-form-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .schedule-reschedule-save,
+  .schedule-reschedule-close { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-reschedule-toggle,
+  .schedule-reschedule-save,
+  .schedule-reschedule-close,
+  .schedule-reschedule-input {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-reschedule-toggle,
+  .schedule-reschedule-save,
+  .schedule-reschedule-close,
+  .schedule-reschedule-input,
+  .schedule-reschedule-form {
+    border: 1px solid ButtonText;
+    forced-color-adjust: auto;
+  }
+
+  .schedule-reschedule-save {
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  .schedule-reschedule-status[data-state="success"],
+  .schedule-reschedule-status[data-state="error"],
+  .schedule-reschedule-status[data-state="auth"] { color: CanvasText; }
+}
