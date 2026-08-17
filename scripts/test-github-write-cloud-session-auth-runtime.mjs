@@ -131,7 +131,7 @@ const command = Object.freeze({
   });
   assert.equal(executed.status, 200);
   assert.equal(executed.body.receipt.operation, 'branch.create');
-  assert.equal(executed.body.receipt.result.sha, CREATED_SHA);
+  assert.equal(executed.body.receipt.sha, CREATED_SHA);
   assert.equal(fetchCalls, 2);
 
   const replayed = await runtime.handle({
