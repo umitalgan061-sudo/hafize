@@ -219,6 +219,7 @@
     let destroyed = false;
     let generation = 0;
     let pendingRefresh = false;
+    let sessionState = null;
 
     function setBusy(value) {
       busy = Boolean(value);
@@ -277,6 +278,12 @@
         : 'Görev aktivitesi bulunmuyor.';
     }
 
+    function renderProblem(state, text) {
+      render();
+      nodes.status.dataset.state = state;
+      nodes.status.textContent = text;
+    }
+
     function setFilter(next) {
       if (!FILTERS.has(next)) return false;
       filter = next;
@@ -287,8 +294,9 @@
       return true;
     }
 
-    async function refresh() {
+    async function refresh({ reason = 'manual' } = {}) {
       if (destroyed || busy) return false;
+      if (reason === 'session' && sessionState === 'loading') return false;
       const request = ++generation;
       setBusy(true);
       nodes.status.dataset.state = 'loading';
@@ -298,27 +306,23 @@
         if (destroyed || request !== generation) return false;
         if (response.status === 401) {
           allItems = [];
-          nodes.status.dataset.state = 'auth';
-          nodes.status.textContent = 'Görev aktivitesi için güvenli cloud oturumu aç.';
-          render();
+          sessionState = 'idle';
+          renderProblem('auth', 'Görev aktivitesi için güvenli cloud oturumu aç.');
           return true;
         }
         if (!response.ok || response.payload?.ok !== true) {
           allItems = [];
-          nodes.status.dataset.state = 'error';
-          nodes.status.textContent = 'Görev aktivitesi güvenli biçimde alınamadı.';
-          render();
+          renderProblem('error', 'Görev aktivitesi güvenli biçimde alınamadı.');
           return true;
         }
+        sessionState = 'active';
         allItems = normalizeActivities(response.payload);
         render();
         return true;
       } catch {
         if (!destroyed && request === generation) {
           allItems = [];
-          nodes.status.dataset.state = 'error';
-          nodes.status.textContent = 'Görev aktivitesine ulaşılamadı.';
-          render();
+          renderProblem('error', 'Görev aktivitesine ulaşılamadı.');
         }
         return false;
       } finally {
@@ -326,7 +330,7 @@
           setBusy(false);
           if (pendingRefresh) {
             pendingRefresh = false;
-            refresh();
+            refresh({ reason: 'mutation' });
           }
         }
       }
@@ -339,7 +343,7 @@
     function onMutation() {
       if (destroyed) return;
       if (busy) { pendingRefresh = true; return; }
-      refresh();
+      refresh({ reason: 'mutation' });
     }
     nodes.refresh.addEventListener('click', refresh);
     nodes.filters.addEventListener('click', onFilter);
@@ -347,17 +351,32 @@
     root.addEventListener?.(CANCELLED_EVENT, onMutation);
     root.addEventListener?.(RESCHEDULED_EVENT, onMutation);
 
-    refresh();
+    const sessionBadge = documentRef.querySelector?.('#sessionBadge');
+    let lastBadgeState = typeof sessionBadge?.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
+    const sessionObserver = typeof root.MutationObserver === 'function' && sessionBadge
+      ? new root.MutationObserver(() => {
+          const next = typeof sessionBadge.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
+          if (!next || next === lastBadgeState || next === 'loading') return;
+          lastBadgeState = next;
+          sessionState = next;
+          if (busy) { pendingRefresh = true; return; }
+          refresh({ reason: 'session' });
+        })
+      : null;
+    sessionObserver?.observe(sessionBadge, { attributes: true, attributeFilter: ['data-state'] });
+
+    refresh({ reason: 'mount' });
 
     return Object.freeze({
       refresh,
       setFilter,
-      getState: () => Object.freeze({ busy, filter, count: allItems.length, pendingRefresh }),
+      getState: () => Object.freeze({ busy, filter, count: allItems.length, pendingRefresh, sessionState }),
       destroy() {
         if (destroyed) return false;
         destroyed = true;
         generation += 1;
         pendingRefresh = false;
+        sessionObserver?.disconnect?.();
         nodes.refresh.removeEventListener('click', refresh);
         nodes.filters.removeEventListener('click', onFilter);
         root.removeEventListener?.(CREATED_EVENT, onMutation);
