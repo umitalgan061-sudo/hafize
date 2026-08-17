@@ -12,6 +12,8 @@
   const MAX_TASK_PREVIEW_CHARS = 180;
   const MAX_AGENT_ID_CHARS = 120;
   const MAX_SCHEDULE_ID_CHARS = 120;
+  const CREATED_EVENT = 'hafize:schedule-created';
+  const CANCELLED_EVENT = 'hafize:schedule-cancelled';
   const STATUSES = Object.freeze(new Set(['scheduled', 'running', 'completed', 'failed', 'cancelled']));
   const STATUS_COPY = Object.freeze({
     scheduled: 'Planlandı',
@@ -177,6 +179,7 @@
     let destroyed = false;
     let requestGeneration = 0;
     let sessionState = null;
+    let pendingMutationRefresh = false;
 
     function setBusy(value) {
       busy = Boolean(value);
@@ -202,6 +205,7 @@
         const article = documentRef.createElement('article');
         article.className = 'schedule-list-item';
         article.dataset.state = item.status;
+        article.dataset.scheduleId = item.scheduleId;
 
         const top = documentRef.createElement('div');
         top.className = 'schedule-list-item-head';
@@ -273,12 +277,25 @@
         }
         return false;
       } finally {
-        if (!destroyed && generation === requestGeneration) setBusy(false);
+        if (!destroyed && generation === requestGeneration) {
+          setBusy(false);
+          if (pendingMutationRefresh) {
+            pendingMutationRefresh = false;
+            refresh({ reason: 'mutation' });
+          }
+        }
       }
     }
 
     function onRefresh() { refresh({ reason: 'manual' }); }
+    function onScheduleMutation() {
+      if (destroyed) return;
+      if (busy) { pendingMutationRefresh = true; return; }
+      refresh({ reason: 'mutation' });
+    }
     nodes.refresh.addEventListener('click', onRefresh);
+    root.addEventListener?.(CREATED_EVENT, onScheduleMutation);
+    root.addEventListener?.(CANCELLED_EVENT, onScheduleMutation);
 
     const sessionBadge = documentRef.querySelector?.('#sessionBadge');
     let lastBadgeState = typeof sessionBadge?.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
@@ -297,13 +314,16 @@
 
     return Object.freeze({
       refresh,
-      getState: () => Object.freeze({ busy, sessionState }),
+      getState: () => Object.freeze({ busy, sessionState, pendingMutationRefresh }),
       destroy() {
         if (destroyed) return false;
         destroyed = true;
         requestGeneration += 1;
+        pendingMutationRefresh = false;
         observer?.disconnect?.();
         nodes.refresh.removeEventListener('click', onRefresh);
+        root.removeEventListener?.(CREATED_EVENT, onScheduleMutation);
+        root.removeEventListener?.(CANCELLED_EVENT, onScheduleMutation);
         nodes.card.remove();
         return true;
       }
@@ -316,6 +336,8 @@
     MAX_TASK_PREVIEW_CHARS,
     MAX_AGENT_ID_CHARS,
     MAX_SCHEDULE_ID_CHARS,
+    CREATED_EVENT,
+    CANCELLED_EVENT,
     STATUSES,
     STATUS_COPY,
     normalizeTaskPreview,
