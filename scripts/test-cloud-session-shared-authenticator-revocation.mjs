@@ -54,7 +54,6 @@ const login = await runtime.handle({ request: input.request, method: 'POST', pat
 assert.equal(login.status, 200);
 const sessionCookie = cookie(login);
 
-// Consumers such as schedule/GitHub write receive this shared authenticator, not a prompt-only policy.
 const principalBefore = runtime.authenticator.authenticate({ headers: { cookie: sessionCookie } });
 assert.equal(principalBefore.ok, true);
 assert.equal(principalBefore.principal.subject, 'user:shared-boundary');
@@ -69,7 +68,6 @@ const logout = await runtime.handle({
 });
 assert.equal(logout.status, 200);
 
-// The exact same shared authenticator must reject the copied cookie after logout.
 assert.deepEqual(
   runtime.authenticator.authenticate({ headers: { cookie: sessionCookie } }),
   { ok: false, error: 'AUTH_REQUIRED' }
@@ -78,8 +76,6 @@ assert.deepEqual(
   runtime.authenticator.revoke({ headers: { cookie: sessionCookie } }),
   { ok: false, error: 'AUTH_REQUIRED' }
 );
-
-// Cookie aliases/duplicates cannot bypass shared-boundary revocation parsing.
 assert.deepEqual(
   runtime.authenticator.authenticate({ headers: { Cookie: sessionCookie } }),
   { ok: false, error: 'AUTH_REQUIRED' }
@@ -97,17 +93,19 @@ const secondCookie = cookie(secondLogin);
 assert.notEqual(secondCookie, sessionCookie);
 assert.equal(runtime.authenticator.authenticate({ headers: { cookie: secondCookie } }).ok, true);
 
-// Revocation is deliberately process-local in this first implementation. A fresh runtime has no old deny-set.
-// This assertion makes the documented restart limitation explicit instead of implying durable revocation.
-const restartedRuntime = createCloudSessionNodeServerRuntime({ env, now: () => now });
-const afterRestart = restartedRuntime.authenticator.authenticate({ headers: { cookie: sessionCookie } });
-assert.equal(afterRestart.ok, true);
-assert.equal(afterRestart.principal.subject, 'user:shared-boundary');
+// A separately-created runtime in the same process shares the bounded fingerprint deny-set.
+// This models multiple auth consumers, not a process restart. A real restart still clears memory.
+const siblingRuntime = createCloudSessionNodeServerRuntime({ env, now: () => now });
+assert.deepEqual(
+  siblingRuntime.authenticator.authenticate({ headers: { cookie: sessionCookie } }),
+  { ok: false, error: 'AUTH_REQUIRED' }
+);
+assert.equal(siblingRuntime.authenticator.authenticate({ headers: { cookie: secondCookie } }).ok, true);
 
-// Expiry remains authoritative even after a process-local revocation set has been lost.
+// Expiry remains authoritative for both runtimes.
 now += 120_000;
 assert.deepEqual(
-  restartedRuntime.authenticator.authenticate({ headers: { cookie: sessionCookie } }),
+  siblingRuntime.authenticator.authenticate({ headers: { cookie: sessionCookie } }),
   { ok: false, error: 'AUTH_REQUIRED' }
 );
 assert.deepEqual(
