@@ -14,6 +14,7 @@
   const MAX_SCHEDULE_ID_CHARS = 120;
   const CREATED_EVENT = 'hafize:schedule-created';
   const CANCELLED_EVENT = 'hafize:schedule-cancelled';
+  const RESCHEDULED_EVENT = 'hafize:schedule-rescheduled';
   const STATUSES = Object.freeze(new Set(['scheduled', 'running', 'completed', 'failed', 'cancelled']));
   const STATUS_COPY = Object.freeze({
     scheduled: 'Planlandı',
@@ -224,6 +225,7 @@
 
         const meta = documentRef.createElement('p');
         meta.className = 'schedule-list-meta';
+        meta.dataset.runAt = item.runAt;
         meta.textContent = `${formatRunAt(item.runAt)} · ${statusText(item)}`;
 
         article.append(top, task, meta);
@@ -296,6 +298,7 @@
     nodes.refresh.addEventListener('click', onRefresh);
     root.addEventListener?.(CREATED_EVENT, onScheduleMutation);
     root.addEventListener?.(CANCELLED_EVENT, onScheduleMutation);
+    root.addEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
 
     const sessionBadge = documentRef.querySelector?.('#sessionBadge');
     let lastBadgeState = typeof sessionBadge?.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
@@ -324,6 +327,7 @@
         nodes.refresh.removeEventListener('click', onRefresh);
         root.removeEventListener?.(CREATED_EVENT, onScheduleMutation);
         root.removeEventListener?.(CANCELLED_EVENT, onScheduleMutation);
+        root.removeEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
         nodes.card.remove();
         return true;
       }
@@ -338,6 +342,7 @@
     MAX_SCHEDULE_ID_CHARS,
     CREATED_EVENT,
     CANCELLED_EVENT,
+    RESCHEDULED_EVENT,
     STATUSES,
     STATUS_COPY,
     normalizeTaskPreview,
