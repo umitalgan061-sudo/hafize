@@ -202,6 +202,7 @@
         const article = documentRef.createElement('article');
         article.className = 'schedule-list-item';
         article.dataset.state = item.status;
+        article.dataset.scheduleId = item.scheduleId;
 
         const top = documentRef.createElement('div');
         top.className = 'schedule-list-item-head';
