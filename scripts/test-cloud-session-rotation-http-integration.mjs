@@ -88,7 +88,7 @@ const rotatedRuntime = createCloudSessionNodeServerRuntime({ env: env(newKey, ol
 const oldStatusDuringOverlap = await status(rotatedRuntime, oldCookie);
 assert.equal(oldStatusDuringOverlap.status, 200);
 assert.equal(oldStatusDuringOverlap.body.authenticated, true);
-assert.equal(oldStatusDuringOverlap.body.subject, subject);
+assert.equal(Object.prototype.hasOwnProperty.call(oldStatusDuringOverlap.body, 'subject'), false);
 assert.equal(Object.prototype.hasOwnProperty.call(oldStatusDuringOverlap.body, 'signingKeySlot'), false);
 
 const newCookie = await login(rotatedRuntime);
