@@ -52,7 +52,6 @@ assert.equal(cancelled.ok, false);
 assert.equal(cancelled.error, 'SCHEDULE_AGENT_RUN_CANCELLED');
 assert.equal(cancelled.taskLedger?.traceId, 'trace-cancel-1');
 
-let providerCalls = 0;
 const preAborted = new AbortController();
 preAborted.abort();
 const preResult = await executor.executeAgentTask({
@@ -63,8 +62,8 @@ const preResult = await executor.executeAgentTask({
 });
 assert.equal(preResult.ok, false);
 assert.equal(preResult.error, 'SCHEDULE_AGENT_RUN_CANCELLED');
-assert.equal(providerCalls, 0);
 
+let providerCalls = 0;
 let disposed = 0;
 const timeoutComplete = createScheduledNvidiaCompletion({
   timeoutMs: 10_000,
@@ -88,12 +87,8 @@ const timeoutExecutor = createScheduledAgentExecutor({
   nvidiaConfigured: true,
   complete: timeoutComplete,
   async runAgentTask({ complete: runComplete, signal }) {
-    try {
-      await runComplete({ model: 'nvidia/test-model', messages: [] }, signal);
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, error: error?.code };
-    }
+    await runComplete({ model: 'nvidia/test-model', messages: [] }, signal);
+    return { ok: true, content: 'unexpected' };
   }
 });
 const timeoutResult = await timeoutExecutor.executeAgentTask({
@@ -103,6 +98,7 @@ const timeoutResult = await timeoutExecutor.executeAgentTask({
 });
 assert.equal(timeoutResult.ok, false);
 assert.equal(timeoutResult.error, 'SCHEDULE_AGENT_RUN_TIMEOUT');
+assert.equal(timeoutResult.taskLedger?.traceId, 'trace-timeout-1');
 assert.equal(providerCalls, 1);
 assert.equal(disposed, 1);
 
