@@ -116,8 +116,6 @@
     '/gmail-workspace.css',
     '/memory-consent-review.js',
     '/memory-consent-review.css',
-    '/conversation-insights.js',
-    '/conversation-reading-controls.js',
     '/cloud-session-ui.js',
     '/memory-ui.js',
     '/voice-input.js',
