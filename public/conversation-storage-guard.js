@@ -320,7 +320,9 @@
       const reconciled = reconcileConversationSnapshots(baseline.value, current.value, candidate.value);
       const serialized = canonicalJson(reconciled.value);
       const result = originalSetItem.call(storage, STORAGE_KEY, serialized);
-      baseline = Object.freeze({ changed: false, value: reconciled.value, serialized, reason: null });
+      // Baseline tracks what this tab actually knows in memory, not the merged persisted result.
+      // Otherwise a second stale write could treat preserved remote data as locally known and erase it.
+      baseline = candidate;
       if ((reconciled.conflicts > 0 || reconciled.remoteChangesPreserved > 0) && typeof onMerge === 'function') {
         onMerge(Object.freeze({ conflicts: reconciled.conflicts, remoteChangesPreserved: reconciled.remoteChangesPreserved }));
       }
