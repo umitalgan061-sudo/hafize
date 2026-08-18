@@ -130,7 +130,7 @@
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 10_000) throw new Error('INVALID_SCHEDULE_LIST_OFFSET');
     if (offset > 0 && (typeof snapshot !== 'string' || !SNAPSHOT_PATTERN.test(snapshot))) throw new Error('INVALID_SCHEDULE_LIST_SNAPSHOT');
     if (offset === 0 && snapshot != null) throw new Error('INVALID_SCHEDULE_LIST_SNAPSHOT');
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), view: 'summary' });
     if (offset > 0) {
       params.set('offset', String(offset));
       params.set('snapshot', snapshot);
