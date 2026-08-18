@@ -8,10 +8,12 @@
   'use strict';
 
   const PATH = '/api/schedules';
-  const MAX_ITEMS = 100;
+  const PAGE_SIZE = 100;
+  const MAX_ITEMS = 500;
   const MAX_TASK_PREVIEW_CHARS = 180;
   const MAX_AGENT_ID_CHARS = 120;
   const MAX_SCHEDULE_ID_CHARS = 120;
+  const SNAPSHOT_PATTERN = /^[A-Za-z0-9_-]{43}$/;
   const CREATED_EVENT = 'hafize:schedule-created';
   const CANCELLED_EVENT = 'hafize:schedule-cancelled';
   const RESCHEDULED_EVENT = 'hafize:schedule-rescheduled';
@@ -75,6 +77,26 @@
     return output;
   }
 
+  function normalizeListMeta(payload) {
+    const meta = payload?.listMeta;
+    if (!meta || Array.isArray(meta) || typeof meta !== 'object') return Object.freeze({ snapshot: null, nextOffset: null, total: null });
+    const snapshot = typeof meta.snapshot === 'string' && SNAPSHOT_PATTERN.test(meta.snapshot) ? meta.snapshot : null;
+    const nextOffset = Number.isSafeInteger(meta.nextOffset) && meta.nextOffset > 0 && meta.nextOffset <= 10_000 ? meta.nextOffset : null;
+    const total = Number.isSafeInteger(meta.total) && meta.total >= 0 && meta.total <= 100_000 ? meta.total : null;
+    if (nextOffset !== null && snapshot === null) return Object.freeze({ snapshot: null, nextOffset: null, total });
+    return Object.freeze({ snapshot, nextOffset, total });
+  }
+
+  function mergeSchedules(current, incoming) {
+    const byId = new Map();
+    for (const item of [...current, ...incoming]) {
+      if (!item?.scheduleId || byId.has(item.scheduleId)) continue;
+      byId.set(item.scheduleId, item);
+      if (byId.size >= MAX_ITEMS) break;
+    }
+    return Array.from(byId.values()).sort((a, b) => Date.parse(a.runAt) - Date.parse(b.runAt) || a.scheduleId.localeCompare(b.scheduleId));
+  }
+
   function formatRunAt(value, locale = 'tr-TR') {
     const iso = normalizeIso(value);
     if (!iso) return 'Zaman bilinmiyor';
@@ -104,11 +126,23 @@
     }
   }
 
+  function createListPath({ offset = 0, snapshot = null } = {}) {
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 10_000) throw new Error('INVALID_SCHEDULE_LIST_OFFSET');
+    if (offset > 0 && (typeof snapshot !== 'string' || !SNAPSHOT_PATTERN.test(snapshot))) throw new Error('INVALID_SCHEDULE_LIST_SNAPSHOT');
+    if (offset === 0 && snapshot != null) throw new Error('INVALID_SCHEDULE_LIST_SNAPSHOT');
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+    if (offset > 0) {
+      params.set('offset', String(offset));
+      params.set('snapshot', snapshot);
+    }
+    return `${PATH}?${params.toString()}`;
+  }
+
   function createClient({ fetchImpl = globalThis.fetch } = {}) {
     if (typeof fetchImpl !== 'function') throw new Error('INVALID_SCHEDULE_LIST_FETCH');
     return Object.freeze({
-      async list() {
-        const response = await fetchImpl(PATH, {
+      async list(options = {}) {
+        const response = await fetchImpl(createListPath(options), {
           method: 'GET',
           headers: { Accept: 'application/json' },
           credentials: 'same-origin',
@@ -162,8 +196,15 @@
     list.className = 'schedule-list-items';
     list.setAttribute('aria-label', 'Zamanlanmış görevler');
 
-    card.append(head, status, list);
-    return { card, refresh, status, list };
+    const more = documentRef.createElement('button');
+    more.type = 'button';
+    more.className = 'mini-btn schedule-list-more';
+    more.textContent = 'Daha eski görevleri yükle';
+    more.hidden = true;
+    more.setAttribute('aria-label', 'Daha eski zamanlanmış görevleri yükle');
+
+    card.append(head, status, list, more);
+    return { card, refresh, status, list, more };
   }
 
   function mount(documentRef, root, { fetchImpl = root?.fetch } = {}) {
@@ -181,11 +222,24 @@
     let requestGeneration = 0;
     let sessionState = null;
     let pendingMutationRefresh = false;
+    let loadedItems = [];
+    let snapshot = null;
+    let nextOffset = null;
+    let total = null;
 
     function setBusy(value) {
       busy = Boolean(value);
       nodes.card.setAttribute('aria-busy', String(busy));
       nodes.refresh.disabled = busy;
+      nodes.more.disabled = busy;
+    }
+
+    function resetPagination() {
+      loadedItems = [];
+      snapshot = null;
+      nextOffset = null;
+      total = null;
+      nodes.more.hidden = true;
     }
 
     function clearList() {
@@ -234,69 +288,100 @@
       }
     }
 
-    async function refresh({ reason = 'manual' } = {}) {
+    function renderReadyStatus() {
+      const visible = loadedItems.length;
+      nodes.status.dataset.state = 'ready';
+      if (!visible) nodes.status.textContent = 'Zamanlanmış görev bulunmuyor.';
+      else if (total !== null && total > visible) nodes.status.textContent = `${visible}/${total} zamanlanmış görev gösteriliyor.`;
+      else nodes.status.textContent = `${visible} zamanlanmış görev gösteriliyor.`;
+      nodes.more.hidden = nextOffset === null || snapshot === null || visible >= MAX_ITEMS;
+    }
+
+    async function loadPage({ append = false, reason = 'manual' } = {}) {
       if (destroyed || busy) return false;
       if (reason === 'session' && sessionState === 'loading') return false;
+      if (append && (nextOffset === null || snapshot === null || loadedItems.length >= MAX_ITEMS)) return false;
       const generation = ++requestGeneration;
+      const requestOffset = append ? nextOffset : 0;
+      const requestSnapshot = append ? snapshot : null;
       setBusy(true);
       nodes.status.dataset.state = 'loading';
-      nodes.status.textContent = 'Zamanlanmış görevler yükleniyor…';
+      nodes.status.textContent = append ? 'Daha eski görevler yükleniyor…' : 'Zamanlanmış görevler yükleniyor…';
       try {
-        const response = await client.list();
+        const response = await client.list({ offset: requestOffset, snapshot: requestSnapshot });
         if (destroyed || generation !== requestGeneration) return false;
+        if (append && response.status === 409 && response.payload?.error === 'SCHEDULE_LIST_SNAPSHOT_CHANGED') {
+          resetPagination();
+          nodes.status.dataset.state = 'stale';
+          nodes.status.textContent = 'Görev listesi değişti; güncel ilk sayfa yeniden yükleniyor…';
+          setBusy(false);
+          return loadPage({ append: false, reason: 'snapshot-changed' });
+        }
         if (response.status === 401) {
           sessionState = 'idle';
+          resetPagination();
           nodes.status.dataset.state = 'auth';
           nodes.status.textContent = 'Görevleri görmek için güvenli cloud oturumu aç.';
           renderEmpty('Cloud oturumu gerekli.');
           return true;
         }
         if (response.status === 404) {
+          resetPagination();
           nodes.status.dataset.state = 'disabled';
           nodes.status.textContent = 'Zamanlanmış görev API’si sunucuda etkin değil.';
           renderEmpty('Görev altyapısı kullanılamıyor.');
           return true;
         }
         if (!response.ok || response.payload?.ok !== true) {
+          if (!append) resetPagination();
           nodes.status.dataset.state = 'error';
           nodes.status.textContent = 'Görev listesi güvenli biçimde alınamadı.';
-          renderEmpty('Liste şu anda kullanılamıyor.');
+          if (!append) renderEmpty('Liste şu anda kullanılamıyor.');
           return true;
         }
         sessionState = 'active';
-        const items = normalizeSchedules(response.payload);
-        nodes.status.dataset.state = 'ready';
-        nodes.status.textContent = items.length
-          ? `${items.length} zamanlanmış görev gösteriliyor.`
-          : 'Zamanlanmış görev bulunmuyor.';
-        if (items.length) renderSchedules(items);
+        const pageItems = normalizeSchedules(response.payload);
+        const meta = normalizeListMeta(response.payload);
+        loadedItems = append ? mergeSchedules(loadedItems, pageItems) : pageItems.slice(0, MAX_ITEMS);
+        snapshot = meta.snapshot;
+        nextOffset = loadedItems.length >= MAX_ITEMS ? null : meta.nextOffset;
+        total = meta.total;
+        renderReadyStatus();
+        if (loadedItems.length) renderSchedules(loadedItems);
         else renderEmpty('Henüz zamanlanmış görev yok.');
         return true;
       } catch {
         if (!destroyed && generation === requestGeneration) {
+          if (!append) resetPagination();
           nodes.status.dataset.state = 'error';
           nodes.status.textContent = 'Görev listesine ulaşılamadı.';
-          renderEmpty('Bağlantı kurulamadı.');
+          if (!append) renderEmpty('Bağlantı kurulamadı.');
         }
         return false;
       } finally {
-        if (!destroyed && generation === requestGeneration) {
+        if (!destroyed && generation === requestGeneration && busy) {
           setBusy(false);
           if (pendingMutationRefresh) {
             pendingMutationRefresh = false;
-            refresh({ reason: 'mutation' });
+            loadPage({ append: false, reason: 'mutation' });
           }
         }
       }
     }
 
+    function refresh({ reason = 'manual' } = {}) {
+      resetPagination();
+      return loadPage({ append: false, reason });
+    }
     function onRefresh() { refresh({ reason: 'manual' }); }
+    function onMore() { loadPage({ append: true, reason: 'more' }); }
     function onScheduleMutation() {
       if (destroyed) return;
       if (busy) { pendingMutationRefresh = true; return; }
       refresh({ reason: 'mutation' });
     }
     nodes.refresh.addEventListener('click', onRefresh);
+    nodes.more.addEventListener('click', onMore);
     root.addEventListener?.(CREATED_EVENT, onScheduleMutation);
     root.addEventListener?.(CANCELLED_EVENT, onScheduleMutation);
     root.addEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
@@ -318,14 +403,17 @@
 
     return Object.freeze({
       refresh,
-      getState: () => Object.freeze({ busy, sessionState, pendingMutationRefresh }),
+      loadMore: () => loadPage({ append: true, reason: 'more' }),
+      getState: () => Object.freeze({ busy, sessionState, pendingMutationRefresh, loaded: loadedItems.length, snapshot, nextOffset, total }),
       destroy() {
         if (destroyed) return false;
         destroyed = true;
         requestGeneration += 1;
         pendingMutationRefresh = false;
+        resetPagination();
         observer?.disconnect?.();
         nodes.refresh.removeEventListener('click', onRefresh);
+        nodes.more.removeEventListener('click', onMore);
         root.removeEventListener?.(CREATED_EVENT, onScheduleMutation);
         root.removeEventListener?.(CANCELLED_EVENT, onScheduleMutation);
         root.removeEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
@@ -337,10 +425,12 @@
 
   return Object.freeze({
     PATH,
+    PAGE_SIZE,
     MAX_ITEMS,
     MAX_TASK_PREVIEW_CHARS,
     MAX_AGENT_ID_CHARS,
     MAX_SCHEDULE_ID_CHARS,
+    SNAPSHOT_PATTERN,
     CREATED_EVENT,
     CANCELLED_EVENT,
     RESCHEDULED_EVENT,
@@ -350,6 +440,9 @@
     normalizeIso,
     normalizeSchedule,
     normalizeSchedules,
+    normalizeListMeta,
+    mergeSchedules,
+    createListPath,
     formatRunAt,
     statusText,
     createClient,
