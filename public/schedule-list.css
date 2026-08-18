@@ -28,7 +28,8 @@
 }
 
 .schedule-list-status[data-state="auth"],
-.schedule-list-status[data-state="disabled"] {
+.schedule-list-status[data-state="disabled"],
+.schedule-list-status[data-state="stale"] {
   color: #8a6a3b;
 }
 
@@ -138,7 +139,13 @@
   min-width: 52px;
 }
 
+.schedule-list-more {
+  justify-self: stretch;
+  min-height: 40px;
+}
+
 .schedule-list-refresh:focus-visible,
+.schedule-list-more:focus-visible,
 .schedule-list-item:focus-visible {
   outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
   outline-offset: 2px;
@@ -159,8 +166,12 @@
     max-height: 360px;
   }
 
+  .schedule-list-refresh,
+  .schedule-list-more {
+    min-height: 44px;
+  }
+
   .schedule-list-refresh {
-    min-height: 40px;
     min-width: 64px;
   }
 
@@ -183,7 +194,8 @@
   .schedule-list-item,
   .schedule-list-badge,
   .schedule-list-empty,
-  .schedule-list-refresh {
+  .schedule-list-refresh,
+  .schedule-list-more {
     border: 1px solid ButtonText;
     forced-color-adjust: auto;
   }
