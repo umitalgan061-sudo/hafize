@@ -37,6 +37,7 @@ import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
+import { createScheduledNvidiaCompletion } from './lib/scheduled-nvidia-completion.mjs';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -233,22 +234,17 @@ const SCHEDULE_AUTHENTICATOR = createOptionalScheduleAuthenticator();
 const SCHEDULE_HTTP_API = SCHEDULE_AUTHENTICATOR
   ? createScheduleHttpApi({ authenticator: SCHEDULE_AUTHENTICATOR, commands: SCHEDULE_COMMANDS, readJson })
   : null;
+const SCHEDULED_NVIDIA_COMPLETE = createScheduledNvidiaCompletion({
+  complete: nvidiaJsonCompletion,
+  timeoutMs: SCHEDULE_RUN_TIMEOUT_MS
+});
 const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
   registry: AGENT_REGISTRY,
   model: SCHEDULE_MODEL,
   nvidiaConfigured: Boolean(NVIDIA_API_KEY),
   githubReadConfigured: GITHUB_READ_CONFIGURED,
   githubReadFile: GITHUB_READ_FILE,
-  async complete(payload) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SCHEDULE_RUN_TIMEOUT_MS);
-    timeout.unref?.();
-    try {
-      return await nvidiaJsonCompletion(payload, controller.signal);
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
+  complete: SCHEDULED_NVIDIA_COMPLETE
 });
 const SCHEDULE_EXECUTION_RUNTIME = createScheduleExecutionRuntime({
   executor: SCHEDULED_AGENT_EXECUTOR,
@@ -262,12 +258,13 @@ const SCHEDULE_WORKER = createScheduleWorker({
 });
 let scheduleTickPromise = null;
 let scheduleWorkerTimer = null;
+const scheduleWorkerController = new AbortController();
 
 async function runScheduleTick() {
   if (scheduleTickPromise) return scheduleTickPromise;
   scheduleTickPromise = (async () => {
     try {
-      await SCHEDULE_WORKER.runDue();
+      await SCHEDULE_WORKER.runDue({ signal: scheduleWorkerController.signal });
     } catch {
       console.error('Hafize schedule worker tick failed');
     } finally {
@@ -819,6 +816,7 @@ function closeHttpServer() {
 async function shutdown() {
   if (shutdownPromise) return shutdownPromise;
   shutdownPromise = (async () => {
+    scheduleWorkerController.abort();
     stopScheduleWorkerLoop();
     const httpClose = closeHttpServer();
     if (scheduleTickPromise) await scheduleTickPromise;
