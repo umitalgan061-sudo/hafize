@@ -4,7 +4,10 @@
   if (typeof module === 'object' && module?.exports) module.exports = api;
   else {
     root.HafizeConversationInsights = api;
-    const install = () => api.mount({ documentRef: root.document, MutationObserverImpl: root.MutationObserver });
+    const install = () => {
+      api.installConversationForkAsset(root.document);
+      api.mount({ documentRef: root.document, MutationObserverImpl: root.MutationObserver });
+    };
     if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
     else install();
   }
@@ -14,6 +17,19 @@
   const WORDS_PER_MINUTE = 220;
   const CARD_ID = 'conversationInsightsCard';
   const STATUS_ID = 'conversationInsightsStatus';
+  const FORK_SCRIPT_ID = 'hafizeConversationForkScript';
+  const FORK_SCRIPT_SRC = '/conversation-fork.js';
+
+  function installConversationForkAsset(documentRef) {
+    if (!documentRef?.head || typeof documentRef.createElement !== 'function') return false;
+    if (documentRef.getElementById?.(FORK_SCRIPT_ID)) return false;
+    const script = documentRef.createElement('script');
+    script.id = FORK_SCRIPT_ID;
+    script.src = FORK_SCRIPT_SRC;
+    script.async = false;
+    documentRef.head.append(script);
+    return true;
+  }
 
   function normalizeVisibleText(value) {
     return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
@@ -185,6 +201,9 @@
     WORDS_PER_MINUTE,
     CARD_ID,
     STATUS_ID,
+    FORK_SCRIPT_ID,
+    FORK_SCRIPT_SRC,
+    installConversationForkAsset,
     normalizeVisibleText,
     countWords,
     estimateReadingMinutes,
