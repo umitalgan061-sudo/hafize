@@ -38,12 +38,17 @@ function raw(id, overrides = {}) {
 const api = await loadScheduleList();
 assert.equal(api.PAGE_SIZE, 100);
 assert.equal(api.MAX_ITEMS, 500);
+assert.deepEqual([...api.SCOPES], ['all', 'active', 'history', 'failed']);
+assert.equal(api.normalizeScope('active'), 'active');
+assert.equal(api.normalizeScope('unknown'), 'all');
 assert.match('A'.repeat(43), api.SNAPSHOT_PATTERN);
-assert.equal(api.createListPath(), '/api/schedules?limit=100');
+assert.equal(api.createListPath(), '/api/schedules?limit=100&view=summary&scope=all');
+assert.equal(api.createListPath({ scope: 'failed' }), '/api/schedules?limit=100&view=summary&scope=failed');
 assert.equal(
-  api.createListPath({ offset: 100, snapshot: 'A'.repeat(43) }),
-  `/api/schedules?limit=100&offset=100&snapshot=${'A'.repeat(43)}`
+  api.createListPath({ offset: 100, snapshot: 'A'.repeat(43), scope: 'history' }),
+  `/api/schedules?limit=100&view=summary&scope=history&offset=100&snapshot=${'A'.repeat(43)}`
 );
+assert.equal(api.createListPath({ scope: 'not-a-scope' }), '/api/schedules?limit=100&view=summary&scope=all');
 assert.throws(() => api.createListPath({ offset: 100 }), /INVALID_SCHEDULE_LIST_SNAPSHOT/);
 assert.throws(() => api.createListPath({ offset: -1 }), /INVALID_SCHEDULE_LIST_OFFSET/);
 assert.throws(() => api.createListPath({ offset: 0, snapshot: 'A'.repeat(43) }), /INVALID_SCHEDULE_LIST_SNAPSHOT/);
