@@ -110,12 +110,25 @@ assert.equal(next.body.listMeta.offset, 2);
 assert.equal(next.body.listMeta.nextOffset, null);
 assert.equal(next.body.listMeta.snapshot, snapshot);
 
+const active = await api.handle({
+  request: request('/api/schedules?limit=2&view=summary&scope=active'),
+  method: 'GET',
+  pathname: '/api/schedules',
+  headers: {}
+});
+assert.equal(active.status, 200);
+assert.equal(active.body.schedules.length, 2);
+assert.ok(active.body.schedules.every((entry) => ['scheduled', 'running'].includes(entry.status)));
+
 const beforeInvalid = listCalls;
 for (const url of [
   '/api/schedules?view=full',
   '/api/schedules?view=SUMMARY',
   '/api/schedules?view=summary&view=summary',
   '/api/schedules?view=',
+  '/api/schedules?scope=',
+  '/api/schedules?scope=FAILED',
+  '/api/schedules?scope=failed&scope=failed',
   '/api/schedules?limit=2&offset=2&view=summary',
   `/api/schedules?limit=2&snapshot=${snapshot}&view=summary`,
   '/api/schedules?limit=3&view=summary',
@@ -128,10 +141,10 @@ for (const url of [
 }
 assert.equal(listCalls, beforeInvalid, 'invalid summary query must not execute commands.list');
 
-const parsed = parseListQuery(request('/api/schedules?limit=2&view=summary'), 2);
-assert.deepEqual(parsed, { limit: 2, offset: 0, snapshot: null, view: 'summary' });
+const parsed = parseListQuery(request('/api/schedules?limit=2&view=summary&scope=failed'), 2);
+assert.deepEqual(parsed, { limit: 2, offset: 0, snapshot: null, view: 'summary', scope: 'failed' });
 const parsedLegacy = parseListQuery(request('/api/schedules?limit=2'), 2);
-assert.deepEqual(parsedLegacy, { limit: 2, offset: 0, snapshot: null, view: null });
+assert.deepEqual(parsedLegacy, { limit: 2, offset: 0, snapshot: null, view: null, scope: 'all' });
 
 const serializedSummary = JSON.stringify(summary.body);
 for (const forbidden of [
@@ -143,5 +156,5 @@ for (const forbidden of [
   'lastError'
 ]) assert.equal(serializedSummary.includes(forbidden), false, `summary leaked ${forbidden}`);
 
-assert.equal(listCalls, 3);
+assert.equal(listCalls, 4);
 console.log('schedule list summary HTTP tests passed');
