@@ -15,11 +15,12 @@
   const STATUS_ID = 'responseRetryStatus';
   const MAX_PROMPT_CHARS = 12_000;
   const DRAFT_BLOCKED = 'Gönderilmemiş taslağın var. Tekrar denemeden önce taslağı gönder veya temizle.';
-  const PROMPT_UNAVAILABLE = 'Tekrar gönderilecek son kullanıcı isteği bulunamadı.';
+  const PROMPT_UNAVAILABLE = 'Tekrar denenecek kullanıcı isteği bulunamadı.';
+  const EDIT_UNAVAILABLE = 'Güvenli düzenleme dalı hazır değil.';
 
   function normalizePrompt(value) {
     if (typeof value !== 'string') return '';
-    const text = value.trim();
+    const text = value.normalize('NFC').replace(/\u0000/g, '').trim();
     if (!text || text.length > MAX_PROMPT_CHARS) return '';
     return text;
   }
@@ -40,14 +41,13 @@
       if (assistant?.role !== 'assistant' || user?.role !== 'user') continue;
       const prompt = normalizePrompt(user.content);
       if (!prompt) return null;
-      return Object.freeze({ assistantId: assistant.id || '', prompt });
+      return Object.freeze({ assistantId: assistant.id || '', userId: user.id || '', prompt });
     }
     return null;
   }
 
   function createController({
     documentRef = globalThis.document,
-    EventImpl = globalThis.Event,
     MutationObserverImpl = globalThis.MutationObserver
   } = {}) {
     if (!documentRef || typeof documentRef.querySelector !== 'function') {
@@ -102,27 +102,30 @@
       const user = articles.at(-2);
       if (!assistant?.classList?.contains?.('assistant') || !user?.classList?.contains?.('user')) return null;
       const prompt = normalizePrompt(user.querySelector?.('.content')?.textContent || '');
-      return prompt ? { assistant, prompt } : null;
+      const userMessageId = typeof user.dataset?.messageId === 'string' ? user.dataset.messageId.trim() : '';
+      return prompt && userMessageId ? { assistant, user, prompt, userMessageId } : null;
     }
 
-    function submitPrompt(prompt) {
-      const { composer, input, send } = nodes();
-      if (!composer || !input || !send || isStreaming(send)) return false;
+    function prepareRetryBranch(pair) {
+      const { input, send } = nodes();
+      if (!input || !send || isStreaming(send)) return false;
       if (hasDraft(input.value)) {
         showStatus(DRAFT_BLOCKED);
         input.focus?.();
         return false;
       }
-      const clean = normalizePrompt(prompt);
-      if (!clean) {
+      const clean = normalizePrompt(pair?.prompt);
+      if (!clean || !pair?.userMessageId) {
         showStatus(PROMPT_UNAVAILABLE);
         return false;
       }
-      input.value = clean;
-      if (typeof EventImpl === 'function') input.dispatchEvent?.(new EventImpl('input', { bubbles: true }));
-      showStatus('Son istek yeniden gönderiliyor…');
-      if (typeof composer.requestSubmit === 'function') composer.requestSubmit();
-      else send.click?.();
+      const editButton = pair.user?.querySelector?.('.message-edit-btn');
+      if (!editButton || typeof editButton.click !== 'function' || editButton.disabled) {
+        showStatus(EDIT_UNAVAILABLE);
+        return false;
+      }
+      showStatus('Yeni tekrar dalı hazırlanıyor…');
+      editButton.click();
       return true;
     }
 
@@ -148,9 +151,9 @@
       button.type = 'button';
       button.className = 'mini-btn response-retry-button';
       button.textContent = '↻ Tekrar dene';
-      button.setAttribute('aria-label', 'Son kullanıcı isteğini yeniden gönder');
-      button.title = 'Önceki yanıtı silmeden son kullanıcı isteğini yeniden gönderir';
-      button.addEventListener('click', () => submitPrompt(pair.prompt));
+      button.setAttribute('aria-label', 'Son kullanıcı isteğini yeni bir sohbet dalında yeniden hazırla');
+      button.title = 'Önceki yanıtı ve kaynak sohbeti değiştirmeden yeni bir dal hazırlar';
+      button.addEventListener('click', () => prepareRetryBranch(pair));
       wrap.append(button);
       pair.assistant.append(wrap);
       renderedAssistant = pair.assistant;
@@ -189,7 +192,7 @@
       return true;
     }
 
-    return Object.freeze({ mount, destroy, render, submitPrompt });
+    return Object.freeze({ mount, destroy, render, prepareRetryBranch, getRenderedPair });
   }
 
   function mount(options) {
@@ -207,6 +210,7 @@
     MAX_PROMPT_CHARS,
     DRAFT_BLOCKED,
     PROMPT_UNAVAILABLE,
+    EDIT_UNAVAILABLE,
     normalizePrompt,
     hasDraft,
     isStreaming,
