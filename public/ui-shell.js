@@ -21,6 +21,14 @@
   const SCHEDULE_LIST_FILTER_SCRIPT_ID = 'hafizeScheduleListFilterScript';
   const CONVERSATION_STORAGE_GUARD_SCRIPT = '/conversation-storage-guard.js';
   const CONVERSATION_STORAGE_GUARD_SCRIPT_ID = 'hafizeConversationStorageGuardScript';
+  const CONVERSATION_BRANCH_ASSETS = Object.freeze([
+    Object.freeze({ id: 'hafizeMessageCopyScript', src: '/message-copy.js' }),
+    Object.freeze({ id: 'hafizeConversationModelStateScript', src: '/conversation-model-state.js' }),
+    Object.freeze({ id: 'hafizeConversationForkScript', src: '/conversation-fork.js' }),
+    Object.freeze({ id: 'hafizeMessageEditScript', src: '/message-edit.js' }),
+    Object.freeze({ id: 'hafizeResponseRetryStyleScript', src: '/response-retry-style.js' }),
+    Object.freeze({ id: 'hafizeResponseRetryScript', src: '/response-retry.js' })
+  ]);
 
   function resolveTheme(stored, prefersDark) {
     if (stored === 'light' || stored === 'dark') return stored;
@@ -73,6 +81,15 @@
 
   function installConversationStorageGuard(documentRef) {
     return appendFixedScript(documentRef, CONVERSATION_STORAGE_GUARD_SCRIPT_ID, CONVERSATION_STORAGE_GUARD_SCRIPT);
+  }
+
+  function installConversationBranchAssets(documentRef) {
+    if (!documentRef) return 0;
+    let installed = 0;
+    for (const asset of CONVERSATION_BRANCH_ASSETS) {
+      if (appendFixedScript(documentRef, asset.id, asset.src)) installed += 1;
+    }
+    return installed;
   }
 
   function createMonthCells(year, month, selectedDay) {
@@ -168,6 +185,7 @@
     installDesktopDeviceAssets(documentRef, root);
     installScheduleListFilterAsset(documentRef);
     installConversationStorageGuard(documentRef);
+    installConversationBranchAssets(documentRef);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
     const storage = root?.localStorage;
@@ -268,12 +286,14 @@
     DESKTOP_DEVICE_STYLE,
     SCHEDULE_LIST_FILTER_SCRIPT,
     CONVERSATION_STORAGE_GUARD_SCRIPT,
+    CONVERSATION_BRANCH_ASSETS,
     resolveTheme,
     hasDesktopDeviceBridge,
     appendFixedScript,
     installDesktopDeviceAssets,
     installScheduleListFilterAsset,
     installConversationStorageGuard,
+    installConversationBranchAssets,
     createMonthCells,
     moveCalendarDate,
     installSidebarDisclosure,
