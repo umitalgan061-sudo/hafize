@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v84`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v85`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -66,6 +66,8 @@
     '/schedule-runtime-status.css',
     '/schedule-list.js',
     '/schedule-list.css',
+    '/schedule-list-filter.js',
+    '/schedule-list-filter.css',
     '/schedule-create.js',
     '/schedule-create.css',
     '/schedule-cancel.js',

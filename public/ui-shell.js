@@ -17,6 +17,8 @@
   const DESKTOP_DEVICE_STYLE = '/desktop-device-status.css';
   const DESKTOP_DEVICE_SCRIPT_ID = 'hafizeDesktopDeviceScript';
   const DESKTOP_DEVICE_STYLE_ID = 'hafizeDesktopDeviceStyle';
+  const SCHEDULE_LIST_FILTER_SCRIPT = '/schedule-list-filter.js';
+  const SCHEDULE_LIST_FILTER_SCRIPT_ID = 'hafizeScheduleListFilterScript';
 
   function resolveTheme(stored, prefersDark) {
     if (stored === 'light' || stored === 'dark') return stored;
@@ -53,6 +55,19 @@
       script.async = false;
       head.append(script);
     }
+    return true;
+  }
+
+  function installScheduleListFilterAsset(documentRef) {
+    if (!documentRef) return false;
+    const head = documentRef.head || documentRef.querySelector?.('head');
+    if (!head || typeof documentRef.createElement !== 'function') return false;
+    if (documentRef.getElementById?.(SCHEDULE_LIST_FILTER_SCRIPT_ID)) return false;
+    const script = documentRef.createElement('script');
+    script.id = SCHEDULE_LIST_FILTER_SCRIPT_ID;
+    script.src = SCHEDULE_LIST_FILTER_SCRIPT;
+    script.async = false;
+    head.append(script);
     return true;
   }
 
@@ -147,6 +162,7 @@
     const sidebarDisclosure = installSidebarDisclosure(documentRef);
     installChatAccessibility(documentRef);
     installDesktopDeviceAssets(documentRef, root);
+    installScheduleListFilterAsset(documentRef);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
     const storage = root?.localStorage;
@@ -245,9 +261,11 @@
     WEEKDAYS,
     DESKTOP_DEVICE_SCRIPT,
     DESKTOP_DEVICE_STYLE,
+    SCHEDULE_LIST_FILTER_SCRIPT,
     resolveTheme,
     hasDesktopDeviceBridge,
     installDesktopDeviceAssets,
+    installScheduleListFilterAsset,
     createMonthCells,
     moveCalendarDate,
     installSidebarDisclosure,

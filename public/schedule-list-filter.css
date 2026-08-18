@@ -1,0 +1,108 @@
+.schedule-list-filter-controls {
+  display: grid;
+  gap: 10px;
+  margin: 2px 0 10px;
+}
+
+.schedule-list-filter-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schedule-list-filter-tab {
+  min-height: 36px;
+  border: 1px solid var(--border, #d8d6d0);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.schedule-list-filter-tab[aria-pressed="true"] {
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  border-color: color-mix(in srgb, currentColor 28%, transparent);
+}
+
+.schedule-list-filter-count {
+  min-width: 1.45em;
+  height: 1.45em;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 4px;
+  font-size: .78em;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.schedule-list-filter-search {
+  display: block;
+}
+
+.schedule-list-filter-search input {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--border, #d8d6d0);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 8px 10px;
+}
+
+.schedule-list-filter-search input::placeholder {
+  color: color-mix(in srgb, currentColor 52%, transparent);
+}
+
+.schedule-list-filter-live {
+  margin: 0;
+  font-size: .82rem;
+  opacity: .72;
+}
+
+.schedule-list-item[hidden] {
+  display: none !important;
+}
+
+.schedule-list-filter-tab:focus-visible,
+.schedule-list-filter-search input:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .schedule-list-filter-tab,
+  .schedule-list-filter-search input {
+    min-height: 44px;
+  }
+
+  .schedule-list-filter-tabs {
+    gap: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-list-filter-tab,
+  .schedule-list-filter-search input {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .schedule-list-filter-tab,
+  .schedule-list-filter-search input {
+    border-color: CanvasText;
+  }
+
+  .schedule-list-filter-tab[aria-pressed="true"] {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
+}
