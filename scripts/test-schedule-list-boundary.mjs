@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import {
   boundScheduleListOutput,
-  normalizeScheduleListLimit
+  normalizeScheduleListLimit,
+  normalizeScheduleListOffset
 } from '../lib/schedule-list-boundary.mjs';
 
 const schedule = (id, status, time) => ({
@@ -18,6 +19,10 @@ assert.equal(normalizeScheduleListLimit(500), 500);
 assert.throws(() => normalizeScheduleListLimit(0), /INVALID_SCHEDULE_LIST_LIMIT/);
 assert.throws(() => normalizeScheduleListLimit(501), /INVALID_SCHEDULE_LIST_LIMIT/);
 assert.throws(() => normalizeScheduleListLimit(1.5), /INVALID_SCHEDULE_LIST_LIMIT/);
+assert.equal(normalizeScheduleListOffset(), 0);
+assert.equal(normalizeScheduleListOffset(10000), 10000);
+assert.throws(() => normalizeScheduleListOffset(-1), /INVALID_SCHEDULE_LIST_OFFSET/);
+assert.throws(() => normalizeScheduleListOffset(10001), /INVALID_SCHEDULE_LIST_OFFSET/);
 
 const unchanged = { ok: true, schedules: [schedule(1, 'completed', '2026-08-18T01:00:00Z')] };
 assert.equal(boundScheduleListOutput(unchanged), unchanged);
@@ -35,7 +40,10 @@ const many = {
 };
 const bounded = boundScheduleListOutput(many, { limit: 3 });
 assert.deepEqual(bounded.schedules.map((item) => item.scheduleId), ['schedule_2', 'schedule_4', 'schedule_5']);
-assert.deepEqual(bounded.listMeta, { returned: 3, total: 5, truncated: true });
+assert.deepEqual(bounded.listMeta, { returned: 3, total: 5, offset: 0, nextOffset: 3, truncated: true });
+const page2 = boundScheduleListOutput(many, { limit: 3, offset: 3 });
+assert.deepEqual(page2.schedules.map((item) => item.scheduleId), ['schedule_3', 'schedule_1']);
+assert.deepEqual(page2.listMeta, { returned: 2, total: 5, offset: 3, nextOffset: null, truncated: true });
 assert.equal(many.schedules.length, 5, 'input must not be mutated');
 
 console.log('schedule list boundary: ok');
