@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v96`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v97`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -116,8 +116,6 @@
     '/gmail-workspace.css',
     '/memory-consent-review.js',
     '/memory-consent-review.css',
-    '/conversation-insights.js',
-    '/conversation-reading-controls.js',
     '/cloud-session-ui.js',
     '/memory-ui.js',
     '/voice-input.js',

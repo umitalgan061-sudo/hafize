@@ -159,17 +159,22 @@ assert.deepEqual(retry.lastRetryPair([
   assert.equal(FakeObserver.instances.length, 1);
   assert.equal(FakeObserver.instances[0].targets.length, 2);
   const actions = f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`);
-  assert.equal(actions.length, 1, 'only the final assistant message gets retry action');
-  const pair = controller.getRenderedPair(f.messages);
-  assert.equal(pair.userMessageId, 'u-2');
-  const edit = pair.user.querySelector('.message-edit-btn');
-  const button = actions[0].children[0];
-  button.click();
-  assert.equal(edit.clickCount, 1, 'retry must delegate to the guarded edit-branch action');
+  assert.equal(actions.length, 2, 'each completed user-assistant turn gets a retry action');
+  const pairs = controller.getRenderedPairs(f.messages);
+  assert.deepEqual(pairs.map((pair) => pair.userMessageId), ['u-1', 'u-2']);
+
+  const firstEdit = pairs[0].user.querySelector('.message-edit-btn');
+  actions[0].children[0].click();
+  assert.equal(firstEdit.clickCount, 1, 'historical retry delegates to the matching guarded edit branch');
+
+  const lastPair = controller.getRenderedPair(f.messages);
+  const lastEdit = lastPair.user.querySelector('.message-edit-btn');
+  actions[1].children[0].click();
+  assert.equal(lastEdit.clickCount, 1, 'latest retry also delegates to guarded edit branch');
   assert.equal(f.input.value, '', 'retry must not mutate composer before branch reload');
   assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, 'Yeni tekrar dalı hazırlanıyor…');
   assert.equal(controller.render(), true);
-  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 1, 'stable render must not duplicate action');
+  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 2, 'stable render must not duplicate actions');
   assert.equal(controller.destroy(), true);
   assert.equal(FakeObserver.instances[0].disconnected, true);
   assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0);
@@ -182,7 +187,7 @@ assert.deepEqual(retry.lastRetryPair([
   controller.mount();
   const pair = controller.getRenderedPair(f.messages);
   const edit = pair.user.querySelector('.message-edit-btn');
-  f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`)[0].children[0].click();
+  f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).at(-1).children[0].click();
   assert.equal(f.input.value, 'Kaybetmek istemediğim taslak');
   assert.equal(edit.clickCount, 0, 'draft guard must prevent branch action');
   assert.equal(f.input.focused, true);
@@ -193,7 +198,7 @@ assert.deepEqual(retry.lastRetryPair([
   const f = fixture({ streaming: true });
   const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
   controller.mount();
-  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0, 'retry stays hidden during streaming');
+  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0, 'all retry actions stay hidden during streaming');
 }
 
 {
@@ -206,4 +211,4 @@ assert.deepEqual(retry.lastRetryPair([
 }
 
 assert.equal(retry.mount({ documentRef: { querySelector: () => null }, MutationObserverImpl: FakeObserver }), null);
-console.log('response retry branch lifecycle tests passed');
+console.log('response retry historical branch lifecycle tests passed');

@@ -58,8 +58,6 @@
     let mounted = false;
     let status = null;
     let inputListener = null;
-    let renderedAssistant = null;
-    let renderedPrompt = '';
 
     function nodes() {
       return Object.freeze({
@@ -91,19 +89,27 @@
 
     function clearActions(messages) {
       messages?.querySelectorAll?.(`.${ACTION_CLASS}`)?.forEach?.((node) => node.remove());
-      renderedAssistant = null;
-      renderedPrompt = '';
     }
 
-    function getRenderedPair(messages) {
-      const articles = Array.from(messages?.querySelectorAll?.('.message') || []);
-      if (articles.length < 2) return null;
-      const assistant = articles.at(-1);
-      const user = articles.at(-2);
+    function pairForArticles(user, assistant) {
       if (!assistant?.classList?.contains?.('assistant') || !user?.classList?.contains?.('user')) return null;
       const prompt = normalizePrompt(user.querySelector?.('.content')?.textContent || '');
       const userMessageId = typeof user.dataset?.messageId === 'string' ? user.dataset.messageId.trim() : '';
       return prompt && userMessageId ? { assistant, user, prompt, userMessageId } : null;
+    }
+
+    function getRenderedPairs(messages) {
+      const articles = Array.from(messages?.querySelectorAll?.('.message') || []);
+      const pairs = [];
+      for (let index = 1; index < articles.length; index += 1) {
+        const pair = pairForArticles(articles[index - 1], articles[index]);
+        if (pair) pairs.push(pair);
+      }
+      return pairs;
+    }
+
+    function getRenderedPair(messages) {
+      return getRenderedPairs(messages).at(-1) || null;
     }
 
     function prepareRetryBranch(pair) {
@@ -129,6 +135,22 @@
       return true;
     }
 
+    function decoratePair(pair) {
+      if (pair.assistant.querySelector?.(`.${ACTION_CLASS}`)) return false;
+      const wrap = documentRef.createElement('div');
+      wrap.className = ACTION_CLASS;
+      const button = documentRef.createElement('button');
+      button.type = 'button';
+      button.className = 'mini-btn response-retry-button';
+      button.textContent = '↻ Tekrar dene';
+      button.setAttribute('aria-label', 'Bu kullanıcı isteğini yeni bir sohbet dalında yeniden hazırla');
+      button.title = 'Kaynak sohbeti değiştirmeden bu turdan yeni bir dal hazırlar';
+      button.addEventListener('click', () => prepareRetryBranch(pair));
+      wrap.append(button);
+      pair.assistant.append(wrap);
+      return true;
+    }
+
     function render() {
       const { messages, composer, send } = nodes();
       if (!messages || !composer || !send) return false;
@@ -136,28 +158,12 @@
         clearActions(messages);
         return false;
       }
-      const pair = getRenderedPair(messages);
-      if (!pair) {
+      const pairs = getRenderedPairs(messages);
+      if (!pairs.length) {
         clearActions(messages);
         return false;
       }
-      const existing = pair.assistant.querySelector?.(`.${ACTION_CLASS}`);
-      if (existing && renderedAssistant === pair.assistant && renderedPrompt === pair.prompt) return true;
-
-      clearActions(messages);
-      const wrap = documentRef.createElement('div');
-      wrap.className = ACTION_CLASS;
-      const button = documentRef.createElement('button');
-      button.type = 'button';
-      button.className = 'mini-btn response-retry-button';
-      button.textContent = '↻ Tekrar dene';
-      button.setAttribute('aria-label', 'Son kullanıcı isteğini yeni bir sohbet dalında yeniden hazırla');
-      button.title = 'Önceki yanıtı ve kaynak sohbeti değiştirmeden yeni bir dal hazırlar';
-      button.addEventListener('click', () => prepareRetryBranch(pair));
-      wrap.append(button);
-      pair.assistant.append(wrap);
-      renderedAssistant = pair.assistant;
-      renderedPrompt = pair.prompt;
+      for (const pair of pairs) decoratePair(pair);
       return true;
     }
 
@@ -192,7 +198,7 @@
       return true;
     }
 
-    return Object.freeze({ mount, destroy, render, prepareRetryBranch, getRenderedPair });
+    return Object.freeze({ mount, destroy, render, prepareRetryBranch, getRenderedPair, getRenderedPairs, decoratePair });
   }
 
   function mount(options) {
