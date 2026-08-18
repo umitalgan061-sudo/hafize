@@ -11,29 +11,70 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeConversationModelState() {
   'use strict';
 
-  const STORAGE_KEY = 'hafize.conversations.v1';
+  const CONVERSATION_STORAGE_KEY = 'hafize.conversations.v1';
+  const MODEL_STORAGE_KEY = 'hafize.conversation-models.v1';
   const MAX_MODEL_ID_LENGTH = 240;
+  const MAX_CONVERSATION_ID_LENGTH = 120;
+  const MAX_ENTRIES = 30;
+  const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
 
   function normalizeModelId(value) {
-    const model = typeof value === 'string' ? value.trim() : '';
+    const model = typeof value === 'string' ? value.normalize('NFC').trim() : '';
     if (!model || model.length > MAX_MODEL_ID_LENGTH || /[\u0000-\u001f\u007f]/.test(model)) return '';
     return model;
+  }
+
+  function normalizeConversationId(value) {
+    const id = typeof value === 'string' ? value.trim() : '';
+    if (!id || id.length > MAX_CONVERSATION_ID_LENGTH || !CONVERSATION_ID_PATTERN.test(id)) return '';
+    return id;
   }
 
   function readConversations(storage) {
     if (!storage || typeof storage.getItem !== 'function') return [];
     try {
-      const value = JSON.parse(storage.getItem(STORAGE_KEY) || '[]');
+      const value = JSON.parse(storage.getItem(CONVERSATION_STORAGE_KEY) || '[]');
       return Array.isArray(value) ? value.filter((item) => item && typeof item === 'object') : [];
     } catch {
       return [];
     }
   }
 
-  function writeConversations(storage, conversations) {
-    if (!storage || typeof storage.setItem !== 'function' || !Array.isArray(conversations)) return false;
+  function normalizeModelEntries(value, allowedConversationIds) {
+    if (!Array.isArray(value)) return Object.freeze([]);
+    const allowed = allowedConversationIds instanceof Set ? allowedConversationIds : null;
+    const seen = new Set();
+    const result = [];
+    for (const candidate of value) {
+      if (result.length >= MAX_ENTRIES) break;
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+      const conversationId = normalizeConversationId(candidate.conversationId);
+      const modelId = normalizeModelId(candidate.modelId);
+      if (!conversationId || !modelId || seen.has(conversationId)) continue;
+      if (allowed && !allowed.has(conversationId)) continue;
+      seen.add(conversationId);
+      result.push(Object.freeze({ conversationId, modelId }));
+    }
+    return Object.freeze(result);
+  }
+
+  function readModelEntries(storage, conversations = readConversations(storage)) {
+    if (!storage || typeof storage.getItem !== 'function') return [];
+    const allowedIds = new Set(conversations.map((item) => normalizeConversationId(item?.id)).filter(Boolean));
     try {
-      storage.setItem(STORAGE_KEY, JSON.stringify(conversations.slice(0, 30)));
+      const parsed = JSON.parse(storage.getItem(MODEL_STORAGE_KEY) || '[]');
+      return normalizeModelEntries(parsed, allowedIds);
+    } catch {
+      return [];
+    }
+  }
+
+  function writeModelEntries(storage, entries, conversations = readConversations(storage)) {
+    if (!storage || typeof storage.setItem !== 'function') return false;
+    const allowedIds = new Set(conversations.map((item) => normalizeConversationId(item?.id)).filter(Boolean));
+    const normalized = normalizeModelEntries(entries, allowedIds);
+    try {
+      storage.setItem(MODEL_STORAGE_KEY, JSON.stringify(normalized));
       return true;
     } catch {
       return false;
@@ -52,9 +93,36 @@
     return rows.findIndex((row) => row?.classList?.contains('active'));
   }
 
+  function activeConversationId(documentRef, conversations) {
+    const index = activeConversationIndex(documentRef);
+    if (index < 0 || index >= conversations.length) return '';
+    return normalizeConversationId(conversations[index]?.id);
+  }
+
+  function legacyModelEntry(conversation, availableModels) {
+    const conversationId = normalizeConversationId(conversation?.id);
+    const modelId = normalizeModelId(conversation?.modelId);
+    if (!conversationId || !modelId || !availableModels.has(modelId)) return null;
+    return Object.freeze({ conversationId, modelId });
+  }
+
+  function upsertModelEntry(entries, conversationId, modelId) {
+    const id = normalizeConversationId(conversationId);
+    const model = normalizeModelId(modelId);
+    if (!id || !model) return normalizeModelEntries(entries);
+    const next = [{ conversationId: id, modelId: model }];
+    for (const entry of Array.isArray(entries) ? entries : []) {
+      if (normalizeConversationId(entry?.conversationId) === id) continue;
+      next.push(entry);
+      if (next.length >= MAX_ENTRIES) break;
+    }
+    return normalizeModelEntries(next);
+  }
+
   function createController({
     documentRef = globalThis.document,
     storage = globalThis.localStorage,
+    rootRef = globalThis,
     MutationObserverImpl = globalThis.MutationObserver,
     EventImpl = globalThis.Event,
     queueMicrotaskImpl = globalThis.queueMicrotask
@@ -85,13 +153,15 @@
     function persistSelection() {
       const { select } = nodes();
       const model = normalizeModelId(select?.value);
-      if (!model || !modelIds(select).has(model)) return false;
+      const available = modelIds(select);
+      if (!model || !available.has(model)) return false;
       const conversations = readConversations(storage);
-      const index = activeConversationIndex(documentRef);
-      if (index < 0 || index >= conversations.length) return false;
-      if (conversations[index].modelId === model) return true;
-      conversations[index] = { ...conversations[index], modelId: model };
-      return writeConversations(storage, conversations);
+      const conversationId = activeConversationId(documentRef, conversations);
+      if (!conversationId) return false;
+      const entries = readModelEntries(storage, conversations);
+      const current = entries.find((entry) => entry.conversationId === conversationId);
+      if (current?.modelId === model) return true;
+      return writeModelEntries(storage, upsertModelEntry(entries, conversationId, model), conversations);
     }
 
     function restoreSelection() {
@@ -102,8 +172,20 @@
       const conversations = readConversations(storage);
       const index = activeConversationIndex(documentRef);
       if (index < 0 || index >= conversations.length) return false;
+      const conversation = conversations[index];
+      const conversationId = normalizeConversationId(conversation?.id);
+      if (!conversationId) return false;
 
-      const saved = normalizeModelId(conversations[index].modelId);
+      let entries = readModelEntries(storage, conversations);
+      let saved = normalizeModelId(entries.find((entry) => entry.conversationId === conversationId)?.modelId);
+      if (!saved) {
+        const legacy = legacyModelEntry(conversation, available);
+        if (legacy) {
+          entries = upsertModelEntry(entries, legacy.conversationId, legacy.modelId);
+          if (writeModelEntries(storage, entries, conversations)) saved = legacy.modelId;
+        }
+      }
+
       if (saved && available.has(saved)) {
         if (select.value !== saved) {
           select.value = saved;
@@ -114,9 +196,7 @@
 
       const current = normalizeModelId(select.value);
       if (current && available.has(current)) {
-        conversations[index] = { ...conversations[index], modelId: current };
-        writeConversations(storage, conversations);
-        return true;
+        return writeModelEntries(storage, upsertModelEntry(entries, conversationId, current), conversations);
       }
       return false;
     }
@@ -154,11 +234,17 @@
       persistSelection();
     }
 
+    function onStorage(event) {
+      if (event?.key !== MODEL_STORAGE_KEY && event?.key !== CONVERSATION_STORAGE_KEY) return;
+      queueSync();
+    }
+
     function mount() {
       if (mounted) return false;
       const { select, list, send } = nodes();
       if (!select || !list || !send) return false;
       select.addEventListener?.('change', onModelChange);
+      rootRef?.addEventListener?.('storage', onStorage);
       if (typeof MutationObserverImpl === 'function') {
         observer = new MutationObserverImpl(queueSync);
         observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
@@ -174,6 +260,7 @@
       if (!mounted) return false;
       const { select } = nodes();
       select?.removeEventListener?.('change', onModelChange);
+      rootRef?.removeEventListener?.('storage', onStorage);
       observer?.disconnect?.();
       observer = null;
       if (runLocked && select) select.disabled = disabledBeforeRun;
@@ -195,13 +282,22 @@
   }
 
   return Object.freeze({
-    STORAGE_KEY,
+    CONVERSATION_STORAGE_KEY,
+    MODEL_STORAGE_KEY,
     MAX_MODEL_ID_LENGTH,
+    MAX_CONVERSATION_ID_LENGTH,
+    MAX_ENTRIES,
     normalizeModelId,
+    normalizeConversationId,
+    normalizeModelEntries,
     readConversations,
-    writeConversations,
+    readModelEntries,
+    writeModelEntries,
     modelIds,
     activeConversationIndex,
+    activeConversationId,
+    legacyModelEntry,
+    upsertModelEntry,
     createController,
     mount
   });
