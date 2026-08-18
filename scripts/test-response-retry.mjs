@@ -19,6 +19,8 @@ class FakeElement {
     this.textContent = '';
     this.hidden = false;
     this.title = '';
+    this.disabled = false;
+    this.dataset = {};
     this.className = classes.join(' ');
     this.classList = new FakeClassList(this, classes);
     this.attributes = new Map();
@@ -26,7 +28,6 @@ class FakeElement {
     this.parentNode = null;
     this.listeners = new Map();
     this.focused = false;
-    this.submitCount = 0;
     this.clickCount = 0;
   }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
@@ -54,7 +55,6 @@ class FakeElement {
     this.dispatchEvent({ type: 'click', target: this });
   }
   focus() { this.focused = true; }
-  requestSubmit() { this.submitCount += 1; }
   matchesClass(name) { return this.classList.contains(name); }
   descendants() { return this.children.flatMap((child) => [child, ...child.descendants()]); }
   querySelectorAll(selector) {
@@ -66,6 +66,7 @@ class FakeElement {
   querySelector(selector) {
     const all = this.descendants();
     if (selector === '.content') return all.find((node) => node.matchesClass('content')) || null;
+    if (selector === '.message-edit-btn') return all.find((node) => node.matchesClass('message-edit-btn')) || null;
     if (selector === `.${retry.ACTION_CLASS}`) return all.find((node) => node.matchesClass(retry.ACTION_CLASS)) || null;
     return null;
   }
@@ -83,26 +84,31 @@ class FakeObserver {
   disconnect() { this.disconnected = true; }
 }
 
-class FakeEvent {
-  constructor(type, options = {}) { this.type = type; this.bubbles = Boolean(options.bubbles); }
-}
-
-function message(role, text) {
+function message(role, text, id) {
   const article = new FakeElement('article', ['message', role]);
+  article.dataset.messageId = id;
   const content = new FakeElement('div', ['content']);
   content.textContent = text;
   article.append(content);
+  if (role === 'user') {
+    const edit = new FakeElement('button', ['message-edit-btn']);
+    article.append(edit);
+  }
   return article;
 }
 
-function fixture({ streaming = false, draft = '' } = {}) {
+function fixture({ streaming = false, draft = '', editAvailable = true } = {}) {
   FakeObserver.instances = [];
   const messages = new FakeElement('div');
   messages.id = 'messages';
-  messages.append(message('user', 'İlk soru'));
-  messages.append(message('assistant', 'İlk cevap'));
-  messages.append(message('user', 'Son kullanıcı isteği'));
-  messages.append(message('assistant', 'Son cevap'));
+  messages.append(message('user', 'İlk soru', 'u-1'));
+  messages.append(message('assistant', 'İlk cevap', 'a-1'));
+  messages.append(message('user', 'Son kullanıcı isteği', 'u-2'));
+  messages.append(message('assistant', 'Son cevap', 'a-2'));
+  if (!editAvailable) {
+    const lastUser = messages.querySelectorAll('.message').at(-2);
+    lastUser.children = lastUser.children.filter((node) => !node.matchesClass('message-edit-btn'));
+  }
   const composer = new FakeElement('form');
   composer.id = 'composer';
   const input = new FakeElement('textarea');
@@ -120,9 +126,7 @@ function fixture({ streaming = false, draft = '' } = {}) {
   const documentRef = {
     createElement: (tag) => new FakeElement(tag),
     querySelector(selector) {
-      if (selector === `#${retry.STATUS_ID}`) {
-        return composer.descendants().find((node) => node.id === retry.STATUS_ID) || null;
-      }
+      if (selector === `#${retry.STATUS_ID}`) return composer.descendants().find((node) => node.id === retry.STATUS_ID) || null;
       if (!selector.startsWith('#')) return null;
       return byId.get(selector.slice(1)) || null;
     }
@@ -133,6 +137,7 @@ function fixture({ streaming = false, draft = '' } = {}) {
 assert.equal(retry.MAX_PROMPT_CHARS, 12000);
 assert.match(retry.DRAFT_BLOCKED, /taslağ/i);
 assert.match(retry.PROMPT_UNAVAILABLE, /bulunamadı/i);
+assert.match(retry.EDIT_UNAVAILABLE, /düzenleme dalı/i);
 assert.equal(retry.normalizePrompt('  tekrar sor  '), 'tekrar sor');
 assert.equal(retry.normalizePrompt('   '), '');
 assert.equal(retry.normalizePrompt(null), '');
@@ -145,59 +150,60 @@ assert.deepEqual(retry.lastRetryPair([
   { id: 'a1', role: 'assistant', content: 'ilk yanıt' },
   { id: 'u2', role: 'user', content: 'ikinci soru' },
   { id: 'a2', role: 'assistant', content: 'ikinci yanıt' }
-]), { assistantId: 'a2', prompt: 'ikinci soru' });
+]), { assistantId: 'a2', userId: 'u2', prompt: 'ikinci soru' });
 
 {
   const f = fixture();
-  const controller = retry.createController({
-    documentRef: f.documentRef,
-    EventImpl: FakeEvent,
-    MutationObserverImpl: FakeObserver
-  });
+  const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
   assert.equal(controller.mount(), true);
   assert.equal(FakeObserver.instances.length, 1);
   assert.equal(FakeObserver.instances[0].targets.length, 2);
   const actions = f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`);
   assert.equal(actions.length, 1, 'only the final assistant message gets retry action');
-  const lastAssistant = f.messages.querySelectorAll('.message').at(-1);
-  assert.equal(lastAssistant.querySelector(`.${retry.ACTION_CLASS}`), actions[0]);
+  const pair = controller.getRenderedPair(f.messages);
+  assert.equal(pair.userMessageId, 'u-2');
+  const edit = pair.user.querySelector('.message-edit-btn');
   const button = actions[0].children[0];
-  assert.equal(button.textContent.includes('Tekrar dene'), true);
   button.click();
-  assert.equal(f.input.value, 'Son kullanıcı isteği');
-  assert.equal(f.composer.submitCount, 1, 'explicit retry must use the normal composer submit path');
-  assert.equal(f.send.clickCount, 0);
-  assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, 'Son istek yeniden gönderiliyor…');
-
+  assert.equal(edit.clickCount, 1, 'retry must delegate to the guarded edit-branch action');
+  assert.equal(f.input.value, '', 'retry must not mutate composer before branch reload');
+  assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, 'Yeni tekrar dalı hazırlanıyor…');
   assert.equal(controller.render(), true);
-  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 1, 'stable render must not duplicate its own action');
+  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 1, 'stable render must not duplicate action');
   assert.equal(controller.destroy(), true);
   assert.equal(FakeObserver.instances[0].disconnected, true);
   assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0);
   assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`), null);
-  assert.equal((f.input.listeners.get('input') || []).length, 0, 'destroy must remove input listener');
 }
 
 {
   const f = fixture({ draft: 'Kaybetmek istemediğim taslak' });
-  const controller = retry.createController({ documentRef: f.documentRef, EventImpl: FakeEvent, MutationObserverImpl: FakeObserver });
+  const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
   controller.mount();
-  const button = f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`)[0].children[0];
-  button.click();
+  const pair = controller.getRenderedPair(f.messages);
+  const edit = pair.user.querySelector('.message-edit-btn');
+  f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`)[0].children[0].click();
   assert.equal(f.input.value, 'Kaybetmek istemediğim taslak');
-  assert.equal(f.composer.submitCount, 0);
+  assert.equal(edit.clickCount, 0, 'draft guard must prevent branch action');
   assert.equal(f.input.focused, true);
   assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, retry.DRAFT_BLOCKED);
 }
 
 {
   const f = fixture({ streaming: true });
-  const controller = retry.createController({ documentRef: f.documentRef, EventImpl: FakeEvent, MutationObserverImpl: FakeObserver });
+  const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
   controller.mount();
-  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0, 'retry must stay hidden during active streaming');
-  assert.equal(controller.submitPrompt('gizli tekrar'), false);
-  assert.equal(f.composer.submitCount, 0);
+  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0, 'retry stays hidden during streaming');
+}
+
+{
+  const f = fixture({ editAvailable: false });
+  const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+  controller.mount();
+  const pair = controller.getRenderedPair(f.messages);
+  assert.equal(controller.prepareRetryBranch(pair), false);
+  assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, retry.EDIT_UNAVAILABLE);
 }
 
 assert.equal(retry.mount({ documentRef: { querySelector: () => null }, MutationObserverImpl: FakeObserver }), null);
-console.log('response retry lifecycle tests passed');
+console.log('response retry branch lifecycle tests passed');
