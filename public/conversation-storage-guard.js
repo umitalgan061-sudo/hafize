@@ -186,21 +186,173 @@
     });
   }
 
+  function sameCanonical(left, right) {
+    return canonicalJson(left) === canonicalJson(right);
+  }
+
+  function mapById(values) {
+    const result = new Map();
+    for (const value of Array.isArray(values) ? values : []) {
+      if (value?.id && !result.has(value.id)) result.set(value.id, value);
+    }
+    return result;
+  }
+
+  function mergeMessageSets(current, candidate, preferCandidate) {
+    const merged = new Map();
+    for (const message of current || []) merged.set(message.id, message);
+    for (const message of candidate || []) {
+      const existing = merged.get(message.id);
+      if (!existing || sameCanonical(existing, message) || preferCandidate) merged.set(message.id, message);
+    }
+    return normalizeMessages([...merged.values()].sort((left, right) => {
+      const byTime = left.at.localeCompare(right.at);
+      return byTime || left.id.localeCompare(right.id);
+    }));
+  }
+
+  function mergeConcurrentConversation(current, candidate) {
+    if (!current) return candidate;
+    if (!candidate) return current;
+    const preferCandidate = candidate.updatedAt >= current.updatedAt;
+    const preferred = preferCandidate ? candidate : current;
+    const createdAt = current.createdAt <= candidate.createdAt ? current.createdAt : candidate.createdAt;
+    const updatedAt = current.updatedAt >= candidate.updatedAt ? current.updatedAt : candidate.updatedAt;
+    return normalizeConversation({
+      ...preferred,
+      createdAt,
+      updatedAt,
+      messages: mergeMessageSets(current.messages, candidate.messages, preferCandidate)
+    });
+  }
+
+  function reconcileConversationSnapshots(baselineValue, currentValue, candidateValue) {
+    const baseline = normalizeConversations(baselineValue);
+    const current = normalizeConversations(currentValue);
+    const candidate = normalizeConversations(candidateValue);
+    if (sameCanonical(current, baseline)) {
+      return Object.freeze({ value: candidate, conflicts: 0, remoteChangesPreserved: 0 });
+    }
+    if (sameCanonical(candidate, baseline)) {
+      return Object.freeze({ value: current, conflicts: 0, remoteChangesPreserved: 1 });
+    }
+
+    const baseMap = mapById(baseline);
+    const currentMap = mapById(current);
+    const candidateMap = mapById(candidate);
+    const ids = new Set([...baseMap.keys(), ...currentMap.keys(), ...candidateMap.keys()]);
+    const merged = [];
+    let conflicts = 0;
+    let remoteChangesPreserved = 0;
+
+    for (const id of ids) {
+      const base = baseMap.get(id) || null;
+      const remote = currentMap.get(id) || null;
+      const local = candidateMap.get(id) || null;
+
+      if (!base) {
+        if (remote && local) {
+          if (sameCanonical(remote, local)) merged.push(remote);
+          else {
+            merged.push(mergeConcurrentConversation(remote, local));
+            conflicts += 1;
+            remoteChangesPreserved += 1;
+          }
+        } else if (remote) {
+          merged.push(remote);
+          remoteChangesPreserved += 1;
+        } else if (local) merged.push(local);
+        continue;
+      }
+
+      if (!local && !remote) continue;
+      if (!local && remote) {
+        if (sameCanonical(remote, base)) continue;
+        merged.push(remote);
+        conflicts += 1;
+        remoteChangesPreserved += 1;
+        continue;
+      }
+      if (local && !remote) {
+        if (!sameCanonical(local, base)) conflicts += 1;
+        continue;
+      }
+
+      const localChanged = !sameCanonical(local, base);
+      const remoteChanged = !sameCanonical(remote, base);
+      if (localChanged && remoteChanged && !sameCanonical(local, remote)) {
+        merged.push(mergeConcurrentConversation(remote, local));
+        conflicts += 1;
+        remoteChangesPreserved += 1;
+      } else if (localChanged) merged.push(local);
+      else if (remoteChanged) {
+        merged.push(remote);
+        remoteChangesPreserved += 1;
+      } else merged.push(base);
+    }
+
+    return Object.freeze({
+      value: normalizeConversations(merged),
+      conflicts,
+      remoteChangesPreserved
+    });
+  }
+
   function boundedSetItem(originalSetItem, receiver, key, rawValue) {
     if (key !== STORAGE_KEY) return originalSetItem.call(receiver, key, rawValue);
     const result = sanitizeStoredValue(String(rawValue));
     return originalSetItem.call(receiver, key, result.serialized);
   }
 
-  function installWriteBoundary(storage) {
+  function createConflictAwareWriter({ storage, originalSetItem, originalGetItem, initialSerialized, onMerge } = {}) {
+    if (!storage || typeof originalSetItem !== 'function' || typeof originalGetItem !== 'function') return null;
+    let baseline = sanitizeStoredValue(initialSerialized || '[]');
+
+    function write(key, rawValue) {
+      if (key !== STORAGE_KEY) return originalSetItem.call(storage, key, rawValue);
+      const candidate = sanitizeStoredValue(String(rawValue));
+      let current;
+      try {
+        current = sanitizeStoredValue(originalGetItem.call(storage, STORAGE_KEY) || '[]');
+      } catch {
+        current = baseline;
+      }
+      const reconciled = reconcileConversationSnapshots(baseline.value, current.value, candidate.value);
+      const serialized = canonicalJson(reconciled.value);
+      const result = originalSetItem.call(storage, STORAGE_KEY, serialized);
+      // Baseline tracks what this tab actually knows in memory, not the merged persisted result.
+      // Otherwise a second stale write could treat preserved remote data as locally known and erase it.
+      baseline = candidate;
+      if ((reconciled.conflicts > 0 || reconciled.remoteChangesPreserved > 0) && typeof onMerge === 'function') {
+        onMerge(Object.freeze({ conflicts: reconciled.conflicts, remoteChangesPreserved: reconciled.remoteChangesPreserved }));
+      }
+      return result;
+    }
+
+    return Object.freeze({
+      write,
+      snapshot: () => Object.freeze({ serialized: baseline.serialized })
+    });
+  }
+
+  function installWriteBoundary(storage, { onMerge } = {}) {
     if (!storage || typeof storage !== 'object') return null;
     const existing = INSTALLATIONS.get(storage);
     if (existing) return existing;
-    if (typeof storage.setItem !== 'function') return null;
+    if (typeof storage.setItem !== 'function' || typeof storage.getItem !== 'function') return null;
 
     const originalSetItem = storage.setItem;
+    const originalGetItem = storage.getItem;
+    let initialSerialized = '[]';
+    try {
+      initialSerialized = sanitizeStoredValue(originalGetItem.call(storage, STORAGE_KEY) || '[]').serialized;
+    } catch {
+      initialSerialized = '[]';
+    }
+    const writer = createConflictAwareWriter({ storage, originalSetItem, originalGetItem, initialSerialized, onMerge });
+    if (!writer) return null;
     const instanceSetItem = function guardedConversationStorageSetItem(key, rawValue) {
-      return boundedSetItem(originalSetItem, storage, key, rawValue);
+      return writer.write(key, rawValue);
     };
     let mode = 'instance';
     try {
@@ -220,7 +372,7 @@
           writable: true,
           value: function guardedConversationStoragePrototypeSetItem(key, rawValue) {
             if (this !== storage) return prototypeSetItem.call(this, key, rawValue);
-            return boundedSetItem(prototypeSetItem, storage, key, rawValue);
+            return writer.write(key, rawValue);
           }
         });
       } catch {
@@ -228,9 +380,17 @@
       }
     }
 
-    const boundary = Object.freeze({ mode, originalSetItem: originalSetItem.bind(storage) });
+    const boundary = Object.freeze({ mode, originalSetItem: originalSetItem.bind(storage), snapshot: writer.snapshot });
     INSTALLATIONS.set(storage, boundary);
     return boundary;
+  }
+
+  function createMergeNotifier(rootRef) {
+    return (detail) => {
+      const CustomEventImpl = rootRef?.CustomEvent;
+      if (typeof rootRef?.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return;
+      rootRef.dispatchEvent(new CustomEventImpl('hafize:conversation-storage-merged', { detail }));
+    };
   }
 
   function install(rootRef) {
@@ -254,7 +414,7 @@
       }
     }
 
-    const writeBoundary = installWriteBoundary(storage);
+    const writeBoundary = installWriteBoundary(storage, { onMerge: createMergeNotifier(rootRef) });
     let reloaded = false;
     if (raw != null && result.changed) {
       const marker = 'hafizeConversationStorageGuardReloaded';
@@ -304,8 +464,14 @@
     normalizeConversation,
     normalizeConversations,
     sanitizeStoredValue,
+    sameCanonical,
+    mergeMessageSets,
+    mergeConcurrentConversation,
+    reconcileConversationSnapshots,
     boundedSetItem,
+    createConflictAwareWriter,
     installWriteBoundary,
+    createMergeNotifier,
     install
   });
 });
