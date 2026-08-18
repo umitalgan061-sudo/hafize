@@ -19,6 +19,14 @@
   const HANDOFF_TIMEOUT_MS = 1500;
   const POST_OUTPUT_COOLDOWN_MS = 1800;
   const SESSION_LIMIT_MS = 30 * 60 * 1000;
+  const NETWORK_RETRY_DELAYS_MS = Object.freeze([2_000, 5_000, 15_000, 30_000, 60_000]);
+  const TERMINAL_RECOGNITION_ERRORS = new Set([
+    'audio-capture',
+    'not-allowed',
+    'security',
+    'service-not-allowed',
+    'language-not-supported'
+  ]);
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
   const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
 
@@ -51,6 +59,35 @@
     return chunks.join(' ').trim();
   }
 
+  function normalizeRecognitionError(value) {
+    return typeof value === 'string'
+      ? value.trim().toLocaleLowerCase('en-US').replace(/_/g, '-')
+      : 'unknown';
+  }
+
+  function classifyRecognitionError(value) {
+    const code = normalizeRecognitionError(value);
+    if (code === 'aborted') return Object.freeze({ code, kind: 'aborted' });
+    if (code === 'no-speech') return Object.freeze({ code, kind: 'idle' });
+    if (code === 'network') return Object.freeze({ code, kind: 'network' });
+    if (TERMINAL_RECOGNITION_ERRORS.has(code)) return Object.freeze({ code, kind: 'terminal' });
+    return Object.freeze({ code, kind: 'terminal' });
+  }
+
+  function networkRetryDelay(streak) {
+    if (!Number.isInteger(streak) || streak < 1) return 0;
+    return NETWORK_RETRY_DELAYS_MS[Math.min(streak, NETWORK_RETRY_DELAYS_MS.length) - 1];
+  }
+
+  function terminalRecognitionMessage(code) {
+    if (code === 'audio-capture') return 'Eller serbest mikrofonu kullanamadı. Mikrofonu kontrol edip yeniden aç.';
+    if (code === 'not-allowed' || code === 'service-not-allowed' || code === 'security') {
+      return 'Eller serbest için mikrofon izni kullanılamıyor. İzni kontrol edip yeniden aç.';
+    }
+    if (code === 'language-not-supported') return 'Eller serbest konuşma dili bu tarayıcıda desteklenmiyor.';
+    return 'Eller serbest konuşma tanıma hatası nedeniyle kapatıldı. Devam etmek için yeniden aç.';
+  }
+
   function installHandsFree(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
@@ -70,6 +107,9 @@
     let coolingDown = false;
     let voiceInputListening = false;
     let voiceOutputSpeaking = false;
+    let networkErrorStreak = 0;
+    let restartDelayMs = RESTART_DELAY_MS;
+    let lastRecognitionError = '';
     let destroyed = false;
 
     function announce(message) {
@@ -93,15 +133,18 @@
                 ? '○ Hafize konuşuyor'
                 : coolingDown
                   ? '○ Yankı koruması etkin'
-                  : listening
-                    ? '● “Hafize” için dinliyor'
-                    : '○ Eller serbest beklemede')
+                  : restartTimer && restartDelayMs > RESTART_DELAY_MS
+                    ? '○ Konuşma servisine yeniden bağlanıyor'
+                    : listening
+                      ? '● “Hafize” için dinliyor'
+                      : '○ Eller serbest beklemede')
         : '';
       indicator.setAttribute?.('data-listening', String(listening));
       indicator.setAttribute?.('data-handoff-waiting', String(handoffWaiting));
       indicator.setAttribute?.('data-cooling-down', String(coolingDown));
       indicator.setAttribute?.('data-voice-input-listening', String(voiceInputListening));
       indicator.setAttribute?.('data-voice-output-speaking', String(voiceOutputSpeaking));
+      indicator.setAttribute?.('data-network-retry', String(networkErrorStreak));
     }
 
     function clearRestart() {
@@ -126,6 +169,12 @@
       coolingDown = false;
     }
 
+    function resetRecognitionRecovery() {
+      networkErrorStreak = 0;
+      restartDelayMs = RESTART_DELAY_MS;
+      lastRecognitionError = '';
+    }
+
     function stopRecognition({ abort = false } = {}) {
       clearRestart();
       const active = recognition;
@@ -139,7 +188,7 @@
       } catch { /* already stopped */ }
     }
 
-    function scheduleRestart() {
+    function scheduleRestart(delayMs = restartDelayMs) {
       clearRestart();
       if (
         destroyed
@@ -151,7 +200,45 @@
         || documentRef.hidden
         || input.disabled
       ) return;
-      if (typeof root?.setTimeout === 'function') restartTimer = root.setTimeout(startRecognition, RESTART_DELAY_MS);
+      const boundedDelay = Number.isFinite(delayMs) && delayMs >= RESTART_DELAY_MS
+        ? Math.min(delayMs, NETWORK_RETRY_DELAYS_MS.at(-1))
+        : RESTART_DELAY_MS;
+      restartDelayMs = boundedDelay;
+      if (typeof root?.setTimeout === 'function') restartTimer = root.setTimeout(startRecognition, boundedDelay);
+      render();
+    }
+
+    function disableForRecognitionError(code) {
+      enabled = false;
+      clearSessionTimer();
+      clearHandoff();
+      clearCooldown();
+      clearRestart();
+      stopRecognition({ abort: true });
+      render();
+      announce(terminalRecognitionMessage(code));
+    }
+
+    function handleRecognitionError(value) {
+      const classification = classifyRecognitionError(value);
+      lastRecognitionError = classification.code;
+      if (classification.kind === 'aborted') return classification;
+      if (classification.kind === 'idle') {
+        restartDelayMs = RESTART_DELAY_MS;
+        return classification;
+      }
+      if (classification.kind === 'network') {
+        networkErrorStreak += 1;
+        if (networkErrorStreak > NETWORK_RETRY_DELAYS_MS.length) {
+          disableForRecognitionError('network');
+          return Object.freeze({ code: classification.code, kind: 'terminal' });
+        }
+        restartDelayMs = networkRetryDelay(networkErrorStreak);
+        if (networkErrorStreak === 1) announce('Eller serbest konuşma servisine yeniden bağlanmayı deniyor.');
+        return classification;
+      }
+      disableForRecognitionError(classification.code);
+      return classification;
     }
 
     function expireSession() {
@@ -240,6 +327,7 @@
       current.onstart = () => {
         if (recognition !== current) return;
         listening = true;
+        resetRecognitionRecovery();
         render();
       };
       current.onresult = (event) => {
@@ -247,15 +335,8 @@
         beginVoiceHandoff();
       };
       current.onerror = (event) => {
-        if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
-          enabled = false;
-          clearSessionTimer();
-          clearHandoff();
-          clearCooldown();
-          clearRestart();
-          announce('Eller serbest için mikrofon izni verilmedi.');
-          render();
-        }
+        if (recognition !== current) return;
+        handleRecognitionError(event?.error);
       };
       current.onend = () => {
         if (recognition === current) {
@@ -263,6 +344,7 @@
           listening = false;
         }
         render();
+        if (!enabled || destroyed) return;
         if (handoffWaiting) {
           micButton.click?.();
           if (handoffWaiting && !voiceInputListening) armHandoffFallback();
@@ -275,8 +357,9 @@
       catch {
         recognition = null;
         listening = false;
+        const classification = handleRecognitionError('unknown');
         render();
-        scheduleRestart();
+        if (classification.kind !== 'terminal') scheduleRestart();
       }
     }
 
@@ -288,6 +371,7 @@
       clearHandoff();
       clearCooldown();
       clearSessionTimer();
+      resetRecognitionRecovery();
       if (enabled) {
         announce('Eller serbest bu oturum için 30 dakika açıldı. Mikrofon görünür şekilde “Hafize” uyandırma ifadesini dinler; mesaj otomatik gönderilmez.');
         armSessionTimer();
@@ -334,13 +418,16 @@
     function handleVoiceOutputState(event) {
       const detail = event?.detail;
       if (!detail || detail.source !== 'voice-output' || typeof detail.speaking !== 'boolean') return;
+      const wasSpeaking = voiceOutputSpeaking;
       voiceOutputSpeaking = detail.speaking;
       if (voiceOutputSpeaking) {
         clearCooldown();
         clearRestart();
         stopRecognition({ abort: true });
-      } else {
+      } else if (wasSpeaking) {
         beginPostOutputCooldown();
+      } else {
+        scheduleRestart();
       }
       render();
     }
@@ -373,6 +460,9 @@
       isCoolingDown: () => coolingDown,
       isVoiceInputListening: () => voiceInputListening,
       isVoiceOutputSpeaking: () => voiceOutputSpeaking,
+      getNetworkErrorStreak: () => networkErrorStreak,
+      getRestartDelayMs: () => restartDelayMs,
+      getLastRecognitionError: () => lastRecognitionError,
       enable: () => setEnabled(true),
       disable: () => setEnabled(false),
       destroy() {
@@ -381,6 +471,7 @@
         enabled = false;
         voiceInputListening = false;
         voiceOutputSpeaking = false;
+        resetRecognitionRecovery();
         clearSessionTimer();
         clearHandoff();
         clearCooldown();
@@ -398,14 +489,20 @@
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
     HANDOFF_TIMEOUT_MS,
+    NETWORK_RETRY_DELAYS_MS,
     POST_OUTPUT_COOLDOWN_MS,
+    RESTART_DELAY_MS,
     SESSION_LIMIT_MS,
     VOICE_INPUT_STATE_EVENT,
     VOICE_OUTPUT_STATE_EVENT,
+    classifyRecognitionError,
     containsWakePhrase,
     getRecognitionConstructor,
     installHandsFree,
+    networkRetryDelay,
+    normalizeRecognitionError,
     normalizeSpeech,
-    readRecognitionText
+    readRecognitionText,
+    terminalRecognitionMessage
   });
 });
