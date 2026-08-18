@@ -23,6 +23,7 @@ import { createGoogleDisconnectHttpRuntime } from './lib/google-disconnect-http-
 import { createGoogleOAuthHttpRuntime } from './lib/google-oauth-http-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
 import { createModelProviderNodeServerRuntime } from './lib/model-provider-node-server-runtime.mjs';
+import { readNvidiaJsonResponse } from './lib/nvidia-json-response.mjs';
 import { createPersonalMemoryServerRuntime } from './lib/personal-memory-server-runtime.mjs';
 import { createScreenAnalysisServerRuntime } from './lib/screen-analysis-server-runtime.mjs';
 import { loadBuiltinSkillRuntime } from './lib/skill-runtime.mjs';
@@ -151,20 +152,7 @@ async function nvidiaJsonCompletion(payload, signal) {
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(payload)
   });
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    const error = new Error('NVIDIA_CHAT_ERROR');
-    error.status = upstream.status || 502;
-    error.detail = text.slice(0, 1200);
-    throw error;
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    const error = new Error('INVALID_NVIDIA_RESPONSE');
-    error.status = 502;
-    throw error;
-  }
+  return readNvidiaJsonResponse(upstream);
 }
 
 function boundedMaxTokens(body) {
@@ -800,6 +788,7 @@ const server = createServer(async (req, res) => {
     else if (error?.message === 'NVIDIA_NOT_CONFIGURED') sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' });
     else if (error?.message === 'NVIDIA_CHAT_ERROR') sendJson(res, error.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: error.detail || '' });
     else if (error?.message === 'INVALID_NVIDIA_RESPONSE') sendJson(res, error.status || 502, { error: 'INVALID_NVIDIA_RESPONSE' });
+    else if (error?.message === 'NVIDIA_RESPONSE_TOO_LARGE') sendJson(res, 502, { error: 'NVIDIA_RESPONSE_TOO_LARGE' });
     else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
     else sendJson(res, 500, { error: 'INTERNAL_ERROR' });
   }
