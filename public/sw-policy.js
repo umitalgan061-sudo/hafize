@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v83`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v84`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
