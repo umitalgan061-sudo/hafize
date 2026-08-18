@@ -327,11 +327,13 @@
       current.onstart = () => {
         if (recognition !== current) return;
         listening = true;
-        resetRecognitionRecovery();
+        if (lastRecognitionError !== 'network') resetRecognitionRecovery();
         render();
       };
       current.onresult = (event) => {
-        if (coolingDown || voiceOutputSpeaking || !containsWakePhrase(readRecognitionText(event))) return;
+        const transcript = readRecognitionText(event);
+        if (transcript) resetRecognitionRecovery();
+        if (coolingDown || voiceOutputSpeaking || !containsWakePhrase(transcript)) return;
         beginVoiceHandoff();
       };
       current.onerror = (event) => {
