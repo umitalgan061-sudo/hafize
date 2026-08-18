@@ -31,6 +31,7 @@ import { createSkillHttpApi } from './lib/skill-http-api.mjs';
 import { createSkillAgentRunBoundary } from './lib/skill-agent-run-boundary.mjs';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
+import { runWithScheduleCompletionSignal } from './lib/schedule-completion-signal.mjs';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
 import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
@@ -239,15 +240,12 @@ const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
   nvidiaConfigured: Boolean(NVIDIA_API_KEY),
   githubReadConfigured: GITHUB_READ_CONFIGURED,
   githubReadFile: GITHUB_READ_FILE,
-  async complete(payload) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), SCHEDULE_RUN_TIMEOUT_MS);
-    timeout.unref?.();
-    try {
-      return await nvidiaJsonCompletion(payload, controller.signal);
-    } finally {
-      clearTimeout(timeout);
-    }
+  async complete(payload, signal) {
+    return runWithScheduleCompletionSignal({
+      parentSignal: signal,
+      timeoutMs: SCHEDULE_RUN_TIMEOUT_MS,
+      run: (completionSignal) => nvidiaJsonCompletion(payload, completionSignal)
+    });
   }
 });
 const SCHEDULE_EXECUTION_RUNTIME = createScheduleExecutionRuntime({
@@ -260,6 +258,7 @@ const SCHEDULE_WORKER = createScheduleWorker({
   registry: AGENT_REGISTRY,
   executeAgentTask: SCHEDULE_EXECUTION_RUNTIME.executeAgentTask
 });
+const scheduleWorkerController = new AbortController();
 let scheduleTickPromise = null;
 let scheduleWorkerTimer = null;
 
@@ -267,9 +266,9 @@ async function runScheduleTick() {
   if (scheduleTickPromise) return scheduleTickPromise;
   scheduleTickPromise = (async () => {
     try {
-      await SCHEDULE_WORKER.runDue();
+      await SCHEDULE_WORKER.runDue({ signal: scheduleWorkerController.signal });
     } catch {
-      console.error('Hafize schedule worker tick failed');
+      if (!scheduleWorkerController.signal.aborted) console.error('Hafize schedule worker tick failed');
     } finally {
       scheduleTickPromise = null;
     }
@@ -278,7 +277,7 @@ async function runScheduleTick() {
 }
 
 function startScheduleWorkerLoop() {
-  if (!NVIDIA_API_KEY || !SCHEDULE_EXECUTION_RUNTIME.configured) return;
+  if (!NVIDIA_API_KEY || !SCHEDULE_EXECUTION_RUNTIME.configured || scheduleWorkerController.signal.aborted) return;
   scheduleWorkerTimer = setInterval(() => {
     void runScheduleTick();
   }, SCHEDULE_TICK_MS);
@@ -286,9 +285,11 @@ function startScheduleWorkerLoop() {
 }
 
 function stopScheduleWorkerLoop() {
-  if (!scheduleWorkerTimer) return;
-  clearInterval(scheduleWorkerTimer);
-  scheduleWorkerTimer = null;
+  if (scheduleWorkerTimer) {
+    clearInterval(scheduleWorkerTimer);
+    scheduleWorkerTimer = null;
+  }
+  scheduleWorkerController.abort('server_shutdown');
 }
 
 startScheduleWorkerLoop();
