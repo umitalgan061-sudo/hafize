@@ -31,7 +31,7 @@ function schedule(overrides = {}) {
 
 assert.equal(normalizeScheduleListView(), null);
 assert.equal(normalizeScheduleListView(null), null);
-assert.equal(normalizeScheduleListView(''), null);
+assert.throws(() => normalizeScheduleListView(''), /INVALID_SCHEDULE_LIST_VIEW/);
 assert.equal(normalizeScheduleListView('summary'), SUMMARY_VIEW);
 assert.throws(() => normalizeScheduleListView('full'), /INVALID_SCHEDULE_LIST_VIEW/);
 assert.throws(() => normalizeScheduleListView('SUMMARY'), /INVALID_SCHEDULE_LIST_VIEW/);
