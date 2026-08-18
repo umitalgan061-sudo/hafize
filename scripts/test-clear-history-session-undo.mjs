@@ -133,6 +133,19 @@ assert.equal(deleteApi.UNDO_TEXT, 'Geri al');
 }
 
 {
+  const fixture = makeController({ initial: [conversation('local-before-clear', 6)] });
+  fixture.controller.onCaptureClick(eventFor(fixture.button));
+  fixture.controller.onCaptureClick(eventFor(fixture.button));
+  assert.equal(fixture.controller.snapshot().undoAvailable, true);
+  fixture.boundary.originalSetItem(guard.STORAGE_KEY, JSON.stringify([conversation('remote-after-clear', 7)]));
+  assert.equal(fixture.controller.onCaptureClick(eventFor(fixture.button)), true);
+  const merged = guard.sanitizeStoredValue(fixture.storage.raw(guard.STORAGE_KEY)).value;
+  assert.deepEqual(merged.map((item) => item.id).sort(), ['local-before-clear', 'remote-after-clear'],
+    'undo must pass through conflict-aware storage and preserve remote writes');
+  assert.equal(fixture.reloads(), 1);
+}
+
+{
   const fixture = makeController({ initial: [conversation('timeout', 4)] });
   fixture.controller.onCaptureClick(eventFor(fixture.button));
   fixture.controller.onCaptureClick(eventFor(fixture.button));
