@@ -258,12 +258,13 @@ const SCHEDULE_WORKER = createScheduleWorker({
 });
 let scheduleTickPromise = null;
 let scheduleWorkerTimer = null;
+const scheduleWorkerController = new AbortController();
 
 async function runScheduleTick() {
   if (scheduleTickPromise) return scheduleTickPromise;
   scheduleTickPromise = (async () => {
     try {
-      await SCHEDULE_WORKER.runDue();
+      await SCHEDULE_WORKER.runDue({ signal: scheduleWorkerController.signal });
     } catch {
       console.error('Hafize schedule worker tick failed');
     } finally {
@@ -815,6 +816,7 @@ function closeHttpServer() {
 async function shutdown() {
   if (shutdownPromise) return shutdownPromise;
   shutdownPromise = (async () => {
+    scheduleWorkerController.abort();
     stopScheduleWorkerLoop();
     const httpClose = closeHttpServer();
     if (scheduleTickPromise) await scheduleTickPromise;
