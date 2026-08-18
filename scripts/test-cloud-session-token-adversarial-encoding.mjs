@@ -19,7 +19,7 @@ assert.equal(decodeCloudSessionPayload(encoded(duplicateVersion), { subject: SUB
 const duplicateSubject = `{"v":1,"sub":"ignored","sub":"${SUBJECT}","iat":${NOW},"exp":${EXP},"n":"${NONCE}"}`;
 assert.equal(decodeCloudSessionPayload(encoded(duplicateSubject), { subject: SUBJECT }), null);
 
-const escapedSubject = `{"v":1,"sub":"owner\u003ahafize","iat":${NOW},"exp":${EXP},"n":"${NONCE}"}`;
+const escapedSubject = String.raw`{"v":1,"sub":"owner\u003ahafize","iat":${NOW},"exp":${EXP},"n":"${NONCE}"}`;
 assert.equal(decodeCloudSessionPayload(encoded(escapedSubject), { subject: SUBJECT }), null);
 
 const numericExponent = `{"v":1,"sub":"${SUBJECT}","iat":1.8e12,"exp":${EXP},"n":"${NONCE}"}`;
