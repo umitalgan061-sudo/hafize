@@ -25,7 +25,7 @@
   const ALLOWED_TOOL_STATES = new Set(['running', 'success', 'failure']);
   const ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
   const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,119}$/;
-  const INSTALLED = Symbol.for('hafize.conversationStorageGuard.installed');
+  const INSTALLATIONS = new WeakMap();
 
   function hasOwn(value, key) {
     return Object.prototype.hasOwnProperty.call(value, key);
@@ -186,32 +186,51 @@
     });
   }
 
+  function boundedSetItem(originalSetItem, receiver, key, rawValue) {
+    if (key !== STORAGE_KEY) return originalSetItem.call(receiver, key, rawValue);
+    const result = sanitizeStoredValue(String(rawValue));
+    return originalSetItem.call(receiver, key, result.serialized);
+  }
+
   function installWriteBoundary(storage) {
-    if (!storage || storage[INSTALLED]) return storage?.[INSTALLED] || null;
+    if (!storage || typeof storage !== 'object') return null;
+    const existing = INSTALLATIONS.get(storage);
+    if (existing) return existing;
     if (typeof storage.setItem !== 'function') return null;
-    const originalSetItem = storage.setItem.bind(storage);
-    const boundary = Object.freeze({
-      setItem(key, rawValue) {
-        if (key !== STORAGE_KEY) return originalSetItem(key, rawValue);
-        const result = sanitizeStoredValue(String(rawValue));
-        return originalSetItem(key, result.serialized);
-      },
-      originalSetItem
-    });
+
+    const originalSetItem = storage.setItem;
+    const instanceSetItem = function guardedConversationStorageSetItem(key, rawValue) {
+      return boundedSetItem(originalSetItem, storage, key, rawValue);
+    };
+    let mode = 'instance';
     try {
       Object.defineProperty(storage, 'setItem', {
         configurable: true,
         writable: true,
-        value: boundary.setItem
+        value: instanceSetItem
       });
-      Object.defineProperty(storage, INSTALLED, {
-        configurable: true,
-        value: boundary
-      });
-      return boundary;
     } catch {
-      return null;
+      const prototype = Object.getPrototypeOf(storage);
+      const prototypeSetItem = prototype?.setItem;
+      if (!prototype || typeof prototypeSetItem !== 'function') return null;
+      mode = 'prototype';
+      try {
+        Object.defineProperty(prototype, 'setItem', {
+          configurable: true,
+          writable: true,
+          value: function guardedConversationStoragePrototypeSetItem(key, rawValue) {
+            if (this !== storage) return prototypeSetItem.call(this, key, rawValue);
+            return boundedSetItem(prototypeSetItem, storage, key, rawValue);
+          }
+        });
+      } catch {
+        return null;
+      }
     }
+
+    const boundary = Object.freeze({ mode, originalSetItem: originalSetItem.bind(storage) });
+    INSTALLATIONS.set(storage, boundary);
+    return boundary;
   }
 
   function install(rootRef) {
@@ -257,6 +276,7 @@
       changed: raw != null && result.changed,
       reloaded,
       writeBoundary: Boolean(writeBoundary),
+      writeBoundaryMode: writeBoundary?.mode || null,
       error: writeBoundary ? null : 'write_boundary_unavailable',
       reason: result.reason
     });
@@ -284,6 +304,7 @@
     normalizeConversation,
     normalizeConversations,
     sanitizeStoredValue,
+    boundedSetItem,
     installWriteBoundary,
     install
   });
