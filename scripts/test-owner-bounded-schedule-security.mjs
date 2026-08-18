@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  countOwnedEntries,
+  countOwnedActiveEntries,
   normalizeOwnerId,
   normalizeOwnerMaxEntries
 } from '../lib/owner-bounded-schedule-store.mjs';
@@ -17,12 +17,17 @@ assert.throws(() => normalizeOwnerMaxEntries(1001), /INVALID_OWNER_SCHEDULE_LIMI
 assert.throws(() => normalizeOwnerMaxEntries(1.5), /INVALID_OWNER_SCHEDULE_LIMIT/);
 
 const snapshot = { entries: [
-  { ownerId: 'alice' }, { ownerId: 'alice' }, { ownerId: 'bob' }, { ownerId: null }
+  { ownerId: 'alice', status: 'scheduled' },
+  { ownerId: 'alice', status: 'running' },
+  { ownerId: 'alice', status: 'completed' },
+  { ownerId: 'alice', status: 'cancelled' },
+  { ownerId: 'bob', status: 'scheduled' },
+  { ownerId: null, status: 'scheduled' }
 ] };
-assert.equal(countOwnedEntries(snapshot, 'alice'), 2);
-assert.equal(countOwnedEntries(snapshot, 'bob'), 1);
-assert.equal(countOwnedEntries(snapshot, 'nobody'), 0);
-assert.throws(() => countOwnedEntries({}, 'alice'), /INVALID_OWNER_SCHEDULE_SNAPSHOT/);
+assert.equal(countOwnedActiveEntries(snapshot, 'alice'), 2);
+assert.equal(countOwnedActiveEntries(snapshot, 'bob'), 1);
+assert.equal(countOwnedActiveEntries(snapshot, 'nobody'), 0);
+assert.throws(() => countOwnedActiveEntries({}, 'alice'), /INVALID_OWNER_SCHEDULE_SNAPSHOT/);
 
 const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../lib/owner-bounded-schedule-store.mjs', import.meta.url), 'utf8'));
 for (const forbidden of ['child_process', 'exec(', 'spawn(', 'shell: true', 'process.env', 'Authorization', 'cookie']) {
