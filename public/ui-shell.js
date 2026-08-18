@@ -19,6 +19,8 @@
   const DESKTOP_DEVICE_STYLE_ID = 'hafizeDesktopDeviceStyle';
   const SCHEDULE_LIST_FILTER_SCRIPT = '/schedule-list-filter.js';
   const SCHEDULE_LIST_FILTER_SCRIPT_ID = 'hafizeScheduleListFilterScript';
+  const CONVERSATION_STORAGE_GUARD_SCRIPT = '/conversation-storage-guard.js';
+  const CONVERSATION_STORAGE_GUARD_SCRIPT_ID = 'hafizeConversationStorageGuardScript';
 
   function resolveTheme(stored, prefersDark) {
     if (stored === 'light' || stored === 'dark') return stored;
@@ -36,6 +38,19 @@
     );
   }
 
+  function appendFixedScript(documentRef, id, src) {
+    if (!documentRef || !id || !src) return false;
+    const head = documentRef.head || documentRef.querySelector?.('head');
+    if (!head || typeof documentRef.createElement !== 'function') return false;
+    if (documentRef.getElementById?.(id)) return false;
+    const script = documentRef.createElement('script');
+    script.id = id;
+    script.src = src;
+    script.async = false;
+    head.append(script);
+    return true;
+  }
+
   function installDesktopDeviceAssets(documentRef, root) {
     if (!documentRef || !hasDesktopDeviceBridge(root)) return false;
     const head = documentRef.head || documentRef.querySelector?.('head');
@@ -48,27 +63,16 @@
       link.href = DESKTOP_DEVICE_STYLE;
       head.append(link);
     }
-    if (!documentRef.getElementById?.(DESKTOP_DEVICE_SCRIPT_ID)) {
-      const script = documentRef.createElement('script');
-      script.id = DESKTOP_DEVICE_SCRIPT_ID;
-      script.src = DESKTOP_DEVICE_SCRIPT;
-      script.async = false;
-      head.append(script);
-    }
+    appendFixedScript(documentRef, DESKTOP_DEVICE_SCRIPT_ID, DESKTOP_DEVICE_SCRIPT);
     return true;
   }
 
   function installScheduleListFilterAsset(documentRef) {
-    if (!documentRef) return false;
-    const head = documentRef.head || documentRef.querySelector?.('head');
-    if (!head || typeof documentRef.createElement !== 'function') return false;
-    if (documentRef.getElementById?.(SCHEDULE_LIST_FILTER_SCRIPT_ID)) return false;
-    const script = documentRef.createElement('script');
-    script.id = SCHEDULE_LIST_FILTER_SCRIPT_ID;
-    script.src = SCHEDULE_LIST_FILTER_SCRIPT;
-    script.async = false;
-    head.append(script);
-    return true;
+    return appendFixedScript(documentRef, SCHEDULE_LIST_FILTER_SCRIPT_ID, SCHEDULE_LIST_FILTER_SCRIPT);
+  }
+
+  function installConversationStorageGuard(documentRef) {
+    return appendFixedScript(documentRef, CONVERSATION_STORAGE_GUARD_SCRIPT_ID, CONVERSATION_STORAGE_GUARD_SCRIPT);
   }
 
   function createMonthCells(year, month, selectedDay) {
@@ -163,6 +167,7 @@
     installChatAccessibility(documentRef);
     installDesktopDeviceAssets(documentRef, root);
     installScheduleListFilterAsset(documentRef);
+    installConversationStorageGuard(documentRef);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
     const storage = root?.localStorage;
@@ -262,10 +267,13 @@
     DESKTOP_DEVICE_SCRIPT,
     DESKTOP_DEVICE_STYLE,
     SCHEDULE_LIST_FILTER_SCRIPT,
+    CONVERSATION_STORAGE_GUARD_SCRIPT,
     resolveTheme,
     hasDesktopDeviceBridge,
+    appendFixedScript,
     installDesktopDeviceAssets,
     installScheduleListFilterAsset,
+    installConversationStorageGuard,
     createMonthCells,
     moveCalendarDate,
     installSidebarDisclosure,
