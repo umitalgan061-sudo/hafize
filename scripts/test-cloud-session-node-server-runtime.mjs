@@ -20,6 +20,11 @@ function fakeAuthFactory() {
         ? { ok: true, expiresAt: 9999, principal: { authenticated: true, subject: 'owner@example.test' } }
         : { ok: false, error: 'AUTH_REQUIRED' };
     },
+    revoke({ headers }) {
+      return headers?.cookie?.includes('signed')
+        ? { ok: true, expiresAt: 9999, principal: { authenticated: true, subject: 'owner@example.test' } }
+        : { ok: false, error: 'AUTH_REQUIRED' };
+    },
     logoutCookie() { return '__Host-hafize_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict'; }
   };
 }
@@ -81,6 +86,7 @@ assert.throws(
 
   assert.equal((await handleLogin(runtime, request({ password: 'valid password value' }))).status, 200);
   assert.equal((await handleLogin(runtime, request({ password: 'wrong password value' }))).status, 401);
+  assert.equal((await handleLogin(runtime, request({ password: 'wrong password value' }))).status, 401);
   const limited = await handleLogin(runtime, request({ password: 'valid password value' }));
   assert.equal(limited.status, 429);
   assert.equal(limited.body.error, 'RATE_LIMITED');
@@ -99,6 +105,8 @@ assert.throws(
     maxRateKeys: 16
   });
   assert.equal((await handleLogin(runtime, request({ password: 'valid password value' }))).status, 200);
+  assert.equal((await handleLogin(runtime, request({ password: 'valid password value' }))).status, 200, 'successful auth must reset its peer bucket');
+  assert.equal((await handleLogin(runtime, request({ password: 'wrong password value' }))).status, 401);
   assert.equal((await handleLogin(runtime, request({ password: 'valid password value' }))).status, 429);
   current = 2000;
   assert.equal((await handleLogin(runtime, request({ password: 'valid password value' }))).status, 200, 'window expiry must restore budget');
