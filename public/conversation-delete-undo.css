@@ -1,0 +1,77 @@
+.conversation-delete-undo {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(calc(100vw - 28px), 520px);
+  min-height: 52px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 14px;
+  background: var(--panel, #fff);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 18%);
+  transform: translateX(-50%);
+}
+
+.conversation-delete-undo.hidden {
+  display: none;
+}
+
+.conversation-delete-undo-message {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.92rem;
+}
+
+.conversation-delete-undo-action {
+  min-width: 72px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  cursor: pointer;
+}
+
+.conversation-delete-undo-action:focus-visible {
+  outline: 3px solid currentColor;
+  outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+  .conversation-delete-undo {
+    gap: 8px;
+    padding-left: 12px;
+  }
+
+  .conversation-delete-undo-message {
+    font-size: 0.88rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .conversation-delete-undo:not(.hidden) {
+    animation: hafize-delete-undo-in 140ms ease-out;
+  }
+
+  @keyframes hafize-delete-undo-in {
+    from { opacity: 0; transform: translate(-50%, 8px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+}
+
+@media (forced-colors: active) {
+  .conversation-delete-undo,
+  .conversation-delete-undo-action {
+    border: 1px solid ButtonText;
+  }
+}
