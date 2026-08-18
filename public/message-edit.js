@@ -13,6 +13,7 @@
 
   const STORAGE_KEY = 'hafize.conversations.v1';
   const DRAFT_HANDOFF_KEY = 'hafize.edit-branch-draft.v1';
+  const BRANCH_EVENT = 'hafize:conversation-branched';
   const MAX_COMPOSER_CHARS = 12_000;
   const MAX_HANDOFF_AGE_MS = 90_000;
   const MARKER = 'hafizeEditReady';
@@ -91,6 +92,7 @@
     modelState = globalThis.HafizeConversationModelState,
     MutationObserverImpl = globalThis.MutationObserver,
     EventImpl = globalThis.Event,
+    CustomEventImpl = globalThis.CustomEvent,
     cryptoRef = globalThis.crypto,
     now = () => new Date(),
     reload = () => locationRef?.reload?.()
@@ -140,6 +142,16 @@
         if (!source?.modelId) return;
         modelState.writeModelEntries(storage, [{ conversationId: branchId, modelId: source.modelId }, ...entries], conversations);
       } catch { /* preference copy is best effort */ }
+    }
+
+    function publishLineage(detail) {
+      if (typeof documentRef.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return false;
+      try {
+        documentRef.dispatchEvent(new CustomEventImpl(BRANCH_EVENT, { detail }));
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function stageHandoff(conversationId, text, createdAt) {
@@ -228,6 +240,13 @@
         const persisted = readCanonical()?.value || [];
         if (!persisted.some((conversation) => conversation.id === branch.id)) throw new Error('EDIT_BRANCH_NOT_PERSISTED');
         copyModelPreference(found.conversation.id, branch.id);
+        publishLineage({
+          childConversationId: branch.id,
+          parentConversationId: found.conversation.id,
+          sourceMessageId: messageId,
+          mode: 'edit',
+          createdAt: nowIso
+        });
         showState(button, 'success', 'Düzenleme dalı hazır');
         reload();
         return true;
@@ -285,7 +304,7 @@
       busy = false;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, editMessage, restoreHandoff, readCanonical });
+    return Object.freeze({ mount, destroy, decorate, decorateAll, editMessage, restoreHandoff, readCanonical, publishLineage });
   }
 
   function mount(options) {
@@ -300,6 +319,7 @@
   return Object.freeze({
     STORAGE_KEY,
     DRAFT_HANDOFF_KEY,
+    BRANCH_EVENT,
     MAX_COMPOSER_CHARS,
     MAX_HANDOFF_AGE_MS,
     MARKER,

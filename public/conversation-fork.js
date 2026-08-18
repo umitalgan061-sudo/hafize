@@ -12,6 +12,7 @@
   'use strict';
 
   const STORAGE_KEY = 'hafize.conversations.v1';
+  const BRANCH_EVENT = 'hafize:conversation-branched';
   const MARKER = 'hafizeForkReady';
   const STYLE_ID = 'hafize-conversation-fork-style';
   const STYLE_TEXT = `
@@ -89,6 +90,7 @@
     guard = globalThis.HafizeConversationStorageGuard,
     modelState = globalThis.HafizeConversationModelState,
     MutationObserverImpl = globalThis.MutationObserver,
+    CustomEventImpl = globalThis.CustomEvent,
     cryptoRef = globalThis.crypto,
     now = () => new Date(),
     reload = () => locationRef?.reload?.()
@@ -138,6 +140,16 @@
       }
     }
 
+    function publishLineage(detail) {
+      if (typeof documentRef.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return false;
+      try {
+        documentRef.dispatchEvent(new CustomEventImpl(BRANCH_EVENT, { detail }));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
     function forkFromMessage(button, messageId) {
       if (busy) return false;
       const blocker = blockedByComposer();
@@ -176,6 +188,13 @@
         const persisted = guard.sanitizeStoredValue(storage.getItem(STORAGE_KEY) || '[]').value;
         if (!persisted.some((conversation) => conversation.id === fork.id)) throw new Error('FORK_NOT_PERSISTED');
         copyModelPreference(found.conversation.id, fork.id);
+        publishLineage({
+          childConversationId: fork.id,
+          parentConversationId: found.conversation.id,
+          sourceMessageId: messageId,
+          mode: 'fork',
+          createdAt: nowIso
+        });
         showState(button, 'success', 'Yeni sohbet hazır');
         reload();
         return true;
@@ -233,7 +252,7 @@
       busy = false;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, forkFromMessage, readCanonical });
+    return Object.freeze({ mount, destroy, decorate, decorateAll, forkFromMessage, readCanonical, publishLineage });
   }
 
   function mount(options) {
@@ -247,6 +266,7 @@
 
   return Object.freeze({
     STORAGE_KEY,
+    BRANCH_EVENT,
     MARKER,
     STYLE_ID,
     STYLE_TEXT,

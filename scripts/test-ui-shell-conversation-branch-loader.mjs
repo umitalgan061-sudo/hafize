@@ -45,6 +45,7 @@ assert.equal(api.installConversationBranchAssets(null), 0);
 const expected = [
   '/message-copy.js',
   '/conversation-model-state.js',
+  '/conversation-branch-lineage.js',
   '/conversation-fork.js',
   '/message-edit.js',
   '/response-retry-style.js',
