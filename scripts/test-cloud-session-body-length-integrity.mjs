@@ -80,8 +80,9 @@ for (const invalid of ['-1', '+1', '1.0', ' 20', '20 ', '1e3', 'NaN']) {
   const req = requestFrom(body);
   req.headers['content-length'] = invalid;
   const result = await login(harness.runtime, req);
-  assert.equal(result.status, 500, `noncanonical Content-Length ${JSON.stringify(invalid)} must fail closed`);
-  assert.equal(result.body.error, 'SESSION_AUTH_FAILED');
+  assert.equal(result.status, 400, `noncanonical Content-Length ${JSON.stringify(invalid)} must be a request error`);
+  assert.equal(result.body.error, 'INVALID_REQUEST');
+  assert.equal(result.headers.connection, 'close');
   assert.equal(harness.loginCalls(), 0);
 }
 
