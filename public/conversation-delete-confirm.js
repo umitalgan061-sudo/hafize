@@ -14,8 +14,10 @@
   const FALLBACK_TITLE = 'Bu sohbet';
   const MAX_TITLE_CHARS = 120;
   const CONFIRM_WINDOW_MS = 8_000;
+  const UNDO_WINDOW_MS = 12_000;
   const PENDING_TEXT = 'Sil?';
   const CLEAR_PENDING_TEXT = 'Temizle?';
+  const UNDO_TEXT = 'Geri al';
   const CLEAR_HISTORY_PROMPT = 'Tüm yerel sohbet geçmişi silinsin mi?';
 
   function safeTitle(row) {
@@ -50,6 +52,8 @@
     let mounted = false;
     let pending = null;
     let timer = null;
+    let undoState = null;
+    let undoTimer = null;
     let replayingClear = false;
 
     function restorePending({ focus = false } = {}) {
@@ -70,6 +74,85 @@
       button.setAttribute?.('aria-pressed', 'false');
       if (focus) button.focus?.();
       return true;
+    }
+
+    function clearUndo({ focus = false } = {}) {
+      if (!undoState) return false;
+      if (undoTimer !== null) {
+        clearTimeoutImpl(undoTimer);
+        undoTimer = null;
+      }
+      const { button, text, ariaLabel, title } = undoState;
+      undoState = null;
+      button.textContent = text;
+      if (ariaLabel == null) button.removeAttribute?.('aria-label');
+      else button.setAttribute?.('aria-label', ariaLabel);
+      if (title == null) button.removeAttribute?.('title');
+      else button.setAttribute?.('title', title);
+      button.removeAttribute?.('data-clear-history-undo');
+      if (focus) button.focus?.();
+      return true;
+    }
+
+    function getStorageGuard() {
+      const guard = rootRef?.HafizeConversationStorageGuard;
+      const storage = rootRef?.localStorage;
+      if (!guard || typeof guard.sanitizeStoredValue !== 'function' || typeof guard.STORAGE_KEY !== 'string') return null;
+      if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') return null;
+      if (typeof rootRef?.location?.reload !== 'function') return null;
+      return { guard, storage, key: guard.STORAGE_KEY };
+    }
+
+    function captureUndoSnapshot() {
+      const context = getStorageGuard();
+      if (!context) return null;
+      try {
+        const sanitized = context.guard.sanitizeStoredValue(context.storage.getItem(context.key) || '[]');
+        return sanitized.serialized === '[]' ? null : Object.freeze({ context, serialized: sanitized.serialized });
+      } catch {
+        return null;
+      }
+    }
+
+    function armUndo(button, snapshot) {
+      if (!snapshot?.serialized) return false;
+      let current;
+      try {
+        current = snapshot.context.guard.sanitizeStoredValue(snapshot.context.storage.getItem(snapshot.context.key) || '[]');
+      } catch {
+        return false;
+      }
+      if (current.serialized !== '[]') return false;
+      clearUndo();
+      undoState = {
+        button,
+        snapshot,
+        text: typeof button.textContent === 'string' ? button.textContent : 'Temizle',
+        ariaLabel: button.getAttribute?.('aria-label') ?? null,
+        title: button.getAttribute?.('title') ?? null
+      };
+      button.textContent = UNDO_TEXT;
+      button.setAttribute?.('data-clear-history-undo', 'true');
+      button.setAttribute?.('aria-label', 'Temizlenen sohbet geçmişini geri al');
+      button.setAttribute?.('title', 'Geçmişi geri yüklemek için dokun');
+      undoTimer = setTimeoutImpl(() => clearUndo(), UNDO_WINDOW_MS);
+      undoTimer?.unref?.();
+      return true;
+    }
+
+    function restoreUndo() {
+      if (!undoState) return false;
+      const { snapshot } = undoState;
+      try {
+        snapshot.context.storage.setItem(snapshot.context.key, snapshot.serialized);
+        const restored = snapshot.context.guard.sanitizeStoredValue(snapshot.context.storage.getItem(snapshot.context.key) || '[]');
+        if (restored.serialized === '[]') return false;
+        clearUndo();
+        rootRef.location.reload();
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function rememberButton(button, kind) {
@@ -111,6 +194,7 @@
     function replayApprovedClear(button) {
       const originalConfirm = rootRef?.confirm;
       if (typeof originalConfirm !== 'function' || typeof button?.click !== 'function') return false;
+      const undoSnapshot = captureUndoSnapshot();
 
       let consumed = false;
       function oneShotConfirm(message) {
@@ -126,6 +210,7 @@
         if (rootRef.confirm !== oneShotConfirm) return false;
         replayingClear = true;
         button.click();
+        if (consumed && undoSnapshot) armUndo(button, undoSnapshot);
         return consumed;
       } catch {
         return false;
@@ -144,6 +229,11 @@
       const clearButton = event.target.closest('#clearHistoryBtn');
       if (clearButton) {
         if (replayingClear) return true;
+        if (undoState?.button === clearButton) {
+          event.preventDefault();
+          event.stopImmediatePropagation?.();
+          return restoreUndo();
+        }
         if (pending?.kind === 'clear-history' && pending.button === clearButton) {
           event.preventDefault();
           event.stopImmediatePropagation?.();
@@ -180,10 +270,18 @@
     }
 
     function onKeydown(event) {
-      if (event?.key !== 'Escape' || !pending) return false;
-      event.preventDefault?.();
-      restorePending({ focus: true });
-      return true;
+      if (event?.key !== 'Escape') return false;
+      if (pending) {
+        event.preventDefault?.();
+        restorePending({ focus: true });
+        return true;
+      }
+      if (undoState) {
+        event.preventDefault?.();
+        clearUndo({ focus: true });
+        return true;
+      }
+      return false;
     }
 
     function onFocusIn(event) {
@@ -193,7 +291,9 @@
     }
 
     function onVisibilityChange() {
-      if (documentRef.visibilityState === 'hidden') restorePending();
+      if (documentRef.visibilityState !== 'hidden') return;
+      restorePending();
+      clearUndo();
     }
 
     function mount() {
@@ -209,6 +309,7 @@
     function destroy() {
       if (!mounted) return false;
       restorePending();
+      clearUndo();
       documentRef.removeEventListener?.('click', onCaptureClick, true);
       documentRef.removeEventListener?.('keydown', onKeydown, true);
       documentRef.removeEventListener?.('focusin', onFocusIn, true);
@@ -225,11 +326,14 @@
       onFocusIn,
       onVisibilityChange,
       cancel: (options) => restorePending(options),
+      cancelUndo: (options) => clearUndo(options),
       replayApprovedClear,
+      restoreUndo,
       snapshot: () => Object.freeze({
         pending: Boolean(pending),
         pendingKind: pending?.kind || null,
-        pendingTitle: pending?.kind === 'conversation' ? safeTitle(pending.button.closest?.('.conversation-row')) : null
+        pendingTitle: pending?.kind === 'conversation' ? safeTitle(pending.button.closest?.('.conversation-row')) : null,
+        undoAvailable: Boolean(undoState)
       })
     });
   }
@@ -247,8 +351,10 @@
     FALLBACK_TITLE,
     MAX_TITLE_CHARS,
     CONFIRM_WINDOW_MS,
+    UNDO_WINDOW_MS,
     PENDING_TEXT,
     CLEAR_PENDING_TEXT,
+    UNDO_TEXT,
     CLEAR_HISTORY_PROMPT,
     safeTitle,
     shouldDeferToDraftGuard,
