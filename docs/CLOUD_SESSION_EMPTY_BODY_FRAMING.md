@@ -21,7 +21,8 @@ A bodyless cloud-session request may use:
 
 - no `Content-Length`, or exactly one canonical `Content-Length: 0`;
 - no `Transfer-Encoding` value;
-- no `Content-Encoding`, an empty value, or `identity`.
+- no `Content-Encoding`, an empty value, or `identity`;
+- no non-empty `Expect` or `Trailer` signal.
 
 Header-name matching is case-insensitive. Repeated logical framing headers represented through multiple differently-cased keys or array values are rejected rather than merged.
 
@@ -33,10 +34,20 @@ The following are rejected with bounded public `400 INVALID_REQUEST` plus `Conne
 - non-canonical length forms such as `00`, whitespace-padded values, signed values, decimals, or lists;
 - any non-empty `Transfer-Encoding`, including `chunked`;
 - compressed `Content-Encoding` such as gzip, br, or deflate;
+- non-empty `Expect`, including `100-continue`;
+- non-empty `Trailer`, because trailers imply a framed request body lifecycle that these endpoints do not accept;
 - repeated/array framing header representations;
 - combinations such as `Content-Length: 0` plus `Transfer-Encoding: chunked`.
 
 The internal reason code is not returned to the browser.
+
+### Why `Expect` and `Trailer` are rejected
+
+`Expect: 100-continue` asks an HTTP server to participate in a request-body handshake. A bodyless authentication route has no reason to enter that handshake, so accepting it would create a second transport state for the same semantic request.
+
+`Trailer` advertises fields that arrive after a streamed body. Because status/logout intentionally have no body, there is no valid trailer lifecycle to preserve. Both signals are therefore treated as framing ambiguity and rejected before authentication or revocation work begins.
+
+Ordinary non-framing headers such as `Accept`, `Accept-Language`, `User-Agent`, `Cookie`, cache controls, and same-origin fetch metadata remain allowed. The policy is intentionally narrow: it rejects body/framing signals rather than creating a general header allowlist.
 
 ## Ordering
 
@@ -80,12 +91,17 @@ The tests cover:
 
 - absent and canonical zero `Content-Length`;
 - transfer/content encoding rejection;
+- `Expect`/`Trailer` rejection;
 - repeated and array header representations;
+- ordinary non-framing header compatibility;
 - status authentication not running after framing rejection;
 - logout revocation and clearing-cookie generation not running after framing rejection;
+- rejected logout preserving the current session;
 - method/origin/framing/auth ordering;
 - fixed public error redaction;
 - login body behavior remaining on its separate policy;
+- production Node runtime wiring;
+- canonical check-suite discovery;
 - active four-agent/default-deny security contract.
 
 ## Rollback
