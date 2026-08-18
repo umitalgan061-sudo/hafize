@@ -5,9 +5,7 @@
   if (typeof module === 'object' && module?.exports) module.exports = api;
   else {
     root.HafizeConversationStorageGuard = api;
-    const install = () => api.install(root);
-    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
-    else install();
+    api.install(root);
   }
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeConversationStorageGuard() {
   'use strict';
@@ -24,6 +22,7 @@
   const ALLOWED_TOOL_STATES = new Set(['running', 'success', 'failure']);
   const ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
   const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,119}$/;
+  const INSTALLED = Symbol.for('hafize.conversationStorageGuard.installed');
 
   function hasOwn(value, key) {
     return Object.prototype.hasOwnProperty.call(value, key);
@@ -88,6 +87,20 @@
     return Object.freeze(result);
   }
 
+  function normalizeMessages(values) {
+    if (!Array.isArray(values)) return Object.freeze([]);
+    const messages = [];
+    const seenMessageIds = new Set();
+    for (let index = values.length - 1; index >= 0 && messages.length < MAX_MESSAGES_PER_CONVERSATION; index -= 1) {
+      const message = normalizeMessage(values[index]);
+      if (!message || seenMessageIds.has(message.id)) continue;
+      seenMessageIds.add(message.id);
+      messages.push(message);
+    }
+    messages.reverse();
+    return Object.freeze(messages);
+  }
+
   function normalizeConversation(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     if (!['id', 'createdAt', 'updatedAt', 'messages'].every((key) => hasOwn(value, key))) return null;
@@ -97,16 +110,6 @@
     const updatedAt = normalizeIsoTimestamp(value.updatedAt);
     if (!id || !createdAt || !updatedAt || !Array.isArray(value.messages)) return null;
 
-    const messages = [];
-    const seenMessageIds = new Set();
-    for (const candidate of value.messages) {
-      if (messages.length >= MAX_MESSAGES_PER_CONVERSATION) break;
-      const message = normalizeMessage(candidate);
-      if (!message || seenMessageIds.has(message.id)) continue;
-      seenMessageIds.add(message.id);
-      messages.push(message);
-    }
-
     return Object.freeze({
       id,
       title,
@@ -114,7 +117,7 @@
       toolsEnabled: hasOwn(value, 'toolsEnabled') && value.toolsEnabled === true,
       createdAt,
       updatedAt,
-      messages
+      messages: normalizeMessages(value.messages)
     });
   }
 
@@ -157,6 +160,34 @@
     });
   }
 
+  function installWriteBoundary(storage) {
+    if (!storage || storage[INSTALLED]) return storage?.[INSTALLED] || null;
+    if (typeof storage.setItem !== 'function') return null;
+    const originalSetItem = storage.setItem.bind(storage);
+    const boundary = Object.freeze({
+      setItem(key, rawValue) {
+        if (key !== STORAGE_KEY) return originalSetItem(key, rawValue);
+        const result = sanitizeStoredValue(String(rawValue));
+        return originalSetItem(key, result.serialized);
+      },
+      originalSetItem
+    });
+    try {
+      Object.defineProperty(storage, 'setItem', {
+        configurable: true,
+        writable: true,
+        value: boundary.setItem
+      });
+      Object.defineProperty(storage, INSTALLED, {
+        configurable: true,
+        value: boundary
+      });
+      return boundary;
+    } catch {
+      return null;
+    }
+  }
+
   function install(rootRef) {
     const storage = rootRef?.localStorage;
     if (!storage || typeof storage.getItem !== 'function' || typeof storage.setItem !== 'function') return null;
@@ -165,35 +196,44 @@
     try {
       raw = storage.getItem(STORAGE_KEY);
     } catch {
-      return Object.freeze({ changed: false, reloaded: false, error: 'storage_unavailable' });
-    }
-    if (raw == null) return Object.freeze({ changed: false, reloaded: false, error: null });
-
-    const result = sanitizeStoredValue(raw);
-    if (!result.changed) return Object.freeze({ changed: false, reloaded: false, error: null });
-
-    try {
-      storage.setItem(STORAGE_KEY, result.serialized);
-    } catch {
-      return Object.freeze({ changed: false, reloaded: false, error: 'storage_write_failed' });
+      return Object.freeze({ changed: false, reloaded: false, writeBoundary: false, error: 'storage_unavailable' });
     }
 
-    const marker = 'hafizeConversationStorageGuardReloaded';
-    let reloaded = false;
-    try {
-      const session = rootRef?.sessionStorage;
-      const alreadyReloaded = session?.getItem?.(marker) === '1';
-      if (!alreadyReloaded && typeof rootRef?.location?.reload === 'function') {
-        session?.setItem?.(marker, '1');
-        reloaded = true;
-        rootRef.location.reload();
-      } else {
-        session?.removeItem?.(marker);
+    let result = Object.freeze({ changed: false, value: [], serialized: '[]', reason: null });
+    if (raw != null) result = sanitizeStoredValue(raw);
+    if (raw != null && result.changed) {
+      try {
+        storage.setItem(STORAGE_KEY, result.serialized);
+      } catch {
+        return Object.freeze({ changed: false, reloaded: false, writeBoundary: false, error: 'storage_write_failed' });
       }
-    } catch {
-      // Sanitized data is already persisted; reload is best-effort only.
     }
-    return Object.freeze({ changed: true, reloaded, error: null, reason: result.reason });
+
+    const writeBoundary = installWriteBoundary(storage);
+    let reloaded = false;
+    if (raw != null && result.changed) {
+      const marker = 'hafizeConversationStorageGuardReloaded';
+      try {
+        const session = rootRef?.sessionStorage;
+        const alreadyReloaded = session?.getItem?.(marker) === '1';
+        if (!alreadyReloaded && typeof rootRef?.location?.reload === 'function') {
+          session?.setItem?.(marker, '1');
+          reloaded = true;
+          rootRef.location.reload();
+        } else {
+          session?.removeItem?.(marker);
+        }
+      } catch {
+        // Sanitized data is persisted; reload is best-effort only.
+      }
+    }
+    return Object.freeze({
+      changed: raw != null && result.changed,
+      reloaded,
+      writeBoundary: Boolean(writeBoundary),
+      error: writeBoundary ? null : 'write_boundary_unavailable',
+      reason: result.reason
+    });
   }
 
   return Object.freeze({
@@ -210,9 +250,11 @@
     normalizeIsoTimestamp,
     normalizeToolActivity,
     normalizeMessage,
+    normalizeMessages,
     normalizeConversation,
     normalizeConversations,
     sanitizeStoredValue,
+    installWriteBoundary,
     install
   });
 });
