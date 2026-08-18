@@ -24,6 +24,7 @@
   const CONVERSATION_BRANCH_ASSETS = Object.freeze([
     Object.freeze({ id: 'hafizeMessageCopyScript', src: '/message-copy.js' }),
     Object.freeze({ id: 'hafizeConversationModelStateScript', src: '/conversation-model-state.js' }),
+    Object.freeze({ id: 'hafizeConversationBranchLineageScript', src: '/conversation-branch-lineage.js' }),
     Object.freeze({ id: 'hafizeConversationForkScript', src: '/conversation-fork.js' }),
     Object.freeze({ id: 'hafizeMessageEditScript', src: '/message-edit.js' }),
     Object.freeze({ id: 'hafizeResponseRetryStyleScript', src: '/response-retry-style.js' }),
