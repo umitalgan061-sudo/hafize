@@ -10,6 +10,7 @@
   const CARD_ID = 'scheduleListCard';
   const CONTROLS_ID = 'scheduleListFilterControls';
   const STYLE_HREF = '/schedule-list-filter.css';
+  const SCOPE_EVENT = 'hafize:schedule-scope-changed';
   const MAX_QUERY_CHARS = 120;
   const AUTO_MOUNT_TIMEOUT_MS = 10_000;
   const FILTERS = Object.freeze({
@@ -110,14 +111,14 @@
     searchLabel.className = 'schedule-list-filter-search';
     const searchText = documentRef.createElement('span');
     searchText.className = 'sr-only';
-    searchText.textContent = 'Zamanlanmış görevlerde ara';
+    searchText.textContent = 'Yüklü zamanlanmış görevlerde ara';
     const input = documentRef.createElement('input');
     input.type = 'search';
     input.inputMode = 'search';
     input.autocomplete = 'off';
     input.maxLength = MAX_QUERY_CHARS;
-    input.placeholder = 'Görev veya ajan ara';
-    input.setAttribute('aria-label', 'Zamanlanmış görevlerde ara');
+    input.placeholder = 'Yüklü görev veya ajan ara';
+    input.setAttribute('aria-label', 'Yüklü zamanlanmış görevlerde ara');
     searchLabel.append(searchText, input);
 
     const live = documentRef.createElement('p');
@@ -128,6 +129,20 @@
 
     wrapper.append(tabs, searchLabel, live);
     return Object.freeze({ wrapper, buttons, input, live });
+  }
+
+  function dispatchScope(root, scope) {
+    if (typeof root?.dispatchEvent !== 'function') return false;
+    const detail = Object.freeze({ scope: normalizeFilter(scope) });
+    let event;
+    try {
+      event = typeof root.CustomEvent === 'function'
+        ? new root.CustomEvent(SCOPE_EVENT, { detail })
+        : { type: SCOPE_EVENT, detail };
+    } catch {
+      return false;
+    }
+    try { return root.dispatchEvent(event) !== false; } catch { return false; }
   }
 
   function mount(documentRef, root, card = documentRef?.getElementById?.(CARD_ID)) {
@@ -141,7 +156,7 @@
     status.insertAdjacentElement?.('afterend', nodes.wrapper);
     if (!nodes.wrapper.parentNode) card.insertBefore?.(nodes.wrapper, list);
 
-    let filter = 'all';
+    let filter = normalizeFilter(card.dataset?.scope || 'all');
     let query = '';
     let destroyed = false;
     let renderQueued = false;
@@ -156,6 +171,7 @@
       if (destroyed) return;
       const items = collectItems();
       const counts = countByFilter(items);
+      const serverScope = normalizeFilter(card.dataset?.scope || filter);
       let visible = 0;
       for (const item of items) {
         const matches = matchesItem(item, { filter, query });
@@ -165,14 +181,19 @@
       }
       for (const [key, refs] of nodes.buttons) {
         refs.button.setAttribute('aria-pressed', String(key === filter));
+        refs.count.hidden = serverScope !== 'all';
         refs.count.textContent = String(counts[key]);
-        refs.button.setAttribute('aria-label', `${FILTERS[key].label}: ${counts[key]} görev`);
+        refs.button.setAttribute('aria-label', serverScope === 'all'
+          ? `${FILTERS[key].label}: yüklenen ${counts[key]} görev`
+          : FILTERS[key].label);
       }
       const searching = Boolean(query);
       const filtering = filter !== 'all';
-      nodes.live.textContent = searching || filtering
-        ? `${visible}/${items.length} görev filtreyle eşleşiyor.`
-        : `${items.length} görev filtrelenmeden gösteriliyor.`;
+      nodes.live.textContent = searching
+        ? `${visible}/${items.length} yüklü görev aramayla eşleşiyor.`
+        : filtering
+          ? `${visible} ${FILTERS[filter].label.toLocaleLowerCase('tr-TR')} görev yüklendi.`
+          : `${items.length} görev filtrelenmeden gösteriliyor.`;
       nodes.wrapper.dataset.filtered = String(searching || filtering);
     }
 
@@ -184,8 +205,12 @@
     }
 
     function setFilter(next) {
-      filter = normalizeFilter(next);
+      const normalized = normalizeFilter(next);
+      if (normalized === filter) { queueRender(); return false; }
+      filter = normalized;
+      dispatchScope(root, filter);
       queueRender();
+      return true;
     }
 
     function setQuery(next) {
@@ -219,6 +244,14 @@
       ? new root.MutationObserver(queueRender)
       : null;
     observer?.observe(list, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['data-state'] });
+    const cardObserver = typeof root.MutationObserver === 'function'
+      ? new root.MutationObserver(() => {
+          const scope = normalizeFilter(card.dataset?.scope || 'all');
+          if (scope !== filter) filter = scope;
+          queueRender();
+        })
+      : null;
+    cardObserver?.observe(card, { attributes: true, attributeFilter: ['data-scope'] });
     render();
 
     return Object.freeze({
@@ -230,6 +263,7 @@
         if (destroyed) return;
         destroyed = true;
         observer?.disconnect?.();
+        cardObserver?.disconnect?.();
         nodes.wrapper.removeEventListener?.('click', onTabClick);
         nodes.input.removeEventListener?.('input', onInput);
         nodes.input.removeEventListener?.('keydown', onKeydown);
@@ -279,6 +313,7 @@
     CARD_ID,
     CONTROLS_ID,
     STYLE_HREF,
+    SCOPE_EVENT,
     MAX_QUERY_CHARS,
     AUTO_MOUNT_TIMEOUT_MS,
     FILTERS,
@@ -290,6 +325,7 @@
     countByFilter,
     ensureStyles,
     buildControls,
+    dispatchScope,
     mount,
     autoMount
   });
