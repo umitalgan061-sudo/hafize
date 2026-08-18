@@ -27,7 +27,7 @@ assert.match(source, /removeEventListener/);
 
 assert.match(index, /<script src="\/schedule-scope-counts-ui\.js" defer><\/script>/);
 assert.equal((index.match(/schedule-scope-counts-ui\.js/g) || []).length, 1);
-assert.match(swPolicy, /hafize-shell-`?v87|CACHE_PREFIX}\v87|CACHE_PREFIX\}v87/);
+assert.match(swPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v87`/);
 assert.match(swPolicy, /'\/schedule-scope-counts-ui\.js'/);
 assert.match(swPolicy, /if \(pathname\.startsWith\('\/api\/'\)\) return 'network-only'/);
 
