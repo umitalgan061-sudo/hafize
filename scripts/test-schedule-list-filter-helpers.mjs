@@ -5,6 +5,7 @@ const require = createRequire(import.meta.url);
 const filters = require('../public/schedule-list-filter.js');
 
 assert.equal(filters.MAX_QUERY_CHARS, 120);
+assert.equal(filters.SCOPE_EVENT, 'hafize:schedule-scope-changed');
 assert.deepEqual(Object.keys(filters.FILTERS), ['all', 'active', 'history', 'failed']);
 assert.deepEqual([...filters.FILTERS.active.statuses], ['scheduled', 'running']);
 assert.deepEqual([...filters.FILTERS.history.statuses], ['completed', 'failed', 'cancelled']);
@@ -18,6 +19,20 @@ assert.equal(filters.fold('İSTANBUL'), 'istanbul');
 assert.equal(filters.normalizeFilter('active'), 'active');
 assert.equal(filters.normalizeFilter('unknown'), 'all');
 assert.equal(filters.normalizeFilter(null), 'all');
+
+const dispatched = [];
+const eventRoot = {
+  CustomEvent: class CustomEvent {
+    constructor(type, init) { this.type = type; this.detail = init.detail; }
+  },
+  dispatchEvent(event) { dispatched.push(event); return true; }
+};
+assert.equal(filters.dispatchScope(eventRoot, 'active'), true);
+assert.equal(dispatched[0].type, filters.SCOPE_EVENT);
+assert.deepEqual(dispatched[0].detail, { scope: 'active' });
+assert.equal(filters.dispatchScope(eventRoot, 'invalid'), true);
+assert.deepEqual(dispatched[1].detail, { scope: 'all' });
+assert.equal(filters.dispatchScope(null, 'active'), false);
 
 function article({ status, agent = 'minimal-engineer', task = 'Günlük raporu hazırla' }) {
   const nodes = new Map([
