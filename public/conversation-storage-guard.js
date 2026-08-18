@@ -25,6 +25,10 @@
   const ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
   const AGENT_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,119}$/;
 
+  function hasOwn(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key);
+  }
+
   function normalizeText(value, maxChars, { allowEmpty = false } = {}) {
     if (typeof value !== 'string') return null;
     const text = value.normalize('NFC').replace(/\u0000/g, '').slice(0, maxChars);
@@ -52,18 +56,19 @@
   }
 
   function normalizeToolActivity(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (!value || typeof value !== 'object' || Array.isArray(value) || !hasOwn(value, 'label')) return null;
     const label = normalizeText(value.label, MAX_TOOL_LABEL_CHARS);
     if (!label) return null;
     let state = null;
-    if (typeof value.state === 'string' && ALLOWED_TOOL_STATES.has(value.state)) state = value.state;
-    else if (typeof value.ok === 'boolean') state = value.ok ? 'success' : 'failure';
+    if (hasOwn(value, 'state') && typeof value.state === 'string' && ALLOWED_TOOL_STATES.has(value.state)) state = value.state;
+    else if (hasOwn(value, 'ok') && typeof value.ok === 'boolean') state = value.ok ? 'success' : 'failure';
     if (!state) return null;
     return Object.freeze({ label, state });
   }
 
   function normalizeMessage(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (!['id', 'role', 'content', 'at'].every((key) => hasOwn(value, key))) return null;
     const id = normalizeId(value.id);
     const role = ALLOWED_ROLES.has(value.role) ? value.role : null;
     const content = normalizeText(value.content, MAX_MESSAGE_CHARS, { allowEmpty: role === 'assistant' });
@@ -71,7 +76,7 @@
     if (!id || !role || content == null || !at) return null;
 
     const result = { id, role, content, at };
-    if (role === 'assistant' && Array.isArray(value.toolActivities)) {
+    if (role === 'assistant' && hasOwn(value, 'toolActivities') && Array.isArray(value.toolActivities)) {
       const activities = [];
       for (const candidate of value.toolActivities) {
         if (activities.length >= MAX_TOOL_ACTIVITIES) break;
@@ -85,29 +90,28 @@
 
   function normalizeConversation(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (!['id', 'createdAt', 'updatedAt', 'messages'].every((key) => hasOwn(value, key))) return null;
     const id = normalizeId(value.id);
-    const title = normalizeText(value.title, MAX_TITLE_CHARS) || 'Yeni sohbet';
+    const title = hasOwn(value, 'title') ? normalizeText(value.title, MAX_TITLE_CHARS) || 'Yeni sohbet' : 'Yeni sohbet';
     const createdAt = normalizeIsoTimestamp(value.createdAt);
     const updatedAt = normalizeIsoTimestamp(value.updatedAt);
-    if (!id || !createdAt || !updatedAt) return null;
+    if (!id || !createdAt || !updatedAt || !Array.isArray(value.messages)) return null;
 
     const messages = [];
     const seenMessageIds = new Set();
-    if (Array.isArray(value.messages)) {
-      for (const candidate of value.messages) {
-        if (messages.length >= MAX_MESSAGES_PER_CONVERSATION) break;
-        const message = normalizeMessage(candidate);
-        if (!message || seenMessageIds.has(message.id)) continue;
-        seenMessageIds.add(message.id);
-        messages.push(message);
-      }
+    for (const candidate of value.messages) {
+      if (messages.length >= MAX_MESSAGES_PER_CONVERSATION) break;
+      const message = normalizeMessage(candidate);
+      if (!message || seenMessageIds.has(message.id)) continue;
+      seenMessageIds.add(message.id);
+      messages.push(message);
     }
 
     return Object.freeze({
       id,
       title,
-      agentId: normalizeAgentId(value.agentId),
-      toolsEnabled: value.toolsEnabled === true,
+      agentId: hasOwn(value, 'agentId') ? normalizeAgentId(value.agentId) : '',
+      toolsEnabled: hasOwn(value, 'toolsEnabled') && value.toolsEnabled === true,
       createdAt,
       updatedAt,
       messages
