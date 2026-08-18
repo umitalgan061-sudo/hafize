@@ -17,6 +17,8 @@
   const CREATED_EVENT = 'hafize:schedule-created';
   const CANCELLED_EVENT = 'hafize:schedule-cancelled';
   const RESCHEDULED_EVENT = 'hafize:schedule-rescheduled';
+  const SCOPE_EVENT = 'hafize:schedule-scope-changed';
+  const SCOPES = Object.freeze(new Set(['all', 'active', 'history', 'failed']));
   const STATUSES = Object.freeze(new Set(['scheduled', 'running', 'completed', 'failed', 'cancelled']));
   const STATUS_COPY = Object.freeze({
     scheduled: 'Planlandı',
@@ -31,6 +33,10 @@
     const clean = value.trim().replace(/\s+/g, ' ');
     if (!clean || clean.length > maxChars) return null;
     return clean;
+  }
+
+  function normalizeScope(value) {
+    return typeof value === 'string' && SCOPES.has(value) ? value : 'all';
   }
 
   function normalizeTaskPreview(value) {
@@ -126,11 +132,12 @@
     }
   }
 
-  function createListPath({ offset = 0, snapshot = null } = {}) {
+  function createListPath({ offset = 0, snapshot = null, scope = 'all' } = {}) {
+    const selectedScope = normalizeScope(scope);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 10_000) throw new Error('INVALID_SCHEDULE_LIST_OFFSET');
     if (offset > 0 && (typeof snapshot !== 'string' || !SNAPSHOT_PATTERN.test(snapshot))) throw new Error('INVALID_SCHEDULE_LIST_SNAPSHOT');
     if (offset === 0 && snapshot != null) throw new Error('INVALID_SCHEDULE_LIST_SNAPSHOT');
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), view: 'summary' });
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), view: 'summary', scope: selectedScope });
     if (offset > 0) {
       params.set('offset', String(offset));
       params.set('snapshot', snapshot);
@@ -171,6 +178,7 @@
     const card = documentRef.createElement('section');
     card.className = 'utility-card schedule-list-card';
     card.id = 'scheduleListCard';
+    card.dataset.scope = 'all';
     card.setAttribute('aria-labelledby', 'scheduleListTitle');
     card.setAttribute('aria-busy', 'false');
 
@@ -222,6 +230,8 @@
     let requestGeneration = 0;
     let sessionState = null;
     let pendingMutationRefresh = false;
+    let pendingScope = null;
+    let currentScope = 'all';
     let loadedItems = [];
     let snapshot = null;
     let nextOffset = null;
@@ -291,7 +301,7 @@
     function renderReadyStatus() {
       const visible = loadedItems.length;
       nodes.status.dataset.state = 'ready';
-      if (!visible) nodes.status.textContent = 'Zamanlanmış görev bulunmuyor.';
+      if (!visible) nodes.status.textContent = 'Bu görünümde zamanlanmış görev bulunmuyor.';
       else if (total !== null && total > visible) nodes.status.textContent = `${visible}/${total} zamanlanmış görev gösteriliyor.`;
       else nodes.status.textContent = `${visible} zamanlanmış görev gösteriliyor.`;
       nodes.more.hidden = nextOffset === null || snapshot === null || visible >= MAX_ITEMS;
@@ -304,12 +314,13 @@
       const generation = ++requestGeneration;
       const requestOffset = append ? nextOffset : 0;
       const requestSnapshot = append ? snapshot : null;
+      const requestScope = currentScope;
       setBusy(true);
       nodes.status.dataset.state = 'loading';
       nodes.status.textContent = append ? 'Daha eski görevler yükleniyor…' : 'Zamanlanmış görevler yükleniyor…';
       try {
-        const response = await client.list({ offset: requestOffset, snapshot: requestSnapshot });
-        if (destroyed || generation !== requestGeneration) return false;
+        const response = await client.list({ offset: requestOffset, snapshot: requestSnapshot, scope: requestScope });
+        if (destroyed || generation !== requestGeneration || requestScope !== currentScope) return false;
         if (append && response.status === 409 && response.payload?.error === 'SCHEDULE_LIST_SNAPSHOT_CHANGED') {
           resetPagination();
           nodes.status.dataset.state = 'stale';
@@ -348,7 +359,7 @@
         total = meta.total;
         renderReadyStatus();
         if (loadedItems.length) renderSchedules(loadedItems);
-        else renderEmpty('Henüz zamanlanmış görev yok.');
+        else renderEmpty('Bu görünümde henüz görev yok.');
         return true;
       } catch {
         if (!destroyed && generation === requestGeneration) {
@@ -361,7 +372,11 @@
       } finally {
         if (!destroyed && generation === requestGeneration && busy) {
           setBusy(false);
-          if (pendingMutationRefresh) {
+          if (pendingScope !== null) {
+            const scope = pendingScope;
+            pendingScope = null;
+            setScope(scope);
+          } else if (pendingMutationRefresh) {
             pendingMutationRefresh = false;
             loadPage({ append: false, reason: 'mutation' });
           }
@@ -373,8 +388,19 @@
       resetPagination();
       return loadPage({ append: false, reason });
     }
+    function setScope(value) {
+      const scope = normalizeScope(value);
+      if (destroyed || scope === currentScope) return false;
+      if (busy) { pendingScope = scope; return true; }
+      currentScope = scope;
+      nodes.card.dataset.scope = currentScope;
+      resetPagination();
+      loadPage({ append: false, reason: 'scope' });
+      return true;
+    }
     function onRefresh() { refresh({ reason: 'manual' }); }
     function onMore() { loadPage({ append: true, reason: 'more' }); }
+    function onScope(event) { setScope(event?.detail?.scope); }
     function onScheduleMutation() {
       if (destroyed) return;
       if (busy) { pendingMutationRefresh = true; return; }
@@ -385,6 +411,7 @@
     root.addEventListener?.(CREATED_EVENT, onScheduleMutation);
     root.addEventListener?.(CANCELLED_EVENT, onScheduleMutation);
     root.addEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
+    root.addEventListener?.(SCOPE_EVENT, onScope);
 
     const sessionBadge = documentRef.querySelector?.('#sessionBadge');
     let lastBadgeState = typeof sessionBadge?.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
@@ -403,13 +430,15 @@
 
     return Object.freeze({
       refresh,
+      setScope,
       loadMore: () => loadPage({ append: true, reason: 'more' }),
-      getState: () => Object.freeze({ busy, sessionState, pendingMutationRefresh, loaded: loadedItems.length, snapshot, nextOffset, total }),
+      getState: () => Object.freeze({ busy, sessionState, pendingMutationRefresh, pendingScope, scope: currentScope, loaded: loadedItems.length, snapshot, nextOffset, total }),
       destroy() {
         if (destroyed) return false;
         destroyed = true;
         requestGeneration += 1;
         pendingMutationRefresh = false;
+        pendingScope = null;
         resetPagination();
         observer?.disconnect?.();
         nodes.refresh.removeEventListener('click', onRefresh);
@@ -417,6 +446,7 @@
         root.removeEventListener?.(CREATED_EVENT, onScheduleMutation);
         root.removeEventListener?.(CANCELLED_EVENT, onScheduleMutation);
         root.removeEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
+        root.removeEventListener?.(SCOPE_EVENT, onScope);
         nodes.card.remove();
         return true;
       }
@@ -434,8 +464,11 @@
     CREATED_EVENT,
     CANCELLED_EVENT,
     RESCHEDULED_EVENT,
+    SCOPE_EVENT,
+    SCOPES,
     STATUSES,
     STATUS_COPY,
+    normalizeScope,
     normalizeTaskPreview,
     normalizeIso,
     normalizeSchedule,
