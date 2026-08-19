@@ -36,6 +36,13 @@
       .filter((button) => button && typeof button.focus === 'function');
   }
 
+  function isKeyboardNavigationTarget(target, input, nav, list) {
+    if (!target) return false;
+    if (target === input) return true;
+    if (typeof nav?.contains === 'function' && nav.contains(target)) return true;
+    return visibleTargets(list).includes(target);
+  }
+
   function nextIndex(current, count, direction) {
     if (!Number.isInteger(count) || count <= 0) return -1;
     if (!Number.isInteger(current) || current < 0 || current >= count) return direction < 0 ? count - 1 : 0;
@@ -130,7 +137,7 @@
     function onKeydown(event) {
       if (!event?.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
-      if (!hasQuery(input)) return;
+      if (!hasQuery(input) || !isKeyboardNavigationTarget(event.target, input, nav, list)) return;
       event.preventDefault?.();
       move(event.key === 'ArrowUp' ? -1 : 1);
     }
@@ -149,7 +156,7 @@
       previous.addEventListener('click', onClick);
       next.addEventListener('click', onClick);
       input.addEventListener('input', reset);
-      input.addEventListener('keydown', onKeydown);
+      documentRef.addEventListener?.('keydown', onKeydown);
       if (typeof MutationObserverImpl === 'function') {
         observer = new MutationObserverImpl(reset);
         observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
@@ -162,7 +169,7 @@
       previous?.removeEventListener?.('click', onClick);
       next?.removeEventListener?.('click', onClick);
       input?.removeEventListener?.('input', reset);
-      input?.removeEventListener?.('keydown', onKeydown);
+      documentRef.removeEventListener?.('keydown', onKeydown);
       observer?.disconnect?.();
       observer = null;
       nav?.remove?.();
@@ -193,6 +200,7 @@
     STYLE_ID,
     hasQuery,
     visibleTargets,
+    isKeyboardNavigationTarget,
     nextIndex,
     installStyles,
     createNavigation,

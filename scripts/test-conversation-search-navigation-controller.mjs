@@ -16,13 +16,10 @@ function eventTarget(extra = {}) {
 }
 
 const focusLog = [];
-const rows = [0, 1, 2].map((index) => ({
+const buttons = [0, 1, 2].map((index) => ({ focus: () => focusLog.push(index) }));
+const rows = buttons.map((button) => ({
   hidden: false,
-  querySelector(selector) {
-    return selector === '.conversation-open'
-      ? { focus: () => focusLog.push(index) }
-      : null;
-  }
+  querySelector(selector) { return selector === '.conversation-open' ? button : null; }
 }));
 const input = eventTarget({ value: 'hedef' });
 const previous = eventTarget({ dataset: { direction: '-1' }, disabled: false });
@@ -30,6 +27,7 @@ const next = eventTarget({ dataset: { direction: '1' }, disabled: false });
 const status = { textContent: '' };
 const navNode = {
   removed: false,
+  contains(target) { return target === previous || target === next; },
   querySelector(selector) {
     if (selector === '[data-direction="-1"]') return previous;
     if (selector === '[data-direction="1"]') return next;
@@ -41,7 +39,9 @@ const navNode = {
 const control = { append() {} };
 const list = { querySelectorAll: () => rows };
 const head = { append() {} };
+const documentEvents = eventTarget();
 const documentRef = {
+  ...documentEvents,
   head,
   getElementById(id) { return id === nav.NAV_ID ? navNode : null; },
   querySelector(selector) {
@@ -63,7 +63,8 @@ assert.equal(controller.mount(), true);
 assert.equal(status.textContent, '3 eşleşme');
 
 let prevented = 0;
-input.fire('keydown', {
+documentRef.fire('keydown', {
+  target: input,
   altKey: true,
   key: 'ArrowDown',
   preventDefault: () => { prevented += 1; }
@@ -72,15 +73,44 @@ assert.deepEqual(focusLog, [0]);
 assert.equal(status.textContent, '1 / 3');
 assert.equal(prevented, 1);
 
-input.fire('keydown', { altKey: true, key: 'ArrowUp', preventDefault: () => { prevented += 1; } });
-assert.deepEqual(focusLog, [0, 2]);
-assert.equal(status.textContent, '3 / 3');
+// Focus has moved away from the input; keyboard navigation must remain continuous.
+documentRef.fire('keydown', {
+  target: buttons[0],
+  altKey: true,
+  key: 'ArrowDown',
+  preventDefault: () => { prevented += 1; }
+});
+assert.deepEqual(focusLog, [0, 1]);
+assert.equal(status.textContent, '2 / 3');
+
+documentRef.fire('keydown', {
+  target: buttons[1],
+  altKey: true,
+  key: 'ArrowUp',
+  preventDefault: () => { prevented += 1; }
+});
+assert.deepEqual(focusLog, [0, 1, 0]);
+assert.equal(status.textContent, '1 / 3');
 
 next.fire('click', { currentTarget: next, preventDefault() {} });
-assert.deepEqual(focusLog, [0, 2, 0]);
+assert.deepEqual(focusLog, [0, 1, 0, 1]);
 
-input.fire('keydown', { altKey: false, key: 'ArrowDown', preventDefault: () => { throw new Error('plain arrow hijacked'); } });
-assert.deepEqual(focusLog, [0, 2, 0]);
+documentRef.fire('keydown', {
+  target: buttons[1],
+  altKey: false,
+  key: 'ArrowDown',
+  preventDefault: () => { throw new Error('plain arrow hijacked'); }
+});
+assert.deepEqual(focusLog, [0, 1, 0, 1]);
+
+const outside = {};
+documentRef.fire('keydown', {
+  target: outside,
+  altKey: true,
+  key: 'ArrowDown',
+  preventDefault: () => { throw new Error('outside shortcut hijacked'); }
+});
+assert.deepEqual(focusLog, [0, 1, 0, 1]);
 
 input.value = '';
 input.fire('input');
@@ -93,5 +123,6 @@ assert.equal(navNode.removed, true);
 assert.equal(input.listenerCount(), 0);
 assert.equal(previous.listenerCount(), 0);
 assert.equal(next.listenerCount(), 0);
+assert.equal(documentRef.listenerCount(), 0);
 
 console.log('conversation search navigation controller tests passed');
