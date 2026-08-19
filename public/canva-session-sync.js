@@ -21,8 +21,11 @@
 
     let lastState = normalizeState(badge.dataset?.state);
     let destroyed = false;
+    let observer = null;
+    let generation = 1;
 
     function refreshCanva() {
+      if (destroyed) return false;
       const button = documentRef.querySelector('#canvaConnectionCard .canva-connection-refresh');
       if (!button || button.disabled || typeof button.click !== 'function') return false;
       button.click();
@@ -33,12 +36,24 @@
       if (destroyed) return false;
       const nextState = normalizeState(badge.dataset?.state);
       if (!nextState || nextState === lastState) return false;
+      if (!refreshCanva()) return false;
       lastState = nextState;
-      return refreshCanva();
+      return true;
     }
 
-    const observer = new root.MutationObserver(sync);
-    observer.observe(badge, { attributes: true, attributeFilter: ['data-state'] });
+    const mountedGeneration = generation;
+    try {
+      observer = new root.MutationObserver(() => {
+        if (destroyed || generation !== mountedGeneration) return;
+        sync();
+      });
+      observer.observe(badge, { attributes: true, attributeFilter: ['data-state'] });
+    } catch {
+      try { observer?.disconnect?.(); } catch {}
+      destroyed = true;
+      generation += 1;
+      return null;
+    }
 
     return Object.freeze({
       sync,
@@ -46,7 +61,9 @@
       destroy() {
         if (destroyed) return false;
         destroyed = true;
+        generation += 1;
         observer.disconnect();
+        observer = null;
         return true;
       }
     });
