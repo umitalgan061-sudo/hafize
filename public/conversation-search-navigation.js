@@ -98,6 +98,8 @@
     let status = null;
     let observer = null;
     let current = -1;
+    let mounted = false;
+    let ownsNavigation = false;
 
     function targets() {
       return hasQuery(input) ? visibleTargets(list) : [];
@@ -142,17 +144,48 @@
       move(event.key === 'ArrowUp' ? -1 : 1);
     }
 
+    function clearReferences() {
+      observer = null;
+      nav = null;
+      input = null;
+      list = null;
+      previous = null;
+      next = null;
+      status = null;
+      current = -1;
+      ownsNavigation = false;
+      mounted = false;
+    }
+
     function mount() {
+      if (mounted) return true;
+
       const control = documentRef.querySelector(`#${CONTROL_ID}`);
-      input = documentRef.querySelector(`#${INPUT_ID}`);
-      list = documentRef.querySelector(`#${LIST_ID}`);
-      if (!control || !input || !list) return false;
+      const candidateInput = documentRef.querySelector(`#${INPUT_ID}`);
+      const candidateList = documentRef.querySelector(`#${LIST_ID}`);
+      if (!control || !candidateInput || !candidateList) return false;
+
       installStyles(documentRef);
-      nav = createNavigation(documentRef, control);
-      previous = nav.querySelector?.('[data-direction="-1"]');
-      next = nav.querySelector?.('[data-direction="1"]');
-      status = nav.querySelector?.(`#${STATUS_ID}`);
-      if (!previous || !next || !status) return false;
+      const existingNavigation = documentRef.getElementById?.(NAV_ID) || null;
+      const candidateNavigation = createNavigation(documentRef, control);
+      const candidatePrevious = candidateNavigation?.querySelector?.('[data-direction="-1"]') || null;
+      const candidateNext = candidateNavigation?.querySelector?.('[data-direction="1"]') || null;
+      const candidateStatus = candidateNavigation?.querySelector?.(`#${STATUS_ID}`) || null;
+      const createdNavigation = !existingNavigation && Boolean(candidateNavigation);
+
+      if (!candidateNavigation || !candidatePrevious || !candidateNext || !candidateStatus) {
+        if (createdNavigation) candidateNavigation?.remove?.();
+        return false;
+      }
+
+      input = candidateInput;
+      list = candidateList;
+      nav = candidateNavigation;
+      previous = candidatePrevious;
+      next = candidateNext;
+      status = candidateStatus;
+      ownsNavigation = createdNavigation;
+
       previous.addEventListener('click', onClick);
       next.addEventListener('click', onClick);
       input.addEventListener('input', reset);
@@ -161,25 +194,24 @@
         observer = new MutationObserverImpl(reset);
         observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
       }
+      mounted = true;
       render();
       return true;
     }
 
     function destroy() {
+      if (!mounted) return false;
       previous?.removeEventListener?.('click', onClick);
       next?.removeEventListener?.('click', onClick);
       input?.removeEventListener?.('input', reset);
       documentRef.removeEventListener?.('keydown', onKeydown);
       observer?.disconnect?.();
-      observer = null;
-      nav?.remove?.();
-      nav = null;
-      input = null;
-      list = null;
-      current = -1;
+      if (ownsNavigation) nav?.remove?.();
+      clearReferences();
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, move, reset, render, currentIndex: () => current });
+    return Object.freeze({ mount, destroy, move, reset, render, currentIndex: () => current, isMounted: () => mounted });
   }
 
   function mount(options) {
