@@ -127,7 +127,8 @@
     const cardClassSnapshot = Object.freeze({
       speaking: Boolean(card.classList?.contains?.('speaking')),
       paused: Boolean(card.classList?.contains?.('paused')),
-      thinking: Boolean(card.classList?.contains?.('thinking'))
+      thinking: Boolean(card.classList?.contains?.('thinking')),
+      error: Boolean(card.classList?.contains?.('error'))
     });
 
     let generatedPauseToggle = false;
@@ -224,6 +225,7 @@
     let speaking = false;
     let paused = false;
     let thinking = false;
+    let errorCode = '';
     let queue = [];
     let speechGeneration = 0;
     let activeUtterance = null;
@@ -235,14 +237,14 @@
 
     function publishState() {
       if (destroyed) return;
-      const state = paused ? 'paused' : speaking ? 'speaking' : thinking ? 'thinking' : 'idle';
+      const state = errorCode ? 'error' : paused ? 'paused' : speaking ? 'speaking' : thinking ? 'thinking' : 'idle';
       const signature = `${state}:${enabled}:${supported}`;
       if (signature === lastPublishedState) return;
       lastPublishedState = signature;
       if (typeof documentRef?.dispatchEvent !== 'function' || typeof root?.CustomEvent !== 'function') return;
       try {
         documentRef.dispatchEvent(new root.CustomEvent(VOICE_OUTPUT_STATE_EVENT, {
-          detail: Object.freeze({ source: 'voice-output', state, speaking, thinking, enabled, supported })
+          detail: Object.freeze({ source: 'voice-output', state, speaking, thinking, enabled, supported, error: Boolean(errorCode) })
         }));
       } catch { /* status event is best-effort; speech behavior stays local */ }
     }
@@ -270,13 +272,15 @@
           ? 'Sesli yanıt bu tarayıcıda desteklenmiyor.'
           : !enabled
             ? 'Sesli yanıt kapalı.'
-            : paused
-              ? 'Sesli yanıt duraklatıldı.'
-              : speaking
-                ? 'Hafize konuşuyor.'
-                : thinking
-                  ? 'Hafize yanıt hazırlıyor.'
-                  : 'Sesli yanıt hazır.';
+            : errorCode
+              ? 'Sesli yanıt oynatılamadı. Tekrar deneyebilirsin.'
+              : paused
+                ? 'Sesli yanıt duraklatıldı.'
+                : speaking
+                  ? 'Hafize konuşuyor.'
+                  : thinking
+                    ? 'Hafize yanıt hazırlıyor.'
+                    : 'Sesli yanıt hazır.';
       }
       if (rateWrap) rateWrap.hidden = !supported || !enabled;
       if (rateSelect) {
@@ -297,17 +301,31 @@
       card.classList?.toggle?.('speaking', speaking && !paused);
       card.classList?.toggle?.('paused', paused);
       card.classList?.toggle?.('thinking', thinking && !speaking);
+      card.classList?.toggle?.('error', Boolean(errorCode));
       publishState();
     }
 
-    function cancelSpeech({ renderState = true } = {}) {
+    function cancelSpeech({ renderState = true, clearError = true } = {}) {
       speechGeneration += 1;
       queue = [];
       speaking = false;
       paused = false;
       activeUtterance = null;
+      if (clearError) errorCode = '';
       try { synth?.cancel?.(); } catch { /* no-op */ }
       if (renderState) render();
+    }
+
+    function failSpeech(code = 'SPEECH_SYNTHESIS_FAILED') {
+      if (destroyed) return;
+      speechGeneration += 1;
+      queue = [];
+      activeUtterance = null;
+      speaking = false;
+      paused = false;
+      thinking = false;
+      errorCode = code;
+      render();
     }
 
     function findTurkishVoice() {
@@ -343,16 +361,12 @@
       };
       utterance.onerror = () => {
         if (destroyed || generation !== speechGeneration || activeUtterance !== utterance) return;
-        speechGeneration += 1;
-        queue = [];
-        activeUtterance = null;
-        speaking = false;
-        paused = false;
-        render();
+        failSpeech();
       };
       speaking = true;
       paused = false;
       thinking = false;
+      errorCode = '';
       render();
       try { synth.speak(utterance); } catch { utterance.onerror(); }
     }
@@ -404,7 +418,10 @@
       enabled = supported && Boolean(next);
       writeStoredEnabled(root?.localStorage, enabled);
       if (!enabled) cancelSpeech();
-      else render();
+      else {
+        errorCode = '';
+        render();
+      }
       return enabled;
     }
 
@@ -429,6 +446,7 @@
       const busy = Boolean(messageInput?.disabled);
       if (busy) {
         thinking = true;
+        errorCode = '';
         if (speaking) cancelSpeech();
         render();
         return;
@@ -487,6 +505,7 @@
       card.classList?.toggle?.('speaking', cardClassSnapshot.speaking);
       card.classList?.toggle?.('paused', cardClassSnapshot.paused);
       card.classList?.toggle?.('thinking', cardClassSnapshot.thinking);
+      card.classList?.toggle?.('error', cardClassSnapshot.error);
     }
 
     try {
@@ -525,6 +544,8 @@
       isEnabled: () => !destroyed && enabled,
       isSpeaking: () => !destroyed && speaking,
       isPaused: () => !destroyed && paused,
+      hasError: () => !destroyed && Boolean(errorCode),
+      getErrorCode: () => destroyed ? '' : errorCode,
       getSpeechRate: () => speechRate,
       setSpeechRate,
       replayLatest,
