@@ -167,6 +167,8 @@
       const entry = normalizeEntry(detail, conversationIds(list));
       if (!entry) return false;
       const prior = readEntries(list).filter((item) => item.childConversationId !== entry.childConversationId);
+      const priorByChild = new Map(prior.map((item) => [item.childConversationId, item]));
+      if (wouldCreateInvalidAncestry(entry, priorByChild)) return false;
       const normalized = normalizeEntries([entry, ...prior], conversationIds(list));
       if (!normalized.some((item) => item.childConversationId === entry.childConversationId)) return false;
       if (!writeEntries(normalized, list)) return false;
