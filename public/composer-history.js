@@ -52,12 +52,20 @@
     let input = null;
     let messages = null;
     let status = null;
+    let ownedStatus = null;
+    let statusTextBeforeMount = '';
+    let statusHiddenBeforeMount = false;
     let history = Object.freeze([]);
     let cursor = null;
     let draft = '';
     let internalWrite = false;
 
     function refreshHistory() {
+      if (!messages) {
+        history = Object.freeze([]);
+        cursor = null;
+        return history;
+      }
       history = collectHistory(messages);
       if (cursor !== null && cursor > history.length) cursor = null;
       return history;
@@ -65,7 +73,7 @@
 
     function ensureStatus(composer) {
       const existing = documentRef.querySelector(`#${STATUS_ID}`);
-      if (existing) return existing;
+      if (existing) return { node: existing, owned: false };
       if (!composer || typeof documentRef.createElement !== 'function') return null;
       const node = documentRef.createElement('p');
       node.id = STATUS_ID;
@@ -75,21 +83,28 @@
       node.setAttribute('aria-live', 'polite');
       node.setAttribute('aria-atomic', 'true');
       composer.append(node);
-      return node;
+      return { node, owned: true };
     }
 
     function announce(text = '') {
-      if (!status) return;
+      if (!mounted || !status) return false;
       status.textContent = text;
       status.hidden = !text;
+      return true;
     }
 
     function dispatchInput() {
-      if (typeof input?.dispatchEvent !== 'function' || typeof EventImpl !== 'function') return;
-      try { input.dispatchEvent(new EventImpl('input', { bubbles: true })); } catch {}
+      if (!mounted || typeof input?.dispatchEvent !== 'function' || typeof EventImpl !== 'function') return false;
+      try {
+        input.dispatchEvent(new EventImpl('input', { bubbles: true }));
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function writeValue(value, caretAtStart = false) {
+      if (!mounted || !input) return false;
       internalWrite = true;
       input.value = value;
       dispatchInput();
@@ -99,6 +114,7 @@
         const caret = caretAtStart ? 0 : value.length;
         try { input.setSelectionRange(caret, caret); } catch {}
       }
+      return true;
     }
 
     function reset({ keepStatus = false } = {}) {
@@ -108,6 +124,7 @@
     }
 
     function recall(direction) {
+      if (!mounted || !input || (direction !== -1 && direction !== 1)) return false;
       refreshHistory();
       if (!history.length) { announce('Bu sohbette geri çağrılacak önceki mesaj yok.'); return false; }
       if (cursor === null) {
@@ -130,6 +147,7 @@
     }
 
     function onKeydown(event) {
+      if (!mounted) return false;
       const navigating = cursor !== null;
       if (canRecall(event, input, -1, navigating)) {
         const changed = recall(-1);
@@ -145,11 +163,18 @@
       return false;
     }
 
-    function onInput() { if (!internalWrite) reset(); }
+    function onInput() {
+      if (!mounted) return false;
+      if (!internalWrite) reset();
+      return true;
+    }
+
     function onMessagesChanged() {
+      if (!mounted) return false;
       const active = cursor !== null;
       refreshHistory();
       if (active) reset();
+      return true;
     }
 
     function mount() {
@@ -158,22 +183,45 @@
       messages = documentRef.querySelector('#messages');
       const composer = documentRef.querySelector('#composer');
       if (!input || !messages || !composer || typeof input.addEventListener !== 'function') return false;
-      status = ensureStatus(composer);
+      const resolvedStatus = ensureStatus(composer);
+      if (!resolvedStatus?.node) {
+        input = null;
+        messages = null;
+        return false;
+      }
+      status = resolvedStatus.node;
+      ownedStatus = resolvedStatus.owned ? status : null;
+      statusTextBeforeMount = String(status.textContent || '');
+      statusHiddenBeforeMount = Boolean(status.hidden);
+      mounted = true;
       refreshHistory();
       input.addEventListener('keydown', onKeydown);
       input.addEventListener('input', onInput);
       messages.addEventListener?.('hafize:conversation-changed', onMessagesChanged);
-      mounted = true;
       return true;
     }
 
     function destroy() {
       if (!mounted) return false;
+      mounted = false;
       input?.removeEventListener?.('keydown', onKeydown);
       input?.removeEventListener?.('input', onInput);
       messages?.removeEventListener?.('hafize:conversation-changed', onMessagesChanged);
-      status?.remove?.();
-      input = null; messages = null; status = null; history = Object.freeze([]); reset(); mounted = false;
+      if (ownedStatus) ownedStatus.remove?.();
+      else if (status) {
+        status.textContent = statusTextBeforeMount;
+        status.hidden = statusHiddenBeforeMount;
+      }
+      input = null;
+      messages = null;
+      status = null;
+      ownedStatus = null;
+      statusTextBeforeMount = '';
+      statusHiddenBeforeMount = false;
+      history = Object.freeze([]);
+      cursor = null;
+      draft = '';
+      internalWrite = false;
       return true;
     }
 
