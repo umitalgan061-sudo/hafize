@@ -34,7 +34,10 @@
     }
 
     let mounted = false;
+    let mountedInput = null;
     let status = null;
+    let statusOwned = false;
+    let statusSnapshot = null;
 
     function nodes() {
       return Object.freeze({
@@ -43,9 +46,9 @@
       });
     }
 
-    function ensureStatus(composer) {
+    function acquireStatus(composer) {
       const existing = documentRef.querySelector(`#${STATUS_ID}`);
-      if (existing) return existing;
+      if (existing) return Object.freeze({ node: existing, owned: false });
       const node = documentRef.createElement('p');
       node.id = STATUS_ID;
       node.className = 'agent-hint draft-navigation-guard-status';
@@ -53,63 +56,94 @@
       node.setAttribute('role', 'status');
       node.setAttribute('aria-live', 'polite');
       composer.append(node);
-      return node;
+      return Object.freeze({ node, owned: true });
+    }
+
+    function snapshotStatus(node) {
+      if (!node) return null;
+      return Object.freeze({ hidden: Boolean(node.hidden), textContent: String(node.textContent || '') });
+    }
+
+    function restoreStatus() {
+      if (!status) return;
+      if (statusOwned) {
+        status.remove?.();
+        return;
+      }
+      if (!statusSnapshot) return;
+      status.hidden = statusSnapshot.hidden;
+      status.textContent = statusSnapshot.textContent;
     }
 
     function clearStatus() {
-      if (!status) return;
+      if (!status) return false;
       status.hidden = true;
       status.textContent = '';
+      return true;
     }
 
     function showBlocked(input) {
+      if (!mounted) return false;
       if (status) {
         status.textContent = BLOCKED_LABEL;
         status.hidden = false;
       }
       input?.focus?.();
+      return true;
     }
 
     function onCaptureClick(event) {
-      if (event.defaultPrevented || !isConversationNavigationTarget(event.target)) return;
-      const { input } = nodes();
+      if (!mounted || event?.defaultPrevented || !isConversationNavigationTarget(event?.target)) return false;
+      const input = mountedInput;
       if (!hasMeaningfulDraft(input?.value)) {
         clearStatus();
-        return;
+        return false;
       }
-      event.preventDefault();
+      event.preventDefault?.();
       event.stopImmediatePropagation?.();
       showBlocked(input);
+      return true;
     }
 
     function onInput() {
-      const { input } = nodes();
-      if (!hasMeaningfulDraft(input?.value)) clearStatus();
+      if (!mounted) return false;
+      if (!hasMeaningfulDraft(mountedInput?.value)) return clearStatus();
+      return false;
     }
 
     function mount() {
       if (mounted) return false;
       const { input, composer } = nodes();
       if (!input || !composer || typeof documentRef.addEventListener !== 'function') return false;
-      status = ensureStatus(composer);
+      const acquired = acquireStatus(composer);
+      status = acquired.node;
+      statusOwned = acquired.owned;
+      statusSnapshot = statusOwned ? null : snapshotStatus(status);
+      mountedInput = input;
       documentRef.addEventListener('click', onCaptureClick, true);
-      input.addEventListener?.('input', onInput);
+      mountedInput.addEventListener?.('input', onInput);
       mounted = true;
       return true;
     }
 
     function destroy() {
       if (!mounted) return false;
-      const { input } = nodes();
-      documentRef.removeEventListener?.('click', onCaptureClick, true);
-      input?.removeEventListener?.('input', onInput);
-      status?.remove?.();
-      status = null;
       mounted = false;
+      documentRef.removeEventListener?.('click', onCaptureClick, true);
+      mountedInput?.removeEventListener?.('input', onInput);
+      mountedInput = null;
+      restoreStatus();
+      status = null;
+      statusOwned = false;
+      statusSnapshot = null;
       return true;
     }
 
-    return Object.freeze({ mount, destroy, onCaptureClick, clearStatus });
+    function snapshot() {
+      return Object.freeze({ mounted, statusOwned, hasMountedInput: Boolean(mountedInput) });
+    }
+
+    return Object.freeze({ mount, destroy, snapshot, onCaptureClick, onInput, clearStatus });
   }
 
   function mount(options) {
