@@ -150,12 +150,13 @@ assert.equal(windowRef.scrollCalls.at(-1).behavior, 'smooth');
 assert.equal(controller.snapshot().unseen, false);
 assert.equal(button.hidden, true);
 
-controller.destroy();
+assert.equal(controller.destroy(), true);
 assert.equal(disconnected, true);
 assert.equal(button.removed, true);
 const callsBefore = windowRef.scrollCalls.length;
 windowRef.emit('scroll');
 assert.equal(windowRef.scrollCalls.length, callsBefore, 'destroyed controller must detach scroll listener');
+assert.equal(controller.destroy(), false);
 
 const sourcePath = fileURLToPath(new URL('../public/scroll-to-latest.js', import.meta.url));
 const loaderPath = fileURLToPath(new URL('../public/chat-run-controller.js', import.meta.url));
@@ -192,10 +193,13 @@ assert.equal(source.includes("documentRef.querySelector('#messages')"), true);
 assert.equal(source.includes("observer.observe(messages, { childList: true, subtree: true, characterData: true })"), true);
 assert.equal(source.includes("windowRef.addEventListener('scroll', handleScroll, { passive: true })"), true);
 assert.equal(source.includes("windowRef.removeEventListener?.('scroll', handleScroll)"), true);
+assert.equal(source.includes("button?.removeEventListener?.('click', handleButtonClick)"), true);
+assert.equal(source.includes("if (buttonOwned) button?.remove?.()"), true);
+assert.equal(source.includes('scheduledGeneration !== generation'), true);
 assert.equal(source.includes("'(prefers-reduced-motion: reduce)'"), true);
 assert.equal(loader.includes("loadShellEnhancement('HafizeScrollToLatest', '/scroll-to-latest.js', 'data-hafize-scroll-to-latest')"), true);
 assert.equal(loader.split("'/scroll-to-latest.js'").length - 1, 1);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v23');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v112');
 assert.equal(swPolicy.SHELL_ASSETS.includes('/scroll-to-latest.js'), true);
 assert.equal(swPolicy.classifyRequest({
   method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors'
@@ -209,5 +213,7 @@ assert.match(doc, /mesaj içeri/i);
 assert.match(doc, /storage/i);
 assert.match(doc, /96/);
 assert.match(doc, /prefers-reduced-motion/i);
+assert.match(doc, /sahipli/i);
+assert.match(doc, /generation/i);
 
 console.log('scroll-to-latest UX security tests passed');
