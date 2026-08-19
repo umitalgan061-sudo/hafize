@@ -29,7 +29,7 @@ assert.equal(loader.split("'/conversation-organize.js'").length - 1, 1, 'organiz
 assert.equal(source.includes("link.href = '/conversation-organize.css'"), true);
 assert.equal(source.includes("data-hafize-conversation-organize-style"), true);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v108');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v109');
 assert.equal(swPolicy.SHELL_ASSETS.includes('/conversation-organize.js'), true);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/conversation-organize.css'), true);
 assert.equal(swPolicy.SHELL_ASSETS.filter((path) => path === '/conversation-organize.js').length, 1);
