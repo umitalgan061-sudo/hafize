@@ -17,6 +17,7 @@
   const MAX_CONVERSATION_ID_LENGTH = 120;
   const MAX_ENTRIES = 30;
   const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
+  const ORGANIZE_ID_DATASET_KEY = 'conversationOrganizeId';
 
   function normalizeModelId(value) {
     const model = typeof value === 'string' ? value.normalize('NFC').trim() : '';
@@ -86,15 +87,50 @@
     return new Set(Array.from(select.options, (option) => normalizeModelId(option?.value)).filter(Boolean));
   }
 
-  function activeConversationIndex(documentRef) {
+  function conversationRows(documentRef) {
     const list = documentRef?.querySelector?.('#conversationList');
-    if (!list || typeof list.querySelectorAll !== 'function') return -1;
-    const rows = Array.from(list.querySelectorAll('.conversation-row'));
+    if (!list || typeof list.querySelectorAll !== 'function') return [];
+    return Array.from(list.querySelectorAll('.conversation-row'));
+  }
+
+  function activeConversationIndex(documentRef) {
+    const rows = conversationRows(documentRef);
     return rows.findIndex((row) => row?.classList?.contains('active'));
   }
 
+  function hasOrganizerIdentity(row) {
+    const dataset = row?.dataset;
+    return Boolean(dataset && Object.prototype.hasOwnProperty.call(dataset, ORGANIZE_ID_DATASET_KEY));
+  }
+
+  function organizerConversationId(row) {
+    if (!hasOrganizerIdentity(row)) return '';
+    return normalizeConversationId(row.dataset[ORGANIZE_ID_DATASET_KEY]);
+  }
+
   function activeConversationId(documentRef, conversations) {
-    const index = activeConversationIndex(documentRef);
+    const rows = conversationRows(documentRef);
+    const activeRows = rows.filter((row) => row?.classList?.contains('active'));
+    if (activeRows.length !== 1) return '';
+
+    const activeRow = activeRows[0];
+    if (hasOrganizerIdentity(activeRow)) {
+      const organizerId = organizerConversationId(activeRow);
+      if (!organizerId) return '';
+
+      const canonicalMatches = conversations.filter(
+        (conversation) => normalizeConversationId(conversation?.id) === organizerId
+      );
+      if (canonicalMatches.length !== 1) return '';
+
+      const rowMatches = rows.filter(
+        (row) => hasOrganizerIdentity(row) && organizerConversationId(row) === organizerId
+      );
+      if (rowMatches.length !== 1) return '';
+      return organizerId;
+    }
+
+    const index = rows.indexOf(activeRow);
     if (index < 0 || index >= conversations.length) return '';
     return normalizeConversationId(conversations[index]?.id);
   }
@@ -170,11 +206,12 @@
       const available = modelIds(select);
       if (!available.size) return false;
       const conversations = readConversations(storage);
-      const index = activeConversationIndex(documentRef);
-      if (index < 0 || index >= conversations.length) return false;
-      const conversation = conversations[index];
-      const conversationId = normalizeConversationId(conversation?.id);
+      const conversationId = activeConversationId(documentRef, conversations);
       if (!conversationId) return false;
+      const conversation = conversations.find(
+        (candidate) => normalizeConversationId(candidate?.id) === conversationId
+      );
+      if (!conversation) return false;
 
       let entries = readModelEntries(storage, conversations);
       let saved = normalizeModelId(entries.find((entry) => entry.conversationId === conversationId)?.modelId);
@@ -247,7 +284,12 @@
       rootRef?.addEventListener?.('storage', onStorage);
       if (typeof MutationObserverImpl === 'function') {
         observer = new MutationObserverImpl(queueSync);
-        observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+        observer.observe(list, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'data-conversation-organize-id']
+        });
         observer.observe(select, { childList: true, subtree: true });
         observer.observe(send, { attributes: true, attributeFilter: ['class'] });
       }
@@ -287,6 +329,7 @@
     MAX_MODEL_ID_LENGTH,
     MAX_CONVERSATION_ID_LENGTH,
     MAX_ENTRIES,
+    ORGANIZE_ID_DATASET_KEY,
     normalizeModelId,
     normalizeConversationId,
     normalizeModelEntries,
@@ -294,7 +337,10 @@
     readModelEntries,
     writeModelEntries,
     modelIds,
+    conversationRows,
     activeConversationIndex,
+    hasOrganizerIdentity,
+    organizerConversationId,
     activeConversationId,
     legacyModelEntry,
     upsertModelEntry,
