@@ -15,8 +15,10 @@
   'use strict';
 
   const STORAGE_KEY = 'hafize.reading-focus.v1';
+  const CONVERSATION_STORAGE_KEY = 'hafize.conversations.v1';
   const MAX_BOOKMARKS = 200;
   const MAX_MESSAGE_ID_CHARS = 160;
+  const MAX_STORAGE_CHARS = 48 * 1024;
   const MESSAGE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const DEFAULT_STATE = Object.freeze({ focusMode: false, bookmarkIds: Object.freeze([]) });
 
@@ -42,7 +44,7 @@
   }
 
   function normalizeState(value) {
-    if (!value || typeof value !== 'object') return { focusMode: false, bookmarkIds: [] };
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return { focusMode: false, bookmarkIds: [] };
     return {
       focusMode: value.focusMode === true,
       bookmarkIds: normalizeBookmarkIds(value.bookmarkIds)
@@ -50,7 +52,7 @@
   }
 
   function parseState(raw) {
-    if (typeof raw !== 'string' || !raw) return { focusMode: false, bookmarkIds: [] };
+    if (typeof raw !== 'string' || !raw || raw.length > MAX_STORAGE_CHARS) return { focusMode: false, bookmarkIds: [] };
     try {
       return normalizeState(JSON.parse(raw));
     } catch {
@@ -90,6 +92,48 @@
     return without.slice(-MAX_BOOKMARKS);
   }
 
+  function messageIdsFromConversations(conversations) {
+    const ids = new Set();
+    for (const conversation of Array.isArray(conversations) ? conversations : []) {
+      if (!conversation || typeof conversation !== 'object' || !Array.isArray(conversation.messages)) continue;
+      for (const message of conversation.messages) {
+        const id = normalizeMessageId(message?.id);
+        if (id) ids.add(id);
+      }
+    }
+    return ids;
+  }
+
+  function canonicalMessageIds(storage, guard) {
+    if (!storage || typeof storage.getItem !== 'function') return null;
+    if (!guard || typeof guard.sanitizeStoredValue !== 'function') return null;
+    try {
+      const canonical = guard.sanitizeStoredValue(storage.getItem(CONVERSATION_STORAGE_KEY) || '[]');
+      return messageIdsFromConversations(canonical.value);
+    } catch {
+      return null;
+    }
+  }
+
+  function pruneBookmarkIds(bookmarkIds, validMessageIds) {
+    const normalized = normalizeBookmarkIds(bookmarkIds);
+    if (!(validMessageIds instanceof Set)) return normalized;
+    return normalized.filter((id) => validMessageIds.has(id));
+  }
+
+  function compactState(storage, guard, state = loadState(storage)) {
+    const normalized = normalizeState(state);
+    const validMessageIds = canonicalMessageIds(storage, guard);
+    if (!(validMessageIds instanceof Set)) return Object.freeze({ state: normalized, changed: false, persisted: false });
+    const next = {
+      focusMode: normalized.focusMode,
+      bookmarkIds: pruneBookmarkIds(normalized.bookmarkIds, validMessageIds)
+    };
+    const changed = serializeState(next) !== serializeState(normalized);
+    if (!changed) return Object.freeze({ state: next, changed: false, persisted: false });
+    return Object.freeze({ state: next, changed: true, persisted: persistState(storage, next) });
+  }
+
   function ensureStyles(documentRef) {
     if (!documentRef?.head || documentRef.querySelector?.('link[data-hafize-reading-focus-style]')) return false;
     const link = documentRef.createElement('link');
@@ -114,7 +158,9 @@
 
     ensureStyles(documentRef);
     const storage = root.localStorage;
-    let state = loadState(storage);
+    const guard = root.HafizeConversationStorageGuard;
+    const initialCompaction = compactState(storage, guard);
+    let state = initialCompaction.state;
     let bookmarks = new Set(state.bookmarkIds);
     let bookmarksOnly = false;
     let navigationIndex = -1;
@@ -159,6 +205,13 @@
     function save() {
       state = { focusMode: state.focusMode, bookmarkIds: Array.from(bookmarks) };
       persistState(storage, state);
+    }
+
+    function applyCanonicalCompaction() {
+      const result = compactState(storage, guard, { focusMode: state.focusMode, bookmarkIds: Array.from(bookmarks) });
+      state = result.state;
+      bookmarks = new Set(state.bookmarkIds);
+      return result.changed;
     }
 
     function allMessageArticles() {
@@ -285,9 +338,12 @@
     }
 
     function onStorage(event) {
-      if (event?.key !== STORAGE_KEY) return;
-      state = parseState(event.newValue || '');
-      bookmarks = new Set(state.bookmarkIds);
+      if (event?.key !== STORAGE_KEY && event?.key !== CONVERSATION_STORAGE_KEY) return;
+      if (event.key === STORAGE_KEY) {
+        state = parseState(event.newValue || '');
+        bookmarks = new Set(state.bookmarkIds);
+      }
+      applyCanonicalCompaction();
       syncFocusMode();
       for (const button of messages.querySelectorAll?.('.reading-bookmark-button') || []) {
         const article = messageArticleFor(button);
@@ -312,6 +368,7 @@
     return Object.freeze({
       getState: () => Object.freeze({ focusMode: state.focusMode, bookmarkIds: Object.freeze(Array.from(bookmarks)), bookmarksOnly }),
       goToNextBookmark,
+      compact: () => { const changed = applyCanonicalCompaction(); decorateAll(); return changed; },
       destroy() {
         observer?.disconnect?.();
         root.removeEventListener?.('storage', onStorage);
@@ -332,15 +389,23 @@
 
   return Object.freeze({
     STORAGE_KEY,
+    CONVERSATION_STORAGE_KEY,
     MAX_BOOKMARKS,
     MAX_MESSAGE_ID_CHARS,
+    MAX_STORAGE_CHARS,
     DEFAULT_STATE,
     normalizeMessageId,
     normalizeBookmarkIds,
     normalizeState,
     parseState,
     serializeState,
+    loadState,
+    persistState,
     nextBookmarkIds,
+    messageIdsFromConversations,
+    canonicalMessageIds,
+    pruneBookmarkIds,
+    compactState,
     messageArticleFor,
     install
   });
