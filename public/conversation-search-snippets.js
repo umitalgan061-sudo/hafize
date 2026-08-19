@@ -121,11 +121,14 @@
     let list = null;
     let observer = null;
     let queued = false;
+    let mounted = false;
+    let destroyed = false;
 
     function apply() {
-      const query = normalizeQuery(input?.value || '');
+      if (!mounted || destroyed || !input || !list) return Object.freeze({ query: '', rows: 0, snippets: 0 });
+      const query = normalizeQuery(input.value || '');
       const index = buildSnippetIndex(readCanonicalConversations(rootRef), query);
-      const rows = Array.from(list?.querySelectorAll?.('.conversation-row') || []);
+      const rows = Array.from(list.querySelectorAll?.('.conversation-row') || []);
       for (const row of rows) {
         const id = normalizeId(row?.dataset?.conversationId);
         const text = !row.hidden && id ? index.get(id) || '' : '';
@@ -135,12 +138,12 @@
     }
 
     function queueApply() {
-      if (queued) return;
+      if (!mounted || destroyed || queued) return;
       queued = true;
       const schedule = rootRef?.requestAnimationFrame?.bind?.(rootRef) || ((callback) => rootRef?.setTimeout?.(callback, 0));
       schedule(() => {
         queued = false;
-        apply();
+        if (mounted && !destroyed) apply();
       });
     }
 
@@ -150,9 +153,15 @@
     }
 
     function mount() {
+      if (mounted) return false;
+      destroyed = false;
       input = documentRef.querySelector(`#${INPUT_ID}`);
       list = documentRef.querySelector(`#${LIST_ID}`);
-      if (!input || !list) return false;
+      if (!input || !list) {
+        input = null;
+        list = null;
+        return false;
+      }
       installStyles(documentRef);
       input.addEventListener('input', queueApply);
       rootRef?.addEventListener?.('storage', onStorage);
@@ -161,11 +170,13 @@
         observer = new MutationObserverImpl(queueApply);
         observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
       }
+      mounted = true;
       apply();
       return true;
     }
 
     function destroy() {
+      destroyed = true;
       input?.removeEventListener?.('input', queueApply);
       rootRef?.removeEventListener?.('storage', onStorage);
       rootRef?.removeEventListener?.('hafize:conversation-storage-merged', queueApply);
@@ -174,6 +185,8 @@
       for (const node of Array.from(list?.querySelectorAll?.(`.${SNIPPET_CLASS}`) || [])) node.remove?.();
       input = null;
       list = null;
+      queued = false;
+      mounted = false;
     }
 
     return Object.freeze({ mount, destroy, apply });
