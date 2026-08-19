@@ -191,6 +191,7 @@ function createHarness({ preexisting = false, cancelRemovesFrame = true } = {}) 
   const owned = h.button();
   assert.ok(owned);
   assert.equal(h.controller.snapshot().buttonOwned, true);
+  assert.equal(h.controller.snapshot().framePending, true);
   assert.equal(owned.listenerCount('click'), 1);
   h.runAllFrames();
   assert.equal(h.controller.destroy(), true);
