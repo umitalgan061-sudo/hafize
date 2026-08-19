@@ -17,6 +17,7 @@
   const MAX_COMPOSER_CHARS = 12_000;
   const MAX_HANDOFF_AGE_MS = 90_000;
   const MARKER = 'hafizeEditReady';
+  const SOURCE_RETENTION_ERROR = 'Kaynak korunamıyor';
 
   function editableText(value) {
     if (typeof value !== 'string') return null;
@@ -49,6 +50,14 @@
       if (index >= 0) matches.push({ conversation, index });
     }
     return matches.length === 1 ? matches[0] : null;
+  }
+
+  function includesConversationIds(conversations, ...ids) {
+    if (!Array.isArray(conversations) || !ids.length) return false;
+    const required = new Set(ids.filter((id) => typeof id === 'string' && id));
+    if (required.size !== ids.length) return false;
+    for (const conversation of conversations) required.delete(conversation?.id);
+    return required.size === 0;
   }
 
   function buildEditBranch(source, messageIndex, { nowIso, makeId, maxTitleChars = 80 } = {}) {
@@ -131,6 +140,17 @@
       const rows = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || []);
       const index = rows.findIndex((row) => row?.classList?.contains('active'));
       return index >= 0 && index < conversations.length ? conversations[index]?.id || '' : '';
+    }
+
+    function rollbackOrphanBranch(branchId) {
+      try {
+        const persisted = readCanonical()?.value || [];
+        if (!persisted.some((conversation) => conversation.id === branchId)) return true;
+        storage.setItem(STORAGE_KEY, JSON.stringify(persisted.filter((conversation) => conversation.id !== branchId)));
+        return !(readCanonical()?.value || []).some((conversation) => conversation.id === branchId);
+      } catch {
+        return false;
+      }
     }
 
     function copyModelPreference(sourceId, branchId) {
@@ -227,9 +247,9 @@
         return false;
       }
       const candidate = guard.normalizeConversations([branch, ...canonical.value]);
-      if (!candidate.some((conversation) => conversation.id === branch.id)) {
+      if (!includesConversationIds(candidate, branch.id, found.conversation.id)) {
         try { handoffStorage.removeItem(DRAFT_HANDOFF_KEY); } catch { /* ignore */ }
-        showState(button, 'error', 'Sınır aşıldı');
+        showState(button, 'error', SOURCE_RETENTION_ERROR);
         return false;
       }
 
@@ -238,7 +258,10 @@
       try {
         storage.setItem(STORAGE_KEY, JSON.stringify(candidate));
         const persisted = readCanonical()?.value || [];
-        if (!persisted.some((conversation) => conversation.id === branch.id)) throw new Error('EDIT_BRANCH_NOT_PERSISTED');
+        if (!includesConversationIds(persisted, branch.id, found.conversation.id)) {
+          rollbackOrphanBranch(branch.id);
+          throw new Error('EDIT_BRANCH_SOURCE_NOT_PERSISTED');
+        }
         copyModelPreference(found.conversation.id, branch.id);
         publishLineage({
           childConversationId: branch.id,
@@ -304,7 +327,7 @@
       busy = false;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, editMessage, restoreHandoff, readCanonical, publishLineage });
+    return Object.freeze({ mount, destroy, decorate, decorateAll, editMessage, restoreHandoff, readCanonical, rollbackOrphanBranch, publishLineage });
   }
 
   function mount(options) {
@@ -323,10 +346,12 @@
     MAX_COMPOSER_CHARS,
     MAX_HANDOFF_AGE_MS,
     MARKER,
+    SOURCE_RETENTION_ERROR,
     editableText,
     defaultId,
     editBranchTitle,
     findSource,
+    includesConversationIds,
     buildEditBranch,
     normalizeHandoff,
     createController,
