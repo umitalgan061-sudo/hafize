@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, stat } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createOAuthTokenFileStore } from '../lib/oauth-token-file-store.mjs';
+import { createOAuthTokenFileStore, OAUTH_TOKEN_FILE_MODES } from '../lib/oauth-token-file-store.mjs';
 
 const root = await mkdtemp(join(tmpdir(), 'hafize-oauth-store-'));
 const key = Buffer.alloc(32, 9);
@@ -20,10 +20,19 @@ assert.equal(names.length, 1);
 assert.match(names[0], /^[a-f0-9]{64}\.json$/);
 assert.equal(names[0].includes('user_01'), false);
 assert.equal(names[0].includes('google'), false);
-const raw = await readFile(join(root, names[0]), 'utf8');
+const tokenPath = join(root, names[0]);
+const raw = await readFile(tokenPath, 'utf8');
 assert.equal(raw.includes('fixture-a'), false);
 assert.equal(raw.includes('fixture-b'), false);
-if (process.platform !== 'win32') assert.equal((await stat(join(root, names[0]))).mode & 0o777, 0o600);
+if (process.platform !== 'win32') {
+  assert.equal((await stat(root)).mode & 0o777, OAUTH_TOKEN_FILE_MODES.directory);
+  assert.equal((await stat(tokenPath)).mode & 0o777, OAUTH_TOKEN_FILE_MODES.file);
+  await chmod(root, 0o755);
+  await chmod(tokenPath, 0o644);
+  assert.deepEqual(await store.load({ ownerId: 'user_01@example.com', provider: 'google' }), record);
+  assert.equal((await stat(root)).mode & 0o777, OAUTH_TOKEN_FILE_MODES.directory);
+  assert.equal((await stat(tokenPath)).mode & 0o777, OAUTH_TOKEN_FILE_MODES.file);
+}
 
 await assert.rejects(() => store.remove({ ownerId: 'user_01@example.com', provider: 'google' }), /DELETE_REQUIRES_INTENT/);
 assert.equal((await store.remove({ ownerId: 'user_01@example.com', provider: 'google', explicitUserIntent: true })).deleted, true);
@@ -43,5 +52,15 @@ await assert.rejects(() => tiny.save({ ownerId: 'user', provider: 'google', toke
 await store.save({ ownerId: 'user', provider: 'google', tokenRecord: record });
 const wrongKeyStore = createOAuthTokenFileStore({ directory: root, key: Buffer.alloc(32, 8) });
 await assert.rejects(() => wrongKeyStore.load({ ownerId: 'user', provider: 'google' }), /OAUTH_TOKEN_DECRYPT_FAILED/);
+
+const windowsRoot = join(root, 'windows');
+const windowsStore = createOAuthTokenFileStore({
+  directory: windowsRoot,
+  key,
+  createNonce: () => Buffer.alloc(8, 5),
+  platform: 'win32'
+});
+await windowsStore.save({ ownerId: 'user', provider: 'google', tokenRecord: record });
+assert.deepEqual(await windowsStore.load({ ownerId: 'user', provider: 'google' }), record);
 
 console.log('oauth token file store tests passed');
