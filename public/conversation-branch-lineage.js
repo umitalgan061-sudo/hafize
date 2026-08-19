@@ -135,11 +135,37 @@
 
     function annotateRows(list = conversations()) {
       const rows = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || []);
-      rows.forEach((row, index) => {
-        const id = normalizeId(list[index]?.id);
+      const validIds = conversationIds(list);
+      const claimedIds = new Set();
+
+      rows.forEach((row) => {
+        const organizedId = normalizeId(row?.dataset?.conversationOrganizeId);
+        if (!organizedId || !validIds.has(organizedId) || claimedIds.has(organizedId)) return;
+        row.dataset.conversationId = organizedId;
+        claimedIds.add(organizedId);
+      });
+
+      const remainingIds = list
+        .map((conversation) => normalizeId(conversation?.id))
+        .filter((id) => id && !claimedIds.has(id));
+      let fallbackIndex = 0;
+
+      rows.forEach((row) => {
+        const organizedId = normalizeId(row?.dataset?.conversationOrganizeId);
+        if (organizedId && validIds.has(organizedId) && row?.dataset?.conversationId === organizedId) return;
+        const currentId = normalizeId(row?.dataset?.conversationId);
+        if (currentId && validIds.has(currentId) && !claimedIds.has(currentId)) {
+          claimedIds.add(currentId);
+          return;
+        }
+        while (fallbackIndex < remainingIds.length && claimedIds.has(remainingIds[fallbackIndex])) fallbackIndex += 1;
+        const fallbackId = remainingIds[fallbackIndex] || '';
         if (row?.dataset) {
-          if (id) row.dataset.conversationId = id;
-          else delete row.dataset.conversationId;
+          if (fallbackId) {
+            row.dataset.conversationId = fallbackId;
+            claimedIds.add(fallbackId);
+            fallbackIndex += 1;
+          } else delete row.dataset.conversationId;
         }
       });
       return rows;
@@ -223,7 +249,7 @@
       const listNode = documentRef.querySelector('#conversationList');
       if (listNode && typeof MutationObserverImpl === 'function') {
         observer = new MutationObserverImpl(() => render());
-        observer.observe(listNode, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+        observer.observe(listNode, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-conversation-organize-id'] });
       }
       render();
       return true;
