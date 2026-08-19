@@ -36,30 +36,43 @@ assert.equal(parseMemoryId('/api/memory/not-memory'), null);
 assert.equal(parseMemoryId('/api/memory/memory_short'), null);
 assert.equal(parseMemoryId('/api/memory/memory_12345678/extra'), null);
 
-let validation = validateMemoryMutationBody('write', {
-  kind: 'preference',
-  content: 'Tenisi severim',
-  sourceType: 'user_statement',
-  sensitivity: 'personal',
-  explicitUserIntent: true
-});
-assert.equal(validation.ok, true);
-validation = validateMemoryMutationBody('write', {
+const write = {
   kind: 'preference',
   content: 'Tenisi severim',
   sourceType: 'user_statement',
   sensitivity: 'personal'
-});
+};
+let validation = validateMemoryMutationBody('write-approval', { ...write, explicitUserIntent: true });
+assert.equal(validation.ok, true);
+validation = validateMemoryMutationBody('write-approval', write);
 assert.equal(validation.error, 'MEMORY_WRITE_REQUIRES_EXPLICIT_USER_INTENT');
-validation = validateMemoryMutationBody('write', {
-  kind: 'preference',
-  content: 'x',
-  sourceType: 'user_statement',
-  sensitivity: 'personal',
+validation = validateMemoryMutationBody('write-approval', {
+  ...write,
   explicitUserIntent: true,
   ownerId: 'attacker'
 });
 assert.equal(validation.error, 'MEMORY_WRITE_REQUIRES_EXPLICIT_USER_INTENT');
+
+validation = validateMemoryMutationBody('write', { ...write, approvalReceipt: 'receipt.token' });
+assert.equal(validation.ok, true);
+assert.equal(validation.value.approvalReceipt, 'receipt.token');
+assert.equal(validateMemoryMutationBody('write', write).error, 'MEMORY_WRITE_APPROVAL_REQUIRED');
+assert.equal(
+  validateMemoryMutationBody('write', { ...write, approvalReceipt: ' ' }).error,
+  'MEMORY_WRITE_APPROVAL_REQUIRED'
+);
+assert.equal(
+  validateMemoryMutationBody('write', { ...write, approvalReceipt: 'x'.repeat(2049) }).error,
+  'MEMORY_WRITE_APPROVAL_REQUIRED'
+);
+assert.equal(
+  validateMemoryMutationBody('write', { ...write, explicitUserIntent: true }).error,
+  'MEMORY_WRITE_APPROVAL_REQUIRED'
+);
+assert.equal(
+  validateMemoryMutationBody('write', { ...write, approvalReceipt: 'receipt.token', ownerId: 'attacker' }).error,
+  'MEMORY_WRITE_APPROVAL_REQUIRED'
+);
 
 assert.equal(validateMemoryMutationBody('export', { explicitUserIntent: true }).ok, true);
 assert.equal(

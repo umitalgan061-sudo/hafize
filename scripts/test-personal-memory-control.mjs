@@ -34,7 +34,7 @@ assert.equal(authOptions.token, env.HAFIZE_CONNECTOR_AUTH_TOKEN);
 assert.equal(authOptions.subject, env.HAFIZE_CONNECTOR_AUTH_SUBJECT);
 assert.deepEqual(ownerOptions.key, Buffer.alloc(32, 2));
 assert.equal(memoryOptions.env, env);
-assert.deepEqual(runtime.authenticate({ authorization: 'Bearer ok' }), { ownerId: 'owner_private' });
+assert.deepEqual(runtime.authenticate({ authorization: 'Bearer ok' }), { ownerId: 'owner_private', authMode: 'bearer' });
 assert.equal(runtime.authenticate({}), null);
 
 const disabled = await createPersonalMemoryControlRuntime({ env: {} });
@@ -73,16 +73,44 @@ nextBody = { explicitUserIntent: true };
 response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory' });
 assert.equal(response.status, 400);
 
-nextBody = { kind: 'preference', content: 'Tenisi severim', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true };
+const writeApproval = {
+  kind: 'preference',
+  content: 'Tenisi severim',
+  sourceType: 'user_statement',
+  sensitivity: 'personal',
+  explicitUserIntent: true
+};
+nextBody = writeApproval;
+response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory/approval' });
+assert.equal(response.status, 200);
+assert.equal(response.body.ok, true);
+assert.equal(typeof response.body.approvalReceipt, 'string');
+assert.ok(response.body.approvalReceipt.length > 0);
+
+const approvedWrite = {
+  kind: writeApproval.kind,
+  content: writeApproval.content,
+  sourceType: writeApproval.sourceType,
+  sensitivity: writeApproval.sensitivity,
+  approvalReceipt: response.body.approvalReceipt
+};
+nextBody = approvedWrite;
 response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory' });
 assert.equal(response.status, 200);
 assert.equal('ownerId' in response.body.record, false);
 assert.equal(calls.at(-1)[1].ownerId, 'owner_private');
+const writesAfterApproval = calls.filter((call) => Array.isArray(call) && call[0] === 'write').length;
+
+nextBody = approvedWrite;
+response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory' });
+assert.equal(response.status, 403);
+assert.equal(response.body.error, 'MEMORY_WRITE_APPROVAL_INVALID');
+assert.equal(calls.filter((call) => Array.isArray(call) && call[0] === 'write').length, writesAfterApproval);
 
 nextBody = { kind: 'preference', content: 'sessiz yaz', sourceType: 'user_statement', sensitivity: 'personal' };
 response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory' });
 assert.equal(response.status, 400);
-assert.equal(calls.at(-1)[0], 'write');
+assert.equal(calls.filter((call) => Array.isArray(call) && call[0] === 'write').length, writesAfterApproval);
 
 nextBody = { exactMatch: true, explicitUserIntent: true };
 response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory/memory_12345678' });

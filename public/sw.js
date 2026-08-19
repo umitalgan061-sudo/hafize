@@ -1,4 +1,4 @@
-importScripts('/sw-policy.js');
+importScripts('/sw-policy.js?memory-approval=v112');
 
 const {
   CURRENT_CACHE,
