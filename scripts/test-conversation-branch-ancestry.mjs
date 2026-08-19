@@ -65,10 +65,10 @@ const deep = [];
 for (let index = 0; index < api.MAX_DEPTH + 2; index += 1) {
   deep.push(entry(`d${index}`, index === api.MAX_DEPTH + 1 ? 'root' : `d${index + 1}`, index));
 }
-const bounded = api.normalizeEntries(deep);
-assert.ok(bounded.length <= api.MAX_DEPTH);
-const deepest = api.resolveAncestry(bounded, 'd0');
-assert.ok(deepest.depth <= api.MAX_DEPTH);
+const deepest = api.resolveAncestry(deep, 'd0');
+assert.equal(deepest.depth, api.MAX_DEPTH);
+assert.equal(deepest.entries.length, api.MAX_DEPTH);
+assert.notEqual(deepest.rootConversationId, 'root');
 
 const validIds = new Set(['a', 'b', 'root']);
 const filtered = api.normalizeEntries([
