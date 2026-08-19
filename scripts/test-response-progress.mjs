@@ -44,7 +44,7 @@ class FakeObserver {
   disconnect() { this.disconnected = true; }
 }
 
-function fixture({ streaming = false, text = '', busy = null } = {}) {
+function fixture({ streaming = false, text = '', busy = null, existingStatus = null } = {}) {
   FakeObserver.instances = [];
   const head = new FakeElement('head');
   const messages = new FakeElement('div');
@@ -57,6 +57,7 @@ function fixture({ streaming = false, text = '', busy = null } = {}) {
   }
   const composer = new FakeElement('form');
   composer.id = 'composer';
+  if (existingStatus) composer.append(existingStatus);
   const send = new FakeElement('button');
   send.id = 'sendBtn';
   if (streaming) send.classList.add('streaming');
@@ -91,7 +92,9 @@ function fixture({ streaming = false, text = '', busy = null } = {}) {
   const f = fixture({ streaming: false, text: '' });
   const controller = progress.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
   assert.equal(controller.mount(), true);
+  assert.equal(controller.mount(), false, 'mount is single-owner');
   const status = f.documentRef.querySelector(`#${progress.STATUS_ID}`);
+  assert.equal(controller.snapshot().ownsStatus, true);
   assert.equal(status.hidden, true);
   assert.equal(status.getAttribute('role'), 'status');
   assert.equal(status.getAttribute('aria-live'), 'polite');
@@ -103,6 +106,7 @@ function fixture({ streaming = false, text = '', busy = null } = {}) {
   assert.equal(status.hidden, false);
   assert.equal(status.textContent, progress.PREPARING_TEXT);
   assert.equal(status.dataset.phase, 'preparing');
+  assert.equal(status.getAttribute('data-phase'), 'preparing');
   assert.equal(f.messages.getAttribute('aria-busy'), 'true');
 
   f.messages.assistantNodes[0].textContent = 'İlk token';
@@ -117,9 +121,55 @@ function fixture({ streaming = false, text = '', busy = null } = {}) {
   assert.equal(f.messages.getAttribute('aria-busy'), 'false');
 
   assert.equal(controller.destroy(), true);
+  assert.equal(controller.destroy(), false, 'double destroy is a no-op');
   assert.equal(f.messages.getAttribute('aria-busy'), null);
   assert.equal(f.documentRef.querySelector(`#${progress.STATUS_ID}`), null);
   assert.equal(FakeObserver.instances[0].disconnected, true);
+  assert.equal(controller.refresh(), 'idle');
+  assert.equal(controller.paint('streaming'), false, 'public paint is inert after destroy');
+}
+
+{
+  const hostStatus = new FakeElement('small');
+  hostStatus.id = progress.STATUS_ID;
+  hostStatus.hidden = false;
+  hostStatus.textContent = 'Host durumu';
+  hostStatus.dataset.phase = 'host';
+  hostStatus.setAttribute('data-phase', 'host');
+  hostStatus.setAttribute('role', 'note');
+  const f = fixture({ streaming: true, text: 'Yanıt', busy: 'mixed', existingStatus: hostStatus });
+  const controller = progress.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+
+  assert.equal(controller.mount(), true);
+  assert.equal(controller.snapshot().ownsStatus, false);
+  assert.equal(hostStatus.textContent, progress.STREAMING_TEXT);
+  assert.equal(hostStatus.getAttribute('role'), 'note', 'host accessibility attributes are not replaced');
+  assert.equal(f.messages.getAttribute('aria-busy'), 'true');
+
+  assert.equal(controller.destroy(), true);
+  assert.equal(hostStatus.parentNode, f.composer, 'host-owned status survives teardown');
+  assert.equal(hostStatus.hidden, false);
+  assert.equal(hostStatus.textContent, 'Host durumu');
+  assert.equal(hostStatus.dataset.phase, 'host');
+  assert.equal(hostStatus.getAttribute('data-phase'), 'host');
+  assert.equal(hostStatus.getAttribute('role'), 'note');
+  assert.equal(f.messages.getAttribute('aria-busy'), 'mixed');
+}
+
+{
+  const hostStatus = new FakeElement('small');
+  hostStatus.id = progress.STATUS_ID;
+  hostStatus.hidden = true;
+  hostStatus.textContent = 'Başlangıç';
+  const f = fixture({ streaming: true, text: '', existingStatus: hostStatus });
+  const controller = progress.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+  controller.mount();
+  assert.equal(hostStatus.getAttribute('data-phase'), 'preparing');
+  controller.destroy();
+  assert.equal(hostStatus.getAttribute('data-phase'), null, 'missing host phase attribute is removed again');
+  assert.equal('phase' in hostStatus.dataset, false, 'dataset phase is restored to absence');
+  assert.equal(hostStatus.hidden, true);
+  assert.equal(hostStatus.textContent, 'Başlangıç');
 }
 
 {
@@ -129,6 +179,9 @@ function fixture({ streaming = false, text = '', busy = null } = {}) {
   assert.equal(controller.snapshot().phase, 'streaming');
   assert.equal(controller.destroy(), true);
   assert.equal(f.messages.getAttribute('aria-busy'), 'false', 'destroy must restore pre-existing aria-busy');
+  assert.equal(controller.mount(), true, 'same controller can cleanly remount');
+  assert.equal(FakeObserver.instances.length, 2);
+  assert.equal(controller.destroy(), true);
 }
 
 {
