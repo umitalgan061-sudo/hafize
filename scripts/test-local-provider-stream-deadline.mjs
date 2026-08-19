@@ -44,9 +44,10 @@ const invalidBody = createLocalProviderStreamDeadline(async (_payload, { signal 
 }, { timeoutMs: 5_000 });
 await assert.rejects(
   () => invalidBody({}, {}),
-  /LOCAL_PROVIDER_CANCELLED/
+  (error) => error?.code === 'INVALID_LOCAL_PROVIDER_STREAM' && error?.status === 502
 );
 assert.equal(invalidSignal.aborted, true, 'invalid provider body must release the owned request signal');
+assert.equal(invalidSignal.reason?.code, 'INVALID_LOCAL_PROVIDER_STREAM');
 
 const cancelledCaller = new AbortController();
 let cancellationSignal;
