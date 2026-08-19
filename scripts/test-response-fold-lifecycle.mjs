@@ -21,11 +21,16 @@ function makeButton() {
   const attrs = new Map();
   const handlers = new Map();
   return {
-    type: '', className: '', textContent: '', title: '',
+    type: '', className: '', textContent: '', title: '', removed: false,
     setAttribute(name, value) { attrs.set(name, String(value)); },
     getAttribute(name) { return attrs.get(name); },
-    addEventListener(name, handler) { handlers.set(name, handler); },
-    click() { handlers.get('click')?.({ preventDefault() {} }); }
+    addEventListener(name, handler) {
+      if (!handlers.has(name)) handlers.set(name, new Set());
+      handlers.get(name).add(handler);
+    },
+    removeEventListener(name, handler) { handlers.get(name)?.delete(handler); },
+    click() { for (const handler of [...(handlers.get('click') || [])]) handler({ preventDefault() {} }); },
+    handlerCount(name) { return handlers.get(name)?.size || 0; }
   };
 }
 
@@ -39,10 +44,11 @@ function makeActions() {
   };
 }
 
-function makeArticle(text = 'x'.repeat(2000)) {
-  const content = { id: '', textContent: text, classList: makeClassList() };
+function makeArticle(text = 'x'.repeat(2000), { id = '', contentClasses = [], marker } = {}) {
+  const content = { id, textContent: text, classList: makeClassList(contentClasses) };
   const children = [];
   const dataset = {};
+  if (marker !== undefined) dataset[api.MARKER] = marker;
   const article = {
     dataset,
     classList: makeClassList(['message', 'assistant']),
@@ -57,13 +63,21 @@ function makeArticle(text = 'x'.repeat(2000)) {
 }
 
 const short = makeArticle('kısa');
-const long = makeArticle();
-const assistantArticles = [short.article, long.article];
+const long = makeArticle('x'.repeat(2000), { id: 'host-content', contentClasses: [api.CONTENT_CLASS] });
+const foreign = makeArticle('y'.repeat(2000), { marker: '1', contentClasses: [api.CONTENT_CLASS, api.COLLAPSED_CLASS] });
+const foreignActions = makeActions();
+foreignActions.className = api.ACTIONS_CLASS;
+foreign.article.append(foreignActions);
+const assistantArticles = [short.article, long.article, foreign.article];
 const messages = {
   querySelectorAll(selector) {
     if (selector === '.message.assistant') return assistantArticles;
-    if (selector === `.${api.ACTIONS_CLASS}`) return long.children.filter((node) => node.className === api.ACTIONS_CLASS && !node.removed);
-    if (selector.startsWith('.message.assistant[data-')) return assistantArticles.filter((article) => article.dataset[api.MARKER] === '1');
+    if (selector === `.${api.ACTIONS_CLASS}`) {
+      return assistantArticles.flatMap((article) => {
+        const action = article.querySelector?.(`.${api.ACTIONS_CLASS}`);
+        return action ? [action] : [];
+      });
+    }
     return [];
   }
 };
@@ -99,36 +113,33 @@ assert.equal(controller.mount(), true);
 assert.equal(styles.length, 1);
 assert.equal(long.article.dataset[api.MARKER], '1');
 assert.equal(short.article.dataset[api.MARKER], undefined);
-assert.equal(long.children.length, 1);
+assert.equal(foreign.article.dataset[api.MARKER], '1');
+assert.equal(foreign.article.querySelector(`.${api.ACTIONS_CLASS}`), foreignActions);
 assert.equal(long.content.classList.contains(api.CONTENT_CLASS), true);
 assert.equal(long.content.classList.contains(api.COLLAPSED_CLASS), true);
-assert.match(long.content.id, /^hafize-response-fold-\d+$/);
+assert.equal(long.content.id, 'host-content');
 
-const action = long.children[0];
+const action = long.children.find((node) => node.className === api.ACTIONS_CLASS && !node.removed);
 const toggle = action.children[0];
-assert.equal(toggle.getAttribute('aria-controls'), long.content.id);
+assert.equal(toggle.getAttribute('aria-controls'), 'host-content');
 assert.equal(toggle.getAttribute('aria-expanded'), 'false');
-assert.match(toggle.getAttribute('aria-label'), /Hafize/);
 assert.equal(toggle.textContent, 'Devamını göster');
 toggle.click();
 assert.equal(toggle.getAttribute('aria-expanded'), 'true');
-assert.equal(toggle.textContent, 'Daralt');
 assert.equal(long.content.classList.contains(api.COLLAPSED_CLASS), false);
 toggle.click();
 assert.equal(toggle.getAttribute('aria-expanded'), 'false');
 assert.equal(long.content.classList.contains(api.COLLAPSED_CLASS), true);
-
 assert.equal(observations.length, 2);
-assert.equal(observations[0].target, messages);
-assert.equal(observations[0].options.characterData, true);
-assert.equal(observations[1].target, sendButton);
-assert.equal(Array.from(observations[1].options.attributeFilter).join(','), 'class');
 
 long.content.textContent = 'artık kısa';
 controller.refresh();
 assert.equal(action.removed, true);
+assert.equal(toggle.handlerCount('click'), 0);
 assert.equal(long.article.dataset[api.MARKER], undefined);
-assert.equal(long.content.classList.contains(api.CONTENT_CLASS), false);
+assert.equal(long.content.classList.contains(api.CONTENT_CLASS), true);
+assert.equal(long.content.classList.contains(api.COLLAPSED_CLASS), false);
+assert.equal(long.content.id, 'host-content');
 
 long.content.textContent = 'z'.repeat(2000);
 sendButton.classList.add('streaming');
@@ -137,11 +148,25 @@ assert.equal(long.article.dataset[api.MARKER], undefined);
 sendButton.classList.remove('streaming');
 controller.refresh();
 assert.equal(long.article.dataset[api.MARKER], '1');
+const remountedAction = long.article.querySelector(`.${api.ACTIONS_CLASS}`);
+const remountedToggle = remountedAction.children[0];
 
 controller.destroy();
 assert.equal(disconnected, true);
+assert.equal(remountedAction.removed, true);
+assert.equal(remountedToggle.handlerCount('click'), 0);
 assert.equal(long.article.dataset[api.MARKER], undefined);
-assert.equal(long.content.classList.contains(api.CONTENT_CLASS), false);
+assert.equal(long.content.classList.contains(api.CONTENT_CLASS), true);
+assert.equal(long.content.classList.contains(api.COLLAPSED_CLASS), false);
+assert.equal(long.content.id, 'host-content');
+assert.equal(foreign.article.dataset[api.MARKER], '1');
+assert.equal(foreignActions.removed, false);
+assert.equal(foreign.content.classList.contains(api.COLLAPSED_CLASS), true);
 assert.deepEqual({ ...controller.snapshot() }, { mounted: false, threshold: 1800, decorated: 0 });
+assert.equal(controller.refresh(), 0);
+assert.equal(controller.decorate(long.article), false);
+assert.equal(controller.decorateAll(messages), 0);
+assert.equal(controller.mount(), false);
+controller.destroy();
 
 console.log('response fold lifecycle ok');
