@@ -45,6 +45,18 @@ assert.throws(
 }
 
 {
+  const runtime = createBoundedAbortRuntime({ timeoutMs: 1000 });
+  const reason = new Error('owned-cancel');
+  assert.equal(runtime.abort(reason), true);
+  assert.equal(runtime.signal.aborted, true);
+  assert.equal(runtime.signal.reason, reason);
+  assert.equal(runtime.isTimedOut(), false, 'explicit cancellation must not be reported as a timeout');
+  assert.equal(runtime.abort(new Error('later')), false, 'owned signal may only be aborted once');
+  assert.equal(runtime.dispose(), true);
+  assert.equal(runtime.abort(new Error('after-dispose')), false, 'disposed runtimes reject late cancellation');
+}
+
+{
   const runtime = createBoundedAbortRuntime({ timeoutMs: 25 });
   await delay(60);
   assert.equal(runtime.signal.aborted, true);
