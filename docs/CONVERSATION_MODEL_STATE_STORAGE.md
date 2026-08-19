@@ -23,7 +23,17 @@ Conversation rows can be visually reordered by the local organization layer when
 
 When the active row contains `data-conversation-organize-id`, model-state treats that identifier as authoritative only after it passes the bounded conversation-ID validator, resolves to exactly one canonical conversation, and appears on exactly one rendered row. A stale, malformed, empty, duplicate, or otherwise ambiguous organizer identity fails closed; Hafize does not fall back to the row index and risk writing another conversation's model preference.
 
-Legacy surfaces that have no organizer identity attribute retain the historical DOM-index lookup so older shells remain compatible. Assignment of the organizer identity attribute is itself observed so an already-active row can be safely re-synchronized once its stable identity becomes available.
+If any rendered row already has organizer identity but the active row does not, the UI is in a mixed startup/reorder state and model-state also fails closed. DOM-index fallback is allowed only while **all** rendered rows are still untagged, preserving compatibility with older/pre-organizer shells without crossing a partially established identity boundary.
+
+## Cross-tab reconciliation
+
+A model preference write records only a bounded session-local mutation containing the conversation ID and its canonical `before` / `after` model entry. This mutation memory is never persisted and holds at most 30 conversation intents.
+
+When another tab writes `hafize.conversation-models.v1`, Hafize compares the StorageEvent `oldValue` and `newValue` after applying the same allowlist and size limits. If the remote write changed multiple conversation entries and reverted one remembered local entry from its `after` value back to its exact `before` value, that local entry is treated as stale-snapshot collateral and replayed onto the remote snapshot. Independent model choices therefore converge instead of silently deleting each other.
+
+Conflict handling is deliberately conservative. If the remote write changes only the same conversation, or changes that conversation to a third model that is neither the remembered `before` nor `after`, the remote value wins and the local mutation is discarded. Hafize does not invent timestamps, revisions, or a last-writer priority that could override a genuine same-conversation choice.
+
+A replay writes only when the canonical merged JSON differs from current storage, so acknowledgement/convergence does not create cross-tab write ping-pong. Session mutations are removed when acknowledged, conflicted, malformed, or when their conversation no longer exists.
 
 ## Lifecycle and compaction
 
