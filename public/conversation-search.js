@@ -149,6 +149,8 @@
     let list = null;
     let canonical = Object.freeze({ ready: false, index: new Map() });
     let refreshQueued = false;
+    let destroyed = false;
+    let ownsControl = false;
 
     function rows() {
       return list?.querySelectorAll?.('.conversation-row') || [];
@@ -177,30 +179,32 @@
     }
 
     function apply() {
+      if (destroyed) return Object.freeze({ ok: false, total: 0, visible: 0, query: '' });
       const result = filterRows(rows(), input?.value || '', canonical.index);
       updateStatus(result);
       return result;
     }
 
     function refreshAndApply() {
+      if (destroyed) return null;
       refreshCanonicalIndex();
       return apply();
     }
 
     function queueRefresh() {
-      if (refreshQueued) return;
+      if (destroyed || refreshQueued) return;
       refreshQueued = true;
       const schedule = typeof rootRef?.requestAnimationFrame === 'function'
         ? rootRef.requestAnimationFrame.bind(rootRef)
         : (callback) => rootRef?.setTimeout?.(callback, 0);
       schedule?.(() => {
         refreshQueued = false;
-        refreshAndApply();
+        if (!destroyed) refreshAndApply();
       });
     }
 
     function clear({ focus = true } = {}) {
-      if (!input) return false;
+      if (destroyed || !input) return false;
       if (input.value) input.value = '';
       apply();
       if (focus) input.focus?.();
@@ -209,7 +213,7 @@
 
     function createControl(historyBlock) {
       const existing = documentRef.querySelector(`#${CONTROL_ID}`);
-      if (existing) return existing;
+      if (existing) return Object.freeze({ node: existing, created: false });
 
       const wrapper = documentRef.createElement('div');
       wrapper.id = CONTROL_ID;
@@ -241,7 +245,21 @@
 
       wrapper.append(field, button, state);
       historyBlock.insertBefore(wrapper, list);
-      return wrapper;
+      return Object.freeze({ node: wrapper, created: true });
+    }
+
+    function onInput() {
+      apply();
+    }
+
+    function onInputKeydown(event) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      clear();
+    }
+
+    function onClearClick() {
+      clear();
     }
 
     function onStorage(event) {
@@ -251,23 +269,35 @@
     }
 
     function mount() {
+      if (control || observer || input || list) return false;
+      destroyed = false;
       const historyBlock = documentRef.querySelector('.history-block');
       list = documentRef.querySelector('#conversationList');
-      if (!historyBlock || !list) return false;
+      if (!historyBlock || !list) {
+        list = null;
+        return false;
+      }
       installStyles(documentRef);
-      control = createControl(historyBlock);
+      const controlResult = createControl(historyBlock);
+      control = controlResult.node;
+      ownsControl = controlResult.created;
       input = control.querySelector?.(`#${INPUT_ID}`);
       clearButton = control.querySelector?.('.conversation-search-clear');
       status = control.querySelector?.(`#${STATUS_ID}`);
-      if (!input || !clearButton || !status) return false;
+      if (!input || !clearButton || !status) {
+        if (ownsControl) control?.remove?.();
+        control = null;
+        input = null;
+        clearButton = null;
+        status = null;
+        list = null;
+        ownsControl = false;
+        return false;
+      }
 
-      input.addEventListener('input', apply);
-      input.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape' || event.defaultPrevented) return;
-        event.preventDefault();
-        clear();
-      });
-      clearButton.addEventListener('click', () => clear());
+      input.addEventListener('input', onInput);
+      input.addEventListener('keydown', onInputKeydown);
+      clearButton.addEventListener('click', onClearClick);
       rootRef?.addEventListener?.('storage', onStorage);
       rootRef?.addEventListener?.('hafize:conversation-storage-merged', queueRefresh);
       refreshAndApply();
@@ -280,12 +310,23 @@
     }
 
     function destroy() {
+      destroyed = true;
       observer?.disconnect?.();
       observer = null;
       rootRef?.removeEventListener?.('storage', onStorage);
       rootRef?.removeEventListener?.('hafize:conversation-storage-merged', queueRefresh);
-      control?.remove?.();
+      input?.removeEventListener?.('input', onInput);
+      input?.removeEventListener?.('keydown', onInputKeydown);
+      clearButton?.removeEventListener?.('click', onClearClick);
+      if (ownsControl) control?.remove?.();
       control = null;
+      input = null;
+      clearButton = null;
+      status = null;
+      list = null;
+      canonical = Object.freeze({ ready: false, index: new Map() });
+      refreshQueued = false;
+      ownsControl = false;
     }
 
     return Object.freeze({ mount, destroy, apply, clear, refreshCanonicalIndex });
