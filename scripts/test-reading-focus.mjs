@@ -108,7 +108,7 @@ assert.equal(source.includes("root.removeEventListener?.('storage', onStorage)")
 
 assert.equal(loader.includes("loadShellEnhancement('HafizeReadingFocus', '/reading-focus.js', 'data-hafize-reading-focus')"), true);
 assert.equal(loader.split("'/reading-focus.js'").length - 1, 1, 'reading focus loader must be exact-once');
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v110');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v111');
 assert.equal(swPolicy.SHELL_ASSETS.includes('/reading-focus.js'), true);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/reading-focus.css'), true);
 assert.equal(swPolicy.classifyRequest({ method: 'GET', url: 'https://hafize.example/reading-focus.js', headers: {}, mode: 'cors' }, 'https://hafize.example'), 'shell');
