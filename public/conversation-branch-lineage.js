@@ -20,9 +20,9 @@
   const STYLE_ID = 'hafize-conversation-branch-lineage-style';
   const STYLE_TEXT = `
 .conversation-branch-lineage{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 12px 0;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:10px;background:color-mix(in srgb,var(--surface,#fff) 88%,transparent);font-size:12px;color:var(--muted,#666)}
-.conversation-branch-lineage[hidden]{display:none}.conversation-branch-actions{display:flex;gap:6px;flex-wrap:wrap}.conversation-branch-source,.conversation-branch-root{min-height:36px;border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;padding:6px 9px;cursor:pointer}.conversation-branch-source:focus-visible,.conversation-branch-root:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}
-@media(max-width:620px){.conversation-branch-lineage{align-items:stretch;flex-direction:column}.conversation-branch-actions{display:grid;grid-template-columns:1fr}.conversation-branch-source,.conversation-branch-root{min-height:44px}}
-@media(forced-colors:active){.conversation-branch-source:focus-visible,.conversation-branch-root:focus-visible{outline-color:Highlight}}
+.conversation-branch-lineage[hidden]{display:none}.conversation-branch-actions{display:flex;gap:6px;flex-wrap:wrap}.conversation-branch-source,.conversation-branch-root,.conversation-branch-prev,.conversation-branch-next{min-height:36px;border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;padding:6px 9px;cursor:pointer}.conversation-branch-source:focus-visible,.conversation-branch-root:focus-visible,.conversation-branch-prev:focus-visible,.conversation-branch-next:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}.conversation-branch-prev[hidden],.conversation-branch-next[hidden]{display:none}
+@media(max-width:620px){.conversation-branch-lineage{align-items:stretch;flex-direction:column}.conversation-branch-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.conversation-branch-source,.conversation-branch-root,.conversation-branch-prev,.conversation-branch-next{min-height:44px}.conversation-branch-source,.conversation-branch-root{grid-column:1/-1}}
+@media(forced-colors:active){.conversation-branch-source:focus-visible,.conversation-branch-root:focus-visible,.conversation-branch-prev:focus-visible,.conversation-branch-next:focus-visible{outline-color:Highlight}}
 `;
 
   function own(object, key) {
@@ -107,6 +107,31 @@
     return Object.freeze({ entries: Object.freeze(chain), rootConversationId, depth: chain.length });
   }
 
+  function compareSiblingEntries(left, right) {
+    const leftMs = Date.parse(left.createdAt);
+    const rightMs = Date.parse(right.createdAt);
+    if (leftMs !== rightMs) return leftMs - rightMs;
+    return left.childConversationId.localeCompare(right.childConversationId);
+  }
+
+  function resolveSiblings(entries, childConversationId) {
+    const childId = normalizeId(childConversationId);
+    if (!childId) return Object.freeze({ entries: Object.freeze([]), index: -1, previousConversationId: '', nextConversationId: '' });
+    const normalized = normalizeEntries(entries);
+    const current = normalized.find((entry) => entry.childConversationId === childId);
+    if (!current) return Object.freeze({ entries: Object.freeze([]), index: -1, previousConversationId: '', nextConversationId: '' });
+    const siblings = normalized
+      .filter((entry) => entry.parentConversationId === current.parentConversationId && entry.sourceMessageId === current.sourceMessageId)
+      .sort(compareSiblingEntries);
+    const index = siblings.findIndex((entry) => entry.childConversationId === childId);
+    return Object.freeze({
+      entries: Object.freeze(siblings),
+      index,
+      previousConversationId: index > 0 ? siblings[index - 1].childConversationId : '',
+      nextConversationId: index >= 0 && index + 1 < siblings.length ? siblings[index + 1].childConversationId : ''
+    });
+  }
+
   function parseEntries(raw, validConversationIds) {
     if (typeof raw !== 'string' || !raw) return [];
     try { return normalizeEntries(JSON.parse(raw), validConversationIds); } catch { return []; }
@@ -137,6 +162,8 @@
     let label = null;
     let sourceButton = null;
     let rootButton = null;
+    let previousButton = null;
+    let nextButton = null;
 
     function conversations() {
       try { return guard.sanitizeStoredValue(storage.getItem(CONVERSATION_KEY) || '[]').value || []; } catch { return []; }
@@ -227,6 +254,18 @@
       label = documentRef.createElement('span');
       const actions = documentRef.createElement('div');
       actions.className = 'conversation-branch-actions';
+      previousButton = documentRef.createElement('button');
+      previousButton.type = 'button';
+      previousButton.className = 'conversation-branch-prev';
+      previousButton.textContent = '← Önceki alternatif';
+      previousButton.hidden = true;
+      previousButton.addEventListener('click', () => openPreviousSibling());
+      nextButton = documentRef.createElement('button');
+      nextButton.type = 'button';
+      nextButton.className = 'conversation-branch-next';
+      nextButton.textContent = 'Sonraki alternatif →';
+      nextButton.hidden = true;
+      nextButton.addEventListener('click', () => openNextSibling());
       sourceButton = documentRef.createElement('button');
       sourceButton.type = 'button';
       sourceButton.className = 'conversation-branch-source';
@@ -238,7 +277,7 @@
       rootButton.textContent = 'Kök sohbeti aç';
       rootButton.hidden = true;
       rootButton.addEventListener('click', () => openRoot());
-      actions.append(sourceButton, rootButton);
+      actions.append(previousButton, nextButton, sourceButton, rootButton);
       banner.append(label, actions);
       stage.prepend?.(banner);
       return banner;
@@ -252,7 +291,7 @@
       const entries = readEntries(list);
       const entry = entries.find((item) => item.childConversationId === activeId) || null;
       if (!entry) return null;
-      return Object.freeze({ entry, ancestry: resolveAncestry(entries, activeId) });
+      return Object.freeze({ entry, ancestry: resolveAncestry(entries, activeId), siblings: resolveSiblings(entries, activeId) });
     }
 
     function currentEntry() {
@@ -279,6 +318,16 @@
       return context && context.ancestry.depth > 1 ? openConversation(context.ancestry.rootConversationId) : false;
     }
 
+    function openPreviousSibling() {
+      const context = currentContext();
+      return context?.siblings?.previousConversationId ? openConversation(context.siblings.previousConversationId) : false;
+    }
+
+    function openNextSibling() {
+      const context = currentContext();
+      return context?.siblings?.nextConversationId ? openConversation(context.siblings.nextConversationId) : false;
+    }
+
     function render() {
       const node = ensureBanner();
       if (!node) return false;
@@ -287,12 +336,19 @@
         node.hidden = true;
         if (label) label.textContent = '';
         if (rootButton) rootButton.hidden = true;
+        if (previousButton) previousButton.hidden = true;
+        if (nextButton) nextButton.hidden = true;
         return false;
       }
       const mode = context.entry.mode === 'fork' ? 'Dallanmış sohbet' : 'Düzenleme / tekrar dalı';
       const depthText = context.ancestry.depth > 1 ? ` · ${context.ancestry.depth}. seviye dal` : '';
-      label.textContent = `${mode}${depthText} · kaynak sohbet korunuyor`;
+      const siblingText = context.siblings.entries.length > 1 && context.siblings.index >= 0
+        ? ` · alternatif ${context.siblings.index + 1}/${context.siblings.entries.length}`
+        : '';
+      label.textContent = `${mode}${depthText}${siblingText} · kaynak sohbet korunuyor`;
       if (rootButton) rootButton.hidden = context.ancestry.depth <= 1;
+      if (previousButton) previousButton.hidden = !context.siblings.previousConversationId;
+      if (nextButton) nextButton.hidden = !context.siblings.nextConversationId;
       node.hidden = false;
       return true;
     }
@@ -332,9 +388,11 @@
       label = null;
       sourceButton = null;
       rootButton = null;
+      previousButton = null;
+      nextButton = null;
     }
 
-    return Object.freeze({ mount, destroy, render, record, readEntries, writeEntries, annotateRows, activeConversationId, currentContext, currentEntry, openConversation, openSource, openRoot });
+    return Object.freeze({ mount, destroy, render, record, readEntries, writeEntries, annotateRows, activeConversationId, currentContext, currentEntry, openConversation, openSource, openRoot, openPreviousSibling, openNextSibling });
   }
 
   function mount(options) {
@@ -361,6 +419,8 @@
     wouldCreateInvalidAncestry,
     normalizeEntries,
     resolveAncestry,
+    compareSiblingEntries,
+    resolveSiblings,
     parseEntries,
     installStyles,
     createController,
