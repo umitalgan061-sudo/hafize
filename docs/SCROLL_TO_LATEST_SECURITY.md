@@ -20,12 +20,18 @@ Controller yalnız scroll metriklerini ve `#messages` içindeki DOM mutation sin
 - `localStorage`, `sessionStorage`, cookie, clipboard, fetch veya WebSocket kullanılmaz.
 - Credential, owner ID veya provider verisi controller'a girmez.
 
-## Yaşam döngüsü
+## Yaşam döngüsü ve DOM sahipliği
 
-- Scroll listener passive olarak bağlanır.
+- Scroll listener passive olarak bağlanır ve aynı exact handler referansıyla kaldırılır.
 - MutationObserver yalnız `#messages` altında `childList`, `subtree` ve `characterData` değişikliklerini dinler.
-- `destroy()` observer'ı, scroll listener'ını, pending animation frame'i ve görünür kontrolü temizler.
-- Controller ikinci kez mount edilirse aynı instance üzerinde yeni listener üretmez.
+- Controller `#scrollToLatestBtn` zaten DOM'da varsa düğmeyi **ödünç alır**; destroy sırasında host tarafından sağlanan düğmeyi kaldırmaz.
+- Düğmeyi controller kendisi oluşturduysa ownership RAM'de tutulur ve yalnız bu durumda destroy sırasında düğme DOM'dan kaldırılır.
+- Click listener anonymous değildir; preexisting veya controller-owned düğmeden teardown sırasında exact olarak sökülür.
+- `destroy()` mounted durumunu önce kapatır, observer/listener'ları temizler ve pending animation frame'i iptal eder.
+- RAF callback'leri controller generation'ına bağlıdır. Eski mount'tan kalmış bir callback iptal mekanizmasına rağmen sonradan çalışırsa remount edilmiş yeni controller'ın düğmesini veya frame state'ini değiştiremez.
+- `handleScroll`, `handleMutation`, `scrollToBottom` ve measurement scheduling destroy sonrasında inert kalır; doğrudan çağrı bile yeni scroll veya RAF işi başlatmaz.
+- Aynı controller yeniden mount edilirse preexisting düğmede click listener birikmez.
+- Double destroy no-op davranır ve host DOM sahipliğine dokunmaz.
 
 ## PWA sınırı
 
