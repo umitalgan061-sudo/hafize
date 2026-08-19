@@ -54,6 +54,17 @@
     return true;
   }
 
+  function snapshotAttribute(node, name) {
+    if (!node?.getAttribute || !node?.hasAttribute) return null;
+    return Object.freeze({ present: node.hasAttribute(name), value: node.getAttribute(name) });
+  }
+
+  function restoreAttribute(node, name, snapshot) {
+    if (!node || !snapshot) return;
+    if (snapshot.present) node.setAttribute?.(name, snapshot.value ?? '');
+    else node.removeAttribute?.(name);
+  }
+
   function createController({
     documentRef = globalThis.document,
     MutationObserverImpl = globalThis.MutationObserver
@@ -72,26 +83,31 @@
     let matches = [];
     let index = -1;
     let returnFocus = null;
+    let mounted = false;
+    let ownsControl = false;
+    let ownsTrigger = false;
+    let hostSnapshot = null;
 
     function allMessages() {
-      return messages?.querySelectorAll?.('.message') || [];
+      return mounted ? messages?.querySelectorAll?.('.message') || [] : [];
     }
 
     function clearClasses() {
-      for (const article of Array.from(allMessages())) {
+      for (const article of Array.from(messages?.querySelectorAll?.('.message') || [])) {
         article.classList?.remove?.(ACTIVE_CLASS);
         article.classList?.remove?.(CURRENT_CLASS);
       }
     }
 
     function updateStatus() {
-      if (!status) return;
+      if (!mounted || !status) return;
       status.textContent = matches.length && index >= 0 ? `${index + 1}/${matches.length}` : '0/0';
       if (previous) previous.disabled = matches.length === 0;
       if (next) next.disabled = matches.length === 0;
     }
 
     function focusCurrent({ smooth = false } = {}) {
+      if (!mounted) return null;
       clearClasses();
       for (const article of matches) article.classList?.add?.(ACTIVE_CLASS);
       const current = matches[index];
@@ -104,6 +120,7 @@
     }
 
     function apply() {
+      if (!mounted) return false;
       const result = matchingMessages(allMessages(), input?.value || '');
       if (result === null) {
         matches = [];
@@ -119,14 +136,14 @@
     }
 
     function step(delta) {
-      if (!matches.length) return false;
+      if (!mounted || !matches.length) return false;
       index = (index + delta + matches.length) % matches.length;
       focusCurrent({ smooth: true });
       return true;
     }
 
     function open(source = documentRef.activeElement) {
-      if (!control) return false;
+      if (!mounted || !control) return false;
       returnFocus = source && typeof source.focus === 'function' ? source : trigger;
       control.hidden = false;
       trigger?.setAttribute?.('aria-expanded', 'true');
@@ -137,7 +154,7 @@
     }
 
     function dismiss() {
-      if (!control || control.hidden) return false;
+      if (!mounted || !control || control.hidden) return false;
       control.hidden = true;
       trigger?.setAttribute?.('aria-expanded', 'false');
       clearClasses();
@@ -205,7 +222,13 @@
       return wrapper;
     }
 
+    function onTriggerClick() { open(trigger); }
+    function onPreviousClick() { step(-1); }
+    function onNextClick() { step(1); }
+    function onMutation() { if (mounted && control && !control.hidden) apply(); }
+
     function onKeydown(event) {
+      if (!mounted) return;
       const key = typeof event?.key === 'string' ? event.key.toLowerCase() : '';
       if ((event?.ctrlKey || event?.metaKey) && key === 'f' && !event?.altKey) {
         event.preventDefault?.();
@@ -223,45 +246,122 @@
       }
     }
 
-    function mount() {
-      messages = documentRef.querySelector('#messages');
-      const historyHead = documentRef.querySelector('.history-head');
-      if (!messages || !historyHead || !documentRef.body) return false;
-      installStyles(documentRef);
-      trigger = createTrigger(historyHead);
-      control = createControl();
-      input = control.querySelector?.('input');
-      status = control.querySelector?.('.in-chat-find-status');
-      const buttons = control.querySelectorAll?.('button') || [];
-      [previous, next, close] = buttons;
-      if (!trigger || !input || !status || !previous || !next || !close) return false;
-      trigger.addEventListener('click', () => open(trigger));
-      input.addEventListener('input', apply);
-      previous.addEventListener('click', () => step(-1));
-      next.addEventListener('click', () => step(1));
-      close.addEventListener('click', dismiss);
-      documentRef.addEventListener('keydown', onKeydown, true);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(() => { if (!control.hidden) apply(); });
-        observer.observe(messages, { childList: true, subtree: true, characterData: true });
+    function restoreHostState() {
+      if (!hostSnapshot) return;
+      if (!ownsControl && control) {
+        control.hidden = hostSnapshot.controlHidden;
+        if (status) status.textContent = hostSnapshot.statusText;
+        if (previous) previous.disabled = hostSnapshot.previousDisabled;
+        if (next) next.disabled = hostSnapshot.nextDisabled;
       }
-      return true;
+      if (!ownsTrigger && trigger) restoreAttribute(trigger, 'aria-expanded', hostSnapshot.triggerExpanded);
+    }
+
+    function detach() {
+      observer?.disconnect?.();
+      documentRef.removeEventListener?.('keydown', onKeydown, true);
+      trigger?.removeEventListener?.('click', onTriggerClick);
+      input?.removeEventListener?.('input', apply);
+      previous?.removeEventListener?.('click', onPreviousClick);
+      next?.removeEventListener?.('click', onNextClick);
+      close?.removeEventListener?.('click', dismiss);
+      clearClasses();
+      restoreHostState();
+      if (ownsControl) control?.remove?.();
+      if (ownsTrigger) trigger?.remove?.();
+    }
+
+    function clearReferences() {
+      control = null;
+      trigger = null;
+      input = null;
+      status = null;
+      previous = null;
+      next = null;
+      close = null;
+      messages = null;
+      observer = null;
+      matches = [];
+      index = -1;
+      returnFocus = null;
+      ownsControl = false;
+      ownsTrigger = false;
+      hostSnapshot = null;
+      mounted = false;
+    }
+
+    function mount() {
+      if (mounted) return true;
+
+      const candidateMessages = documentRef.querySelector('#messages');
+      const historyHead = documentRef.querySelector('.history-head');
+      if (!candidateMessages || !historyHead || !documentRef.body) return false;
+
+      installStyles(documentRef);
+      const existingTrigger = documentRef.querySelector(`#${TRIGGER_ID}`);
+      const existingControl = documentRef.querySelector(`#${CONTROL_ID}`);
+      const candidateTrigger = createTrigger(historyHead);
+      const candidateControl = createControl();
+      const candidateInput = candidateControl?.querySelector?.('input') || null;
+      const candidateStatus = candidateControl?.querySelector?.('.in-chat-find-status') || null;
+      const buttons = Array.from(candidateControl?.querySelectorAll?.('button') || []);
+      const [candidatePrevious, candidateNext, candidateClose] = buttons;
+      const createdTrigger = !existingTrigger && Boolean(candidateTrigger);
+      const createdControl = !existingControl && Boolean(candidateControl);
+
+      if (!candidateTrigger || !candidateControl || !candidateInput || !candidateStatus || !candidatePrevious || !candidateNext || !candidateClose) {
+        if (createdControl) candidateControl?.remove?.();
+        if (createdTrigger) candidateTrigger?.remove?.();
+        return false;
+      }
+
+      messages = candidateMessages;
+      trigger = candidateTrigger;
+      control = candidateControl;
+      input = candidateInput;
+      status = candidateStatus;
+      previous = candidatePrevious;
+      next = candidateNext;
+      close = candidateClose;
+      ownsTrigger = createdTrigger;
+      ownsControl = createdControl;
+      hostSnapshot = Object.freeze({
+        controlHidden: Boolean(control.hidden),
+        statusText: status.textContent,
+        previousDisabled: Boolean(previous.disabled),
+        nextDisabled: Boolean(next.disabled),
+        triggerExpanded: snapshotAttribute(trigger, 'aria-expanded')
+      });
+      mounted = true;
+
+      try {
+        trigger.addEventListener('click', onTriggerClick);
+        input.addEventListener('input', apply);
+        previous.addEventListener('click', onPreviousClick);
+        next.addEventListener('click', onNextClick);
+        close.addEventListener('click', dismiss);
+        documentRef.addEventListener('keydown', onKeydown, true);
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(onMutation);
+          observer.observe(messages, { childList: true, subtree: true, characterData: true });
+        }
+        return true;
+      } catch {
+        detach();
+        clearReferences();
+        return false;
+      }
     }
 
     function destroy() {
-      observer?.disconnect?.();
-      observer = null;
-      documentRef.removeEventListener?.('keydown', onKeydown, true);
-      clearClasses();
-      control?.remove?.();
-      trigger?.remove?.();
-      control = null;
-      trigger = null;
-      matches = [];
-      index = -1;
+      if (!mounted) return false;
+      mounted = false;
+      detach();
+      clearReferences();
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, open, dismiss, apply, step });
+    return Object.freeze({ mount, destroy, open, dismiss, apply, step, isMounted: () => mounted });
   }
 
   function mount(options) {
