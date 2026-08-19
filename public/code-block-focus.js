@@ -41,9 +41,11 @@
   function createController({ documentRef = globalThis.document, MutationObserverImpl = globalThis.MutationObserver } = {}) {
     if (!documentRef?.querySelector || !documentRef?.createElement) throw new Error('INVALID_CODE_FOCUS_DOCUMENT');
     let observer = null; let backdrop = null; let dialog = null; let codeView = null; let title = null; let closeButton = null; let previousFocus = null;
+    let onCloseClick = null; let onBackdropClick = null; let mounted = false; let destroyed = false;
+    const decorations = new Map();
 
     function close({ restoreFocus = true } = {}) {
-      if (!backdrop || backdrop.hidden) return false;
+      if (destroyed || !backdrop || backdrop.hidden) return false;
       backdrop.hidden = true;
       codeView.textContent = '';
       if (restoreFocus) previousFocus?.focus?.();
@@ -52,7 +54,7 @@
     }
 
     function onKeydown(event) {
-      if (!backdrop || backdrop.hidden) return;
+      if (destroyed || !backdrop || backdrop.hidden) return;
       if (event.key === 'Escape') { event.preventDefault?.(); close(); return; }
       if (event.key !== 'Tab') return;
       event.preventDefault?.();
@@ -60,20 +62,25 @@
     }
 
     function ensureDialog() {
+      if (destroyed) return false;
       if (backdrop) return true;
-      if (!documentRef.body) return false;
+      if (!documentRef.body || documentRef.querySelector?.(`#${DIALOG_ID}`)) return false;
       backdrop = documentRef.createElement('div'); backdrop.className = 'hafize-code-focus-backdrop'; backdrop.hidden = true;
       dialog = documentRef.createElement('section'); dialog.id = DIALOG_ID; dialog.className = 'hafize-code-focus-dialog'; dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true'); dialog.setAttribute('aria-labelledby', `${DIALOG_ID}Title`);
       const head = documentRef.createElement('div'); head.className = 'hafize-code-focus-head';
       title = documentRef.createElement('strong'); title.id = `${DIALOG_ID}Title`; title.textContent = 'Kod';
-      closeButton = documentRef.createElement('button'); closeButton.type = 'button'; closeButton.className = 'hafize-code-focus-close'; closeButton.textContent = 'Kapat'; closeButton.setAttribute('aria-label', 'Kod görünümünü kapat'); closeButton.addEventListener('click', () => close());
+      closeButton = documentRef.createElement('button'); closeButton.type = 'button'; closeButton.className = 'hafize-code-focus-close'; closeButton.textContent = 'Kapat'; closeButton.setAttribute('aria-label', 'Kod görünümünü kapat');
+      onCloseClick = () => { if (!destroyed) close(); };
+      closeButton.addEventListener('click', onCloseClick);
       const pre = documentRef.createElement('pre'); codeView = documentRef.createElement('code'); pre.append(codeView); head.append(title, closeButton); dialog.append(head, pre); backdrop.append(dialog); documentRef.body.append(backdrop);
-      backdrop.addEventListener('click', (event) => { if (event.target === backdrop) close(); });
+      onBackdropClick = (event) => { if (!destroyed && event.target === backdrop) close(); };
+      backdrop.addEventListener('click', onBackdropClick);
       documentRef.addEventListener?.('keydown', onKeydown);
       return true;
     }
 
     function open(button, code) {
+      if (destroyed) return false;
       const text = codeText(code?.textContent);
       if (text === null || !ensureDialog()) return false;
       previousFocus = button || documentRef.activeElement;
@@ -85,26 +92,52 @@
     }
 
     function decorate(shell) {
-      if (!shell?.querySelector || shell.dataset?.[MARKER] === '1') return false;
+      if (destroyed || !shell?.querySelector || shell.dataset?.[MARKER] === '1') return false;
       const code = shell.querySelector('pre > code');
       if (!code || codeText(code.textContent) === null) return false;
-      const button = documentRef.createElement('button'); button.type = 'button'; button.className = BUTTON_CLASS; button.textContent = 'Büyüt'; button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-controls', DIALOG_ID); button.setAttribute('aria-label', 'Kod bloğunu büyük görünümde aç'); button.addEventListener('click', () => { open(button, code); });
-      shell.append(button); if (shell.dataset) shell.dataset[MARKER] = '1'; return true;
+      const hadMarker = Boolean(shell.dataset && Object.prototype.hasOwnProperty.call(shell.dataset, MARKER));
+      const markerValue = hadMarker ? shell.dataset[MARKER] : undefined;
+      const button = documentRef.createElement('button'); button.type = 'button'; button.className = BUTTON_CLASS; button.textContent = 'Büyüt'; button.setAttribute('aria-haspopup', 'dialog'); button.setAttribute('aria-controls', DIALOG_ID); button.setAttribute('aria-label', 'Kod bloğunu büyük görünümde aç');
+      const onButtonClick = () => { if (!destroyed) open(button, code); };
+      button.addEventListener('click', onButtonClick);
+      shell.append(button);
+      if (shell.dataset) shell.dataset[MARKER] = '1';
+      decorations.set(shell, Object.freeze({ button, onButtonClick, hadMarker, markerValue }));
+      return true;
     }
 
     function decorateAll(root = documentRef) {
+      if (destroyed) return 0;
       const shells = root.querySelectorAll?.('.hafize-code-shell') || []; let count = 0; for (const shell of shells) if (decorate(shell)) count += 1; return count;
     }
 
     function mount() {
+      if (destroyed || mounted) return false;
       const messages = documentRef.querySelector('#messages'); if (!messages) return false; installStyles(documentRef); decorateAll(messages);
-      if (typeof MutationObserverImpl === 'function') { observer = new MutationObserverImpl(() => decorateAll(messages)); observer.observe(messages, { childList: true, subtree: true }); }
+      if (typeof MutationObserverImpl === 'function') { observer = new MutationObserverImpl(() => { if (!destroyed) decorateAll(messages); }); observer.observe(messages, { childList: true, subtree: true }); }
+      mounted = true;
       return true;
     }
 
     function destroy() {
-      observer?.disconnect?.(); observer = null; documentRef.removeEventListener?.('keydown', onKeydown); close({ restoreFocus: false }); backdrop?.remove?.(); backdrop = null; dialog = null; codeView = null; title = null; closeButton = null;
-      for (const shell of documentRef.querySelectorAll?.('.hafize-code-shell') || []) { shell.querySelector?.(`.${BUTTON_CLASS}`)?.remove?.(); if (shell.dataset) delete shell.dataset[MARKER]; }
+      if (destroyed) return;
+      destroyed = true; mounted = false;
+      observer?.disconnect?.(); observer = null;
+      documentRef.removeEventListener?.('keydown', onKeydown);
+      closeButton?.removeEventListener?.('click', onCloseClick);
+      backdrop?.removeEventListener?.('click', onBackdropClick);
+      if (backdrop && !backdrop.hidden) { backdrop.hidden = true; if (codeView) codeView.textContent = ''; }
+      previousFocus = null;
+      backdrop?.remove?.(); backdrop = null; dialog = null; codeView = null; title = null; closeButton = null; onCloseClick = null; onBackdropClick = null;
+      for (const [shell, record] of decorations) {
+        record.button?.removeEventListener?.('click', record.onButtonClick);
+        record.button?.remove?.();
+        if (shell?.dataset) {
+          if (record.hadMarker) shell.dataset[MARKER] = record.markerValue;
+          else delete shell.dataset[MARKER];
+        }
+      }
+      decorations.clear();
     }
 
     return Object.freeze({ mount, destroy, decorate, decorateAll, open, close });
