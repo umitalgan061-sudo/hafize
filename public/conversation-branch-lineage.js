@@ -40,7 +40,37 @@
     return value === 'fork' || value === 'edit' ? value : '';
   }
 
-  function normalizeEntry(value, validConversationIds) {
+  function buildConversationIndex(list) {
+    const index = new Map();
+    for (const conversation of Array.isArray(list) ? list : []) {
+      if (!conversation || typeof conversation !== 'object' || Array.isArray(conversation) || !own(conversation, 'id')) continue;
+      const conversationId = normalizeId(conversation.id);
+      if (!conversationId || index.has(conversationId)) continue;
+      const messageIds = new Set();
+      if (own(conversation, 'messages') && Array.isArray(conversation.messages)) {
+        for (const message of conversation.messages) {
+          if (!message || typeof message !== 'object' || Array.isArray(message) || !own(message, 'id')) continue;
+          const messageId = normalizeId(message.id);
+          if (messageId) messageIds.add(messageId);
+        }
+      }
+      index.set(conversationId, messageIds);
+    }
+    return index;
+  }
+
+  function conversationExists(validConversations, conversationId) {
+    if (!validConversations) return true;
+    return validConversations.has(conversationId);
+  }
+
+  function sourceMessageExists(validConversations, parentConversationId, sourceMessageId) {
+    if (!(validConversations instanceof Map)) return true;
+    const messageIds = validConversations.get(parentConversationId);
+    return messageIds instanceof Set && messageIds.has(sourceMessageId);
+  }
+
+  function normalizeEntry(value, validConversations) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     for (const key of ['childConversationId', 'parentConversationId', 'sourceMessageId', 'mode', 'createdAt']) {
       if (!own(value, key)) return null;
@@ -53,7 +83,8 @@
     const createdMs = Date.parse(createdAt);
     if (!childConversationId || !parentConversationId || childConversationId === parentConversationId) return null;
     if (!sourceMessageId || !mode || !Number.isFinite(createdMs)) return null;
-    if (validConversationIds && (!validConversationIds.has(childConversationId) || !validConversationIds.has(parentConversationId))) return null;
+    if (validConversations && (!conversationExists(validConversations, childConversationId) || !conversationExists(validConversations, parentConversationId))) return null;
+    if (!sourceMessageExists(validConversations, parentConversationId, sourceMessageId)) return null;
     return Object.freeze({ childConversationId, parentConversationId, sourceMessageId, mode, createdAt: new Date(createdMs).toISOString() });
   }
 
@@ -73,12 +104,12 @@
     return false;
   }
 
-  function normalizeEntries(value, validConversationIds) {
+  function normalizeEntries(value, validConversations) {
     const source = Array.isArray(value) ? value : [];
     const byChild = new Map();
     const output = [];
     for (const candidate of source) {
-      const entry = normalizeEntry(candidate, validConversationIds);
+      const entry = normalizeEntry(candidate, validConversations);
       if (!entry || byChild.has(entry.childConversationId)) continue;
       if (wouldCreateInvalidAncestry(entry, byChild)) continue;
       byChild.set(entry.childConversationId, entry);
@@ -133,9 +164,9 @@
     });
   }
 
-  function parseEntries(raw, validConversationIds) {
+  function parseEntries(raw, validConversations) {
     if (typeof raw !== 'string' || !raw || raw.length > MAX_STORAGE_CHARS) return [];
-    try { return normalizeEntries(JSON.parse(raw), validConversationIds); } catch { return []; }
+    try { return normalizeEntries(JSON.parse(raw), validConversations); } catch { return []; }
   }
 
   function installStyles(documentRef) {
@@ -170,18 +201,18 @@
       try { return guard.sanitizeStoredValue(storage.getItem(CONVERSATION_KEY) || '[]').value || []; } catch { return []; }
     }
 
-    function conversationIds(list = conversations()) {
-      return new Set(list.map((conversation) => normalizeId(conversation?.id)).filter(Boolean));
+    function conversationIndex(list = conversations()) {
+      return buildConversationIndex(list);
     }
 
     function readEntries(list = conversations()) {
       let raw = '';
       try { raw = storage.getItem(STORAGE_KEY) || ''; } catch { return []; }
-      return parseEntries(raw, conversationIds(list));
+      return parseEntries(raw, conversationIndex(list));
     }
 
     function writeEntries(entries, list = conversations()) {
-      const normalized = normalizeEntries(entries, conversationIds(list));
+      const normalized = normalizeEntries(entries, conversationIndex(list));
       try {
         storage.setItem(STORAGE_KEY, JSON.stringify(normalized));
         return true;
@@ -194,7 +225,7 @@
       let raw = '';
       try { raw = storage.getItem(STORAGE_KEY) || ''; } catch { return false; }
       if (!raw) return false;
-      const normalized = parseEntries(raw, conversationIds(list));
+      const normalized = parseEntries(raw, conversationIndex(list));
       const canonical = JSON.stringify(normalized);
       if (raw === canonical) return false;
       try {
@@ -207,12 +238,13 @@
 
     function record(detail) {
       const list = conversations();
-      const entry = normalizeEntry(detail, conversationIds(list));
+      const index = conversationIndex(list);
+      const entry = normalizeEntry(detail, index);
       if (!entry) return false;
       const prior = readEntries(list).filter((item) => item.childConversationId !== entry.childConversationId);
       const priorByChild = new Map(prior.map((item) => [item.childConversationId, item]));
       if (wouldCreateInvalidAncestry(entry, priorByChild)) return false;
-      const normalized = normalizeEntries([entry, ...prior], conversationIds(list));
+      const normalized = normalizeEntries([entry, ...prior], index);
       if (!normalized.some((item) => item.childConversationId === entry.childConversationId)) return false;
       if (!writeEntries(normalized, list)) return false;
       render();
@@ -221,7 +253,7 @@
 
     function annotateRows(list = conversations()) {
       const rows = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || []);
-      const validIds = conversationIds(list);
+      const validIds = new Set(conversationIndex(list).keys());
       const claimedIds = new Set();
 
       rows.forEach((row) => {
@@ -433,6 +465,7 @@
     STYLE_TEXT,
     normalizeId,
     normalizeMode,
+    buildConversationIndex,
     normalizeEntry,
     wouldCreateInvalidAncestry,
     normalizeEntries,
