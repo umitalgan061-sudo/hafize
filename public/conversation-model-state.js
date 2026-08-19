@@ -16,6 +16,7 @@
   const MAX_MODEL_ID_LENGTH = 240;
   const MAX_CONVERSATION_ID_LENGTH = 120;
   const MAX_ENTRIES = 30;
+  const MAX_STORAGE_CHARS = 32 * 1024;
   const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
   const ORGANIZE_ID_DATASET_KEY = 'conversationOrganizeId';
 
@@ -59,11 +60,24 @@
     return Object.freeze(result);
   }
 
+  function readModelRaw(storage) {
+    if (!storage || typeof storage.getItem !== 'function') return null;
+    try {
+      const raw = storage.getItem(MODEL_STORAGE_KEY);
+      if (raw == null || raw === '') return '';
+      if (typeof raw !== 'string' || raw.length > MAX_STORAGE_CHARS) return null;
+      return raw;
+    } catch {
+      return null;
+    }
+  }
+
   function readModelEntries(storage, conversations = readConversations(storage)) {
-    if (!storage || typeof storage.getItem !== 'function') return [];
+    const raw = readModelRaw(storage);
+    if (raw === null) return [];
     const allowedIds = new Set(conversations.map((item) => normalizeConversationId(item?.id)).filter(Boolean));
     try {
-      const parsed = JSON.parse(storage.getItem(MODEL_STORAGE_KEY) || '[]');
+      const parsed = JSON.parse(raw || '[]');
       return normalizeModelEntries(parsed, allowedIds);
     } catch {
       return [];
@@ -74,8 +88,24 @@
     if (!storage || typeof storage.setItem !== 'function') return false;
     const allowedIds = new Set(conversations.map((item) => normalizeConversationId(item?.id)).filter(Boolean));
     const normalized = normalizeModelEntries(entries, allowedIds);
+    const serialized = JSON.stringify(normalized);
+    if (serialized.length > MAX_STORAGE_CHARS) return false;
     try {
-      storage.setItem(MODEL_STORAGE_KEY, JSON.stringify(normalized));
+      storage.setItem(MODEL_STORAGE_KEY, serialized);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function compactModelEntries(storage, conversations = readConversations(storage)) {
+    if (!storage || typeof storage.setItem !== 'function') return false;
+    const raw = readModelRaw(storage);
+    const entries = readModelEntries(storage, conversations);
+    const canonical = JSON.stringify(entries);
+    if (raw === canonical) return false;
+    try {
+      storage.setItem(MODEL_STORAGE_KEY, canonical);
       return true;
     } catch {
       return false;
@@ -192,6 +222,7 @@
       const available = modelIds(select);
       if (!model || !available.has(model)) return false;
       const conversations = readConversations(storage);
+      compactModelEntries(storage, conversations);
       const conversationId = activeConversationId(documentRef, conversations);
       if (!conversationId) return false;
       const entries = readModelEntries(storage, conversations);
@@ -206,6 +237,7 @@
       const available = modelIds(select);
       if (!available.size) return false;
       const conversations = readConversations(storage);
+      compactModelEntries(storage, conversations);
       const conversationId = activeConversationId(documentRef, conversations);
       if (!conversationId) return false;
       const conversation = conversations.find(
@@ -329,13 +361,16 @@
     MAX_MODEL_ID_LENGTH,
     MAX_CONVERSATION_ID_LENGTH,
     MAX_ENTRIES,
+    MAX_STORAGE_CHARS,
     ORGANIZE_ID_DATASET_KEY,
     normalizeModelId,
     normalizeConversationId,
     normalizeModelEntries,
     readConversations,
+    readModelRaw,
     readModelEntries,
     writeModelEntries,
+    compactModelEntries,
     modelIds,
     conversationRows,
     activeConversationIndex,
