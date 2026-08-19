@@ -37,7 +37,7 @@ const loader = fs.readFileSync(path.resolve('public/chat-run-controller.js'), 'u
 assert.match(loader, /HafizeInChatFind/);
 assert.match(loader, /\/in-chat-find\.js/);
 const sw = fs.readFileSync(path.resolve('public/sw-policy.js'), 'utf8');
-assert.match(sw, /hafize-shell-v33/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/in-chat-find\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 console.log('in-chat find tests passed');
