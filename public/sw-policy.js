@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v102`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v103`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -35,6 +35,7 @@
     '/keyboard-shortcuts.js',
     '/conversation-search.js',
     '/conversation-search-snippets.js',
+    '/conversation-search-navigation.js',
     '/scroll-to-latest.js',
     '/composer-limit-feedback.js',
     '/mobile-sidebar-dismiss.js',
@@ -147,30 +148,20 @@
 
   function isSameOriginUrl(url, origin) {
     if (typeof origin !== 'string' || !origin) return false;
-    try {
-      return new URL(url, origin).origin === origin;
-    } catch {
-      return false;
-    }
+    try { return new URL(url, origin).origin === origin; } catch { return false; }
   }
 
   function pathnameFor(url, origin) {
-    try {
-      return new URL(url, origin).pathname;
-    } catch {
-      return '';
-    }
+    try { return new URL(url, origin).pathname; } catch { return ''; }
   }
 
   function classifyRequest(request, origin) {
     if (!request || String(request.method || 'GET').toUpperCase() !== 'GET') return 'ignore';
     if (!isSameOriginUrl(request.url, origin)) return 'ignore';
     if (readHeader(request.headers, 'range')) return 'ignore';
-
     const pathname = pathnameFor(request.url, origin);
     if (!pathname) return 'ignore';
     if (pathname.startsWith('/api/')) return 'network-only';
-
     const acceptsHtml = readHeader(request.headers, 'accept').toLowerCase().includes('text/html');
     if (request.mode === 'navigate' || acceptsHtml) return 'navigation';
     if (SHELL_PATHS.has(pathname)) return 'shell';
@@ -178,17 +169,8 @@
   }
 
   function shouldDeleteCache(cacheName) {
-    return typeof cacheName === 'string'
-      && cacheName.startsWith(CACHE_PREFIX)
-      && cacheName !== CURRENT_CACHE;
+    return typeof cacheName === 'string' && cacheName.startsWith(CACHE_PREFIX) && cacheName !== CURRENT_CACHE;
   }
 
-  return Object.freeze({
-    CACHE_PREFIX,
-    CURRENT_CACHE,
-    SHELL_ASSETS,
-    classifyRequest,
-    isSameOriginUrl,
-    shouldDeleteCache
-  });
+  return Object.freeze({ CACHE_PREFIX, CURRENT_CACHE, SHELL_ASSETS, classifyRequest, isSameOriginUrl, shouldDeleteCache });
 });
