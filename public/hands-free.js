@@ -29,6 +29,7 @@
   ]);
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
   const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
+  const ACTIVE_INSTALLATIONS = new WeakMap();
 
   function getRecognitionConstructor(root) {
     return root?.SpeechRecognition || root?.webkitSpeechRecognition || null;
@@ -88,12 +89,67 @@
     return 'Eller serbest konuşma tanıma hatası nedeniyle kapatıldı. Devam etmek için yeniden aç.';
   }
 
+  function readAttribute(element, name) {
+    if (typeof element?.getAttribute === 'function') return element.getAttribute(name);
+    if (element?.attrs && Object.prototype.hasOwnProperty.call(element.attrs, name)) return String(element.attrs[name]);
+    return null;
+  }
+
+  function restoreAttribute(element, name, value) {
+    if (!element) return;
+    if (value == null) {
+      if (typeof element.removeAttribute === 'function') element.removeAttribute(name);
+      else if (element.attrs) delete element.attrs[name];
+      return;
+    }
+    element.setAttribute?.(name, value);
+  }
+
+  function snapshotHostState(toggle, indicator) {
+    return Object.freeze({
+      toggle: Object.freeze({
+        disabled: Boolean(toggle.disabled),
+        textContent: toggle.textContent,
+        ariaPressed: readAttribute(toggle, 'aria-pressed')
+      }),
+      indicator: Object.freeze({
+        hidden: Boolean(indicator.hidden),
+        textContent: indicator.textContent,
+        listening: readAttribute(indicator, 'data-listening'),
+        handoffWaiting: readAttribute(indicator, 'data-handoff-waiting'),
+        coolingDown: readAttribute(indicator, 'data-cooling-down'),
+        voiceInputListening: readAttribute(indicator, 'data-voice-input-listening'),
+        voiceOutputSpeaking: readAttribute(indicator, 'data-voice-output-speaking'),
+        networkRetry: readAttribute(indicator, 'data-network-retry')
+      })
+    });
+  }
+
+  function restoreHostState(toggle, indicator, snapshot) {
+    toggle.disabled = snapshot.toggle.disabled;
+    toggle.textContent = snapshot.toggle.textContent;
+    restoreAttribute(toggle, 'aria-pressed', snapshot.toggle.ariaPressed);
+    indicator.hidden = snapshot.indicator.hidden;
+    indicator.textContent = snapshot.indicator.textContent;
+    restoreAttribute(indicator, 'data-listening', snapshot.indicator.listening);
+    restoreAttribute(indicator, 'data-handoff-waiting', snapshot.indicator.handoffWaiting);
+    restoreAttribute(indicator, 'data-cooling-down', snapshot.indicator.coolingDown);
+    restoreAttribute(indicator, 'data-voice-input-listening', snapshot.indicator.voiceInputListening);
+    restoreAttribute(indicator, 'data-voice-output-speaking', snapshot.indicator.voiceOutputSpeaking);
+    restoreAttribute(indicator, 'data-network-retry', snapshot.indicator.networkRetry);
+  }
+
   function installHandsFree(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
     const micButton = documentRef?.querySelector?.('#micBtn');
     const input = documentRef?.querySelector?.('#messageInput');
     if (!toggle || !indicator || !micButton || !input) return null;
+    if (ACTIVE_INSTALLATIONS.has(toggle)) throw new Error('HANDS_FREE_ALREADY_INSTALLED');
+
+    const hostState = snapshotHostState(toggle, indicator);
+    const owner = Object.freeze({});
+    ACTIVE_INSTALLATIONS.set(toggle, owner);
 
     const Recognition = getRecognitionConstructor(root);
     let enabled = false;
@@ -111,6 +167,8 @@
     let restartDelayMs = RESTART_DELAY_MS;
     let lastRecognitionError = '';
     let destroyed = false;
+    let observer = null;
+    let listenersBound = false;
 
     function announce(message) {
       const toast = documentRef.querySelector?.('#toast');
@@ -120,6 +178,7 @@
     }
 
     function render() {
+      if (destroyed) return;
       toggle.setAttribute?.('aria-pressed', String(enabled));
       toggle.disabled = !Recognition;
       toggle.textContent = enabled ? 'Eller serbest açık' : 'Eller serbest kapalı';
@@ -325,28 +384,30 @@
       recognition = current;
 
       current.onstart = () => {
-        if (recognition !== current) return;
+        if (destroyed || recognition !== current) return;
         listening = true;
         if (lastRecognitionError !== 'network') resetRecognitionRecovery();
         render();
       };
       current.onresult = (event) => {
+        if (destroyed || recognition !== current) return;
         const transcript = readRecognitionText(event);
         if (transcript) resetRecognitionRecovery();
         if (coolingDown || voiceOutputSpeaking || !containsWakePhrase(transcript)) return;
         beginVoiceHandoff();
       };
       current.onerror = (event) => {
-        if (recognition !== current) return;
+        if (destroyed || recognition !== current) return;
         handleRecognitionError(event?.error);
       };
       current.onend = () => {
+        if (destroyed) return;
         if (recognition === current) {
           recognition = null;
           listening = false;
         }
         render();
-        if (!enabled || destroyed) return;
+        if (!enabled) return;
         if (handoffWaiting) {
           micButton.click?.();
           if (handoffWaiting && !voiceInputListening) armHandoffFallback();
@@ -385,6 +446,7 @@
     }
 
     function handleToggle() {
+      if (destroyed) return;
       if (!Recognition) {
         announce('Eller serbest bu tarayıcıda desteklenmiyor.');
         return;
@@ -393,6 +455,7 @@
     }
 
     function handleVisibility() {
+      if (destroyed) return;
       if (documentRef.hidden) {
         clearHandoff();
         clearCooldown();
@@ -403,6 +466,7 @@
     }
 
     function handleVoiceInputState(event) {
+      if (destroyed) return;
       const detail = event?.detail;
       if (!detail || detail.source !== 'voice-input' || typeof detail.listening !== 'boolean') return;
       voiceInputListening = detail.listening;
@@ -418,6 +482,7 @@
     }
 
     function handleVoiceOutputState(event) {
+      if (destroyed) return;
       const detail = event?.detail;
       if (!detail || detail.source !== 'voice-output' || typeof detail.speaking !== 'boolean') return;
       const wasSpeaking = voiceOutputSpeaking;
@@ -434,26 +499,56 @@
       render();
     }
 
-    toggle.addEventListener?.('click', handleToggle);
-    documentRef.addEventListener?.('visibilitychange', handleVisibility);
-    documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
-    documentRef.addEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
+    function unbindListeners() {
+      if (!listenersBound) return;
+      listenersBound = false;
+      toggle.removeEventListener?.('click', handleToggle);
+      documentRef.removeEventListener?.('visibilitychange', handleVisibility);
+      documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
+      documentRef.removeEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
+    }
 
-    const MutationObserverCtor = root?.MutationObserver;
-    const observer = typeof MutationObserverCtor === 'function'
-      ? new MutationObserverCtor(() => {
-          if (input.disabled) {
-            clearHandoff();
-            clearCooldown();
-            stopRecognition({ abort: true });
-          } else {
-            scheduleRestart();
-          }
-        })
-      : null;
-    observer?.observe?.(input, { attributes: true, attributeFilter: ['disabled'] });
+    function releaseOwnership() {
+      if (ACTIVE_INSTALLATIONS.get(toggle) === owner) ACTIVE_INSTALLATIONS.delete(toggle);
+    }
 
-    render();
+    try {
+      toggle.addEventListener?.('click', handleToggle);
+      documentRef.addEventListener?.('visibilitychange', handleVisibility);
+      documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
+      documentRef.addEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
+      listenersBound = true;
+
+      const MutationObserverCtor = root?.MutationObserver;
+      observer = typeof MutationObserverCtor === 'function'
+        ? new MutationObserverCtor(() => {
+            if (destroyed) return;
+            if (input.disabled) {
+              clearHandoff();
+              clearCooldown();
+              stopRecognition({ abort: true });
+            } else {
+              scheduleRestart();
+            }
+          })
+        : null;
+      observer?.observe?.(input, { attributes: true, attributeFilter: ['disabled'] });
+      render();
+    } catch (error) {
+      destroyed = true;
+      observer?.disconnect?.();
+      unbindListeners();
+      clearSessionTimer();
+      clearHandoff();
+      clearCooldown();
+      clearRestart();
+      recognition = null;
+      listening = false;
+      restoreHostState(toggle, indicator, hostState);
+      releaseOwnership();
+      throw error;
+    }
+
     return Object.freeze({
       isSupported: Boolean(Recognition),
       isEnabled: () => enabled,
@@ -479,11 +574,15 @@
         clearCooldown();
         clearRestart();
         observer?.disconnect?.();
-        stopRecognition({ abort: true });
-        toggle.removeEventListener?.('click', handleToggle);
-        documentRef.removeEventListener?.('visibilitychange', handleVisibility);
-        documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
-        documentRef.removeEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
+        const active = recognition;
+        recognition = null;
+        listening = false;
+        if (active) {
+          try { active.abort?.(); } catch { /* already stopped */ }
+        }
+        unbindListeners();
+        restoreHostState(toggle, indicator, hostState);
+        releaseOwnership();
       }
     });
   }
