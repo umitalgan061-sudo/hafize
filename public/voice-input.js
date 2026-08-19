@@ -91,15 +91,33 @@
 
   function createAnnouncer(toast, root) {
     let timeoutId = null;
-    return (message) => {
+    const announce = (message) => {
       if (!toast || !message) return;
       toast.textContent = message;
       toast.classList?.remove?.('hidden');
       if (timeoutId && typeof root?.clearTimeout === 'function') root.clearTimeout(timeoutId);
       if (typeof root?.setTimeout === 'function') {
-        timeoutId = root.setTimeout(() => toast.classList?.add?.('hidden'), TOAST_DURATION_MS);
+        timeoutId = root.setTimeout(() => {
+          timeoutId = null;
+          toast.classList?.add?.('hidden');
+        }, TOAST_DURATION_MS);
       }
     };
+    announce.dispose = () => {
+      if (timeoutId != null && typeof root?.clearTimeout === 'function') root.clearTimeout(timeoutId);
+      timeoutId = null;
+    };
+    return announce;
+  }
+
+  function snapshotAttribute(element, name) {
+    const present = Boolean(element?.hasAttribute?.(name));
+    return Object.freeze({ present, value: present ? element.getAttribute(name) : null });
+  }
+
+  function restoreAttribute(element, name, snapshot) {
+    if (snapshot.present) element.setAttribute?.(name, snapshot.value ?? '');
+    else element.removeAttribute?.(name);
   }
 
   function installVoiceInput(documentRef, root) {
@@ -110,14 +128,23 @@
     const toast = documentRef.querySelector?.('#toast');
     const announce = createAnnouncer(toast, root);
     const Recognition = getSpeechRecognitionConstructor(root);
+    const baseline = Object.freeze({
+      disabled: Boolean(micButton.disabled),
+      textContent: micButton.textContent,
+      title: micButton.title,
+      ariaPressed: snapshotAttribute(micButton, 'aria-pressed'),
+      ariaLabel: snapshotAttribute(micButton, 'aria-label')
+    });
     let recognition = null;
     let listening = false;
     let prefix = '';
+    let destroyed = false;
 
     function renderButton() {
+      if (destroyed) return;
       const unavailable = !Recognition;
       const busy = Boolean(input.disabled);
-      micButton.disabled = busy;
+      micButton.disabled = baseline.disabled || busy;
       micButton.setAttribute?.('aria-pressed', String(listening));
       micButton.setAttribute?.('aria-label', unavailable
         ? 'Sesli giriş bu tarayıcıda desteklenmiyor'
@@ -133,14 +160,15 @@
     }
 
     function setListening(next) {
-      const changed = listening !== Boolean(next);
-      listening = Boolean(next);
+      const target = !destroyed && Boolean(next);
+      const changed = listening !== target;
+      listening = target;
       renderButton();
       if (changed) dispatchVoiceInputState(documentRef, root, listening);
     }
 
     function stopRecognition() {
-      if (!recognition || !listening) return;
+      if (destroyed || !recognition || !listening) return;
       try {
         recognition.stop();
       } catch {
@@ -149,7 +177,7 @@
     }
 
     function abortRecognition() {
-      if (!recognition || !listening) return;
+      if (destroyed || !recognition || !listening) return;
       try {
         recognition.abort();
       } catch {
@@ -158,29 +186,34 @@
     }
 
     function startRecognition() {
-      if (!Recognition || input.disabled || listening) return;
+      if (destroyed || !Recognition || input.disabled || baseline.disabled || listening) return;
       prefix = input.value || '';
-      recognition = new Recognition();
-      recognition.lang = documentRef.documentElement?.lang || root?.navigator?.language || DEFAULT_LANGUAGE;
-      recognition.interimResults = true;
-      recognition.continuous = false;
-      recognition.maxAlternatives = 1;
+      const current = new Recognition();
+      recognition = current;
+      current.lang = documentRef.documentElement?.lang || root?.navigator?.language || DEFAULT_LANGUAGE;
+      current.interimResults = true;
+      current.continuous = false;
+      current.maxAlternatives = 1;
 
-      recognition.onstart = () => {
+      current.onstart = () => {
+        if (destroyed || recognition !== current) return;
         setListening(true);
         announce('Dinleniyor… Ses tanıma tarayıcı sağlayıcın tarafından işlenebilir; metin otomatik gönderilmez.');
       };
-      recognition.onresult = (event) => {
+      current.onresult = (event) => {
+        if (destroyed || recognition !== current) return;
         const transcript = readRecognitionText(event);
         if (!transcript) return;
         input.value = mergeTranscript(prefix, transcript, input.maxLength);
         dispatchInputEvent(input, root);
       };
-      recognition.onerror = (event) => {
+      current.onerror = (event) => {
+        if (destroyed || recognition !== current) return;
         const message = mapSpeechError(event?.error);
         if (message) announce(message);
       };
-      recognition.onend = () => {
+      current.onend = () => {
+        if (destroyed || recognition !== current) return;
         recognition = null;
         setListening(false);
         if (!documentRef.hidden) input.focus?.();
@@ -188,28 +221,29 @@
 
       try {
         setListening(true);
-        recognition.start();
+        current.start();
       } catch {
-        recognition = null;
+        if (recognition === current) recognition = null;
         setListening(false);
-        announce('Sesli giriş başlatılamadı. Yazmaya devam edebilirsin.');
+        if (!destroyed) announce('Sesli giriş başlatılamadı. Yazmaya devam edebilirsin.');
       }
     }
 
     function handleClick(event) {
       event?.preventDefault?.();
       event?.stopImmediatePropagation?.();
+      if (destroyed) return;
       if (!Recognition) {
         announce('Bu tarayıcı konuşma tanımayı desteklemiyor. Yazılı giriş kullanılabilir.');
         return;
       }
-      if (input.disabled) return;
+      if (input.disabled || baseline.disabled) return;
       if (listening) stopRecognition();
       else startRecognition();
     }
 
     function handleVisibilityChange() {
-      if (documentRef.hidden && listening) abortRecognition();
+      if (!destroyed && documentRef.hidden && listening) abortRecognition();
     }
 
     micButton.addEventListener?.('click', handleClick, true);
@@ -218,6 +252,7 @@
     const MutationObserverCtor = root?.MutationObserver;
     const observer = typeof MutationObserverCtor === 'function'
       ? new MutationObserverCtor(() => {
+          if (destroyed) return;
           if (input.disabled && listening) stopRecognition();
           renderButton();
         })
@@ -232,14 +267,25 @@
       start: startRecognition,
       stop: stopRecognition,
       destroy() {
+        if (destroyed) return;
+        destroyed = true;
         observer?.disconnect?.();
-        if (recognition && listening) {
-          try { recognition.abort?.(); } catch { /* no-op */ }
-        }
+        announce.dispose?.();
+        const active = recognition;
         recognition = null;
-        setListening(false);
+        const wasListening = listening;
+        listening = false;
+        if (active && wasListening) {
+          try { active.abort?.(); } catch { /* no-op */ }
+        }
+        if (wasListening) dispatchVoiceInputState(documentRef, root, false);
         micButton.removeEventListener?.('click', handleClick, true);
         documentRef.removeEventListener?.('visibilitychange', handleVisibilityChange);
+        micButton.disabled = baseline.disabled;
+        micButton.textContent = baseline.textContent;
+        micButton.title = baseline.title;
+        restoreAttribute(micButton, 'aria-pressed', baseline.ariaPressed);
+        restoreAttribute(micButton, 'aria-label', baseline.ariaLabel);
       }
     });
   }
