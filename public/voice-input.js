@@ -17,6 +17,7 @@
   const DEFAULT_LANGUAGE = 'tr-TR';
   const TOAST_DURATION_MS = 4200;
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
+  const activeInstallations = new WeakMap();
 
   function getSpeechRecognitionConstructor(root) {
     return root?.SpeechRecognition || root?.webkitSpeechRecognition || null;
@@ -124,8 +125,13 @@
     const micButton = documentRef?.querySelector?.('#micBtn');
     const input = documentRef?.querySelector?.('#messageInput');
     if (!micButton || !input) return null;
+    if (activeInstallations.has(micButton)) throw new Error('VOICE_INPUT_ALREADY_INSTALLED');
 
     const toast = documentRef.querySelector?.('#toast');
+    const toastBaseline = toast ? Object.freeze({
+      textContent: toast.textContent,
+      className: snapshotAttribute(toast, 'class')
+    }) : null;
     const announce = createAnnouncer(toast, root);
     const Recognition = getSpeechRecognitionConstructor(root);
     const baseline = Object.freeze({
@@ -139,6 +145,20 @@
     let listening = false;
     let prefix = '';
     let destroyed = false;
+    let observer = null;
+    let controller = null;
+
+    function restoreOwnedDom() {
+      micButton.disabled = baseline.disabled;
+      micButton.textContent = baseline.textContent;
+      micButton.title = baseline.title;
+      restoreAttribute(micButton, 'aria-pressed', baseline.ariaPressed);
+      restoreAttribute(micButton, 'aria-label', baseline.ariaLabel);
+      if (toast && toastBaseline) {
+        toast.textContent = toastBaseline.textContent;
+        restoreAttribute(toast, 'class', toastBaseline.className);
+      }
+    }
 
     function renderButton() {
       if (destroyed) return;
@@ -246,30 +266,44 @@
       if (!destroyed && documentRef.hidden && listening) abortRecognition();
     }
 
-    micButton.addEventListener?.('click', handleClick, true);
-    documentRef.addEventListener?.('visibilitychange', handleVisibilityChange);
+    function removeBindings() {
+      observer?.disconnect?.();
+      micButton.removeEventListener?.('click', handleClick, true);
+      documentRef.removeEventListener?.('visibilitychange', handleVisibilityChange);
+    }
 
-    const MutationObserverCtor = root?.MutationObserver;
-    const observer = typeof MutationObserverCtor === 'function'
-      ? new MutationObserverCtor(() => {
-          if (destroyed) return;
-          if (input.disabled && listening) stopRecognition();
-          renderButton();
-        })
-      : null;
-    observer?.observe?.(input, { attributes: true, attributeFilter: ['disabled'] });
+    try {
+      micButton.addEventListener?.('click', handleClick, true);
+      documentRef.addEventListener?.('visibilitychange', handleVisibilityChange);
 
-    renderButton();
+      const MutationObserverCtor = root?.MutationObserver;
+      observer = typeof MutationObserverCtor === 'function'
+        ? new MutationObserverCtor(() => {
+            if (destroyed) return;
+            if (input.disabled && listening) stopRecognition();
+            renderButton();
+          })
+        : null;
+      observer?.observe?.(input, { attributes: true, attributeFilter: ['disabled'] });
 
-    return Object.freeze({
+      renderButton();
+    } catch (error) {
+      destroyed = true;
+      removeBindings();
+      announce.dispose?.();
+      restoreOwnedDom();
+      throw error;
+    }
+
+    controller = Object.freeze({
       isSupported: Boolean(Recognition),
-      isListening: () => listening,
+      isListening: () => !destroyed && listening,
       start: startRecognition,
       stop: stopRecognition,
       destroy() {
         if (destroyed) return;
         destroyed = true;
-        observer?.disconnect?.();
+        removeBindings();
         announce.dispose?.();
         const active = recognition;
         recognition = null;
@@ -279,15 +313,12 @@
           try { active.abort?.(); } catch { /* no-op */ }
         }
         if (wasListening) dispatchVoiceInputState(documentRef, root, false);
-        micButton.removeEventListener?.('click', handleClick, true);
-        documentRef.removeEventListener?.('visibilitychange', handleVisibilityChange);
-        micButton.disabled = baseline.disabled;
-        micButton.textContent = baseline.textContent;
-        micButton.title = baseline.title;
-        restoreAttribute(micButton, 'aria-pressed', baseline.ariaPressed);
-        restoreAttribute(micButton, 'aria-label', baseline.ariaLabel);
+        restoreOwnedDom();
+        if (activeInstallations.get(micButton) === controller) activeInstallations.delete(micButton);
       }
     });
+    activeInstallations.set(micButton, controller);
+    return controller;
   }
 
   return Object.freeze({
