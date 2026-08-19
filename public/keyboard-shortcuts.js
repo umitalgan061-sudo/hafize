@@ -14,6 +14,7 @@
   const SHORTCUTS = Object.freeze({
     focusComposer: 'mod+k',
     focusComposerSlash: '/',
+    focusConversationSearch: 'mod+shift+f',
     stopResponse: 'escape'
   });
 
@@ -40,6 +41,13 @@
       && !event?.shiftKey;
   }
 
+  function isConversationSearchShortcut(event) {
+    return String(event?.key || '').toLowerCase() === 'f'
+      && Boolean(event?.ctrlKey || event?.metaKey)
+      && !event?.altKey
+      && event?.shiftKey === true;
+  }
+
   function isEscape(event) {
     return event?.key === 'Escape' && !hasModifier(event) && !event?.shiftKey;
   }
@@ -53,6 +61,7 @@
     function nodes() {
       return Object.freeze({
         input: documentRef.querySelector('#messageInput'),
+        searchInput: documentRef.querySelector('#conversationSearchInput'),
         sendButton: documentRef.querySelector('#sendBtn')
       });
     }
@@ -69,6 +78,17 @@
       return true;
     }
 
+    function focusConversationSearch(event) {
+      const { searchInput } = nodes();
+      if (!searchInput || searchInput.disabled === true || typeof searchInput.focus !== 'function') return false;
+      event?.preventDefault?.();
+      searchInput.focus();
+      if (typeof searchInput.select === 'function') {
+        try { searchInput.select(); } catch { /* selection is optional */ }
+      }
+      return true;
+    }
+
     function stopResponse(event) {
       const { sendButton } = nodes();
       if (!sendButton?.classList?.contains?.('streaming') || typeof sendButton.click !== 'function') return false;
@@ -81,6 +101,7 @@
     function handleKeydown(event) {
       if (!event || event.defaultPrevented || event.repeat) return false;
       if (isEscape(event)) return stopResponse(event);
+      if (isConversationSearchShortcut(event)) return focusConversationSearch(event);
       if (isModK(event)) return focusComposer(event);
       if (!isPlainSlash(event) || isEditableTarget(event.target)) return false;
       return focusComposer(event);
@@ -99,7 +120,7 @@
       mounted = false;
     }
 
-    return Object.freeze({ mount, destroy, handleKeydown, focusComposer, stopResponse });
+    return Object.freeze({ mount, destroy, handleKeydown, focusComposer, focusConversationSearch, stopResponse });
   }
 
   function mount(options) {
@@ -117,6 +138,7 @@
     isEditableTarget,
     isPlainSlash,
     isModK,
+    isConversationSearchShortcut,
     isEscape,
     createController,
     mount
