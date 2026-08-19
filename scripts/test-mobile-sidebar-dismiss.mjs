@@ -22,73 +22,146 @@ function node() {
     append(...items) { for (const item of items) { item.parent = this; this.children.push(item); } },
     remove() { if (this.parent) this.parent.children = this.parent.children.filter((x) => x !== this); this.parent = null; },
     setAttribute(k, v) { this.attrs.set(k, String(v)); },
+    getAttribute(k) { return this.attrs.has(k) ? this.attrs.get(k) : null; },
+    hasAttribute(k) { return this.attrs.has(k); },
+    removeAttribute(k) { this.attrs.delete(k); },
     addEventListener(k, fn) { listeners.set(k, fn); },
     removeEventListener(k, fn) { if (listeners.get(k) === fn) listeners.delete(k); },
     emit(k, event = {}) { listeners.get(k)?.(event); },
+    listener(k) { return listeners.get(k) || null; },
     focus() { this.focused = true; }
   };
 }
 
-const sidebar = node(); sidebar.id = 'sidebar';
-const toggle = node(); toggle.id = 'sidebarToggle';
-const body = node();
-const head = node();
-let backdrop = null;
-let style = null;
-const docListeners = new Map();
-const documentRef = {
-  body, head,
-  createElement() { return node(); },
-  querySelector(selector) {
-    if (selector === '#sidebar') return sidebar;
-    if (selector === '#sidebarToggle') return toggle;
-    if (selector === '#sidebarBackdrop') return backdrop;
-    if (selector === '#hafize-mobile-sidebar-dismiss-style') return style;
-    return null;
-  },
-  addEventListener(k, fn) { docListeners.set(k, fn); },
-  removeEventListener(k, fn) { if (docListeners.get(k) === fn) docListeners.delete(k); }
-};
-const bodyAppend = body.append.bind(body);
-body.append = (...items) => { bodyAppend(...items); backdrop = items.find((x) => x.id === api.BACKDROP_ID) || backdrop; };
-const headAppend = head.append.bind(head);
-head.append = (...items) => { headAppend(...items); style = items.find((x) => x.id === api.STYLE_ID) || style; };
-const winListeners = new Map();
-const windowRef = {
-  innerWidth: 390,
-  addEventListener(k, fn) { winListeners.set(k, fn); },
-  removeEventListener(k, fn) { if (winListeners.get(k) === fn) winListeners.delete(k); }
-};
+function harness({ hostBackdrop = null, hostStyle = null, toggleExpanded = null } = {}) {
+  const sidebar = node(); sidebar.id = 'sidebar';
+  const toggle = node(); toggle.id = 'sidebarToggle';
+  if (toggleExpanded !== null) toggle.setAttribute('aria-expanded', toggleExpanded);
+  const body = node();
+  const head = node();
+  let backdrop = hostBackdrop;
+  let style = hostStyle;
+  if (backdrop) { backdrop.id = api.BACKDROP_ID; body.append(backdrop); }
+  if (style) { style.id = api.STYLE_ID; head.append(style); }
+  const docListeners = new Map();
+  const documentRef = {
+    body, head,
+    createElement() { return node(); },
+    querySelector(selector) {
+      if (selector === '#sidebar') return sidebar;
+      if (selector === '#sidebarToggle') return toggle;
+      if (selector === '#sidebarBackdrop') return backdrop;
+      if (selector === '#hafize-mobile-sidebar-dismiss-style') return style;
+      return null;
+    },
+    addEventListener(k, fn) { docListeners.set(k, fn); },
+    removeEventListener(k, fn) { if (docListeners.get(k) === fn) docListeners.delete(k); }
+  };
+  const bodyAppend = body.append.bind(body);
+  body.append = (...items) => {
+    bodyAppend(...items);
+    backdrop = items.find((x) => x.id === api.BACKDROP_ID) || backdrop;
+  };
+  const headAppend = head.append.bind(head);
+  head.append = (...items) => {
+    headAppend(...items);
+    style = items.find((x) => x.id === api.STYLE_ID) || style;
+  };
+  const winListeners = new Map();
+  const windowRef = {
+    innerWidth: 390,
+    addEventListener(k, fn) { winListeners.set(k, fn); },
+    removeEventListener(k, fn) { if (winListeners.get(k) === fn) winListeners.delete(k); }
+  };
+  return {
+    sidebar, toggle, body, head, documentRef, windowRef, docListeners, winListeners,
+    backdrop: () => backdrop,
+    style: () => style
+  };
+}
 
-const controller = api.createController({ documentRef, windowRef });
-assert.equal(controller.mount(), true);
-assert.equal(backdrop.hidden, true);
-sidebar.classList.add('open');
-toggle.emit('click');
-assert.equal(backdrop.hidden, false);
-assert.equal(toggle.attrs.get('aria-expanded'), 'true');
+{
+  const h = harness();
+  const controller = api.createController({ documentRef: h.documentRef, windowRef: h.windowRef });
+  assert.equal(controller.mount(), true);
+  assert.equal(h.backdrop().hidden, true);
+  assert.ok(h.style());
+  h.sidebar.classList.add('open');
+  h.toggle.emit('click');
+  assert.equal(h.backdrop().hidden, false);
+  assert.equal(h.toggle.attrs.get('aria-expanded'), 'true');
 
-let prevented = false;
-docListeners.get('keydown')({ key: 'Escape', defaultPrevented: false, preventDefault() { prevented = true; } });
-assert.equal(prevented, true);
-assert.equal(sidebar.classList.contains('open'), false);
-assert.equal(backdrop.hidden, true);
-assert.equal(toggle.focused, true);
+  let prevented = false;
+  h.docListeners.get('keydown')({ key: 'Escape', defaultPrevented: false, preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(h.sidebar.classList.contains('open'), false);
+  assert.equal(h.backdrop().hidden, true);
+  assert.equal(h.toggle.focused, true);
 
-sidebar.classList.add('open'); toggle.emit('click');
-backdrop.emit('click');
-assert.equal(sidebar.classList.contains('open'), false);
+  h.sidebar.classList.add('open'); h.toggle.emit('click');
+  h.backdrop().emit('click');
+  assert.equal(h.sidebar.classList.contains('open'), false);
 
-sidebar.classList.add('open'); toggle.emit('click');
-windowRef.innerWidth = 1200; winListeners.get('resize')();
-assert.equal(sidebar.classList.contains('open'), false);
-assert.equal(backdrop.hidden, true);
-assert.equal(controller.mount(), true);
-assert.equal(body.children.filter((x) => x.id === api.BACKDROP_ID).length, 1);
-assert.equal(controller.destroy(), true);
-assert.equal(controller.destroy(), false);
-assert.equal(api.createController({ documentRef: { querySelector: () => null }, windowRef }).mount(), false);
+  h.sidebar.classList.add('open'); h.toggle.emit('click');
+  h.windowRef.innerWidth = 1200; h.winListeners.get('resize')();
+  assert.equal(h.sidebar.classList.contains('open'), false);
+  assert.equal(h.backdrop().hidden, true);
+  assert.equal(controller.mount(), true);
+  assert.equal(h.body.children.filter((x) => x.id === api.BACKDROP_ID).length, 1);
+  const oldBackdrop = h.backdrop();
+  const oldClick = oldBackdrop.listener('click');
+  assert.equal(controller.destroy(), true);
+  assert.equal(controller.destroy(), false);
+  assert.equal(oldBackdrop.listener('click'), null);
+  assert.equal(oldBackdrop.parent, null);
+  assert.equal(h.style().parent, null);
+  assert.equal(h.toggle.hasAttribute('aria-expanded'), false);
+  assert.equal(controller.sync(), false);
+  assert.equal(controller.close(), false);
+  oldClick?.();
+  assert.equal(h.toggle.focused, true);
 
+  h.windowRef.innerWidth = 390;
+  assert.equal(controller.mount(), true);
+  assert.notEqual(h.backdrop(), oldBackdrop);
+  assert.equal(h.body.children.filter((x) => x.id === api.BACKDROP_ID).length, 1);
+  assert.equal(controller.destroy(), true);
+}
+
+{
+  const hostBackdrop = node(); hostBackdrop.hidden = false;
+  hostBackdrop.className = 'host-sidebar-layer';
+  const hostStyle = node(); hostStyle.textContent = '/* host style */';
+  const h = harness({ hostBackdrop, hostStyle, toggleExpanded: 'mixed' });
+  const controller = api.createController({ documentRef: h.documentRef, windowRef: h.windowRef });
+  assert.equal(controller.mount(), true);
+  assert.equal(hostBackdrop.hidden, true);
+  assert.ok(hostBackdrop.listener('click'));
+  assert.equal(h.toggle.getAttribute('aria-expanded'), 'false');
+
+  h.sidebar.classList.add('open');
+  h.toggle.emit('click');
+  assert.equal(hostBackdrop.hidden, false);
+  assert.equal(controller.destroy(), true);
+  assert.equal(hostBackdrop.parent, h.body);
+  assert.equal(hostBackdrop.className, 'host-sidebar-layer');
+  assert.equal(hostBackdrop.hidden, false);
+  assert.equal(hostBackdrop.listener('click'), null);
+  assert.equal(hostStyle.parent, h.head);
+  assert.equal(hostStyle.textContent, '/* host style */');
+  assert.equal(h.toggle.getAttribute('aria-expanded'), 'mixed');
+}
+
+{
+  const malformedBackdrop = { id: api.BACKDROP_ID };
+  const h = harness({ hostBackdrop: malformedBackdrop });
+  const controller = api.createController({ documentRef: h.documentRef, windowRef: h.windowRef });
+  assert.equal(controller.mount(), false);
+  assert.equal(h.style()?.parent ?? null, null);
+  assert.equal(h.toggle.hasAttribute('aria-expanded'), false);
+}
+
+assert.equal(api.createController({ documentRef: { querySelector: () => null }, windowRef: {} }).mount(), false);
 assert.match(loader, /HafizeMobileSidebarDismiss/);
 assert.match(loader, /\/mobile-sidebar-dismiss\.js/);
 assert.match(swPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
