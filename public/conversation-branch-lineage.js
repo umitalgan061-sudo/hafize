@@ -17,6 +17,7 @@
   const MAX_ENTRIES = 60;
   const MAX_DEPTH = 12;
   const MAX_ID_CHARS = 120;
+  const MAX_STORAGE_CHARS = 64 * 1024;
   const STYLE_ID = 'hafize-conversation-branch-lineage-style';
   const STYLE_TEXT = `
 .conversation-branch-lineage{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 12px 0;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:10px;background:color-mix(in srgb,var(--surface,#fff) 88%,transparent);font-size:12px;color:var(--muted,#666)}
@@ -133,7 +134,7 @@
   }
 
   function parseEntries(raw, validConversationIds) {
-    if (typeof raw !== 'string' || !raw) return [];
+    if (typeof raw !== 'string' || !raw || raw.length > MAX_STORAGE_CHARS) return [];
     try { return normalizeEntries(JSON.parse(raw), validConversationIds); } catch { return []; }
   }
 
@@ -183,6 +184,21 @@
       const normalized = normalizeEntries(entries, conversationIds(list));
       try {
         storage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function compactStoredEntries(list = conversations()) {
+      let raw = '';
+      try { raw = storage.getItem(STORAGE_KEY) || ''; } catch { return false; }
+      if (!raw) return false;
+      const normalized = parseEntries(raw, conversationIds(list));
+      const canonical = JSON.stringify(normalized);
+      if (raw === canonical) return false;
+      try {
+        storage.setItem(STORAGE_KEY, canonical);
         return true;
       } catch {
         return false;
@@ -285,6 +301,7 @@
 
     function currentContext() {
       const list = conversations();
+      compactStoredEntries(list);
       annotateRows(list);
       const activeId = activeConversationId();
       if (!activeId) return null;
@@ -392,7 +409,7 @@
       nextButton = null;
     }
 
-    return Object.freeze({ mount, destroy, render, record, readEntries, writeEntries, annotateRows, activeConversationId, currentContext, currentEntry, openConversation, openSource, openRoot, openPreviousSibling, openNextSibling });
+    return Object.freeze({ mount, destroy, render, record, readEntries, writeEntries, compactStoredEntries, annotateRows, activeConversationId, currentContext, currentEntry, openConversation, openSource, openRoot, openPreviousSibling, openNextSibling });
   }
 
   function mount(options) {
@@ -411,6 +428,7 @@
     MAX_ENTRIES,
     MAX_DEPTH,
     MAX_ID_CHARS,
+    MAX_STORAGE_CHARS,
     STYLE_ID,
     STYLE_TEXT,
     normalizeId,
