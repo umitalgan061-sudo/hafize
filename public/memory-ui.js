@@ -12,6 +12,7 @@
   'use strict';
 
   const MEMORY_PATH = '/api/memory';
+  const MEMORY_APPROVAL_PATH = '/api/memory/approval';
   const SESSION_STATUS_PATH = '/api/session/status';
   const MEMORY_ID = /^memory_[A-Za-z0-9_-]{8,80}$/;
   const MEMORY_KINDS = Object.freeze(['identity', 'preference', 'project', 'note']);
@@ -65,20 +66,36 @@
         url.searchParams.set('limit', String(limit));
         return request(`${url.pathname}${url.search}`, { method: 'GET' });
       },
-      write({ kind, content }) {
+      async write({ kind, content }) {
         if (!MEMORY_KINDS.includes(kind)) throw new Error('INVALID_MEMORY_KIND');
         const cleanContent = typeof content === 'string' ? content.trim() : '';
         if (!cleanContent || cleanContent.length > 4000) throw new Error('INVALID_MEMORY_CONTENT');
+        const write = {
+          kind,
+          content: cleanContent,
+          sourceType: 'user_note',
+          sensitivity: 'personal'
+        };
+        const approval = await request(MEMORY_APPROVAL_PATH, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...write, explicitUserIntent: true })
+        });
+        if (!approval.ok) return approval;
+        const approvalReceipt = typeof approval.payload?.approvalReceipt === 'string'
+          ? approval.payload.approvalReceipt.trim()
+          : '';
+        if (!approvalReceipt) {
+          return Object.freeze({
+            ok: false,
+            status: 502,
+            payload: Object.freeze({ error: 'MEMORY_WRITE_APPROVAL_INVALID' })
+          });
+        }
         return request(MEMORY_PATH, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind,
-            content: cleanContent,
-            sourceType: 'user_note',
-            sensitivity: 'personal',
-            explicitUserIntent: true
-          })
+          body: JSON.stringify({ ...write, approvalReceipt })
         });
       },
       remove(memoryId) {
@@ -97,6 +114,7 @@
     if (response?.status === 401 || code === 'AUTH_REQUIRED') return 'Bellek için önce güvenli oturum aç.';
     if (response?.status === 403 || code === 'ORIGIN_REQUIRED') return 'Bu işlem yalnız güvenli Hafize adresinden yapılabilir.';
     if (response?.status === 404) return 'Kişisel bellek sunucuda henüz yapılandırılmamış.';
+    if (code === 'MEMORY_WRITE_APPROVAL_INVALID') return 'Bellek kaydetme onayı geçersiz veya süresi dolmuş; yeniden dene.';
     if (code === 'MEMORY_OPERATION_FAILED') return 'Bellek işlemi doğrulanamadı.';
     return 'Bellek işlemi tamamlanamadı.';
   }
