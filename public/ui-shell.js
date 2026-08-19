@@ -23,6 +23,8 @@
   const CONVERSATION_STORAGE_GUARD_SCRIPT_ID = 'hafizeConversationStorageGuardScript';
   const CONVERSATION_SEARCH_SCRIPT = '/conversation-search.js';
   const CONVERSATION_SEARCH_SCRIPT_ID = 'hafizeConversationSearchScript';
+  const CONVERSATION_SEARCH_SNIPPETS_SCRIPT = '/conversation-search-snippets.js';
+  const CONVERSATION_SEARCH_SNIPPETS_SCRIPT_ID = 'hafizeConversationSearchSnippetsScript';
   const CONVERSATION_BRANCH_ASSETS = Object.freeze([
     Object.freeze({ id: 'hafizeMessageCopyScript', src: '/message-copy.js' }),
     Object.freeze({ id: 'hafizeConversationModelStateScript', src: '/conversation-model-state.js' }),
@@ -88,6 +90,10 @@
 
   function installConversationSearch(documentRef) {
     return appendFixedScript(documentRef, CONVERSATION_SEARCH_SCRIPT_ID, CONVERSATION_SEARCH_SCRIPT);
+  }
+
+  function installConversationSearchSnippets(documentRef) {
+    return appendFixedScript(documentRef, CONVERSATION_SEARCH_SNIPPETS_SCRIPT_ID, CONVERSATION_SEARCH_SNIPPETS_SCRIPT);
   }
 
   function installConversationBranchAssets(documentRef) {
@@ -193,6 +199,7 @@
     installScheduleListFilterAsset(documentRef);
     installConversationStorageGuard(documentRef);
     installConversationSearch(documentRef);
+    installConversationSearchSnippets(documentRef);
     installConversationBranchAssets(documentRef);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
@@ -295,6 +302,7 @@
     SCHEDULE_LIST_FILTER_SCRIPT,
     CONVERSATION_STORAGE_GUARD_SCRIPT,
     CONVERSATION_SEARCH_SCRIPT,
+    CONVERSATION_SEARCH_SNIPPETS_SCRIPT,
     CONVERSATION_BRANCH_ASSETS,
     resolveTheme,
     hasDesktopDeviceBridge,
@@ -303,6 +311,7 @@
     installScheduleListFilterAsset,
     installConversationStorageGuard,
     installConversationSearch,
+    installConversationSearchSnippets,
     installConversationBranchAssets,
     createMonthCells,
     moveCalendarDate,
