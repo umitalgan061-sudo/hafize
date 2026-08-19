@@ -52,6 +52,41 @@
     let badge = null;
     let refresh = null;
     let requestController = null;
+    let ownsCard = false;
+    let hostSnapshot = null;
+
+    function snapshotAttribute(node, name) {
+      return node?.hasAttribute?.(name)
+        ? Object.freeze({ present: true, value: node.getAttribute(name) })
+        : Object.freeze({ present: false, value: null });
+    }
+
+    function restoreAttribute(node, name, snapshot) {
+      if (!node || !snapshot) return;
+      if (snapshot.present) node.setAttribute?.(name, snapshot.value ?? '');
+      else node.removeAttribute?.(name);
+    }
+
+    function captureHostState() {
+      hostSnapshot = Object.freeze({
+        cardBusy: snapshotAttribute(card, 'aria-busy'),
+        summaryText: summary.textContent,
+        summaryState: snapshotAttribute(summary, 'data-state'),
+        badgeText: badge.textContent,
+        badgeState: snapshotAttribute(badge, 'data-state'),
+        refreshDisabled: Boolean(refresh.disabled)
+      });
+    }
+
+    function restoreHostState() {
+      if (!hostSnapshot || ownsCard) return;
+      restoreAttribute(card, 'aria-busy', hostSnapshot.cardBusy);
+      summary.textContent = hostSnapshot.summaryText;
+      restoreAttribute(summary, 'data-state', hostSnapshot.summaryState);
+      badge.textContent = hostSnapshot.badgeText;
+      restoreAttribute(badge, 'data-state', hostSnapshot.badgeState);
+      refresh.disabled = hostSnapshot.refreshDisabled;
+    }
 
     function element(tag, className, text) {
       const node = documentRef.createElement(tag);
@@ -60,11 +95,25 @@
       return node;
     }
 
+    function bindExistingCard(existing) {
+      const existingSummary = existing.querySelector?.(`#${SUMMARY_ID}`);
+      const existingBadge = existing.querySelector?.('.canva-connection-badge');
+      const existingRefresh = existing.querySelector?.('.canva-connection-refresh');
+      if (!existingSummary || !existingBadge || !existingRefresh) return false;
+      card = existing;
+      summary = existingSummary;
+      badge = existingBadge;
+      refresh = existingRefresh;
+      ownsCard = false;
+      captureHostState();
+      return true;
+    }
+
     function buildCard() {
       const rail = documentRef.querySelector('.utility-rail');
       if (!rail) return false;
       const existing = documentRef.querySelector(`#${CARD_ID}`);
-      if (existing) { card = existing; return false; }
+      if (existing) return bindExistingCard(existing);
 
       card = element('section', 'utility-card canva-connection-card');
       card.id = CARD_ID;
@@ -98,6 +147,7 @@
       const scheduleCard = rail.querySelector?.('#scheduleRuntimeCard');
       if (scheduleCard && typeof rail.insertBefore === 'function') rail.insertBefore(card, scheduleCard);
       else rail.append(card);
+      ownsCard = true;
       return true;
     }
 
@@ -109,17 +159,17 @@
     }
 
     async function fetchJson(path, signal) {
-      const response = await fetchImpl(path, {
+      return fetchImpl(path, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         cache: 'no-store',
         credentials: 'same-origin',
         ...(signal ? { signal } : {})
       });
-      return response;
     }
 
     async function load() {
+      if (!mounted) return null;
       requestController?.abort?.();
       requestController = typeof AbortControllerImpl === 'function' ? new AbortControllerImpl() : null;
       const signal = requestController?.signal;
@@ -155,14 +205,13 @@
         render(view);
         return view;
       } finally {
-        if (refresh) refresh.disabled = false;
+        if (mounted && refresh) refresh.disabled = false;
       }
     }
 
     function mount() {
       if (mounted) return false;
-      buildCard();
-      if (!card || !refresh) return false;
+      if (!buildCard() || !card || !summary || !badge || !refresh) return false;
       refresh.addEventListener?.('click', load);
       mounted = true;
       void load();
@@ -171,10 +220,13 @@
 
     function destroy() {
       if (!mounted) return false;
+      mounted = false;
       requestController?.abort?.();
       refresh?.removeEventListener?.('click', load);
-      card?.remove?.();
-      card = null; summary = null; badge = null; refresh = null; requestController = null; mounted = false;
+      if (ownsCard) card?.remove?.();
+      else restoreHostState();
+      card = null; summary = null; badge = null; refresh = null; requestController = null;
+      ownsCard = false; hostSnapshot = null;
       return true;
     }
 
