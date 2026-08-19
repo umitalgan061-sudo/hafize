@@ -44,13 +44,14 @@ let exposed;
 const invoked = [];
 const api = exposeDeviceBridge({
   contextBridge: { exposeInMainWorld(name, value) { exposed = { name, value }; } },
-  ipcRenderer: { invoke(channel, request) { invoked.push([channel, request]); return Promise.resolve({ ok: true }); } }
+  ipcRenderer: { invoke(channel, request) { invoked.push([channel, request]); return Promise.resolve({ ok: true }); } },
+  hasActiveUserGesture: () => true
 });
 assert.equal(exposed.name, 'hafizeDevice');
 assert.equal(exposed.value, api);
 await api.getSystemInfo();
-await api.openBrowser('https://openai.com', { explicitUserIntent: true });
-await api.openApp('vscode', { explicitUserIntent: true });
+await api.openBrowser('https://openai.com');
+await api.openApp('vscode');
 assert.deepEqual(invoked, [
   [DEVICE_BRIDGE_CHANNEL, { operation: 'system.info', args: {} }],
   [DEVICE_BRIDGE_CHANNEL, { operation: 'browser.open', args: { url: 'https://openai.com', explicitUserIntent: true } }],
@@ -97,6 +98,33 @@ assert.deepEqual(externalCalls, ['https://example.com/']);
 assert.throws(() => registerElectronDeviceBridge({ ipcMain: { handle() {}, removeHandler() {} }, shell: { openExternal() {} }, app: { getVersion() {} }, osModule: { platform() {}, arch() {}, cpus() {}, totalmem() {} } }), /isTrustedSender/);
 registered.dispose();
 assert.equal(removed, true);
+assert.deepEqual(await ipcHandler({ trusted: true }, { operation: 'browser.open', args: { url: 'https://example.com/after-dispose', explicitUserIntent: true } }), {
+  ok: false,
+  error: 'DEVICE_BRIDGE_NOT_ACTIVE'
+});
+assert.deepEqual(externalCalls, ['https://example.com/'], 'stale IPC handler must not perform side effects after dispose');
+
+let throwingTrustHandler;
+const throwingTrustRegistration = registerElectronDeviceBridge({
+  ipcMain: {
+    handle(_channel, handlerFn) { throwingTrustHandler = handlerFn; },
+    removeHandler() {}
+  },
+  shell: { async openExternal() { throw new Error('must not run'); } },
+  app: { getVersion() { return '1.0.0'; } },
+  osModule: {
+    platform() { return 'linux'; },
+    arch() { return 'x64'; },
+    cpus() { return [{}]; },
+    totalmem() { return 1024 * 1024 * 1024; }
+  },
+  isTrustedSender() { throw new Error('sender frame destroyed'); }
+});
+assert.deepEqual(await throwingTrustHandler({}, { operation: 'system.info', args: {} }), {
+  ok: false,
+  error: 'DEVICE_RENDERER_NOT_TRUSTED'
+});
+throwingTrustRegistration.dispose();
 
 const ownershipCalls = [];
 const ownershipIpc = {
@@ -133,5 +161,25 @@ assert.deepEqual(ownershipCalls, [
 ]);
 secondRegistration.dispose();
 assert.deepEqual(ownershipCalls.at(-1), ['remove', DEVICE_BRIDGE_CHANNEL]);
+
+let failHandle = true;
+const rollbackCalls = [];
+const rollbackIpc = {
+  handle(channel) {
+    rollbackCalls.push(['handle', channel]);
+    if (failHandle) throw new Error('simulated registration failure');
+  },
+  removeHandler(channel) { rollbackCalls.push(['remove', channel]); }
+};
+const rollbackOptions = { ...bridgeOptions, ipcMain: rollbackIpc };
+assert.throws(() => registerElectronDeviceBridge(rollbackOptions), /simulated registration failure/);
+failHandle = false;
+const recoveredRegistration = registerElectronDeviceBridge(rollbackOptions);
+assert.deepEqual(rollbackCalls, [
+  ['handle', DEVICE_BRIDGE_CHANNEL],
+  ['handle', DEVICE_BRIDGE_CHANNEL]
+], 'failed ipcMain.handle setup must release ownership for a clean retry');
+recoveredRegistration.dispose();
+assert.deepEqual(rollbackCalls.at(-1), ['remove', DEVICE_BRIDGE_CHANNEL]);
 
 console.log('device bridge contract tests passed');
