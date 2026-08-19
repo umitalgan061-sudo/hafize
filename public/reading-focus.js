@@ -18,15 +18,45 @@
   const CONVERSATION_STORAGE_KEY = 'hafize.conversations.v1';
   const MAX_BOOKMARKS = 200;
   const MAX_MESSAGE_ID_CHARS = 160;
+  const MAX_CONVERSATION_ID_CHARS = 120;
   const MAX_STORAGE_CHARS = 48 * 1024;
   const MESSAGE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
-  const DEFAULT_STATE = Object.freeze({ focusMode: false, bookmarkIds: Object.freeze([]) });
+  const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+  const BOOKMARK_SEPARATOR = '|';
+  const DEFAULT_STATE = Object.freeze({
+    focusMode: false,
+    bookmarkKeys: Object.freeze([]),
+    legacyBookmarkIds: Object.freeze([])
+  });
 
   function normalizeMessageId(value) {
     if (typeof value !== 'string') return null;
     const clean = value.trim();
     if (!clean || clean.length > MAX_MESSAGE_ID_CHARS || !MESSAGE_ID_PATTERN.test(clean)) return null;
     return clean;
+  }
+
+  function normalizeConversationId(value) {
+    if (typeof value !== 'string') return null;
+    const clean = value.trim();
+    if (!clean || clean.length > MAX_CONVERSATION_ID_CHARS || !CONVERSATION_ID_PATTERN.test(clean)) return null;
+    return clean;
+  }
+
+  function bookmarkKey(conversationId, messageId) {
+    const conversation = normalizeConversationId(conversationId);
+    const message = normalizeMessageId(messageId);
+    return conversation && message ? `${conversation}${BOOKMARK_SEPARATOR}${message}` : null;
+  }
+
+  function parseBookmarkKey(value) {
+    if (typeof value !== 'string') return null;
+    const separator = value.indexOf(BOOKMARK_SEPARATOR);
+    if (separator <= 0 || separator !== value.lastIndexOf(BOOKMARK_SEPARATOR)) return null;
+    const conversationId = normalizeConversationId(value.slice(0, separator));
+    const messageId = normalizeMessageId(value.slice(separator + 1));
+    if (!conversationId || !messageId) return null;
+    return Object.freeze({ conversationId, messageId, key: bookmarkKey(conversationId, messageId) });
   }
 
   function normalizeBookmarkIds(value) {
@@ -43,33 +73,52 @@
     return normalized;
   }
 
+  function normalizeBookmarkKeys(value) {
+    if (!Array.isArray(value)) return [];
+    const seen = new Set();
+    const normalized = [];
+    for (const candidate of value) {
+      const parsed = parseBookmarkKey(candidate);
+      if (!parsed || seen.has(parsed.key)) continue;
+      seen.add(parsed.key);
+      normalized.push(parsed.key);
+      if (normalized.length >= MAX_BOOKMARKS) break;
+    }
+    return normalized;
+  }
+
   function normalizeState(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return { focusMode: false, bookmarkIds: [] };
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
+    }
     return {
       focusMode: value.focusMode === true,
-      bookmarkIds: normalizeBookmarkIds(value.bookmarkIds)
+      bookmarkKeys: normalizeBookmarkKeys(value.bookmarkKeys),
+      legacyBookmarkIds: normalizeBookmarkIds(value.bookmarkIds)
     };
   }
 
   function parseState(raw) {
-    if (typeof raw !== 'string' || !raw || raw.length > MAX_STORAGE_CHARS) return { focusMode: false, bookmarkIds: [] };
+    if (typeof raw !== 'string' || !raw || raw.length > MAX_STORAGE_CHARS) {
+      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
+    }
     try {
       return normalizeState(JSON.parse(raw));
     } catch {
-      return { focusMode: false, bookmarkIds: [] };
+      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
     }
   }
 
   function serializeState(state) {
     const normalized = normalizeState(state);
-    return JSON.stringify({ focusMode: normalized.focusMode, bookmarkIds: normalized.bookmarkIds });
+    return JSON.stringify({ focusMode: normalized.focusMode, bookmarkKeys: normalized.bookmarkKeys });
   }
 
   function loadState(storage) {
     try {
       return parseState(storage?.getItem?.(STORAGE_KEY));
     } catch {
-      return { focusMode: false, bookmarkIds: [] };
+      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
     }
   }
 
@@ -92,6 +141,16 @@
     return without.slice(-MAX_BOOKMARKS);
   }
 
+  function nextBookmarkKeys(current, key, enabled) {
+    const parsed = parseBookmarkKey(key);
+    const source = normalizeBookmarkKeys(current);
+    if (!parsed) return source;
+    const without = source.filter((item) => item !== parsed.key);
+    if (!enabled) return without;
+    without.push(parsed.key);
+    return without.slice(-MAX_BOOKMARKS);
+  }
+
   function messageIdsFromConversations(conversations) {
     const ids = new Set();
     for (const conversation of Array.isArray(conversations) ? conversations : []) {
@@ -102,6 +161,28 @@
       }
     }
     return ids;
+  }
+
+  function bookmarkIndexFromConversations(conversations) {
+    const validKeys = new Set();
+    const legacyMatches = new Map();
+    for (const conversation of Array.isArray(conversations) ? conversations : []) {
+      const conversationId = normalizeConversationId(conversation?.id);
+      if (!conversationId || !Array.isArray(conversation?.messages)) continue;
+      for (const message of conversation.messages) {
+        const messageId = normalizeMessageId(message?.id);
+        const key = bookmarkKey(conversationId, messageId);
+        if (!key) continue;
+        validKeys.add(key);
+        if (!legacyMatches.has(messageId)) legacyMatches.set(messageId, key);
+        else if (legacyMatches.get(messageId) !== key) legacyMatches.set(messageId, null);
+      }
+    }
+    return Object.freeze({ validKeys, legacyMatches });
+  }
+
+  function bookmarkKeysFromConversations(conversations) {
+    return bookmarkIndexFromConversations(conversations).validKeys;
   }
 
   function canonicalMessageIds(storage, guard) {
@@ -115,23 +196,79 @@
     }
   }
 
+  function canonicalBookmarkIndex(storage, guard) {
+    if (!storage || typeof storage.getItem !== 'function') return null;
+    if (!guard || typeof guard.sanitizeStoredValue !== 'function') return null;
+    try {
+      const canonical = guard.sanitizeStoredValue(storage.getItem(CONVERSATION_STORAGE_KEY) || '[]');
+      return bookmarkIndexFromConversations(canonical.value);
+    } catch {
+      return null;
+    }
+  }
+
   function pruneBookmarkIds(bookmarkIds, validMessageIds) {
     const normalized = normalizeBookmarkIds(bookmarkIds);
     if (!(validMessageIds instanceof Set)) return normalized;
     return normalized.filter((id) => validMessageIds.has(id));
   }
 
+  function pruneBookmarkKeys(bookmarkKeys, validKeys) {
+    const normalized = normalizeBookmarkKeys(bookmarkKeys);
+    if (!(validKeys instanceof Set)) return normalized;
+    return normalized.filter((key) => validKeys.has(key));
+  }
+
+  function migrateLegacyBookmarkIds(bookmarkIds, index) {
+    const normalized = normalizeBookmarkIds(bookmarkIds);
+    if (!index?.legacyMatches || !(index.legacyMatches instanceof Map)) return [];
+    const migrated = [];
+    for (const messageId of normalized) {
+      const key = index.legacyMatches.get(messageId);
+      if (typeof key === 'string') migrated.push(key);
+    }
+    return normalizeBookmarkKeys(migrated);
+  }
+
+  function scopeStateForConversations(state, conversations) {
+    const normalized = normalizeState(state);
+    const index = bookmarkIndexFromConversations(conversations);
+    const bookmarkKeys = normalizeBookmarkKeys([
+      ...pruneBookmarkKeys(normalized.bookmarkKeys, index.validKeys),
+      ...migrateLegacyBookmarkIds(normalized.legacyBookmarkIds, index)
+    ]);
+    return Object.freeze({ focusMode: normalized.focusMode, bookmarkKeys, legacyBookmarkIds: [] });
+  }
+
   function compactState(storage, guard, state = loadState(storage)) {
     const normalized = normalizeState(state);
-    const validMessageIds = canonicalMessageIds(storage, guard);
-    if (!(validMessageIds instanceof Set)) return Object.freeze({ state: normalized, changed: false, persisted: false });
-    const next = {
-      focusMode: normalized.focusMode,
-      bookmarkIds: pruneBookmarkIds(normalized.bookmarkIds, validMessageIds)
-    };
-    const changed = serializeState(next) !== serializeState(normalized);
+    if (!storage || typeof storage.getItem !== 'function' || !guard || typeof guard.sanitizeStoredValue !== 'function') {
+      return Object.freeze({ state: normalized, changed: false, persisted: false });
+    }
+    let canonical;
+    try {
+      canonical = guard.sanitizeStoredValue(storage.getItem(CONVERSATION_STORAGE_KEY) || '[]');
+    } catch {
+      return Object.freeze({ state: normalized, changed: false, persisted: false });
+    }
+    const next = scopeStateForConversations(normalized, canonical.value);
+    const changed = normalized.legacyBookmarkIds.length > 0 || serializeState(next) !== serializeState(normalized);
     if (!changed) return Object.freeze({ state: next, changed: false, persisted: false });
     return Object.freeze({ state: next, changed: true, persisted: persistState(storage, next) });
+  }
+
+  function activeConversationId(documentRef, conversations) {
+    const canonical = Array.isArray(conversations) ? conversations : [];
+    const ids = canonical.map((item) => normalizeConversationId(item?.id)).filter(Boolean);
+    if (!ids.length) return null;
+    const rows = Array.from(documentRef?.querySelectorAll?.('#conversationList .conversation-row') || []);
+    const active = rows.filter((row) => row?.classList?.contains?.('active'));
+    if (active.length !== 1) return null;
+    const tagged = normalizeConversationId(active[0]?.dataset?.conversationOrganizeId);
+    if (tagged && ids.includes(tagged)) return tagged;
+    if (rows.some((row) => normalizeConversationId(row?.dataset?.conversationOrganizeId))) return null;
+    const index = rows.indexOf(active[0]);
+    return index >= 0 && index < ids.length ? ids[index] : null;
   }
 
   function ensureStyles(documentRef) {
@@ -161,7 +298,7 @@
     const guard = root.HafizeConversationStorageGuard;
     const initialCompaction = compactState(storage, guard);
     let state = initialCompaction.state;
-    let bookmarks = new Set(state.bookmarkIds);
+    let bookmarks = new Set(state.bookmarkKeys);
     let bookmarksOnly = false;
     let navigationIndex = -1;
     let highlightTimer = null;
@@ -191,6 +328,23 @@
     if (themeToggle?.parentNode === topbar) topbar.insertBefore(tools, themeToggle);
     else topbar.append(tools);
 
+    function canonicalConversations() {
+      if (!guard || typeof guard.sanitizeStoredValue !== 'function') return [];
+      try {
+        return guard.sanitizeStoredValue(storage?.getItem?.(CONVERSATION_STORAGE_KEY) || '[]').value;
+      } catch {
+        return [];
+      }
+    }
+
+    function currentConversationId() {
+      return activeConversationId(documentRef, canonicalConversations());
+    }
+
+    function keyForArticle(article) {
+      return bookmarkKey(currentConversationId(), normalizeMessageId(article?.dataset?.messageId));
+    }
+
     function syncFocusMode() {
       documentRef.body.classList.toggle('reading-focus-mode', state.focusMode);
       focusButton.setAttribute('aria-pressed', String(state.focusMode));
@@ -203,14 +357,18 @@
     }
 
     function save() {
-      state = { focusMode: state.focusMode, bookmarkIds: Array.from(bookmarks) };
+      state = { focusMode: state.focusMode, bookmarkKeys: Array.from(bookmarks), legacyBookmarkIds: [] };
       persistState(storage, state);
     }
 
     function applyCanonicalCompaction() {
-      const result = compactState(storage, guard, { focusMode: state.focusMode, bookmarkIds: Array.from(bookmarks) });
+      const result = compactState(storage, guard, {
+        focusMode: state.focusMode,
+        bookmarkKeys: Array.from(bookmarks),
+        legacyBookmarkIds: state.legacyBookmarkIds || []
+      });
       state = result.state;
-      bookmarks = new Set(state.bookmarkIds);
+      bookmarks = new Set(state.bookmarkKeys);
       return result.changed;
     }
 
@@ -220,8 +378,8 @@
 
     function bookmarkedArticles() {
       return allMessageArticles().filter((article) => {
-        const id = normalizeMessageId(article.dataset?.messageId);
-        return Boolean(id && bookmarks.has(id));
+        const key = keyForArticle(article);
+        return Boolean(key && bookmarks.has(key));
       });
     }
 
@@ -236,8 +394,8 @@
         : 'Yalnız yer imli mesajları göster');
       bookmarkFilter.title = bookmarksOnly ? 'Tüm mesajları göster' : 'Yalnız yer imlerini göster';
       for (const article of allMessageArticles()) {
-        const id = normalizeMessageId(article.dataset?.messageId);
-        article.classList?.toggle?.('reading-bookmark-filtered-out', bookmarksOnly && !bookmarks.has(id));
+        const key = keyForArticle(article);
+        article.classList?.toggle?.('reading-bookmark-filtered-out', bookmarksOnly && !(key && bookmarks.has(key)));
       }
       messages.classList?.toggle?.('reading-bookmark-filter-active', bookmarksOnly);
     }
@@ -255,22 +413,29 @@
     }
 
     function syncBookmarkButton(button, article) {
-      const id = normalizeMessageId(article?.dataset?.messageId);
-      if (!id) return;
-      const enabled = bookmarks.has(id);
+      const key = keyForArticle(article);
+      const enabled = Boolean(key && bookmarks.has(key));
+      button.disabled = !key;
       button.setAttribute('aria-pressed', String(enabled));
       button.textContent = enabled ? '★' : '☆';
-      const role = article.classList?.contains?.('user') ? 'kullanıcı' : 'Hafize';
-      button.setAttribute('aria-label', enabled
-        ? `${role} mesajının yer imini kaldır`
-        : `${role} mesajını yer imlerine ekle`);
-      button.title = enabled ? 'Yer imini kaldır' : 'Yer imi ekle';
-      article.classList?.toggle?.('reading-bookmarked', enabled);
+      const role = article?.classList?.contains?.('user') ? 'kullanıcı' : 'Hafize';
+      button.setAttribute('aria-label', !key
+        ? `${role} mesajının sohbet kimliği doğrulanamadı`
+        : enabled
+          ? `${role} mesajının yer imini kaldır`
+          : `${role} mesajını yer imlerine ekle`);
+      button.title = !key ? 'Sohbet kimliği doğrulanamadı' : enabled ? 'Yer imini kaldır' : 'Yer imi ekle';
+      article?.classList?.toggle?.('reading-bookmarked', enabled);
     }
 
     function decorateMessage(article) {
       const id = normalizeMessageId(article?.dataset?.messageId);
-      if (!id || article.querySelector?.('.reading-bookmark-button')) return false;
+      if (!id) return false;
+      const existing = article.querySelector?.('.reading-bookmark-button');
+      if (existing) {
+        syncBookmarkButton(existing, article);
+        return false;
+      }
       const actions = documentRef.createElement('div');
       actions.className = 'reading-bookmark-actions';
 
@@ -281,8 +446,10 @@
       button.addEventListener('click', (event) => {
         event.preventDefault?.();
         event.stopPropagation?.();
-        const nextEnabled = !bookmarks.has(id);
-        bookmarks = new Set(nextBookmarkIds(Array.from(bookmarks), id, nextEnabled));
+        const key = keyForArticle(article);
+        if (!key) return;
+        const nextEnabled = !bookmarks.has(key);
+        bookmarks = new Set(nextBookmarkKeys(Array.from(bookmarks), key, nextEnabled));
         save();
         syncBookmarkButton(button, article);
         syncNavigator();
@@ -325,7 +492,7 @@
     }
 
     function onFocusToggle() {
-      state = { focusMode: !state.focusMode, bookmarkIds: Array.from(bookmarks) };
+      state = { focusMode: !state.focusMode, bookmarkKeys: Array.from(bookmarks), legacyBookmarkIds: [] };
       save();
       syncFocusMode();
     }
@@ -341,15 +508,11 @@
       if (event?.key !== STORAGE_KEY && event?.key !== CONVERSATION_STORAGE_KEY) return;
       if (event.key === STORAGE_KEY) {
         state = parseState(event.newValue || '');
-        bookmarks = new Set(state.bookmarkIds);
+        bookmarks = new Set(state.bookmarkKeys);
       }
       applyCanonicalCompaction();
       syncFocusMode();
-      for (const button of messages.querySelectorAll?.('.reading-bookmark-button') || []) {
-        const article = messageArticleFor(button);
-        if (article) syncBookmarkButton(button, article);
-      }
-      syncNavigator();
+      decorateAll();
     }
 
     focusButton.addEventListener('click', onFocusToggle);
@@ -362,15 +525,32 @@
       : null;
     observer?.observe(messages, { childList: true, subtree: true });
 
+    const conversationList = documentRef.querySelector?.('#conversationList');
+    const conversationObserver = conversationList && typeof root.MutationObserver === 'function'
+      ? new root.MutationObserver(() => decorateAll())
+      : null;
+    conversationObserver?.observe(conversationList, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'data-conversation-organize-id']
+    });
+
     syncFocusMode();
     decorateAll();
 
     return Object.freeze({
-      getState: () => Object.freeze({ focusMode: state.focusMode, bookmarkIds: Object.freeze(Array.from(bookmarks)), bookmarksOnly }),
+      getState: () => Object.freeze({
+        focusMode: state.focusMode,
+        bookmarkKeys: Object.freeze(Array.from(bookmarks)),
+        legacyBookmarkIds: Object.freeze([...(state.legacyBookmarkIds || [])]),
+        bookmarksOnly
+      }),
       goToNextBookmark,
       compact: () => { const changed = applyCanonicalCompaction(); decorateAll(); return changed; },
       destroy() {
         observer?.disconnect?.();
+        conversationObserver?.disconnect?.();
         root.removeEventListener?.('storage', onStorage);
         focusButton.removeEventListener?.('click', onFocusToggle);
         bookmarkNavigator.removeEventListener?.('click', goToNextBookmark);
@@ -392,20 +572,34 @@
     CONVERSATION_STORAGE_KEY,
     MAX_BOOKMARKS,
     MAX_MESSAGE_ID_CHARS,
+    MAX_CONVERSATION_ID_CHARS,
     MAX_STORAGE_CHARS,
+    BOOKMARK_SEPARATOR,
     DEFAULT_STATE,
     normalizeMessageId,
+    normalizeConversationId,
+    bookmarkKey,
+    parseBookmarkKey,
     normalizeBookmarkIds,
+    normalizeBookmarkKeys,
     normalizeState,
     parseState,
     serializeState,
     loadState,
     persistState,
     nextBookmarkIds,
+    nextBookmarkKeys,
     messageIdsFromConversations,
+    bookmarkIndexFromConversations,
+    bookmarkKeysFromConversations,
     canonicalMessageIds,
+    canonicalBookmarkIndex,
     pruneBookmarkIds,
+    pruneBookmarkKeys,
+    migrateLegacyBookmarkIds,
+    scopeStateForConversations,
     compactState,
+    activeConversationId,
     messageArticleFor,
     install
   });
