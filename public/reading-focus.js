@@ -25,7 +25,7 @@
   const BOOKMARK_SEPARATOR = '|';
   const DEFAULT_STATE = Object.freeze({
     focusMode: false,
-    bookmarkKeys: Object.freeze([]),
+    bookmarkIds: Object.freeze([]),
     legacyBookmarkIds: Object.freeze([])
   });
 
@@ -59,11 +59,12 @@
     return Object.freeze({ conversationId, messageId, key: bookmarkKey(conversationId, messageId) });
   }
 
-  function normalizeBookmarkIds(value) {
+  function normalizeLegacyBookmarkIds(value) {
     if (!Array.isArray(value)) return [];
     const seen = new Set();
     const normalized = [];
     for (const candidate of value) {
+      if (parseBookmarkKey(candidate)) continue;
       const id = normalizeMessageId(candidate);
       if (!id || seen.has(id)) continue;
       seen.add(id);
@@ -87,38 +88,43 @@
     return normalized;
   }
 
+  function normalizeBookmarkIds(value) {
+    return normalizeBookmarkKeys(value);
+  }
+
   function normalizeState(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
+      return { focusMode: false, bookmarkIds: [], legacyBookmarkIds: [] };
     }
+    const candidates = Array.isArray(value.bookmarkIds) ? value.bookmarkIds : [];
     return {
       focusMode: value.focusMode === true,
-      bookmarkKeys: normalizeBookmarkKeys(value.bookmarkKeys),
-      legacyBookmarkIds: normalizeBookmarkIds(value.bookmarkIds)
+      bookmarkIds: normalizeBookmarkKeys(candidates),
+      legacyBookmarkIds: normalizeLegacyBookmarkIds(candidates)
     };
   }
 
   function parseState(raw) {
     if (typeof raw !== 'string' || !raw || raw.length > MAX_STORAGE_CHARS) {
-      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
+      return { focusMode: false, bookmarkIds: [], legacyBookmarkIds: [] };
     }
     try {
       return normalizeState(JSON.parse(raw));
     } catch {
-      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
+      return { focusMode: false, bookmarkIds: [], legacyBookmarkIds: [] };
     }
   }
 
   function serializeState(state) {
     const normalized = normalizeState(state);
-    return JSON.stringify({ focusMode: normalized.focusMode, bookmarkKeys: normalized.bookmarkKeys });
+    return JSON.stringify({ focusMode: normalized.focusMode, bookmarkIds: normalized.bookmarkIds });
   }
 
   function loadState(storage) {
     try {
       return parseState(storage?.getItem?.(STORAGE_KEY));
     } catch {
-      return { focusMode: false, bookmarkKeys: [], legacyBookmarkIds: [] };
+      return { focusMode: false, bookmarkIds: [], legacyBookmarkIds: [] };
     }
   }
 
@@ -131,17 +137,7 @@
     }
   }
 
-  function nextBookmarkIds(current, id, enabled) {
-    const cleanId = normalizeMessageId(id);
-    const source = normalizeBookmarkIds(current);
-    if (!cleanId) return source;
-    const without = source.filter((item) => item !== cleanId);
-    if (!enabled) return without;
-    without.push(cleanId);
-    return without.slice(-MAX_BOOKMARKS);
-  }
-
-  function nextBookmarkKeys(current, key, enabled) {
+  function nextBookmarkIds(current, key, enabled) {
     const parsed = parseBookmarkKey(key);
     const source = normalizeBookmarkKeys(current);
     if (!parsed) return source;
@@ -151,17 +147,7 @@
     return without.slice(-MAX_BOOKMARKS);
   }
 
-  function messageIdsFromConversations(conversations) {
-    const ids = new Set();
-    for (const conversation of Array.isArray(conversations) ? conversations : []) {
-      if (!conversation || typeof conversation !== 'object' || !Array.isArray(conversation.messages)) continue;
-      for (const message of conversation.messages) {
-        const id = normalizeMessageId(message?.id);
-        if (id) ids.add(id);
-      }
-    }
-    return ids;
-  }
+  const nextBookmarkKeys = nextBookmarkIds;
 
   function bookmarkIndexFromConversations(conversations) {
     const validKeys = new Set();
@@ -179,6 +165,14 @@
       }
     }
     return Object.freeze({ validKeys, legacyMatches });
+  }
+
+  function messageIdsFromConversations(conversations) {
+    const index = bookmarkIndexFromConversations(conversations);
+    const ids = new Set(index.legacyMatches.keys());
+    Object.defineProperty(ids, 'bookmarkKeys', { value: index.validKeys, enumerable: false });
+    Object.defineProperty(ids, 'legacyMatches', { value: index.legacyMatches, enumerable: false });
+    return ids;
   }
 
   function bookmarkKeysFromConversations(conversations) {
@@ -208,19 +202,39 @@
   }
 
   function pruneBookmarkIds(bookmarkIds, validMessageIds) {
-    const normalized = normalizeBookmarkIds(bookmarkIds);
-    if (!(validMessageIds instanceof Set)) return normalized;
-    return normalized.filter((id) => validMessageIds.has(id));
+    if (!(validMessageIds instanceof Set) || !Array.isArray(bookmarkIds)) return [];
+    const validKeys = validMessageIds.bookmarkKeys instanceof Set ? validMessageIds.bookmarkKeys : null;
+    const legacyMatches = validMessageIds.legacyMatches instanceof Map ? validMessageIds.legacyMatches : null;
+    const result = [];
+    const seen = new Set();
+    for (const candidate of bookmarkIds) {
+      const parsed = parseBookmarkKey(candidate);
+      let resolved = null;
+      if (parsed) {
+        if (validKeys ? validKeys.has(parsed.key) : validMessageIds.has(parsed.messageId)) resolved = parsed.key;
+      } else {
+        const legacyId = normalizeMessageId(candidate);
+        if (legacyId) {
+          const uniqueKey = legacyMatches?.get(legacyId);
+          if (typeof uniqueKey === 'string') resolved = uniqueKey;
+        }
+      }
+      if (!resolved || seen.has(resolved)) continue;
+      seen.add(resolved);
+      result.push(resolved);
+      if (result.length >= MAX_BOOKMARKS) break;
+    }
+    return result;
   }
 
-  function pruneBookmarkKeys(bookmarkKeys, validKeys) {
-    const normalized = normalizeBookmarkKeys(bookmarkKeys);
+  function pruneBookmarkKeys(bookmarkIds, validKeys) {
+    const normalized = normalizeBookmarkKeys(bookmarkIds);
     if (!(validKeys instanceof Set)) return normalized;
     return normalized.filter((key) => validKeys.has(key));
   }
 
   function migrateLegacyBookmarkIds(bookmarkIds, index) {
-    const normalized = normalizeBookmarkIds(bookmarkIds);
+    const normalized = normalizeLegacyBookmarkIds(bookmarkIds);
     if (!index?.legacyMatches || !(index.legacyMatches instanceof Map)) return [];
     const migrated = [];
     for (const messageId of normalized) {
@@ -233,11 +247,11 @@
   function scopeStateForConversations(state, conversations) {
     const normalized = normalizeState(state);
     const index = bookmarkIndexFromConversations(conversations);
-    const bookmarkKeys = normalizeBookmarkKeys([
-      ...pruneBookmarkKeys(normalized.bookmarkKeys, index.validKeys),
+    const bookmarkIds = normalizeBookmarkKeys([
+      ...pruneBookmarkKeys(normalized.bookmarkIds, index.validKeys),
       ...migrateLegacyBookmarkIds(normalized.legacyBookmarkIds, index)
     ]);
-    return Object.freeze({ focusMode: normalized.focusMode, bookmarkKeys, legacyBookmarkIds: [] });
+    return Object.freeze({ focusMode: normalized.focusMode, bookmarkIds, legacyBookmarkIds: [] });
   }
 
   function compactState(storage, guard, state = loadState(storage)) {
@@ -298,7 +312,7 @@
     const guard = root.HafizeConversationStorageGuard;
     const initialCompaction = compactState(storage, guard);
     let state = initialCompaction.state;
-    let bookmarks = new Set(state.bookmarkKeys);
+    let bookmarks = new Set(state.bookmarkIds);
     let bookmarksOnly = false;
     let navigationIndex = -1;
     let highlightTimer = null;
@@ -357,18 +371,18 @@
     }
 
     function save() {
-      state = { focusMode: state.focusMode, bookmarkKeys: Array.from(bookmarks), legacyBookmarkIds: [] };
+      state = { focusMode: state.focusMode, bookmarkIds: Array.from(bookmarks), legacyBookmarkIds: [] };
       persistState(storage, state);
     }
 
     function applyCanonicalCompaction() {
       const result = compactState(storage, guard, {
         focusMode: state.focusMode,
-        bookmarkKeys: Array.from(bookmarks),
+        bookmarkIds: Array.from(bookmarks),
         legacyBookmarkIds: state.legacyBookmarkIds || []
       });
       state = result.state;
-      bookmarks = new Set(state.bookmarkKeys);
+      bookmarks = new Set(state.bookmarkIds);
       return result.changed;
     }
 
@@ -449,7 +463,7 @@
         const key = keyForArticle(article);
         if (!key) return;
         const nextEnabled = !bookmarks.has(key);
-        bookmarks = new Set(nextBookmarkKeys(Array.from(bookmarks), key, nextEnabled));
+        bookmarks = new Set(nextBookmarkIds(Array.from(bookmarks), key, nextEnabled));
         save();
         syncBookmarkButton(button, article);
         syncNavigator();
@@ -492,7 +506,7 @@
     }
 
     function onFocusToggle() {
-      state = { focusMode: !state.focusMode, bookmarkKeys: Array.from(bookmarks), legacyBookmarkIds: [] };
+      state = { focusMode: !state.focusMode, bookmarkIds: Array.from(bookmarks), legacyBookmarkIds: [] };
       save();
       syncFocusMode();
     }
@@ -508,7 +522,7 @@
       if (event?.key !== STORAGE_KEY && event?.key !== CONVERSATION_STORAGE_KEY) return;
       if (event.key === STORAGE_KEY) {
         state = parseState(event.newValue || '');
-        bookmarks = new Set(state.bookmarkKeys);
+        bookmarks = new Set(state.bookmarkIds);
       }
       applyCanonicalCompaction();
       syncFocusMode();
@@ -542,7 +556,7 @@
     return Object.freeze({
       getState: () => Object.freeze({
         focusMode: state.focusMode,
-        bookmarkKeys: Object.freeze(Array.from(bookmarks)),
+        bookmarkIds: Object.freeze(Array.from(bookmarks)),
         legacyBookmarkIds: Object.freeze([...(state.legacyBookmarkIds || [])]),
         bookmarksOnly
       }),
@@ -580,8 +594,9 @@
     normalizeConversationId,
     bookmarkKey,
     parseBookmarkKey,
-    normalizeBookmarkIds,
+    normalizeLegacyBookmarkIds,
     normalizeBookmarkKeys,
+    normalizeBookmarkIds,
     normalizeState,
     parseState,
     serializeState,
@@ -589,8 +604,8 @@
     persistState,
     nextBookmarkIds,
     nextBookmarkKeys,
-    messageIdsFromConversations,
     bookmarkIndexFromConversations,
+    messageIdsFromConversations,
     bookmarkKeysFromConversations,
     canonicalMessageIds,
     canonicalBookmarkIndex,
