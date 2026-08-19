@@ -82,6 +82,8 @@ export function createElectronAppShell({
   let bridgeRef = null;
   let permissionRef = null;
   let removeNavigationGuards = null;
+  let appListenersInstalled = false;
+  let startInFlight = null;
   let disposed = false;
 
   function disposeWindowBindings() {
@@ -91,6 +93,39 @@ export function createElectronAppShell({
     bridgeRef = null;
     permissionRef?.dispose?.();
     permissionRef = null;
+  }
+
+  function handleActivate() {
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+  }
+
+  function handleWindowAllClosed() {
+    if (platform !== 'darwin') app.quit();
+  }
+
+  function installAppListeners() {
+    if (appListenersInstalled) return;
+    app.on('activate', handleActivate);
+    try {
+      app.on('window-all-closed', handleWindowAllClosed);
+    } catch (error) {
+      app.removeListener?.('activate', handleActivate);
+      throw error;
+    }
+    appListenersInstalled = true;
+  }
+
+  function removeAppListeners() {
+    if (!appListenersInstalled) return;
+    appListenersInstalled = false;
+    app.removeListener?.('activate', handleActivate);
+    app.removeListener?.('window-all-closed', handleWindowAllClosed);
+  }
+
+  function cleanupFailedWindow(window) {
+    disposeWindowBindings();
+    window.destroy?.();
+    if (windowRef === window) windowRef = null;
   }
 
   async function createWindow() {
@@ -106,55 +141,60 @@ export function createElectronAppShell({
       webPreferences
     });
     windowRef = window;
-    removeNavigationGuards = installNavigationGuards(window, appUrl.origin);
-    permissionRef = installPermissionPolicy({ webContents: window.webContents, rendererOrigin: appUrl.origin, allowAudioMedia });
-    bridgeRef = registerDeviceBridge({
-      ipcMain,
-      shell,
-      app,
-      osModule,
-      appOpeners,
-      allowedBrowserOrigins,
-      isTrustedSender: createTrustedSender(window, appUrl.origin)
-    });
-    window.once?.('ready-to-show', () => window.show?.());
     window.once?.('closed', () => {
       if (windowRef !== window) return;
       disposeWindowBindings();
       windowRef = null;
     });
+
+    try {
+      removeNavigationGuards = installNavigationGuards(window, appUrl.origin);
+      permissionRef = installPermissionPolicy({ webContents: window.webContents, rendererOrigin: appUrl.origin, allowAudioMedia });
+      bridgeRef = registerDeviceBridge({
+        ipcMain,
+        shell,
+        app,
+        osModule,
+        appOpeners,
+        allowedBrowserOrigins,
+        isTrustedSender: createTrustedSender(window, appUrl.origin)
+      });
+      window.once?.('ready-to-show', () => window.show?.());
+    } catch {
+      cleanupFailedWindow(window);
+      fail('DESKTOP_APP_BINDINGS_FAILED');
+    }
+
     try {
       await window.loadURL(appUrl.href);
     } catch {
-      disposeWindowBindings();
-      window.destroy?.();
-      windowRef = null;
+      cleanupFailedWindow(window);
       fail('DESKTOP_APP_LOAD_FAILED');
     }
     return window;
   }
 
-  function handleActivate() {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
-  }
-
-  function handleWindowAllClosed() {
-    if (platform !== 'darwin') app.quit();
-  }
-
   async function start() {
     if (disposed) fail('DESKTOP_APP_SHELL_DISPOSED');
-    await app.whenReady();
-    app.on('activate', handleActivate);
-    app.on('window-all-closed', handleWindowAllClosed);
-    return createWindow();
+    if (startInFlight) return startInFlight;
+    const run = (async () => {
+      await app.whenReady();
+      if (disposed) fail('DESKTOP_APP_SHELL_DISPOSED');
+      installAppListeners();
+      return createWindow();
+    })();
+    startInFlight = run;
+    try {
+      return await run;
+    } finally {
+      if (startInFlight === run) startInFlight = null;
+    }
   }
 
   function dispose() {
     if (disposed) return;
     disposed = true;
-    app.removeListener?.('activate', handleActivate);
-    app.removeListener?.('window-all-closed', handleWindowAllClosed);
+    removeAppListeners();
     disposeWindowBindings();
     if (windowRef && !windowRef.isDestroyed?.()) windowRef.destroy?.();
     windowRef = null;

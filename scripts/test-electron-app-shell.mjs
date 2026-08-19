@@ -34,6 +34,7 @@ class FakeWindow {
   isDestroyed() { return this.destroyed; }
   show() { this.shown = true; }
   destroy() {
+    if (this.destroyed) return;
     this.destroyed = true;
     this.onceHandlers.get('closed')?.();
   }
@@ -166,5 +167,121 @@ assert.throws(() => createElectronAppShell({
   registerDeviceBridge() {},
   installPermissionPolicy() {}
 }), /INVALID_DESKTOP_WINDOW:preloadPath/);
+
+function createCountingApp({ readyPromise = Promise.resolve() } = {}) {
+  const handlers = new Map();
+  const onCalls = [];
+  const removeCalls = [];
+  return {
+    onCalls,
+    removeCalls,
+    handlers,
+    whenReady() { return readyPromise; },
+    on(name, fn) {
+      onCalls.push(name);
+      const list = handlers.get(name) || [];
+      list.push(fn);
+      handlers.set(name, list);
+    },
+    removeListener(name, fn) {
+      removeCalls.push(name);
+      const list = handlers.get(name) || [];
+      const index = list.indexOf(fn);
+      if (index >= 0) list.splice(index, 1);
+      handlers.set(name, list);
+    },
+    quit() {},
+    getVersion() { return '1.0.0'; }
+  };
+}
+
+function createLifecycleWindowClass({ loadError = null } = {}) {
+  const instances = [];
+  class LifecycleWindow extends FakeWindow {
+    static getAllWindows() { return instances.filter((item) => !item.destroyed); }
+    constructor(options) {
+      super(options);
+      instances.push(this);
+    }
+    async loadURL(url) {
+      if (loadError) throw loadError;
+      return super.loadURL(url);
+    }
+  }
+  return { LifecycleWindow, instances };
+}
+
+const repeatedApp = createCountingApp();
+const { LifecycleWindow: RepeatedWindow, instances: repeatedWindows } = createLifecycleWindowClass();
+const repeatedShell = createElectronAppShell({
+  app: repeatedApp,
+  BrowserWindow: RepeatedWindow,
+  preloadPath: '/absolute/preload.mjs',
+  registerDeviceBridge() { return { dispose() {} }; },
+  installPermissionPolicy() { return { dispose() {} }; }
+});
+const [firstStartWindow, concurrentStartWindow] = await Promise.all([repeatedShell.start(), repeatedShell.start()]);
+assert.equal(firstStartWindow, concurrentStartWindow);
+assert.equal(repeatedWindows.length, 1, 'concurrent start must create only one window');
+assert.deepEqual(repeatedApp.onCalls, ['activate', 'window-all-closed']);
+assert.equal(await repeatedShell.start(), firstStartWindow);
+assert.deepEqual(repeatedApp.onCalls, ['activate', 'window-all-closed'], 'repeated start must not duplicate app listeners');
+repeatedShell.dispose();
+assert.deepEqual(repeatedApp.removeCalls, ['activate', 'window-all-closed']);
+
+let releaseReady;
+const pendingReady = new Promise((resolve) => { releaseReady = resolve; });
+const pendingApp = createCountingApp({ readyPromise: pendingReady });
+const { LifecycleWindow: PendingWindow, instances: pendingWindows } = createLifecycleWindowClass();
+const pendingShell = createElectronAppShell({
+  app: pendingApp,
+  BrowserWindow: PendingWindow,
+  preloadPath: '/absolute/preload.mjs',
+  registerDeviceBridge() { return { dispose() {} }; },
+  installPermissionPolicy() { return { dispose() {} }; }
+});
+const pendingStart = pendingShell.start();
+pendingShell.dispose();
+releaseReady();
+await assert.rejects(() => pendingStart, /DESKTOP_APP_SHELL_DISPOSED/);
+assert.deepEqual(pendingApp.onCalls, []);
+assert.equal(pendingWindows.length, 0, 'dispose during whenReady must not create a window');
+
+let failedPermissionDisposes = 0;
+const failedPermissionApp = createCountingApp();
+const { LifecycleWindow: FailedPermissionWindow, instances: failedPermissionWindows } = createLifecycleWindowClass();
+const failedPermissionShell = createElectronAppShell({
+  app: failedPermissionApp,
+  BrowserWindow: FailedPermissionWindow,
+  preloadPath: '/absolute/preload.mjs',
+  registerDeviceBridge() { throw new Error('bridge should not run'); },
+  installPermissionPolicy() {
+    return { dispose() { failedPermissionDisposes += 1; } };
+  }
+});
+await assert.rejects(() => failedPermissionShell.start(), /DESKTOP_APP_BINDINGS_FAILED/);
+assert.equal(failedPermissionWindows.length, 1);
+assert.equal(failedPermissionWindows[0].destroyed, true);
+assert.equal(failedPermissionWindows[0].webContents.handlers.has('will-navigate'), false);
+assert.equal(failedPermissionDisposes, 1, 'partial permission binding must roll back when bridge setup fails');
+failedPermissionShell.dispose();
+
+let loadBridgeDisposes = 0;
+let loadPermissionDisposes = 0;
+const loadFailureApp = createCountingApp();
+const { LifecycleWindow: LoadFailureWindow, instances: loadFailureWindows } = createLifecycleWindowClass({ loadError: new Error('load failed') });
+const loadFailureShell = createElectronAppShell({
+  app: loadFailureApp,
+  BrowserWindow: LoadFailureWindow,
+  preloadPath: '/absolute/preload.mjs',
+  registerDeviceBridge() { return { dispose() { loadBridgeDisposes += 1; } }; },
+  installPermissionPolicy() { return { dispose() { loadPermissionDisposes += 1; } }; }
+});
+await assert.rejects(() => loadFailureShell.start(), /DESKTOP_APP_LOAD_FAILED/);
+assert.equal(loadFailureWindows[0].destroyed, true);
+assert.equal(loadFailureWindows[0].webContents.handlers.has('will-navigate'), false);
+assert.equal(loadBridgeDisposes, 1);
+assert.equal(loadPermissionDisposes, 1);
+loadFailureShell.dispose();
 
 console.log('desktop app shell tests passed');
