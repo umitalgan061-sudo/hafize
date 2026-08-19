@@ -80,6 +80,38 @@
     try { storage?.setItem?.(STORAGE_KEY, String(Boolean(enabled))); } catch { /* storage is optional */ }
   }
 
+  function snapshotAttribute(node, name) {
+    return node?.getAttribute?.(name) ?? null;
+  }
+
+  function restoreAttribute(node, name, value) {
+    if (!node) return;
+    if (value === null) node.removeAttribute?.(name);
+    else node.setAttribute?.(name, value);
+  }
+
+  function snapshotNode(node, { value = false, hidden = false } = {}) {
+    if (!node) return null;
+    return Object.freeze({
+      disabled: Boolean(node.disabled),
+      textContent: node.textContent,
+      title: node.title,
+      ariaPressed: snapshotAttribute(node, 'aria-pressed'),
+      hidden: hidden ? Boolean(node.hidden) : undefined,
+      value: value ? node.value : undefined
+    });
+  }
+
+  function restoreNode(node, snapshot) {
+    if (!node || !snapshot) return;
+    node.disabled = snapshot.disabled;
+    node.textContent = snapshot.textContent;
+    node.title = snapshot.title;
+    restoreAttribute(node, 'aria-pressed', snapshot.ariaPressed);
+    if (snapshot.hidden !== undefined) node.hidden = snapshot.hidden;
+    if (snapshot.value !== undefined) node.value = snapshot.value;
+  }
+
   function installVoiceOutput(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#voiceOutputToggle');
     const card = documentRef?.querySelector?.('.voice-card');
@@ -88,6 +120,13 @@
     const composer = documentRef?.querySelector?.('#composer');
     const messages = documentRef?.querySelector?.('#messages');
     if (!toggle || !card) return null;
+
+    const toggleSnapshot = snapshotNode(toggle);
+    const cardClassSnapshot = Object.freeze({
+      speaking: Boolean(card.classList?.contains?.('speaking')),
+      paused: Boolean(card.classList?.contains?.('paused')),
+      thinking: Boolean(card.classList?.contains?.('thinking'))
+    });
 
     let generatedPauseToggle = false;
     let generatedStatus = false;
@@ -166,6 +205,14 @@
       generatedPlaybackActions = Boolean(playbackActions.parentNode);
     }
 
+    const pauseToggleSnapshot = generatedPauseToggle ? null : snapshotNode(pauseToggle, { hidden: true });
+    const statusSnapshot = generatedStatus ? null : snapshotNode(status, { hidden: true });
+    const rateWrapSnapshot = generatedRateWrap ? null : snapshotNode(rateWrap, { hidden: true });
+    const rateSelectSnapshot = generatedRateWrap ? null : snapshotNode(rateSelect, { value: true });
+    const playbackActionsSnapshot = generatedPlaybackActions ? null : snapshotNode(playbackActions, { hidden: true });
+    const replayButtonSnapshot = generatedPlaybackActions ? null : snapshotNode(replayButton, { hidden: true });
+    const stopButtonSnapshot = generatedPlaybackActions ? null : snapshotNode(stopButton, { hidden: true });
+
     const synth = root?.speechSynthesis;
     const Utterance = root?.SpeechSynthesisUtterance;
     const supported = Boolean(synth && typeof synth.speak === 'function' && typeof Utterance === 'function');
@@ -179,8 +226,10 @@
     let speechGeneration = 0;
     let activeUtterance = null;
     let lastPublishedState = '';
+    let destroyed = false;
 
     function publishState() {
+      if (destroyed) return;
       const state = paused ? 'paused' : speaking ? 'speaking' : thinking ? 'thinking' : 'idle';
       const signature = `${state}:${enabled}:${supported}`;
       if (signature === lastPublishedState) return;
@@ -194,6 +243,7 @@
     }
 
     function render() {
+      if (destroyed) return;
       toggle.disabled = !supported;
       toggle.setAttribute?.('aria-pressed', String(enabled));
       toggle.textContent = supported
@@ -245,14 +295,14 @@
       publishState();
     }
 
-    function cancelSpeech() {
+    function cancelSpeech({ renderState = true } = {}) {
       speechGeneration += 1;
       queue = [];
       speaking = false;
       paused = false;
       activeUtterance = null;
       try { synth?.cancel?.(); } catch { /* no-op */ }
-      render();
+      if (renderState) render();
     }
 
     function findTurkishVoice() {
@@ -265,7 +315,7 @@
     }
 
     function speakNext(generation = speechGeneration) {
-      if (generation !== speechGeneration) return;
+      if (destroyed || generation !== speechGeneration) return;
       if (!enabled || !supported || !queue.length) {
         activeUtterance = null;
         speaking = false;
@@ -281,13 +331,13 @@
       const voice = findTurkishVoice();
       if (voice) utterance.voice = voice;
       utterance.onend = () => {
-        if (generation !== speechGeneration || activeUtterance !== utterance) return;
+        if (destroyed || generation !== speechGeneration || activeUtterance !== utterance) return;
         activeUtterance = null;
         paused = false;
         speakNext(generation);
       };
       utterance.onerror = () => {
-        if (generation !== speechGeneration || activeUtterance !== utterance) return;
+        if (destroyed || generation !== speechGeneration || activeUtterance !== utterance) return;
         speechGeneration += 1;
         queue = [];
         activeUtterance = null;
@@ -303,7 +353,7 @@
     }
 
     function speak(value) {
-      if (!enabled || !supported || documentRef?.hidden) return false;
+      if (destroyed || !enabled || !supported || documentRef?.hidden) return false;
       const chunks = splitSpeechText(value);
       if (!chunks.length) return false;
       cancelSpeech();
@@ -313,7 +363,7 @@
     }
 
     function togglePause() {
-      if (!pauseSupported || !enabled || !speaking) return false;
+      if (destroyed || !pauseSupported || !enabled || !speaking) return false;
       try {
         if (paused) {
           synth.resume();
@@ -331,6 +381,7 @@
     }
 
     function setSpeechRate(value) {
+      if (destroyed) return speechRate;
       const next = normalizeSpeechRate(value);
       if (speaking) return speechRate;
       speechRate = next;
@@ -339,11 +390,12 @@
     }
 
     function handleRateChange() {
-      if (!rateSelect || speaking) return;
+      if (destroyed || !rateSelect || speaking) return;
       setSpeechRate(rateSelect.value);
     }
 
     function setEnabled(next) {
+      if (destroyed) return false;
       enabled = supported && Boolean(next);
       writeStoredEnabled(root?.localStorage, enabled);
       if (!enabled) cancelSpeech();
@@ -357,17 +409,18 @@
     }
 
     function replayLatest() {
-      if (!enabled || !supported || speaking || thinking) return false;
+      if (destroyed || !enabled || !supported || speaking || thinking) return false;
       return speak(latestAssistantText());
     }
 
     function stopSpeech() {
-      if (!speaking) return false;
+      if (destroyed || !speaking) return false;
       cancelSpeech();
       return true;
     }
 
     function syncStreamState() {
+      if (destroyed) return;
       const busy = Boolean(messageInput?.disabled);
       if (busy) {
         thinking = true;
@@ -385,11 +438,12 @@
     function handlePause() { togglePause(); }
     function handleReplay() { replayLatest(); }
     function handleStop() { stopSpeech(); }
-    function handleSubmit() { cancelSpeech(); }
+    function handleSubmit() { if (!destroyed) cancelSpeech(); }
     function handleVisibility() {
-      if (documentRef.hidden) cancelSpeech();
+      if (!destroyed && documentRef.hidden) cancelSpeech();
     }
     function handleVoiceInputState(event) {
+      if (destroyed) return;
       const detail = event?.detail;
       if (detail?.source !== 'voice-input' || detail.listening !== true) return;
       cancelSpeech();
@@ -407,7 +461,7 @@
     const Observer = root?.MutationObserver;
     const micObserver = micButton && typeof Observer === 'function'
       ? new Observer(() => {
-          if (micButton.getAttribute?.('aria-pressed') === 'true') cancelSpeech();
+          if (!destroyed && micButton.getAttribute?.('aria-pressed') === 'true') cancelSpeech();
         })
       : null;
     micObserver?.observe?.(micButton, { attributes: true, attributeFilter: ['aria-pressed'] });
@@ -421,9 +475,9 @@
     return Object.freeze({
       isSupported: supported,
       isPauseSupported: pauseSupported,
-      isEnabled: () => enabled,
-      isSpeaking: () => speaking,
-      isPaused: () => paused,
+      isEnabled: () => !destroyed && enabled,
+      isSpeaking: () => !destroyed && speaking,
+      isPaused: () => !destroyed && paused,
       getSpeechRate: () => speechRate,
       setSpeechRate,
       replayLatest,
@@ -431,10 +485,16 @@
       setEnabled,
       speak,
       togglePause,
-      cancel: cancelSpeech,
+      cancel() {
+        if (destroyed) return false;
+        cancelSpeech();
+        return true;
+      },
       syncStreamState,
       destroy() {
-        cancelSpeech();
+        if (destroyed) return;
+        destroyed = true;
+        cancelSpeech({ renderState: false });
         micObserver?.disconnect?.();
         streamObserver?.disconnect?.();
         toggle.removeEventListener?.('click', handleToggle);
@@ -446,9 +506,24 @@
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
         documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
         if (generatedPauseToggle) pauseToggle?.remove?.();
+        else restoreNode(pauseToggle, pauseToggleSnapshot);
         if (generatedStatus) status?.remove?.();
+        else restoreNode(status, statusSnapshot);
         if (generatedRateWrap) rateWrap?.remove?.();
+        else {
+          restoreNode(rateWrap, rateWrapSnapshot);
+          restoreNode(rateSelect, rateSelectSnapshot);
+        }
         if (generatedPlaybackActions) playbackActions?.remove?.();
+        else {
+          restoreNode(playbackActions, playbackActionsSnapshot);
+          restoreNode(replayButton, replayButtonSnapshot);
+          restoreNode(stopButton, stopButtonSnapshot);
+        }
+        restoreNode(toggle, toggleSnapshot);
+        card.classList?.toggle?.('speaking', cardClassSnapshot.speaking);
+        card.classList?.toggle?.('paused', cardClassSnapshot.paused);
+        card.classList?.toggle?.('thinking', cardClassSnapshot.thinking);
       }
     });
   }
