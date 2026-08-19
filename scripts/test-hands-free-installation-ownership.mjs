@@ -4,14 +4,19 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const api = require('../public/hands-free.js');
 
-function createElement({ hidden = false, disabled = false, textContent = '', attrs = {} } = {}) {
+function createElement({ hidden = false, disabled = false, textContent = '', attrs = {}, classes = [] } = {}) {
   const listeners = new Map();
+  const classNames = new Set(classes);
   return {
     hidden,
     disabled,
     textContent,
     attrs: { ...attrs },
-    classList: { remove() {} },
+    classList: {
+      contains(name) { return classNames.has(name); },
+      add(name) { classNames.add(name); },
+      remove(name) { classNames.delete(name); }
+    },
     getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attrs, name) ? this.attrs[name] : null; },
     setAttribute(name, value) { this.attrs[name] = String(value); },
     removeAttribute(name) { delete this.attrs[name]; },
@@ -43,7 +48,7 @@ function createHarness({ observerThrows = false } = {}) {
   });
   const mic = createElement();
   const input = createElement();
-  const toast = createElement({ hidden: true });
+  const toast = createElement({ textContent: 'Host toast', classes: ['hidden'] });
   const documentListeners = new Map();
   const observers = [];
   const recognitions = [];
@@ -107,6 +112,7 @@ function createHarness({ observerThrows = false } = {}) {
     toggle,
     indicator,
     input,
+    toast,
     documentRef,
     documentListeners,
     observers,
@@ -131,6 +137,8 @@ function createHarness({ observerThrows = false } = {}) {
   controller.enable();
   assert.equal(controller.isEnabled(), true);
   assert.equal(harness.recognitions.length, 1);
+  assert.match(harness.toast.textContent, /30 dakika açıldı/);
+  assert.equal(harness.toast.classList.contains('hidden'), false, 'controller may reveal its mount-time toast while active');
   const staleRecognition = harness.recognitions[0];
 
   controller.destroy();
@@ -142,17 +150,24 @@ function createHarness({ observerThrows = false } = {}) {
   assert.equal(harness.indicator.getAttribute('data-listening'), 'host-listening');
   assert.equal(harness.indicator.getAttribute('data-network-retry'), 'host-retry');
   assert.equal(harness.indicator.getAttribute('data-handoff-waiting'), null);
+  assert.equal(harness.toast.textContent, 'Host toast', 'destroy must restore host toast text');
+  assert.equal(harness.toast.classList.contains('hidden'), true, 'destroy must restore host toast visibility class');
   assert.equal(harness.documentListeners.size, 0);
   assert.equal(harness.observers[0].disconnected, true);
 
   staleRecognition.onstart?.();
+  staleRecognition.onerror?.({ error: 'not-allowed' });
   staleRecognition.onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }]] });
   staleRecognition.onend?.();
   assert.equal(controller.isListening(), false, 'stale callbacks after destroy must be inert');
+  assert.equal(harness.toast.textContent, 'Host toast', 'stale callbacks must not overwrite restored host toast');
+  assert.equal(harness.toast.classList.contains('hidden'), true);
 
   const remounted = api.installHandsFree(harness.documentRef, harness.root);
   assert.ok(remounted, 'destroy must release ownership for a clean remount');
   remounted.destroy();
+  assert.equal(harness.toast.textContent, 'Host toast', 'clean remount teardown must preserve the same host toast snapshot');
+  assert.equal(harness.toast.classList.contains('hidden'), true);
 }
 
 {
@@ -167,6 +182,8 @@ function createHarness({ observerThrows = false } = {}) {
   assert.equal(harness.toggle.getAttribute('aria-pressed'), 'mixed');
   assert.equal(harness.indicator.hidden, false);
   assert.equal(harness.indicator.textContent, 'Host indicator');
+  assert.equal(harness.toast.textContent, 'Host toast');
+  assert.equal(harness.toast.classList.contains('hidden'), true);
   assert.equal(harness.documentListeners.size, 0, 'partial install must remove document listeners');
   assert.equal(harness.toggle.listenerCount(), 0, 'partial install must remove toggle listener');
   assert.equal(harness.observers[0].disconnected, true);
@@ -179,6 +196,8 @@ function createHarness({ observerThrows = false } = {}) {
   const retry = api.installHandsFree(harness.documentRef, harness.root);
   assert.ok(retry, 'failed installation must not retain ownership');
   retry.destroy();
+  assert.equal(harness.toast.textContent, 'Host toast');
+  assert.equal(harness.toast.classList.contains('hidden'), true);
 }
 
 console.log('hands-free installation ownership tests passed');
