@@ -45,6 +45,30 @@
     return Array.from(messages || []).filter((article) => article?.classList?.contains('message') && messageText(article).includes(query));
   }
 
+  function contentEditableState(node) {
+    if (!node || typeof node !== 'object') return null;
+    if (node.isContentEditable === true) return true;
+    if (typeof node.getAttribute !== 'function') return null;
+    const raw = node.getAttribute('contenteditable');
+    if (raw === null || raw === undefined) return null;
+    const value = String(raw).trim().toLowerCase();
+    if (value === 'false') return false;
+    if (value === '' || value === 'true' || value === 'plaintext-only') return true;
+    return null;
+  }
+
+  function isEditableFindTarget(target) {
+    let node = target;
+    for (let depth = 0; node && depth < 32; depth += 1) {
+      const tag = typeof node.tagName === 'string' ? node.tagName.toUpperCase() : '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return true;
+      const editable = contentEditableState(node);
+      if (editable !== null) return editable;
+      node = node.parentElement || node.parentNode || null;
+    }
+    return false;
+  }
+
   function installStyles(documentRef) {
     if (!documentRef?.head || documentRef.querySelector?.(`#${STYLE_ID}`)) return false;
     const style = documentRef.createElement('style');
@@ -227,6 +251,7 @@
     function onKeydown(event) {
       const key = typeof event?.key === 'string' ? event.key.toLowerCase() : '';
       if ((event?.ctrlKey || event?.metaKey) && key === 'f' && !event?.altKey) {
+        if (event?.isComposing === true || isEditableFindTarget(event?.target)) return;
         event.preventDefault?.();
         open(event.target);
         return;
@@ -338,5 +363,5 @@
     }
   }
 
-  return Object.freeze({ MAX_QUERY_CHARS, CONTROL_ID, TRIGGER_ID, ACTIVE_CLASS, CURRENT_CLASS, STYLE_ID, normalizeQuery, messageText, matchingMessages, installStyles, createController, mount });
+  return Object.freeze({ MAX_QUERY_CHARS, CONTROL_ID, TRIGGER_ID, ACTIVE_CLASS, CURRENT_CLASS, STYLE_ID, normalizeQuery, messageText, matchingMessages, isEditableFindTarget, installStyles, createController, mount });
 });
