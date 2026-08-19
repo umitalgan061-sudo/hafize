@@ -49,14 +49,26 @@
       && snapshot.height === next.height);
   }
 
+  function readAttribute(node, name) {
+    return node?.getAttribute?.(name);
+  }
+
+  function restoreAttribute(node, name, value) {
+    if (!node) return;
+    if (value === null || value === undefined) node.removeAttribute?.(name);
+    else node.setAttribute?.(name, value);
+  }
+
   function ensureStyles(document) {
-    if (!document?.head || document.querySelector?.('link[data-hafize-screen-analysis-consent-style]')) return false;
+    if (!document?.head) return Object.freeze({ node: null, owned: false });
+    const existing = document.querySelector?.('link[data-hafize-screen-analysis-consent-style]');
+    if (existing) return Object.freeze({ node: existing, owned: false });
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = '/screen-analysis-consent.css';
     link.setAttribute('data-hafize-screen-analysis-consent-style', '1');
     document.head.append(link);
-    return true;
+    return Object.freeze({ node: link, owned: true });
   }
 
   function mountScreenAnalysisUi({ root = globalThis } = {}) {
@@ -70,12 +82,23 @@
     const client = root.HafizeScreenAnalysisClient;
     if (!analyzeButton || !result || !status || !removeButton || !modelSelect || !previewPanel || !client?.analyzeCapture) return null;
 
-    ensureStyles(document);
-    const originalButtonText = analyzeButton.textContent || 'Hafize ile analiz et';
+    const styleState = ensureStyles(document);
+    const initialState = Object.freeze({
+      buttonText: analyzeButton.textContent || '',
+      buttonDisabled: Boolean(analyzeButton.disabled),
+      buttonLabel: readAttribute(analyzeButton, 'aria-label'),
+      buttonStage: readAttribute(analyzeButton, 'data-stage'),
+      modelDisabled: Boolean(modelSelect.disabled),
+      resultText: result.textContent || '',
+      resultHidden: Boolean(result.hidden),
+      statusText: status.textContent || ''
+    });
+    const defaultButtonText = initialState.buttonText || 'Hafize ile analiz et';
     let controller = null;
     let currentCapture = null;
     let reviewSnapshot = null;
     let destroyed = false;
+    let generation = 1;
 
     const consent = document.createElement('section');
     consent.className = 'screen-analysis-consent';
@@ -110,13 +133,10 @@
 
     const reviewTitle = document.createElement('strong');
     reviewTitle.textContent = 'Gönderim özeti';
-
     const reviewMeta = document.createElement('span');
     reviewMeta.className = 'screen-analysis-review-meta';
-
     const reviewPrompt = document.createElement('span');
     reviewPrompt.className = 'screen-analysis-review-prompt';
-
     const reviewNote = document.createElement('span');
     reviewNote.className = 'screen-analysis-review-note';
     reviewNote.textContent = 'Devam edersen seçtiğin görüntü ve yukarıdaki analiz talimatı NVIDIA servisine gönderilir.';
@@ -132,25 +152,31 @@
     }
 
     function resetResult() {
+      if (destroyed) return false;
+      generation += 1;
       controller?.abort?.();
       controller = null;
       result.textContent = '';
       result.hidden = true;
-      analyzeButton.disabled = false;
+      analyzeButton.disabled = initialState.buttonDisabled;
+      return true;
     }
 
     function invalidateReview({ announce = false } = {}) {
+      if (destroyed) return false;
       reviewSnapshot = null;
       review.hidden = true;
       reviewMeta.textContent = '';
       reviewPrompt.textContent = '';
-      analyzeButton.textContent = originalButtonText;
+      analyzeButton.textContent = defaultButtonText;
       analyzeButton.setAttribute('aria-label', 'Ekran analizini gözden geçir');
       analyzeButton.dataset.stage = 'review';
       if (announce && currentCapture) status.textContent = 'Gönderim ayrıntıları değişti; ekran analizini yeniden gözden geçir.';
+      return true;
     }
 
     function prepareReview() {
+      if (destroyed) return false;
       const model = normalizeNvidiaModel(modelSelect.value);
       const prompt = effectivePrompt();
       if (!currentCapture) {
@@ -186,17 +212,20 @@
     }
 
     async function executeReview() {
+      if (destroyed) return false;
       const prompt = effectivePrompt();
       const model = normalizeNvidiaModel(modelSelect.value);
       if (!sameSnapshot(reviewSnapshot, { capture: currentCapture, model, prompt })) {
         invalidateReview({ announce: true });
-        return;
+        return false;
       }
 
       const snapshot = reviewSnapshot;
+      const requestGeneration = ++generation;
       reviewSnapshot = null;
       controller?.abort?.();
-      controller = new AbortController();
+      const requestController = new AbortController();
+      controller = requestController;
       analyzeButton.disabled = true;
       promptInput.disabled = true;
       modelSelect.disabled = true;
@@ -210,11 +239,14 @@
           model: snapshot.model,
           prompt: snapshot.prompt,
           explicitUserIntent: true,
-          signal: controller.signal
+          signal: requestController.signal
         });
+        if (destroyed || requestGeneration !== generation) return false;
         result.textContent = response.content;
         status.textContent = 'Analiz tamamlandı. Görüntü ve analiz talimatı yalnız bu açık işlem için gönderildi.';
+        return true;
       } catch (error) {
+        if (destroyed || requestGeneration !== generation) return false;
         if (error?.name === 'AbortError' || error?.message === 'SCREEN_ANALYSIS_CANCELLED') {
           result.textContent = 'Ekran analizi iptal edildi.';
         } else if (error?.message === 'SCREEN_ANALYSIS_NVIDIA_MODEL_REQUIRED') {
@@ -222,24 +254,26 @@
         } else {
           result.textContent = 'Ekran analizi tamamlanamadı.';
         }
+        return false;
       } finally {
-        if (!destroyed) {
-          analyzeButton.disabled = false;
+        if (!destroyed && requestGeneration === generation) {
+          analyzeButton.disabled = initialState.buttonDisabled;
           promptInput.disabled = false;
-          modelSelect.disabled = false;
+          modelSelect.disabled = initialState.modelDisabled;
           invalidateReview();
+          controller = null;
         }
-        controller = null;
       }
     }
 
     async function analyze() {
-      if (analyzeButton.disabled) return;
+      if (destroyed || analyzeButton.disabled) return false;
       if (reviewSnapshot) return executeReview();
-      prepareReview();
+      return prepareReview();
     }
 
     function onCaptureReady(event) {
+      if (destroyed) return;
       currentCapture = event?.detail?.capture || null;
       resetResult();
       invalidateReview();
@@ -247,6 +281,7 @@
     }
 
     function onCaptureCleared() {
+      if (destroyed) return;
       currentCapture = null;
       resetResult();
       invalidateReview();
@@ -254,15 +289,15 @@
     }
 
     function onPromptInput() {
-      if (reviewSnapshot) invalidateReview({ announce: true });
+      if (!destroyed && reviewSnapshot) invalidateReview({ announce: true });
     }
 
     function onModelChange() {
-      if (reviewSnapshot) invalidateReview({ announce: true });
+      if (!destroyed && reviewSnapshot) invalidateReview({ announce: true });
     }
 
     function onKeydown(event) {
-      if (event?.key !== 'Escape' || !reviewSnapshot) return;
+      if (destroyed || event?.key !== 'Escape' || !reviewSnapshot) return;
       event.preventDefault?.();
       invalidateReview();
       status.textContent = 'Ekran analizi gönderim onayı iptal edildi.';
@@ -270,7 +305,10 @@
     }
 
     function onPageHide() {
-      controller?.abort?.();
+      if (!destroyed) {
+        generation += 1;
+        controller?.abort?.();
+      }
     }
 
     analyzeButton.addEventListener('click', analyze);
@@ -280,14 +318,17 @@
     document.addEventListener?.('keydown', onKeydown);
     root.addEventListener?.('hafize:screen-capture-ready', onCaptureReady);
     root.addEventListener?.('hafize:screen-capture-cleared', onCaptureCleared);
-    root.addEventListener?.('pagehide', onPageHide, { once: true });
+    root.addEventListener?.('pagehide', onPageHide);
     invalidateReview();
 
     function destroy() {
       if (destroyed) return;
       destroyed = true;
+      generation += 1;
       controller?.abort?.();
       controller = null;
+      reviewSnapshot = null;
+      currentCapture = null;
       analyzeButton.removeEventListener('click', analyze);
       removeButton.removeEventListener('click', onCaptureCleared);
       promptInput.removeEventListener('input', onPromptInput);
@@ -297,11 +338,15 @@
       root.removeEventListener?.('hafize:screen-capture-cleared', onCaptureCleared);
       root.removeEventListener?.('pagehide', onPageHide);
       consent.remove?.();
-      analyzeButton.textContent = originalButtonText;
-      analyzeButton.removeAttribute?.('data-stage');
-      analyzeButton.removeAttribute?.('aria-label');
-      analyzeButton.disabled = false;
-      modelSelect.disabled = false;
+      if (styleState.owned) styleState.node?.remove?.();
+      analyzeButton.textContent = initialState.buttonText;
+      analyzeButton.disabled = initialState.buttonDisabled;
+      restoreAttribute(analyzeButton, 'aria-label', initialState.buttonLabel);
+      restoreAttribute(analyzeButton, 'data-stage', initialState.buttonStage);
+      modelSelect.disabled = initialState.modelDisabled;
+      result.textContent = initialState.resultText;
+      result.hidden = initialState.resultHidden;
+      status.textContent = initialState.statusText;
     }
 
     return Object.freeze({
@@ -309,7 +354,7 @@
       prepareReview,
       resetResult,
       invalidateReview,
-      getReviewSnapshot: () => reviewSnapshot,
+      getReviewSnapshot: () => destroyed ? null : reviewSnapshot,
       destroy
     });
   }
