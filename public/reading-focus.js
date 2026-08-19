@@ -316,6 +316,8 @@
     let bookmarksOnly = false;
     let navigationIndex = -1;
     let highlightTimer = null;
+    let cachedConversationRaw = null;
+    let cachedConversations = [];
 
     const tools = documentRef.createElement('div');
     tools.className = 'reading-focus-tools';
@@ -345,8 +347,15 @@
     function canonicalConversations() {
       if (!guard || typeof guard.sanitizeStoredValue !== 'function') return [];
       try {
-        return guard.sanitizeStoredValue(storage?.getItem?.(CONVERSATION_STORAGE_KEY) || '[]').value;
+        const raw = storage?.getItem?.(CONVERSATION_STORAGE_KEY) || '[]';
+        if (raw === cachedConversationRaw) return cachedConversations;
+        const canonical = guard.sanitizeStoredValue(raw);
+        cachedConversationRaw = raw;
+        cachedConversations = canonical.value;
+        return cachedConversations;
       } catch {
+        cachedConversationRaw = null;
+        cachedConversations = [];
         return [];
       }
     }
