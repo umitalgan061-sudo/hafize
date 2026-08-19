@@ -20,6 +20,33 @@ assert.equal(oversized.get('first').length <= search.MAX_INDEXED_CONVERSATION_CH
 assert.equal(oversized.get('first').includes('a'.repeat(100)), true);
 assert.equal(oversized.get('first').includes('needle-after-limit'), false);
 
+const separatorBoundary = search.buildCanonicalIndex([{
+  id: 'separator-boundary',
+  title: 'T',
+  messages: Array.from({ length: 200 }, (_, index) => ({
+    id: `m-${index}`,
+    role: index % 2 ? 'assistant' : 'user',
+    content: index === 199 ? 'final-needle' : 'x'.repeat(700)
+  }))
+}]);
+const separatorText = separatorBoundary.get('separator-boundary');
+assert.equal(typeof separatorText, 'string');
+assert.equal(separatorText.length <= search.MAX_INDEXED_CONVERSATION_CHARS, true);
+assert.notEqual(separatorText, '', 'separator overhead must not blank a bounded conversation index');
+assert.match(separatorText, /x{100}/);
+
+const exactBoundary = search.buildCanonicalIndex([{
+  id: 'exact-boundary',
+  title: '',
+  messages: [
+    { role: 'user', content: 'a'.repeat(60_000) },
+    { role: 'assistant', content: 'b'.repeat(60_000) }
+  ]
+}]);
+assert.equal(exactBoundary.get('exact-boundary').length, search.MAX_INDEXED_CONVERSATION_CHARS);
+assert.match(exactBoundary.get('exact-boundary'), /^a+/);
+assert.match(exactBoundary.get('exact-boundary'), /b+$/);
+
 const many = Array.from({ length: search.MAX_INDEXED_CONVERSATIONS + 5 }, (_, index) => (
   conversation(`conv-${index}`, `message-${index}`)
 ));
