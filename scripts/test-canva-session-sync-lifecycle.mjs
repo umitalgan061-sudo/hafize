@@ -26,18 +26,21 @@ class FakeObserver {
   }
 }
 
-function createHarness({ state = 'idle', refreshDisabled = false, observer = FakeObserver } = {}) {
+function createHarness({ state = 'idle', refreshDisabled = false, refreshMissing = false, refreshThrows = false, observer = FakeObserver } = {}) {
   FakeObserver.instances = [];
   const badge = { dataset: { state } };
   const refresh = {
     disabled: refreshDisabled,
     clicks: 0,
-    click() { this.clicks += 1; }
+    click() {
+      if (refreshThrows) throw new Error('refresh failed');
+      this.clicks += 1;
+    }
   };
   const documentRef = {
     querySelector(selector) {
       if (selector === '#sessionBadge') return badge;
-      if (selector === '#canvaConnectionCard .canva-connection-refresh') return refresh;
+      if (selector === '#canvaConnectionCard .canva-connection-refresh') return refreshMissing ? null : refresh;
       return null;
     }
   };
@@ -79,6 +82,14 @@ assert.deepEqual([...api.STABLE_STATES], ['active', 'idle', 'disabled', 'error']
   assert.equal(controller.sync(), true);
   assert.equal(controller.getState(), 'active');
   assert.equal(h.refresh.clicks, 1);
+}
+
+for (const options of [{ refreshMissing: true }, { refreshThrows: true }]) {
+  const h = createHarness(options);
+  const controller = api.mount(h.documentRef, h.root);
+  h.badge.dataset.state = 'active';
+  assert.equal(controller.sync(), false);
+  assert.equal(controller.getState(), 'idle', 'unavailable refresh must preserve retryable state');
 }
 
 {
