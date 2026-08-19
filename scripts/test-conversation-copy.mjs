@@ -88,7 +88,7 @@ const loader = fs.readFileSync(path.resolve('public/chat-run-controller.js'), 'u
 assert.match(loader, /HafizeConversationCopy/);
 assert.match(loader, /\/conversation-copy\.js/);
 const sw = fs.readFileSync(path.resolve('public/sw-policy.js'), 'utf8');
-assert.match(sw, /hafize-shell-v32/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/conversation-copy\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
