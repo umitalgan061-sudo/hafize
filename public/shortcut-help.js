@@ -74,13 +74,85 @@
     let dialog = null;
     let closeButton = null;
     let returnFocus = null;
+    let ownsTrigger = false;
+    let ownsBackdrop = false;
+    let originalTriggerExpanded = null;
+    let originalBackdropHidden = null;
+
+    function createOwnedBackdrop() {
+      const createdBackdrop = documentRef.createElement('div');
+      createdBackdrop.id = DIALOG_ID;
+      createdBackdrop.className = 'shortcut-help-backdrop';
+      createdBackdrop.hidden = true;
+
+      const createdDialog = documentRef.createElement('section');
+      createdDialog.className = 'shortcut-help-dialog';
+      createdDialog.setAttribute('role', 'dialog');
+      createdDialog.setAttribute('aria-modal', 'true');
+      createdDialog.setAttribute('aria-labelledby', `${DIALOG_ID}Title`);
+
+      const head = documentRef.createElement('div');
+      head.className = 'shortcut-help-head';
+      const title = documentRef.createElement('h2');
+      title.id = `${DIALOG_ID}Title`;
+      title.textContent = 'Klavye kısayolları';
+      const createdClose = documentRef.createElement('button');
+      createdClose.type = 'button';
+      createdClose.className = 'shortcut-help-close';
+      createdClose.textContent = 'Kapat';
+      createdClose.setAttribute('aria-label', 'Klavye kısayollarını kapat');
+      head.append(title, createdClose);
+
+      const list = documentRef.createElement('ul');
+      list.className = 'shortcut-help-list';
+      for (const [keys, label] of SHORTCUTS) {
+        const row = documentRef.createElement('li');
+        row.className = 'shortcut-help-row';
+        const key = documentRef.createElement('kbd');
+        key.textContent = keys;
+        const text = documentRef.createElement('span');
+        text.textContent = label;
+        row.append(key, text);
+        list.append(row);
+      }
+      const note = documentRef.createElement('p');
+      note.className = 'shortcut-help-note';
+      note.textContent = 'Kısayollar yazı alanındayken normal metin girişini bozmaz. Escape yalnız aktif yanıt veya bu pencere için kullanılır.';
+      createdDialog.append(head, list, note);
+      createdBackdrop.append(createdDialog);
+      return { backdrop: createdBackdrop, dialog: createdDialog, closeButton: createdClose };
+    }
 
     function createUi() {
       const footer = documentRef.querySelector('.sidebar-footer');
       if (!footer || !documentRef.body) return false;
 
-      trigger = documentRef.querySelector(`#${BUTTON_ID}`);
-      if (!trigger) {
+      const existingBackdrop = documentRef.querySelector(`#${DIALOG_ID}`);
+      if (existingBackdrop) {
+        const existingDialog = existingBackdrop.querySelector?.('.shortcut-help-dialog');
+        const existingClose = existingBackdrop.querySelector?.('.shortcut-help-close');
+        if (!existingDialog || !existingClose) return false;
+        backdrop = existingBackdrop;
+        dialog = existingDialog;
+        closeButton = existingClose;
+        ownsBackdrop = false;
+        originalBackdropHidden = Boolean(existingBackdrop.hidden);
+      } else {
+        const created = createOwnedBackdrop();
+        backdrop = created.backdrop;
+        dialog = created.dialog;
+        closeButton = created.closeButton;
+        documentRef.body.append(backdrop);
+        ownsBackdrop = Boolean(backdrop.parentNode);
+        originalBackdropHidden = null;
+      }
+
+      const existingTrigger = documentRef.querySelector(`#${BUTTON_ID}`);
+      if (existingTrigger) {
+        trigger = existingTrigger;
+        ownsTrigger = false;
+        originalTriggerExpanded = trigger.getAttribute?.('aria-expanded') ?? null;
+      } else {
         trigger = documentRef.createElement('button');
         trigger.id = BUTTON_ID;
         trigger.type = 'button';
@@ -89,60 +161,20 @@
         trigger.setAttribute('aria-haspopup', 'dialog');
         trigger.setAttribute('aria-controls', DIALOG_ID);
         footer.prepend?.(trigger);
-      }
-
-      backdrop = documentRef.querySelector(`#${DIALOG_ID}`);
-      if (!backdrop) {
-        backdrop = documentRef.createElement('div');
-        backdrop.id = DIALOG_ID;
-        backdrop.className = 'shortcut-help-backdrop';
-        backdrop.hidden = true;
-
-        dialog = documentRef.createElement('section');
-        dialog.className = 'shortcut-help-dialog';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        dialog.setAttribute('aria-labelledby', `${DIALOG_ID}Title`);
-
-        const head = documentRef.createElement('div');
-        head.className = 'shortcut-help-head';
-        const title = documentRef.createElement('h2');
-        title.id = `${DIALOG_ID}Title`;
-        title.textContent = 'Klavye kısayolları';
-        closeButton = documentRef.createElement('button');
-        closeButton.type = 'button';
-        closeButton.className = 'shortcut-help-close';
-        closeButton.textContent = 'Kapat';
-        closeButton.setAttribute('aria-label', 'Klavye kısayollarını kapat');
-        head.append(title, closeButton);
-
-        const list = documentRef.createElement('ul');
-        list.className = 'shortcut-help-list';
-        for (const [keys, label] of SHORTCUTS) {
-          const row = documentRef.createElement('li');
-          row.className = 'shortcut-help-row';
-          const key = documentRef.createElement('kbd');
-          key.textContent = keys;
-          const text = documentRef.createElement('span');
-          text.textContent = label;
-          row.append(key, text);
-          list.append(row);
-        }
-        const note = documentRef.createElement('p');
-        note.className = 'shortcut-help-note';
-        note.textContent = 'Kısayollar yazı alanındayken normal metin girişini bozmaz. Escape yalnız aktif yanıt veya bu pencere için kullanılır.';
-        dialog.append(head, list, note);
-        backdrop.append(dialog);
-        documentRef.body.append(backdrop);
-      } else {
-        dialog = backdrop.querySelector?.('.shortcut-help-dialog');
-        closeButton = backdrop.querySelector?.('.shortcut-help-close');
+        ownsTrigger = Boolean(trigger.parentNode);
+        originalTriggerExpanded = null;
       }
       return Boolean(trigger && backdrop && dialog && closeButton);
     }
 
+    function restoreTriggerExpanded() {
+      if (!trigger || ownsTrigger) return;
+      if (originalTriggerExpanded === null || originalTriggerExpanded === undefined) trigger.removeAttribute?.('aria-expanded');
+      else trigger.setAttribute?.('aria-expanded', originalTriggerExpanded);
+    }
+
     function open(source = documentRef.activeElement) {
-      if (!backdrop || !closeButton || backdrop.hidden === false) return false;
+      if (!mounted || !backdrop || !closeButton || backdrop.hidden === false) return false;
       returnFocus = source && typeof source.focus === 'function' ? source : trigger;
       backdrop.hidden = false;
       trigger?.setAttribute?.('aria-expanded', 'true');
@@ -151,7 +183,7 @@
     }
 
     function close({ restoreFocus = true } = {}) {
-      if (!backdrop || backdrop.hidden === true) return false;
+      if (!mounted || !backdrop || backdrop.hidden === true) return false;
       backdrop.hidden = true;
       trigger?.setAttribute?.('aria-expanded', 'false');
       if (restoreFocus) returnFocus?.focus?.();
@@ -160,11 +192,13 @@
     }
 
     function focusableNodes() {
+      if (!mounted) return [];
       return Array.from(dialog?.querySelectorAll?.('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])') || [])
         .filter((node) => node.disabled !== true && node.hidden !== true);
     }
 
     function trapTab(event) {
+      if (!mounted) return false;
       const nodes = focusableNodes();
       if (!nodes.length) return false;
       const first = nodes[0];
@@ -183,7 +217,7 @@
     }
 
     function handleKeydown(event) {
-      if (!event || event.defaultPrevented || event.repeat) return false;
+      if (!mounted || !event || event.defaultPrevented || event.repeat) return false;
       if (backdrop?.hidden === false) {
         if (event.key === 'Escape') {
           event.preventDefault?.();
@@ -199,7 +233,15 @@
     }
 
     function handleBackdrop(event) {
-      if (event?.target !== backdrop) return false;
+      if (!mounted || event?.target !== backdrop) return false;
+      return close();
+    }
+
+    function handleTriggerClick() {
+      return open(trigger);
+    }
+
+    function handleCloseClick() {
       return close();
     }
 
@@ -207,8 +249,8 @@
       if (mounted) return true;
       if (!createUi()) return false;
       installStyles(documentRef);
-      trigger.addEventListener('click', () => open(trigger));
-      closeButton.addEventListener('click', () => close());
+      trigger.addEventListener('click', handleTriggerClick);
+      closeButton.addEventListener('click', handleCloseClick);
       backdrop.addEventListener('click', handleBackdrop);
       documentRef.addEventListener('keydown', handleKeydown);
       mounted = true;
@@ -216,16 +258,38 @@
     }
 
     function destroy() {
-      if (!mounted) return;
-      close({ restoreFocus: false });
-      documentRef.removeEventListener?.('keydown', handleKeydown);
-      backdrop?.removeEventListener?.('click', handleBackdrop);
-      backdrop?.remove?.();
-      trigger?.remove?.();
+      if (!mounted) return false;
+      if (backdrop?.hidden === false) close({ restoreFocus: false });
       mounted = false;
+      documentRef.removeEventListener?.('keydown', handleKeydown);
+      trigger?.removeEventListener?.('click', handleTriggerClick);
+      closeButton?.removeEventListener?.('click', handleCloseClick);
+      backdrop?.removeEventListener?.('click', handleBackdrop);
+      if (ownsBackdrop) backdrop?.remove?.();
+      else if (backdrop) backdrop.hidden = originalBackdropHidden;
+      if (ownsTrigger) trigger?.remove?.();
+      else restoreTriggerExpanded();
+      trigger = null;
+      backdrop = null;
+      dialog = null;
+      closeButton = null;
+      returnFocus = null;
+      ownsTrigger = false;
+      ownsBackdrop = false;
+      originalTriggerExpanded = null;
+      originalBackdropHidden = null;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, open, close, handleKeydown, trapTab });
+    return Object.freeze({
+      mount,
+      destroy,
+      open,
+      close,
+      handleKeydown,
+      trapTab,
+      snapshot: () => Object.freeze({ mounted, ownsTrigger, ownsBackdrop })
+    });
   }
 
   function mount(options) {
