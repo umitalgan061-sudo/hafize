@@ -157,23 +157,73 @@
     let dialog = null;
     let status = null;
     let closeButton = null;
+    let markdownButton = null;
+    let textButton = null;
     let mounted = false;
+    let generation = 0;
     let statusTimer = null;
+    let closeTimer = null;
     let previousFocus = null;
+    let triggerOwned = false;
+    let backdropOwned = false;
+    let styleOwned = false;
+    let hostSnapshot = null;
+
+    function attributeSnapshot(node, name) {
+      return Object.freeze({
+        present: Boolean(node?.hasAttribute?.(name)),
+        value: node?.getAttribute?.(name) ?? null
+      });
+    }
+
+    function restoreAttribute(node, name, snapshot) {
+      if (!node || !snapshot) return;
+      if (snapshot.present) node.setAttribute?.(name, snapshot.value ?? '');
+      else node.removeAttribute?.(name);
+    }
+
+    function captureHostSnapshot() {
+      hostSnapshot = Object.freeze({
+        triggerExpanded: triggerOwned ? null : attributeSnapshot(trigger, 'aria-expanded'),
+        backdropHidden: backdropOwned ? null : Boolean(backdrop?.hidden),
+        statusText: backdropOwned ? null : String(status?.textContent ?? ''),
+        statusState: backdropOwned ? null : attributeSnapshot(status, 'data-state')
+      });
+    }
+
+    function restoreHostSnapshot() {
+      if (!hostSnapshot) return;
+      if (!triggerOwned) restoreAttribute(trigger, 'aria-expanded', hostSnapshot.triggerExpanded);
+      if (!backdropOwned) {
+        backdrop.hidden = hostSnapshot.backdropHidden;
+        status.textContent = hostSnapshot.statusText;
+        restoreAttribute(status, 'data-state', hostSnapshot.statusState);
+      }
+    }
+
+    function clearTimers() {
+      if (statusTimer !== null) clearTimeoutImpl(statusTimer);
+      if (closeTimer !== null) clearTimeoutImpl(closeTimer);
+      statusTimer = null;
+      closeTimer = null;
+    }
 
     function setStatus(text, state = 'idle') {
-      if (!status) return;
+      if (!mounted || !status) return;
       if (statusTimer !== null) clearTimeoutImpl(statusTimer);
       statusTimer = null;
       status.textContent = text;
       status.dataset.state = state;
-      if (text) statusTimer = setTimeoutImpl(() => {
-        if (status) {
-          status.textContent = '';
-          status.dataset.state = 'idle';
-        }
-        statusTimer = null;
-      }, 2600);
+      if (text) {
+        const scheduledGeneration = generation;
+        const scheduledStatus = status;
+        statusTimer = setTimeoutImpl(() => {
+          if (!mounted || generation !== scheduledGeneration || status !== scheduledStatus) return;
+          scheduledStatus.textContent = '';
+          scheduledStatus.dataset.state = 'idle';
+          statusTimer = null;
+        }, 2600);
+      }
     }
 
     function focusableNodes() {
@@ -181,8 +231,9 @@
     }
 
     function close({ restoreFocus = true } = {}) {
-      if (!backdrop || backdrop.hidden) return false;
+      if (!mounted || !backdrop || backdrop.hidden) return false;
       backdrop.hidden = true;
+      trigger?.setAttribute?.('aria-expanded', 'false');
       setStatus('');
       if (restoreFocus) previousFocus?.focus?.();
       previousFocus = null;
@@ -190,16 +241,17 @@
     }
 
     function open() {
-      if (!backdrop || !dialog) return false;
+      if (!mounted || !backdrop || !dialog) return false;
       previousFocus = documentRef.activeElement || trigger;
       backdrop.hidden = false;
+      trigger?.setAttribute?.('aria-expanded', 'true');
       setStatus('');
       focusableNodes()[0]?.focus?.();
       return true;
     }
 
     function onKeydown(event) {
-      if (!backdrop || backdrop.hidden) return;
+      if (!mounted || !backdrop || backdrop.hidden) return;
       if (event?.key === 'Escape') {
         event.preventDefault?.();
         close();
@@ -220,6 +272,7 @@
     }
 
     function download(format) {
+      if (!mounted) return false;
       const messages = documentRef.querySelector('#messages');
       const transcript = collectTranscript(messages);
       const payload = buildExport({ title: activeTitle(documentRef), transcript, format });
@@ -245,7 +298,13 @@
         documentRef.body?.append?.(anchor);
         anchor.click?.();
         setStatus(`${format === 'markdown' ? 'Markdown' : 'Düz metin'} hazırlandı.`, 'success');
-        setTimeoutImpl(() => close(), 180);
+        if (closeTimer !== null) clearTimeoutImpl(closeTimer);
+        const scheduledGeneration = generation;
+        closeTimer = setTimeoutImpl(() => {
+          if (!mounted || generation !== scheduledGeneration) return;
+          closeTimer = null;
+          close();
+        }, 180);
         return true;
       } catch {
         setStatus('Sohbet dışa aktarılamadı.', 'error');
@@ -258,7 +317,10 @@
 
     function createTrigger() {
       const existing = documentRef.querySelector(`#${BUTTON_ID}`);
-      if (existing) return existing;
+      if (existing) {
+        triggerOwned = false;
+        return existing;
+      }
       const topbar = documentRef.querySelector('.topbar');
       const themeToggle = documentRef.querySelector('#themeToggle');
       if (!topbar) return null;
@@ -269,14 +331,34 @@
       button.textContent = 'Sohbeti dışa aktar';
       button.setAttribute('aria-haspopup', 'dialog');
       button.setAttribute('aria-controls', DIALOG_ID);
+      button.setAttribute('aria-expanded', 'false');
       if (themeToggle && typeof topbar.insertBefore === 'function') topbar.insertBefore(button, themeToggle);
       else topbar.append(button);
+      triggerOwned = true;
       return button;
     }
 
+    function bindDialogParts(panel, layer) {
+      const options = Array.from(panel?.querySelectorAll?.('.conversation-export-option') || []);
+      const nextStatus = panel?.querySelector?.('.conversation-export-status');
+      const nextClose = panel?.querySelector?.('.conversation-export-cancel');
+      if (options.length !== 2 || !nextStatus || !nextClose || layer?.contains?.(panel) === false) return false;
+      dialog = panel;
+      status = nextStatus;
+      closeButton = nextClose;
+      markdownButton = options[0];
+      textButton = options[1];
+      return true;
+    }
+
     function createDialog() {
-      const existing = documentRef.querySelector(`#${DIALOG_ID}`)?.parentNode;
-      if (existing) return existing;
+      const existingPanel = documentRef.querySelector(`#${DIALOG_ID}`);
+      if (existingPanel) {
+        const existingLayer = existingPanel.parentNode;
+        if (!existingLayer || !bindDialogParts(existingPanel, existingLayer)) return null;
+        backdropOwned = false;
+        return existingLayer;
+      }
       const layer = documentRef.createElement('div');
       layer.className = 'conversation-export-backdrop';
       layer.hidden = true;
@@ -306,7 +388,6 @@
       const markdownHint = documentRef.createElement('span');
       markdownHint.textContent = 'Başlıklar ve mesaj sırası korunur.';
       markdown.append(markdownStrong, markdownHint);
-      markdown.addEventListener('click', () => download('markdown'));
 
       const text = documentRef.createElement('button');
       text.type = 'button';
@@ -316,7 +397,6 @@
       const textHint = documentRef.createElement('span');
       textHint.textContent = 'Her yerde açılabilen sade metin.';
       text.append(textStrong, textHint);
-      text.addEventListener('click', () => download('text'));
       options.append(markdown, text);
 
       const footer = documentRef.createElement('div');
@@ -330,51 +410,126 @@
       cancel.type = 'button';
       cancel.className = 'conversation-export-cancel';
       cancel.textContent = 'Vazgeç';
-      cancel.addEventListener('click', () => close());
       footer.append(state, cancel);
       panel.append(title, description, options, footer);
       layer.append(panel);
       documentRef.body?.append?.(layer);
-      dialog = panel;
-      status = state;
-      closeButton = cancel;
+      backdropOwned = true;
+      bindDialogParts(panel, layer);
       return layer;
     }
 
+    function onMarkdownClick() {
+      download('markdown');
+    }
+
+    function onTextClick() {
+      download('text');
+    }
+
+    function onCloseClick() {
+      close();
+    }
+
     function onBackdropClick(event) {
+      if (!mounted) return;
       if (event?.target === backdrop) close();
+    }
+
+    function detachListeners() {
+      trigger?.removeEventListener?.('click', open);
+      backdrop?.removeEventListener?.('click', onBackdropClick);
+      markdownButton?.removeEventListener?.('click', onMarkdownClick);
+      textButton?.removeEventListener?.('click', onTextClick);
+      closeButton?.removeEventListener?.('click', onCloseClick);
+      documentRef.removeEventListener?.('keydown', onKeydown);
+    }
+
+    function rollbackMount() {
+      detachListeners();
+      clearTimers();
+      if (backdropOwned) backdrop?.remove?.();
+      if (triggerOwned) trigger?.remove?.();
+      if (styleOwned) documentRef.querySelector?.(`#${STYLE_ID}`)?.remove?.();
+      trigger = null;
+      backdrop = null;
+      dialog = null;
+      status = null;
+      closeButton = null;
+      markdownButton = null;
+      textButton = null;
+      triggerOwned = false;
+      backdropOwned = false;
+      styleOwned = false;
+      hostSnapshot = null;
+      previousFocus = null;
     }
 
     function mount() {
       if (mounted) return true;
       if (!documentRef.body || !documentRef.querySelector('#messages')) return false;
-      installStyles(documentRef);
+
+      const existingPanel = documentRef.querySelector(`#${DIALOG_ID}`);
+      if (existingPanel) {
+        const layer = existingPanel.parentNode;
+        if (!layer || !bindDialogParts(existingPanel, layer)) {
+          dialog = null;
+          status = null;
+          closeButton = null;
+          markdownButton = null;
+          textButton = null;
+          return false;
+        }
+        backdrop = layer;
+        backdropOwned = false;
+      }
+
+      styleOwned = installStyles(documentRef);
       trigger = createTrigger();
-      if (!trigger) return false;
-      backdrop = createDialog();
-      if (!backdrop || !dialog || !status || !closeButton) return false;
-      trigger.addEventListener('click', open);
-      backdrop.addEventListener('click', onBackdropClick);
+      if (!trigger) {
+        rollbackMount();
+        return false;
+      }
+      if (!backdrop) backdrop = createDialog();
+      if (!backdrop || !dialog || !status || !closeButton || !markdownButton || !textButton) {
+        rollbackMount();
+        return false;
+      }
+
+      captureHostSnapshot();
+      trigger.addEventListener?.('click', open);
+      backdrop.addEventListener?.('click', onBackdropClick);
+      markdownButton.addEventListener?.('click', onMarkdownClick);
+      textButton.addEventListener?.('click', onTextClick);
+      closeButton.addEventListener?.('click', onCloseClick);
       documentRef.addEventListener?.('keydown', onKeydown);
+      generation += 1;
       mounted = true;
       return true;
     }
 
     function destroy() {
       if (!mounted) return;
-      trigger?.removeEventListener?.('click', open);
-      backdrop?.removeEventListener?.('click', onBackdropClick);
-      documentRef.removeEventListener?.('keydown', onKeydown);
-      if (statusTimer !== null) clearTimeoutImpl(statusTimer);
-      statusTimer = null;
-      backdrop?.remove?.();
-      trigger?.remove?.();
+      mounted = false;
+      generation += 1;
+      detachListeners();
+      clearTimers();
+      restoreHostSnapshot();
+      if (backdropOwned) backdrop?.remove?.();
+      if (triggerOwned) trigger?.remove?.();
+      if (styleOwned) documentRef.querySelector?.(`#${STYLE_ID}`)?.remove?.();
       trigger = null;
       backdrop = null;
       dialog = null;
       status = null;
       closeButton = null;
-      mounted = false;
+      markdownButton = null;
+      textButton = null;
+      triggerOwned = false;
+      backdropOwned = false;
+      styleOwned = false;
+      hostSnapshot = null;
+      previousFocus = null;
     }
 
     return Object.freeze({ mount, destroy, open, close, download, onKeydown });
