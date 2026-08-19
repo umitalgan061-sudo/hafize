@@ -69,6 +69,36 @@ function delay(ms) {
 
 {
   let receivedSignal = null;
+  const executor = createScheduledAgentExecutor({
+    registry,
+    model: 'mock-model',
+    runTimeoutMs: 15,
+    complete: async () => ({ choices: [] }),
+    runAgentTask: async ({ signal }) => {
+      receivedSignal = signal;
+      return new Promise(() => {});
+    }
+  });
+
+  const startedAt = Date.now();
+  const result = await executor.executeAgentTask({
+    traceId: 'trace-schedule-timeout-ignored-abort',
+    agent,
+    task: 'Abort sinyalini dinlemeyen işi sınırla.'
+  });
+  const elapsed = Date.now() - startedAt;
+
+  assert.equal(receivedSignal?.aborted, true);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'SCHEDULE_AGENT_RUN_TIMEOUT');
+  assert.ok(elapsed < 1000, `executor must settle even when child ignores abort, got ${elapsed}ms`);
+  const root = result.taskLedger.entries.find((entry) => entry.action === 'schedule.run');
+  assert.equal(root.status, 'failed');
+  assert.equal(root.detail, 'SCHEDULE_AGENT_RUN_TIMEOUT');
+}
+
+{
+  let receivedSignal = null;
   let lateFinished = false;
   const executor = createScheduledAgentExecutor({
     registry,
@@ -93,13 +123,16 @@ function delay(ms) {
   });
 
   assert.equal(receivedSignal?.aborted, true);
-  assert.equal(lateFinished, true);
+  assert.equal(lateFinished, false, 'executor should not wait for work that continues after timeout');
   assert.equal(result.ok, false, 'a task resolving successfully after timeout must remain failed');
   assert.equal(result.error, 'SCHEDULE_AGENT_RUN_TIMEOUT');
   assert.equal(result.content, undefined);
   const root = result.taskLedger.entries.find((entry) => entry.action === 'schedule.run');
   assert.equal(root.status, 'failed');
   assert.equal(root.detail, 'SCHEDULE_AGENT_RUN_TIMEOUT');
+  await delay(20);
+  assert.equal(lateFinished, true, 'cooperative child may finish cleanup after the caller already received timeout');
+  assert.equal(result.ok, false, 'late completion must not mutate the settled timeout result');
 }
 
 {
