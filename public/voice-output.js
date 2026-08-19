@@ -18,6 +18,7 @@
   const MAX_CHUNK_LENGTH = 240;
   const DEFAULT_SPEECH_RATE = 0.98;
   const SPEECH_RATE_OPTIONS = Object.freeze([0.85, 0.98, 1.15, 1.3]);
+  const activeInstallations = new WeakMap();
 
   function normalizeSpeechText(value) {
     if (typeof value !== 'string') return '';
@@ -120,6 +121,7 @@
     const composer = documentRef?.querySelector?.('#composer');
     const messages = documentRef?.querySelector?.('#messages');
     if (!toggle || !card) return null;
+    if (activeInstallations.has(card)) throw new Error('VOICE_OUTPUT_ALREADY_INSTALLED');
 
     const toggleSnapshot = snapshotNode(toggle);
     const cardClassSnapshot = Object.freeze({
@@ -227,6 +229,9 @@
     let activeUtterance = null;
     let lastPublishedState = '';
     let destroyed = false;
+    let micObserver = null;
+    let streamObserver = null;
+    let controller = null;
 
     function publishState() {
       if (destroyed) return;
@@ -449,30 +454,72 @@
       cancelSpeech();
     }
 
-    toggle.addEventListener?.('click', handleToggle);
-    pauseToggle?.addEventListener?.('click', handlePause);
-    rateSelect?.addEventListener?.('change', handleRateChange);
-    replayButton?.addEventListener?.('click', handleReplay);
-    stopButton?.addEventListener?.('click', handleStop);
-    composer?.addEventListener?.('submit', handleSubmit, true);
-    documentRef.addEventListener?.('visibilitychange', handleVisibility);
-    documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
+    function removeBindings() {
+      micObserver?.disconnect?.();
+      streamObserver?.disconnect?.();
+      toggle.removeEventListener?.('click', handleToggle);
+      pauseToggle?.removeEventListener?.('click', handlePause);
+      rateSelect?.removeEventListener?.('change', handleRateChange);
+      replayButton?.removeEventListener?.('click', handleReplay);
+      stopButton?.removeEventListener?.('click', handleStop);
+      composer?.removeEventListener?.('submit', handleSubmit, true);
+      documentRef.removeEventListener?.('visibilitychange', handleVisibility);
+      documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
+    }
 
-    const Observer = root?.MutationObserver;
-    const micObserver = micButton && typeof Observer === 'function'
-      ? new Observer(() => {
-          if (!destroyed && micButton.getAttribute?.('aria-pressed') === 'true') cancelSpeech();
-        })
-      : null;
-    micObserver?.observe?.(micButton, { attributes: true, attributeFilter: ['aria-pressed'] });
+    function restoreOwnedDom() {
+      if (generatedPauseToggle) pauseToggle?.remove?.();
+      else restoreNode(pauseToggle, pauseToggleSnapshot);
+      if (generatedStatus) status?.remove?.();
+      else restoreNode(status, statusSnapshot);
+      if (generatedRateWrap) rateWrap?.remove?.();
+      else {
+        restoreNode(rateWrap, rateWrapSnapshot);
+        restoreNode(rateSelect, rateSelectSnapshot);
+      }
+      if (generatedPlaybackActions) playbackActions?.remove?.();
+      else {
+        restoreNode(playbackActions, playbackActionsSnapshot);
+        restoreNode(replayButton, replayButtonSnapshot);
+        restoreNode(stopButton, stopButtonSnapshot);
+      }
+      restoreNode(toggle, toggleSnapshot);
+      card.classList?.toggle?.('speaking', cardClassSnapshot.speaking);
+      card.classList?.toggle?.('paused', cardClassSnapshot.paused);
+      card.classList?.toggle?.('thinking', cardClassSnapshot.thinking);
+    }
 
-    const streamObserver = messageInput && typeof Observer === 'function'
-      ? new Observer(syncStreamState)
-      : null;
-    streamObserver?.observe?.(messageInput, { attributes: true, attributeFilter: ['disabled'] });
+    try {
+      toggle.addEventListener?.('click', handleToggle);
+      pauseToggle?.addEventListener?.('click', handlePause);
+      rateSelect?.addEventListener?.('change', handleRateChange);
+      replayButton?.addEventListener?.('click', handleReplay);
+      stopButton?.addEventListener?.('click', handleStop);
+      composer?.addEventListener?.('submit', handleSubmit, true);
+      documentRef.addEventListener?.('visibilitychange', handleVisibility);
+      documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
 
-    render();
-    return Object.freeze({
+      const Observer = root?.MutationObserver;
+      micObserver = micButton && typeof Observer === 'function'
+        ? new Observer(() => {
+            if (!destroyed && micButton.getAttribute?.('aria-pressed') === 'true') cancelSpeech();
+          })
+        : null;
+      micObserver?.observe?.(micButton, { attributes: true, attributeFilter: ['aria-pressed'] });
+
+      streamObserver = messageInput && typeof Observer === 'function'
+        ? new Observer(syncStreamState)
+        : null;
+      streamObserver?.observe?.(messageInput, { attributes: true, attributeFilter: ['disabled'] });
+      render();
+    } catch (error) {
+      destroyed = true;
+      removeBindings();
+      restoreOwnedDom();
+      throw error;
+    }
+
+    controller = Object.freeze({
       isSupported: supported,
       isPauseSupported: pauseSupported,
       isEnabled: () => !destroyed && enabled,
@@ -495,37 +542,13 @@
         if (destroyed) return;
         destroyed = true;
         cancelSpeech({ renderState: false });
-        micObserver?.disconnect?.();
-        streamObserver?.disconnect?.();
-        toggle.removeEventListener?.('click', handleToggle);
-        pauseToggle?.removeEventListener?.('click', handlePause);
-        rateSelect?.removeEventListener?.('change', handleRateChange);
-        replayButton?.removeEventListener?.('click', handleReplay);
-        stopButton?.removeEventListener?.('click', handleStop);
-        composer?.removeEventListener?.('submit', handleSubmit, true);
-        documentRef.removeEventListener?.('visibilitychange', handleVisibility);
-        documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
-        if (generatedPauseToggle) pauseToggle?.remove?.();
-        else restoreNode(pauseToggle, pauseToggleSnapshot);
-        if (generatedStatus) status?.remove?.();
-        else restoreNode(status, statusSnapshot);
-        if (generatedRateWrap) rateWrap?.remove?.();
-        else {
-          restoreNode(rateWrap, rateWrapSnapshot);
-          restoreNode(rateSelect, rateSelectSnapshot);
-        }
-        if (generatedPlaybackActions) playbackActions?.remove?.();
-        else {
-          restoreNode(playbackActions, playbackActionsSnapshot);
-          restoreNode(replayButton, replayButtonSnapshot);
-          restoreNode(stopButton, stopButtonSnapshot);
-        }
-        restoreNode(toggle, toggleSnapshot);
-        card.classList?.toggle?.('speaking', cardClassSnapshot.speaking);
-        card.classList?.toggle?.('paused', cardClassSnapshot.paused);
-        card.classList?.toggle?.('thinking', cardClassSnapshot.thinking);
+        removeBindings();
+        restoreOwnedDom();
+        if (activeInstallations.get(card) === controller) activeInstallations.delete(card);
       }
     });
+    activeInstallations.set(card, controller);
+    return controller;
   }
 
   return Object.freeze({
