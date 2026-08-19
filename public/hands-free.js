@@ -105,7 +105,17 @@
     element.setAttribute?.(name, value);
   }
 
-  function snapshotHostState(toggle, indicator) {
+  function readClassPresence(element, name) {
+    return typeof element?.classList?.contains === 'function' ? element.classList.contains(name) : null;
+  }
+
+  function restoreClassPresence(element, name, present) {
+    if (!element || typeof present !== 'boolean') return;
+    if (present) element.classList?.add?.(name);
+    else element.classList?.remove?.(name);
+  }
+
+  function snapshotHostState(toggle, indicator, toast) {
     return Object.freeze({
       toggle: Object.freeze({
         disabled: Boolean(toggle.disabled),
@@ -121,11 +131,17 @@
         voiceInputListening: readAttribute(indicator, 'data-voice-input-listening'),
         voiceOutputSpeaking: readAttribute(indicator, 'data-voice-output-speaking'),
         networkRetry: readAttribute(indicator, 'data-network-retry')
-      })
+      }),
+      toast: toast
+        ? Object.freeze({
+            textContent: toast.textContent,
+            hiddenClass: readClassPresence(toast, 'hidden')
+          })
+        : null
     });
   }
 
-  function restoreHostState(toggle, indicator, snapshot) {
+  function restoreHostState(toggle, indicator, toast, snapshot) {
     toggle.disabled = snapshot.toggle.disabled;
     toggle.textContent = snapshot.toggle.textContent;
     restoreAttribute(toggle, 'aria-pressed', snapshot.toggle.ariaPressed);
@@ -137,6 +153,10 @@
     restoreAttribute(indicator, 'data-voice-input-listening', snapshot.indicator.voiceInputListening);
     restoreAttribute(indicator, 'data-voice-output-speaking', snapshot.indicator.voiceOutputSpeaking);
     restoreAttribute(indicator, 'data-network-retry', snapshot.indicator.networkRetry);
+    if (toast && snapshot.toast) {
+      toast.textContent = snapshot.toast.textContent;
+      restoreClassPresence(toast, 'hidden', snapshot.toast.hiddenClass);
+    }
   }
 
   function installHandsFree(documentRef, root) {
@@ -144,10 +164,11 @@
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
     const micButton = documentRef?.querySelector?.('#micBtn');
     const input = documentRef?.querySelector?.('#messageInput');
+    const toast = documentRef?.querySelector?.('#toast') || null;
     if (!toggle || !indicator || !micButton || !input) return null;
     if (ACTIVE_INSTALLATIONS.has(toggle)) throw new Error('HANDS_FREE_ALREADY_INSTALLED');
 
-    const hostState = snapshotHostState(toggle, indicator);
+    const hostState = snapshotHostState(toggle, indicator, toast);
     const owner = Object.freeze({});
     ACTIVE_INSTALLATIONS.set(toggle, owner);
 
@@ -171,7 +192,6 @@
     let listenersBound = false;
 
     function announce(message) {
-      const toast = documentRef.querySelector?.('#toast');
       if (!toast || !message) return;
       toast.textContent = message;
       toast.classList?.remove?.('hidden');
@@ -544,7 +564,7 @@
       clearRestart();
       recognition = null;
       listening = false;
-      restoreHostState(toggle, indicator, hostState);
+      restoreHostState(toggle, indicator, toast, hostState);
       releaseOwnership();
       throw error;
     }
@@ -581,7 +601,7 @@
           try { active.abort?.(); } catch { /* already stopped */ }
         }
         unbindListeners();
-        restoreHostState(toggle, indicator, hostState);
+        restoreHostState(toggle, indicator, toast, hostState);
         releaseOwnership();
       }
     });
