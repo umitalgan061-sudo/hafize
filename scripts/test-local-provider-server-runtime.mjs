@@ -25,6 +25,23 @@ function sseResponse(chunks = ['data: {"choices":[{"delta":{"content":"ok"}}]}\n
   });
 }
 
+function hangingSseResponse(signal) {
+  return new Response(new ReadableStream({
+    start(controller) {
+      if (signal?.aborted) {
+        controller.error(signal.reason || new DOMException('aborted', 'AbortError'));
+        return;
+      }
+      signal?.addEventListener?.('abort', () => {
+        controller.error(signal.reason || new DOMException('aborted', 'AbortError'));
+      }, { once: true });
+    }
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'text/event-stream' }
+  });
+}
+
 const nvidiaCalls = [];
 const nvidiaComplete = async (payload, signal) => {
   nvidiaCalls.push(['complete', payload, signal]);
@@ -183,8 +200,56 @@ assert.equal(localStreamResult.provider, 'local');
 assert.equal(typeof localStreamResult.body[Symbol.asyncIterator], 'function');
 const streamCall = localCalls.find((call) => call.url.endsWith('/chat/completions') && JSON.parse(call.init.body).stream === true);
 assert.ok(streamCall);
-assert.equal(streamCall.init.signal, streamController.signal);
+assert.notEqual(streamCall.init.signal, streamController.signal, 'stream must use an owned bounded signal');
+assert.equal(streamCall.init.signal.aborted, false);
 assert.equal(JSON.parse(streamCall.init.body).model, 'llama3.2');
+const streamChunks = [];
+for await (const chunk of localStreamResult.body) streamChunks.push(Buffer.from(chunk).toString('utf8'));
+assert.equal(streamChunks.some((chunk) => chunk.includes('[DONE]')), true);
+
+const cancelledStreamController = new AbortController();
+let cancelledOwnedSignal = null;
+const cancelledRuntime = createLocalProviderServerRuntime({
+  env: { HAFIZE_LOCAL_PROVIDER_ENABLED: 'true' },
+  nvidiaComplete,
+  nvidiaStream,
+  nvidiaListModels,
+  streamTimeoutMs: 5_000,
+  async fetchImpl(_url, init = {}) {
+    cancelledOwnedSignal = init.signal;
+    return hangingSseResponse(init.signal);
+  }
+});
+const cancelledStream = await cancelledRuntime.stream({
+  payload: { model: 'local:qwen', messages: [{ role: 'user', content: 'cancel' }] },
+  signal: cancelledStreamController.signal
+});
+const cancelledNext = cancelledStream.body[Symbol.asyncIterator]().next();
+cancelledStreamController.abort(new DOMException('caller cancelled', 'AbortError'));
+await assert.rejects(cancelledNext, (error) => error.code === 'LOCAL_PROVIDER_CANCELLED' && error.status === 499);
+assert.equal(cancelledOwnedSignal.aborted, true, 'caller cancellation must propagate to the owned fetch signal');
+
+let timeoutOwnedSignal = null;
+const timeoutRuntime = createLocalProviderServerRuntime({
+  env: { HAFIZE_LOCAL_PROVIDER_ENABLED: 'true' },
+  nvidiaComplete,
+  nvidiaStream,
+  nvidiaListModels,
+  streamTimeoutMs: 1_000,
+  async fetchImpl(_url, init = {}) {
+    timeoutOwnedSignal = init.signal;
+    return hangingSseResponse(init.signal);
+  }
+});
+const timedStream = await timeoutRuntime.stream({
+  payload: { model: 'local:qwen', messages: [{ role: 'user', content: 'timeout' }] }
+});
+await assert.rejects(timedStream.body[Symbol.asyncIterator]().next(), (error) => {
+  assert.equal(error.code, 'LOCAL_PROVIDER_STREAM_TIMEOUT');
+  assert.equal(error.status, 504);
+  return true;
+});
+assert.equal(timeoutOwnedSignal.aborted, true, 'deadline must abort the local provider fetch signal');
 
 const beforeToolGate = localCalls.length;
 await assert.rejects(
@@ -194,7 +259,17 @@ await assert.rejects(
   }),
   /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/
 );
-assert.equal(localCalls.length, beforeToolGate);
+await assert.rejects(
+  () => enabled.complete({
+    payload: {
+      model: 'local:qwen2.5',
+      messages: [{ role: 'user', content: 'tool payload' }],
+      tools: [{ type: 'function', function: { name: 'write_external' } }]
+    }
+  }),
+  /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/
+);
+assert.equal(localCalls.length, beforeToolGate, 'tool-gated local requests must not reach fetch');
 
 const explicitNvidia = await enabled.complete({
   provider: 'nvidia',
@@ -203,4 +278,4 @@ const explicitNvidia = await enabled.complete({
 assert.equal(explicitNvidia.provider, 'nvidia');
 assert.equal(explicitNvidia.result.choices[0].message.content, 'nvidia');
 
-console.log('local provider server runtime tests passed');
+console.log('local provider server runtime tests passed: NVIDIA default, owned stream deadline/cancellation, loopback-only local routing, and tool default-deny verified');
