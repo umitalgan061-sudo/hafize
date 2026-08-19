@@ -193,7 +193,7 @@ function fixture({ existingStatus = null, online = true } = {}) {
 
 assert.match(loaderSource, /HafizeNetworkStatus/);
 assert.match(loaderSource, /\/network-status\.js/);
-assert.match(swSource, /hafize-shell-v120/);
+assert.match(swSource, /hafize-shell-v121/);
 assert.match(swSource, /'\/network-status\.js'/);
 assert.match(swSource, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
