@@ -58,6 +58,40 @@ assert.throws(() => router.resolve('other'), /INVALID_MODEL_PROVIDER/);
 assert.throws(() => router.resolve('local', { toolsRequired: true }), /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/);
 await assert.rejects(() => router.complete({ provider: 'local' }), /INVALID_PROVIDER_PAYLOAD/);
 
+const localCallsBeforeToolChecks = calls.filter(([kind]) => kind.startsWith('local-')).length;
+const blockedLocalPayloads = [
+  { model: 'local:qwen', tools: [{ type: 'function', function: { name: 'send_email' } }] },
+  { model: 'local:qwen', functions: [{ name: 'legacy_send' }] },
+  { model: 'local:qwen', tool_choice: 'auto' },
+  { model: 'local:qwen', tool_choice: { type: 'function', function: { name: 'write_file' } } },
+  { model: 'local:qwen', function_call: 'auto' },
+  { model: 'local:qwen', function_call: { name: 'legacy_write' } }
+];
+for (const payload of blockedLocalPayloads) {
+  await assert.rejects(
+    () => router.complete({ provider: 'local', payload }),
+    /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/
+  );
+  await assert.rejects(
+    () => router.stream({ provider: 'local', payload }),
+    /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/
+  );
+}
+assert.equal(
+  calls.filter(([kind]) => kind.startsWith('local-')).length,
+  localCallsBeforeToolChecks,
+  'blocked local tool payloads must never reach the local provider adapter'
+);
+
+assert.deepEqual(await router.complete({
+  provider: 'local',
+  payload: { model: 'local:qwen', tools: [], functions: [], tool_choice: 'none', function_call: 'none' }
+}), { provider: 'local', result: { id: 'local-result' } });
+assert.deepEqual(await router.complete({
+  provider: 'nvidia',
+  payload: { model: 'nvidia/a', tools: [{ type: 'function', function: { name: 'approved_tool' } }], tool_choice: 'auto' }
+}), { provider: 'nvidia', result: { id: 'nvidia-result' } }, 'tool payloads remain available to NVIDIA where backend permissions approve them');
+
 const disabled = createModelProviderRouter({
   nvidiaComplete: async () => ({}),
   nvidiaStream: async () => chunks('nvidia'),
@@ -71,4 +105,4 @@ assert.throws(() => createModelProviderRouter({
   nvidiaComplete: async () => ({}), nvidiaStream: async () => chunks('x'), nvidiaListModels: async () => [], localEnabled: 'yes'
 }), /INVALID_PROVIDER_ROUTER:localEnabled/);
 
-console.log('model provider router tests passed');
+console.log('model provider router tests passed: NVIDIA default plus local provider tool payload default-deny verified');
