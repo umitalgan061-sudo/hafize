@@ -199,7 +199,7 @@ assert.equal(source.includes('scheduledGeneration !== generation'), true);
 assert.equal(source.includes("'(prefers-reduced-motion: reduce)'"), true);
 assert.equal(loader.includes("loadShellEnhancement('HafizeScrollToLatest', '/scroll-to-latest.js', 'data-hafize-scroll-to-latest')"), true);
 assert.equal(loader.split("'/scroll-to-latest.js'").length - 1, 1);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v114');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v115');
 assert.equal(swPolicy.SHELL_ASSETS.includes('/scroll-to-latest.js'), true);
 assert.equal(swPolicy.classifyRequest({
   method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors'
