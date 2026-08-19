@@ -16,6 +16,14 @@ Conversation IDs use the same bounded identifier shape as guarded conversation s
 
 Unknown fields are not persisted. Tokens, credentials, owner IDs, trace IDs, connector data, message content, or tool output never belong in the model preference map.
 
+## Active conversation identity
+
+Conversation rows can be visually reordered by the local organization layer when a conversation is pinned. DOM position is therefore not a stable conversation identity once `conversation-organize.js` has tagged a row.
+
+When the active row contains `data-conversation-organize-id`, model-state treats that identifier as authoritative only after it passes the bounded conversation-ID validator, resolves to exactly one canonical conversation, and appears on exactly one rendered row. A stale, malformed, empty, duplicate, or otherwise ambiguous organizer identity fails closed; Hafize does not fall back to the row index and risk writing another conversation's model preference.
+
+Legacy surfaces that have no organizer identity attribute retain the historical DOM-index lookup so older shells remain compatible. Assignment of the organizer identity attribute is itself observed so an already-active row can be safely re-synchronized once its stable identity becomes available.
+
 ## Lifecycle
 
 When a conversation becomes active, Hafize restores its saved model only when that model still exists in the current model selector allowlist. If no saved preference exists, the current valid selector value becomes the bounded preference for that conversation.
