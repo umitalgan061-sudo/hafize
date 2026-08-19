@@ -86,7 +86,9 @@
     let sendButton = null;
     let observer = null;
     let mounted = false;
+    let destroyed = false;
     let nextId = 1;
+    const decorations = new Map();
 
     function contentId(content) {
       if (typeof content.id === 'string' && content.id) return content.id;
@@ -96,14 +98,34 @@
       return id;
     }
 
+    function restoreDecoration(article, record) {
+      record.button?.removeEventListener?.('click', record.onClick);
+      record.actions?.remove?.();
+      if (record.content?.classList) {
+        record.content.classList.toggle(CONTENT_CLASS, record.hadContentClass);
+        record.content.classList.toggle(COLLAPSED_CLASS, record.hadCollapsedClass);
+      }
+      if (record.content) record.content.id = record.hadContentId ? record.contentId : '';
+      if (article?.dataset) {
+        if (record.hadMarker) article.dataset[MARKER] = record.markerValue;
+        else delete article.dataset[MARKER];
+      }
+    }
+
     function decorate(article) {
-      if (!isAssistantArticle(article)) return false;
+      if (destroyed || !isAssistantArticle(article)) return false;
       if (article.dataset?.[MARKER] === '1') return false;
       if (shouldDeferForStreaming(article, messages, sendButton)) return false;
       const content = article.querySelector?.('.content');
       if (!content || !shouldFoldText(content.textContent, threshold)) return false;
       if (article.querySelector?.(`.${ACTIONS_CLASS}`)) return false;
 
+      const hadMarker = Boolean(article.dataset && Object.prototype.hasOwnProperty.call(article.dataset, MARKER));
+      const markerValue = hadMarker ? article.dataset[MARKER] : undefined;
+      const hadContentClass = Boolean(content.classList?.contains?.(CONTENT_CLASS));
+      const hadCollapsedClass = Boolean(content.classList?.contains?.(COLLAPSED_CLASS));
+      const hadContentId = typeof content.id === 'string' && Boolean(content.id);
+      const originalContentId = hadContentId ? content.id : '';
       const actions = documentRef.createElement('div');
       actions.className = ACTIONS_CLASS;
 
@@ -113,18 +135,33 @@
       button.setAttribute('aria-controls', contentId(content));
       button.setAttribute('aria-label', 'Uzun Hafize yanıtını genişlet veya daralt');
       setExpanded(content, button, false);
-      button.addEventListener('click', () => {
+      const onClick = () => {
+        if (destroyed || !decorations.has(article)) return;
         const expanded = button.getAttribute('aria-expanded') === 'true';
         setExpanded(content, button, !expanded);
-      });
+      };
+      button.addEventListener('click', onClick);
 
       actions.append(button);
       article.append(actions);
       if (article.dataset) article.dataset[MARKER] = '1';
+      decorations.set(article, Object.freeze({
+        content,
+        actions,
+        button,
+        onClick,
+        hadMarker,
+        markerValue,
+        hadContentClass,
+        hadCollapsedClass,
+        hadContentId,
+        contentId: originalContentId
+      }));
       return true;
     }
 
     function decorateAll(root = messages || documentRef) {
+      if (destroyed) return 0;
       const articles = root?.querySelectorAll?.('.message.assistant') || [];
       let count = 0;
       for (const article of articles) if (decorate(article)) count += 1;
@@ -132,26 +169,21 @@
     }
 
     function reconsiderMarked() {
-      const articles = messages?.querySelectorAll?.(`.message.assistant[data-${MARKER.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}="1"]`) || [];
-      for (const article of articles) {
-        const content = article.querySelector?.('.content');
-        const actions = article.querySelector?.(`.${ACTIONS_CLASS}`);
-        if (!content || !actions) continue;
-        if (!shouldFoldText(content.textContent, threshold)) {
-          content.classList?.remove?.(CONTENT_CLASS, COLLAPSED_CLASS);
-          actions.remove?.();
-          if (article.dataset) delete article.dataset[MARKER];
-        }
+      for (const [article, record] of [...decorations]) {
+        if (shouldFoldText(record.content?.textContent, threshold)) continue;
+        restoreDecoration(article, record);
+        decorations.delete(article);
       }
     }
 
     function refresh() {
-      if (!mounted) return 0;
+      if (!mounted || destroyed) return 0;
       reconsiderMarked();
       return decorateAll(messages);
     }
 
     function mount() {
+      if (destroyed) return false;
       if (mounted) return true;
       messages = documentRef.querySelector('#messages');
       sendButton = documentRef.querySelector('#sendBtn');
@@ -168,22 +200,19 @@
     }
 
     function destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      mounted = false;
       observer?.disconnect?.();
       observer = null;
-      const articles = messages?.querySelectorAll?.('.message.assistant') || [];
-      for (const article of articles) {
-        const content = article.querySelector?.('.content');
-        content?.classList?.remove?.(CONTENT_CLASS, COLLAPSED_CLASS);
-        article.querySelector?.(`.${ACTIONS_CLASS}`)?.remove?.();
-        if (article.dataset) delete article.dataset[MARKER];
-      }
-      mounted = false;
+      for (const [article, record] of decorations) restoreDecoration(article, record);
+      decorations.clear();
       messages = null;
       sendButton = null;
     }
 
     function snapshot() {
-      return Object.freeze({ mounted, threshold, decorated: messages?.querySelectorAll?.(`.${ACTIONS_CLASS}`)?.length || 0 });
+      return Object.freeze({ mounted, threshold, decorated: decorations.size });
     }
 
     return Object.freeze({ mount, destroy, refresh, decorate, decorateAll, snapshot });
