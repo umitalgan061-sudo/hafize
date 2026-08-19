@@ -58,6 +58,17 @@
     return true;
   }
 
+  function readAttribute(node, name) {
+    if (!node || typeof node.hasAttribute !== 'function' || !node.hasAttribute(name)) return Object.freeze({ present: false, value: null });
+    return Object.freeze({ present: true, value: node.getAttribute?.(name) ?? '' });
+  }
+
+  function restoreAttribute(node, name, state) {
+    if (!node || !state) return;
+    if (state.present) node.setAttribute?.(name, state.value);
+    else node.removeAttribute?.(name);
+  }
+
   function createController({ documentRef = globalThis.document } = {}) {
     if (!documentRef || typeof documentRef.querySelector !== 'function') throw new Error('INVALID_COMPOSER_LIMIT_DOCUMENT');
     let input = null;
@@ -65,9 +76,12 @@
     let meter = null;
     let label = null;
     let mounted = false;
+    let controlOwned = false;
+    let inputMaxLengthBeforeMount = null;
+    let hostSnapshot = null;
 
     function render() {
-      if (!input || !control || !meter || !label) return null;
+      if (!mounted || !input || !control || !meter || !label) return null;
       const state = snapshot(input.value, input.maxLength);
       control.dataset.state = state.state;
       meter.max = state.limit;
@@ -78,37 +92,72 @@
       return state;
     }
 
+    function snapshotHostControl() {
+      if (controlOwned || !control || !meter || !label) return null;
+      const hasState = Object.prototype.hasOwnProperty.call(control.dataset || {}, 'state');
+      return Object.freeze({
+        hasState,
+        state: hasState ? String(control.dataset.state) : '',
+        meterMax: meter.max,
+        meterValue: meter.value,
+        ariaValueMax: readAttribute(meter, 'aria-valuemax'),
+        ariaValueNow: readAttribute(meter, 'aria-valuenow'),
+        labelText: String(label.textContent || '')
+      });
+    }
+
+    function restoreHostControl() {
+      if (controlOwned || !control || !meter || !label || !hostSnapshot) return;
+      if (hostSnapshot.hasState) control.dataset.state = hostSnapshot.state;
+      else if (control.dataset) delete control.dataset.state;
+      meter.max = hostSnapshot.meterMax;
+      meter.value = hostSnapshot.meterValue;
+      restoreAttribute(meter, 'aria-valuemax', hostSnapshot.ariaValueMax);
+      restoreAttribute(meter, 'aria-valuenow', hostSnapshot.ariaValueNow);
+      label.textContent = hostSnapshot.labelText;
+    }
+
     function mount() {
       if (mounted) return true;
-      input = documentRef.querySelector('#messageInput');
+      const nextInput = documentRef.querySelector('#messageInput');
       const composer = documentRef.querySelector('#composer');
-      if (!input || !composer) return false;
-      const maxLength = normalizeLimit(input.maxLength);
-      input.maxLength = maxLength;
-      installStyles(documentRef);
+      if (!nextInput || !composer) return false;
 
-      control = documentRef.querySelector(`#${CONTROL_ID}`);
-      if (!control) {
-        control = documentRef.createElement('div');
-        control.id = CONTROL_ID;
-        control.className = 'composer-limit-feedback';
-        control.setAttribute('aria-live', 'polite');
-        control.setAttribute('aria-atomic', 'true');
-
-        meter = documentRef.createElement('progress');
-        meter.className = 'composer-limit-meter';
-        meter.setAttribute('aria-label', 'Mesaj karakter kullanımı');
-
-        label = documentRef.createElement('span');
-        label.className = 'composer-limit-label';
-        control.append(meter, label);
-        composer.insertBefore(control, composer.querySelector('.composer-row'));
+      let nextControl = documentRef.querySelector(`#${CONTROL_ID}`);
+      let nextMeter = null;
+      let nextLabel = null;
+      let nextOwned = false;
+      if (nextControl) {
+        nextMeter = nextControl.querySelector('.composer-limit-meter');
+        nextLabel = nextControl.querySelector('.composer-limit-label');
+        if (!nextMeter || !nextLabel) return false;
       } else {
-        meter = control.querySelector('.composer-limit-meter');
-        label = control.querySelector('.composer-limit-label');
-        if (!meter || !label) return false;
+        nextControl = documentRef.createElement('div');
+        nextControl.id = CONTROL_ID;
+        nextControl.className = 'composer-limit-feedback';
+        nextControl.setAttribute('aria-live', 'polite');
+        nextControl.setAttribute('aria-atomic', 'true');
+
+        nextMeter = documentRef.createElement('progress');
+        nextMeter.className = 'composer-limit-meter';
+        nextMeter.setAttribute('aria-label', 'Mesaj karakter kullanımı');
+
+        nextLabel = documentRef.createElement('span');
+        nextLabel.className = 'composer-limit-label';
+        nextControl.append(nextMeter, nextLabel);
+        composer.insertBefore(nextControl, composer.querySelector('.composer-row'));
+        nextOwned = true;
       }
 
+      input = nextInput;
+      control = nextControl;
+      meter = nextMeter;
+      label = nextLabel;
+      controlOwned = nextOwned;
+      inputMaxLengthBeforeMount = input.maxLength;
+      hostSnapshot = snapshotHostControl();
+      input.maxLength = normalizeLimit(input.maxLength);
+      installStyles(documentRef);
       input.addEventListener('input', render);
       mounted = true;
       render();
@@ -117,17 +166,26 @@
 
     function destroy() {
       if (!mounted) return false;
-      input?.removeEventListener?.('input', render);
-      control?.remove?.();
       mounted = false;
+      input?.removeEventListener?.('input', render);
+      if (input && inputMaxLengthBeforeMount !== null) input.maxLength = inputMaxLengthBeforeMount;
+      if (controlOwned) control?.remove?.();
+      else restoreHostControl();
       input = null;
       control = null;
       meter = null;
       label = null;
+      controlOwned = false;
+      inputMaxLengthBeforeMount = null;
+      hostSnapshot = null;
       return true;
     }
 
-    return Object.freeze({ mount, destroy, render });
+    function lifecycleSnapshot() {
+      return Object.freeze({ mounted, controlOwned, hasInput: Boolean(input) });
+    }
+
+    return Object.freeze({ mount, destroy, render, lifecycleSnapshot });
   }
 
   function mount(options) {
@@ -149,6 +207,8 @@
     snapshot,
     labelFor,
     installStyles,
+    readAttribute,
+    restoreAttribute,
     createController,
     mount
   });
