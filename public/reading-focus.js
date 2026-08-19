@@ -20,6 +20,8 @@
   const MAX_MESSAGE_ID_CHARS = 160;
   const MAX_CONVERSATION_ID_CHARS = 120;
   const MAX_STORAGE_CHARS = 48 * 1024;
+  const MAX_SESSION_MUTATIONS = 200;
+  const MAX_RECONCILIATION_REPLAYS = 2;
   const MESSAGE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const BOOKMARK_SEPARATOR = '|';
@@ -148,6 +150,131 @@
   }
 
   const nextBookmarkKeys = nextBookmarkIds;
+
+  function normalizeStateMutation(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const before = value.before === true;
+    const after = value.after === true;
+    if (before === after) return null;
+    const replays = Number.isInteger(value.replays)
+      ? Math.max(0, Math.min(value.replays, MAX_RECONCILIATION_REPLAYS))
+      : 0;
+    if (value.kind === 'focus') {
+      return Object.freeze({ kind: 'focus', before, after, replays });
+    }
+    if (value.kind !== 'bookmark') return null;
+    const parsed = parseBookmarkKey(value.key);
+    if (!parsed) return null;
+    return Object.freeze({ kind: 'bookmark', key: parsed.key, before, after, replays });
+  }
+
+  function mutationId(value) {
+    const mutation = normalizeStateMutation(value);
+    if (!mutation) return null;
+    return mutation.kind === 'focus' ? 'focus' : `bookmark:${mutation.key}`;
+  }
+
+  function mutationValue(state, value) {
+    const mutation = normalizeStateMutation(value);
+    if (!mutation) return null;
+    const normalized = normalizeState(state);
+    if (mutation.kind === 'focus') return normalized.focusMode;
+    return normalized.bookmarkIds.includes(mutation.key);
+  }
+
+  function stateDiffCount(beforeState, afterState) {
+    const before = normalizeState(beforeState);
+    const after = normalizeState(afterState);
+    let count = before.focusMode === after.focusMode ? 0 : 1;
+    const beforeBookmarks = new Set(before.bookmarkIds);
+    const afterBookmarks = new Set(after.bookmarkIds);
+    for (const key of beforeBookmarks) if (!afterBookmarks.has(key)) count += 1;
+    for (const key of afterBookmarks) if (!beforeBookmarks.has(key)) count += 1;
+    return count;
+  }
+
+  function applyStateMutation(state, value) {
+    const mutation = normalizeStateMutation(value);
+    const normalized = normalizeState(state);
+    if (!mutation) return normalized;
+    if (mutation.kind === 'focus') {
+      return {
+        focusMode: mutation.after,
+        bookmarkIds: normalized.bookmarkIds,
+        legacyBookmarkIds: normalized.legacyBookmarkIds
+      };
+    }
+    return {
+      focusMode: normalized.focusMode,
+      bookmarkIds: nextBookmarkIds(normalized.bookmarkIds, mutation.key, mutation.after),
+      legacyBookmarkIds: normalized.legacyBookmarkIds
+    };
+  }
+
+  function reconcileStateMutation(beforeState, remoteState, value, options = {}) {
+    const mutation = normalizeStateMutation(value);
+    const remote = normalizeState(remoteState);
+    if (!mutation) return Object.freeze({ action: 'drop', state: remote, mutation: null });
+
+    if (mutation.kind === 'bookmark' && options.validKeys instanceof Set && !options.validKeys.has(mutation.key)) {
+      return Object.freeze({ action: 'drop', state: remote, mutation: null });
+    }
+
+    const beforeValue = mutationValue(beforeState, mutation);
+    const remoteValue = mutationValue(remote, mutation);
+    if (remoteValue === mutation.after) {
+      return Object.freeze({ action: 'acknowledge', state: remote, mutation: null });
+    }
+
+    const diffCount = Number.isInteger(options.diffCount)
+      ? Math.max(0, options.diffCount)
+      : stateDiffCount(beforeState, remote);
+    if (beforeValue === mutation.after && remoteValue === mutation.before) {
+      if (diffCount > 1 && mutation.replays < MAX_RECONCILIATION_REPLAYS) {
+        const replay = Object.freeze({ ...mutation, replays: mutation.replays + 1 });
+        return Object.freeze({ action: 'replay', state: applyStateMutation(remote, replay), mutation: replay });
+      }
+      return Object.freeze({ action: 'conflict', state: remote, mutation: null });
+    }
+
+    return Object.freeze({ action: 'drop', state: remote, mutation: null });
+  }
+
+  function writeBookmarkPreference(storage, key, enabled) {
+    const parsed = parseBookmarkKey(key);
+    if (!parsed) return Object.freeze({ changed: false, persisted: false, state: loadState(storage), mutation: null });
+    const current = loadState(storage);
+    const before = current.bookmarkIds.includes(parsed.key);
+    const after = enabled === true;
+    if (before === after) {
+      return Object.freeze({ changed: false, persisted: false, state: current, mutation: null });
+    }
+    const next = {
+      focusMode: current.focusMode,
+      bookmarkIds: nextBookmarkIds(current.bookmarkIds, parsed.key, after),
+      legacyBookmarkIds: current.legacyBookmarkIds
+    };
+    const persisted = persistState(storage, next);
+    const mutation = persisted ? normalizeStateMutation({ kind: 'bookmark', key: parsed.key, before, after }) : null;
+    return Object.freeze({ changed: true, persisted, state: persisted ? normalizeState(next) : current, mutation });
+  }
+
+  function writeFocusPreference(storage, enabled) {
+    const current = loadState(storage);
+    const before = current.focusMode;
+    const after = enabled === true;
+    if (before === after) {
+      return Object.freeze({ changed: false, persisted: false, state: current, mutation: null });
+    }
+    const next = {
+      focusMode: after,
+      bookmarkIds: current.bookmarkIds,
+      legacyBookmarkIds: current.legacyBookmarkIds
+    };
+    const persisted = persistState(storage, next);
+    const mutation = persisted ? normalizeStateMutation({ kind: 'focus', before, after }) : null;
+    return Object.freeze({ changed: true, persisted, state: persisted ? normalizeState(next) : current, mutation });
+  }
 
   function bookmarkIndexFromConversations(conversations) {
     const validKeys = new Set();
@@ -318,6 +445,7 @@
     let highlightTimer = null;
     let cachedConversationRaw = null;
     let cachedConversations = [];
+    let pendingMutations = new Map();
 
     const tools = documentRef.createElement('div');
     tools.className = 'reading-focus-tools';
@@ -368,6 +496,34 @@
       return bookmarkKey(currentConversationId(), normalizeMessageId(article?.dataset?.messageId));
     }
 
+    function applyStateSnapshot(value) {
+      state = normalizeState(value);
+      bookmarks = new Set(state.bookmarkIds);
+    }
+
+    function rememberMutation(value) {
+      const mutation = normalizeStateMutation(value);
+      const id = mutationId(mutation);
+      if (!mutation || !id) return false;
+      if (!pendingMutations.has(id) && pendingMutations.size >= MAX_SESSION_MUTATIONS) {
+        pendingMutations.delete(pendingMutations.keys().next().value);
+      }
+      pendingMutations.set(id, mutation);
+      return true;
+    }
+
+    function validBookmarkKeys() {
+      return canonicalBookmarkIndex(storage, guard)?.validKeys || null;
+    }
+
+    function prunePendingMutations() {
+      const validKeys = validBookmarkKeys();
+      if (!(validKeys instanceof Set)) return;
+      for (const [id, mutation] of pendingMutations) {
+        if (mutation.kind === 'bookmark' && !validKeys.has(mutation.key)) pendingMutations.delete(id);
+      }
+    }
+
     function syncFocusMode() {
       documentRef.body.classList.toggle('reading-focus-mode', state.focusMode);
       focusButton.setAttribute('aria-pressed', String(state.focusMode));
@@ -379,20 +535,82 @@
       if (state.focusMode) documentRef.querySelector?.('#sidebar')?.classList?.remove?.('open');
     }
 
-    function save() {
+    function persistBookmarkSelection(key, enabled) {
+      const result = writeBookmarkPreference(storage, key, enabled);
+      if (result.persisted) {
+        applyStateSnapshot(result.state);
+        rememberMutation(result.mutation);
+        return true;
+      }
+      if (!result.changed) {
+        applyStateSnapshot(result.state);
+        return true;
+      }
+      bookmarks = new Set(nextBookmarkIds(Array.from(bookmarks), key, enabled));
       state = { focusMode: state.focusMode, bookmarkIds: Array.from(bookmarks), legacyBookmarkIds: [] };
-      persistState(storage, state);
+      return false;
+    }
+
+    function persistFocusSelection(enabled) {
+      const result = writeFocusPreference(storage, enabled);
+      if (result.persisted) {
+        applyStateSnapshot(result.state);
+        rememberMutation(result.mutation);
+        return true;
+      }
+      if (!result.changed) {
+        applyStateSnapshot(result.state);
+        return true;
+      }
+      state = { focusMode: enabled === true, bookmarkIds: Array.from(bookmarks), legacyBookmarkIds: [] };
+      return false;
     }
 
     function applyCanonicalCompaction() {
-      const result = compactState(storage, guard, {
-        focusMode: state.focusMode,
-        bookmarkIds: Array.from(bookmarks),
-        legacyBookmarkIds: state.legacyBookmarkIds || []
-      });
-      state = result.state;
-      bookmarks = new Set(state.bookmarkIds);
+      const result = compactState(storage, guard);
+      applyStateSnapshot(result.state);
+      prunePendingMutations();
       return result.changed;
+    }
+
+    function reconcileStorageStateEvent(event) {
+      const eventBefore = parseState(event?.oldValue || '');
+      const eventRemote = parseState(event?.newValue || '');
+      const latest = loadState(storage);
+      if (serializeState(latest) !== serializeState(eventRemote)) {
+        applyStateSnapshot(latest);
+        return false;
+      }
+
+      const validKeys = validBookmarkKeys();
+      const diffCount = stateDiffCount(eventBefore, eventRemote);
+      let candidate = eventRemote;
+      let replayed = false;
+      const nextPending = new Map();
+      for (const [id, mutation] of pendingMutations) {
+        const result = reconcileStateMutation(eventBefore, eventRemote, mutation, { validKeys, diffCount });
+        if (result.action === 'replay' && result.mutation) {
+          candidate = applyStateMutation(candidate, result.mutation);
+          nextPending.set(id, result.mutation);
+          replayed = true;
+        }
+      }
+      pendingMutations = nextPending;
+
+      if (validKeys instanceof Set) {
+        candidate = {
+          focusMode: candidate.focusMode,
+          bookmarkIds: pruneBookmarkKeys(candidate.bookmarkIds, validKeys),
+          legacyBookmarkIds: []
+        };
+      }
+
+      if (replayed && serializeState(candidate) !== serializeState(eventRemote) && persistState(storage, candidate)) {
+        applyStateSnapshot(candidate);
+        return true;
+      }
+      applyStateSnapshot(eventRemote);
+      return false;
     }
 
     function allMessageArticles() {
@@ -472,8 +690,7 @@
         const key = keyForArticle(article);
         if (!key) return;
         const nextEnabled = !bookmarks.has(key);
-        bookmarks = new Set(nextBookmarkIds(Array.from(bookmarks), key, nextEnabled));
-        save();
+        persistBookmarkSelection(key, nextEnabled);
         syncBookmarkButton(button, article);
         syncNavigator();
       });
@@ -515,8 +732,7 @@
     }
 
     function onFocusToggle() {
-      state = { focusMode: !state.focusMode, bookmarkIds: Array.from(bookmarks), legacyBookmarkIds: [] };
-      save();
+      persistFocusSelection(!state.focusMode);
       syncFocusMode();
     }
 
@@ -529,10 +745,7 @@
 
     function onStorage(event) {
       if (event?.key !== STORAGE_KEY && event?.key !== CONVERSATION_STORAGE_KEY) return;
-      if (event.key === STORAGE_KEY) {
-        state = parseState(event.newValue || '');
-        bookmarks = new Set(state.bookmarkIds);
-      }
+      if (event.key === STORAGE_KEY) reconcileStorageStateEvent(event);
       applyCanonicalCompaction();
       syncFocusMode();
       decorateAll();
@@ -578,6 +791,7 @@
         focusButton.removeEventListener?.('click', onFocusToggle);
         bookmarkNavigator.removeEventListener?.('click', goToNextBookmark);
         bookmarkFilter.removeEventListener?.('click', onBookmarkFilterToggle);
+        pendingMutations.clear();
         clearHighlight();
         tools.remove?.();
         documentRef.body.classList?.remove?.('reading-focus-mode');
@@ -597,6 +811,8 @@
     MAX_MESSAGE_ID_CHARS,
     MAX_CONVERSATION_ID_CHARS,
     MAX_STORAGE_CHARS,
+    MAX_SESSION_MUTATIONS,
+    MAX_RECONCILIATION_REPLAYS,
     BOOKMARK_SEPARATOR,
     DEFAULT_STATE,
     normalizeMessageId,
@@ -613,6 +829,14 @@
     persistState,
     nextBookmarkIds,
     nextBookmarkKeys,
+    normalizeStateMutation,
+    mutationId,
+    mutationValue,
+    stateDiffCount,
+    applyStateMutation,
+    reconcileStateMutation,
+    writeBookmarkPreference,
+    writeFocusPreference,
     bookmarkIndexFromConversations,
     messageIdsFromConversations,
     bookmarkKeysFromConversations,

@@ -40,6 +40,16 @@ Scoped bookmark'lar canonical conversation/message setine karşı bounded biçim
 
 `Temizle → Geri al` akışındaki RAM companion snapshot yalnız canonical scoped bookmark anahtarlarını taşır. Mesaj metni, başlık, token, credential, owner ID veya trace ID snapshot'a girmez. Global `focusMode` conversation undo kapsamına alınmaz; kullanıcının güncel focus tercihi korunur.
 
+## Cross-tab reconciliation
+
+`focusMode` ve bookmark listesi aynı localStorage kaydında bulunsa da kullanıcı eylemleri alan-bazlı uygulanır. Bookmark tıklaması önce storage'daki en güncel state'i okur, yalnız hedef scoped bookmark'ı değiştirir ve güncel `focusMode` değerini korur. Odak modu tıklaması da yalnız `focusMode` değerini değiştirip güncel bookmark listesini korur.
+
+Başarılı yerel kullanıcı eylemleri persistent şemaya yeni metadata eklemeden, yalnız oturum RAM'inde bounded mutation intent olarak tutulur. Başka sekmeden gelen storage transition yerel intent'i `after → before` geri götürürken aynı anda başka bağımsız bir alanı da değiştiriyorsa bu stale-snapshot collateral olarak değerlendirilebilir ve yerel intent remote state üzerine bounded biçimde replay edilir.
+
+Aynı bookmark veya aynı `focusMode` alanını doğrudan tersine çeviren tek-alan remote transition gerçek conflict kabul edilir; remote değer kazanır. Replay sayısı intent başına en fazla iki olduğundan storage-event ping-pong kalıcı hale gelemez.
+
+Conversation lifecycle daha güçlü bir sınırdır: pending bookmark'ın conversation/message anahtarı canonical setten silinmişse mutation RAM'den düşürülür ve bookmark hiçbir koşulda yeniden diriltilmez. Gecikmiş bir storage event geldiğinde event payload'ı mevcut storage değerinden eskiyse controller güncel storage state'ini authoritative kabul eder ve eski event'i geri yazmaz.
+
 ## Aktif conversation kimliği
 
 Render edilmiş mesajın bookmark anahtarı yalnız aktif conversation kimliği güvenle çözülebiliyorsa oluşturulur.
@@ -84,7 +94,7 @@ Başka sohbetlere ait scoped bookmark'lar açık sohbetin sayacına veya `Yalnı
 
 ## Fail-safe davranış
 
-Storage okunamazsa veya JSON bozuksa özellik boş durumla başlar. Storage yazılamazsa UI çalışmaya devam eder ancak tercih kalıcılaşmayabilir.
+Storage okunamazsa veya JSON bozuksa özellik boş durumla başlar. Storage yazılamazsa UI çalışmaya devam eder ancak tercih kalıcılaşmayabilir ve başarısız yazım replay intent'i oluşturmaz.
 
 Geçersiz kimlik bookmark corpus'una alınmaz. Ambiguous legacy ID yanlış conversation'a tahmin edilmez. Mesaj alanı veya topbar bulunmazsa `install()` no-op olarak `null` döner. `Yalnız` filtresi boş bir bookmark görünümünü kalıcılaştırmaz.
 
