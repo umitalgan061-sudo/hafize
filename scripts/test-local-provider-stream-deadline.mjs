@@ -37,11 +37,16 @@ for await (const chunk of body) chunks.push(Buffer.from(chunk).toString('utf8'))
 assert.deepEqual(chunks, ['one', 'two']);
 assert.equal(receivedSignal.aborted, false, 'normal completion must not synthesize an abort');
 
-const invalidBody = createLocalProviderStreamDeadline(async () => null, { timeoutMs: 5_000 });
+let invalidSignal = null;
+const invalidBody = createLocalProviderStreamDeadline(async (_payload, { signal }) => {
+  invalidSignal = signal;
+  return null;
+}, { timeoutMs: 5_000 });
 await assert.rejects(
   () => invalidBody({}, {}),
-  /INVALID_LOCAL_PROVIDER_STREAM/
+  /LOCAL_PROVIDER_CANCELLED/
 );
+assert.equal(invalidSignal.aborted, true, 'invalid provider body must release the owned request signal');
 
 const cancelledCaller = new AbortController();
 let cancellationSignal;
@@ -88,20 +93,42 @@ await assert.rejects(timedBody[Symbol.asyncIterator]().next(), (error) => {
 assert.equal(timedSignal.aborted, true);
 
 let earlyFinally = 0;
-const early = createLocalProviderStreamDeadline(async () => Object.freeze({
-  async *[Symbol.asyncIterator]() {
-    try {
-      yield encoder.encode('first');
-      yield encoder.encode('second');
-    } finally {
-      earlyFinally += 1;
+let earlySignal = null;
+const early = createLocalProviderStreamDeadline(async (_payload, { signal }) => {
+  earlySignal = signal;
+  return Object.freeze({
+    async *[Symbol.asyncIterator]() {
+      try {
+        yield encoder.encode('first');
+        yield encoder.encode('second');
+      } finally {
+        earlyFinally += 1;
+      }
     }
-  }
-}), { timeoutMs: 1_000 });
+  });
+}, { timeoutMs: 1_000 });
 for await (const chunk of await early({}, {})) {
   assert.equal(Buffer.from(chunk).toString('utf8'), 'first');
   break;
 }
 assert.equal(earlyFinally, 1, 'consumer early-return must close the wrapped upstream iterator');
+assert.equal(earlySignal.aborted, true, 'consumer early-return must cancel the owned local-provider request');
+assert.equal(earlySignal.reason?.code, 'LOCAL_PROVIDER_CANCELLED');
+
+let failureSignal = null;
+const providerFailure = new Error('LOCAL_STREAM_BAD_CHUNK');
+providerFailure.code = 'LOCAL_STREAM_BAD_CHUNK';
+const failing = createLocalProviderStreamDeadline(async (_payload, { signal }) => {
+  failureSignal = signal;
+  return Object.freeze({
+    async *[Symbol.asyncIterator]() {
+      throw providerFailure;
+    }
+  });
+}, { timeoutMs: 5_000 });
+const failingBody = await failing({}, {});
+await assert.rejects(failingBody[Symbol.asyncIterator]().next(), (error) => error === providerFailure);
+assert.equal(failureSignal.aborted, true, 'provider stream errors must cancel the owned request');
+assert.equal(failureSignal.reason, providerFailure, 'provider error identity must be preserved as abort reason');
 
 console.log('local provider stream deadline tests passed');
