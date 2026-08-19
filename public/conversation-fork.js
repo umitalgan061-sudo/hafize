@@ -14,6 +14,7 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const BRANCH_EVENT = 'hafize:conversation-branched';
   const MARKER = 'hafizeForkReady';
+  const SOURCE_RETENTION_ERROR = 'Kaynak korunamıyor';
   const STYLE_ID = 'hafize-conversation-fork-style';
   const STYLE_TEXT = `
 .conversation-fork-actions{display:flex;justify-content:flex-end;margin-top:7px;min-height:28px}
@@ -59,6 +60,14 @@
       if (index >= 0) matches.push({ conversation, index });
     }
     return matches.length === 1 ? matches[0] : null;
+  }
+
+  function includesConversationIds(conversations, ...ids) {
+    if (!Array.isArray(conversations) || !ids.length) return false;
+    const required = new Set(ids.filter((id) => typeof id === 'string' && id));
+    if (required.size !== ids.length) return false;
+    for (const conversation of conversations) required.delete(conversation?.id);
+    return required.size === 0;
   }
 
   function buildFork(source, messageIndex, { nowIso, makeId, maxTitleChars = 80 } = {}) {
@@ -124,6 +133,17 @@
       return guard.sanitizeStoredValue(raw);
     }
 
+    function rollbackOrphanFork(forkId) {
+      try {
+        const persisted = readCanonical()?.value || [];
+        if (!persisted.some((conversation) => conversation.id === forkId)) return true;
+        storage.setItem(STORAGE_KEY, JSON.stringify(persisted.filter((conversation) => conversation.id !== forkId)));
+        return !(readCanonical()?.value || []).some((conversation) => conversation.id === forkId);
+      } catch {
+        return false;
+      }
+    }
+
     function copyModelPreference(sourceId, forkId) {
       if (!modelState || typeof modelState.readModelEntries !== 'function' || typeof modelState.writeModelEntries !== 'function') return;
       try {
@@ -176,8 +196,8 @@
         return false;
       }
       const candidate = guard.normalizeConversations([fork, ...canonical.value]);
-      if (!candidate.some((conversation) => conversation.id === fork.id)) {
-        showState(button, 'error', 'Sınır aşıldı');
+      if (!includesConversationIds(candidate, fork.id, found.conversation.id)) {
+        showState(button, 'error', SOURCE_RETENTION_ERROR);
         return false;
       }
 
@@ -186,7 +206,10 @@
       try {
         storage.setItem(STORAGE_KEY, JSON.stringify(candidate));
         const persisted = guard.sanitizeStoredValue(storage.getItem(STORAGE_KEY) || '[]').value;
-        if (!persisted.some((conversation) => conversation.id === fork.id)) throw new Error('FORK_NOT_PERSISTED');
+        if (!includesConversationIds(persisted, fork.id, found.conversation.id)) {
+          rollbackOrphanFork(fork.id);
+          throw new Error('FORK_SOURCE_NOT_PERSISTED');
+        }
         copyModelPreference(found.conversation.id, fork.id);
         publishLineage({
           childConversationId: fork.id,
@@ -252,7 +275,7 @@
       busy = false;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, forkFromMessage, readCanonical, publishLineage });
+    return Object.freeze({ mount, destroy, decorate, decorateAll, forkFromMessage, readCanonical, rollbackOrphanFork, publishLineage });
   }
 
   function mount(options) {
@@ -268,11 +291,13 @@
     STORAGE_KEY,
     BRANCH_EVENT,
     MARKER,
+    SOURCE_RETENTION_ERROR,
     STYLE_ID,
     STYLE_TEXT,
     defaultId,
     forkTitle,
     findSource,
+    includesConversationIds,
     buildFork,
     installStyles,
     createController,
