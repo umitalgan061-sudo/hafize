@@ -37,11 +37,28 @@ export function registerElectronDeviceBridge({
   const registration = Object.freeze({ token: Symbol('device-bridge-registration') });
   let disposed = false;
 
-  ipcMain.handle(DEVICE_BRIDGE_CHANNEL, async (event, request) => {
-    if (isTrustedSender(event) !== true) return { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' };
+  const ipcHandler = async (event, request) => {
+    if (disposed || activeRegistrations.get(ipcMain) !== registration) {
+      return { ok: false, error: 'DEVICE_BRIDGE_NOT_ACTIVE' };
+    }
+
+    let trusted = false;
+    try {
+      trusted = isTrustedSender(event) === true;
+    } catch {
+      return { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' };
+    }
+    if (!trusted) return { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' };
     return handler.handle(request);
-  });
+  };
+
   activeRegistrations.set(ipcMain, registration);
+  try {
+    ipcMain.handle(DEVICE_BRIDGE_CHANNEL, ipcHandler);
+  } catch (error) {
+    if (activeRegistrations.get(ipcMain) === registration) activeRegistrations.delete(ipcMain);
+    throw error;
+  }
 
   return Object.freeze({
     allowedApps: handler.allowedApps,
