@@ -219,7 +219,7 @@ assert.equal(failedController.isListening(), true);
 failed.recognitions[1].onerror?.({ error: 'not-allowed' });
 assert.equal(failedController.isEnabled(), false);
 assert.equal(failedController.isHandoffWaiting(), false);
-assert.match(failed.toast.textContent, /mikrofon izni verilmedi/);
+assert.match(failed.toast.textContent, /mikrofon izni kullanılamıyor/);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
