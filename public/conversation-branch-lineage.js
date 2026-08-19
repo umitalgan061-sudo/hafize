@@ -15,13 +15,14 @@
   const CONVERSATION_KEY = 'hafize.conversations.v1';
   const BRANCH_EVENT = 'hafize:conversation-branched';
   const MAX_ENTRIES = 60;
+  const MAX_DEPTH = 12;
   const MAX_ID_CHARS = 120;
   const STYLE_ID = 'hafize-conversation-branch-lineage-style';
   const STYLE_TEXT = `
 .conversation-branch-lineage{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 12px 0;padding:8px 10px;border:1px solid var(--line,#ddd);border-radius:10px;background:color-mix(in srgb,var(--surface,#fff) 88%,transparent);font-size:12px;color:var(--muted,#666)}
-.conversation-branch-lineage[hidden]{display:none}.conversation-branch-source{min-height:36px;border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;padding:6px 9px;cursor:pointer}.conversation-branch-source:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}
-@media(max-width:620px){.conversation-branch-lineage{align-items:stretch;flex-direction:column}.conversation-branch-source{min-height:44px}}
-@media(forced-colors:active){.conversation-branch-source:focus-visible{outline-color:Highlight}}
+.conversation-branch-lineage[hidden]{display:none}.conversation-branch-actions{display:flex;gap:6px;flex-wrap:wrap}.conversation-branch-source,.conversation-branch-root{min-height:36px;border:1px solid var(--line,#ddd);border-radius:8px;background:transparent;color:inherit;padding:6px 9px;cursor:pointer}.conversation-branch-source:focus-visible,.conversation-branch-root:focus-visible{outline:2px solid var(--accent,#d97706);outline-offset:2px}
+@media(max-width:620px){.conversation-branch-lineage{align-items:stretch;flex-direction:column}.conversation-branch-actions{display:grid;grid-template-columns:1fr}.conversation-branch-source,.conversation-branch-root{min-height:44px}}
+@media(forced-colors:active){.conversation-branch-source:focus-visible,.conversation-branch-root:focus-visible{outline-color:Highlight}}
 `;
 
   function own(object, key) {
@@ -55,18 +56,55 @@
     return Object.freeze({ childConversationId, parentConversationId, sourceMessageId, mode, createdAt: new Date(createdMs).toISOString() });
   }
 
+  function wouldCreateInvalidAncestry(entry, byChild) {
+    let cursor = entry.parentConversationId;
+    const visited = new Set([entry.childConversationId]);
+    let depth = 1;
+    while (cursor) {
+      if (visited.has(cursor)) return true;
+      visited.add(cursor);
+      const parentEntry = byChild.get(cursor);
+      if (!parentEntry) return false;
+      depth += 1;
+      if (depth > MAX_DEPTH) return true;
+      cursor = parentEntry.parentConversationId;
+    }
+    return false;
+  }
+
   function normalizeEntries(value, validConversationIds) {
     const source = Array.isArray(value) ? value : [];
-    const seenChildren = new Set();
+    const byChild = new Map();
     const output = [];
     for (const candidate of source) {
       const entry = normalizeEntry(candidate, validConversationIds);
-      if (!entry || seenChildren.has(entry.childConversationId)) continue;
-      seenChildren.add(entry.childConversationId);
+      if (!entry || byChild.has(entry.childConversationId)) continue;
+      if (wouldCreateInvalidAncestry(entry, byChild)) continue;
+      byChild.set(entry.childConversationId, entry);
       output.push(entry);
       if (output.length >= MAX_ENTRIES) break;
     }
     return output;
+  }
+
+  function resolveAncestry(entries, childConversationId) {
+    const childId = normalizeId(childConversationId);
+    if (!childId) return Object.freeze({ entries: [], rootConversationId: '', depth: 0 });
+    const normalized = normalizeEntries(entries);
+    const byChild = new Map(normalized.map((entry) => [entry.childConversationId, entry]));
+    const chain = [];
+    const visited = new Set([childId]);
+    let cursor = childId;
+    let rootConversationId = childId;
+    while (chain.length < MAX_DEPTH) {
+      const entry = byChild.get(cursor);
+      if (!entry || visited.has(entry.parentConversationId)) break;
+      chain.push(entry);
+      rootConversationId = entry.parentConversationId;
+      visited.add(entry.parentConversationId);
+      cursor = entry.parentConversationId;
+    }
+    return Object.freeze({ entries: Object.freeze(chain), rootConversationId, depth: chain.length });
   }
 
   function parseEntries(raw, validConversationIds) {
@@ -98,6 +136,7 @@
     let banner = null;
     let label = null;
     let sourceButton = null;
+    let rootButton = null;
 
     function conversations() {
       try { return guard.sanitizeStoredValue(storage.getItem(CONVERSATION_KEY) || '[]').value || []; } catch { return []; }
@@ -128,7 +167,11 @@
       const entry = normalizeEntry(detail, conversationIds(list));
       if (!entry) return false;
       const prior = readEntries(list).filter((item) => item.childConversationId !== entry.childConversationId);
-      if (!writeEntries([entry, ...prior], list)) return false;
+      const priorByChild = new Map(prior.map((item) => [item.childConversationId, item]));
+      if (wouldCreateInvalidAncestry(entry, priorByChild)) return false;
+      const normalized = normalizeEntries([entry, ...prior], conversationIds(list));
+      if (!normalized.some((item) => item.childConversationId === entry.childConversationId)) return false;
+      if (!writeEntries(normalized, list)) return false;
       render();
       return true;
     }
@@ -145,11 +188,8 @@
         claimedIds.add(organizedId);
       });
 
-      const remainingIds = list
-        .map((conversation) => normalizeId(conversation?.id))
-        .filter((id) => id && !claimedIds.has(id));
+      const remainingIds = list.map((conversation) => normalizeId(conversation?.id)).filter((id) => id && !claimedIds.has(id));
       let fallbackIndex = 0;
-
       rows.forEach((row) => {
         const organizedId = normalizeId(row?.dataset?.conversationOrganizeId);
         if (organizedId && validIds.has(organizedId) && row?.dataset?.conversationId === organizedId) return;
@@ -172,8 +212,7 @@
     }
 
     function activeConversationId() {
-      const row = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || [])
-        .find((candidate) => candidate?.classList?.contains?.('active'));
+      const row = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || []).find((candidate) => candidate?.classList?.contains?.('active'));
       return normalizeId(row?.dataset?.conversationId);
     }
 
@@ -186,46 +225,74 @@
       banner.hidden = true;
       banner.setAttribute('role', 'status');
       label = documentRef.createElement('span');
+      const actions = documentRef.createElement('div');
+      actions.className = 'conversation-branch-actions';
       sourceButton = documentRef.createElement('button');
       sourceButton.type = 'button';
       sourceButton.className = 'conversation-branch-source';
       sourceButton.textContent = 'Kaynak sohbeti aç';
       sourceButton.addEventListener('click', () => openSource());
-      banner.append(label, sourceButton);
+      rootButton = documentRef.createElement('button');
+      rootButton.type = 'button';
+      rootButton.className = 'conversation-branch-root';
+      rootButton.textContent = 'Kök sohbeti aç';
+      rootButton.hidden = true;
+      rootButton.addEventListener('click', () => openRoot());
+      actions.append(sourceButton, rootButton);
+      banner.append(label, actions);
       stage.prepend?.(banner);
       return banner;
     }
 
-    function currentEntry() {
+    function currentContext() {
       const list = conversations();
       annotateRows(list);
       const activeId = activeConversationId();
       if (!activeId) return null;
-      return readEntries(list).find((entry) => entry.childConversationId === activeId) || null;
+      const entries = readEntries(list);
+      const entry = entries.find((item) => item.childConversationId === activeId) || null;
+      if (!entry) return null;
+      return Object.freeze({ entry, ancestry: resolveAncestry(entries, activeId) });
     }
 
-    function openSource() {
-      const entry = currentEntry();
-      if (!entry) return false;
-      const row = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || [])
-        .find((candidate) => candidate?.dataset?.conversationId === entry.parentConversationId);
+    function currentEntry() {
+      return currentContext()?.entry || null;
+    }
+
+    function openConversation(id) {
+      const targetId = normalizeId(id);
+      if (!targetId) return false;
+      const row = Array.from(documentRef.querySelectorAll?.('#conversationList .conversation-row') || []).find((candidate) => candidate?.dataset?.conversationId === targetId);
       const open = row?.querySelector?.('.conversation-open');
       if (!open || typeof open.click !== 'function') return false;
       open.click();
       return true;
     }
 
+    function openSource() {
+      const context = currentContext();
+      return context ? openConversation(context.entry.parentConversationId) : false;
+    }
+
+    function openRoot() {
+      const context = currentContext();
+      return context && context.ancestry.depth > 1 ? openConversation(context.ancestry.rootConversationId) : false;
+    }
+
     function render() {
       const node = ensureBanner();
       if (!node) return false;
-      const entry = currentEntry();
-      if (!entry) {
+      const context = currentContext();
+      if (!context) {
         node.hidden = true;
         if (label) label.textContent = '';
+        if (rootButton) rootButton.hidden = true;
         return false;
       }
-      const mode = entry.mode === 'fork' ? 'Dallanmış sohbet' : 'Düzenleme / tekrar dalı';
-      label.textContent = `${mode} · kaynak sohbet korunuyor`;
+      const mode = context.entry.mode === 'fork' ? 'Dallanmış sohbet' : 'Düzenleme / tekrar dalı';
+      const depthText = context.ancestry.depth > 1 ? ` · ${context.ancestry.depth}. seviye dal` : '';
+      label.textContent = `${mode}${depthText} · kaynak sohbet korunuyor`;
+      if (rootButton) rootButton.hidden = context.ancestry.depth <= 1;
       node.hidden = false;
       return true;
     }
@@ -264,9 +331,10 @@
       banner = null;
       label = null;
       sourceButton = null;
+      rootButton = null;
     }
 
-    return Object.freeze({ mount, destroy, render, record, readEntries, writeEntries, annotateRows, activeConversationId, currentEntry, openSource });
+    return Object.freeze({ mount, destroy, render, record, readEntries, writeEntries, annotateRows, activeConversationId, currentContext, currentEntry, openConversation, openSource, openRoot });
   }
 
   function mount(options) {
@@ -283,13 +351,16 @@
     CONVERSATION_KEY,
     BRANCH_EVENT,
     MAX_ENTRIES,
+    MAX_DEPTH,
     MAX_ID_CHARS,
     STYLE_ID,
     STYLE_TEXT,
     normalizeId,
     normalizeMode,
     normalizeEntry,
+    wouldCreateInvalidAncestry,
     normalizeEntries,
+    resolveAncestry,
     parseEntries,
     installStyles,
     createController,
