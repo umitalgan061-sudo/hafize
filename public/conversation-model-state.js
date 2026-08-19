@@ -160,6 +160,7 @@
       return organizerId;
     }
 
+    if (rows.some((row) => hasOrganizerIdentity(row))) return '';
     const index = rows.indexOf(activeRow);
     if (index < 0 || index >= conversations.length) return '';
     return normalizeConversationId(conversations[index]?.id);
