@@ -57,6 +57,17 @@
     );
   }
 
+  function snapshotAttribute(element, name) {
+    const present = Boolean(element?.hasAttribute?.(name));
+    return Object.freeze({ present, value: present ? element.getAttribute(name) : null });
+  }
+
+  function restoreAttribute(element, name, snapshot) {
+    if (!element || !snapshot) return;
+    if (snapshot.present) element.setAttribute?.(name, snapshot.value ?? '');
+    else element.removeAttribute?.(name);
+  }
+
   function installHandsFreeConsent(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
@@ -66,7 +77,12 @@
     const review = createReview(documentRef);
     indicator.insertAdjacentElement?.('afterend', review.panel);
     if (!review.panel.parentNode) indicator.parentNode?.insertBefore?.(review.panel, indicator.nextSibling || null);
+    if (!review.panel.parentNode) return null;
 
+    const baseline = Object.freeze({
+      consentPending: snapshotAttribute(toggle, 'data-consent-pending'),
+      describedBy: snapshotAttribute(toggle, 'aria-describedby')
+    });
     let pending = false;
     let timeoutId = null;
     let bypass = false;
@@ -81,7 +97,7 @@
       review.panel.hidden = !pending;
       toggle.setAttribute?.('data-consent-pending', String(pending));
       if (pending) toggle.setAttribute?.('aria-describedby', REVIEW_ID);
-      else toggle.removeAttribute?.('aria-describedby');
+      else restoreAttribute(toggle, 'aria-describedby', baseline.describedBy);
     }
 
     function cancel({ focusToggle = false } = {}) {
@@ -172,6 +188,8 @@
         review.cancel.removeEventListener?.('click', onCancel);
         documentRef.removeEventListener?.('keydown', onKeydown);
         documentRef.removeEventListener?.('visibilitychange', onVisibility);
+        restoreAttribute(toggle, 'data-consent-pending', baseline.consentPending);
+        restoreAttribute(toggle, 'aria-describedby', baseline.describedBy);
         review.panel.remove?.();
       }
     });
