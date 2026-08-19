@@ -82,11 +82,19 @@ export function createElectronAppShell({
   let bridgeRef = null;
   let permissionRef = null;
   let removeNavigationGuards = null;
+  let readyToShowRef = null;
   let appListenersInstalled = false;
   let startInFlight = null;
   let disposed = false;
 
-  function disposeWindowBindings() {
+  function clearReadyToShow(window = windowRef) {
+    if (!readyToShowRef || readyToShowRef.window !== window) return;
+    window?.removeListener?.('ready-to-show', readyToShowRef.handler);
+    readyToShowRef = null;
+  }
+
+  function disposeWindowBindings(window = windowRef) {
+    clearReadyToShow(window);
     removeNavigationGuards?.();
     removeNavigationGuards = null;
     bridgeRef?.dispose?.();
@@ -96,7 +104,8 @@ export function createElectronAppShell({
   }
 
   function handleActivate() {
-    if (BrowserWindow.getAllWindows().length === 0) void createWindow();
+    if (disposed || BrowserWindow.getAllWindows().length !== 0) return;
+    void createWindow().catch(() => {});
   }
 
   function handleWindowAllClosed() {
@@ -123,7 +132,7 @@ export function createElectronAppShell({
   }
 
   function cleanupFailedWindow(window) {
-    disposeWindowBindings();
+    disposeWindowBindings(window);
     window.destroy?.();
     if (windowRef === window) windowRef = null;
   }
@@ -143,7 +152,7 @@ export function createElectronAppShell({
     windowRef = window;
     window.once?.('closed', () => {
       if (windowRef !== window) return;
-      disposeWindowBindings();
+      disposeWindowBindings(window);
       windowRef = null;
     });
 
@@ -159,7 +168,13 @@ export function createElectronAppShell({
         allowedBrowserOrigins,
         isTrustedSender: createTrustedSender(window, appUrl.origin)
       });
-      window.once?.('ready-to-show', () => window.show?.());
+      const handleReadyToShow = () => {
+        if (readyToShowRef?.window === window) readyToShowRef = null;
+        if (disposed || windowRef !== window || window.isDestroyed?.()) return;
+        window.show?.();
+      };
+      readyToShowRef = { window, handler: handleReadyToShow };
+      window.once?.('ready-to-show', handleReadyToShow);
     } catch {
       cleanupFailedWindow(window);
       fail('DESKTOP_APP_BINDINGS_FAILED');
@@ -186,6 +201,9 @@ export function createElectronAppShell({
     startInFlight = run;
     try {
       return await run;
+    } catch (error) {
+      if (!disposed && !windowRef) removeAppListeners();
+      throw error;
     } finally {
       if (startInFlight === run) startInFlight = null;
     }
@@ -195,7 +213,7 @@ export function createElectronAppShell({
     if (disposed) return;
     disposed = true;
     removeAppListeners();
-    disposeWindowBindings();
+    disposeWindowBindings(windowRef);
     if (windowRef && !windowRef.isDestroyed?.()) windowRef.destroy?.();
     windowRef = null;
   }
