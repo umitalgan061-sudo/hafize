@@ -14,6 +14,7 @@
 
   const CONSENT_TIMEOUT_MS = 15_000;
   const REVIEW_ID = 'handsFreeConsentReview';
+  const activeInstallations = new WeakMap();
 
   function createReview(documentRef) {
     const panel = documentRef.createElement('div');
@@ -68,25 +69,74 @@
     else element.removeAttribute?.(name);
   }
 
+  function snapshotToggle(toggle) {
+    return Object.freeze({
+      disabled: Boolean(toggle.disabled),
+      title: toggle.title,
+      consentPending: snapshotAttribute(toggle, 'data-consent-pending'),
+      consentBlocked: snapshotAttribute(toggle, 'data-consent-blocked'),
+      describedBy: snapshotAttribute(toggle, 'aria-describedby')
+    });
+  }
+
+  function restoreToggle(toggle, baseline) {
+    toggle.disabled = baseline.disabled;
+    toggle.title = baseline.title;
+    restoreAttribute(toggle, 'data-consent-pending', baseline.consentPending);
+    restoreAttribute(toggle, 'data-consent-blocked', baseline.consentBlocked);
+    restoreAttribute(toggle, 'aria-describedby', baseline.describedBy);
+  }
+
+  function installBlockedConsent(toggle, baseline, reason) {
+    toggle.disabled = true;
+    toggle.title = 'Eller serbest mikrofon onayı güvenli biçimde başlatılamadı.';
+    toggle.setAttribute?.('data-consent-pending', 'false');
+    toggle.setAttribute?.('data-consent-blocked', reason);
+    restoreAttribute(toggle, 'aria-describedby', baseline.describedBy);
+
+    let destroyed = false;
+    let controller = null;
+    controller = Object.freeze({
+      isPending: () => false,
+      isBlocked: () => !destroyed,
+      getBlockReason: () => destroyed ? '' : reason,
+      begin: () => false,
+      cancel: () => false,
+      destroy() {
+        if (destroyed) return;
+        destroyed = true;
+        restoreToggle(toggle, baseline);
+        if (activeInstallations.get(toggle) === controller) activeInstallations.delete(toggle);
+      }
+    });
+    activeInstallations.set(toggle, controller);
+    return controller;
+  }
+
   function installHandsFreeConsent(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
     if (!toggle || !indicator || typeof documentRef.createElement !== 'function') return null;
-    if (documentRef.getElementById?.(REVIEW_ID)) return null;
+    if (activeInstallations.has(toggle)) throw new Error('HANDS_FREE_CONSENT_ALREADY_INSTALLED');
+
+    const baseline = snapshotToggle(toggle);
+    if (documentRef.getElementById?.(REVIEW_ID)) {
+      return installBlockedConsent(toggle, baseline, 'review-collision');
+    }
 
     const review = createReview(documentRef);
     indicator.insertAdjacentElement?.('afterend', review.panel);
     if (!review.panel.parentNode) indicator.parentNode?.insertBefore?.(review.panel, indicator.nextSibling || null);
-    if (!review.panel.parentNode) return null;
+    if (!review.panel.parentNode) {
+      review.panel.remove?.();
+      return installBlockedConsent(toggle, baseline, 'review-mount-failed');
+    }
 
-    const baseline = Object.freeze({
-      consentPending: snapshotAttribute(toggle, 'data-consent-pending'),
-      describedBy: snapshotAttribute(toggle, 'aria-describedby')
-    });
     let pending = false;
     let timeoutId = null;
     let bypass = false;
     let destroyed = false;
+    let controller = null;
 
     function clearTimer() {
       if (timeoutId != null && typeof root?.clearTimeout === 'function') root.clearTimeout(timeoutId);
@@ -94,14 +144,16 @@
     }
 
     function render() {
+      if (destroyed) return;
       review.panel.hidden = !pending;
       toggle.setAttribute?.('data-consent-pending', String(pending));
+      toggle.removeAttribute?.('data-consent-blocked');
       if (pending) toggle.setAttribute?.('aria-describedby', REVIEW_ID);
       else restoreAttribute(toggle, 'aria-describedby', baseline.describedBy);
     }
 
     function cancel({ focusToggle = false } = {}) {
-      if (!pending) return false;
+      if (destroyed || !pending) return false;
       pending = false;
       clearTimer();
       render();
@@ -167,32 +219,49 @@
       if (documentRef.hidden) cancel();
     }
 
-    toggle.addEventListener?.('click', onToggleCapture, true);
-    review.confirm.addEventListener?.('click', onConfirm);
-    review.cancel.addEventListener?.('click', onCancel);
-    documentRef.addEventListener?.('keydown', onKeydown);
-    documentRef.addEventListener?.('visibilitychange', onVisibility);
-    render();
+    function removeBindings() {
+      toggle.removeEventListener?.('click', onToggleCapture, true);
+      review.confirm.removeEventListener?.('click', onConfirm);
+      review.cancel.removeEventListener?.('click', onCancel);
+      documentRef.removeEventListener?.('keydown', onKeydown);
+      documentRef.removeEventListener?.('visibilitychange', onVisibility);
+    }
 
-    return Object.freeze({
-      isPending: () => pending,
+    try {
+      toggle.addEventListener?.('click', onToggleCapture, true);
+      review.confirm.addEventListener?.('click', onConfirm);
+      review.cancel.addEventListener?.('click', onCancel);
+      documentRef.addEventListener?.('keydown', onKeydown);
+      documentRef.addEventListener?.('visibilitychange', onVisibility);
+      render();
+    } catch (error) {
+      destroyed = true;
+      clearTimer();
+      removeBindings();
+      review.panel.remove?.();
+      restoreToggle(toggle, baseline);
+      throw error;
+    }
+
+    controller = Object.freeze({
+      isPending: () => !destroyed && pending,
+      isBlocked: () => false,
+      getBlockReason: () => '',
       begin,
       cancel,
       destroy() {
         if (destroyed) return;
-        destroyed = true;
-        cancel();
         clearTimer();
-        toggle.removeEventListener?.('click', onToggleCapture, true);
-        review.confirm.removeEventListener?.('click', onConfirm);
-        review.cancel.removeEventListener?.('click', onCancel);
-        documentRef.removeEventListener?.('keydown', onKeydown);
-        documentRef.removeEventListener?.('visibilitychange', onVisibility);
-        restoreAttribute(toggle, 'data-consent-pending', baseline.consentPending);
-        restoreAttribute(toggle, 'aria-describedby', baseline.describedBy);
+        pending = false;
+        destroyed = true;
+        removeBindings();
+        restoreToggle(toggle, baseline);
         review.panel.remove?.();
+        if (activeInstallations.get(toggle) === controller) activeInstallations.delete(toggle);
       }
     });
+    activeInstallations.set(toggle, controller);
+    return controller;
   }
 
   return Object.freeze({ CONSENT_TIMEOUT_MS, REVIEW_ID, canReview, createReview, installHandsFreeConsent });
