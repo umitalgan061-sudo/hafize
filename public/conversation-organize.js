@@ -17,6 +17,7 @@
   const SOURCE_KEY = 'hafize.conversations.v1';
   const STORAGE_KEY = 'hafize.conversation-organize.v1';
   const MAX_ENTRIES = 30;
+  const MAX_SESSION_MUTATIONS = 30;
   const MAX_ID_CHARS = 160;
   const MAX_TITLE_CHARS = 80;
   const ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
@@ -115,6 +116,57 @@
     return [next, ...without].slice(0, MAX_ENTRIES);
   }
 
+  function entryFor(entries, id) {
+    const cleanId = normalizeConversationId(id);
+    if (!cleanId) return null;
+    return normalizeEntries(entries).find((entry) => entry.id === cleanId) || null;
+  }
+
+  function sameEntry(left, right) {
+    const a = left == null ? null : normalizeEntry(left);
+    const b = right == null ? null : normalizeEntry(right);
+    if (a === null || b === null) return a === b;
+    return a.id === b.id && a.title === b.title && a.pinned === b.pinned;
+  }
+
+  function replaceEntry(entries, id, value) {
+    const cleanId = normalizeConversationId(id);
+    if (!cleanId) return normalizeEntries(entries);
+    const source = normalizeEntries(entries).filter((entry) => entry.id !== cleanId);
+    if (value == null) return source;
+    const entry = normalizeEntry(value);
+    if (!entry || entry.id !== cleanId) return source;
+    return normalizeEntries([entry, ...source]);
+  }
+
+  function normalizeMutation(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const id = normalizeConversationId(value.id);
+    if (!id) return null;
+    const before = value.before == null ? null : normalizeEntry(value.before);
+    const after = value.after == null ? null : normalizeEntry(value.after);
+    if ((value.before != null && !before) || (value.after != null && !after)) return null;
+    if ((before && before.id !== id) || (after && after.id !== id) || sameEntry(before, after)) return null;
+    return Object.freeze({ id, before, after });
+  }
+
+  function reconcileMutation(entries, mutation) {
+    const source = normalizeEntries(entries);
+    const normalized = normalizeMutation(mutation);
+    if (!normalized) return Object.freeze({ entries: source, status: 'invalid' });
+    const current = entryFor(source, normalized.id);
+    if (sameEntry(current, normalized.after)) {
+      return Object.freeze({ entries: source, status: 'settled' });
+    }
+    if (sameEntry(current, normalized.before)) {
+      return Object.freeze({
+        entries: replaceEntry(source, normalized.id, normalized.after),
+        status: 'replay'
+      });
+    }
+    return Object.freeze({ entries: source, status: 'conflict' });
+  }
+
   function pruneEntries(entries, sourceIds) {
     const allowed = new Set((Array.isArray(sourceIds) ? sourceIds : []).map(normalizeConversationId).filter(Boolean));
     return normalizeEntries(entries).filter((entry) => allowed.has(entry.id));
@@ -149,6 +201,7 @@
     let entries = parseEntries(storage?.getItem?.(STORAGE_KEY));
     let rendering = false;
     let pendingFrame = null;
+    const sessionMutations = new Map();
 
     function persist(next) {
       entries = normalizeEntries(next);
@@ -166,6 +219,31 @@
 
     function metadataFor(id) {
       return entries.find((entry) => entry.id === id) || null;
+    }
+
+    function rememberMutation(id, before, after) {
+      const mutation = normalizeMutation({ id, before, after });
+      if (!mutation) {
+        sessionMutations.delete(id);
+        return false;
+      }
+      sessionMutations.set(mutation.id, mutation);
+      while (sessionMutations.size > MAX_SESSION_MUTATIONS) {
+        sessionMutations.delete(sessionMutations.keys().next().value);
+      }
+      return true;
+    }
+
+    function persistMutation(id, patch) {
+      const cleanId = normalizeConversationId(id);
+      if (!cleanId) return false;
+      const before = metadataFor(cleanId);
+      const next = mergeEntry(entries, cleanId, patch);
+      const after = entryFor(next, cleanId);
+      if (sameEntry(before, after)) return true;
+      if (!persist(next)) return false;
+      rememberMutation(cleanId, before, after);
+      return true;
     }
 
     function closeEditor(row) {
@@ -213,7 +291,7 @@
           const currentId = normalizeConversationId(row.dataset?.conversationOrganizeId);
           if (!currentId) return;
           const current = metadataFor(currentId);
-          persist(mergeEntry(entries, currentId, { pinned: current?.pinned !== true }));
+          persistMutation(currentId, { pinned: current?.pinned !== true });
           renderNow();
         });
 
@@ -258,12 +336,12 @@
               input.setAttribute('aria-invalid', 'true');
               return;
             }
-            persist(mergeEntry(entries, currentId, { title: nextTitle }));
+            persistMutation(currentId, { title: nextTitle });
             closeEditor(row);
             renderNow();
           });
           reset.addEventListener('click', () => {
-            persist(mergeEntry(entries, currentId, { title: null }));
+            persistMutation(currentId, { title: null });
             closeEditor(row);
             renderNow();
           });
@@ -293,6 +371,8 @@
       try {
         const source = sourceSnapshot();
         const sourceIds = source.map((item) => item.id);
+        const allowed = new Set(sourceIds);
+        for (const id of sessionMutations.keys()) if (!allowed.has(id)) sessionMutations.delete(id);
         const pruned = pruneEntries(entries, sourceIds);
         if (JSON.stringify(pruned) !== JSON.stringify(entries)) persist(pruned);
 
@@ -337,7 +417,22 @@
 
     function onStorage(event) {
       if (event?.key !== STORAGE_KEY && event?.key !== SOURCE_KEY) return;
-      if (event.key === STORAGE_KEY) entries = parseEntries(event.newValue || '');
+      if (event.key === STORAGE_KEY) {
+        const remote = parseEntries(event.newValue || '');
+        entries = remote;
+        let replayed = false;
+        for (const [id, mutation] of sessionMutations) {
+          const result = reconcileMutation(entries, mutation);
+          entries = result.entries;
+          if (result.status === 'replay') replayed = true;
+          else sessionMutations.delete(id);
+        }
+        const sourceIds = sourceSnapshot().map((item) => item.id);
+        const allowed = new Set(sourceIds);
+        for (const id of sessionMutations.keys()) if (!allowed.has(id)) sessionMutations.delete(id);
+        entries = pruneEntries(entries, sourceIds);
+        if (replayed && serializeEntries(entries) !== serializeEntries(remote)) persist(entries);
+      }
       scheduleRender();
     }
 
@@ -350,15 +445,17 @@
 
     return Object.freeze({
       getEntries: () => Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))),
+      getPendingMutationCount: () => sessionMutations.size,
       refresh: renderNow,
       destroy() {
         observer?.disconnect?.();
         root.removeEventListener?.('storage', onStorage);
         if (pendingFrame !== null) root.cancelAnimationFrame?.(pendingFrame);
         pendingFrame = null;
+        sessionMutations.clear();
         for (const row of list.querySelectorAll?.('.conversation-row') || []) {
           closeEditor(row);
-          row.classList?.remove?.('conversation-pinned', 'organize-editing');
+          row?.classList?.remove?.('conversation-pinned', 'organize-editing');
           delete row.dataset.conversationOrganizeId;
           row.querySelector?.('.conversation-organize-actions')?.remove?.();
         }
@@ -370,6 +467,7 @@
     SOURCE_KEY,
     STORAGE_KEY,
     MAX_ENTRIES,
+    MAX_SESSION_MUTATIONS,
     MAX_ID_CHARS,
     MAX_TITLE_CHARS,
     normalizeConversationId,
@@ -380,6 +478,11 @@
     serializeEntries,
     readSourceConversations,
     mergeEntry,
+    entryFor,
+    sameEntry,
+    replaceEntry,
+    normalizeMutation,
+    reconcileMutation,
     pruneEntries,
     sortIds,
     install
