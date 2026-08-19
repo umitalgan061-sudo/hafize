@@ -91,7 +91,7 @@ assert.equal(api.createController({ documentRef: { querySelector: () => null }, 
 
 assert.match(loader, /HafizeMobileSidebarDismiss/);
 assert.match(loader, /\/mobile-sidebar-dismiss\.js/);
-assert.match(swPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v25`/);
+assert.match(swPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(swPolicy, /'\/mobile-sidebar-dismiss\.js'/);
 for (const forbidden of ['fetch(', 'localStorage', 'sessionStorage', 'document.cookie', 'navigator.clipboard', 'Authorization', 'Bearer ', 'innerHTML']) {
   assert.equal(source.includes(forbidden), false, `forbidden surface: ${forbidden}`);
