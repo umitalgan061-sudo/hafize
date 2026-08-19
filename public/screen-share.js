@@ -94,6 +94,16 @@
     }
   }
 
+  function readAttribute(node, name) {
+    return node?.getAttribute?.(name);
+  }
+
+  function restoreAttribute(node, name, value) {
+    if (!node) return;
+    if (value === null || value === undefined) node.removeAttribute?.(name);
+    else node.setAttribute?.(name, value);
+  }
+
   function mountScreenShare({ root = globalThis } = {}) {
     const document = root.document;
     const button = document?.querySelector?.('#screenShareBtn');
@@ -103,53 +113,107 @@
     const removeButton = document?.querySelector?.('#screenShareRemove');
     if (!button || !panel || !image || !status || !removeButton) return null;
 
+    const initialState = Object.freeze({
+      buttonDisabled: Boolean(button.disabled),
+      buttonPressed: readAttribute(button, 'aria-pressed'),
+      panelHidden: Boolean(panel.hidden),
+      imageSrc: readAttribute(image, 'src'),
+      statusText: status.textContent || ''
+    });
+
     let objectUrl = null;
     let currentCapture = null;
+    let destroyed = false;
+    let generation = 1;
+    let requestInFlight = false;
 
-    function clearCapture() {
+    function revokeObjectUrl() {
       if (objectUrl) root.URL?.revokeObjectURL?.(objectUrl);
       objectUrl = null;
+    }
+
+    function resetCaptureUi({ announce = true } = {}) {
+      revokeObjectUrl();
       currentCapture = null;
-      image.removeAttribute('src');
+      image.removeAttribute?.('src');
       panel.hidden = true;
-      button.setAttribute('aria-pressed', 'false');
+      button.setAttribute?.('aria-pressed', 'false');
       status.textContent = 'Ekran görüntüsü tutulmuyor.';
-      root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-cleared'));
+      if (announce && !destroyed) {
+        root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-cleared'));
+      }
+    }
+
+    function clearCapture() {
+      if (destroyed) return false;
+      generation += 1;
+      resetCaptureUi();
+      return true;
     }
 
     async function requestCapture() {
-      if (button.disabled) return;
+      if (destroyed || requestInFlight || button.disabled) return null;
+      const requestGeneration = ++generation;
+      requestInFlight = true;
       button.disabled = true;
       status.textContent = 'Paylaşılacak pencere veya ekranı sen seçiyorsun…';
       try {
         const capture = await captureScreenFrame({ mediaDevices: root.navigator?.mediaDevices, document });
-        clearCapture();
+        if (destroyed || requestGeneration !== generation) return null;
+
+        resetCaptureUi({ announce: false });
         currentCapture = capture;
         objectUrl = root.URL?.createObjectURL?.(capture.blob) || '';
-        if (objectUrl) image.src = objectUrl;
+        if (objectUrl) image.setAttribute?.('src', objectUrl);
         panel.hidden = false;
-        button.setAttribute('aria-pressed', 'true');
+        button.setAttribute?.('aria-pressed', 'true');
         status.textContent = `${capture.width}×${capture.height} ekran görüntüsü yalnız bu sekmede hazır; Hafize'ye gönderilmedi.`;
         root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-ready', {
           detail: { capture, width: capture.width, height: capture.height, mimeType: capture.mimeType }
         }));
+        return capture;
       } catch (error) {
+        if (destroyed || requestGeneration !== generation) return null;
         if (error?.message === 'SCREEN_CAPTURE_CANCELLED') status.textContent = 'Ekran paylaşımı iptal edildi.';
         else if (error?.message === 'SCREEN_CAPTURE_UNSUPPORTED') status.textContent = 'Bu tarayıcı ekran paylaşımını desteklemiyor.';
         else status.textContent = 'Ekran görüntüsü alınamadı.';
+        return null;
       } finally {
-        button.disabled = false;
+        if (!destroyed && requestGeneration === generation) button.disabled = initialState.buttonDisabled;
+        requestInFlight = false;
       }
+    }
+
+    function onPageHide() {
+      if (!destroyed) clearCapture();
     }
 
     button.addEventListener('click', requestCapture);
     removeButton.addEventListener('click', clearCapture);
-    root.addEventListener?.('pagehide', clearCapture, { once: true });
+    root.addEventListener?.('pagehide', onPageHide);
+
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      generation += 1;
+      button.removeEventListener?.('click', requestCapture);
+      removeButton.removeEventListener?.('click', clearCapture);
+      root.removeEventListener?.('pagehide', onPageHide);
+      revokeObjectUrl();
+      currentCapture = null;
+      requestInFlight = false;
+      button.disabled = initialState.buttonDisabled;
+      restoreAttribute(button, 'aria-pressed', initialState.buttonPressed);
+      panel.hidden = initialState.panelHidden;
+      restoreAttribute(image, 'src', initialState.imageSrc);
+      status.textContent = initialState.statusText;
+    }
 
     return Object.freeze({
       clearCapture,
       requestCapture,
-      getCapture: () => currentCapture
+      getCapture: () => destroyed ? null : currentCapture,
+      destroy
     });
   }
 
