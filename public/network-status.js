@@ -57,6 +57,43 @@
     let node = null;
     let restoreTimer = null;
     let wasOffline = false;
+    let ownsNode = false;
+    let originalNode = null;
+    let generation = 0;
+
+    function snapshotNode(target) {
+      return Object.freeze({
+        hidden: Boolean(target.hidden),
+        textContent: typeof target.textContent === 'string' ? target.textContent : '',
+        state: target.getAttribute?.('data-state') ?? null,
+        title: target.getAttribute?.('title') ?? null
+      });
+    }
+
+    function setState(target, value) {
+      if (!target) return;
+      if (target.dataset) target.dataset.state = value;
+      target.setAttribute?.('data-state', value);
+    }
+
+    function restoreAttribute(target, name, value) {
+      if (!target) return;
+      if (value === null || value === undefined) target.removeAttribute?.(name);
+      else target.setAttribute?.(name, value);
+    }
+
+    function restoreNode(target, snapshot) {
+      if (!target || !snapshot) return;
+      target.hidden = snapshot.hidden;
+      target.textContent = snapshot.textContent;
+      if (snapshot.state === null || snapshot.state === undefined) {
+        target.removeAttribute?.('data-state');
+        if (target.dataset) delete target.dataset.state;
+      } else {
+        setState(target, snapshot.state);
+      }
+      restoreAttribute(target, 'title', snapshot.title);
+    }
 
     function clearRestoreTimer() {
       if (restoreTimer === null) return;
@@ -68,7 +105,11 @@
       const topbar = documentRef.querySelector('.topbar');
       if (!topbar) return null;
       const existing = documentRef.querySelector(`#${STATUS_ID}`);
-      if (existing) return existing;
+      if (existing) {
+        ownsNode = false;
+        originalNode = snapshotNode(existing);
+        return existing;
+      }
       const status = documentRef.createElement('span');
       status.id = STATUS_ID;
       status.className = 'network-status';
@@ -79,45 +120,49 @@
       const spacer = topbar.querySelector?.('.top-spacer');
       if (spacer && typeof topbar.insertBefore === 'function') topbar.insertBefore(status, spacer);
       else topbar.append?.(status);
+      ownsNode = Boolean(status.parentNode);
+      originalNode = null;
       return status;
     }
 
     function showOffline() {
-      if (!node) return false;
+      if (!mounted || !node) return false;
       clearRestoreTimer();
       wasOffline = true;
       node.hidden = false;
-      node.dataset.state = 'offline';
+      setState(node, 'offline');
       node.textContent = 'Çevrimdışı · yanıt gönderilemez';
       node.setAttribute?.('title', 'Bağlantı geri geldiğinde yeniden gönderebilirsin.');
       return true;
     }
 
     function showOnline({ initial = false } = {}) {
-      if (!node) return false;
+      if (!mounted || !node) return false;
       clearRestoreTimer();
       if (initial || !wasOffline) {
         node.hidden = true;
-        node.dataset.state = 'online';
+        setState(node, 'online');
         node.textContent = '';
         return true;
       }
       wasOffline = false;
       node.hidden = false;
-      node.dataset.state = 'restored';
+      setState(node, 'restored');
       node.textContent = 'Bağlantı geri geldi';
       node.setAttribute?.('title', 'Ağ bağlantısı yeniden kullanılabilir.');
+      const timerGeneration = generation;
       restoreTimer = setTimeoutImpl(() => {
         restoreTimer = null;
-        if (!node || !readOnline(navigatorRef)) return;
+        if (!mounted || generation !== timerGeneration || !node || !readOnline(navigatorRef)) return;
         node.hidden = true;
-        node.dataset.state = 'online';
+        setState(node, 'online');
         node.textContent = '';
       }, ONLINE_NOTICE_MS);
       return true;
     }
 
     function sync({ initial = false } = {}) {
+      if (!mounted) return false;
       return readOnline(navigatorRef) ? showOnline({ initial }) : showOffline();
     }
 
@@ -134,25 +179,41 @@
       node = createStatusNode();
       if (!node) return false;
       installStyles(documentRef);
+      generation += 1;
+      mounted = true;
       wasOffline = !readOnline(navigatorRef);
       sync({ initial: true });
       rootRef.addEventListener('offline', handleOffline);
       rootRef.addEventListener('online', handleOnline);
-      mounted = true;
       return true;
     }
 
     function destroy() {
-      if (!mounted) return;
+      if (!mounted) return false;
+      mounted = false;
+      generation += 1;
       clearRestoreTimer();
       rootRef.removeEventListener('offline', handleOffline);
       rootRef.removeEventListener('online', handleOnline);
-      node?.remove?.();
+      if (ownsNode) node?.remove?.();
+      else restoreNode(node, originalNode);
       node = null;
-      mounted = false;
+      originalNode = null;
+      ownsNode = false;
+      wasOffline = false;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, sync, showOffline, showOnline, handleOffline, handleOnline });
+    return Object.freeze({
+      mount,
+      destroy,
+      sync,
+      showOffline,
+      showOnline,
+      handleOffline,
+      handleOnline,
+      snapshot: () => Object.freeze({ mounted, ownsNode, generation, timerPending: restoreTimer !== null })
+    });
   }
 
   function mount(options) {
