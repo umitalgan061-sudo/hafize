@@ -27,6 +27,9 @@ class FakeWindow {
     windows.push(this);
   }
   once(name, fn) { this.onceHandlers.set(name, fn); }
+  removeListener(name, fn) {
+    if (this.onceHandlers.get(name) === fn) this.onceHandlers.delete(name);
+  }
   async loadURL(url) {
     this.loaded = url;
     this.webContents.mainFrame.url = url;
@@ -264,6 +267,8 @@ assert.equal(failedPermissionWindows.length, 1);
 assert.equal(failedPermissionWindows[0].destroyed, true);
 assert.equal(failedPermissionWindows[0].webContents.handlers.has('will-navigate'), false);
 assert.equal(failedPermissionDisposes, 1, 'partial permission binding must roll back when bridge setup fails');
+assert.equal(failedPermissionApp.handlers.get('activate')?.length || 0, 0, 'failed start must remove app activate listener');
+assert.equal(failedPermissionApp.handlers.get('window-all-closed')?.length || 0, 0, 'failed start must remove app close listener');
 failedPermissionShell.dispose();
 
 let loadBridgeDisposes = 0;
@@ -280,8 +285,41 @@ const loadFailureShell = createElectronAppShell({
 await assert.rejects(() => loadFailureShell.start(), /DESKTOP_APP_LOAD_FAILED/);
 assert.equal(loadFailureWindows[0].destroyed, true);
 assert.equal(loadFailureWindows[0].webContents.handlers.has('will-navigate'), false);
+assert.equal(loadFailureWindows[0].onceHandlers.has('ready-to-show'), false, 'failed load must remove stale ready-to-show callback');
 assert.equal(loadBridgeDisposes, 1);
 assert.equal(loadPermissionDisposes, 1);
+assert.equal(loadFailureApp.handlers.get('activate')?.length || 0, 0);
+assert.equal(loadFailureApp.handlers.get('window-all-closed')?.length || 0, 0);
 loadFailureShell.dispose();
+
+const activationFailureApp = createCountingApp();
+let activationShouldFail = false;
+const activationWindows = [];
+class ActivationFailureWindow extends FakeWindow {
+  static getAllWindows() { return activationWindows.filter((item) => !item.destroyed); }
+  constructor(options) {
+    super(options);
+    activationWindows.push(this);
+  }
+  async loadURL(url) {
+    if (activationShouldFail) throw new Error('activation load failed');
+    return super.loadURL(url);
+  }
+}
+const activationShell = createElectronAppShell({
+  app: activationFailureApp,
+  BrowserWindow: ActivationFailureWindow,
+  preloadPath: '/absolute/preload.mjs',
+  registerDeviceBridge() { return { dispose() {} }; },
+  installPermissionPolicy() { return { dispose() {} }; }
+});
+const activationWindow = await activationShell.start();
+activationWindow.destroy();
+activationShouldFail = true;
+for (const handler of activationFailureApp.handlers.get('activate') || []) handler();
+await new Promise((resolve) => setImmediate(resolve));
+assert.equal(ActivationFailureWindow.getAllWindows().length, 0, 'failed activate recreation must clean up the failed window');
+assert.equal(activationFailureApp.handlers.get('activate')?.length || 0, 1, 'activate failure must keep lifecycle listener available for a later retry');
+activationShell.dispose();
 
 console.log('desktop app shell tests passed');
