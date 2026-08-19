@@ -40,6 +40,25 @@
     return parts.length ? parts.join('\n\n') : null;
   }
 
+  function snapshotButton(node) {
+    return Object.freeze({
+      hidden: Boolean(node.hidden),
+      disabled: Boolean(node.disabled),
+      textContent: node.textContent,
+      hadState: Object.prototype.hasOwnProperty.call(node.dataset || {}, 'state'),
+      state: node.dataset?.state
+    });
+  }
+
+  function restoreButton(node, snapshot) {
+    if (!node || !snapshot) return;
+    node.hidden = snapshot.hidden;
+    node.disabled = snapshot.disabled;
+    node.textContent = snapshot.textContent;
+    if (snapshot.hadState) node.dataset.state = snapshot.state;
+    else delete node.dataset.state;
+  }
+
   function createController({
     documentRef = globalThis.document,
     clipboard = globalThis.navigator?.clipboard,
@@ -55,13 +74,23 @@
     let button = null;
     let resetTimer = null;
     let messages = null;
+    let mounted = false;
+    let generation = 0;
+    let ownsButton = false;
+    let buttonSnapshot = null;
+    let clickHandler = null;
 
     function clearResetTimer() {
       if (resetTimer !== null) clearTimeoutImpl(resetTimer);
       resetTimer = null;
     }
 
-    function setIdle() {
+    function isCurrent(expectedGeneration = generation) {
+      return mounted && expectedGeneration === generation;
+    }
+
+    function setIdle(expectedGeneration = generation) {
+      if (!isCurrent(expectedGeneration)) return;
       clearResetTimer();
       if (!button) return;
       button.textContent = 'Sohbeti kopyala';
@@ -69,50 +98,51 @@
       syncAvailability();
     }
 
-    function showState(state, label) {
-      if (!button) return;
+    function showState(state, label, expectedGeneration = generation) {
+      if (!isCurrent(expectedGeneration) || !button) return;
       clearResetTimer();
       button.dataset.state = state;
       button.textContent = label;
       button.disabled = state === 'copying';
-      resetTimer = setTimeoutImpl(setIdle, RESET_DELAY_MS);
+      resetTimer = setTimeoutImpl(() => setIdle(expectedGeneration), RESET_DELAY_MS);
     }
 
     function getTranscript() {
+      if (!mounted) return null;
       return transcriptFromMessages(messages?.querySelectorAll?.('.message') || []);
     }
 
     function syncAvailability() {
-      if (!button) return false;
+      if (!mounted || !button) return false;
       button.hidden = !getTranscript();
       button.disabled = button.dataset.state === 'copying';
       return !button.hidden;
     }
 
     async function copyConversation() {
+      if (!mounted) return false;
+      const expectedGeneration = generation;
       const transcript = getTranscript();
       if (!transcript) {
-        showState('error', 'Kopyalanamadı');
+        showState('error', 'Kopyalanamadı', expectedGeneration);
         return false;
       }
       if (!secureContext || typeof clipboard?.writeText !== 'function') {
-        showState('error', 'Clipboard kapalı');
+        showState('error', 'Clipboard kapalı', expectedGeneration);
         return false;
       }
-      showState('copying', 'Kopyalanıyor…');
+      showState('copying', 'Kopyalanıyor…', expectedGeneration);
       try {
         await clipboard.writeText(transcript);
-        showState('success', 'Sohbet kopyalandı');
+        if (isCurrent(expectedGeneration)) showState('success', 'Sohbet kopyalandı', expectedGeneration);
         return true;
       } catch {
-        showState('error', 'Kopyalanamadı');
+        if (isCurrent(expectedGeneration)) showState('error', 'Kopyalanamadı', expectedGeneration);
         return false;
       }
     }
 
-    function createButton(host) {
-      const existing = documentRef.querySelector(`#${CONTROL_ID}`);
-      if (existing) return existing;
+    function createOwnedButton(host) {
       const control = documentRef.createElement('button');
       control.id = CONTROL_ID;
       control.type = 'button';
@@ -120,31 +150,81 @@
       control.dataset.state = 'idle';
       control.textContent = 'Sohbeti kopyala';
       control.setAttribute('aria-label', 'Mevcut sohbetin görünür mesajlarını kopyala');
-      control.addEventListener('click', () => { void copyConversation(); });
       host.append(control);
       return control;
     }
 
-    function mount() {
-      messages = documentRef.querySelector('#messages');
-      const historyHead = documentRef.querySelector('.history-head');
-      if (!messages || !historyHead) return false;
-      button = createButton(historyHead);
-      syncAvailability();
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(syncAvailability);
-        observer.observe(messages, { childList: true, subtree: true, characterData: true });
-      }
-      return true;
-    }
-
-    function destroy() {
+    function rollbackMount() {
       observer?.disconnect?.();
       observer = null;
       clearResetTimer();
-      button?.remove?.();
+      if (button && clickHandler) button.removeEventListener?.('click', clickHandler);
+      if (button) {
+        if (ownsButton) button.remove?.();
+        else restoreButton(button, buttonSnapshot);
+      }
       button = null;
       messages = null;
+      clickHandler = null;
+      buttonSnapshot = null;
+      ownsButton = false;
+      mounted = false;
+      generation += 1;
+    }
+
+    function mount() {
+      if (mounted) return true;
+      const nextMessages = documentRef.querySelector('#messages');
+      const historyHead = documentRef.querySelector('.history-head');
+      if (!nextMessages || !historyHead) return false;
+
+      const existing = documentRef.querySelector(`#${CONTROL_ID}`);
+      if (existing && (typeof existing.addEventListener !== 'function' || typeof existing.removeEventListener !== 'function')) return false;
+
+      messages = nextMessages;
+      button = existing || createOwnedButton(historyHead);
+      ownsButton = !existing;
+      buttonSnapshot = existing ? snapshotButton(existing) : null;
+      mounted = true;
+      generation += 1;
+      const mountGeneration = generation;
+      clickHandler = () => {
+        if (isCurrent(mountGeneration)) void copyConversation();
+      };
+      button.addEventListener('click', clickHandler);
+
+      try {
+        syncAvailability();
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(() => {
+            if (isCurrent(mountGeneration)) syncAvailability();
+          });
+          observer.observe(messages, { childList: true, subtree: true, characterData: true });
+        }
+        return true;
+      } catch {
+        rollbackMount();
+        return false;
+      }
+    }
+
+    function destroy() {
+      if (!mounted) return;
+      mounted = false;
+      generation += 1;
+      observer?.disconnect?.();
+      observer = null;
+      clearResetTimer();
+      if (button && clickHandler) button.removeEventListener?.('click', clickHandler);
+      if (button) {
+        if (ownsButton) button.remove?.();
+        else restoreButton(button, buttonSnapshot);
+      }
+      button = null;
+      messages = null;
+      clickHandler = null;
+      buttonSnapshot = null;
+      ownsButton = false;
     }
 
     return Object.freeze({ mount, destroy, copyConversation, getTranscript, syncAvailability });
