@@ -66,11 +66,37 @@
     let mounted = false;
     let generatedStatus = false;
     let originalBusy = null;
+    let originalStatus = null;
     let lastPhase = '';
+
+    function snapshotStatus(node) {
+      return Object.freeze({
+        hidden: Boolean(node.hidden),
+        textContent: typeof node.textContent === 'string' ? node.textContent : '',
+        phase: node.getAttribute?.('data-phase') ?? null
+      });
+    }
+
+    function restoreStatus(node, snapshot) {
+      if (!node || !snapshot) return;
+      node.hidden = snapshot.hidden;
+      node.textContent = snapshot.textContent;
+      if (snapshot.phase === null || snapshot.phase === undefined) {
+        node.removeAttribute?.('data-phase');
+        if (node.dataset) delete node.dataset.phase;
+      } else {
+        node.setAttribute?.('data-phase', snapshot.phase);
+        if (node.dataset) node.dataset.phase = snapshot.phase;
+      }
+    }
 
     function ensureStatus() {
       const existing = documentRef.querySelector(`#${STATUS_ID}`);
-      if (existing) return existing;
+      if (existing) {
+        generatedStatus = false;
+        originalStatus = snapshotStatus(existing);
+        return existing;
+      }
       const node = documentRef.createElement('small');
       node.id = STATUS_ID;
       node.hidden = true;
@@ -80,16 +106,18 @@
       node.title = 'Yanıt sürerken kare gönder düğmesiyle durdurabilirsin.';
       composer.prepend?.(node);
       generatedStatus = Boolean(node.parentNode);
+      originalStatus = null;
       return node;
     }
 
     function paint(phase) {
-      if (!status || !messages) return false;
+      if (!mounted || !status || !messages) return false;
       const next = phase === 'preparing' || phase === 'streaming' ? phase : 'idle';
       messages.setAttribute?.('aria-busy', String(next !== 'idle'));
       if (next === lastPhase) return false;
       lastPhase = next;
       status.dataset.phase = next;
+      status.setAttribute?.('data-phase', next);
       if (next === 'idle') {
         status.hidden = true;
         status.textContent = '';
@@ -112,10 +140,22 @@
       messages = documentRef.querySelector('#messages');
       composer = documentRef.querySelector('#composer');
       sendButton = documentRef.querySelector('#sendBtn');
-      if (!messages || !composer || !sendButton) return false;
+      if (!messages || !composer || !sendButton) {
+        messages = null;
+        composer = null;
+        sendButton = null;
+        return false;
+      }
       originalBusy = messages.getAttribute?.('aria-busy');
       installStyles(documentRef);
       status = ensureStatus();
+      if (!status) {
+        messages = null;
+        composer = null;
+        sendButton = null;
+        originalBusy = null;
+        return false;
+      }
       mounted = true;
       refresh();
       if (typeof MutationObserverImpl === 'function') {
@@ -128,22 +168,31 @@
 
     function destroy() {
       if (!mounted) return false;
+      mounted = false;
       observer?.disconnect?.();
       observer = null;
       if (originalBusy === null || originalBusy === undefined) messages?.removeAttribute?.('aria-busy');
       else messages?.setAttribute?.('aria-busy', originalBusy);
       if (generatedStatus) status?.remove?.();
+      else restoreStatus(status, originalStatus);
       status = null;
       messages = null;
       composer = null;
       sendButton = null;
       originalBusy = null;
+      originalStatus = null;
+      generatedStatus = false;
       lastPhase = '';
-      mounted = false;
       return true;
     }
 
-    return Object.freeze({ mount, destroy, refresh, paint, snapshot: () => Object.freeze({ mounted, phase: lastPhase }) });
+    return Object.freeze({
+      mount,
+      destroy,
+      refresh,
+      paint,
+      snapshot: () => Object.freeze({ mounted, phase: lastPhase, ownsStatus: generatedStatus })
+    });
   }
 
   function mount(options) {
