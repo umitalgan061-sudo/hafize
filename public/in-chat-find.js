@@ -72,6 +72,9 @@
     let matches = [];
     let index = -1;
     let returnFocus = null;
+    let mounted = false;
+    let ownsControl = false;
+    let ownsTrigger = false;
 
     function allMessages() {
       return messages?.querySelectorAll?.('.message') || [];
@@ -126,7 +129,7 @@
     }
 
     function open(source = documentRef.activeElement) {
-      if (!control) return false;
+      if (!mounted || !control) return false;
       returnFocus = source && typeof source.focus === 'function' ? source : trigger;
       control.hidden = false;
       trigger?.setAttribute?.('aria-expanded', 'true');
@@ -137,7 +140,7 @@
     }
 
     function dismiss() {
-      if (!control || control.hidden) return false;
+      if (!mounted || !control || control.hidden) return false;
       control.hidden = true;
       trigger?.setAttribute?.('aria-expanded', 'false');
       clearClasses();
@@ -205,6 +208,22 @@
       return wrapper;
     }
 
+    function onTriggerClick() {
+      open(trigger);
+    }
+
+    function onPreviousClick() {
+      step(-1);
+    }
+
+    function onNextClick() {
+      step(1);
+    }
+
+    function onMutation() {
+      if (mounted && control && !control.hidden) apply();
+    }
+
     function onKeydown(event) {
       const key = typeof event?.key === 'string' ? event.key.toLowerCase() : '';
       if ((event?.ctrlKey || event?.metaKey) && key === 'f' && !event?.altKey) {
@@ -223,45 +242,91 @@
       }
     }
 
+    function clearReferences() {
+      control = null;
+      trigger = null;
+      input = null;
+      status = null;
+      previous = null;
+      next = null;
+      close = null;
+      messages = null;
+      observer = null;
+      matches = [];
+      index = -1;
+      returnFocus = null;
+      ownsControl = false;
+      ownsTrigger = false;
+      mounted = false;
+    }
+
     function mount() {
-      messages = documentRef.querySelector('#messages');
+      if (mounted) return true;
+
+      const candidateMessages = documentRef.querySelector('#messages');
       const historyHead = documentRef.querySelector('.history-head');
-      if (!messages || !historyHead || !documentRef.body) return false;
+      if (!candidateMessages || !historyHead || !documentRef.body) return false;
+
       installStyles(documentRef);
-      trigger = createTrigger(historyHead);
-      control = createControl();
-      input = control.querySelector?.('input');
-      status = control.querySelector?.('.in-chat-find-status');
-      const buttons = control.querySelectorAll?.('button') || [];
-      [previous, next, close] = buttons;
-      if (!trigger || !input || !status || !previous || !next || !close) return false;
-      trigger.addEventListener('click', () => open(trigger));
+      const existingTrigger = documentRef.querySelector(`#${TRIGGER_ID}`);
+      const existingControl = documentRef.querySelector(`#${CONTROL_ID}`);
+      const candidateTrigger = createTrigger(historyHead);
+      const candidateControl = createControl();
+      const candidateInput = candidateControl?.querySelector?.('input') || null;
+      const candidateStatus = candidateControl?.querySelector?.('.in-chat-find-status') || null;
+      const buttons = Array.from(candidateControl?.querySelectorAll?.('button') || []);
+      const [candidatePrevious, candidateNext, candidateClose] = buttons;
+      const createdTrigger = !existingTrigger && Boolean(candidateTrigger);
+      const createdControl = !existingControl && Boolean(candidateControl);
+
+      if (!candidateTrigger || !candidateControl || !candidateInput || !candidateStatus || !candidatePrevious || !candidateNext || !candidateClose) {
+        if (createdControl) candidateControl?.remove?.();
+        if (createdTrigger) candidateTrigger?.remove?.();
+        return false;
+      }
+
+      messages = candidateMessages;
+      trigger = candidateTrigger;
+      control = candidateControl;
+      input = candidateInput;
+      status = candidateStatus;
+      previous = candidatePrevious;
+      next = candidateNext;
+      close = candidateClose;
+      ownsTrigger = createdTrigger;
+      ownsControl = createdControl;
+
+      trigger.addEventListener('click', onTriggerClick);
       input.addEventListener('input', apply);
-      previous.addEventListener('click', () => step(-1));
-      next.addEventListener('click', () => step(1));
+      previous.addEventListener('click', onPreviousClick);
+      next.addEventListener('click', onNextClick);
       close.addEventListener('click', dismiss);
       documentRef.addEventListener('keydown', onKeydown, true);
       if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(() => { if (!control.hidden) apply(); });
+        observer = new MutationObserverImpl(onMutation);
         observer.observe(messages, { childList: true, subtree: true, characterData: true });
       }
+      mounted = true;
       return true;
     }
 
     function destroy() {
+      if (!mounted) return false;
       observer?.disconnect?.();
-      observer = null;
       documentRef.removeEventListener?.('keydown', onKeydown, true);
+      trigger?.removeEventListener?.('click', onTriggerClick);
+      input?.removeEventListener?.('input', apply);
+      previous?.removeEventListener?.('click', onPreviousClick);
+      next?.removeEventListener?.('click', onNextClick);
+      close?.removeEventListener?.('click', dismiss);
       clearClasses();
-      control?.remove?.();
-      trigger?.remove?.();
-      control = null;
-      trigger = null;
-      matches = [];
-      index = -1;
+      if (ownsControl) control?.remove?.();
+      if (ownsTrigger) trigger?.remove?.();
+      clearReferences();
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, open, dismiss, apply, step });
+    return Object.freeze({ mount, destroy, open, dismiss, apply, step, isMounted: () => mounted });
   }
 
   function mount(options) {
