@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createPersonalMemoryFileAdapter } from '../lib/personal-memory-file-adapter.mjs';
+import {
+  createPersonalMemoryFileAdapter,
+  PERSONAL_MEMORY_FILE_MODES
+} from '../lib/personal-memory-file-adapter.mjs';
 
 const root = await mkdtemp(join(tmpdir(), 'hafize-memory-file-'));
 try {
@@ -22,7 +25,20 @@ try {
   assert.deepEqual(JSON.parse(await readFile(filePath, 'utf8')), envelope);
 
   if (process.platform !== 'win32') {
-    assert.equal((await stat(filePath)).mode & 0o777, 0o600);
+    assert.equal((await stat(join(root, 'nested'))).mode & 0o777, PERSONAL_MEMORY_FILE_MODES.directory);
+    assert.equal((await stat(filePath)).mode & 0o777, PERSONAL_MEMORY_FILE_MODES.file);
+
+    await chmod(join(root, 'nested'), 0o755);
+    await chmod(filePath, 0o644);
+    assert.deepEqual(await adapter.load(), envelope, 'load should preserve valid encrypted data while repairing legacy modes');
+    assert.equal((await stat(join(root, 'nested'))).mode & 0o777, PERSONAL_MEMORY_FILE_MODES.directory);
+    assert.equal((await stat(filePath)).mode & 0o777, PERSONAL_MEMORY_FILE_MODES.file);
+
+    await chmod(join(root, 'nested'), 0o755);
+    await adapter.save({ ...envelope, ciphertext: 'EEEE' });
+    assert.equal((await stat(join(root, 'nested'))).mode & 0o777, PERSONAL_MEMORY_FILE_MODES.directory);
+    assert.equal((await stat(filePath)).mode & 0o777, PERSONAL_MEMORY_FILE_MODES.file);
+    assert.equal((await adapter.load()).ciphertext, 'EEEE');
   }
 
   await adapter.save({ ...envelope, ciphertext: 'DDDD' });
@@ -51,6 +67,14 @@ try {
   await mkdir(dirTarget);
   const directoryAdapter = createPersonalMemoryFileAdapter({ filePath: dirTarget });
   await assert.rejects(() => directoryAdapter.load(), /MEMORY_FILE_LOAD_FAILED/);
+
+  const simulatedWindowsPath = join(root, 'windows', 'memory.json');
+  const simulatedWindowsAdapter = createPersonalMemoryFileAdapter({
+    filePath: simulatedWindowsPath,
+    platform: 'win32'
+  });
+  await simulatedWindowsAdapter.save(envelope);
+  assert.deepEqual(await simulatedWindowsAdapter.load(), envelope);
 
   console.log('personal memory file adapter tests passed');
 } finally {
