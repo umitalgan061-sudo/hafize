@@ -65,27 +65,37 @@
     if (!documentRef?.querySelector) throw new Error('INVALID_CODE_DOWNLOAD_DOCUMENT');
     if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_CODE_DOWNLOAD_TIMER');
     let observer = null;
-    const timers = new WeakMap();
+    let mounted = false;
+    let destroyed = false;
+    const timers = new Map();
+    const decorations = new Map();
 
-    function reset(button) {
+    function clearButtonTimer(button) {
       const timer = timers.get(button);
       if (timer !== undefined) clearTimeoutImpl(timer);
       timers.delete(button);
+    }
+
+    function reset(button) {
+      clearButtonTimer(button);
+      if (destroyed || !button) return;
       button.disabled = false;
       button.dataset.state = 'idle';
       button.textContent = 'Kodu indir';
     }
 
     function show(button, state, label) {
-      const timer = timers.get(button);
-      if (timer !== undefined) clearTimeoutImpl(timer);
+      if (destroyed || !button) return false;
+      clearButtonTimer(button);
       button.disabled = state === 'working';
       button.dataset.state = state;
       button.textContent = label;
       timers.set(button, setTimeoutImpl(() => reset(button), RESET_DELAY_MS));
+      return true;
     }
 
     function download(button, code) {
+      if (destroyed) return false;
       const text = codeText(code?.textContent);
       if (text === null || typeof BlobImpl !== 'function' || typeof URLImpl?.createObjectURL !== 'function' || typeof URLImpl?.revokeObjectURL !== 'function') {
         show(button, 'error', 'İndirilemedi');
@@ -104,10 +114,10 @@
         anchor.hidden = true;
         documentRef.body?.append(anchor);
         anchor.click?.();
-        show(button, 'success', 'İndirildi');
-        return true;
+        if (!destroyed) show(button, 'success', 'İndirildi');
+        return !destroyed;
       } catch {
-        show(button, 'error', 'İndirilemedi');
+        if (!destroyed) show(button, 'error', 'İndirilemedi');
         return false;
       } finally {
         anchor?.remove?.();
@@ -116,23 +126,28 @@
     }
 
     function decorate(pre) {
-      if (!pre?.querySelector || pre.dataset?.[MARKER] === '1') return false;
+      if (destroyed || !pre?.querySelector || pre.dataset?.[MARKER] === '1') return false;
       const code = pre.querySelector(':scope > code');
       const shell = pre.closest?.('.hafize-code-shell');
       if (!code || !shell) return false;
+      const hadMarker = Boolean(pre.dataset && Object.prototype.hasOwnProperty.call(pre.dataset, MARKER));
+      const markerValue = hadMarker ? pre.dataset[MARKER] : undefined;
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'hafize-code-download';
       button.dataset.state = 'idle';
       button.textContent = 'Kodu indir';
       button.setAttribute('aria-label', 'Kod bloğunu dosya olarak indir');
-      button.addEventListener('click', () => download(button, code));
+      const onClick = () => { if (!destroyed) download(button, code); };
+      button.addEventListener('click', onClick);
       shell.append(button);
       if (pre.dataset) pre.dataset[MARKER] = '1';
+      decorations.set(pre, Object.freeze({ shell, button, onClick, hadMarker, markerValue }));
       return true;
     }
 
     function decorateAll(root = documentRef) {
+      if (destroyed) return 0;
       const blocks = root.querySelectorAll?.('.message.assistant .content.hafize-markdown pre') || [];
       let count = 0;
       for (const pre of blocks) if (decorate(pre)) count += 1;
@@ -140,18 +155,39 @@
     }
 
     function mount() {
+      if (destroyed || mounted) return false;
       const messages = documentRef.querySelector('#messages');
       if (!messages) return false;
       installStyles(documentRef);
       decorateAll(messages);
       if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(() => decorateAll(messages));
+        observer = new MutationObserverImpl(() => { if (!destroyed) decorateAll(messages); });
         observer.observe(messages, { childList: true, subtree: true });
       }
+      mounted = true;
       return true;
     }
 
-    function destroy() { observer?.disconnect?.(); observer = null; }
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      mounted = false;
+      observer?.disconnect?.();
+      observer = null;
+      for (const [pre, record] of decorations) {
+        clearButtonTimer(record.button);
+        record.button?.removeEventListener?.('click', record.onClick);
+        record.button?.remove?.();
+        if (pre?.dataset) {
+          if (record.hadMarker) pre.dataset[MARKER] = record.markerValue;
+          else delete pre.dataset[MARKER];
+        }
+      }
+      decorations.clear();
+      for (const timer of timers.values()) clearTimeoutImpl(timer);
+      timers.clear();
+    }
+
     return Object.freeze({ mount, destroy, decorate, decorateAll, download });
   }
 
