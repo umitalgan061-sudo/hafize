@@ -25,6 +25,8 @@
   const CONVERSATION_SEARCH_SCRIPT_ID = 'hafizeConversationSearchScript';
   const CONVERSATION_SEARCH_SNIPPETS_SCRIPT = '/conversation-search-snippets.js';
   const CONVERSATION_SEARCH_SNIPPETS_SCRIPT_ID = 'hafizeConversationSearchSnippetsScript';
+  const CONVERSATION_SEARCH_NAVIGATION_SCRIPT = '/conversation-search-navigation.js';
+  const CONVERSATION_SEARCH_NAVIGATION_SCRIPT_ID = 'hafizeConversationSearchNavigationScript';
   const CONVERSATION_BRANCH_ASSETS = Object.freeze([
     Object.freeze({ id: 'hafizeMessageCopyScript', src: '/message-copy.js' }),
     Object.freeze({ id: 'hafizeConversationModelStateScript', src: '/conversation-model-state.js' }),
@@ -94,6 +96,10 @@
 
   function installConversationSearchSnippets(documentRef) {
     return appendFixedScript(documentRef, CONVERSATION_SEARCH_SNIPPETS_SCRIPT_ID, CONVERSATION_SEARCH_SNIPPETS_SCRIPT);
+  }
+
+  function installConversationSearchNavigation(documentRef) {
+    return appendFixedScript(documentRef, CONVERSATION_SEARCH_NAVIGATION_SCRIPT_ID, CONVERSATION_SEARCH_NAVIGATION_SCRIPT);
   }
 
   function installConversationBranchAssets(documentRef) {
@@ -200,6 +206,7 @@
     installConversationStorageGuard(documentRef);
     installConversationSearch(documentRef);
     installConversationSearchSnippets(documentRef);
+    installConversationSearchNavigation(documentRef);
     installConversationBranchAssets(documentRef);
     const html = documentRef.documentElement;
     const themeToggle = documentRef.querySelector('#themeToggle');
@@ -303,6 +310,7 @@
     CONVERSATION_STORAGE_GUARD_SCRIPT,
     CONVERSATION_SEARCH_SCRIPT,
     CONVERSATION_SEARCH_SNIPPETS_SCRIPT,
+    CONVERSATION_SEARCH_NAVIGATION_SCRIPT,
     CONVERSATION_BRANCH_ASSETS,
     resolveTheme,
     hasDesktopDeviceBridge,
@@ -312,6 +320,7 @@
     installConversationStorageGuard,
     installConversationSearch,
     installConversationSearchSnippets,
+    installConversationSearchNavigation,
     installConversationBranchAssets,
     createMonthCells,
     moveCalendarDate,
