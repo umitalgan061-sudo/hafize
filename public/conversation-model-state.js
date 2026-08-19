@@ -16,6 +16,7 @@
   const MAX_MODEL_ID_LENGTH = 240;
   const MAX_CONVERSATION_ID_LENGTH = 120;
   const MAX_ENTRIES = 30;
+  const MAX_SESSION_MUTATIONS = 30;
   const MAX_STORAGE_CHARS = 32 * 1024;
   const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
   const ORGANIZE_ID_DATASET_KEY = 'conversationOrganizeId';
@@ -60,6 +61,22 @@
     return Object.freeze(result);
   }
 
+  function allowedConversationIds(conversations) {
+    return new Set((Array.isArray(conversations) ? conversations : [])
+      .map((item) => normalizeConversationId(item?.id))
+      .filter(Boolean));
+  }
+
+  function parseModelEntries(raw, conversations = []) {
+    if (raw == null || raw === '') return Object.freeze([]);
+    if (typeof raw !== 'string' || raw.length > MAX_STORAGE_CHARS) return Object.freeze([]);
+    try {
+      return normalizeModelEntries(JSON.parse(raw), allowedConversationIds(conversations));
+    } catch {
+      return Object.freeze([]);
+    }
+  }
+
   function readModelRaw(storage) {
     if (!storage || typeof storage.getItem !== 'function') return null;
     try {
@@ -74,20 +91,12 @@
 
   function readModelEntries(storage, conversations = readConversations(storage)) {
     const raw = readModelRaw(storage);
-    if (raw === null) return [];
-    const allowedIds = new Set(conversations.map((item) => normalizeConversationId(item?.id)).filter(Boolean));
-    try {
-      const parsed = JSON.parse(raw || '[]');
-      return normalizeModelEntries(parsed, allowedIds);
-    } catch {
-      return [];
-    }
+    return raw === null ? Object.freeze([]) : parseModelEntries(raw, conversations);
   }
 
   function writeModelEntries(storage, entries, conversations = readConversations(storage)) {
     if (!storage || typeof storage.setItem !== 'function') return false;
-    const allowedIds = new Set(conversations.map((item) => normalizeConversationId(item?.id)).filter(Boolean));
-    const normalized = normalizeModelEntries(entries, allowedIds);
+    const normalized = normalizeModelEntries(entries, allowedConversationIds(conversations));
     const serialized = JSON.stringify(normalized);
     if (serialized.length > MAX_STORAGE_CHARS) return false;
     try {
@@ -110,6 +119,75 @@
     } catch {
       return false;
     }
+  }
+
+  function entryFor(entries, conversationId) {
+    const id = normalizeConversationId(conversationId);
+    if (!id) return null;
+    return normalizeModelEntries(entries).find((entry) => entry.conversationId === id) || null;
+  }
+
+  function sameModelEntry(left, right) {
+    const a = left == null ? null : entryFor([left], left?.conversationId);
+    const b = right == null ? null : entryFor([right], right?.conversationId);
+    if (a === null || b === null) return a === b;
+    return a.conversationId === b.conversationId && a.modelId === b.modelId;
+  }
+
+  function replaceModelEntry(entries, conversationId, value) {
+    const id = normalizeConversationId(conversationId);
+    if (!id) return normalizeModelEntries(entries);
+    const source = normalizeModelEntries(entries).filter((entry) => entry.conversationId !== id);
+    if (value == null) return source;
+    const replacement = entryFor([value], id);
+    return replacement ? normalizeModelEntries([replacement, ...source]) : source;
+  }
+
+  function normalizeModelMutation(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const conversationId = normalizeConversationId(value.conversationId);
+    if (!conversationId) return null;
+    const before = value.before == null ? null : entryFor([value.before], conversationId);
+    const after = value.after == null ? null : entryFor([value.after], conversationId);
+    if ((value.before != null && !before) || (value.after != null && !after)) return null;
+    if ((before && before.conversationId !== conversationId) || (after && after.conversationId !== conversationId)) return null;
+    if (!after || sameModelEntry(before, after)) return null;
+    return Object.freeze({ conversationId, before, after });
+  }
+
+  function changedModelEntryIds(beforeEntries, afterEntries) {
+    const before = new Map(normalizeModelEntries(beforeEntries).map((entry) => [entry.conversationId, entry]));
+    const after = new Map(normalizeModelEntries(afterEntries).map((entry) => [entry.conversationId, entry]));
+    const ids = new Set([...before.keys(), ...after.keys()]);
+    return [...ids].filter((id) => !sameModelEntry(before.get(id) || null, after.get(id) || null));
+  }
+
+  function reconcileModelMutation(entries, mutation, previousEntries = null) {
+    const source = normalizeModelEntries(entries);
+    const normalized = normalizeModelMutation(mutation);
+    if (!normalized) return Object.freeze({ entries: source, status: 'invalid' });
+    const current = entryFor(source, normalized.conversationId);
+    if (sameModelEntry(current, normalized.after)) {
+      return Object.freeze({ entries: source, status: 'settled' });
+    }
+    if (!sameModelEntry(current, normalized.before)) {
+      return Object.freeze({ entries: source, status: 'conflict' });
+    }
+    if (!Array.isArray(previousEntries)) {
+      return Object.freeze({ entries: source, status: 'conflict' });
+    }
+    const prior = entryFor(previousEntries, normalized.conversationId);
+    if (!sameModelEntry(prior, normalized.after)) {
+      return Object.freeze({ entries: source, status: 'conflict' });
+    }
+    const changed = changedModelEntryIds(previousEntries, source);
+    if (changed.length <= 1) {
+      return Object.freeze({ entries: source, status: 'conflict' });
+    }
+    return Object.freeze({
+      entries: replaceModelEntry(source, normalized.conversationId, normalized.after),
+      status: 'replay'
+    });
   }
 
   function modelIds(select) {
@@ -203,6 +281,7 @@
     let syncQueued = false;
     let runLocked = false;
     let disabledBeforeRun = false;
+    const sessionMutations = new Map();
 
     function nodes() {
       return Object.freeze({
@@ -217,6 +296,19 @@
       try { select.dispatchEvent(new EventImpl('change', { bubbles: true })); } catch { /* best effort */ }
     }
 
+    function rememberMutation(conversationId, before, after) {
+      const mutation = normalizeModelMutation({ conversationId, before, after });
+      if (!mutation) {
+        sessionMutations.delete(conversationId);
+        return false;
+      }
+      sessionMutations.set(mutation.conversationId, mutation);
+      while (sessionMutations.size > MAX_SESSION_MUTATIONS) {
+        sessionMutations.delete(sessionMutations.keys().next().value);
+      }
+      return true;
+    }
+
     function persistSelection() {
       const { select } = nodes();
       const model = normalizeModelId(select?.value);
@@ -227,9 +319,13 @@
       const conversationId = activeConversationId(documentRef, conversations);
       if (!conversationId) return false;
       const entries = readModelEntries(storage, conversations);
-      const current = entries.find((entry) => entry.conversationId === conversationId);
+      const current = entryFor(entries, conversationId);
       if (current?.modelId === model) return true;
-      return writeModelEntries(storage, upsertModelEntry(entries, conversationId, model), conversations);
+      const next = upsertModelEntry(entries, conversationId, model);
+      const after = entryFor(next, conversationId);
+      if (!writeModelEntries(storage, next, conversations)) return false;
+      rememberMutation(conversationId, current, after);
+      return true;
     }
 
     function restoreSelection() {
@@ -271,6 +367,30 @@
       return false;
     }
 
+    function reconcileStorageEvent(event, conversations) {
+      if (event?.key !== MODEL_STORAGE_KEY || !sessionMutations.size) return false;
+      const allowed = allowedConversationIds(conversations);
+      for (const id of [...sessionMutations.keys()]) if (!allowed.has(id)) sessionMutations.delete(id);
+      if (!sessionMutations.size) return false;
+
+      const previous = parseModelEntries(event.oldValue || '', conversations);
+      let next = parseModelEntries(event.newValue || '', conversations);
+      let replayed = false;
+      for (const [id, mutation] of [...sessionMutations.entries()]) {
+        const result = reconcileModelMutation(next, mutation, previous);
+        next = result.entries;
+        if (result.status === 'settled' || result.status === 'conflict' || result.status === 'invalid') {
+          sessionMutations.delete(id);
+        } else if (result.status === 'replay') {
+          replayed = true;
+        }
+      }
+      if (!replayed) return false;
+      const current = readModelEntries(storage, conversations);
+      if (JSON.stringify(current) === JSON.stringify(next)) return false;
+      return writeModelEntries(storage, next, conversations);
+    }
+
     function syncRunLock() {
       const { select, send } = nodes();
       if (!select || !send?.classList) return false;
@@ -306,6 +426,12 @@
 
     function onStorage(event) {
       if (event?.key !== MODEL_STORAGE_KEY && event?.key !== CONVERSATION_STORAGE_KEY) return;
+      const conversations = readConversations(storage);
+      if (event.key === MODEL_STORAGE_KEY) reconcileStorageEvent(event, conversations);
+      else {
+        const allowed = allowedConversationIds(conversations);
+        for (const id of [...sessionMutations.keys()]) if (!allowed.has(id)) sessionMutations.delete(id);
+      }
       queueSync();
     }
 
@@ -338,13 +464,31 @@
       rootRef?.removeEventListener?.('storage', onStorage);
       observer?.disconnect?.();
       observer = null;
+      sessionMutations.clear();
       if (runLocked && select) select.disabled = disabledBeforeRun;
       runLocked = false;
       mounted = false;
       return true;
     }
 
-    return Object.freeze({ mount, destroy, sync, persistSelection, restoreSelection, syncRunLock });
+    function mutationSnapshot() {
+      return Object.freeze([...sessionMutations.values()].map((mutation) => Object.freeze({
+        conversationId: mutation.conversationId,
+        before: mutation.before,
+        after: mutation.after
+      })));
+    }
+
+    return Object.freeze({
+      mount,
+      destroy,
+      sync,
+      persistSelection,
+      restoreSelection,
+      reconcileStorageEvent,
+      syncRunLock,
+      mutationSnapshot
+    });
   }
 
   function mount(options) {
@@ -362,16 +506,25 @@
     MAX_MODEL_ID_LENGTH,
     MAX_CONVERSATION_ID_LENGTH,
     MAX_ENTRIES,
+    MAX_SESSION_MUTATIONS,
     MAX_STORAGE_CHARS,
     ORGANIZE_ID_DATASET_KEY,
     normalizeModelId,
     normalizeConversationId,
     normalizeModelEntries,
+    allowedConversationIds,
+    parseModelEntries,
     readConversations,
     readModelRaw,
     readModelEntries,
     writeModelEntries,
     compactModelEntries,
+    entryFor,
+    sameModelEntry,
+    replaceModelEntry,
+    normalizeModelMutation,
+    changedModelEntryIds,
+    reconcileModelMutation,
     modelIds,
     conversationRows,
     activeConversationIndex,
