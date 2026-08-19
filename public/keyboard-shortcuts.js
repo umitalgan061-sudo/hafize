@@ -15,6 +15,8 @@
     focusComposer: 'mod+k',
     focusComposerSlash: '/',
     focusConversationSearch: 'mod+shift+f',
+    focusFirstConversationSearchResult: 'arrowdown',
+    openSoleConversationSearchResult: 'enter',
     stopResponse: 'escape'
   });
 
@@ -50,6 +52,37 @@
 
   function isEscape(event) {
     return event?.key === 'Escape' && !hasModifier(event) && !event?.shiftKey;
+  }
+
+  function isSearchInput(target) {
+    return target?.id === 'conversationSearchInput';
+  }
+
+  function isSearchResultFocusShortcut(event) {
+    return event?.key === 'ArrowDown'
+      && isSearchInput(event?.target)
+      && !hasModifier(event)
+      && !event?.shiftKey;
+  }
+
+  function isSoleSearchResultOpenShortcut(event) {
+    return event?.key === 'Enter'
+      && isSearchInput(event?.target)
+      && !hasModifier(event)
+      && !event?.shiftKey;
+  }
+
+  function visibleConversationOpeners(documentRef) {
+    const rows = Array.from(documentRef?.querySelectorAll?.('#conversationList .conversation-row') || []);
+    const openers = [];
+    for (const row of rows) {
+      if (!row || row.hidden === true) continue;
+      const opener = row.querySelector?.('.conversation-open');
+      if (!opener || opener.hidden === true || opener.disabled === true) continue;
+      if (typeof opener.focus !== 'function') continue;
+      openers.push(opener);
+    }
+    return openers;
   }
 
   function createController({ documentRef = globalThis.document } = {}) {
@@ -89,6 +122,24 @@
       return true;
     }
 
+    function focusFirstConversationSearchResult(event) {
+      const [first] = visibleConversationOpeners(documentRef);
+      if (!first) return false;
+      event?.preventDefault?.();
+      first.focus();
+      return true;
+    }
+
+    function openSoleConversationSearchResult(event) {
+      const { searchInput } = nodes();
+      if (!searchInput || searchInput !== event?.target || !String(searchInput.value || '').trim()) return false;
+      const openers = visibleConversationOpeners(documentRef);
+      if (openers.length !== 1 || typeof openers[0].click !== 'function') return false;
+      event?.preventDefault?.();
+      openers[0].click();
+      return true;
+    }
+
     function stopResponse(event) {
       const { sendButton } = nodes();
       if (!sendButton?.classList?.contains?.('streaming') || typeof sendButton.click !== 'function') return false;
@@ -102,6 +153,8 @@
       if (!event || event.defaultPrevented || event.repeat) return false;
       if (isEscape(event)) return stopResponse(event);
       if (isConversationSearchShortcut(event)) return focusConversationSearch(event);
+      if (isSearchResultFocusShortcut(event)) return focusFirstConversationSearchResult(event);
+      if (isSoleSearchResultOpenShortcut(event)) return openSoleConversationSearchResult(event);
       if (isModK(event)) return focusComposer(event);
       if (!isPlainSlash(event) || isEditableTarget(event.target)) return false;
       return focusComposer(event);
@@ -120,7 +173,16 @@
       mounted = false;
     }
 
-    return Object.freeze({ mount, destroy, handleKeydown, focusComposer, focusConversationSearch, stopResponse });
+    return Object.freeze({
+      mount,
+      destroy,
+      handleKeydown,
+      focusComposer,
+      focusConversationSearch,
+      focusFirstConversationSearchResult,
+      openSoleConversationSearchResult,
+      stopResponse
+    });
   }
 
   function mount(options) {
@@ -139,6 +201,10 @@
     isPlainSlash,
     isModK,
     isConversationSearchShortcut,
+    isSearchInput,
+    isSearchResultFocusShortcut,
+    isSoleSearchResultOpenShortcut,
+    visibleConversationOpeners,
     isEscape,
     createController,
     mount
