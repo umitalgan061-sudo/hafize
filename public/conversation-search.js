@@ -63,11 +63,17 @@
       let conversationChars = 0;
       const append = (value) => {
         if (typeof value !== 'string' || !value) return;
-        const remainingConversation = MAX_INDEXED_CONVERSATION_CHARS - conversationChars;
-        const remainingTotal = MAX_INDEXED_TOTAL_CHARS - totalChars;
+        const separatorChars = parts.length ? 1 : 0;
+        const remainingConversation = MAX_INDEXED_CONVERSATION_CHARS - conversationChars - separatorChars;
+        const remainingTotal = MAX_INDEXED_TOTAL_CHARS - totalChars - separatorChars;
         const limit = Math.min(remainingConversation, remainingTotal);
         if (limit <= 0) return;
         const piece = value.slice(0, limit);
+        if (!piece) return;
+        if (separatorChars) {
+          conversationChars += separatorChars;
+          totalChars += separatorChars;
+        }
         conversationChars += piece.length;
         totalChars += piece.length;
         parts.push(piece);
@@ -78,7 +84,8 @@
         append(typeof message.content === 'string' ? message.content : '');
         if (conversationChars >= MAX_INDEXED_CONVERSATION_CHARS || totalChars >= MAX_INDEXED_TOTAL_CHARS) break;
       }
-      index.set(id, normalizeSearchText(parts.join('\n'), MAX_INDEXED_CONVERSATION_CHARS));
+      const joined = parts.join('\n');
+      index.set(id, normalizeSearchText(joined, MAX_INDEXED_CONVERSATION_CHARS));
       if (totalChars >= MAX_INDEXED_TOTAL_CHARS) break;
     }
     return index;
