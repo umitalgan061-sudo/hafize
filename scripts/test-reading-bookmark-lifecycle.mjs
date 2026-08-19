@@ -63,24 +63,36 @@ function eventFor(target) {
 
 const alpha = conversation('alpha', 1, [
   message('alpha-user', 'user', 1),
-  message('alpha-assistant', 'assistant', 2)
+  message('shared', 'assistant', 2)
 ]);
 const beta = conversation('beta', 3, [
   message('beta-user', 'user', 3),
-  message('beta-assistant', 'assistant', 4)
+  message('beta-assistant', 'assistant', 4),
+  message('shared', 'user', 5)
 ]);
 const conversations = guard.normalizeConversations([beta, alpha]);
+const ALPHA_USER = reading.bookmarkKey('alpha', 'alpha-user');
+const ALPHA_SHARED = reading.bookmarkKey('alpha', 'shared');
+const BETA_USER = reading.bookmarkKey('beta', 'beta-user');
+const BETA_ASSISTANT = reading.bookmarkKey('beta', 'beta-assistant');
+const BETA_SHARED = reading.bookmarkKey('beta', 'shared');
 
 assert.equal(reading.CONVERSATION_STORAGE_KEY, guard.STORAGE_KEY);
 assert.equal(reading.MAX_BOOKMARKS, 200);
 assert.equal(reading.MAX_STORAGE_CHARS, 48 * 1024);
+const ids = reading.messageIdsFromConversations(conversations);
+assert.deepEqual([...ids].sort(), ['alpha-user', 'beta-assistant', 'beta-user', 'shared']);
+assert.equal(ids.bookmarkKeys.has(ALPHA_SHARED), true);
+assert.equal(ids.bookmarkKeys.has(BETA_SHARED), true);
+assert.equal(ids.legacyMatches.get('shared'), null, 'duplicate legacy message id must be ambiguous');
 assert.deepEqual(
-  [...reading.messageIdsFromConversations(conversations)].sort(),
-  ['alpha-assistant', 'alpha-user', 'beta-assistant', 'beta-user']
+  reading.pruneBookmarkIds([ALPHA_USER, 'stale', BETA_ASSISTANT, ALPHA_USER], ids),
+  [ALPHA_USER, BETA_ASSISTANT]
 );
 assert.deepEqual(
-  reading.pruneBookmarkIds(['alpha-user', 'stale', 'beta-assistant', 'alpha-user'], reading.messageIdsFromConversations(conversations)),
-  ['alpha-user', 'beta-assistant']
+  reading.pruneBookmarkIds(['alpha-user', 'shared', 'beta-assistant'], ids),
+  [ALPHA_USER, BETA_ASSISTANT],
+  'legacy ids migrate only when exactly one canonical conversation owns the message id'
 );
 
 {
@@ -88,7 +100,7 @@ assert.deepEqual(
     [guard.STORAGE_KEY]: JSON.stringify(conversations),
     [reading.STORAGE_KEY]: JSON.stringify({
       focusMode: true,
-      bookmarkIds: ['alpha-user', 'deleted-message', 'beta-assistant'],
+      bookmarkIds: ['alpha-user', 'deleted-message', 'beta-assistant', 'shared'],
       token: 'must-not-survive'
     })
   });
@@ -97,54 +109,64 @@ assert.deepEqual(
   assert.equal(result.persisted, true);
   assert.deepEqual(result.state, {
     focusMode: true,
-    bookmarkIds: ['alpha-user', 'beta-assistant']
+    bookmarkIds: [ALPHA_USER, BETA_ASSISTANT],
+    legacyBookmarkIds: []
   });
-  assert.deepEqual(JSON.parse(local.raw(reading.STORAGE_KEY)), result.state);
+  assert.deepEqual(JSON.parse(local.raw(reading.STORAGE_KEY)), {
+    focusMode: true,
+    bookmarkIds: [ALPHA_USER, BETA_ASSISTANT]
+  });
   assert.equal(local.raw(reading.STORAGE_KEY).includes('token'), false);
+  assert.equal(local.raw(reading.STORAGE_KEY).includes('shared'), false,
+    'ambiguous legacy bookmark must not attach to either conversation');
 
   const writesAfterFirst = local.writes();
   const second = reading.compactState(local, guard);
-  assert.equal(second.changed, false, 'canonical bookmark state must not generate storage write ping-pong');
+  assert.equal(second.changed, false, 'canonical scoped bookmark state must not generate storage write ping-pong');
   assert.equal(local.writes(), writesAfterFirst);
 }
 
 {
   const local = storage({
     [guard.STORAGE_KEY]: JSON.stringify(conversations),
-    [reading.STORAGE_KEY]: reading.serializeState({ focusMode: true, bookmarkIds: ['alpha-user', 'stale'] })
+    [reading.STORAGE_KEY]: JSON.stringify({ focusMode: true, bookmarkIds: ['alpha-user', 'stale'] })
   });
   const result = reading.compactState(local, null);
-  assert.equal(result.changed, false, 'missing canonical guard must fail closed instead of pruning user bookmarks');
-  assert.deepEqual(result.state.bookmarkIds, ['alpha-user', 'stale']);
+  assert.equal(result.changed, false, 'missing canonical guard must fail closed instead of deleting legacy user state');
+  assert.deepEqual(result.state, {
+    focusMode: true,
+    bookmarkIds: [],
+    legacyBookmarkIds: ['alpha-user', 'stale']
+  });
   assert.equal(local.writes(), 0);
 }
 
 {
   const oversized = 'x'.repeat(reading.MAX_STORAGE_CHARS + 1);
-  assert.deepEqual(reading.parseState(oversized), { focusMode: false, bookmarkIds: [] });
+  assert.deepEqual(reading.parseState(oversized), { focusMode: false, bookmarkIds: [], legacyBookmarkIds: [] });
 }
 
 {
   const local = storage({
     [guard.STORAGE_KEY]: '[]',
-    [reading.STORAGE_KEY]: reading.serializeState({ focusMode: true, bookmarkIds: ['alpha-user', 'beta-user'] })
+    [reading.STORAGE_KEY]: reading.serializeState({ focusMode: true, bookmarkIds: [ALPHA_USER, BETA_USER] })
   });
   const result = reading.compactState(local, guard);
   assert.equal(result.changed, true);
-  assert.deepEqual(result.state, { focusMode: true, bookmarkIds: [] },
-    'conversation clear removes only stale bookmarks while global focus preference survives');
+  assert.deepEqual(result.state, { focusMode: true, bookmarkIds: [], legacyBookmarkIds: [] },
+    'conversation clear removes scoped bookmarks while global focus preference survives');
 }
 
 {
   const local = storage({
     [reading.STORAGE_KEY]: JSON.stringify({
       focusMode: true,
-      bookmarkIds: ['alpha-user', 'deleted-message', 'beta-assistant'],
+      bookmarkIds: [ALPHA_USER, 'deleted|missing', BETA_ASSISTANT],
       credential: 'must-not-survive'
     })
   });
   const snapshot = deleteApi.snapshotCompanionState({ HafizeReadingFocus: reading }, local, conversations);
-  assert.deepEqual(snapshot.readingBookmarks, ['alpha-user', 'beta-assistant']);
+  assert.deepEqual(snapshot.readingBookmarks, [ALPHA_USER, BETA_ASSISTANT]);
   const serialized = JSON.stringify(snapshot);
   assert.equal(serialized.includes('credential'), false);
   assert.equal(serialized.includes('focusMode'), false,
@@ -155,10 +177,10 @@ assert.deepEqual(
   const local = storage({
     [reading.STORAGE_KEY]: reading.serializeState({
       focusMode: false,
-      bookmarkIds: ['beta-user']
+      bookmarkIds: [BETA_USER]
     })
   });
-  const snapshot = { readingBookmarks: ['alpha-user', 'stale', 'beta-user'] };
+  const snapshot = { readingBookmarks: [ALPHA_USER, 'stale|message', BETA_USER] };
   assert.equal(deleteApi.restoreCompanionState(
     snapshot,
     { HafizeReadingFocus: reading },
@@ -167,7 +189,7 @@ assert.deepEqual(
   ), 1);
   assert.deepEqual(JSON.parse(local.raw(reading.STORAGE_KEY)), {
     focusMode: false,
-    bookmarkIds: ['beta-user', 'alpha-user']
+    bookmarkIds: [BETA_USER, ALPHA_USER]
   });
 }
 
@@ -180,12 +202,12 @@ assert.deepEqual(
 }
 
 {
-  // End-to-end: clear triggers canonical bookmark compaction, then session undo restores bookmarks before reload.
+  // End-to-end: clear compacts scoped bookmarks, then session undo restores them before reload.
   const local = storage({
     [guard.STORAGE_KEY]: JSON.stringify(conversations),
     [reading.STORAGE_KEY]: reading.serializeState({
       focusMode: true,
-      bookmarkIds: ['alpha-user', 'beta-assistant']
+      bookmarkIds: [ALPHA_USER, BETA_ASSISTANT]
     })
   });
   const boundary = guard.installWriteBoundary(local);
@@ -217,7 +239,7 @@ assert.deepEqual(
     local.setItem(guard.STORAGE_KEY, '[]');
     const compacted = reading.compactState(local, guard);
     assert.equal(compacted.changed, true);
-    assert.deepEqual(compacted.state, { focusMode: true, bookmarkIds: [] });
+    assert.deepEqual(compacted.state, { focusMode: true, bookmarkIds: [], legacyBookmarkIds: [] });
   });
 
   controller.onCaptureClick(eventFor(clear));
@@ -229,7 +251,7 @@ assert.deepEqual(
   assert.equal(reloads, 1);
   assert.deepEqual(JSON.parse(local.raw(reading.STORAGE_KEY)), {
     focusMode: true,
-    bookmarkIds: ['alpha-user', 'beta-assistant']
+    bookmarkIds: [ALPHA_USER, BETA_ASSISTANT]
   });
   assert.deepEqual(
     guard.sanitizeStoredValue(local.raw(guard.STORAGE_KEY)).value.map((item) => item.id),
