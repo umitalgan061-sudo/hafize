@@ -54,15 +54,57 @@
 
     let container = null;
     let observer = null;
+    let ownedStyle = null;
     let mounted = false;
+    const decorated = new Map();
+
+    function snapshotArticle(article) {
+      if (decorated.has(article)) return decorated.get(article);
+      const dataset = article.dataset || {};
+      const snapshot = Object.freeze({
+        hadMarker: Object.prototype.hasOwnProperty.call(dataset, MARKER),
+        marker: dataset[MARKER],
+        hadTabIndex: Boolean(article.hasAttribute?.('tabindex')),
+        tabIndex: article.getAttribute?.('tabindex'),
+        hadAriaLabel: Boolean(article.hasAttribute?.('aria-label')),
+        ariaLabel: article.getAttribute?.('aria-label')
+      });
+      decorated.set(article, snapshot);
+      return snapshot;
+    }
+
+    function restoreArticle(article) {
+      const snapshot = decorated.get(article);
+      if (!snapshot) return false;
+      if (article.dataset) {
+        if (snapshot.hadMarker) article.dataset[MARKER] = snapshot.marker;
+        else delete article.dataset[MARKER];
+      }
+      if (snapshot.hadTabIndex) article.setAttribute?.('tabindex', snapshot.tabIndex);
+      else article.removeAttribute?.('tabindex');
+      if (snapshot.hadAriaLabel) article.setAttribute?.('aria-label', snapshot.ariaLabel);
+      else article.removeAttribute?.('aria-label');
+      decorated.delete(article);
+      return true;
+    }
+
+    function restoreAll() {
+      for (const article of Array.from(decorated.keys())) restoreArticle(article);
+    }
 
     function decorate() {
-      if (!container) return 0;
+      if (!mounted || !container) return 0;
       const messages = visibleMessages(container);
+      const visibleSet = new Set(messages);
+      for (const article of Array.from(decorated.keys())) {
+        if (!visibleSet.has(article)) restoreArticle(article);
+      }
+
       let activeFound = false;
       let count = 0;
       for (const article of messages) {
-        article.dataset[MARKER] = '1';
+        snapshotArticle(article);
+        if (article.dataset) article.dataset[MARKER] = '1';
         const alreadyActive = article.tabIndex === 0;
         if (alreadyActive && !activeFound) activeFound = true;
         else article.tabIndex = -1;
@@ -77,7 +119,7 @@
     }
 
     function focusMessage(article) {
-      if (!article) return false;
+      if (!mounted || !article) return false;
       const messages = visibleMessages(container);
       if (!messages.includes(article)) return false;
       for (const item of messages) item.tabIndex = item === article ? 0 : -1;
@@ -87,13 +129,14 @@
     }
 
     function onFocusIn(event) {
+      if (!mounted) return false;
       const article = event?.target?.closest?.('.message[data-message-id]');
       if (!article || event.target !== article) return false;
       return focusMessage(article);
     }
 
     function onKeyDown(event) {
-      if (!event || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+      if (!mounted || !event || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
       if (!SUPPORTED_KEYS.includes(event.key) || isInteractiveTarget(event.target)) return false;
       const article = event.target?.closest?.('.message[data-message-id]');
       if (!article || event.target !== article) return false;
@@ -105,40 +148,56 @@
       return focusMessage(messages[targetIndex]);
     }
 
+    function onMutations() {
+      if (!mounted) return;
+      decorate();
+    }
+
     function mount() {
       if (mounted) return true;
       container = documentRef.querySelector('#messages');
-      if (!container) return false;
-      installStyles(documentRef);
-      decorate();
-      container.addEventListener?.('keydown', onKeyDown);
-      container.addEventListener?.('focusin', onFocusIn);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(decorate);
-        observer.observe(container, { childList: true, subtree: true });
+      if (!container || typeof container.addEventListener !== 'function') {
+        container = null;
+        return false;
       }
+
+      const installedStyle = installStyles(documentRef);
+      ownedStyle = installedStyle ? documentRef.querySelector(`#${STYLE_ID}`) : null;
       mounted = true;
-      return true;
+      try {
+        decorate();
+        container.addEventListener('keydown', onKeyDown);
+        container.addEventListener('focusin', onFocusIn);
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(onMutations);
+          observer.observe(container, { childList: true, subtree: true });
+        }
+        return true;
+      } catch {
+        destroy();
+        return false;
+      }
     }
 
     function destroy() {
-      if (!mounted) return;
+      if (!mounted) return false;
+      mounted = false;
       observer?.disconnect?.();
       observer = null;
       container?.removeEventListener?.('keydown', onKeyDown);
       container?.removeEventListener?.('focusin', onFocusIn);
-      const messages = visibleMessages(container);
-      for (const article of messages) {
-        if (article.dataset?.[MARKER] === '1') {
-          delete article.dataset[MARKER];
-          article.removeAttribute?.('tabindex');
-        }
-      }
+      restoreAll();
+      ownedStyle?.remove?.();
+      ownedStyle = null;
       container = null;
-      mounted = false;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, decorate, focusMessage, onFocusIn, onKeyDown });
+    function snapshot() {
+      return Object.freeze({ mounted, decoratedCount: decorated.size, observing: Boolean(observer), ownsStyle: Boolean(ownedStyle) });
+    }
+
+    return Object.freeze({ mount, destroy, decorate, focusMessage, onFocusIn, onKeyDown, snapshot });
   }
 
   function mount(options) {
