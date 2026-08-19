@@ -1,5 +1,7 @@
 import { createDeviceBridgeHandler, DEVICE_BRIDGE_CHANNEL } from './device-bridge-contract.mjs';
 
+const activeRegistrations = new WeakMap();
+
 function fail(code) { throw new Error(code); }
 
 export function registerElectronDeviceBridge({
@@ -18,6 +20,7 @@ export function registerElectronDeviceBridge({
   if (typeof osModule?.platform !== 'function' || typeof osModule?.arch !== 'function' || typeof osModule?.cpus !== 'function' || typeof osModule?.totalmem !== 'function') {
     fail('INVALID_DEVICE_MAIN:os');
   }
+  if (activeRegistrations.has(ipcMain)) fail('DEVICE_BRIDGE_ALREADY_REGISTERED');
 
   const handler = createDeviceBridgeHandler({
     appOpeners,
@@ -31,14 +34,24 @@ export function registerElectronDeviceBridge({
       totalMemoryMb: Math.round(osModule.totalmem() / (1024 * 1024))
     })
   });
+  const registration = Object.freeze({ token: Symbol('device-bridge-registration') });
+  let disposed = false;
 
   ipcMain.handle(DEVICE_BRIDGE_CHANNEL, async (event, request) => {
     if (isTrustedSender(event) !== true) return { ok: false, error: 'DEVICE_RENDERER_NOT_TRUSTED' };
     return handler.handle(request);
   });
+  activeRegistrations.set(ipcMain, registration);
+
   return Object.freeze({
     allowedApps: handler.allowedApps,
     allowedBrowserOrigins: handler.allowedBrowserOrigins,
-    dispose() { ipcMain.removeHandler(DEVICE_BRIDGE_CHANNEL); }
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      if (activeRegistrations.get(ipcMain) !== registration) return;
+      activeRegistrations.delete(ipcMain);
+      ipcMain.removeHandler(DEVICE_BRIDGE_CHANNEL);
+    }
   });
 }

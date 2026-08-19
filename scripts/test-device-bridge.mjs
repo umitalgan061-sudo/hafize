@@ -97,4 +97,41 @@ assert.deepEqual(externalCalls, ['https://example.com/']);
 assert.throws(() => registerElectronDeviceBridge({ ipcMain: { handle() {}, removeHandler() {} }, shell: { openExternal() {} }, app: { getVersion() {} }, osModule: { platform() {}, arch() {}, cpus() {}, totalmem() {} } }), /isTrustedSender/);
 registered.dispose();
 assert.equal(removed, true);
+
+const ownershipCalls = [];
+const ownershipIpc = {
+  handle(channel) { ownershipCalls.push(['handle', channel]); },
+  removeHandler(channel) { ownershipCalls.push(['remove', channel]); }
+};
+const bridgeOptions = {
+  ipcMain: ownershipIpc,
+  shell: { async openExternal() {} },
+  app: { getVersion() { return '1.0.0'; } },
+  osModule: {
+    platform() { return 'linux'; },
+    arch() { return 'x64'; },
+    cpus() { return [{}]; },
+    totalmem() { return 1024 * 1024 * 1024; }
+  },
+  isTrustedSender: () => true
+};
+const firstRegistration = registerElectronDeviceBridge(bridgeOptions);
+assert.throws(() => registerElectronDeviceBridge(bridgeOptions), /DEVICE_BRIDGE_ALREADY_REGISTERED/);
+assert.deepEqual(ownershipCalls, [['handle', DEVICE_BRIDGE_CHANNEL]]);
+firstRegistration.dispose();
+firstRegistration.dispose();
+assert.deepEqual(ownershipCalls, [
+  ['handle', DEVICE_BRIDGE_CHANNEL],
+  ['remove', DEVICE_BRIDGE_CHANNEL]
+]);
+const secondRegistration = registerElectronDeviceBridge(bridgeOptions);
+firstRegistration.dispose();
+assert.deepEqual(ownershipCalls, [
+  ['handle', DEVICE_BRIDGE_CHANNEL],
+  ['remove', DEVICE_BRIDGE_CHANNEL],
+  ['handle', DEVICE_BRIDGE_CHANNEL]
+]);
+secondRegistration.dispose();
+assert.deepEqual(ownershipCalls.at(-1), ['remove', DEVICE_BRIDGE_CHANNEL]);
+
 console.log('device bridge contract tests passed');
