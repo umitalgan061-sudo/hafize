@@ -1,48 +1,34 @@
 # Conversation branch ancestry contract
 
-Hafize conversation branching artık yalnız doğrudan parent ilişkisini göstermekle kalmaz; bounded ve acyclic bir ancestry zinciri kurarak çok seviyeli dallarda kullanıcıya güvenli kaynak/kök gezinmesi sağlar.
+Hafize branch lineage çok seviyeli sohbet dallarında güvenli kaynak ve kök gezinmesi sağlar.
 
 ## Veri modeli
 
-Mevcut `hafize.conversation-branches.v1` şeması değişmez. Her kayıt yalnız:
+Mevcut `hafize.conversation-branches.v1` şeması değişmez. Her kayıt yalnız `childConversationId`, `parentConversationId`, `sourceMessageId`, `mode` ve `createdAt` alanlarını taşır. Mesaj metni veya sohbet içeriği lineage metadata'ya eklenmez.
 
-- `childConversationId`
-- `parentConversationId`
-- `sourceMessageId`
-- `mode: fork|edit`
-- `createdAt`
+## Graph sınırları
 
-alanlarını taşır. Mesaj metni, başlık, model/tool sonucu, owner/trace, token veya credential lineage metadata'ya eklenmez.
-
-## Acyclic ve bounded graph
-
-- Maksimum lineage kaydı 60'tır.
-- Tek ancestry yolu maksimum 12 seviyedir.
+- En fazla 60 lineage kaydı değerlendirilir.
 - `child === parent` reddedilir.
-- Yeni kayıt mevcut accepted parent zincirinden tekrar child'a dönüyorsa cycle kabul edilmez.
-- Yeni kayıt 12 seviyelik sınırı aşan ancestry oluşturuyorsa fail-closed dışlanır.
-- Aynı child için ilk canonical kayıt korunur; duplicate child yeni bir parent ilişkisiyle graph'ı değiştiremez.
+- Accepted parent zincirinden tekrar child'a dönen yeni ilişki cycle olarak reddedilir.
+- Aynı child için ilk canonical kayıt korunur.
+- UI ancestry çözümü tek seferde en fazla 12 parent seviyesini izler.
+- Elle değiştirilmiş daha derin bir zincirde traversal 12 seviyede durur; Hafize görünmeyen daha uzak ancestor için kesin root iddiası üretmez.
 
-Bu sınır bozuk veya elle değiştirilmiş localStorage'ın sonsuz source-navigation döngüsü ya da sınırsız ancestry traversal üretmesini engeller.
+Bu sınırlar bozuk metadata'nın sonsuz gezinme döngüsü oluşturmasını engeller.
 
 ## UI davranışı
 
-Doğrudan child branch için mevcut `Kaynak sohbeti aç` düğmesi korunur. Branch birden fazla parent zincirine sahipse banner ayrıca dal seviyesini gösterir ve `Kök sohbeti aç` düğmesini görünür yapar.
+`Kaynak sohbeti aç` direct parent conversation'a gider. Güvenilir ancestry birden fazla seviye içeriyorsa banner dal derinliğini gösterir ve `Kök sohbeti aç` eylemini sunar. Tek seviyeli branch'te root düğmesi gizlidir.
 
-- `Kaynak sohbeti aç`: yalnız direct parent conversation'a gider.
-- `Kök sohbeti aç`: bounded ancestry zincirinin en üst canonical conversation'ına gider.
-- Tek seviyeli branch'te kök düğmesi gösterilmez; source zaten root'tur.
-- Conversation row identity çözümü `CONVERSATION_ROW_IDENTITY_CONTRACT.md` sözleşmesini kullanır; pinned/reordered satırlarda yanlış hedef seçilmez.
-- Hedef conversation satırı bulunamazsa click üretilmez ve işlem fail-closed kalır.
+Conversation row identity çözümü `CONVERSATION_ROW_IDENTITY_CONTRACT.md` sözleşmesini kullanır; pinned veya yeniden sıralanmış satırlarda hedef index üzerinden tahmin edilmez. Hedef satır bulunamazsa click üretilmez.
 
 ## Güvenlik
 
-Bu özellik yalnız local, canonical conversation ve branch metadata'sını okur. Yeni backend endpoint, fetch/XHR/WebSocket, connector, provider isteği, persistent secret alanı veya agent tool permission eklemez. Dört profilli roster ve backend default-deny politikası aynen korunur.
-
-Visible içerik yalnız sabit ürün metnidir ve `textContent` üzerinden yazılır; branch metadata HTML olarak render edilmez.
+Bu özellik yalnız local canonical conversation ve branch metadata'sını kullanır. Yeni backend endpoint, provider isteği, connector veya agent tool yetkisi eklemez. Dört profilli roster ve backend default-deny politikası değişmez. Visible metinler HTML olarak parse edilmez.
 
 ## Testler
 
-- `scripts/test-conversation-branch-ancestry.mjs`: multi-level chain, root çözümü, cycle rejection, duplicate child ve depth bound.
-- `scripts/test-conversation-branch-ancestry-controller.mjs`: gerçek controller üzerinde source/root gezinmesi, banner derinliği, tek-level root-button gizleme ve cyclic `record()` reddi.
-- `scripts/test-conversation-branch-ancestry-security.mjs`: network/secret/HTML/shell yüzeylerinin açılmaması ile dört ajanlı default-deny sözleşmesi.
+- `scripts/test-conversation-branch-ancestry.mjs`: multi-level chain, root çözümü, cycle rejection, duplicate child ve bounded traversal.
+- `scripts/test-conversation-branch-ancestry-controller.mjs`: source/root navigation, banner derinliği, tek-level root-button ve cyclic record reddi.
+- `scripts/test-conversation-branch-ancestry-security.mjs`: network/HTML/shell yüzeyi ve dört ajanlı default-deny sözleşmesi.
