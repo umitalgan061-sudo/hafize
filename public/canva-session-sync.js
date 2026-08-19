@@ -28,8 +28,12 @@
       if (destroyed) return false;
       const button = documentRef.querySelector('#canvaConnectionCard .canva-connection-refresh');
       if (!button || button.disabled || typeof button.click !== 'function') return false;
-      button.click();
-      return true;
+      try {
+        button.click();
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     function sync() {
