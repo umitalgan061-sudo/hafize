@@ -55,13 +55,42 @@
     let container = null;
     let observer = null;
     let mounted = false;
+    const originalStates = new Map();
+
+    function rememberOriginal(article) {
+      if (!article || originalStates.has(article)) return;
+      originalStates.set(article, Object.freeze({
+        tabIndex: article.getAttribute?.('tabindex') ?? null,
+        ariaLabel: article.getAttribute?.('aria-label') ?? null,
+        marker: article.dataset?.[MARKER] ?? null
+      }));
+    }
+
+    function pruneOriginals() {
+      const present = new Set(container?.querySelectorAll?.('.message[data-message-id]') || []);
+      for (const article of originalStates.keys()) {
+        if (!present.has(article)) originalStates.delete(article);
+      }
+    }
+
+    function restoreArticle(article, state) {
+      if (!article || !state) return;
+      if (state.marker === null) delete article.dataset?.[MARKER];
+      else if (article.dataset) article.dataset[MARKER] = state.marker;
+      if (state.tabIndex === null) article.removeAttribute?.('tabindex');
+      else article.setAttribute?.('tabindex', state.tabIndex);
+      if (state.ariaLabel === null) article.removeAttribute?.('aria-label');
+      else article.setAttribute?.('aria-label', state.ariaLabel);
+    }
 
     function decorate() {
       if (!container) return 0;
+      pruneOriginals();
       const messages = visibleMessages(container);
       let activeFound = false;
       let count = 0;
       for (const article of messages) {
+        rememberOriginal(article);
         article.dataset[MARKER] = '1';
         const alreadyActive = article.tabIndex === 0;
         if (alreadyActive && !activeFound) activeFound = true;
@@ -122,23 +151,19 @@
     }
 
     function destroy() {
-      if (!mounted) return;
+      if (!mounted) return false;
       observer?.disconnect?.();
       observer = null;
       container?.removeEventListener?.('keydown', onKeyDown);
       container?.removeEventListener?.('focusin', onFocusIn);
-      const messages = visibleMessages(container);
-      for (const article of messages) {
-        if (article.dataset?.[MARKER] === '1') {
-          delete article.dataset[MARKER];
-          article.removeAttribute?.('tabindex');
-        }
-      }
+      for (const [article, state] of originalStates) restoreArticle(article, state);
+      originalStates.clear();
       container = null;
       mounted = false;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, decorate, focusMessage, onFocusIn, onKeyDown });
+    return Object.freeze({ mount, destroy, decorate, focusMessage, onFocusIn, onKeyDown, isMounted: () => mounted });
   }
 
   function mount(options) {
