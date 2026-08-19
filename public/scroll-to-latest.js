@@ -66,10 +66,12 @@
     }
 
     let button = null;
+    let buttonOwned = false;
     let messages = null;
     let observer = null;
     let frame = null;
     let mounted = false;
+    let generation = 0;
     let pinned = true;
     let unseen = false;
 
@@ -95,7 +97,7 @@
     }
 
     function setButtonState() {
-      if (!button) return;
+      if (!mounted || !button) return false;
       const near = isNearBottom(metrics());
       if (near) {
         pinned = true;
@@ -103,22 +105,28 @@
         button.hidden = true;
         button.dataset.state = 'idle';
         button.textContent = '↓ En alta git';
-        return;
+        return true;
       }
       button.hidden = false;
       button.dataset.state = unseen ? 'new' : 'idle';
       button.textContent = unseen ? '↓ Yeni yanıt' : '↓ En alta git';
+      return true;
     }
 
     function scheduleMeasure() {
-      if (frame !== null) return;
-      frame = requestAnimationFrameImpl(() => {
-        frame = null;
+      if (!mounted || frame !== null) return false;
+      const scheduledGeneration = generation;
+      const frameId = requestAnimationFrameImpl(() => {
+        if (frame === frameId) frame = null;
+        if (!mounted || scheduledGeneration !== generation) return;
         setButtonState();
       });
+      frame = frameId;
+      return true;
     }
 
     function scrollToBottom({ smooth = false } = {}) {
+      if (!mounted) return false;
       windowRef.scrollTo({
         top: scrollHeight(),
         behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'
@@ -126,27 +134,33 @@
       pinned = true;
       unseen = false;
       scheduleMeasure();
+      return true;
     }
 
     function handleScroll() {
+      if (!mounted) return false;
       const near = isNearBottom(metrics());
       pinned = near;
       if (near) unseen = false;
       scheduleMeasure();
+      return true;
     }
 
     function handleMutation() {
-      if (pinned) {
-        scrollToBottom({ smooth: false });
-        return;
-      }
+      if (!mounted) return false;
+      if (pinned) return scrollToBottom({ smooth: false });
       unseen = true;
       scheduleMeasure();
+      return true;
     }
 
-    function createButton() {
+    function handleButtonClick() {
+      return scrollToBottom({ smooth: true });
+    }
+
+    function acquireButton() {
       const existing = documentRef.querySelector(`#${BUTTON_ID}`);
-      if (existing) return existing;
+      if (existing) return Object.freeze({ button: existing, owned: false });
       const node = documentRef.createElement('button');
       node.id = BUTTON_ID;
       node.type = 'button';
@@ -156,7 +170,7 @@
       node.textContent = '↓ En alta git';
       node.setAttribute('aria-label', 'Sohbetin en son mesajına git');
       documentRef.body?.append(node);
-      return node;
+      return Object.freeze({ button: node, owned: true });
     }
 
     function mount() {
@@ -164,9 +178,13 @@
       messages = documentRef.querySelector('#messages');
       if (!messages || !documentRef.body) return false;
       installStyles(documentRef);
-      button = createButton();
+      const acquired = acquireButton();
+      button = acquired.button;
+      buttonOwned = acquired.owned;
       if (!button) return false;
-      button.addEventListener('click', () => scrollToBottom({ smooth: true }));
+      generation += 1;
+      mounted = true;
+      button.addEventListener('click', handleButtonClick);
       windowRef.addEventListener('scroll', handleScroll, { passive: true });
       if (typeof MutationObserverImpl === 'function') {
         observer = new MutationObserverImpl(handleMutation);
@@ -174,28 +192,49 @@
       }
       pinned = isNearBottom(metrics());
       unseen = false;
-      mounted = true;
       scheduleMeasure();
       return true;
     }
 
     function destroy() {
-      if (!mounted) return;
+      if (!mounted) return false;
+      mounted = false;
+      generation += 1;
       observer?.disconnect?.();
       observer = null;
       windowRef.removeEventListener?.('scroll', handleScroll);
+      button?.removeEventListener?.('click', handleButtonClick);
       if (frame !== null) cancelAnimationFrameImpl(frame);
       frame = null;
-      button?.remove?.();
+      if (buttonOwned) button?.remove?.();
       button = null;
-      mounted = false;
+      buttonOwned = false;
+      messages = null;
+      return true;
     }
 
     function snapshot() {
-      return Object.freeze({ mounted, pinned, unseen, nearBottom: isNearBottom(metrics()) });
+      return Object.freeze({
+        mounted,
+        generation,
+        buttonOwned,
+        framePending: frame !== null,
+        pinned,
+        unseen,
+        nearBottom: isNearBottom(metrics())
+      });
     }
 
-    return Object.freeze({ mount, destroy, snapshot, handleScroll, handleMutation, scrollToBottom });
+    return Object.freeze({
+      mount,
+      destroy,
+      snapshot,
+      scheduleMeasure,
+      handleScroll,
+      handleMutation,
+      handleButtonClick,
+      scrollToBottom
+    });
   }
 
   function mount(options) {
