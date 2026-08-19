@@ -13,6 +13,7 @@
 .voice-output-pause:focus-visible { outline: 2px solid var(--premium-orange); outline-offset: 2px; }
 .voice-output-pause[aria-pressed="true"] { color: var(--premium-orange-strong); }
 .voice-output-status { display: block; min-height: 16px; margin-top: 5px; color: var(--premium-muted); font-size: 10px; text-align: center; }
+.voice-card.error .voice-output-status { color: var(--premium-orange-strong); }
 .voice-rate-wrap { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; margin-top: 6px; color: var(--premium-muted); font-size: 10px; }
 .voice-rate-wrap[hidden] { display: none; }
 .voice-rate-wrap select { min-width: 118px; border: 1px solid color-mix(in srgb, var(--premium-orange) 20%, transparent); border-radius: 9px; background: transparent; color: inherit; padding: 5px 7px; font: inherit; }
@@ -32,4 +33,10 @@
 .voice-card.speaking .voice-orb::after { animation-duration: .9s; opacity: .52; }
 .voice-card.paused .voice-orb { animation-play-state: paused; opacity: .62; }
 .voice-card.paused .voice-orb::after { animation-play-state: paused; opacity: .2; }
-@media (prefers-reduced-motion: reduce) { .voice-card.thinking .voice-orb, .voice-card.speaking .voice-orb, .voice-card.paused .voice-orb { animation: none !important; } }
+.voice-card.error .voice-orb {
+  animation-play-state: paused;
+  opacity: .72;
+  box-shadow: inset -12px -14px 28px rgba(0,0,0,.18), 0 0 42px color-mix(in srgb, var(--premium-orange) 38%, transparent);
+}
+.voice-card.error .voice-orb::after { animation-play-state: paused; opacity: .26; }
+@media (prefers-reduced-motion: reduce) { .voice-card.thinking .voice-orb, .voice-card.speaking .voice-orb, .voice-card.paused .voice-orb, .voice-card.error .voice-orb { animation: none !important; } }
