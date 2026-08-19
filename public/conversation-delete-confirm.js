@@ -15,6 +15,7 @@
   const MAX_TITLE_CHARS = 120;
   const CONFIRM_WINDOW_MS = 8_000;
   const UNDO_WINDOW_MS = 12_000;
+  const COMPANION_MAX_RAW_CHARS = 96 * 1024;
   const PENDING_TEXT = 'Sil?';
   const CLEAR_PENDING_TEXT = 'Temizle?';
   const UNDO_TEXT = 'Geri al';
@@ -34,6 +35,120 @@
 
   function isClearHistoryButton(target) {
     return target?.id === 'clearHistoryBtn';
+  }
+
+  function boundedRaw(storage, key, maxChars = COMPANION_MAX_RAW_CHARS) {
+    if (!storage || typeof storage.getItem !== 'function' || typeof key !== 'string' || !key) return null;
+    try {
+      const raw = storage.getItem(key);
+      if (raw == null || raw === '') return '';
+      if (typeof raw !== 'string' || raw.length > maxChars) return null;
+      return raw;
+    } catch {
+      return null;
+    }
+  }
+
+  function snapshotCompanionState(rootRef, storage, conversations) {
+    const list = Array.isArray(conversations) ? conversations : [];
+    const snapshot = {};
+    const sourceIds = list.map((item) => item?.id).filter((id) => typeof id === 'string');
+
+    const organize = rootRef?.HafizeConversationOrganize;
+    if (organize && typeof organize.STORAGE_KEY === 'string' && typeof organize.parseEntries === 'function' &&
+        typeof organize.pruneEntries === 'function' && typeof organize.normalizeEntries === 'function') {
+      const raw = boundedRaw(storage, organize.STORAGE_KEY);
+      if (raw !== null) {
+        const entries = organize.pruneEntries(organize.parseEntries(raw), sourceIds);
+        snapshot.organize = organize.normalizeEntries(entries).map((entry) => ({ ...entry }));
+      }
+    }
+
+    const modelState = rootRef?.HafizeConversationModelState;
+    if (modelState && typeof modelState.MODEL_STORAGE_KEY === 'string' && typeof modelState.readModelEntries === 'function' &&
+        typeof modelState.normalizeModelEntries === 'function') {
+      const raw = boundedRaw(storage, modelState.MODEL_STORAGE_KEY);
+      if (raw !== null) {
+        snapshot.models = modelState.readModelEntries(storage, list).map((entry) => ({ ...entry }));
+      }
+    }
+
+    const lineage = rootRef?.HafizeConversationBranchLineage;
+    if (lineage && typeof lineage.STORAGE_KEY === 'string' && typeof lineage.parseEntries === 'function' &&
+        typeof lineage.buildConversationIndex === 'function' && typeof lineage.normalizeEntries === 'function') {
+      const maxChars = Number.isSafeInteger(lineage.MAX_STORAGE_CHARS)
+        ? Math.min(lineage.MAX_STORAGE_CHARS, COMPANION_MAX_RAW_CHARS)
+        : COMPANION_MAX_RAW_CHARS;
+      const raw = boundedRaw(storage, lineage.STORAGE_KEY, maxChars);
+      if (raw !== null) {
+        const index = lineage.buildConversationIndex(list);
+        snapshot.lineage = lineage.parseEntries(raw, index).map((entry) => ({ ...entry }));
+      }
+    }
+
+    try {
+      return JSON.stringify(snapshot).length <= COMPANION_MAX_RAW_CHARS ? Object.freeze(snapshot) : Object.freeze({});
+    } catch {
+      return Object.freeze({});
+    }
+  }
+
+  function restoreCompanionState(snapshot, rootRef, storage, conversations) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return 0;
+    const list = Array.isArray(conversations) ? conversations : [];
+    const sourceIds = list.map((item) => item?.id).filter((id) => typeof id === 'string');
+    let restored = 0;
+
+    const organize = rootRef?.HafizeConversationOrganize;
+    if (Array.isArray(snapshot.organize) && organize && typeof organize.STORAGE_KEY === 'string' &&
+        typeof organize.parseEntries === 'function' && typeof organize.normalizeEntries === 'function' &&
+        typeof organize.pruneEntries === 'function' && typeof organize.serializeEntries === 'function') {
+      try {
+        const currentRaw = boundedRaw(storage, organize.STORAGE_KEY);
+        const current = currentRaw === null ? [] : organize.parseEntries(currentRaw);
+        const merged = organize.pruneEntries(
+          organize.normalizeEntries([...current, ...snapshot.organize]),
+          sourceIds
+        );
+        storage.setItem(organize.STORAGE_KEY, organize.serializeEntries(merged));
+        restored += 1;
+      } catch { /* best effort companion restore */ }
+    }
+
+    const modelState = rootRef?.HafizeConversationModelState;
+    if (Array.isArray(snapshot.models) && modelState && typeof modelState.MODEL_STORAGE_KEY === 'string' &&
+        typeof modelState.readModelEntries === 'function' && typeof modelState.normalizeModelEntries === 'function' &&
+        typeof modelState.writeModelEntries === 'function') {
+      try {
+        const currentRaw = boundedRaw(storage, modelState.MODEL_STORAGE_KEY);
+        const current = currentRaw === null ? [] : modelState.readModelEntries(storage, list);
+        const allowedIds = new Set(sourceIds.map((id) => modelState.normalizeConversationId?.(id)).filter(Boolean));
+        const merged = modelState.normalizeModelEntries([...current, ...snapshot.models], allowedIds);
+        if (modelState.writeModelEntries(storage, merged, list)) restored += 1;
+      } catch { /* best effort companion restore */ }
+    }
+
+    const lineage = rootRef?.HafizeConversationBranchLineage;
+    if (Array.isArray(snapshot.lineage) && lineage && typeof lineage.STORAGE_KEY === 'string' &&
+        typeof lineage.parseEntries === 'function' && typeof lineage.buildConversationIndex === 'function' &&
+        typeof lineage.mergeEntries === 'function') {
+      try {
+        const index = lineage.buildConversationIndex(list);
+        const maxChars = Number.isSafeInteger(lineage.MAX_STORAGE_CHARS)
+          ? Math.min(lineage.MAX_STORAGE_CHARS, COMPANION_MAX_RAW_CHARS)
+          : COMPANION_MAX_RAW_CHARS;
+        const currentRaw = boundedRaw(storage, lineage.STORAGE_KEY, maxChars);
+        const current = currentRaw === null ? [] : lineage.parseEntries(currentRaw, index);
+        const merged = lineage.mergeEntries(current, snapshot.lineage, index);
+        const serialized = JSON.stringify(merged);
+        if (serialized.length <= maxChars) {
+          storage.setItem(lineage.STORAGE_KEY, serialized);
+          restored += 1;
+        }
+      } catch { /* best effort companion restore */ }
+    }
+
+    return restored;
   }
 
   function createController({
@@ -108,7 +223,12 @@
       if (!context) return null;
       try {
         const sanitized = context.guard.sanitizeStoredValue(context.storage.getItem(context.key) || '[]');
-        return sanitized.serialized === '[]' ? null : Object.freeze({ context, serialized: sanitized.serialized });
+        if (sanitized.serialized === '[]') return null;
+        return Object.freeze({
+          context,
+          serialized: sanitized.serialized,
+          companions: snapshotCompanionState(rootRef, context.storage, sanitized.value)
+        });
       } catch {
         return null;
       }
@@ -147,6 +267,7 @@
         snapshot.context.storage.setItem(snapshot.context.key, snapshot.serialized);
         const restored = snapshot.context.guard.sanitizeStoredValue(snapshot.context.storage.getItem(snapshot.context.key) || '[]');
         if (restored.serialized === '[]') return false;
+        restoreCompanionState(snapshot.companions, rootRef, snapshot.context.storage, restored.value);
         clearUndo();
         rootRef.location.reload();
         return true;
@@ -352,6 +473,7 @@
     MAX_TITLE_CHARS,
     CONFIRM_WINDOW_MS,
     UNDO_WINDOW_MS,
+    COMPANION_MAX_RAW_CHARS,
     PENDING_TEXT,
     CLEAR_PENDING_TEXT,
     UNDO_TEXT,
@@ -359,6 +481,9 @@
     safeTitle,
     shouldDeferToDraftGuard,
     isClearHistoryButton,
+    boundedRaw,
+    snapshotCompanionState,
+    restoreCompanionState,
     createController,
     mount
   });
