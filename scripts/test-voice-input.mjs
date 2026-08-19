@@ -48,7 +48,9 @@ class FakeElement {
   }
 
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
-  getAttribute(name) { return this.attributes.get(name); }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
+  hasAttribute(name) { return this.attributes.has(name); }
+  removeAttribute(name) { this.attributes.delete(name); }
   addEventListener(type, listener, capture = false) {
     const key = `${type}:${Boolean(capture)}`;
     const list = this.listeners.get(key) || [];
@@ -119,13 +121,15 @@ class FakeEvent {
   constructor(type, options = {}) { this.type = type; Object.assign(this, options); }
 }
 
-function createHarness({ supported = true, initialValue = 'Önceki', maxLength = 12000 } = {}) {
+function createHarness({ supported = true, initialValue = 'Önceki', maxLength = 12000, configureMic } = {}) {
   FakeRecognition.instances = [];
   FakeMutationObserver.instances = [];
   const mic = new FakeElement();
+  configureMic?.(mic);
   const input = new FakeElement({ value: initialValue, maxLength });
   const toast = new FakeElement({ classes: ['hidden'] });
   const documentListeners = new Map();
+  const dispatchedEvents = [];
   const documentRef = {
     documentElement: { lang: 'tr' },
     hidden: false,
@@ -144,21 +148,26 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
       const list = documentListeners.get(type) || [];
       documentListeners.set(type, list.filter((item) => item !== listener));
     },
+    dispatchEvent(event) {
+      dispatchedEvents.push(event);
+      return true;
+    },
     dispatch(type) {
       for (const listener of documentListeners.get(type) || []) listener({ type });
     }
   };
   let timerId = 0;
+  const clearedTimers = [];
   const root = {
     navigator: { language: 'tr-TR' },
     MutationObserver: FakeMutationObserver,
     Event: FakeEvent,
     setTimeout() { timerId += 1; return timerId; },
-    clearTimeout() {}
+    clearTimeout(id) { clearedTimers.push(id); }
   };
   if (supported) root.SpeechRecognition = FakeRecognition;
   const controller = voice.installVoiceInput(documentRef, root);
-  return { controller, documentRef, input, mic, root, toast };
+  return { controller, documentRef, input, mic, root, toast, clearedTimers, dispatchedEvents };
 }
 
 {
@@ -227,18 +236,71 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
   const click = mic.clickCapture();
   assert.equal(click.stopped, true);
   assert.equal(toast.textContent.includes('desteklemiyor'), true);
+  controller.destroy();
 }
 
 {
-  const { mic, toast } = createHarness();
+  const { controller, mic, toast } = createHarness();
   mic.clickCapture();
   const recognition = FakeRecognition.instances.at(-1);
   recognition.emitError('not-allowed');
   assert.equal(toast.textContent.includes('Mikrofon izni'), true);
   recognition.end();
+  controller.destroy();
+}
+
+{
+  const { controller, mic, input, toast, clearedTimers, dispatchedEvents } = createHarness({
+    configureMic(element) {
+      element.disabled = true;
+      element.textContent = 'HOST';
+      element.title = 'Host mic';
+      element.setAttribute('aria-pressed', 'mixed');
+      element.setAttribute('aria-label', 'Host microphone');
+    }
+  });
+  assert.equal(mic.disabled, true, 'host-disabled microphone must remain disabled');
+  controller.start();
+  assert.equal(FakeRecognition.instances.length, 0, 'host-disabled mic must not start recognition programmatically');
+  controller.destroy();
+  assert.equal(mic.disabled, true);
+  assert.equal(mic.textContent, 'HOST');
+  assert.equal(mic.title, 'Host mic');
+  assert.equal(mic.getAttribute('aria-pressed'), 'mixed');
+  assert.equal(mic.getAttribute('aria-label'), 'Host microphone');
+  assert.equal(input.value, 'Önceki');
+  assert.equal(toast.classList.contains('hidden'), true);
+  assert.deepEqual(clearedTimers, []);
+  assert.deepEqual(dispatchedEvents, []);
+}
+
+{
+  const { controller, mic, input, clearedTimers, dispatchedEvents } = createHarness();
+  mic.clickCapture();
+  const recognition = FakeRecognition.instances.at(-1);
+  const eventCountBeforeDestroy = dispatchedEvents.length;
+  controller.destroy();
+  assert.equal(recognition.aborted, true);
+  assert.equal(controller.isListening(), false);
+  const valueAfterDestroy = input.value;
+  const focusAfterDestroy = input.focusCount;
+  recognition.onstart?.();
+  recognition.emitResult('bu metin gelmemeli');
+  recognition.emitError('not-allowed');
+  recognition.end();
+  assert.equal(input.value, valueAfterDestroy, 'stale recognition result must not mutate composer after destroy');
+  assert.equal(input.focusCount, focusAfterDestroy, 'stale onend must not focus composer after destroy');
+  assert.equal(dispatchedEvents.length, eventCountBeforeDestroy + 1, 'destroy emits only the final listening=false state');
+  assert.equal(clearedTimers.length >= 1, true, 'destroy must clear owned toast timer');
+  assert.equal(mic.hasAttribute('aria-pressed'), false);
+  assert.equal(mic.hasAttribute('aria-label'), false);
+  assert.equal(mic.textContent, '');
+  assert.equal(mic.title, '');
+  controller.start();
+  assert.equal(FakeRecognition.instances.length, 1, 'destroyed controller API must stay inert');
 }
 
 assert.equal(voice.getSpeechRecognitionConstructor({ webkitSpeechRecognition: FakeRecognition }), FakeRecognition);
 assert.equal(voice.getSpeechRecognitionConstructor({}), null);
 
-console.log('Voice input OK: explicit start, transcript-only composer fill, no auto-submit, streaming disable, hidden-page abort, privacy/error UX, and unsupported fallback verified');
+console.log('Voice input OK: explicit start, stale-callback isolation, host ownership, transcript-only composer fill, no auto-submit, hidden-page abort, privacy/error UX, and unsupported fallback verified');
