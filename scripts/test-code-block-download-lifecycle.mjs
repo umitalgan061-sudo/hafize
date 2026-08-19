@@ -64,4 +64,80 @@ const failedUrl = api.createController({
 });
 assert.equal(failedUrl.download({ dataset: {} }, code), false);
 assert.equal(revoked.includes(''), false);
+
+function fakeNode() {
+  const handlers = new Map();
+  const children = [];
+  return {
+    dataset: {}, className: '', type: '', textContent: '', disabled: false, removed: false, parentNode: null,
+    setAttribute() {},
+    addEventListener(type, handler) {
+      if (!handlers.has(type)) handlers.set(type, new Set());
+      handlers.get(type).add(handler);
+    },
+    removeEventListener(type, handler) { handlers.get(type)?.delete(handler); },
+    append(...nodes) { for (const node of nodes) { children.push(node); node.parentNode = this; } },
+    remove() { this.removed = true; },
+    fire(type) { for (const handler of [...(handlers.get(type) || [])]) handler(); },
+    handlerCount(type) { return handlers.get(type)?.size || 0; },
+    get children() { return children; }
+  };
+}
+
+const shell = fakeNode();
+const pre = fakeNode();
+const codeNode = fakeNode();
+codeNode.textContent = 'const x = 1;';
+codeNode.dataset.language = 'js';
+pre.querySelector = (selector) => selector === ':scope > code' ? codeNode : null;
+pre.closest = (selector) => selector === '.hafize-code-shell' ? shell : null;
+const messages = { querySelectorAll() { return [pre]; } };
+const head = fakeNode();
+const lifecycleAnchors = [];
+const lifecycleDocument = {
+  head,
+  body: { append(node) { lifecycleAnchors.push(node); } },
+  querySelector(selector) { if (selector === '#messages') return messages; return null; },
+  createElement(tag) {
+    if (tag === 'a') return { href: '', download: '', rel: '', hidden: false, click() { clicked += 1; }, remove() {} };
+    return fakeNode();
+  }
+};
+let disconnected = false;
+class Observer {
+  constructor(callback) { this.callback = callback; }
+  observe() {}
+  disconnect() { disconnected = true; }
+}
+const pending = new Set();
+const cleared = [];
+const lifecycle = api.createController({
+  documentRef: lifecycleDocument, BlobImpl: FakeBlob, URLImpl,
+  MutationObserverImpl: Observer,
+  setTimeoutImpl(fn) { const token = { fn }; pending.add(token); return token; },
+  clearTimeoutImpl(token) { pending.delete(token); cleared.push(token); }
+});
+assert.equal(lifecycle.mount(), true);
+assert.equal(lifecycle.mount(), false);
+assert.equal(pre.dataset[api.MARKER], '1');
+const downloadButton = shell.children.find((node) => node.className === 'hafize-code-download');
+assert.ok(downloadButton);
+downloadButton.fire('click');
+assert.ok(pending.size > 0);
+
+lifecycle.destroy();
+assert.equal(disconnected, true);
+assert.equal(downloadButton.removed, true);
+assert.equal(downloadButton.handlerCount('click'), 0);
+assert.equal(pre.dataset[api.MARKER], undefined);
+assert.equal(pending.size, 0);
+assert.ok(cleared.length > 0);
+const clickCount = clicked;
+downloadButton.fire('click');
+assert.equal(clicked, clickCount);
+assert.equal(lifecycle.download(downloadButton, codeNode), false);
+assert.equal(lifecycle.decorate(pre), false);
+assert.equal(lifecycle.decorateAll(messages), 0);
+lifecycle.destroy();
+
 console.log('code block download lifecycle ok');
