@@ -86,6 +86,20 @@
       }
     }
 
+    const reading = rootRef?.HafizeReadingFocus;
+    if (reading && typeof reading.STORAGE_KEY === 'string' && typeof reading.parseState === 'function' &&
+        typeof reading.messageIdsFromConversations === 'function' && typeof reading.pruneBookmarkIds === 'function') {
+      const maxChars = Number.isSafeInteger(reading.MAX_STORAGE_CHARS)
+        ? Math.min(reading.MAX_STORAGE_CHARS, COMPANION_MAX_RAW_CHARS)
+        : COMPANION_MAX_RAW_CHARS;
+      const raw = boundedRaw(storage, reading.STORAGE_KEY, maxChars);
+      if (raw !== null) {
+        const state = reading.parseState(raw);
+        const validMessageIds = reading.messageIdsFromConversations(list);
+        snapshot.readingBookmarks = reading.pruneBookmarkIds(state.bookmarkIds, validMessageIds);
+      }
+    }
+
     try {
       return JSON.stringify(snapshot).length <= COMPANION_MAX_RAW_CHARS ? Object.freeze(snapshot) : Object.freeze({});
     } catch {
@@ -145,6 +159,29 @@
           storage.setItem(lineage.STORAGE_KEY, serialized);
           restored += 1;
         }
+      } catch { /* best effort companion restore */ }
+    }
+
+    const reading = rootRef?.HafizeReadingFocus;
+    if (Array.isArray(snapshot.readingBookmarks) && reading && typeof reading.STORAGE_KEY === 'string' &&
+        typeof reading.parseState === 'function' && typeof reading.serializeState === 'function' &&
+        typeof reading.messageIdsFromConversations === 'function' && typeof reading.pruneBookmarkIds === 'function') {
+      try {
+        const maxChars = Number.isSafeInteger(reading.MAX_STORAGE_CHARS)
+          ? Math.min(reading.MAX_STORAGE_CHARS, COMPANION_MAX_RAW_CHARS)
+          : COMPANION_MAX_RAW_CHARS;
+        const currentRaw = boundedRaw(storage, reading.STORAGE_KEY, maxChars);
+        const current = currentRaw === null ? { focusMode: false, bookmarkIds: [] } : reading.parseState(currentRaw);
+        const validMessageIds = reading.messageIdsFromConversations(list);
+        const bookmarkIds = reading.pruneBookmarkIds(
+          [...current.bookmarkIds, ...snapshot.readingBookmarks],
+          validMessageIds
+        );
+        storage.setItem(reading.STORAGE_KEY, reading.serializeState({
+          focusMode: current.focusMode,
+          bookmarkIds
+        }));
+        restored += 1;
       } catch { /* best effort companion restore */ }
     }
 
