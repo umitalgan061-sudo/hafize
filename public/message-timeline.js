@@ -18,6 +18,7 @@
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 200;
   const MAX_ID_CHARS = 120;
+  const MAX_STORAGE_CHARS = 2 * 1024 * 1024;
   const ID_PATTERN = /^[A-Za-z0-9._:-]{1,120}$/;
   const STYLE_TEXT = `
 .message .meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
@@ -42,7 +43,7 @@
   }
 
   function parseConversationList(raw) {
-    if (typeof raw !== 'string' || !raw.trim()) return [];
+    if (typeof raw !== 'string' || !raw.trim() || raw.length > MAX_STORAGE_CHARS) return [];
     let conversations;
     try {
       conversations = JSON.parse(raw);
@@ -177,7 +178,8 @@
     windowRef = globalThis.window,
     MutationObserverImpl = globalThis.MutationObserver,
     IntlImpl = globalThis.Intl,
-    now = () => new Date()
+    now = () => new Date(),
+    queueMicrotaskImpl = globalThis.queueMicrotask
   } = {}) {
     if (!documentRef?.querySelector || !documentRef?.createElement) throw new Error('INVALID_MESSAGE_TIMELINE_DOCUMENT');
 
@@ -185,10 +187,12 @@
     let conversationObserver = null;
     let mounted = false;
     let scheduled = false;
+    let generation = 0;
 
     function readRaw() {
       try {
-        return storage?.getItem?.(STORAGE_KEY) || '';
+        const raw = storage?.getItem?.(STORAGE_KEY) || '';
+        return typeof raw === 'string' && raw.length <= MAX_STORAGE_CHARS ? raw : '';
       } catch {
         return '';
       }
@@ -272,14 +276,17 @@
     }
 
     function scheduleRender() {
-      if (scheduled) return;
+      if (!mounted || scheduled) return false;
+      const scheduledGeneration = generation;
       scheduled = true;
       const run = () => {
+        if (!mounted || scheduledGeneration !== generation) return;
         scheduled = false;
         render();
       };
-      if (typeof queueMicrotask === 'function') queueMicrotask(run);
+      if (typeof queueMicrotaskImpl === 'function') queueMicrotaskImpl(run);
       else Promise.resolve().then(run);
+      return true;
     }
 
     function onStorage(event) {
@@ -290,6 +297,9 @@
       if (mounted) return true;
       const messages = documentRef.querySelector('#messages');
       if (!messages) return false;
+      generation += 1;
+      mounted = true;
+      scheduled = false;
       installStyles(documentRef);
       render();
       if (typeof MutationObserverImpl === 'function') {
@@ -307,12 +317,14 @@
         }
       }
       windowRef?.addEventListener?.('storage', onStorage);
-      mounted = true;
       return true;
     }
 
     function destroy() {
-      if (!mounted) return;
+      if (!mounted) return false;
+      mounted = false;
+      generation += 1;
+      scheduled = false;
       observer?.disconnect?.();
       conversationObserver?.disconnect?.();
       observer = null;
@@ -322,10 +334,14 @@
       removeSeparators(messages);
       const stamps = messages?.querySelectorAll?.(`.${TIMESTAMP_CLASS}`) || [];
       for (const stamp of stamps) stamp.remove?.();
-      mounted = false;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, render, scheduleRender, onStorage, loadTimes });
+    function snapshot() {
+      return Object.freeze({ mounted, scheduled, generation });
+    }
+
+    return Object.freeze({ mount, destroy, render, scheduleRender, onStorage, loadTimes, snapshot });
   }
 
   function mount(options) {
@@ -345,6 +361,7 @@
     MAX_CONVERSATIONS,
     MAX_MESSAGES_PER_CONVERSATION,
     MAX_ID_CHARS,
+    MAX_STORAGE_CHARS,
     normalizeId,
     normalizeIso,
     parseConversationList,

@@ -11,6 +11,7 @@ assert.equal(api.STORAGE_KEY, 'hafize.conversations.v1');
 assert.equal(api.MAX_CONVERSATIONS, 30);
 assert.equal(api.MAX_MESSAGES_PER_CONVERSATION, 200);
 assert.equal(api.MAX_ID_CHARS, 120);
+assert.equal(api.MAX_STORAGE_CHARS, 2 * 1024 * 1024);
 assert.equal(api.normalizeId(' c1 '), 'c1');
 assert.equal(api.normalizeId('../bad'), null);
 assert.equal(api.normalizeId('x'.repeat(121)), null);
@@ -50,6 +51,7 @@ assert.equal(api.readMessageTimes(raw, '../bad').size, 0);
 assert.equal(api.readMessageTimes('{broken', 'c1').size, 0);
 assert.equal(api.readMessageTimes('{}', 'c1').size, 0);
 assert.deepEqual(api.parseConversationList('{broken'), []);
+assert.deepEqual(api.parseConversationList('x'.repeat(api.MAX_STORAGE_CHARS + 1)), [], 'oversized raw storage must be rejected before JSON.parse');
 
 function classList(active = false) {
   return { contains(name) { return name === 'active' && active; } };
