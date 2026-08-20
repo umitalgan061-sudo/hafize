@@ -12,8 +12,11 @@
   'use strict';
 
   const MEMORY_PATH = '/api/memory';
+  const APPROVAL_PATH = '/api/memory/approval/prepare';
+  const APPROVAL_HEADER = 'X-Hafize-Memory-Approval';
   const SESSION_STATUS_PATH = '/api/session/status';
   const MEMORY_ID = /^memory_[A-Za-z0-9_-]{8,80}$/;
+  const APPROVAL_TOKEN = /^mw1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/;
   const MEMORY_KINDS = Object.freeze(['identity', 'preference', 'project', 'note']);
   const KIND_LABELS = Object.freeze({
     identity: 'Kimlik',
@@ -48,6 +51,23 @@
       });
     }
 
+    async function approvedRequest(command, path, init) {
+      const prepared = await request(APPROVAL_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command })
+      });
+      if (!prepared.ok) return prepared;
+      const token = typeof prepared.payload?.approvalToken === 'string' ? prepared.payload.approvalToken.trim() : '';
+      if (!APPROVAL_TOKEN.test(token)) {
+        return Object.freeze({ ok: false, status: 502, payload: Object.freeze({ error: 'MEMORY_APPROVAL_INVALID' }) });
+      }
+      return request(path, {
+        ...init,
+        headers: { ...(init.headers || {}), [APPROVAL_HEADER]: token }
+      });
+    }
+
     return Object.freeze({
       sessionStatus() {
         return request(SESSION_STATUS_PATH, { method: 'GET' });
@@ -69,24 +89,26 @@
         if (!MEMORY_KINDS.includes(kind)) throw new Error('INVALID_MEMORY_KIND');
         const cleanContent = typeof content === 'string' ? content.trim() : '';
         if (!cleanContent || cleanContent.length > 4000) throw new Error('INVALID_MEMORY_CONTENT');
-        return request(MEMORY_PATH, {
+        const body = {
+          kind,
+          content: cleanContent,
+          sourceType: 'user_note',
+          sensitivity: 'personal',
+          explicitUserIntent: true
+        };
+        return approvedRequest({ kind: 'write', body }, MEMORY_PATH, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind,
-            content: cleanContent,
-            sourceType: 'user_note',
-            sensitivity: 'personal',
-            explicitUserIntent: true
-          })
+          body: JSON.stringify(body)
         });
       },
       remove(memoryId) {
         if (typeof memoryId !== 'string' || !MEMORY_ID.test(memoryId)) throw new Error('INVALID_MEMORY_ID');
-        return request(`${MEMORY_PATH}/${encodeURIComponent(memoryId)}`, {
+        const body = { exactMatch: true, explicitUserIntent: true };
+        return approvedRequest({ kind: 'delete-one', memoryId, body }, `${MEMORY_PATH}/${encodeURIComponent(memoryId)}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ exactMatch: true, explicitUserIntent: true })
+          body: JSON.stringify(body)
         });
       }
     });
@@ -96,6 +118,9 @@
     const code = response?.payload?.error;
     if (response?.status === 401 || code === 'AUTH_REQUIRED') return 'Bellek için önce güvenli oturum aç.';
     if (response?.status === 403 || code === 'ORIGIN_REQUIRED') return 'Bu işlem yalnız güvenli Hafize adresinden yapılabilir.';
+    if (code === 'MEMORY_APPROVAL_REQUIRED') return 'Bellek değişikliği için yeni açık onay gerekli.';
+    if (code === 'MEMORY_APPROVAL_EXPIRED') return 'Bellek onayının süresi doldu; işlemi yeniden başlat.';
+    if (code === 'MEMORY_APPROVAL_REPLAYED' || code === 'MEMORY_APPROVAL_MISMATCH') return 'Bellek onayı bu exact işlem için geçerli değil; işlemi yeniden başlat.';
     if (response?.status === 404) return 'Kişisel bellek sunucuda henüz yapılandırılmamış.';
     if (code === 'MEMORY_OPERATION_FAILED') return 'Bellek işlemi doğrulanamadı.';
     return 'Bellek işlemi tamamlanamadı.';
