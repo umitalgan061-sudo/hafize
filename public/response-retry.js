@@ -17,6 +17,7 @@
   const DRAFT_BLOCKED = 'Gönderilmemiş taslağın var. Tekrar denemeden önce taslağı gönder veya temizle.';
   const PROMPT_UNAVAILABLE = 'Tekrar denenecek kullanıcı isteği bulunamadı.';
   const EDIT_UNAVAILABLE = 'Güvenli düzenleme dalı hazır değil.';
+  const INSTALL_MARKER = Symbol.for('hafize.response.retry.controller.v1');
 
   function normalizePrompt(value) {
     if (typeof value !== 'string') return '';
@@ -54,9 +55,16 @@
       throw new Error('INVALID_RESPONSE_RETRY_DOCUMENT');
     }
 
+    const ownerToken = Object.freeze({});
+    const ownedActions = new Set();
+    const actionListeners = new Map();
     let observer = null;
     let mounted = false;
+    let messagesOwner = null;
     let status = null;
+    let statusOwned = false;
+    let statusSnapshot = null;
+    let inputOwner = null;
     let inputListener = null;
 
     function nodes() {
@@ -70,7 +78,14 @@
 
     function ensureStatus(composer) {
       const existing = documentRef.querySelector(`#${STATUS_ID}`);
-      if (existing) return existing;
+      if (existing) {
+        statusOwned = false;
+        statusSnapshot = Object.freeze({
+          textContent: existing.textContent,
+          hidden: Boolean(existing.hidden)
+        });
+        return existing;
+      }
       const node = documentRef.createElement('p');
       node.id = STATUS_ID;
       node.className = 'agent-hint response-retry-status';
@@ -78,17 +93,40 @@
       node.setAttribute('role', 'status');
       node.setAttribute('aria-live', 'polite');
       composer.append(node);
+      statusOwned = true;
+      statusSnapshot = null;
       return node;
     }
 
-    function showStatus(text) {
+    function restoreStatus() {
       if (!status) return;
+      if (statusOwned) {
+        status.remove?.();
+      } else if (statusSnapshot) {
+        status.textContent = statusSnapshot.textContent;
+        status.hidden = statusSnapshot.hidden;
+      }
+      status = null;
+      statusOwned = false;
+      statusSnapshot = null;
+    }
+
+    function showStatus(text) {
+      if (!status || !mounted) return;
       status.textContent = text;
       status.hidden = !text;
     }
 
-    function clearActions(messages) {
-      messages?.querySelectorAll?.(`.${ACTION_CLASS}`)?.forEach?.((node) => node.remove());
+    function removeOwnedAction(node) {
+      const record = actionListeners.get(node);
+      if (record) record.button?.removeEventListener?.('click', record.handler);
+      actionListeners.delete(node);
+      ownedActions.delete(node);
+      node?.remove?.();
+    }
+
+    function clearActions() {
+      for (const node of [...ownedActions]) removeOwnedAction(node);
     }
 
     function pairForArticles(user, assistant) {
@@ -113,6 +151,7 @@
     }
 
     function prepareRetryBranch(pair) {
+      if (!mounted) return false;
       const { input, send } = nodes();
       if (!input || !send || isStreaming(send)) return false;
       if (hasDraft(input.value)) {
@@ -136,7 +175,7 @@
     }
 
     function decoratePair(pair) {
-      if (pair.assistant.querySelector?.(`.${ACTION_CLASS}`)) return false;
+      if (!mounted || pair.assistant.querySelector?.(`.${ACTION_CLASS}`)) return false;
       const wrap = documentRef.createElement('div');
       wrap.className = ACTION_CLASS;
       const button = documentRef.createElement('button');
@@ -145,56 +184,83 @@
       button.textContent = '↻ Tekrar dene';
       button.setAttribute('aria-label', 'Bu kullanıcı isteğini yeni bir sohbet dalında yeniden hazırla');
       button.title = 'Kaynak sohbeti değiştirmeden bu turdan yeni bir dal hazırlar';
-      button.addEventListener('click', () => prepareRetryBranch(pair));
+      const handler = () => {
+        if (mounted && messagesOwner?.[INSTALL_MARKER] === ownerToken) prepareRetryBranch(pair);
+      };
+      button.addEventListener('click', handler);
       wrap.append(button);
       pair.assistant.append(wrap);
+      ownedActions.add(wrap);
+      actionListeners.set(wrap, { button, handler });
       return true;
     }
 
     function render() {
+      if (!mounted || messagesOwner?.[INSTALL_MARKER] !== ownerToken) return false;
       const { messages, composer, send } = nodes();
-      if (!messages || !composer || !send) return false;
+      if (messages !== messagesOwner || !messages || !composer || !send) return false;
       if (isStreaming(send)) {
-        clearActions(messages);
+        clearActions();
         return false;
       }
       const pairs = getRenderedPairs(messages);
       if (!pairs.length) {
-        clearActions(messages);
+        clearActions();
         return false;
       }
       for (const pair of pairs) decoratePair(pair);
       return true;
     }
 
+    function releaseOwnership() {
+      if (messagesOwner?.[INSTALL_MARKER] === ownerToken) {
+        try { delete messagesOwner[INSTALL_MARKER]; } catch { messagesOwner[INSTALL_MARKER] = undefined; }
+      }
+      messagesOwner = null;
+    }
+
+    function rollbackMount() {
+      observer?.disconnect?.();
+      observer = null;
+      if (inputListener && inputOwner) inputOwner.removeEventListener?.('input', inputListener);
+      inputListener = null;
+      inputOwner = null;
+      clearActions();
+      restoreStatus();
+      releaseOwnership();
+      mounted = false;
+    }
+
     function mount() {
       if (mounted) return false;
       const { messages, composer, input, send } = nodes();
       if (!messages || !composer || !input || !send) return false;
-      status = ensureStatus(composer);
-      inputListener = () => { if (!hasDraft(input.value)) showStatus(''); };
-      input.addEventListener?.('input', inputListener);
-      observer = typeof MutationObserverImpl === 'function'
-        ? new MutationObserverImpl(() => render())
-        : null;
-      observer?.observe?.(messages, { childList: true, subtree: true, characterData: true });
-      observer?.observe?.(send, { attributes: true, attributeFilter: ['class'] });
+      if (messages[INSTALL_MARKER]) return false;
+
+      messages[INSTALL_MARKER] = ownerToken;
+      messagesOwner = messages;
       mounted = true;
-      render();
-      return true;
+      try {
+        status = ensureStatus(composer);
+        inputOwner = input;
+        inputListener = () => { if (!hasDraft(input.value)) showStatus(''); };
+        input.addEventListener?.('input', inputListener);
+        observer = typeof MutationObserverImpl === 'function'
+          ? new MutationObserverImpl(() => render())
+          : null;
+        observer?.observe?.(messages, { childList: true, subtree: true, characterData: true });
+        observer?.observe?.(send, { attributes: true, attributeFilter: ['class'] });
+        render();
+        return true;
+      } catch {
+        rollbackMount();
+        return false;
+      }
     }
 
     function destroy() {
       if (!mounted) return false;
-      const { messages, input } = nodes();
-      observer?.disconnect?.();
-      observer = null;
-      if (inputListener) input?.removeEventListener?.('input', inputListener);
-      inputListener = null;
-      clearActions(messages);
-      status?.remove?.();
-      status = null;
-      mounted = false;
+      rollbackMount();
       return true;
     }
 
