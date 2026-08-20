@@ -87,6 +87,17 @@ function fixture({ failRootEventAt = 0, observerError = false } = {}) {
 }
 
 {
+  let items=[];
+  for(let i=0;i<api.MAX_ITEMS+3;i+=1){
+    items=api.appendItem(items,{kind:'branch',branch:`hafize/history-${i}`,at:i});
+  }
+  assert.equal(items.length,api.MAX_ITEMS,'session history remains bounded');
+  assert.equal(items[0].branch,`hafize/history-${api.MAX_ITEMS+2}`,'newest event remains first');
+  assert.equal(items.at(-1).branch,'hafize/history-3','oldest overflow entries are discarded');
+  assert.equal(new Set(items.map(api.itemKey)).size,api.MAX_ITEMS,'bounded history keeps unique keys');
+}
+
+{
   const f=fixture({observerError:true});
   f.body.children=[];
   const controller=api.createController({documentRef:f.doc,rootRef:f.root});
