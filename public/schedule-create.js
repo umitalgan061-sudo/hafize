@@ -11,6 +11,7 @@
   const MAX_TASK_CHARS = 4000;
   const MAX_AGENT_ID_CHARS = 120;
   const MAX_ATTEMPTS = 5;
+  const REQUEST_TIMEOUT_MS = 30_000;
   const CREATED_EVENT = 'hafize:schedule-created';
   const ACTIVE_HEADS = new WeakSet();
 
@@ -60,22 +61,63 @@
     }
   }
 
-  function createClient({ fetchImpl = globalThis.fetch } = {}) {
+  function requestError(code) {
+    const error = new Error(code);
+    error.name = 'AbortError';
+    error.code = code;
+    return error;
+  }
+
+  function createClient({
+    fetchImpl = globalThis.fetch,
+    AbortControllerImpl = globalThis.AbortController,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
     if (typeof fetchImpl !== 'function') throw new Error('INVALID_SCHEDULE_CREATE_FETCH');
+    if (typeof AbortControllerImpl !== 'function') throw new Error('INVALID_SCHEDULE_CREATE_ABORT_CONTROLLER');
+    if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_SCHEDULE_CREATE_TIMER');
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error('INVALID_SCHEDULE_CREATE_TIMEOUT');
+
     return Object.freeze({
-      async create(input) {
-        const response = await fetchImpl(PATH, {
-          method: 'POST',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          cache: 'no-store',
-          body: JSON.stringify(input)
-        });
-        return Object.freeze({
-          ok: Boolean(response?.ok),
-          status: Number(response?.status) || 0,
-          payload: Object.freeze(await readPayload(response))
-        });
+      async create(input, { signal } = {}) {
+        if (signal != null && (typeof signal !== 'object' || typeof signal.addEventListener !== 'function')) {
+          throw new Error('INVALID_SCHEDULE_CREATE_SIGNAL');
+        }
+        if (signal?.aborted) throw requestError('SCHEDULE_CREATE_CANCELLED');
+
+        const controller = new AbortControllerImpl();
+        let timedOut = false;
+        const onAbort = () => controller.abort(signal?.reason);
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+        const timer = setTimeoutImpl(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+
+        try {
+          const response = await fetchImpl(PATH, {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal,
+            body: JSON.stringify(input)
+          });
+          return Object.freeze({
+            ok: Boolean(response?.ok),
+            status: Number(response?.status) || 0,
+            payload: Object.freeze(await readPayload(response))
+          });
+        } catch (error) {
+          if (timedOut) throw requestError('SCHEDULE_CREATE_TIMEOUT');
+          if (signal?.aborted) throw requestError('SCHEDULE_CREATE_CANCELLED');
+          throw error;
+        } finally {
+          clearTimeoutImpl(timer);
+          signal?.removeEventListener?.('abort', onAbort);
+        }
       }
     });
   }
@@ -188,7 +230,14 @@
     if (!card || !head || !sourceAgent || ACTIVE_HEADS.has(head) || documentRef.querySelector?.('.schedule-create-panel')) return null;
 
     let client;
-    try { client = createClient({ fetchImpl }); } catch { return null; }
+    try {
+      client = createClient({
+        fetchImpl,
+        AbortControllerImpl: root.AbortController,
+        setTimeoutImpl: root.setTimeout?.bind(root),
+        clearTimeoutImpl: root.clearTimeout?.bind(root)
+      });
+    } catch { return null; }
 
     ACTIVE_HEADS.add(head);
     let open = null;
@@ -213,6 +262,7 @@
 
     let busy = false;
     let destroyed = false;
+    let activeRequest = null;
     let openListenerInstalled = false;
     let cancelListenerInstalled = false;
     let submitListenerInstalled = false;
@@ -269,11 +319,13 @@
         return;
       }
 
+      const request = new root.AbortController();
+      activeRequest = request;
       setBusy(true);
       showStatus('Görev güvenli biçimde oluşturuluyor…', 'loading');
       try {
-        const result = await client.create(input);
-        if (destroyed) return;
+        const result = await client.create(input, { signal: request.signal });
+        if (destroyed || activeRequest !== request) return;
         if (result.status === 401) {
           showStatus('Görev oluşturmak için güvenli cloud oturumu aç.', 'auth');
           return;
@@ -290,10 +342,13 @@
         nodes.runAt.value = nextDefaultLocalDate(now());
         showStatus('Görev oluşturuldu.', 'success');
         root.dispatchEvent?.(new root.CustomEvent(CREATED_EVENT));
-      } catch {
-        if (!destroyed) showStatus('Görev servisine ulaşılamadı.', 'error');
+      } catch (error) {
+        if (destroyed || activeRequest !== request) return;
+        if (error?.code === 'SCHEDULE_CREATE_TIMEOUT') showStatus('Görev oluşturma isteği zaman aşımına uğradı. Tekrar deneyebilirsin.', 'error');
+        else if (error?.code !== 'SCHEDULE_CREATE_CANCELLED') showStatus('Görev servisine ulaşılamadı.', 'error');
       } finally {
-        if (!destroyed) setBusy(false);
+        if (activeRequest === request) activeRequest = null;
+        if (!destroyed && !activeRequest) setBusy(false);
       }
     }
 
@@ -302,6 +357,8 @@
     function onKeydown(event) { if (event?.key === 'Escape' && !nodes.section.hidden && !busy) onCancel(); }
 
     function releaseInstallation() {
+      activeRequest?.abort?.();
+      activeRequest = null;
       if (openListenerInstalled) {
         open.removeEventListener?.('click', onOpen);
         openListenerInstalled = false;
@@ -342,7 +399,7 @@
 
     return Object.freeze({
       isOpen: () => !nodes.section.hidden,
-      getState: () => Object.freeze({ busy }),
+      getState: () => Object.freeze({ busy, requestActive: Boolean(activeRequest) }),
       destroy() {
         if (destroyed) return false;
         destroyed = true;
@@ -353,7 +410,7 @@
   }
 
   return Object.freeze({
-    PATH, MAX_TASK_CHARS, MAX_AGENT_ID_CHARS, MAX_ATTEMPTS, CREATED_EVENT,
+    PATH, MAX_TASK_CHARS, MAX_AGENT_ID_CHARS, MAX_ATTEMPTS, REQUEST_TIMEOUT_MS, CREATED_EVENT,
     normalizeAgentId, normalizeTask, localDateTimeToIso, normalizeAttempts,
     buildCreateInput, allowedAgentIds, nextDefaultLocalDate, createClient, mount
   });
