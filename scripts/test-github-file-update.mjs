@@ -10,6 +10,8 @@ assert.equal(api.MAX_PATH_CHARS, 400);
 assert.equal(api.MAX_COMMIT_CHARS, 200);
 assert.equal(api.MAX_CONTENT_BYTES, 64 * 1024);
 assert.equal(api.MOUNT_TIMEOUT_MS, 10_000);
+assert.equal(api.REQUEST_TIMEOUT_MS, 30_000);
+assert.equal(typeof api.createClient, 'function');
 
 assert.equal(api.normalizeBranch(' hafize/feature-x '), 'hafize/feature-x');
 assert.equal(api.normalizeBranch('main'), null);
