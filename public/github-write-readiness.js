@@ -89,9 +89,9 @@
     });
   }
 
-  function restoreNode(node, snapshot) {
+  function restoreNode(node, snapshot, { text = true } = {}) {
     if (!node || !snapshot) return;
-    node.textContent = snapshot.textContent;
+    if (text) node.textContent = snapshot.textContent;
     node.hidden = snapshot.hidden;
     node.disabled = snapshot.disabled;
     const restoreAttr = (name, value) => value == null ? node.removeAttribute?.(name) : node.setAttribute?.(name, value);
@@ -111,16 +111,13 @@
       throw new Error('INVALID_GITHUB_WRITE_READINESS_DOCUMENT');
     }
 
-    let client;
-    try {
-      client = createClient({
-        fetchImpl,
-        AbortControllerImpl: rootRef?.AbortController,
-        setTimeoutImpl: rootRef?.setTimeout?.bind?.(rootRef),
-        clearTimeoutImpl: rootRef?.clearTimeout?.bind?.(rootRef),
-        timeoutMs
-      });
-    } catch (error) { throw error; }
+    const client = createClient({
+      fetchImpl,
+      AbortControllerImpl: rootRef?.AbortController,
+      setTimeoutImpl: rootRef?.setTimeout?.bind?.(rootRef),
+      clearTimeoutImpl: rootRef?.clearTimeout?.bind?.(rootRef),
+      timeoutMs
+    });
 
     let mounted = false;
     let destroyed = false;
@@ -244,7 +241,7 @@
       listenerInstalled = false;
       if (createdCard) card?.remove?.();
       else if (snapshots) {
-        restoreNode(card, snapshots.card);
+        restoreNode(card, snapshots.card, { text: false });
         restoreNode(status, snapshots.status);
         restoreNode(badge, snapshots.badge);
         restoreNode(refresh, snapshots.refresh);
