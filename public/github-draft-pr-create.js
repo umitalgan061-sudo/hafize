@@ -16,10 +16,12 @@
   const MAX_TITLE_CHARS = 180;
   const MAX_APPROVAL_TOKEN_CHARS = 2048;
   const MOUNT_TIMEOUT_MS = 10_000;
+  const REQUEST_TIMEOUT_MS = 30_000;
   const SUFFIX_PATTERN = /^[a-z0-9][a-z0-9._/-]*$/;
   const REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
   const APPROVAL_TOKEN_PATTERN = /^gw1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{43}$/;
   const CONTROL_PATTERN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+  const ACTIVE_CARDS = new WeakSet();
 
   function normalizeHeadSuffix(value) {
     const suffix = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -72,23 +74,16 @@
     if (!token || token.length > MAX_APPROVAL_TOKEN_CHARS || !APPROVAL_TOKEN_PATTERN.test(token)) return null;
     const expiry = Date.parse(value.expiresAt);
     if (!Number.isFinite(expiry) || expiry <= now || expiry > now + 5 * 60_000 + 5_000) return null;
-    return Object.freeze({
-      command: Object.freeze({ ...value.command }),
-      approvalToken: token,
-      expiresAt: new Date(expiry).toISOString()
-    });
+    return Object.freeze({ command: Object.freeze({ ...value.command }), approvalToken: token, expiresAt: new Date(expiry).toISOString() });
   }
 
   function normalizeReceipt(value) {
     if (!value || Array.isArray(value) || typeof value !== 'object') return null;
     const receipt = value.receipt;
     if (!receipt || Array.isArray(receipt) || typeof receipt !== 'object') return null;
-    const operation = receipt.operation;
-    const repository = receipt.repository;
-    if (operation !== 'pr.create' || repository !== REPOSITORY) return null;
-    const prNumber = receipt.prNumber;
-    if (!Number.isInteger(prNumber) || prNumber < 1) return null;
-    return Object.freeze({ prNumber });
+    if (receipt.operation !== 'pr.create' || receipt.repository !== REPOSITORY) return null;
+    if (!Number.isInteger(receipt.prNumber) || receipt.prNumber < 1) return null;
+    return Object.freeze({ prNumber: receipt.prNumber });
   }
 
   function errorMessage(status) {
@@ -102,17 +97,87 @@
     return 'GitHub draft PR işlemi tamamlanamadı.';
   }
 
+  function requestError(code) {
+    const error = new Error(code);
+    error.name = 'AbortError';
+    error.code = code;
+    return error;
+  }
+
+  function createClient({
+    fetchImpl = globalThis.fetch,
+    AbortControllerImpl = globalThis.AbortController,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
+    if (typeof fetchImpl !== 'function') throw new Error('INVALID_GITHUB_DRAFT_PR_FETCH');
+    if (typeof AbortControllerImpl !== 'function') throw new Error('INVALID_GITHUB_DRAFT_PR_ABORT_CONTROLLER');
+    if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_GITHUB_DRAFT_PR_TIMER');
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error('INVALID_GITHUB_DRAFT_PR_TIMEOUT');
+
+    return Object.freeze({
+      async post(path, body, { signal } = {}) {
+        if (path !== PREPARE_PATH && path !== EXECUTE_PATH) throw new Error('INVALID_GITHUB_DRAFT_PR_PATH');
+        if (signal != null && (typeof signal !== 'object' || typeof signal.addEventListener !== 'function')) {
+          throw new Error('INVALID_GITHUB_DRAFT_PR_SIGNAL');
+        }
+        if (signal?.aborted) throw requestError('GITHUB_DRAFT_PR_CANCELLED');
+
+        const controller = new AbortControllerImpl();
+        let timedOut = false;
+        const onAbort = () => controller.abort(signal?.reason);
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+        const timer = setTimeoutImpl(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+        try {
+          const response = await fetchImpl(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
+            body: JSON.stringify(body),
+            signal: controller.signal
+          });
+          let payload = null;
+          try { payload = await response.json(); } catch { payload = null; }
+          return Object.freeze({ response, payload });
+        } catch (error) {
+          if (timedOut) throw requestError('GITHUB_DRAFT_PR_TIMEOUT');
+          if (signal?.aborted) throw requestError('GITHUB_DRAFT_PR_CANCELLED');
+          throw error;
+        } finally {
+          clearTimeoutImpl(timer);
+          signal?.removeEventListener?.('abort', onAbort);
+        }
+      }
+    });
+  }
+
   function createController({
     documentRef = globalThis.document,
     rootRef = globalThis,
     fetchImpl = globalThis.fetch,
-    now = () => Date.now()
+    now = () => Date.now(),
+    timeoutMs = REQUEST_TIMEOUT_MS
   } = {}) {
     if (!documentRef?.querySelector || !documentRef?.createElement) throw new Error('INVALID_GITHUB_DRAFT_PR_DOCUMENT');
     if (typeof fetchImpl !== 'function' || typeof now !== 'function') throw new Error('INVALID_GITHUB_DRAFT_PR_RUNTIME');
 
+    const client = createClient({
+      fetchImpl,
+      AbortControllerImpl: rootRef.AbortController,
+      setTimeoutImpl: rootRef.setTimeout?.bind?.(rootRef),
+      clearTimeoutImpl: rootRef.clearTimeout?.bind?.(rootRef),
+      timeoutMs
+    });
+
     let mounted = false;
+    let destroyed = false;
     let card = null;
+    let shell = null;
     let toggle = null;
     let form = null;
     let headInput = null;
@@ -124,9 +189,11 @@
     let status = null;
     let summary = null;
     let prepared = null;
-    let requestController = null;
+    let activeRequest = null;
+    let requestGeneration = 0;
     let observer = null;
     let mountTimer = null;
+    const listenerCleanup = [];
 
     function element(tag, className, text) {
       const node = documentRef.createElement(tag);
@@ -136,7 +203,7 @@
     }
 
     function setStatus(text, state = 'idle') {
-      if (!status) return;
+      if (destroyed || !status) return;
       status.textContent = text;
       status.dataset.state = state;
     }
@@ -149,24 +216,55 @@
     }
 
     function setBusy(busy) {
+      if (destroyed) return;
       card?.setAttribute?.('aria-busy', String(Boolean(busy)));
       for (const control of [prepareButton, approveButton, cancelButton, headInput, baseInput, titleInput]) {
         if (control) control.disabled = Boolean(busy);
       }
     }
 
+    function addListener(target, type, listener) {
+      if (typeof target?.addEventListener !== 'function' || typeof target?.removeEventListener !== 'function') {
+        throw new Error('INVALID_GITHUB_DRAFT_PR_LISTENER_TARGET');
+      }
+      target.addEventListener(type, listener);
+      listenerCleanup.push(() => target.removeEventListener(type, listener));
+    }
+
+    function stopWaiting() {
+      observer?.disconnect?.();
+      observer = null;
+      if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
+      mountTimer = null;
+    }
+
+    function abortActive(reason = 'github-draft-pr-cancelled') {
+      activeRequest?.controller?.abort?.(reason);
+      activeRequest = null;
+    }
+
+    function beginRequest() {
+      abortActive('github-draft-pr-superseded');
+      const controller = new rootRef.AbortController();
+      const request = Object.freeze({ id: ++requestGeneration, controller });
+      activeRequest = request;
+      return request;
+    }
+
+    function isCurrent(request) {
+      return !destroyed && mounted && activeRequest === request;
+    }
+
     function build() {
       card = documentRef.querySelector('#githubWriteReadinessCard');
-      if (!card || card.querySelector?.('[data-github-draft-pr-create]')) return Boolean(card);
+      if (!card || ACTIVE_CARDS.has(card) || card.querySelector?.('[data-github-draft-pr-create]')) return false;
 
-      const shell = element('div', 'github-draft-pr-create');
+      shell = element('div', 'github-draft-pr-create');
       shell.setAttribute('data-github-draft-pr-create', '1');
-
       toggle = element('button', 'mini-btn github-draft-pr-toggle', '＋ Draft PR');
       toggle.type = 'button';
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-controls', 'githubDraftPrCreateForm');
-
       form = element('form', 'github-draft-pr-form');
       form.id = 'githubDraftPrCreateForm';
       form.hidden = true;
@@ -174,7 +272,6 @@
 
       const repo = element('p', 'github-draft-pr-repo', REPOSITORY);
       repo.setAttribute('aria-label', 'Hedef GitHub deposu');
-
       const headLabel = element('label', 'github-draft-pr-label');
       headLabel.append(element('span', '', 'Head branch'));
       const headRow = element('div', 'github-draft-pr-input-row');
@@ -214,7 +311,6 @@
       summary = element('p', 'github-draft-pr-summary');
       summary.hidden = true;
       summary.setAttribute('role', 'status');
-
       status = element('p', 'github-draft-pr-status', 'Draft PR yalnız iki aşamalı açık onayla oluşturulur.');
       status.setAttribute('role', 'status');
       status.setAttribute('aria-live', 'polite');
@@ -229,7 +325,6 @@
       cancelButton = element('button', 'mini-btn github-draft-pr-cancel', 'Kapat');
       cancelButton.type = 'button';
       actions.append(prepareButton, approveButton, cancelButton);
-
       form.append(repo, headLabel, baseLabel, titleLabel, summary, status, actions);
       shell.append(toggle, form);
       card.append(shell);
@@ -237,45 +332,32 @@
     }
 
     function openForm() {
-      if (!form) return;
+      if (destroyed || !form) return false;
       form.hidden = false;
       toggle?.setAttribute?.('aria-expanded', 'true');
       headInput?.focus?.();
+      return true;
     }
 
     function closeForm() {
-      if (!form) return;
-      requestController?.abort?.();
+      if (destroyed || !form) return false;
+      abortActive('github-draft-pr-closed');
       setBusy(false);
       clearPrepared();
       form.hidden = true;
       toggle?.setAttribute?.('aria-expanded', 'false');
       setStatus('Draft PR yalnız iki aşamalı açık onayla oluşturulur.', 'idle');
       toggle?.focus?.();
+      return true;
     }
 
     function currentCommand() {
-      return buildCommand({ headSuffix: headInput?.value, baseRef: baseInput?.value, title: titleInput?.value });
-    }
-
-    async function postJson(path, body) {
-      requestController?.abort?.();
-      requestController = typeof rootRef.AbortController === 'function' ? new rootRef.AbortController() : null;
-      const response = await fetchImpl(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        credentials: 'same-origin',
-        cache: 'no-store',
-        body: JSON.stringify(body),
-        ...(requestController ? { signal: requestController.signal } : {})
-      });
-      let payload = null;
-      try { payload = await response.json(); } catch { payload = null; }
-      return { response, payload };
+      return destroyed ? null : buildCommand({ headSuffix: headInput?.value, baseRef: baseInput?.value, title: titleInput?.value });
     }
 
     async function prepare(event) {
       event?.preventDefault?.();
+      if (destroyed || !mounted) return false;
       const command = currentCommand();
       clearPrepared();
       if (!command) {
@@ -283,10 +365,14 @@
         headInput?.focus?.();
         return false;
       }
+      let request;
+      try { request = beginRequest(); }
+      catch { setStatus('GitHub onay isteği başlatılamadı.', 'error'); return false; }
       setBusy(true);
       setStatus('Draft PR komutu güvenli onay sınırında hazırlanıyor…', 'loading');
       try {
-        const { response, payload } = await postJson(PREPARE_PATH, { command });
+        const { response, payload } = await client.post(PREPARE_PATH, { command }, { signal: request.controller.signal });
+        if (!isCurrent(request)) return false;
         if (!response?.ok) { setStatus(errorMessage(response?.status), 'error'); return false; }
         const next = normalizePrepared(payload, command, now());
         if (!next) { setStatus('Sunucudan geçerli ve eşleşen bir onay alınamadı.', 'error'); return false; }
@@ -298,14 +384,20 @@
         approveButton.focus?.();
         return true;
       } catch (error) {
-        if (error?.name !== 'AbortError') setStatus('GitHub onayı hazırlanırken bağlantı hatası oluştu.', 'error');
+        if (!isCurrent(request)) return false;
+        if (error?.code === 'GITHUB_DRAFT_PR_TIMEOUT') setStatus('GitHub onayı zaman aşımına uğradı. Tekrar deneyebilirsin.', 'error');
+        else if (error?.code !== 'GITHUB_DRAFT_PR_CANCELLED') setStatus('GitHub onayı hazırlanırken bağlantı hatası oluştu.', 'error');
         return false;
       } finally {
-        setBusy(false);
+        if (activeRequest === request) {
+          activeRequest = null;
+          setBusy(false);
+        }
       }
     }
 
     async function execute() {
+      if (destroyed || !mounted) return false;
       if (!prepared) { setStatus('Önce bu exact draft PR komutu için onay hazırla.', 'error'); return false; }
       const live = currentCommand();
       if (!sameCommand(prepared.command, live)) {
@@ -319,10 +411,14 @@
         return false;
       }
       const snapshot = prepared;
+      let request;
+      try { request = beginRequest(); }
+      catch { setStatus('GitHub draft PR isteği başlatılamadı.', 'error'); return false; }
       setBusy(true);
       setStatus('Açık onayla draft Pull Request oluşturuluyor…', 'loading');
       try {
-        const { response, payload } = await postJson(EXECUTE_PATH, { command: snapshot.command, approvalToken: snapshot.approvalToken });
+        const { response, payload } = await client.post(EXECUTE_PATH, { command: snapshot.command, approvalToken: snapshot.approvalToken }, { signal: request.controller.signal });
+        if (!isCurrent(request)) return false;
         clearPrepared();
         if (!response?.ok) { setStatus(errorMessage(response?.status), 'error'); return false; }
         const receipt = normalizeReceipt(payload);
@@ -330,88 +426,100 @@
         headInput.value = '';
         titleInput.value = '';
         setStatus(`Draft PR #${receipt.prNumber} oluşturuldu.`, 'success');
-        rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:github-draft-pr-created', {
-          detail: Object.freeze({ prNumber: receipt.prNumber })
-        }));
+        rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:github-draft-pr-created', { detail: Object.freeze({ prNumber: receipt.prNumber }) }));
         return true;
       } catch (error) {
+        if (!isCurrent(request)) return false;
         clearPrepared();
-        if (error?.name !== 'AbortError') setStatus('GitHub draft PR oluşturulurken bağlantı hatası oluştu.', 'error');
+        if (error?.code === 'GITHUB_DRAFT_PR_TIMEOUT') setStatus('GitHub draft PR isteği zaman aşımına uğradı. Yeniden onay hazırla.', 'error');
+        else if (error?.code !== 'GITHUB_DRAFT_PR_CANCELLED') setStatus('GitHub draft PR oluşturulurken bağlantı hatası oluştu.', 'error');
         return false;
       } finally {
-        setBusy(false);
+        if (activeRequest === request) {
+          activeRequest = null;
+          setBusy(false);
+        }
       }
     }
 
     function onToggle() { if (form?.hidden) openForm(); else closeForm(); }
-    function onInput() { if (prepared) clearPrepared({ announce: true }); }
+    function onInput() { if (!destroyed && prepared) clearPrepared({ announce: true }); }
     function onKeydown(event) {
-      if (event?.key !== 'Escape' || form?.hidden || card?.getAttribute?.('aria-busy') === 'true') return;
+      if (destroyed || event?.key !== 'Escape' || form?.hidden || card?.getAttribute?.('aria-busy') === 'true') return;
       event.preventDefault?.();
       closeForm();
     }
 
     function attach() {
-      if (!build() || !toggle || !form) return false;
-      toggle.addEventListener?.('click', onToggle);
-      form.addEventListener?.('submit', prepare);
-      approveButton.addEventListener?.('click', execute);
-      cancelButton.addEventListener?.('click', closeForm);
-      headInput.addEventListener?.('input', onInput);
-      baseInput.addEventListener?.('input', onInput);
-      titleInput.addEventListener?.('input', onInput);
-      documentRef.addEventListener?.('keydown', onKeydown);
-      mounted = true;
-      return true;
+      if (destroyed || mounted || !build() || !toggle || !form) return false;
+      ACTIVE_CARDS.add(card);
+      try {
+        addListener(toggle, 'click', onToggle);
+        addListener(form, 'submit', prepare);
+        addListener(approveButton, 'click', execute);
+        addListener(cancelButton, 'click', closeForm);
+        addListener(headInput, 'input', onInput);
+        addListener(baseInput, 'input', onInput);
+        addListener(titleInput, 'input', onInput);
+        addListener(documentRef, 'keydown', onKeydown);
+        mounted = true;
+        return true;
+      } catch {
+        while (listenerCleanup.length) { try { listenerCleanup.pop()(); } catch {} }
+        shell?.remove?.();
+        shell = null;
+        ACTIVE_CARDS.delete(card);
+        return false;
+      }
     }
 
-    function mount() {
-      if (mounted) return false;
+    function mountController() {
+      if (destroyed || mounted) return false;
       if (attach()) return true;
       if (typeof rootRef.MutationObserver !== 'function' || !documentRef.body) return false;
-      observer = new rootRef.MutationObserver(() => {
-        if (!mounted && attach()) {
-          observer?.disconnect?.();
-          observer = null;
-          if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
-          mountTimer = null;
-        }
-      });
-      observer.observe(documentRef.body, { childList: true, subtree: true });
-      mountTimer = rootRef.setTimeout?.(() => {
-        observer?.disconnect?.();
-        observer = null;
-        mountTimer = null;
-      }, MOUNT_TIMEOUT_MS) ?? null;
+      try {
+        observer = new rootRef.MutationObserver(() => {
+          if (!destroyed && !mounted && attach()) stopWaiting();
+        });
+        observer.observe(documentRef.body, { childList: true, subtree: true });
+        mountTimer = rootRef.setTimeout?.(stopWaiting, MOUNT_TIMEOUT_MS) ?? null;
+      } catch {
+        stopWaiting();
+        return false;
+      }
       return false;
     }
 
     function destroy() {
-      requestController?.abort?.();
-      observer?.disconnect?.();
-      if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
-      documentRef.removeEventListener?.('keydown', onKeydown);
-      toggle?.removeEventListener?.('click', onToggle);
-      form?.removeEventListener?.('submit', prepare);
-      approveButton?.removeEventListener?.('click', execute);
-      cancelButton?.removeEventListener?.('click', closeForm);
-      headInput?.removeEventListener?.('input', onInput);
-      baseInput?.removeEventListener?.('input', onInput);
-      titleInput?.removeEventListener?.('input', onInput);
-      card?.querySelector?.('[data-github-draft-pr-create]')?.remove?.();
-      mounted = false;
+      if (destroyed) return false;
+      destroyed = true;
+      abortActive('github-draft-pr-destroyed');
+      stopWaiting();
+      while (listenerCleanup.length) { try { listenerCleanup.pop()(); } catch {} }
+      shell?.remove?.();
+      if (card) ACTIVE_CARDS.delete(card);
       prepared = null;
-      observer = null;
-      mountTimer = null;
+      mounted = false;
+      shell = null;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, prepare, execute, currentCommand });
+    return Object.freeze({
+      mount: mountController,
+      destroy,
+      prepare,
+      execute,
+      currentCommand,
+      getState: () => Object.freeze({ mounted, destroyed, busy: Boolean(activeRequest), prepared: Boolean(prepared) })
+    });
   }
 
-  const singleton = { controller: null };
   function mount(options) {
-    if (!singleton.controller) singleton.controller = createController(options);
-    return singleton.controller.mount();
+    try {
+      const controller = createController(options);
+      controller.mount();
+      return controller;
+    } catch { return null; }
   }
 
   return Object.freeze({
@@ -422,6 +530,9 @@
     MAX_HEAD_SUFFIX_CHARS,
     MAX_BASE_REF_CHARS,
     MAX_TITLE_CHARS,
+    MAX_APPROVAL_TOKEN_CHARS,
+    MOUNT_TIMEOUT_MS,
+    REQUEST_TIMEOUT_MS,
     normalizeHeadSuffix,
     normalizeBaseRef,
     normalizeTitle,
@@ -430,6 +541,7 @@
     normalizePrepared,
     normalizeReceipt,
     errorMessage,
+    createClient,
     createController,
     mount
   });
