@@ -22,6 +22,23 @@ Worker şu durumlarda tüm batch'i fail-closed reddeder ve hiçbir agent task ç
 
 Claim persistence hatası da task başlamadan önce doğrudan hata olarak yükselir. Böylece "claim kaydedilemedi ama task yine de çalıştı" durumu oluşturulmaz.
 
+## Executor sonuç sınırı
+
+`executeAgentTask` dönüş değeri persistence kararı değildir. Worker sonucu önce `docs/SCHEDULE_EXECUTION_RESULT_CONTRACT.md` sözleşmesine göre doğrular.
+
+Malformed executor sonucu:
+
+- schedule'ı `completed` yapamaz,
+- refundable infra yoluna girip attempt refund alamaz,
+- raw payload/detail sızdırmaz,
+- `SCHEDULE_EXECUTION_RESULT_INVALID` olarak normal attempt tüketir,
+- batch içindeki diğer schedule'ları durdurmaz,
+- top-level `invalidResults` sayacına eklenir.
+
+Bu sayaç `uncertain` ile aynı anlamda değildir. Contract ihlalinde worker state transition'dan önce deterministik olarak fail-closed davranmıştır; `uncertain` ise task yan etkisi veya persistence sonucunun artık kesin bilinmediğini gösterir.
+
+Task başladıktan sonra worker signal'ı abort olmuşsa cancellation/side-effect belirsizliği executor-result doğrulamasından daha yüksek önceliklidir. Bu durumda malformed sonuç dahi kör retry gerekçesine çevrilmez; mevcut post-execution uncertainty kuralı korunur.
+
 ## Per-schedule fault isolation
 
 Claim doğrulandıktan sonra schedule'lar bounded concurrency lane'lerinde yürütülür.
@@ -74,7 +91,7 @@ Buna karşılık outcome belirsizse otomatik replay tercih edilmez. Bir sonraki 
 
 ## Gizlilik ve gözlemlenebilirlik
 
-Worker sonucu schedule task metnini, secret değerini veya raw persistence/agent exception mesajını yayınlamaz. Gözlemlenebilirlik yalnız güvenli hata kodları, `scheduleId`, bounded sonuç alanları ve `uncertain` sayacı üzerinden sağlanır.
+Worker sonucu schedule task metnini, secret değerini veya raw persistence/agent exception mesajını yayınlamaz. Gözlemlenebilirlik yalnız güvenli hata kodları, `scheduleId`, bounded sonuç alanları, `uncertain` ve `invalidResults` sayaçları üzerinden sağlanır.
 
 ## Değişmezler
 
