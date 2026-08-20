@@ -21,6 +21,7 @@
   const SCOPE_EVENT = 'hafize:schedule-scope-changed';
   const SCOPES = Object.freeze(new Set(['all', 'active', 'history', 'failed']));
   const STATUSES = Object.freeze(new Set(['scheduled', 'running', 'completed', 'failed', 'cancelled']));
+  const ACTIVE_RAILS = new WeakSet();
   const STATUS_COPY = Object.freeze({
     scheduled: 'Planlandı',
     running: 'Çalışıyor',
@@ -207,13 +208,13 @@
   }
 
   function ensureStyles(documentRef) {
-    if (!documentRef?.head || documentRef.querySelector?.('link[data-hafize-schedule-list-style]')) return false;
+    if (!documentRef?.head || documentRef.querySelector?.('link[data-hafize-schedule-list-style]')) return null;
     const link = documentRef.createElement('link');
     link.rel = 'stylesheet';
     link.href = '/schedule-list.css';
     link.setAttribute('data-hafize-schedule-list-style', '1');
     documentRef.head.append(link);
-    return true;
+    return link;
   }
 
   function createCard(documentRef) {
@@ -266,13 +267,16 @@
   } = {}) {
     if (!documentRef || !root) return null;
     const rail = documentRef.querySelector?.('.utility-rail');
-    if (!rail || documentRef.querySelector?.('#scheduleListCard')) return null;
-    ensureStyles(documentRef);
+    if (!rail || documentRef.querySelector?.('#scheduleListCard') || ACTIVE_RAILS.has(rail)) return null;
 
     let client;
     try { client = createClient({ fetchImpl, AbortControllerImpl, setTimeoutImpl, clearTimeoutImpl, timeoutMs }); } catch { return null; }
-    const nodes = createCard(documentRef);
-    rail.append(nodes.card);
+
+    let nodes = null;
+    let ownedStyle = null;
+    let observer = null;
+    const listenerCleanups = [];
+    let ownsRail = false;
     let busy = false;
     let destroyed = false;
     let requestGeneration = 0;
@@ -285,6 +289,45 @@
     let snapshot = null;
     let nextOffset = null;
     let total = null;
+
+    function addOwnedListener(target, type, handler, { required = false } = {}) {
+      const hasAdd = typeof target?.addEventListener === 'function';
+      const hasRemove = typeof target?.removeEventListener === 'function';
+      if (!hasAdd && !hasRemove) {
+        if (required) throw new Error('SCHEDULE_LIST_EVENT_TARGET_UNAVAILABLE');
+        return false;
+      }
+      if (!hasAdd || !hasRemove) throw new Error('SCHEDULE_LIST_EVENT_TARGET_UNSAFE');
+      target.addEventListener(type, handler);
+      listenerCleanups.push(() => target.removeEventListener(type, handler));
+      return true;
+    }
+
+    function releaseInstallation() {
+      observer?.disconnect?.();
+      observer = null;
+      while (listenerCleanups.length) {
+        try { listenerCleanups.pop()(); } catch {}
+      }
+      nodes?.card?.remove?.();
+      ownedStyle?.remove?.();
+      ownedStyle = null;
+      if (ownsRail) {
+        ACTIVE_RAILS.delete(rail);
+        ownsRail = false;
+      }
+    }
+
+    try {
+      ownedStyle = ensureStyles(documentRef);
+      nodes = createCard(documentRef);
+      rail.append(nodes.card);
+      ACTIVE_RAILS.add(rail);
+      ownsRail = true;
+    } catch {
+      releaseInstallation();
+      return null;
+    }
 
     function setBusy(value) {
       busy = Boolean(value);
@@ -364,7 +407,14 @@
       const requestOffset = append ? nextOffset : 0;
       const requestSnapshot = append ? snapshot : null;
       const requestScope = currentScope;
-      const requestController = new AbortControllerImpl();
+      let requestController;
+      try {
+        requestController = new AbortControllerImpl();
+      } catch {
+        nodes.status.dataset.state = 'error';
+        nodes.status.textContent = 'Görev listesi güvenli biçimde başlatılamadı.';
+        return false;
+      }
       activeRequestController = requestController;
       setBusy(true);
       nodes.status.dataset.state = 'loading';
@@ -473,25 +523,33 @@
       if (busy) { pendingMutationRefresh = true; return; }
       refresh({ reason: 'mutation' });
     }
-    nodes.refresh.addEventListener('click', onRefresh);
-    nodes.more.addEventListener('click', onMore);
-    root.addEventListener?.(CREATED_EVENT, onScheduleMutation);
-    root.addEventListener?.(CANCELLED_EVENT, onScheduleMutation);
-    root.addEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
-    root.addEventListener?.(SCOPE_EVENT, onScope);
 
-    const sessionBadge = documentRef.querySelector?.('#sessionBadge');
-    let lastBadgeState = typeof sessionBadge?.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
-    const observer = typeof root.MutationObserver === 'function' && sessionBadge
-      ? new root.MutationObserver(() => {
+    try {
+      addOwnedListener(nodes.refresh, 'click', onRefresh, { required: true });
+      addOwnedListener(nodes.more, 'click', onMore, { required: true });
+      addOwnedListener(root, CREATED_EVENT, onScheduleMutation);
+      addOwnedListener(root, CANCELLED_EVENT, onScheduleMutation);
+      addOwnedListener(root, RESCHEDULED_EVENT, onScheduleMutation);
+      addOwnedListener(root, SCOPE_EVENT, onScope);
+
+      const sessionBadge = documentRef.querySelector?.('#sessionBadge');
+      let lastBadgeState = typeof sessionBadge?.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
+      if (typeof root.MutationObserver === 'function' && sessionBadge) {
+        observer = new root.MutationObserver(() => {
           const next = typeof sessionBadge.dataset?.state === 'string' ? sessionBadge.dataset.state : null;
           if (!next || next === lastBadgeState || next === 'loading') return;
           lastBadgeState = next;
           sessionState = next;
           refresh({ reason: 'session' });
-        })
-      : null;
-    observer?.observe(sessionBadge, { attributes: true, attributeFilter: ['data-state'] });
+        });
+        observer.observe(sessionBadge, { attributes: true, attributeFilter: ['data-state'] });
+      }
+    } catch {
+      destroyed = true;
+      requestGeneration += 1;
+      releaseInstallation();
+      return null;
+    }
 
     refresh({ reason: 'mount' });
 
@@ -509,14 +567,7 @@
         pendingMutationRefresh = false;
         pendingScope = null;
         resetPagination();
-        observer?.disconnect?.();
-        nodes.refresh.removeEventListener('click', onRefresh);
-        nodes.more.removeEventListener('click', onMore);
-        root.removeEventListener?.(CREATED_EVENT, onScheduleMutation);
-        root.removeEventListener?.(CANCELLED_EVENT, onScheduleMutation);
-        root.removeEventListener?.(RESCHEDULED_EVENT, onScheduleMutation);
-        root.removeEventListener?.(SCOPE_EVENT, onScope);
-        nodes.card.remove();
+        releaseInstallation();
         return true;
       }
     });
