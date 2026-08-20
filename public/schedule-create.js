@@ -12,6 +12,7 @@
   const MAX_AGENT_ID_CHARS = 120;
   const MAX_ATTEMPTS = 5;
   const CREATED_EVENT = 'hafize:schedule-created';
+  const ACTIVE_HEADS = new WeakSet();
 
   function cleanText(value, maxChars) {
     if (typeof value !== 'string') return null;
@@ -184,23 +185,38 @@
     const card = documentRef.querySelector?.('#scheduleListCard');
     const head = card?.querySelector?.('.schedule-list-head');
     const sourceAgent = documentRef.querySelector?.('#agentSelect');
-    if (!card || !head || !sourceAgent || documentRef.querySelector?.('.schedule-create-panel')) return null;
+    if (!card || !head || !sourceAgent || ACTIVE_HEADS.has(head) || documentRef.querySelector?.('.schedule-create-panel')) return null;
 
     let client;
     try { client = createClient({ fetchImpl }); } catch { return null; }
 
-    const open = documentRef.createElement('button');
-    open.type = 'button';
-    open.className = 'mini-btn schedule-create-open';
-    open.textContent = '＋ Görev';
-    open.setAttribute('aria-expanded', 'false');
-    open.setAttribute('aria-label', 'Yeni zamanlanmış görev oluştur');
-    head.append(open);
+    ACTIVE_HEADS.add(head);
+    let open = null;
+    let nodes = null;
+    try {
+      open = documentRef.createElement('button');
+      open.type = 'button';
+      open.className = 'mini-btn schedule-create-open';
+      open.textContent = '＋ Görev';
+      open.setAttribute('aria-expanded', 'false');
+      open.setAttribute('aria-label', 'Yeni zamanlanmış görev oluştur');
+      head.append(open);
 
-    const nodes = createForm(documentRef);
-    card.append(nodes.section);
+      nodes = createForm(documentRef);
+      card.append(nodes.section);
+    } catch {
+      nodes?.section?.remove?.();
+      open?.remove?.();
+      ACTIVE_HEADS.delete(head);
+      return null;
+    }
+
     let busy = false;
     let destroyed = false;
+    let openListenerInstalled = false;
+    let cancelListenerInstalled = false;
+    let submitListenerInstalled = false;
+    let keyListenerInstalled = false;
 
     function setOpen(value) {
       const visible = Boolean(value);
@@ -285,10 +301,44 @@
     function onCancel() { if (!busy) { clearStatus(); setOpen(false); open.focus?.(); } }
     function onKeydown(event) { if (event?.key === 'Escape' && !nodes.section.hidden && !busy) onCancel(); }
 
-    open.addEventListener('click', onOpen);
-    nodes.cancel.addEventListener('click', onCancel);
-    nodes.form.addEventListener('submit', onSubmit);
-    documentRef.addEventListener?.('keydown', onKeydown);
+    function releaseInstallation() {
+      if (openListenerInstalled) {
+        open.removeEventListener?.('click', onOpen);
+        openListenerInstalled = false;
+      }
+      if (cancelListenerInstalled) {
+        nodes.cancel.removeEventListener?.('click', onCancel);
+        cancelListenerInstalled = false;
+      }
+      if (submitListenerInstalled) {
+        nodes.form.removeEventListener?.('submit', onSubmit);
+        submitListenerInstalled = false;
+      }
+      if (keyListenerInstalled) {
+        documentRef.removeEventListener?.('keydown', onKeydown);
+        keyListenerInstalled = false;
+      }
+      nodes.section.remove?.();
+      open.remove?.();
+      ACTIVE_HEADS.delete(head);
+    }
+
+    try {
+      open.addEventListener('click', onOpen);
+      openListenerInstalled = true;
+      nodes.cancel.addEventListener('click', onCancel);
+      cancelListenerInstalled = true;
+      nodes.form.addEventListener('submit', onSubmit);
+      submitListenerInstalled = true;
+      if (typeof documentRef.addEventListener === 'function') {
+        documentRef.addEventListener('keydown', onKeydown);
+        keyListenerInstalled = true;
+      }
+    } catch {
+      destroyed = true;
+      releaseInstallation();
+      return null;
+    }
 
     return Object.freeze({
       isOpen: () => !nodes.section.hidden,
@@ -296,12 +346,7 @@
       destroy() {
         if (destroyed) return false;
         destroyed = true;
-        open.removeEventListener('click', onOpen);
-        nodes.cancel.removeEventListener('click', onCancel);
-        nodes.form.removeEventListener('submit', onSubmit);
-        documentRef.removeEventListener?.('keydown', onKeydown);
-        nodes.section.remove?.();
-        open.remove?.();
+        releaseInstallation();
         return true;
       }
     });
