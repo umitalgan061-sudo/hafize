@@ -10,6 +10,8 @@
   const HEALTH_PATH = '/api/health';
   const CARD_ID = 'scheduleRuntimeCard';
   const STATUS_ID = 'scheduleRuntimeSummary';
+  const REQUEST_TIMEOUT_MS = 8_000;
+  const ACTIVE_RAILS = new WeakSet();
   const FIELDS = Object.freeze([
     ['scheduleWorkerConfigured', 'Görev motoru', 'Hazır', 'Kapalı'],
     ['scheduleApiConfigured', 'Görev API', 'Hazır', 'Kapalı'],
@@ -36,20 +38,116 @@
     return Object.freeze({ state: 'ready', text: 'Bulut görev motoru hazır.' });
   }
 
-  function createController({ documentRef = globalThis.document, fetchImpl = globalThis.fetch } = {}) {
+  function requestError(code) {
+    const error = new Error(code);
+    error.name = 'AbortError';
+    error.code = code;
+    return error;
+  }
+
+  function isAbortSignal(signal) {
+    return signal && typeof signal === 'object' && typeof signal.addEventListener === 'function';
+  }
+
+  async function readPayload(response) {
+    const value = await response.json();
+    const health = normalizeHealth(value);
+    if (!health) throw new Error('SCHEDULE_STATUS_INVALID_RESPONSE');
+    return health;
+  }
+
+  function createClient({
+    fetchImpl = globalThis.fetch,
+    AbortControllerImpl = globalThis.AbortController,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
+    if (typeof fetchImpl !== 'function') throw new Error('SCHEDULE_STATUS_FETCH_UNAVAILABLE');
+    if (typeof AbortControllerImpl !== 'function') throw new Error('SCHEDULE_STATUS_ABORT_CONTROLLER_UNAVAILABLE');
+    if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('SCHEDULE_STATUS_TIMER_UNAVAILABLE');
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error('INVALID_SCHEDULE_STATUS_TIMEOUT');
+
+    return Object.freeze({
+      async read({ signal } = {}) {
+        if (signal != null && !isAbortSignal(signal)) throw new Error('INVALID_SCHEDULE_STATUS_SIGNAL');
+        if (signal?.aborted) throw requestError('SCHEDULE_STATUS_CANCELLED');
+
+        const controller = new AbortControllerImpl();
+        let timedOut = false;
+        const onAbort = () => controller.abort(signal?.reason);
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+        const timer = setTimeoutImpl(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+
+        try {
+          const response = await fetchImpl(HEALTH_PATH, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+            credentials: 'same-origin',
+            signal: controller.signal
+          });
+          if (!response?.ok) throw new Error('SCHEDULE_STATUS_HTTP_ERROR');
+          return await readPayload(response);
+        } catch (error) {
+          if (timedOut) throw requestError('SCHEDULE_STATUS_TIMEOUT');
+          if (signal?.aborted) throw requestError('SCHEDULE_STATUS_CANCELLED');
+          throw error;
+        } finally {
+          clearTimeoutImpl(timer);
+          signal?.removeEventListener?.('abort', onAbort);
+        }
+      }
+    });
+  }
+
+  function snapshotAttribute(node, name) {
+    const value = node?.getAttribute?.(name);
+    return Object.freeze({ present: value !== null && value !== undefined, value });
+  }
+
+  function restoreAttribute(node, name, snapshot) {
+    if (!node || !snapshot) return;
+    if (snapshot.present) node.setAttribute?.(name, snapshot.value);
+    else node.removeAttribute?.(name);
+  }
+
+  function snapshotDataset(node, key) {
+    return Object.freeze({ present: Object.prototype.hasOwnProperty.call(node?.dataset || {}, key), value: node?.dataset?.[key] });
+  }
+
+  function restoreDataset(node, key, snapshot) {
+    if (!node?.dataset || !snapshot) return;
+    if (snapshot.present) node.dataset[key] = snapshot.value;
+    else delete node.dataset[key];
+  }
+
+  function createController({
+    documentRef = globalThis.document,
+    fetchImpl = globalThis.fetch,
+    AbortControllerImpl = globalThis.AbortController,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
     if (!documentRef || typeof documentRef.querySelector !== 'function' || typeof documentRef.createElement !== 'function') {
       throw new Error('INVALID_SCHEDULE_STATUS_DOCUMENT');
     }
-    if (typeof fetchImpl !== 'function') throw new Error('SCHEDULE_STATUS_FETCH_UNAVAILABLE');
+    const client = createClient({ fetchImpl, AbortControllerImpl, setTimeoutImpl, clearTimeoutImpl, timeoutMs });
 
     let mounted = false;
     let ownsCard = false;
     let card = null;
     let status = null;
     let refresh = null;
+    let rail = null;
     let rows = new Map();
     let requestController = null;
     let generation = 0;
+    let hostSnapshot = null;
 
     function element(tag, className, text) {
       const node = documentRef.createElement(tag);
@@ -63,14 +161,64 @@
       card = null;
       status = null;
       refresh = null;
+      rail = null;
       ownsCard = false;
+      hostSnapshot = null;
+      requestController = null;
+    }
+
+    function captureHostState() {
+      const rowStates = new Map();
+      for (const [key, node] of rows.entries()) {
+        rowStates.set(key, Object.freeze({ textContent: node.textContent, state: snapshotDataset(node, 'state') }));
+      }
+      return Object.freeze({
+        ariaBusy: snapshotAttribute(card, 'aria-busy'),
+        statusText: status.textContent,
+        statusState: snapshotDataset(status, 'state'),
+        refreshDisabled: Boolean(refresh.disabled),
+        rows: rowStates
+      });
+    }
+
+    function restoreHostState() {
+      if (!hostSnapshot || ownsCard) return;
+      restoreAttribute(card, 'aria-busy', hostSnapshot.ariaBusy);
+      status.textContent = hostSnapshot.statusText;
+      restoreDataset(status, 'state', hostSnapshot.statusState);
+      refresh.disabled = hostSnapshot.refreshDisabled;
+      for (const [key, snapshot] of hostSnapshot.rows.entries()) {
+        const node = rows.get(key);
+        if (!node) continue;
+        node.textContent = snapshot.textContent;
+        restoreDataset(node, 'state', snapshot.state);
+      }
+    }
+
+    function hydrateExisting(existing) {
+      const existingStatus = existing.querySelector?.('.schedule-runtime-summary');
+      const existingRefresh = existing.querySelector?.('.schedule-runtime-refresh');
+      if (!existingStatus || !existingRefresh) return false;
+      const existingRows = new Map();
+      for (const [key] of FIELDS) {
+        const node = existing.querySelector?.(`[data-key="${key}"]`);
+        if (!node) return false;
+        existingRows.set(key, node);
+      }
+      card = existing;
+      status = existingStatus;
+      refresh = existingRefresh;
+      rows = existingRows;
+      hostSnapshot = captureHostState();
+      return true;
     }
 
     function buildCard() {
-      const rail = documentRef.querySelector('.utility-rail');
-      if (!rail) return false;
+      rail = documentRef.querySelector('.utility-rail');
+      if (!rail || ACTIVE_RAILS.has(rail)) return false;
       const existing = documentRef.querySelector(`#${CARD_ID}`);
-      if (existing) { card = existing; return false; }
+      if (existing) return hydrateExisting(existing);
+
       card = element('section', 'utility-card schedule-runtime-card');
       ownsCard = true;
       card.id = CARD_ID;
@@ -126,39 +274,54 @@
 
     async function load() {
       if (!mounted) return null;
-      requestController?.abort?.();
-      requestController = typeof AbortController === 'function' ? new AbortController() : null;
+      requestController?.abort?.('schedule-runtime-status-superseded');
+      let request;
+      try { request = new AbortControllerImpl(); }
+      catch {
+        render(null);
+        return null;
+      }
+      requestController = request;
       const requestGeneration = ++generation;
       if (card) card.setAttribute('aria-busy', 'true');
       if (refresh) refresh.disabled = true;
       try {
-        const response = await fetchImpl(HEALTH_PATH, {
-          method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', credentials: 'same-origin',
-          ...(requestController ? { signal: requestController.signal } : {})
-        });
-        if (!response?.ok) throw new Error('SCHEDULE_STATUS_HTTP_ERROR');
-        const health = normalizeHealth(await response.json());
-        if (!health) throw new Error('SCHEDULE_STATUS_INVALID_RESPONSE');
-        if (!mounted || requestGeneration !== generation) return null;
+        const health = await client.read({ signal: request.signal });
+        if (!mounted || requestGeneration !== generation || requestController !== request) return null;
         render(health);
         return health;
       } catch (error) {
-        if (mounted && requestGeneration === generation && error?.name !== 'AbortError') render(null);
+        if (mounted && requestGeneration === generation && requestController === request && error?.code !== 'SCHEDULE_STATUS_CANCELLED') render(null);
         return null;
       } finally {
+        if (requestController === request) requestController = null;
         if (mounted && requestGeneration === generation && refresh) refresh.disabled = false;
       }
     }
 
+    function releaseInstallation() {
+      generation += 1;
+      requestController?.abort?.('schedule-runtime-status-release');
+      requestController = null;
+      refresh?.removeEventListener?.('click', load);
+      if (ownsCard) card?.remove?.();
+      else restoreHostState();
+      if (rail) ACTIVE_RAILS.delete(rail);
+      resetRefs();
+    }
+
     function mount() {
       if (mounted) return false;
-      buildCard();
-      if (!card || !refresh) { resetRefs(); return false; }
       try {
-        refresh.addEventListener?.('click', load);
+        if (!buildCard() || !card || !status || !refresh || rows.size !== FIELDS.length) {
+          if (ownsCard) card?.remove?.();
+          resetRefs();
+          return false;
+        }
+        ACTIVE_RAILS.add(rail);
+        refresh.addEventListener('click', load);
       } catch {
-        if (ownsCard) card.remove?.();
-        resetRefs();
+        releaseInstallation();
         return false;
       }
       mounted = true;
@@ -169,11 +332,7 @@
     function destroy() {
       if (!mounted) return false;
       mounted = false;
-      generation += 1;
-      requestController?.abort?.();
-      refresh?.removeEventListener?.('click', load);
-      if (ownsCard) card?.remove?.();
-      resetRefs();
+      releaseInstallation();
       return true;
     }
 
@@ -185,5 +344,8 @@
     catch { return null; }
   }
 
-  return Object.freeze({ HEALTH_PATH, CARD_ID, STATUS_ID, FIELDS, normalizeHealth, deriveSummary, createController, mount });
+  return Object.freeze({
+    HEALTH_PATH, CARD_ID, STATUS_ID, REQUEST_TIMEOUT_MS, FIELDS,
+    normalizeHealth, deriveSummary, createClient, createController, mount
+  });
 });
