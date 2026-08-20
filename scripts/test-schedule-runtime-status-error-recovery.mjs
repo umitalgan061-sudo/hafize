@@ -41,4 +41,23 @@ assert.equal(status.textContent,'Bulut görev motoru hazır.');
 assert.equal(refresh.disabled,false);
 for(const row of rows) assert.equal(row.dataset.state,'ready');
 controller.destroy();
+
+let fireTimeout=null;
+const timeoutController=api.createController({
+  documentRef,
+  timeoutMs:20,
+  setTimeoutImpl(callback,delay){ assert.equal(delay,20); fireTimeout=callback; return 55; },
+  clearTimeoutImpl(id){ assert.equal(id,55); },
+  fetchImpl:async(_url,options)=>await new Promise((resolve,reject)=>{
+    options.signal.addEventListener('abort',()=>{ const error=new Error('aborted'); error.name='AbortError'; reject(error); },{once:true});
+  })
+});
+assert.equal(timeoutController.mount(),true);
+await Promise.resolve();
+assert.equal(refresh.disabled,true);
+fireTimeout();
+await new Promise(r=>setTimeout(r,0));
+assert.equal(status.dataset.state,'error','timeout becomes visible error state');
+assert.equal(refresh.disabled,false,'timeout releases refresh control');
+timeoutController.destroy();
 console.log('schedule runtime status error recovery tests passed');
