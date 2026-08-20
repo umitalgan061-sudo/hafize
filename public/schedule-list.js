@@ -13,6 +13,7 @@
   const MAX_TASK_PREVIEW_CHARS = 180;
   const MAX_AGENT_ID_CHARS = 120;
   const MAX_SCHEDULE_ID_CHARS = 120;
+  const REQUEST_TIMEOUT_MS = 30_000;
   const SNAPSHOT_PATTERN = /^[A-Za-z0-9_-]{43}$/;
   const CREATED_EVENT = 'hafize:schedule-created';
   const CANCELLED_EVENT = 'hafize:schedule-cancelled';
@@ -132,6 +133,13 @@
     }
   }
 
+  function requestError(code) {
+    const error = new Error(code);
+    error.name = 'AbortError';
+    error.code = code;
+    return error;
+  }
+
   function createListPath({ offset = 0, snapshot = null, scope = 'all' } = {}) {
     const selectedScope = normalizeScope(scope);
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 10_000) throw new Error('INVALID_SCHEDULE_LIST_OFFSET');
@@ -145,21 +153,55 @@
     return `${PATH}?${params.toString()}`;
   }
 
-  function createClient({ fetchImpl = globalThis.fetch } = {}) {
+  function createClient({
+    fetchImpl = globalThis.fetch,
+    AbortControllerImpl = globalThis.AbortController,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
     if (typeof fetchImpl !== 'function') throw new Error('INVALID_SCHEDULE_LIST_FETCH');
+    if (typeof AbortControllerImpl !== 'function') throw new Error('INVALID_SCHEDULE_LIST_ABORT_CONTROLLER');
+    if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_SCHEDULE_LIST_TIMER');
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error('INVALID_SCHEDULE_LIST_TIMEOUT');
+
     return Object.freeze({
-      async list(options = {}) {
-        const response = await fetchImpl(createListPath(options), {
-          method: 'GET',
-          headers: { Accept: 'application/json' },
-          credentials: 'same-origin',
-          cache: 'no-store'
-        });
-        return Object.freeze({
-          ok: Boolean(response?.ok),
-          status: Number(response?.status) || 0,
-          payload: Object.freeze(await readPayload(response))
-        });
+      async list(options = {}, { signal } = {}) {
+        if (signal != null && (typeof signal !== 'object' || typeof signal.addEventListener !== 'function')) {
+          throw new Error('INVALID_SCHEDULE_LIST_SIGNAL');
+        }
+        if (signal?.aborted) throw requestError('SCHEDULE_LIST_CANCELLED');
+
+        const controller = new AbortControllerImpl();
+        let timedOut = false;
+        const onAbort = () => controller.abort(signal?.reason);
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+        const timer = setTimeoutImpl(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+
+        try {
+          const response = await fetchImpl(createListPath(options), {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal
+          });
+          return Object.freeze({
+            ok: Boolean(response?.ok),
+            status: Number(response?.status) || 0,
+            payload: Object.freeze(await readPayload(response))
+          });
+        } catch (error) {
+          if (timedOut) throw requestError('SCHEDULE_LIST_TIMEOUT');
+          if (signal?.aborted) throw requestError('SCHEDULE_LIST_CANCELLED');
+          throw error;
+        } finally {
+          clearTimeoutImpl(timer);
+          signal?.removeEventListener?.('abort', onAbort);
+        }
       }
     });
   }
@@ -215,19 +257,26 @@
     return { card, refresh, status, list, more };
   }
 
-  function mount(documentRef, root, { fetchImpl = root?.fetch } = {}) {
+  function mount(documentRef, root, {
+    fetchImpl = root?.fetch,
+    AbortControllerImpl = root?.AbortController,
+    setTimeoutImpl = root?.setTimeout,
+    clearTimeoutImpl = root?.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
     if (!documentRef || !root) return null;
     const rail = documentRef.querySelector?.('.utility-rail');
     if (!rail || documentRef.querySelector?.('#scheduleListCard')) return null;
     ensureStyles(documentRef);
 
     let client;
-    try { client = createClient({ fetchImpl }); } catch { return null; }
+    try { client = createClient({ fetchImpl, AbortControllerImpl, setTimeoutImpl, clearTimeoutImpl, timeoutMs }); } catch { return null; }
     const nodes = createCard(documentRef);
     rail.append(nodes.card);
     let busy = false;
     let destroyed = false;
     let requestGeneration = 0;
+    let activeRequestController = null;
     let sessionState = null;
     let pendingMutationRefresh = false;
     let pendingScope = null;
@@ -315,17 +364,23 @@
       const requestOffset = append ? nextOffset : 0;
       const requestSnapshot = append ? snapshot : null;
       const requestScope = currentScope;
+      const requestController = new AbortControllerImpl();
+      activeRequestController = requestController;
       setBusy(true);
       nodes.status.dataset.state = 'loading';
       nodes.status.textContent = append ? 'Daha eski görevler yükleniyor…' : 'Zamanlanmış görevler yükleniyor…';
       try {
-        const response = await client.list({ offset: requestOffset, snapshot: requestSnapshot, scope: requestScope });
+        const response = await client.list(
+          { offset: requestOffset, snapshot: requestSnapshot, scope: requestScope },
+          { signal: requestController.signal }
+        );
         if (destroyed || generation !== requestGeneration || requestScope !== currentScope) return false;
         if (append && response.status === 409 && response.payload?.error === 'SCHEDULE_LIST_SNAPSHOT_CHANGED') {
           resetPagination();
           nodes.status.dataset.state = 'stale';
           nodes.status.textContent = 'Görev listesi değişti; güncel ilk sayfa yeniden yükleniyor…';
           setBusy(false);
+          activeRequestController = null;
           return loadPage({ append: false, reason: 'snapshot-changed' });
         }
         if (response.status === 401) {
@@ -361,15 +416,18 @@
         if (loadedItems.length) renderSchedules(loadedItems);
         else renderEmpty('Bu görünümde henüz görev yok.');
         return true;
-      } catch {
-        if (!destroyed && generation === requestGeneration) {
+      } catch (error) {
+        if (!destroyed && generation === requestGeneration && error?.code !== 'SCHEDULE_LIST_CANCELLED') {
           if (!append) resetPagination();
-          nodes.status.dataset.state = 'error';
-          nodes.status.textContent = 'Görev listesine ulaşılamadı.';
-          if (!append) renderEmpty('Bağlantı kurulamadı.');
+          nodes.status.dataset.state = error?.code === 'SCHEDULE_LIST_TIMEOUT' ? 'timeout' : 'error';
+          nodes.status.textContent = error?.code === 'SCHEDULE_LIST_TIMEOUT'
+            ? 'Görev listesi isteği zaman aşımına uğradı; yeniden deneyebilirsin.'
+            : 'Görev listesine ulaşılamadı.';
+          if (!append) renderEmpty(error?.code === 'SCHEDULE_LIST_TIMEOUT' ? 'Liste zamanında yanıt vermedi.' : 'Bağlantı kurulamadı.');
         }
         return false;
       } finally {
+        if (activeRequestController === requestController) activeRequestController = null;
         if (!destroyed && generation === requestGeneration && busy) {
           setBusy(false);
           if (pendingScope !== null) {
@@ -385,13 +443,22 @@
     }
 
     function refresh({ reason = 'manual' } = {}) {
+      if (destroyed) return false;
+      if (busy) {
+        pendingMutationRefresh = true;
+        return true;
+      }
       resetPagination();
       return loadPage({ append: false, reason });
     }
     function setScope(value) {
       const scope = normalizeScope(value);
       if (destroyed || scope === currentScope) return false;
-      if (busy) { pendingScope = scope; return true; }
+      if (busy) {
+        pendingScope = scope;
+        activeRequestController?.abort?.();
+        return true;
+      }
       currentScope = scope;
       nodes.card.dataset.scope = currentScope;
       resetPagination();
@@ -437,6 +504,8 @@
         if (destroyed) return false;
         destroyed = true;
         requestGeneration += 1;
+        activeRequestController?.abort?.();
+        activeRequestController = null;
         pendingMutationRefresh = false;
         pendingScope = null;
         resetPagination();
@@ -460,6 +529,7 @@
     MAX_TASK_PREVIEW_CHARS,
     MAX_AGENT_ID_CHARS,
     MAX_SCHEDULE_ID_CHARS,
+    REQUEST_TIMEOUT_MS,
     SNAPSHOT_PATTERN,
     CREATED_EVENT,
     CANCELLED_EVENT,
