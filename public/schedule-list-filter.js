@@ -160,10 +160,30 @@
     let query = '';
     let destroyed = false;
     let renderQueued = false;
+    const itemStates = new Map();
 
     function collectItems() {
       const articles = Array.from(list.querySelectorAll?.('.schedule-list-item') || []);
       return articles.map(readItem).filter(Boolean);
+    }
+
+    function captureItemState(article) {
+      if (!article || itemStates.has(article)) return;
+      const ariaHidden = article.getAttribute?.('aria-hidden');
+      itemStates.set(article, Object.freeze({
+        hidden: Boolean(article.hidden),
+        hasAriaHidden: ariaHidden !== null && ariaHidden !== undefined,
+        ariaHidden
+      }));
+    }
+
+    function restoreItemStates() {
+      for (const [article, state] of itemStates) {
+        article.hidden = state.hidden;
+        if (state.hasAriaHidden) article.setAttribute?.('aria-hidden', state.ariaHidden);
+        else article.removeAttribute?.('aria-hidden');
+      }
+      itemStates.clear();
     }
 
     function render() {
@@ -174,6 +194,7 @@
       const serverScope = normalizeFilter(card.dataset?.scope || filter);
       let visible = 0;
       for (const item of items) {
+        captureItemState(item.article);
         const matches = matchesItem(item, { filter, query });
         item.article.hidden = !matches;
         item.article.setAttribute?.('aria-hidden', String(!matches));
@@ -267,10 +288,7 @@
         nodes.wrapper.removeEventListener?.('click', onTabClick);
         nodes.input.removeEventListener?.('input', onInput);
         nodes.input.removeEventListener?.('keydown', onKeydown);
-        for (const item of collectItems()) {
-          item.article.hidden = false;
-          item.article.removeAttribute?.('aria-hidden');
-        }
+        restoreItemStates();
         nodes.wrapper.remove?.();
       }
     });
