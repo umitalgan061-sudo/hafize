@@ -312,13 +312,13 @@
 
     function mount() {
       if (mounted) return false;
-      if (!buildCard() || !card || !status || !refresh || rows.size !== FIELDS.length) {
-        if (ownsCard) card?.remove?.();
-        resetRefs();
-        return false;
-      }
-      ACTIVE_RAILS.add(rail);
       try {
+        if (!buildCard() || !card || !status || !refresh || rows.size !== FIELDS.length) {
+          if (ownsCard) card?.remove?.();
+          resetRefs();
+          return false;
+        }
+        ACTIVE_RAILS.add(rail);
         refresh.addEventListener('click', load);
       } catch {
         releaseInstallation();
