@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
 import { createTaskSchedulePersistence } from '../lib/task-schedule-persistence.mjs';
-import { createScheduleWorker } from '../lib/schedule-worker.mjs';
+import { createScheduleWorker, WORKER_STATE_UNCERTAIN_ERROR } from '../lib/schedule-worker.mjs';
 
 let clock = new Date('2026-08-12T10:00:00.000Z');
 const now = () => new Date(clock);
@@ -50,6 +50,7 @@ const worker = createScheduleWorker({
 
 const first = await worker.runDue();
 assert.equal(first.claimed, 3);
+assert.equal(first.uncertain, 0);
 assert.equal(seen.length, 2);
 assert.equal(seen[0].traceId, 'trace-success');
 assert.equal(seen[0].agent.id, 'hafize-general');
@@ -64,6 +65,7 @@ assert.equal(store.read(missing.scheduleId).lastError, 'SCHEDULE_AGENT_NOT_FOUND
 clock = new Date('2026-08-12T10:01:00.000Z');
 const second = await worker.runDue();
 assert.equal(second.claimed, 1);
+assert.equal(second.uncertain, 0);
 assert.equal(store.read(retry.scheduleId).status, 'failed');
 assert.equal(store.read(retry.scheduleId).attempts, 2);
 
@@ -84,6 +86,7 @@ const throwingWorker = createScheduleWorker({
 });
 const thrown = await throwingWorker.runDue();
 assert.equal(thrown.results[0].error, 'SCHEDULE_EXECUTION_FAILED');
+assert.equal(thrown.uncertain, 0);
 assert.equal(throwingStore.read(throwing.scheduleId).lastError, 'SCHEDULE_EXECUTION_FAILED');
 assert.equal(JSON.stringify(thrown).includes('secret internal detail'), false);
 
@@ -105,6 +108,7 @@ const boundedWorker = createScheduleWorker({
 });
 const bounded = await boundedWorker.runDue({ limit: 99 });
 assert.equal(bounded.claimed, 2);
+assert.equal(bounded.uncertain, 0);
 assert.equal(boundedStore.snapshot().entries.filter((entry) => entry.status === 'scheduled').length, 1);
 
 let durableEnvelope = null;
@@ -144,6 +148,7 @@ const durableWorker = createScheduleWorker({
 });
 const durableResult = await durableWorker.runDue({ limit: 2 });
 assert.equal(durableResult.claimed, 2);
+assert.equal(durableResult.uncertain, 0);
 assert.equal(durableStore.read(durableSuccess.scheduleId).status, 'completed');
 assert.equal(durableStore.read(durableFailure.scheduleId).status, 'failed');
 assert.equal(durableStore.read(durableFailure.scheduleId).lastError, 'DURABLE_FAILURE');
@@ -187,7 +192,7 @@ const completeSeed = createTaskScheduleStore({ now });
 const completeTask = completeSeed.add({
   traceId: 'trace-complete-save-failure',
   agentId: 'hafize-general',
-  task: 'Completion persist hatasını gizleme.',
+  task: 'Completion persist hatasını belirsiz sonuç olarak işaretle.',
   runAt: '2026-08-12T10:00:00.000Z'
 });
 let completeEnvelope = { schemaVersion: 1, snapshot: completeSeed.snapshot() };
@@ -216,7 +221,14 @@ const completeFailureWorker = createScheduleWorker({
     return { ok: true };
   }
 });
-await assert.rejects(() => completeFailureWorker.runDue(), /SCHEDULE_PERSISTENCE_SAVE_FAILED/);
+const completeFailureResult = await completeFailureWorker.runDue();
+assert.equal(completeFailureResult.claimed, 1);
+assert.equal(completeFailureResult.uncertain, 1);
+assert.equal(completeFailureResult.results[0].scheduleId, completeTask.scheduleId);
+assert.equal(completeFailureResult.results[0].ok, false);
+assert.equal(completeFailureResult.results[0].error, WORKER_STATE_UNCERTAIN_ERROR);
+assert.equal(completeFailureResult.results[0].outcomeUnknown, true);
+assert.equal(JSON.stringify(completeFailureResult).includes('secret completion persistence detail'), false);
 assert.equal(completeExecutions, 1);
 assert.equal(completeFailureStore.read(completeTask.scheduleId).status, 'running');
 assert.equal(completeEnvelope.snapshot.entries[0].status, 'running');
@@ -257,6 +269,7 @@ const leaseBusyWorker = createScheduleWorker({
 });
 const leaseBusyResult = await leaseBusyWorker.runDue();
 assert.equal(leaseBusyResult.claimed, 1);
+assert.equal(leaseBusyResult.uncertain, 0);
 assert.equal(leaseBusyResult.results[0].attemptRefunded, true);
 assert.equal(leaseBusyResult.results[0].retryAt, '2026-08-12T11:02:00.000Z');
 assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).status, 'scheduled');
@@ -268,6 +281,7 @@ assert.equal(leaseEnvelope.snapshot.entries[0].runAt, '2026-08-12T11:02:00.000Z'
 clock = new Date('2026-08-12T11:02:00.000Z');
 const leaseRetryResult = await leaseBusyWorker.runDue();
 assert.equal(leaseRetryResult.claimed, 1);
+assert.equal(leaseRetryResult.uncertain, 0);
 assert.equal(leaseCalls, 2);
 assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).status, 'completed');
 assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).attempts, 1);
