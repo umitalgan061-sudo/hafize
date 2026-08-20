@@ -152,22 +152,41 @@ function controlledBody(values, { returnThrows = false } = {}) {
 
 {
   let fetchSignal = null;
-  const source = controlledBody([Buffer.from('x')]);
+  let releasePending;
+  const state = { returnCalls: 0 };
+  const body = {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          return await new Promise((resolve) => { releasePending = resolve; });
+        },
+        async return() {
+          state.returnCalls += 1;
+          releasePending?.({ done: true, value: undefined });
+          return { done: true, value: undefined };
+        }
+      };
+    }
+  };
   const provider = createLocalOllamaProvider({
     enabled: true,
     fetchImpl: async (_url, options) => {
       fetchSignal = options.signal;
-      return { ok: true, status: 200, headers: headers(), body: source.body };
+      return { ok: true, status: 200, headers: headers(), body };
     }
   });
   const controller = new AbortController();
   const bounded = await provider.stream(REQUEST, { signal: controller.signal });
   assert.equal(fetchSignal, controller.signal, 'stream request preserves caller cancellation signal');
-  controller.abort('user-cancelled');
   const iterator = bounded[Symbol.asyncIterator]();
-  await iterator.next();
-  await iterator.return();
-  assert.equal(source.state.returnCalls, 1);
+  const pending = iterator.next();
+  await Promise.resolve();
+  controller.abort('user-cancelled');
+  await assert.rejects(
+    pending,
+    (error) => error?.code === 'LOCAL_PROVIDER_CANCELLED' && error?.status === 499
+  );
+  assert.equal(state.returnCalls, 1, 'abort closes an upstream iterator even when next() is still pending');
 }
 
 console.log('local provider stream consumer cleanup tests passed');
