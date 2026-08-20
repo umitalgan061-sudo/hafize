@@ -58,6 +58,15 @@
     );
   }
 
+  function isTrustedActivation(event) {
+    return Boolean(event && event.isTrusted === true);
+  }
+
+  function readNow(root) {
+    const value = root?.Date?.now?.();
+    return Number.isFinite(value) ? value : Date.now();
+  }
+
   function snapshotAttribute(element, name) {
     const present = Boolean(element?.hasAttribute?.(name));
     return Object.freeze({ present, value: present ? element.getAttribute(name) : null });
@@ -123,6 +132,9 @@
     if (documentRef.getElementById?.(REVIEW_ID)) {
       return installBlockedConsent(toggle, baseline, 'review-collision');
     }
+    if (typeof root?.setTimeout !== 'function' || typeof root?.clearTimeout !== 'function') {
+      return installBlockedConsent(toggle, baseline, 'timer-unavailable');
+    }
 
     const review = createReview(documentRef);
     indicator.insertAdjacentElement?.('afterend', review.panel);
@@ -134,13 +146,15 @@
 
     let pending = false;
     let timeoutId = null;
+    let expiresAt = 0;
     let bypass = false;
     let destroyed = false;
     let controller = null;
 
     function clearTimer() {
-      if (timeoutId != null && typeof root?.clearTimeout === 'function') root.clearTimeout(timeoutId);
+      if (timeoutId != null) root.clearTimeout(timeoutId);
       timeoutId = null;
+      expiresAt = 0;
     }
 
     function render() {
@@ -163,6 +177,7 @@
 
     function expire() {
       timeoutId = null;
+      expiresAt = 0;
       if (destroyed || !pending) return;
       pending = false;
       render();
@@ -171,9 +186,15 @@
 
     function begin() {
       if (destroyed || pending || !canReview(documentRef, root, toggle)) return false;
+      const deadline = readNow(root) + CONSENT_TIMEOUT_MS;
+      let nextTimer = null;
+      try { nextTimer = root.setTimeout(expire, CONSENT_TIMEOUT_MS); }
+      catch { return false; }
+      if (nextTimer == null) return false;
+      expiresAt = deadline;
+      timeoutId = nextTimer;
       pending = true;
       render();
-      if (typeof root?.setTimeout === 'function') timeoutId = root.setTimeout(expire, CONSENT_TIMEOUT_MS);
       review.confirm.focus?.();
       return true;
     }
@@ -186,13 +207,19 @@
       }
       event?.preventDefault?.();
       event?.stopImmediatePropagation?.();
+      if (!isTrustedActivation(event)) return;
       if (pending) cancel({ focusToggle: true });
       else begin();
     }
 
     function onConfirm(event) {
       event?.preventDefault?.();
+      if (!isTrustedActivation(event)) return;
       if (destroyed || !pending || !canReview(documentRef, root, toggle)) {
+        cancel({ focusToggle: true });
+        return;
+      }
+      if (!expiresAt || readNow(root) >= expiresAt) {
         cancel({ focusToggle: true });
         return;
       }
@@ -264,5 +291,13 @@
     return controller;
   }
 
-  return Object.freeze({ CONSENT_TIMEOUT_MS, REVIEW_ID, canReview, createReview, installHandsFreeConsent });
+  return Object.freeze({
+    CONSENT_TIMEOUT_MS,
+    REVIEW_ID,
+    canReview,
+    createReview,
+    isTrustedActivation,
+    readNow,
+    installHandsFreeConsent
+  });
 });
