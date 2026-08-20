@@ -84,6 +84,13 @@ class FakeObserver {
   disconnect() { this.disconnected = true; }
 }
 
+class ThrowingObserver extends FakeObserver {
+  observe(target, options) {
+    super.observe(target, options);
+    throw new Error('observer install failed');
+  }
+}
+
 function message(role, text, id) {
   const article = new FakeElement('article', ['message', role]);
   article.dataset.messageId = id;
@@ -97,7 +104,7 @@ function message(role, text, id) {
   return article;
 }
 
-function fixture({ streaming = false, draft = '', editAvailable = true } = {}) {
+function fixture({ streaming = false, draft = '', editAvailable = true, hostStatus = false, hostAction = false } = {}) {
   FakeObserver.instances = [];
   const messages = new FakeElement('div');
   messages.id = 'messages';
@@ -111,6 +118,20 @@ function fixture({ streaming = false, draft = '', editAvailable = true } = {}) {
   }
   const composer = new FakeElement('form');
   composer.id = 'composer';
+  let existingStatus = null;
+  if (hostStatus) {
+    existingStatus = new FakeElement('p');
+    existingStatus.id = retry.STATUS_ID;
+    existingStatus.textContent = 'Host durumu';
+    existingStatus.hidden = false;
+    composer.append(existingStatus);
+  }
+  let existingAction = null;
+  if (hostAction) {
+    existingAction = new FakeElement('div', [retry.ACTION_CLASS]);
+    existingAction.textContent = 'Host retry action';
+    messages.querySelectorAll('.message').at(-1).append(existingAction);
+  }
   const input = new FakeElement('textarea');
   input.id = 'messageInput';
   input.value = draft;
@@ -131,7 +152,7 @@ function fixture({ streaming = false, draft = '', editAvailable = true } = {}) {
       return byId.get(selector.slice(1)) || null;
     }
   };
-  return { documentRef, messages, composer, input, send };
+  return { documentRef, messages, composer, input, send, existingStatus, existingAction };
 }
 
 assert.equal(retry.MAX_PROMPT_CHARS, 12000);
@@ -169,7 +190,8 @@ assert.deepEqual(retry.lastRetryPair([
 
   const lastPair = controller.getRenderedPair(f.messages);
   const lastEdit = lastPair.user.querySelector('.message-edit-btn');
-  actions[1].children[0].click();
+  const staleButton = actions[1].children[0];
+  staleButton.click();
   assert.equal(lastEdit.clickCount, 1, 'latest retry also delegates to guarded edit branch');
   assert.equal(f.input.value, '', 'retry must not mutate composer before branch reload');
   assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, 'Yeni tekrar dalı hazırlanıyor…');
@@ -179,6 +201,10 @@ assert.deepEqual(retry.lastRetryPair([
   assert.equal(FakeObserver.instances[0].disconnected, true);
   assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0);
   assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`), null);
+  staleButton.click();
+  assert.equal(lastEdit.clickCount, 1, 'destroyed retry button must be inert');
+  assert.equal(controller.render(), false, 'destroyed controller must stay inert');
+  assert.equal(controller.prepareRetryBranch(lastPair), false, 'destroyed controller must not restart a branch');
 }
 
 {
@@ -198,7 +224,7 @@ assert.deepEqual(retry.lastRetryPair([
   const f = fixture({ streaming: true });
   const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
   controller.mount();
-  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0, 'all retry actions stay hidden during streaming');
+  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 0, 'all owned retry actions stay hidden during streaming');
 }
 
 {
@@ -208,6 +234,45 @@ assert.deepEqual(retry.lastRetryPair([
   const pair = controller.getRenderedPair(f.messages);
   assert.equal(controller.prepareRetryBranch(pair), false);
   assert.equal(f.documentRef.querySelector(`#${retry.STATUS_ID}`).textContent, retry.EDIT_UNAVAILABLE);
+}
+
+{
+  const f = fixture({ hostStatus: true, hostAction: true });
+  const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+  assert.equal(controller.mount(), true);
+  assert.equal(f.messages.querySelectorAll(`.${retry.ACTION_CLASS}`).length, 2, 'host action blocks only its matching assistant decoration');
+  controller.prepareRetryBranch(controller.getRenderedPair(f.messages));
+  assert.equal(f.existingStatus.textContent, 'Yeni tekrar dalı hazırlanıyor…');
+  assert.equal(controller.destroy(), true);
+  assert.equal(f.existingStatus.parentNode, f.composer, 'host status must not be removed');
+  assert.equal(f.existingStatus.textContent, 'Host durumu', 'host status text must be restored exactly');
+  assert.equal(f.existingStatus.hidden, false, 'host status visibility must be restored exactly');
+  assert.equal(f.existingAction.parentNode !== null, true, 'host retry action must survive teardown');
+  assert.equal(f.existingAction.textContent, 'Host retry action');
+}
+
+{
+  const f = fixture();
+  const first = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+  const second = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+  assert.equal(first.mount(), true);
+  assert.equal(second.mount(), false, 'second controller on the same messages host must fail closed');
+  assert.equal(first.destroy(), true);
+  assert.equal(second.mount(), true, 'ownership must be released for a clean remount');
+  assert.equal(second.destroy(), true);
+}
+
+{
+  const f = fixture({ hostStatus: true });
+  const controller = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: ThrowingObserver });
+  assert.equal(controller.mount(), false, 'partial observer install must roll back');
+  assert.equal(f.input.listeners.get('input')?.length || 0, 0, 'input listener must roll back exactly');
+  assert.equal(f.existingStatus.parentNode, f.composer);
+  assert.equal(f.existingStatus.textContent, 'Host durumu');
+  assert.equal(f.existingStatus.hidden, false);
+  const retryController = retry.createController({ documentRef: f.documentRef, MutationObserverImpl: FakeObserver });
+  assert.equal(retryController.mount(), true, 'failed install must not leak ownership');
+  assert.equal(retryController.destroy(), true);
 }
 
 assert.equal(retry.mount({ documentRef: { querySelector: () => null }, MutationObserverImpl: FakeObserver }), null);
