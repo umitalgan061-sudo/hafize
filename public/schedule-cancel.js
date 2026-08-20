@@ -12,6 +12,7 @@
   const AUTO_MOUNT_TIMEOUT_MS = 10_000;
   const SCHEDULE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const CANCELLED_EVENT = 'hafize:schedule-cancelled';
+  const ACTIVE_LISTS = new WeakSet();
 
   function normalizeScheduleId(value) {
     if (typeof value !== 'string') return null;
@@ -95,14 +96,57 @@
     if (!documentRef || !root || typeof confirmImpl !== 'function') return null;
     const card = documentRef.querySelector?.('#scheduleListCard');
     const list = card?.querySelector?.('.schedule-list-items');
-    if (!card || !list || documentRef.querySelector?.('[data-hafize-schedule-cancel-mounted]')) return null;
+    const marker = card?.getAttribute?.('data-hafize-schedule-cancel-mounted');
+    if (!card || !list || ACTIVE_LISTS.has(list) || (marker !== null && marker !== undefined)) return null;
     let client;
     try { client = createClient({ fetchImpl }); } catch { return null; }
-    ensureStyles(documentRef);
-    card.setAttribute('data-hafize-schedule-cancel-mounted', '1');
+
+    ACTIVE_LISTS.add(list);
+    let createdStyle = false;
+    let markerInstalled = false;
+    let listListenerInstalled = false;
+    let rootListenerInstalled = false;
+    let observer = null;
     let destroyed = false;
     const busyIds = new Set();
     const actionNodes = new Map();
+
+    function ownedStyle() {
+      if (!createdStyle) return null;
+      return documentRef.querySelector?.('link[data-hafize-schedule-cancel-style="1"]') || null;
+    }
+    function removeOwnedStyle() {
+      ownedStyle()?.remove?.();
+      createdStyle = false;
+    }
+    function removeOwnedMarker() {
+      if (!markerInstalled) return;
+      if (card.getAttribute?.('data-hafize-schedule-cancel-mounted') === '1') {
+        card.removeAttribute?.('data-hafize-schedule-cancel-mounted');
+      }
+      markerInstalled = false;
+    }
+    function removeOwnedActions() {
+      for (const nodes of actionNodes.values()) nodes.row?.remove?.();
+      actionNodes.clear();
+      busyIds.clear();
+    }
+    function releaseInstallation() {
+      observer?.disconnect?.();
+      observer = null;
+      if (listListenerInstalled) {
+        list.removeEventListener?.('click', onClick);
+        listListenerInstalled = false;
+      }
+      if (rootListenerInstalled) {
+        root.removeEventListener?.('hafize:schedule-created', onListRefresh);
+        rootListenerInstalled = false;
+      }
+      removeOwnedActions();
+      removeOwnedMarker();
+      removeOwnedStyle();
+      ACTIVE_LISTS.delete(list);
+    }
 
     function showInline(nodes, text, state) {
       if (!nodes?.status) return;
@@ -181,18 +225,31 @@
       if (!article || !id || article.dataset?.scheduleId !== id) return;
       const nodes = actionNodes.get(id);
       if (!nodes || nodes.button !== button) return;
-      cancelArticle(article, id, nodes);
+      void cancelArticle(article, id, nodes);
     }
     function onListRefresh() {
       decorateAll();
       for (const nodes of actionNodes.values()) clearInline(nodes);
     }
 
-    list.addEventListener('click', onClick);
-    root.addEventListener?.('hafize:schedule-created', onListRefresh);
-    const observer = typeof root.MutationObserver === 'function' ? new root.MutationObserver(decorateAll) : null;
-    observer?.observe(list, { childList: true, subtree: true });
-    decorateAll();
+    try {
+      createdStyle = ensureStyles(documentRef);
+      card.setAttribute('data-hafize-schedule-cancel-mounted', '1');
+      markerInstalled = true;
+      list.addEventListener('click', onClick);
+      listListenerInstalled = true;
+      if (typeof root.addEventListener === 'function') {
+        root.addEventListener('hafize:schedule-created', onListRefresh);
+        rootListenerInstalled = true;
+      }
+      observer = typeof root.MutationObserver === 'function' ? new root.MutationObserver(decorateAll) : null;
+      observer?.observe(list, { childList: true, subtree: true });
+      decorateAll();
+    } catch {
+      destroyed = true;
+      releaseInstallation();
+      return null;
+    }
 
     return Object.freeze({
       decorateAll,
@@ -200,13 +257,7 @@
       destroy() {
         if (destroyed) return false;
         destroyed = true;
-        observer?.disconnect?.();
-        list.removeEventListener('click', onClick);
-        root.removeEventListener?.('hafize:schedule-created', onListRefresh);
-        for (const nodes of actionNodes.values()) nodes.row?.remove?.();
-        actionNodes.clear();
-        busyIds.clear();
-        card.removeAttribute?.('data-hafize-schedule-cancel-mounted');
+        releaseInstallation();
         return true;
       }
     });
