@@ -122,6 +122,36 @@ assert.equal(PERSONAL_MEMORY_APPROVAL_LIMITS.maxTtlMs, 300_000);
   assert.deepEqual(boundary.consume(command, { ownerId: OWNER_A, approvalToken: prepared.approvalToken }), command);
 }
 
+{
+  const claims = [];
+  let claimAllowed = true;
+  const boundary = createPersonalMemoryApprovalBoundary({
+    secret: SECRET,
+    now: () => NOW,
+    randomBytesImpl: () => Buffer.alloc(16, 5),
+    replayStore: {
+      async claim(input) {
+        claims.push(input);
+        const result = claimAllowed;
+        claimAllowed = false;
+        return result;
+      }
+    }
+  });
+  const prepared = boundary.prepare(writeCommand(), { ownerId: OWNER_A });
+  assert.deepEqual(
+    await boundary.consume(writeCommand(), { ownerId: OWNER_A, approvalToken: prepared.approvalToken }),
+    writeCommand()
+  );
+  assert.equal(claims.length, 1);
+  assert.equal(claims[0].expiresAt, NOW + 120_000);
+  assert.equal(claims[0].now, NOW);
+  await assert.rejects(
+    boundary.consume(writeCommand(), { ownerId: OWNER_A, approvalToken: prepared.approvalToken }),
+    (error) => error?.code === 'MEMORY_APPROVAL_REPLAYED'
+  );
+}
+
 assert.throws(() => normalizeMemoryApprovalCommand({ kind: 'write', body: { explicitUserIntent: false } }), /MEMORY_WRITE_REQUIRES_EXPLICIT_USER_INTENT/);
 assert.throws(() => normalizeMemoryApprovalCommand({ kind: 'delete-one', memoryId: 'bad', body: { exactMatch: true, explicitUserIntent: true } }), /INVALID_MEMORY_APPROVAL_MEMORY_ID/);
 assert.throws(() => createPersonalMemoryApprovalBoundary({ secret: Buffer.alloc(8) }), /INVALID_MEMORY_APPROVAL_SECRET/);
