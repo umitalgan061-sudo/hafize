@@ -12,6 +12,7 @@
   const AUTO_MOUNT_TIMEOUT_MS = 10_000;
   const SCHEDULE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const RESCHEDULED_EVENT = 'hafize:schedule-rescheduled';
+  const ACTIVE_LISTS = new WeakSet();
 
   function normalizeScheduleId(value) {
     if (typeof value !== 'string') return null;
@@ -134,14 +135,62 @@
     if (!documentRef || !root || typeof confirmImpl !== 'function' || typeof now !== 'function') return null;
     const card = documentRef.querySelector?.('#scheduleListCard');
     const list = card?.querySelector?.('.schedule-list-items');
-    if (!card || !list || documentRef.querySelector?.('[data-hafize-schedule-reschedule-mounted]')) return null;
+    const marker = card?.getAttribute?.('data-hafize-schedule-reschedule-mounted');
+    if (!card || !list || ACTIVE_LISTS.has(list) || (marker !== null && marker !== undefined)) return null;
     let client;
     try { client = createClient({ fetchImpl }); } catch { return null; }
-    ensureStyles(documentRef);
-    card.setAttribute('data-hafize-schedule-reschedule-mounted', '1');
+
+    ACTIVE_LISTS.add(list);
+    let createdStyle = false;
+    let markerInstalled = false;
+    let clickListenerInstalled = false;
+    let submitListenerInstalled = false;
+    let keyListenerInstalled = false;
+    let observer = null;
     let destroyed = false;
     const nodesById = new Map();
     const busyIds = new Set();
+
+    function ownedStyle() {
+      if (!createdStyle) return null;
+      return documentRef.querySelector?.('link[data-hafize-schedule-reschedule-style="1"]') || null;
+    }
+    function removeOwnedStyle() {
+      ownedStyle()?.remove?.();
+      createdStyle = false;
+    }
+    function removeOwnedMarker() {
+      if (!markerInstalled) return;
+      if (card.getAttribute?.('data-hafize-schedule-reschedule-mounted') === '1') {
+        card.removeAttribute?.('data-hafize-schedule-reschedule-mounted');
+      }
+      markerInstalled = false;
+    }
+    function removeOwnedActions() {
+      for (const nodes of nodesById.values()) nodes.wrap?.remove?.();
+      nodesById.clear();
+      busyIds.clear();
+    }
+    function releaseInstallation() {
+      observer?.disconnect?.();
+      observer = null;
+      if (clickListenerInstalled) {
+        list.removeEventListener?.('click', onClick);
+        clickListenerInstalled = false;
+      }
+      if (submitListenerInstalled) {
+        list.removeEventListener?.('submit', onSubmit);
+        submitListenerInstalled = false;
+      }
+      if (keyListenerInstalled) {
+        documentRef.removeEventListener?.('keydown', onEscape);
+        keyListenerInstalled = false;
+      }
+      removeOwnedActions();
+      removeOwnedMarker();
+      removeOwnedStyle();
+      ACTIVE_LISTS.delete(list);
+    }
 
     function showStatus(nodes, text, state) {
       nodes.status.hidden = false;
@@ -249,7 +298,7 @@
       const id = normalizeScheduleId(form.dataset?.scheduleId);
       const nodes = id ? nodesById.get(id) : null;
       if (!article || !nodes || nodes.form !== form) return;
-      submit(article, id, nodes);
+      void submit(article, id, nodes);
     }
     function onEscape(event) {
       if (event?.key !== 'Escape') return;
@@ -258,12 +307,26 @@
       }
     }
 
-    list.addEventListener('click', onClick);
-    list.addEventListener('submit', onSubmit);
-    documentRef.addEventListener?.('keydown', onEscape);
-    const observer = typeof root.MutationObserver === 'function' ? new root.MutationObserver(decorateAll) : null;
-    observer?.observe(list, { childList: true, subtree: true });
-    decorateAll();
+    try {
+      createdStyle = ensureStyles(documentRef);
+      card.setAttribute('data-hafize-schedule-reschedule-mounted', '1');
+      markerInstalled = true;
+      list.addEventListener('click', onClick);
+      clickListenerInstalled = true;
+      list.addEventListener('submit', onSubmit);
+      submitListenerInstalled = true;
+      if (typeof documentRef.addEventListener === 'function') {
+        documentRef.addEventListener('keydown', onEscape);
+        keyListenerInstalled = true;
+      }
+      observer = typeof root.MutationObserver === 'function' ? new root.MutationObserver(decorateAll) : null;
+      observer?.observe(list, { childList: true, subtree: true });
+      decorateAll();
+    } catch {
+      destroyed = true;
+      releaseInstallation();
+      return null;
+    }
 
     return Object.freeze({
       decorateAll,
@@ -271,14 +334,7 @@
       destroy() {
         if (destroyed) return false;
         destroyed = true;
-        observer?.disconnect?.();
-        list.removeEventListener('click', onClick);
-        list.removeEventListener('submit', onSubmit);
-        documentRef.removeEventListener?.('keydown', onEscape);
-        for (const nodes of nodesById.values()) nodes.wrap?.remove?.();
-        nodesById.clear();
-        busyIds.clear();
-        card.removeAttribute?.('data-hafize-schedule-reschedule-mounted');
+        releaseInstallation();
         return true;
       }
     });
