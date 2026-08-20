@@ -66,12 +66,18 @@ function fixture({ failRootEventAt = 0, observerError = false } = {}) {
 
 {
   const f=fixture();
-  const controller=api.createController({documentRef:f.doc,rootRef:f.root,now:()=>5000});
+  let tick=5000;
+  const controller=api.createController({documentRef:f.doc,rootRef:f.root,now:()=>tick++});
   assert.equal(controller.mount(),true);
   const handlers=f.rootListeners.get('hafize:github-branch-created');
   assert.equal(handlers.length,1);
   handlers[0]({type:'hafize:github-branch-created',detail:{branch:'hafize/test-branch'}});
   assert.deepEqual(controller.getItems(),[{kind:'branch',branch:'hafize/test-branch',at:5000}]);
+  assert.equal(handlers[0]({type:'hafize:github-branch-created',detail:{branch:'../bad'}}),false,'malformed branch event is ignored');
+  assert.equal(controller.getItems().length,1,'malformed event does not alter activity list');
+  handlers[0]({type:'hafize:github-branch-created',detail:{branch:'hafize/test-branch'}});
+  assert.equal(controller.getItems().length,1,'duplicate activity key is de-duplicated');
+  assert.equal(controller.getItems()[0].at,5002,'latest duplicate replaces the older session entry');
   assert.equal(controller.clearItems(),true);
   assert.deepEqual(controller.getItems(),[]);
   controller.destroy();
