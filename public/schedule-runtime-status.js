@@ -43,11 +43,13 @@
     if (typeof fetchImpl !== 'function') throw new Error('SCHEDULE_STATUS_FETCH_UNAVAILABLE');
 
     let mounted = false;
+    let ownsCard = false;
     let card = null;
     let status = null;
     let refresh = null;
     let rows = new Map();
     let requestController = null;
+    let generation = 0;
 
     function element(tag, className, text) {
       const node = documentRef.createElement(tag);
@@ -56,12 +58,21 @@
       return node;
     }
 
+    function resetRefs() {
+      rows = new Map();
+      card = null;
+      status = null;
+      refresh = null;
+      ownsCard = false;
+    }
+
     function buildCard() {
       const rail = documentRef.querySelector('.utility-rail');
       if (!rail) return false;
       const existing = documentRef.querySelector(`#${CARD_ID}`);
       if (existing) { card = existing; return false; }
       card = element('section', 'utility-card schedule-runtime-card');
+      ownsCard = true;
       card.id = CARD_ID;
       card.setAttribute('aria-labelledby', 'scheduleRuntimeTitle');
       card.setAttribute('aria-busy', 'true');
@@ -114,8 +125,10 @@
     }
 
     async function load() {
+      if (!mounted) return null;
       requestController?.abort?.();
       requestController = typeof AbortController === 'function' ? new AbortController() : null;
+      const requestGeneration = ++generation;
       if (card) card.setAttribute('aria-busy', 'true');
       if (refresh) refresh.disabled = true;
       try {
@@ -126,21 +139,28 @@
         if (!response?.ok) throw new Error('SCHEDULE_STATUS_HTTP_ERROR');
         const health = normalizeHealth(await response.json());
         if (!health) throw new Error('SCHEDULE_STATUS_INVALID_RESPONSE');
+        if (!mounted || requestGeneration !== generation) return null;
         render(health);
         return health;
       } catch (error) {
-        if (error?.name !== 'AbortError') render(null);
+        if (mounted && requestGeneration === generation && error?.name !== 'AbortError') render(null);
         return null;
       } finally {
-        if (refresh) refresh.disabled = false;
+        if (mounted && requestGeneration === generation && refresh) refresh.disabled = false;
       }
     }
 
     function mount() {
       if (mounted) return false;
       buildCard();
-      if (!card || !refresh) return false;
-      refresh.addEventListener?.('click', load);
+      if (!card || !refresh) { resetRefs(); return false; }
+      try {
+        refresh.addEventListener?.('click', load);
+      } catch {
+        if (ownsCard) card.remove?.();
+        resetRefs();
+        return false;
+      }
       mounted = true;
       void load();
       return true;
@@ -148,10 +168,12 @@
 
     function destroy() {
       if (!mounted) return false;
+      mounted = false;
+      generation += 1;
       requestController?.abort?.();
       refresh?.removeEventListener?.('click', load);
-      card?.remove?.();
-      rows = new Map(); card = null; status = null; refresh = null; mounted = false;
+      if (ownsCard) card?.remove?.();
+      resetRefs();
       return true;
     }
 
