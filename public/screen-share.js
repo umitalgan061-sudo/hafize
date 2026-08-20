@@ -13,6 +13,7 @@
   const MAX_WIDTH = 1280;
   const MAX_HEIGHT = 720;
   const JPEG_QUALITY = 0.82;
+  const VIDEO_READY_TIMEOUT_MS = 10_000;
 
   function stopStream(stream) {
     for (const track of stream?.getTracks?.() || []) {
@@ -30,17 +31,37 @@
     };
   }
 
-  function waitForVideo(video) {
-    if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
+  function waitForVideo(video, {
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = VIDEO_READY_TIMEOUT_MS
+  } = {}) {
+    if (video?.videoWidth > 0 && video?.videoHeight > 0) return Promise.resolve();
+    if (!video?.addEventListener || !video?.removeEventListener) return Promise.reject(new Error('SCREEN_CAPTURE_VIDEO_FAILED'));
+    if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') return Promise.reject(new Error('SCREEN_CAPTURE_TIMER_UNSUPPORTED'));
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) return Promise.reject(new Error('INVALID_SCREEN_CAPTURE_TIMEOUT'));
+
     return new Promise((resolve, reject) => {
+      let settled = false;
+      let timer = null;
       const cleanup = () => {
         video.removeEventListener('loadedmetadata', onReady);
         video.removeEventListener('error', onError);
+        if (timer !== null) clearTimeoutImpl(timer);
+        timer = null;
       };
-      const onReady = () => { cleanup(); resolve(); };
-      const onError = () => { cleanup(); reject(new Error('SCREEN_CAPTURE_VIDEO_FAILED')); };
+      const settle = (callback) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback();
+      };
+      const onReady = () => settle(resolve);
+      const onError = () => settle(() => reject(new Error('SCREEN_CAPTURE_VIDEO_FAILED')));
+      const onTimeout = () => settle(() => reject(new Error('SCREEN_CAPTURE_VIDEO_TIMEOUT')));
       video.addEventListener('loadedmetadata', onReady, { once: true });
       video.addEventListener('error', onError, { once: true });
+      timer = setTimeoutImpl(onTimeout, timeoutMs);
     });
   }
 
@@ -53,7 +74,13 @@
     });
   }
 
-  async function captureScreenFrame({ mediaDevices, document }) {
+  async function captureScreenFrame({
+    mediaDevices,
+    document,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    videoReadyTimeoutMs = VIDEO_READY_TIMEOUT_MS
+  }) {
     if (typeof mediaDevices?.getDisplayMedia !== 'function') throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
     if (!document?.createElement) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
 
@@ -71,7 +98,7 @@
       video.playsInline = true;
       video.srcObject = stream;
       await video.play();
-      await waitForVideo(video);
+      await waitForVideo(video, { setTimeoutImpl, clearTimeoutImpl, timeoutMs: videoReadyTimeoutMs });
 
       const size = boundedSize(video.videoWidth, video.videoHeight);
       const canvas = document.createElement('canvas');
@@ -176,6 +203,7 @@
         if (destroyed || requestGeneration !== generation) return null;
         if (error?.message === 'SCREEN_CAPTURE_CANCELLED') status.textContent = 'Ekran paylaşımı iptal edildi.';
         else if (error?.message === 'SCREEN_CAPTURE_UNSUPPORTED') status.textContent = 'Bu tarayıcı ekran paylaşımını desteklemiyor.';
+        else if (error?.message === 'SCREEN_CAPTURE_VIDEO_TIMEOUT') status.textContent = 'Ekran paylaşımı görüntüsü zamanında hazırlanamadı; paylaşım kapatıldı.';
         else status.textContent = 'Ekran görüntüsü alınamadı.';
         return null;
       } finally {
@@ -217,5 +245,15 @@
     });
   }
 
-  return Object.freeze({ boundedSize, captureScreenFrame, mountScreenShare, stopStream });
+  return Object.freeze({
+    MAX_WIDTH,
+    MAX_HEIGHT,
+    JPEG_QUALITY,
+    VIDEO_READY_TIMEOUT_MS,
+    boundedSize,
+    waitForVideo,
+    captureScreenFrame,
+    mountScreenShare,
+    stopStream
+  });
 });
