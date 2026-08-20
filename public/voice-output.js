@@ -73,6 +73,12 @@
     return SPEECH_RATE_OPTIONS.includes(rate) ? rate : DEFAULT_SPEECH_RATE;
   }
 
+  function normalizeVoiceInputState(detail) {
+    if (!detail || typeof detail !== 'object' || Array.isArray(detail)) return null;
+    if (detail.source !== 'voice-input' || typeof detail.listening !== 'boolean') return null;
+    return detail.listening;
+  }
+
   function readStoredEnabled(storage) {
     try { return storage?.getItem?.(STORAGE_KEY) === 'true'; } catch { return false; }
   }
@@ -229,6 +235,7 @@
     let queue = [];
     let speechGeneration = 0;
     let activeUtterance = null;
+    let voiceInputListening = micButton?.getAttribute?.('aria-pressed') === 'true';
     let lastPublishedState = '';
     let destroyed = false;
     let micObserver = null;
@@ -238,13 +245,13 @@
     function publishState() {
       if (destroyed) return;
       const state = errorCode ? 'error' : paused ? 'paused' : speaking ? 'speaking' : thinking ? 'thinking' : 'idle';
-      const signature = `${state}:${enabled}:${supported}`;
+      const signature = `${state}:${enabled}:${supported}:${voiceInputListening}`;
       if (signature === lastPublishedState) return;
       lastPublishedState = signature;
       if (typeof documentRef?.dispatchEvent !== 'function' || typeof root?.CustomEvent !== 'function') return;
       try {
         documentRef.dispatchEvent(new root.CustomEvent(VOICE_OUTPUT_STATE_EVENT, {
-          detail: Object.freeze({ source: 'voice-output', state, speaking, thinking, enabled, supported, error: Boolean(errorCode) })
+          detail: Object.freeze({ source: 'voice-output', state, speaking, thinking, enabled, supported, voiceInputListening, error: Boolean(errorCode) })
         }));
       } catch { /* status event is best-effort; speech behavior stays local */ }
     }
@@ -278,16 +285,18 @@
                 ? 'Sesli yanıt duraklatıldı.'
                 : speaking
                   ? 'Hafize konuşuyor.'
-                  : thinking
-                    ? 'Hafize yanıt hazırlıyor.'
-                    : 'Sesli yanıt hazır.';
+                  : voiceInputListening
+                    ? 'Mikrofon dinliyor; sesli yanıt bekletiliyor.'
+                    : thinking
+                      ? 'Hafize yanıt hazırlıyor.'
+                      : 'Sesli yanıt hazır.';
       }
       if (rateWrap) rateWrap.hidden = !supported || !enabled;
       if (rateSelect) {
         rateSelect.disabled = !supported || !enabled || speaking;
         rateSelect.value = String(speechRate);
       }
-      const replayReady = supported && enabled && !speaking && !thinking && Boolean(normalizeSpeechText(latestAssistantText()));
+      const replayReady = supported && enabled && !voiceInputListening && !speaking && !thinking && Boolean(normalizeSpeechText(latestAssistantText()));
       if (replayButton) {
         replayButton.hidden = !replayReady;
         replayButton.disabled = !replayReady;
@@ -339,6 +348,14 @@
 
     function speakNext(generation = speechGeneration) {
       if (destroyed || generation !== speechGeneration) return;
+      if (voiceInputListening) {
+        queue = [];
+        activeUtterance = null;
+        speaking = false;
+        paused = false;
+        render();
+        return;
+      }
       if (!enabled || !supported || !queue.length) {
         activeUtterance = null;
         speaking = false;
@@ -372,7 +389,7 @@
     }
 
     function speak(value) {
-      if (destroyed || !enabled || !supported || documentRef?.hidden) return false;
+      if (destroyed || !enabled || !supported || voiceInputListening || documentRef?.hidden) return false;
       const chunks = splitSpeechText(value);
       if (!chunks.length) return false;
       cancelSpeech();
@@ -431,7 +448,7 @@
     }
 
     function replayLatest() {
-      if (destroyed || !enabled || !supported || speaking || thinking) return false;
+      if (destroyed || !enabled || !supported || voiceInputListening || speaking || thinking) return false;
       return speak(latestAssistantText());
     }
 
@@ -454,7 +471,20 @@
       const responseJustFinished = thinking;
       thinking = false;
       render();
-      if (responseJustFinished) speak(latestAssistantText());
+      if (responseJustFinished && !voiceInputListening) speak(latestAssistantText());
+    }
+
+    function setVoiceInputListening(next) {
+      if (destroyed || typeof next !== 'boolean' || voiceInputListening === next) return false;
+      voiceInputListening = next;
+      if (voiceInputListening) cancelSpeech({ renderState: false });
+      render();
+      return true;
+    }
+
+    function syncMicState() {
+      if (destroyed || !micButton) return false;
+      return setVoiceInputListening(micButton.getAttribute?.('aria-pressed') === 'true');
     }
 
     function handleToggle() { setEnabled(!enabled); }
@@ -467,9 +497,9 @@
     }
     function handleVoiceInputState(event) {
       if (destroyed) return;
-      const detail = event?.detail;
-      if (detail?.source !== 'voice-input' || detail.listening !== true) return;
-      cancelSpeech();
+      const listening = normalizeVoiceInputState(event?.detail);
+      if (listening === null) return;
+      setVoiceInputListening(listening);
     }
 
     function removeBindings() {
@@ -520,9 +550,7 @@
 
       const Observer = root?.MutationObserver;
       micObserver = micButton && typeof Observer === 'function'
-        ? new Observer(() => {
-            if (!destroyed && micButton.getAttribute?.('aria-pressed') === 'true') cancelSpeech();
-          })
+        ? new Observer(syncMicState)
         : null;
       micObserver?.observe?.(micButton, { attributes: true, attributeFilter: ['aria-pressed'] });
 
@@ -544,6 +572,7 @@
       isEnabled: () => !destroyed && enabled,
       isSpeaking: () => !destroyed && speaking,
       isPaused: () => !destroyed && paused,
+      isVoiceInputListening: () => !destroyed && voiceInputListening,
       hasError: () => !destroyed && Boolean(errorCode),
       getErrorCode: () => destroyed ? '' : errorCode,
       getSpeechRate: () => speechRate,
@@ -579,6 +608,7 @@
     DEFAULT_SPEECH_RATE,
     SPEECH_RATE_OPTIONS,
     normalizeSpeechRate,
+    normalizeVoiceInputState,
     normalizeSpeechText,
     splitSpeechText,
     installVoiceOutput
