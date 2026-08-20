@@ -18,6 +18,7 @@
   ]);
   const KEYS = Object.freeze(['all', 'active', 'history', 'failed']);
   const LABELS = Object.freeze({ all: 'Tümü', active: 'Aktif', history: 'Geçmiş', failed: 'Başarısız' });
+  const ACTIVE_CONTROLS = new WeakSet();
 
   function normalizeCounts(value) {
     if (!value || Array.isArray(value) || typeof value !== 'object') return null;
@@ -74,6 +75,39 @@
     return nodes.size === KEYS.length ? nodes : null;
   }
 
+  function captureNodeState(nodes) {
+    const state = new Map();
+    for (const key of KEYS) {
+      const refs = nodes?.get(key);
+      if (!refs) return null;
+      const ariaLabel = refs.button.getAttribute?.('aria-label');
+      state.set(key, Object.freeze({
+        countText: refs.count.textContent,
+        countHidden: Boolean(refs.count.hidden),
+        hasAriaLabel: ariaLabel !== null && ariaLabel !== undefined,
+        ariaLabel,
+        hasServerCount: Object.prototype.hasOwnProperty.call(refs.button.dataset || {}, 'serverCount'),
+        serverCount: refs.button.dataset?.serverCount
+      }));
+    }
+    return state;
+  }
+
+  function restoreNodeState(nodes, state) {
+    if (!nodes || !state) return;
+    for (const key of KEYS) {
+      const refs = nodes.get(key);
+      const original = state.get(key);
+      if (!refs || !original) continue;
+      refs.count.textContent = original.countText;
+      refs.count.hidden = original.countHidden;
+      if (original.hasAriaLabel) refs.button.setAttribute?.('aria-label', original.ariaLabel);
+      else refs.button.removeAttribute?.('aria-label');
+      if (original.hasServerCount) refs.button.dataset.serverCount = original.serverCount;
+      else delete refs.button.dataset.serverCount;
+    }
+  }
+
   function renderCounts(nodes, counts) {
     const normalized = normalizeCounts(counts);
     if (!nodes || !normalized) return false;
@@ -98,15 +132,20 @@
   }
 
   function mount(documentRef, root, controls = documentRef?.getElementById?.(CONTROLS_ID), { fetchImpl = root?.fetch } = {}) {
-    if (!documentRef || !root || !controls) return null;
+    if (!documentRef || !root || !controls || ACTIVE_CONTROLS.has(controls)) return null;
     const nodes = collectCountNodes(controls);
     if (!nodes) return null;
     const client = createClient({ fetchImpl });
+    const initialNodeState = captureNodeState(nodes);
+    if (!initialNodeState) return null;
+
+    ACTIVE_CONTROLS.add(controls);
     let destroyed = false;
     let loading = false;
     let pending = false;
     let generation = 0;
     let lastCounts = null;
+    const registeredEvents = [];
 
     async function refresh() {
       if (destroyed) return Object.freeze({ ok: false, reason: 'destroyed' });
@@ -143,7 +182,17 @@
     }
 
     const onMutation = () => { void refresh(); };
-    for (const eventName of REFRESH_EVENTS) root.addEventListener?.(eventName, onMutation);
+    try {
+      for (const eventName of REFRESH_EVENTS) {
+        root.addEventListener?.(eventName, onMutation);
+        registeredEvents.push(eventName);
+      }
+    } catch {
+      for (const eventName of registeredEvents) root.removeEventListener?.(eventName, onMutation);
+      ACTIVE_CONTROLS.delete(controls);
+      restoreNodeState(nodes, initialNodeState);
+      return null;
+    }
     void refresh();
 
     return Object.freeze({
@@ -154,8 +203,9 @@
         destroyed = true;
         generation += 1;
         pending = false;
-        for (const eventName of REFRESH_EVENTS) root.removeEventListener?.(eventName, onMutation);
-        clearCounts(nodes);
+        for (const eventName of registeredEvents) root.removeEventListener?.(eventName, onMutation);
+        restoreNodeState(nodes, initialNodeState);
+        ACTIVE_CONTROLS.delete(controls);
       }
     });
   }
@@ -202,6 +252,8 @@
     normalizeCounts,
     createClient,
     collectCountNodes,
+    captureNodeState,
+    restoreNodeState,
     renderCounts,
     mount,
     autoMount
