@@ -20,6 +20,7 @@
     'hafize:github-draft-pr-created',
     'hafize:github-file-updated'
   ]);
+  const ACTIVE_HOSTS = new WeakSet();
 
   function normalizeBranch(value) {
     const branch = typeof value === 'string' ? value.trim() : '';
@@ -106,6 +107,7 @@
     if (!rootRef?.addEventListener || !rootRef?.removeEventListener || typeof now !== 'function') throw new Error('INVALID_GITHUB_WRITE_ACTIVITY_RUNTIME');
 
     let mounted = false;
+    let destroyed = false;
     let host = null;
     let shell = null;
     let toggle = null;
@@ -117,6 +119,10 @@
     let status = null;
     let observer = null;
     let mountTimer = null;
+    let toggleListenerInstalled = false;
+    let clearListenerInstalled = false;
+    let keyListenerInstalled = false;
+    const rootListeners = new Set();
     let items = [];
 
     function element(tag, className, text) {
@@ -127,13 +133,12 @@
     }
 
     function render() {
-      if (!list || !empty || !count || !clearButton) return;
+      if (!mounted || destroyed || !list || !empty || !count || !clearButton) return false;
       list.replaceChildren();
       count.textContent = String(items.length);
       clearButton.disabled = items.length === 0;
       empty.hidden = items.length !== 0;
       list.hidden = items.length === 0;
-
       for (const item of items) {
         const row = element('li', 'github-write-activity-item');
         row.dataset.kind = item.kind;
@@ -148,13 +153,13 @@
         row.append(icon, copy, time);
         list.append(row);
       }
+      return true;
     }
 
-    function setStatus(text) {
-      if (status) status.textContent = text;
-    }
+    function setStatus(text) { if (!destroyed && status) status.textContent = text; }
 
     function onWriteEvent(event) {
+      if (!mounted || destroyed) return false;
       const item = normalizeEvent(event?.type, event?.detail, now());
       if (!item) return false;
       items = appendItem(items, item);
@@ -164,7 +169,7 @@
     }
 
     function clearItems() {
-      if (!items.length) return false;
+      if (!mounted || destroyed || !items.length) return false;
       items = [];
       render();
       setStatus('Oturum içi GitHub yazma etkinliği temizlendi.');
@@ -172,15 +177,16 @@
     }
 
     function togglePanel() {
-      if (!panel || !toggle) return;
+      if (!mounted || destroyed || !panel || !toggle) return false;
       const open = panel.hidden;
       panel.hidden = !open;
       toggle.setAttribute('aria-expanded', String(open));
       if (open) clearButton?.focus?.();
+      return true;
     }
 
     function onKeydown(event) {
-      if (event?.key !== 'Escape' || panel?.hidden) return;
+      if (!mounted || destroyed || event?.key !== 'Escape' || panel?.hidden) return;
       event.preventDefault?.();
       panel.hidden = true;
       toggle?.setAttribute?.('aria-expanded', 'false');
@@ -189,22 +195,18 @@
 
     function build() {
       host = documentRef.querySelector('#githubWriteReadinessCard');
-      if (!host || host.querySelector?.('[data-github-write-activity]')) return Boolean(host);
-
+      if (!host || host.querySelector?.('[data-github-write-activity]') || ACTIVE_HOSTS.has(host)) return false;
       shell = element('section', 'github-write-activity');
       shell.setAttribute('data-github-write-activity', '1');
       shell.setAttribute('aria-label', 'GitHub yazma etkinliği');
-
       toggle = element('button', 'mini-btn github-write-activity-toggle');
       toggle.type = 'button';
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('aria-controls', 'githubWriteActivityPanel');
       toggle.append(element('span', '', 'Geçmiş'), count = element('span', 'github-write-activity-count', '0'));
-
       panel = element('div', 'github-write-activity-panel');
       panel.id = 'githubWriteActivityPanel';
       panel.hidden = true;
-
       const head = element('div', 'github-write-activity-head');
       const titleWrap = element('div', 'github-write-activity-title');
       titleWrap.append(element('strong', '', 'Bu oturumdaki yazmalar'), element('small', '', 'Kalıcı log değildir. Token veya dosya içeriği tutulmaz.'));
@@ -212,7 +214,6 @@
       clearButton.type = 'button';
       clearButton.disabled = true;
       head.append(titleWrap, clearButton);
-
       empty = element('p', 'github-write-activity-empty', 'Bu sayfa oturumunda tamamlanan GitHub yazma işlemi yok.');
       list = element('ol', 'github-write-activity-list');
       list.hidden = true;
@@ -223,61 +224,78 @@
       panel.append(head, empty, list, status);
       shell.append(toggle, panel);
       host.append(shell);
-      render();
       return true;
     }
 
-    function attach() {
-      if (!build() || !toggle || !panel || !clearButton) return false;
-      toggle.addEventListener?.('click', togglePanel);
-      clearButton.addEventListener?.('click', clearItems);
-      documentRef.addEventListener?.('keydown', onKeydown);
-      for (const name of EVENT_NAMES) rootRef.addEventListener(name, onWriteEvent);
-      mounted = true;
-      return true;
-    }
-
-    function mount() {
-      if (mounted) return false;
-      if (attach()) return true;
-      if (typeof rootRef.MutationObserver !== 'function' || !documentRef.body) return false;
-      observer = new rootRef.MutationObserver(() => {
-        if (!mounted && attach()) {
-          observer?.disconnect?.();
-          observer = null;
-          if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
-          mountTimer = null;
-        }
-      });
-      observer.observe(documentRef.body, { childList: true, subtree: true });
-      mountTimer = rootRef.setTimeout?.(() => {
-        observer?.disconnect?.();
-        observer = null;
-        mountTimer = null;
-      }, MOUNT_TIMEOUT_MS) ?? null;
-      return false;
-    }
-
-    function destroy() {
+    function releaseInstallation() {
       observer?.disconnect?.();
+      observer = null;
       if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
       mountTimer = null;
-      observer = null;
-      documentRef.removeEventListener?.('keydown', onKeydown);
-      toggle?.removeEventListener?.('click', togglePanel);
-      clearButton?.removeEventListener?.('click', clearItems);
-      for (const name of EVENT_NAMES) rootRef.removeEventListener(name, onWriteEvent);
+      if (toggleListenerInstalled) toggle?.removeEventListener?.('click', togglePanel);
+      if (clearListenerInstalled) clearButton?.removeEventListener?.('click', clearItems);
+      if (keyListenerInstalled) documentRef.removeEventListener?.('keydown', onKeydown);
+      toggleListenerInstalled = clearListenerInstalled = keyListenerInstalled = false;
+      for (const name of rootListeners) rootRef.removeEventListener(name, onWriteEvent);
+      rootListeners.clear();
       shell?.remove?.();
+      if (host) ACTIVE_HOSTS.delete(host);
+      shell = toggle = panel = list = empty = count = clearButton = status = null;
+      host = null;
       items = [];
       mounted = false;
     }
 
-    return Object.freeze({
-      mount,
-      destroy,
-      clearItems,
-      getItems: () => Object.freeze(items.map((item) => Object.freeze({ ...item })))
-    });
+    function attach() {
+      if (mounted || destroyed || !build()) return false;
+      ACTIVE_HOSTS.add(host);
+      try {
+        toggle.addEventListener('click', togglePanel); toggleListenerInstalled = true;
+        clearButton.addEventListener('click', clearItems); clearListenerInstalled = true;
+        if (typeof documentRef.addEventListener === 'function') { documentRef.addEventListener('keydown', onKeydown); keyListenerInstalled = true; }
+        for (const name of EVENT_NAMES) { rootRef.addEventListener(name, onWriteEvent); rootListeners.add(name); }
+        mounted = true;
+        render();
+        return true;
+      } catch {
+        releaseInstallation();
+        return false;
+      }
+    }
+
+    function mount() {
+      if (mounted || destroyed) return false;
+      if (attach()) return true;
+      if (typeof rootRef.MutationObserver !== 'function' || !documentRef.body) return false;
+      try {
+        observer = new rootRef.MutationObserver(() => {
+          if (!mounted && !destroyed && attach()) {
+            observer?.disconnect?.(); observer = null;
+            if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
+            mountTimer = null;
+          }
+        });
+        observer.observe(documentRef.body, { childList: true, subtree: true });
+        mountTimer = rootRef.setTimeout?.(() => {
+          observer?.disconnect?.(); observer = null; mountTimer = null;
+        }, MOUNT_TIMEOUT_MS) ?? null;
+      } catch {
+        observer?.disconnect?.(); observer = null;
+        if (mountTimer !== null) rootRef.clearTimeout?.(mountTimer);
+        mountTimer = null;
+        return false;
+      }
+      return false;
+    }
+
+    function destroy() {
+      if (destroyed) return false;
+      destroyed = true;
+      releaseInstallation();
+      return true;
+    }
+
+    return Object.freeze({ mount, destroy, clearItems, getItems: () => Object.freeze(items.map((item) => Object.freeze({ ...item }))) });
   }
 
   function mount() {
@@ -285,23 +303,8 @@
   }
 
   return Object.freeze({
-    REPOSITORY,
-    MAX_ITEMS,
-    MAX_BRANCH_CHARS,
-    MAX_PATH_CHARS,
-    MAX_PR_NUMBER,
-    MOUNT_TIMEOUT_MS,
-    EVENT_NAMES,
-    normalizeBranch,
-    normalizePath,
-    normalizePrNumber,
-    normalizeEvent,
-    itemKey,
-    appendItem,
-    formatLabel,
-    formatContext,
-    formatTime,
-    createController,
-    mount
+    REPOSITORY, MAX_ITEMS, MAX_BRANCH_CHARS, MAX_PATH_CHARS, MAX_PR_NUMBER, MOUNT_TIMEOUT_MS, EVENT_NAMES,
+    normalizeBranch, normalizePath, normalizePrNumber, normalizeEvent, itemKey, appendItem,
+    formatLabel, formatContext, formatTime, createController, mount
   });
 });
