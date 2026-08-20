@@ -5,7 +5,8 @@ const require = createRequire(import.meta.url);
 const scheduleList = require('../public/schedule-list.js');
 
 assert.equal(scheduleList.PATH, '/api/schedules');
-assert.equal(scheduleList.MAX_ITEMS, 100);
+assert.equal(scheduleList.PAGE_SIZE, 100);
+assert.equal(scheduleList.MAX_ITEMS, 500);
 assert.equal(scheduleList.MAX_TASK_PREVIEW_CHARS, 180);
 assert.equal(scheduleList.MAX_AGENT_ID_CHARS, 120);
 assert.equal(scheduleList.MAX_SCHEDULE_ID_CHARS, 120);
@@ -70,12 +71,35 @@ assert.equal(normalized.find((item) => item.scheduleId === 'schedule_1').task, v
 assert.deepEqual(scheduleList.normalizeSchedules({ schedules: null }), []);
 assert.deepEqual(scheduleList.normalizeSchedules(null), []);
 
-const many = Array.from({ length: 130 }, (_, index) => ({
+const many = Array.from({ length: 530 }, (_, index) => ({
   ...valid,
   scheduleId: `schedule_${index + 1}`,
   runAt: new Date(Date.UTC(2026, 7, 16, 12, index)).toISOString()
 }));
-assert.equal(scheduleList.normalizeSchedules({ schedules: many }).length, 100);
+assert.equal(scheduleList.normalizeSchedules({ schedules: many }).length, 500);
+
+const snapshot = 'A'.repeat(43);
+assert.equal(scheduleList.createListPath(), '/api/schedules?limit=100&view=summary&scope=all');
+assert.equal(scheduleList.createListPath({ scope: 'active' }), '/api/schedules?limit=100&view=summary&scope=active');
+assert.equal(
+  scheduleList.createListPath({ offset: 100, snapshot, scope: 'history' }),
+  `/api/schedules?limit=100&view=summary&scope=history&offset=100&snapshot=${snapshot}`
+);
+assert.throws(() => scheduleList.createListPath({ offset: 100 }), /INVALID_SCHEDULE_LIST_SNAPSHOT/);
+assert.throws(() => scheduleList.createListPath({ snapshot }), /INVALID_SCHEDULE_LIST_SNAPSHOT/);
+assert.throws(() => scheduleList.createListPath({ offset: -1 }), /INVALID_SCHEDULE_LIST_OFFSET/);
+
+assert.deepEqual(scheduleList.normalizeListMeta(null), { snapshot: null, nextOffset: null, total: null });
+assert.deepEqual(scheduleList.normalizeListMeta({ listMeta: { snapshot, nextOffset: 100, total: 320 } }), {
+  snapshot,
+  nextOffset: 100,
+  total: 320
+});
+assert.deepEqual(scheduleList.normalizeListMeta({ listMeta: { nextOffset: 100, total: 320 } }), {
+  snapshot: null,
+  nextOffset: null,
+  total: 320
+});
 
 assert.equal(scheduleList.statusText(valid), 'Planlandı · en fazla 3 deneme');
 assert.equal(scheduleList.statusText({ ...valid, status: 'running', attempts: 1 }), 'Çalışıyor · deneme 1/3');
@@ -91,16 +115,16 @@ const client = scheduleList.createClient({
     return {
       ok: true,
       status: 200,
-      async json() { return { ok: true, schedules: [] }; }
+      async json() { return { ok: true, schedules: [], listMeta: { snapshot, nextOffset: null, total: 0 } }; }
     };
   }
 });
 const response = await client.list();
 assert.equal(response.ok, true);
 assert.equal(response.status, 200);
-assert.deepEqual(response.payload, { ok: true, schedules: [] });
+assert.deepEqual(response.payload, { ok: true, schedules: [], listMeta: { snapshot, nextOffset: null, total: 0 } });
 assert.equal(calls.length, 1);
-assert.equal(calls[0].path, '/api/schedules');
+assert.equal(calls[0].path, '/api/schedules?limit=100&view=summary&scope=all');
 assert.equal(calls[0].init.method, 'GET');
 assert.equal(calls[0].init.credentials, 'same-origin');
 assert.equal(calls[0].init.cache, 'no-store');
