@@ -10,6 +10,7 @@
   const PATH = '/api/schedules';
   const MAX_SCHEDULE_ID_CHARS = 120;
   const AUTO_MOUNT_TIMEOUT_MS = 10_000;
+  const REQUEST_TIMEOUT_MS = 30_000;
   const SCHEDULE_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
   const RESCHEDULED_EVENT = 'hafize:schedule-rescheduled';
   const ACTIVE_LISTS = new WeakSet();
@@ -48,26 +49,66 @@
     } catch { return {}; }
   }
 
-  function createClient({ fetchImpl = globalThis.fetch } = {}) {
+  function requestError(code) {
+    const error = new Error(code);
+    error.name = 'AbortError';
+    error.code = code;
+    return error;
+  }
+
+  function createClient({
+    fetchImpl = globalThis.fetch,
+    AbortControllerImpl = globalThis.AbortController,
+    setTimeoutImpl = globalThis.setTimeout,
+    clearTimeoutImpl = globalThis.clearTimeout,
+    timeoutMs = REQUEST_TIMEOUT_MS
+  } = {}) {
     if (typeof fetchImpl !== 'function') throw new Error('INVALID_SCHEDULE_RESCHEDULE_FETCH');
+    if (typeof AbortControllerImpl !== 'function') throw new Error('INVALID_SCHEDULE_RESCHEDULE_ABORT_CONTROLLER');
+    if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_SCHEDULE_RESCHEDULE_TIMER');
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 120_000) throw new Error('INVALID_SCHEDULE_RESCHEDULE_TIMEOUT');
     return Object.freeze({
-      async reschedule(scheduleId, runAt) {
+      async reschedule(scheduleId, runAt, { signal } = {}) {
         const path = schedulePath(scheduleId);
         if (!path || typeof runAt !== 'string') {
           return Object.freeze({ ok: false, status: 0, payload: Object.freeze({ error: 'INVALID_RESCHEDULE_REQUEST' }) });
         }
-        const response = await fetchImpl(path, {
-          method: 'PATCH',
-          headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          cache: 'no-store',
-          body: JSON.stringify({ runAt })
-        });
-        return Object.freeze({
-          ok: Boolean(response?.ok),
-          status: Number(response?.status) || 0,
-          payload: Object.freeze(await readPayload(response))
-        });
+        if (signal != null && (typeof signal !== 'object' || typeof signal.addEventListener !== 'function')) {
+          throw new Error('INVALID_SCHEDULE_RESCHEDULE_SIGNAL');
+        }
+        if (signal?.aborted) throw requestError('SCHEDULE_RESCHEDULE_CANCELLED');
+
+        const controller = new AbortControllerImpl();
+        let timedOut = false;
+        const onAbort = () => controller.abort(signal?.reason);
+        signal?.addEventListener?.('abort', onAbort, { once: true });
+        const timer = setTimeoutImpl(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+
+        try {
+          const response = await fetchImpl(path, {
+            method: 'PATCH',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            cache: 'no-store',
+            signal: controller.signal,
+            body: JSON.stringify({ runAt })
+          });
+          return Object.freeze({
+            ok: Boolean(response?.ok),
+            status: Number(response?.status) || 0,
+            payload: Object.freeze(await readPayload(response))
+          });
+        } catch (error) {
+          if (timedOut) throw requestError('SCHEDULE_RESCHEDULE_TIMEOUT');
+          if (signal?.aborted) throw requestError('SCHEDULE_RESCHEDULE_CANCELLED');
+          throw error;
+        } finally {
+          clearTimeoutImpl(timer);
+          signal?.removeEventListener?.('abort', onAbort);
+        }
       }
     });
   }
@@ -138,7 +179,14 @@
     const marker = card?.getAttribute?.('data-hafize-schedule-reschedule-mounted');
     if (!card || !list || ACTIVE_LISTS.has(list) || (marker !== null && marker !== undefined)) return null;
     let client;
-    try { client = createClient({ fetchImpl }); } catch { return null; }
+    try {
+      client = createClient({
+        fetchImpl,
+        AbortControllerImpl: root.AbortController,
+        setTimeoutImpl: root.setTimeout?.bind(root),
+        clearTimeoutImpl: root.clearTimeout?.bind(root)
+      });
+    } catch { return null; }
 
     ACTIVE_LISTS.add(list);
     let createdStyle = false;
@@ -150,6 +198,7 @@
     let destroyed = false;
     const nodesById = new Map();
     const busyIds = new Set();
+    const activeRequests = new Map();
 
     function ownedStyle() {
       if (!createdStyle) return null;
@@ -166,7 +215,12 @@
       }
       markerInstalled = false;
     }
+    function abortActiveRequests() {
+      for (const request of activeRequests.values()) request.abort?.();
+      activeRequests.clear();
+    }
     function removeOwnedActions() {
+      abortActiveRequests();
       for (const nodes of nodesById.values()) nodes.wrap?.remove?.();
       nodesById.clear();
       busyIds.clear();
@@ -217,7 +271,12 @@
     }
     function cleanRemoved() {
       for (const [id, nodes] of nodesById.entries()) {
-        if (!nodes.wrap?.isConnected) { nodesById.delete(id); busyIds.delete(id); }
+        if (!nodes.wrap?.isConnected) {
+          activeRequests.get(id)?.abort?.();
+          activeRequests.delete(id);
+          nodesById.delete(id);
+          busyIds.delete(id);
+        }
       }
     }
     function decorateArticle(article) {
@@ -242,16 +301,18 @@
     }
 
     async function submit(article, id, nodes) {
-      if (destroyed || busyIds.has(id) || article.dataset?.state !== 'scheduled') return false;
+      if (destroyed || busyIds.has(id) || activeRequests.has(id) || article.dataset?.state !== 'scheduled') return false;
       const runAt = normalizeLocalDateTime(nodes.input.value, now());
       if (!runAt) { showStatus(nodes, 'Gelecekte geçerli bir çalışma zamanı seç.', 'error'); return false; }
       if (!confirmImpl('Bu görevin çalışma zamanı değiştirilsin mi?')) return false;
+      const request = new root.AbortController();
+      activeRequests.set(id, request);
       busyIds.add(id);
       setBusy(nodes, true);
       showStatus(nodes, 'Yeni zaman kaydediliyor…', 'loading');
       try {
-        const result = await client.reschedule(id, runAt);
-        if (destroyed || !nodes.wrap?.isConnected) return false;
+        const result = await client.reschedule(id, runAt, { signal: request.signal });
+        if (destroyed || activeRequests.get(id) !== request || !nodes.wrap?.isConnected) return false;
         if (result.status === 401) { showStatus(nodes, 'Değişiklik için güvenli cloud oturumu gerekli.', 'auth'); return false; }
         if (result.status === 404) { showStatus(nodes, 'Görev artık bulunamıyor; listeyi yenile.', 'error'); return false; }
         if (result.status === 409) { showStatus(nodes, 'Görev artık yeniden zamanlanabilir durumda değil.', 'error'); return false; }
@@ -261,12 +322,15 @@
         setOpen(nodes, false);
         root.dispatchEvent?.(new root.CustomEvent(RESCHEDULED_EVENT, { detail: Object.freeze({ scheduleId: id }) }));
         return true;
-      } catch {
-        if (!destroyed && nodes.wrap?.isConnected) showStatus(nodes, 'Görev servisine ulaşılamadı.', 'error');
+      } catch (error) {
+        if (destroyed || activeRequests.get(id) !== request || !nodes.wrap?.isConnected) return false;
+        if (error?.code === 'SCHEDULE_RESCHEDULE_TIMEOUT') showStatus(nodes, 'Zaman değiştirme isteği zaman aşımına uğradı. Tekrar deneyebilirsin.', 'error');
+        else if (error?.code !== 'SCHEDULE_RESCHEDULE_CANCELLED') showStatus(nodes, 'Görev servisine ulaşılamadı.', 'error');
         return false;
       } finally {
+        if (activeRequests.get(id) === request) activeRequests.delete(id);
         busyIds.delete(id);
-        if (!destroyed && nodes.wrap?.isConnected) setBusy(nodes, false);
+        if (!destroyed && !activeRequests.has(id) && nodes.wrap?.isConnected) setBusy(nodes, false);
       }
     }
 
@@ -330,7 +394,7 @@
 
     return Object.freeze({
       decorateAll,
-      getState: () => Object.freeze({ busy: busyIds.size, mountedActions: nodesById.size }),
+      getState: () => Object.freeze({ busy: busyIds.size, mountedActions: nodesById.size, requests: activeRequests.size }),
       destroy() {
         if (destroyed) return false;
         destroyed = true;
@@ -368,7 +432,7 @@
   }
 
   return Object.freeze({
-    PATH, MAX_SCHEDULE_ID_CHARS, AUTO_MOUNT_TIMEOUT_MS, SCHEDULE_ID_PATTERN, RESCHEDULED_EVENT,
+    PATH, MAX_SCHEDULE_ID_CHARS, AUTO_MOUNT_TIMEOUT_MS, REQUEST_TIMEOUT_MS, SCHEDULE_ID_PATTERN, RESCHEDULED_EVENT,
     normalizeScheduleId, schedulePath, normalizeLocalDateTime, localInputValue, createClient,
     scheduleArticleFor, mount, autoMount
   });
