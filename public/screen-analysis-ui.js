@@ -30,6 +30,14 @@
     return clean.length <= maxChars ? clean : `${clean.slice(0, Math.max(1, maxChars - 1)).trimEnd()}…`;
   }
 
+  function analysisFailureMessage(error) {
+    const code = error?.code || error?.message || '';
+    if (code === 'SCREEN_ANALYSIS_TIMEOUT') return 'Ekran analizi zaman aşımına uğradı; görüntü isteği kapatıldı. Yeniden denemek için tekrar gözden geçir.';
+    if (code === 'SCREEN_ANALYSIS_CANCELLED' || (error?.name === 'AbortError' && !error?.code)) return 'Ekran analizi iptal edildi.';
+    if (code === 'SCREEN_ANALYSIS_NVIDIA_MODEL_REQUIRED') return 'Ekran analizi için NVIDIA modeli gerekiyor.';
+    return 'Ekran analizi tamamlanamadı.';
+  }
+
   function createReviewSnapshot({ capture, model, prompt } = {}) {
     const cleanModel = normalizeNvidiaModel(model);
     const cleanPrompt = normalizePrompt(prompt);
@@ -247,13 +255,7 @@
         return true;
       } catch (error) {
         if (destroyed || requestGeneration !== generation) return false;
-        if (error?.name === 'AbortError' || error?.message === 'SCREEN_ANALYSIS_CANCELLED') {
-          result.textContent = 'Ekran analizi iptal edildi.';
-        } else if (error?.message === 'SCREEN_ANALYSIS_NVIDIA_MODEL_REQUIRED') {
-          result.textContent = 'Ekran analizi için NVIDIA modeli gerekiyor.';
-        } else {
-          result.textContent = 'Ekran analizi tamamlanamadı.';
-        }
+        result.textContent = analysisFailureMessage(error);
         return false;
       } finally {
         if (!destroyed && requestGeneration === generation) {
@@ -366,6 +368,7 @@
     normalizePrompt,
     normalizeNvidiaModel,
     previewText,
+    analysisFailureMessage,
     createReviewSnapshot,
     sameSnapshot,
     mountScreenAnalysisUi
