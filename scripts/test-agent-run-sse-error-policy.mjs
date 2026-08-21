@@ -164,7 +164,13 @@ assert.match(agentRun, /approvalGranted: false/);
 assert.equal((agentRun.match(/controller\.abort\(\)/g) || []).length >= 2, true, 'disconnect/output failure must abort further agent work');
 
 assert.equal(registry.agents.length, 4, 'SSE transport change must not expand agent roster');
-assert.deepEqual(registry.agents.map(({ id }) => id), ['hafize-core', 'hafize-work', 'hafize-research', 'hafize-builder']);
+assert.equal(registry.defaultAgent, 'minimal-engineer');
+assert.deepEqual(registry.agents.map(({ id }) => id), [
+  'minimal-engineer',
+  'agency-code-reviewer',
+  'movie-coordinator',
+  'handyman-advisor'
+]);
 assert.equal(registry.agents.filter(({ kind }) => kind === 'selector').length, 2);
 assert.equal(registry.agents.filter(({ kind }) => kind === 'specialist').length, 2);
 assert.match(rules, /default-deny/i);
