@@ -2,4 +2,13 @@
 
 Hafize yapay zeka uygulaması deposu.
 
-> Bu ilk commit yalnızca tamamen boş GitHub deposunu başlatmak ve sonraki tüm geliştirmeleri branch + Pull Request akışına geçirmek için oluşturulmuştur.
+Geliştirme kuralları için `HAFIZE_RULES.md`, mimari kararlar için `docs/` klasörüne bakın.
+
+## Doğrulama
+
+```bash
+npm run check      # tam kapı: syntax + registry + tüm testler
+npm run precheck   # hızlı statik geçiş: yalnız syntax
+```
+
+Kapı, kontrol edeceği dosyaları diskten keşfeder; ayrıntılar `docs/CHECK_GATE.md` içinde.
