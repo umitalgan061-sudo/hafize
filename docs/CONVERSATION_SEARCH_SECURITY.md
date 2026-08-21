@@ -1,31 +1,41 @@
 # Conversation search security boundary
 
-Hafize'nin sohbet geçmişi araması yalnız sol menüde zaten render edilmiş **sohbet başlıklarını** filtreler.
+Hafize'nin sohbet geçmişi araması sol menüdeki render edilmiş sohbet başlıklarını ve yalnız canonical sohbet deposundan alınan sınırlı kullanıcı/asistan mesaj gövdelerini arar.
 
 ## Veri sınırı
 
-- Arama corpus'u yalnız `.conversation-row .conversation-open` görünür başlık metnidir.
-- Mesaj gövdesi, tool activity, trace metadata, owner ID veya credential aranmaz ve indekslenmez.
-- Controller `localStorage` / `sessionStorage` okumaz veya yazmaz. Mevcut sohbet saklama modeli `app.js` sorumluluğunda kalır.
-- Arama sorgusu yalnız sayfa belleğinde input değeri olarak yaşar; reload sonrasında korunmaz.
+- Render edilmiş başlık kaynağı yalnız `.conversation-row .conversation-open` görünür metnidir.
+- Mesaj gövdeleri DOM'dan, tool activity'den veya connector çıktısından okunmaz. Yalnız `HafizeConversationStorageGuard.sanitizeStoredValue(...)` tarafından doğrulanmış canonical conversation kayıtları indekslenir.
+- Mesaj indeksinde yalnız `role: user` ve `role: assistant` kabul edilir; tool/system/trace metadata, owner ID, credential ve secret alanları corpus'a girmez.
+- En fazla 30 sohbet, sohbet başına 120.000 karakter ve toplam 1.200.000 karakter indekslenir. Arama sorgusu en fazla 120 karakterdir.
+- Storage guard veya canonical storage erişimi yoksa içerik araması fail-closed biçimde kapanır ve yalnız render edilmiş başlık araması sürer.
 - Arama sırasında ağ isteği, API çağrısı, WebSocket, clipboard veya cookie erişimi yoktur.
 
-## Kullanıcı kontrolü
+## Lifecycle ve sahiplik
+
+- Aynı `#conversationList` üzerinde yalnız bir conversation-search controller aktif olabilir. Duplicate controller kurulumu fail-closed olur.
+- Controller kendi oluşturduğu search control ve style kaynaklarını bilir; foreign/existing `#conversationSearchControl` devralınmaz.
+- Listener veya MutationObserver kurulumu yarıda kalırsa listener, style, control ve list ownership atomik olarak geri alınır.
+- Filtreleme öncesinde her sohbet satırının mevcut `hidden` değeri snapshot edilir. Destroy veya failed-install sırasında yalnız controller'ın dokunduğu satırlar önceki görünürlüğüne exact restore edilir.
+- Pending RAF/timer refresh destroy sırasında iptal edilir. İptal edilemeyen veya geç çalışan callback'ler canlı ownership doğrulaması olmadan storage okuyamaz ya da satır görünürlüğünü değiştiremez.
+- Destroy edilen controller inert kalır ve aynı list üzerinde clean remount mümkündür.
+
+## Kullanıcı kontrolü ve erişilebilirlik
 
 - Arama alanı görünür ve `role="search"` taşır.
-- Sorgu en fazla **120 karakterdir**.
 - `Escape` veya görünür `Temizle` düğmesi filtreyi kaldırır.
 - Geçersiz/aşırı uzun sorgu sohbetleri gizlemek yerine fail-open davranır.
 - Eşleşme sayısı `aria-live="polite"` durum metniyle bildirilir.
+- Input `autocomplete="off"` ve `aria-controls="conversationList"` taşır.
 
 ## Yeniden render davranışı
 
-`app.js` sohbet listesini `replaceChildren()` ile yeniden oluşturduğu için controller yalnız `#conversationList` child-list değişikliklerini izler ve mevcut sorguyu yeni satırlara tekrar uygular. Mesaj DOM'u gözlemlenmez.
+Sohbet listesi yeniden render edildiğinde yalnız `#conversationList` child-list değişiklikleri izlenir. Refresh RAF varsa RAF, yoksa bounded zero-delay timer ile coalesce edilir. Storage değişikliği yalnız canonical conversation storage key'iyle eşleşiyorsa index yenilenir.
 
 ## PWA sınırı
 
-`/conversation-search.js` statik shell asset'idir. `/api/*` istekleri service worker tarafından network-only kalır; sohbet/API cevapları cache'e alınmaz.
+`/conversation-search.js` statik shell asset'idir. `/api/*` istekleri service worker tarafından network-only kalır; sohbet/API cevapları cache'e alınmaz. Cached controller değiştiğinde shell cache sürümü yükseltilir.
 
 ## Geri alma
 
-Bu özellik bağımsız shell enhancement'ıdır. Loader satırı, `/conversation-search.js`, PWA shell kaydı, bu doküman ve test kaldırıldığında `app.js` içindeki sohbet geçmişi davranışı değişmeden kalır.
+Bu özellik bağımsız shell enhancement'ıdır. Controller, testler, bu sözleşme ve ilgili PWA cache bump birlikte revert edilebilir; canonical conversation storage formatı veya backend tool izinleri değişmez.
