@@ -5,14 +5,16 @@ import { fileURLToPath } from 'node:url';
 
 const oauthPath = fileURLToPath(new URL('../lib/canva-oauth-runtime.mjs', import.meta.url));
 const exchangePath = fileURLToPath(new URL('../lib/canva-token-exchange.mjs', import.meta.url));
+const upstreamPath = fileURLToPath(new URL('../lib/canva-oauth-upstream.mjs', import.meta.url));
 const flowPath = fileURLToPath(new URL('../lib/oauth-flow-runtime.mjs', import.meta.url));
-const [oauthSource, exchangeSource, flowSource] = await Promise.all([
+const [oauthSource, exchangeSource, upstreamSource, flowSource] = await Promise.all([
   readFile(oauthPath, 'utf8'),
   readFile(exchangePath, 'utf8'),
+  readFile(upstreamPath, 'utf8'),
   readFile(flowPath, 'utf8')
 ]);
 
-for (const path of [oauthPath, exchangePath]) {
+for (const path of [oauthPath, exchangePath, upstreamPath]) {
   const checked = spawnSync(process.execPath, ['--check', path], { encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr || checked.stdout || `${path} syntax failed`);
 }
@@ -46,8 +48,8 @@ for (const forbidden of [
   assert.equal(forbidden.test(exchangeSource), false, `token exchange forbidden surface: ${forbidden}`);
 }
 
-assert.equal(exchangeSource.includes('redirect: \'error\''), true, 'token endpoint redirects must stay disabled');
-assert.equal(exchangeSource.includes("'content-type': 'application/x-www-form-urlencoded'"), true);
+assert.equal(upstreamSource.includes("redirect: 'error'"), true, 'token endpoint redirects must stay disabled');
+assert.equal(upstreamSource.includes("'content-type': 'application/x-www-form-urlencoded'"), true);
 assert.equal(exchangeSource.includes('Basic ${Buffer.from'), true, 'client secret remains server-side Basic auth input');
 assert.equal(oauthSource.includes('clientSecret'), false, 'OAuth authorization URL builder must never receive client secret');
 assert.equal(oauthSource.includes('accessToken'), false);
