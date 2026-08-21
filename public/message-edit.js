@@ -18,6 +18,7 @@
   const MAX_HANDOFF_AGE_MS = 90_000;
   const MARKER = 'hafizeEditReady';
   const SOURCE_RETENTION_ERROR = 'Kaynak korunamıyor';
+  const INSTALL_MARKER = Symbol.for('hafize.message.edit.controller.v2');
 
   function editableText(value) {
     if (typeof value !== 'string') return null;
@@ -113,8 +114,17 @@
     }
     if (!guard || typeof guard.sanitizeStoredValue !== 'function' || typeof guard.normalizeConversations !== 'function') throw new Error('INVALID_MESSAGE_EDIT_GUARD');
 
+    const ownerToken = Object.freeze({});
+    const decorations = new Map();
+    let messagesOwner = null;
     let observer = null;
     let busy = false;
+    let mounted = false;
+    let destroyed = false;
+
+    function ownsSurface() {
+      return mounted && !destroyed && messagesOwner?.[INSTALL_MARKER] === ownerToken;
+    }
 
     function composerNodes() {
       return Object.freeze({
@@ -124,12 +134,20 @@
     }
 
     function showState(button, state, label) {
+      if (!ownsSurface() || !decorationsHasButton(button)) return false;
       button.dataset.state = state;
       button.textContent = label;
       button.disabled = state === 'working';
+      return true;
+    }
+
+    function decorationsHasButton(button) {
+      for (const record of decorations.values()) if (record.button === button) return true;
+      return false;
     }
 
     function readCanonical() {
+      if (destroyed) return null;
       try { return guard.sanitizeStoredValue(storage.getItem(STORAGE_KEY) || '[]'); } catch { return null; }
     }
 
@@ -143,6 +161,7 @@
     }
 
     function rollbackOrphanBranch(branchId) {
+      if (!ownsSurface()) return false;
       try {
         const persisted = readCanonical()?.value || [];
         if (!persisted.some((conversation) => conversation.id === branchId)) return true;
@@ -154,7 +173,7 @@
     }
 
     function copyModelPreference(sourceId, branchId) {
-      if (!modelState || typeof modelState.readModelEntries !== 'function' || typeof modelState.writeModelEntries !== 'function') return;
+      if (!ownsSurface() || !modelState || typeof modelState.readModelEntries !== 'function' || typeof modelState.writeModelEntries !== 'function') return;
       try {
         const conversations = readCanonical()?.value || [];
         const entries = modelState.readModelEntries(storage, conversations);
@@ -165,7 +184,7 @@
     }
 
     function publishLineage(detail) {
-      if (typeof documentRef.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return false;
+      if (!ownsSurface() || typeof documentRef.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return false;
       try {
         documentRef.dispatchEvent(new CustomEventImpl(BRANCH_EVENT, { detail }));
         return true;
@@ -175,6 +194,7 @@
     }
 
     function stageHandoff(conversationId, text, createdAt) {
+      if (!ownsSurface()) return false;
       const handoff = normalizeHandoff({ conversationId, text, createdAt }, { nowMs: createdAt });
       if (!handoff) return false;
       try {
@@ -187,6 +207,7 @@
     }
 
     function restoreHandoff() {
+      if (!ownsSurface()) return false;
       const { input, sendButton } = composerNodes();
       if (!input || sendButton?.classList?.contains('streaming')) return false;
       let raw = '';
@@ -210,7 +231,7 @@
     }
 
     function editMessage(button, article, content) {
-      if (busy) return false;
+      if (!ownsSurface() || !decorationsHasButton(button) || busy) return false;
       const text = editableText(content?.textContent);
       const messageId = guard.normalizeId?.(article?.dataset?.messageId) || '';
       if (!text || !messageId) {
@@ -256,7 +277,9 @@
       busy = true;
       showState(button, 'working', 'Düzenleme dalı hazırlanıyor…');
       try {
+        if (!ownsSurface()) throw new Error('MESSAGE_EDIT_CONTROLLER_STALE');
         storage.setItem(STORAGE_KEY, JSON.stringify(candidate));
+        if (!ownsSurface()) throw new Error('MESSAGE_EDIT_CONTROLLER_STALE');
         const persisted = readCanonical()?.value || [];
         if (!includesConversationIds(persisted, branch.id, found.conversation.id)) {
           rollbackOrphanBranch(branch.id);
@@ -271,7 +294,7 @@
           createdAt: nowIso
         });
         showState(button, 'success', 'Düzenleme dalı hazır');
-        reload();
+        if (ownsSurface()) reload();
         return true;
       } catch {
         try { handoffStorage.removeItem(DRAFT_HANDOFF_KEY); } catch { /* ignore */ }
@@ -281,53 +304,128 @@
       }
     }
 
+    function restoreArticle(article, record) {
+      try { record.button.removeEventListener?.('click', record.handler); } catch { /* ignore */ }
+      try { record.button.remove?.(); } catch { /* ignore */ }
+      if (!article?.dataset) return;
+      if (record.hadMarker) article.dataset[MARKER] = record.markerValue;
+      else {
+        try { delete article.dataset[MARKER]; } catch { article.dataset[MARKER] = undefined; }
+      }
+    }
+
+    function clearDecorations() {
+      for (const [article, record] of decorations) restoreArticle(article, record);
+      decorations.clear();
+    }
+
     function decorate(article) {
-      if (!article?.classList?.contains('message') || !article.classList.contains('user')) return false;
-      if (article.dataset?.[MARKER] === '1') return false;
+      if (!ownsSurface() || !article?.classList?.contains('message') || !article.classList.contains('user')) return false;
+      if (decorations.has(article)) return false;
       const content = article.querySelector?.('.content');
       const actions = article.querySelector?.('.message-copy-actions');
       if (!content || !actions || !guard.normalizeId?.(article.dataset?.messageId)) return false;
+      if (article.dataset?.[MARKER] === '1' || article.querySelector?.('.message-edit-btn')) return false;
+
+      const hadMarker = Object.prototype.hasOwnProperty.call(article.dataset || {}, MARKER);
+      const markerValue = article.dataset?.[MARKER];
       const button = documentRef.createElement('button');
       button.type = 'button';
       button.className = 'message-copy-btn message-edit-btn';
       button.dataset.state = 'idle';
       button.textContent = 'Düzenle';
       button.setAttribute('aria-label', 'bu mesajdan önceki bağlamı koruyarak yeni düzenleme dalı oluştur');
-      button.addEventListener('click', () => { editMessage(button, article, content); });
-      actions.prepend?.(button);
-      if (article.dataset) article.dataset[MARKER] = '1';
-      return true;
+      const handler = () => {
+        if (ownsSurface() && decorations.get(article)?.button === button) editMessage(button, article, content);
+      };
+      try {
+        button.addEventListener('click', handler);
+        actions.prepend?.(button);
+        if (!button.parentNode && !actions.contains?.(button)) throw new Error('MESSAGE_EDIT_BUTTON_NOT_ATTACHED');
+        if (article.dataset) article.dataset[MARKER] = '1';
+        decorations.set(article, Object.freeze({ button, handler, hadMarker, markerValue }));
+        return true;
+      } catch {
+        try { button.removeEventListener?.('click', handler); } catch { /* ignore */ }
+        try { button.remove?.(); } catch { /* ignore */ }
+        if (article.dataset) {
+          if (hadMarker) article.dataset[MARKER] = markerValue;
+          else {
+            try { delete article.dataset[MARKER]; } catch { article.dataset[MARKER] = undefined; }
+          }
+        }
+        return false;
+      }
     }
 
     function decorateAll(root = documentRef) {
+      if (!ownsSurface()) return 0;
       const messages = root.querySelectorAll?.('.message.user') || [];
       let count = 0;
       for (const article of messages) if (decorate(article)) count += 1;
       return count;
     }
 
-    function mount() {
-      const messages = documentRef.querySelector('#messages');
-      if (!messages) return false;
-      restoreHandoff();
-      decorateAll(messages);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(() => {
-          restoreHandoff();
-          decorateAll(messages);
-        });
-        observer.observe(messages, { childList: true, subtree: true });
+    function releaseOwnership() {
+      if (messagesOwner?.[INSTALL_MARKER] === ownerToken) {
+        try { delete messagesOwner[INSTALL_MARKER]; } catch { messagesOwner[INSTALL_MARKER] = undefined; }
       }
-      return true;
+      messagesOwner = null;
+    }
+
+    function rollbackMount() {
+      observer?.disconnect?.();
+      observer = null;
+      clearDecorations();
+      releaseOwnership();
+      busy = false;
+      mounted = false;
+    }
+
+    function mount() {
+      if (destroyed || mounted) return false;
+      const messages = documentRef.querySelector('#messages');
+      if (!messages || messages[INSTALL_MARKER]) return false;
+      messages[INSTALL_MARKER] = ownerToken;
+      messagesOwner = messages;
+      mounted = true;
+      try {
+        restoreHandoff();
+        decorateAll(messages);
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(() => {
+            if (!ownsSurface()) return;
+            restoreHandoff();
+            decorateAll(messages);
+          });
+          observer.observe(messages, { childList: true, subtree: true });
+        }
+        return true;
+      } catch {
+        rollbackMount();
+        return false;
+      }
     }
 
     function destroy() {
-      observer?.disconnect?.();
-      observer = null;
-      busy = false;
+      if (destroyed) return false;
+      destroyed = true;
+      rollbackMount();
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, editMessage, restoreHandoff, readCanonical, rollbackOrphanBranch, publishLineage });
+    return Object.freeze({
+      mount,
+      destroy,
+      decorate,
+      decorateAll,
+      editMessage,
+      restoreHandoff,
+      readCanonical,
+      rollbackOrphanBranch,
+      publishLineage,
+      getState: () => Object.freeze({ mounted, destroyed, busy, decorations: decorations.size, ownsSurface: ownsSurface() })
+    });
   }
 
   function mount(options) {
@@ -347,6 +445,7 @@
     MAX_HANDOFF_AGE_MS,
     MARKER,
     SOURCE_RETENTION_ERROR,
+    INSTALL_MARKER,
     editableText,
     defaultId,
     editBranchTitle,
