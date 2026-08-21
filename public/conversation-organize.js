@@ -21,6 +21,7 @@
   const MAX_ID_CHARS = 160;
   const MAX_TITLE_CHARS = 80;
   const ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+  const ACTIVE_LISTS = new WeakSet();
 
   function normalizeConversationId(value) {
     if (typeof value !== 'string') return null;
@@ -155,14 +156,9 @@
     const normalized = normalizeMutation(mutation);
     if (!normalized) return Object.freeze({ entries: source, status: 'invalid' });
     const current = entryFor(source, normalized.id);
-    if (sameEntry(current, normalized.after)) {
-      return Object.freeze({ entries: source, status: 'settled' });
-    }
+    if (sameEntry(current, normalized.after)) return Object.freeze({ entries: source, status: 'settled' });
     if (sameEntry(current, normalized.before)) {
-      return Object.freeze({
-        entries: replaceEntry(source, normalized.id, normalized.after),
-        status: 'replay'
-      });
+      return Object.freeze({ entries: replaceEntry(source, normalized.id, normalized.after), status: 'replay' });
     }
     return Object.freeze({ entries: source, status: 'conflict' });
   }
@@ -194,19 +190,86 @@
   function install(documentRef, root) {
     if (!documentRef || !root) return null;
     const list = documentRef.querySelector?.('#conversationList');
-    if (!list) return null;
+    if (!list || ACTIVE_LISTS.has(list)) return null;
 
-    ensureStyles(documentRef);
+    ACTIVE_LISTS.add(list);
     const storage = root.localStorage;
     let entries = parseEntries(storage?.getItem?.(STORAGE_KEY));
+    let mounted = false;
+    let destroyed = false;
     let rendering = false;
     let pendingFrame = null;
+    let pendingKind = null;
+    let observer = null;
+    let styleOwned = false;
+    let storageListening = false;
     const sessionMutations = new Map();
+    const rowSnapshots = new Map();
+    const ownedActions = new Map();
+    const ownedEditors = new Set();
+    const listenerCleanup = [];
+
+    function isLive() {
+      return !destroyed && mounted && ACTIVE_LISTS.has(list);
+    }
+
+    function rememberAttribute(node, name) {
+      return Object.freeze({ present: node?.hasAttribute?.(name) === true, value: node?.getAttribute?.(name) });
+    }
+
+    function restoreAttribute(node, name, snapshot) {
+      if (!node || !snapshot) return;
+      if (snapshot.present) node.setAttribute?.(name, snapshot.value ?? '');
+      else node.removeAttribute?.(name);
+    }
+
+    function snapshotRow(row) {
+      if (!row || rowSnapshots.has(row)) return;
+      const open = row.querySelector?.('.conversation-open');
+      const remove = row.querySelector?.('.conversation-delete');
+      rowSnapshots.set(row, Object.freeze({
+        dataset: Object.freeze({
+          present: Object.prototype.hasOwnProperty.call(row.dataset || {}, 'conversationOrganizeId'),
+          value: row.dataset?.conversationOrganizeId
+        }),
+        pinned: row.classList?.contains?.('conversation-pinned') === true,
+        editing: row.classList?.contains?.('organize-editing') === true,
+        openText: open?.textContent,
+        openTitle: rememberAttribute(open, 'title'),
+        removeLabel: rememberAttribute(remove, 'aria-label')
+      }));
+    }
+
+    function restoreRow(row, snapshot) {
+      if (!row || !snapshot) return;
+      closeEditor(row);
+      ownedActions.get(row)?.remove?.();
+      ownedActions.delete(row);
+      const open = row.querySelector?.('.conversation-open');
+      const remove = row.querySelector?.('.conversation-delete');
+      if (open && snapshot.openText !== undefined) open.textContent = snapshot.openText;
+      restoreAttribute(open, 'title', snapshot.openTitle);
+      restoreAttribute(remove, 'aria-label', snapshot.removeLabel);
+      row.classList?.toggle?.('conversation-pinned', snapshot.pinned);
+      row.classList?.toggle?.('organize-editing', snapshot.editing);
+      if (snapshot.dataset.present) row.dataset.conversationOrganizeId = snapshot.dataset.value;
+      else if (row.dataset) delete row.dataset.conversationOrganizeId;
+    }
+
+    function addListener(target, type, listener) {
+      if (typeof target?.addEventListener !== 'function' || typeof target?.removeEventListener !== 'function') {
+        throw new Error('INVALID_CONVERSATION_ORGANIZE_LISTENER_TARGET');
+      }
+      target.addEventListener(type, listener);
+      listenerCleanup.push(() => target.removeEventListener(type, listener));
+    }
 
     function persist(next) {
-      entries = normalizeEntries(next);
+      if (!isLive()) return false;
+      const normalized = normalizeEntries(next);
       try {
-        storage?.setItem?.(STORAGE_KEY, serializeEntries(entries));
+        storage?.setItem?.(STORAGE_KEY, serializeEntries(normalized));
+        entries = normalized;
         return true;
       } catch {
         return false;
@@ -214,7 +277,7 @@
     }
 
     function sourceSnapshot() {
-      return readSourceConversations(storage);
+      return isLive() ? readSourceConversations(storage) : [];
     }
 
     function metadataFor(id) {
@@ -222,19 +285,19 @@
     }
 
     function rememberMutation(id, before, after) {
+      if (!isLive()) return false;
       const mutation = normalizeMutation({ id, before, after });
       if (!mutation) {
         sessionMutations.delete(id);
         return false;
       }
       sessionMutations.set(mutation.id, mutation);
-      while (sessionMutations.size > MAX_SESSION_MUTATIONS) {
-        sessionMutations.delete(sessionMutations.keys().next().value);
-      }
+      while (sessionMutations.size > MAX_SESSION_MUTATIONS) sessionMutations.delete(sessionMutations.keys().next().value);
       return true;
     }
 
     function persistMutation(id, patch) {
+      if (!isLive()) return false;
       const cleanId = normalizeConversationId(id);
       if (!cleanId) return false;
       const before = metadataFor(cleanId);
@@ -247,12 +310,119 @@
     }
 
     function closeEditor(row) {
-      row?.querySelector?.('.conversation-organize-editor')?.remove?.();
-      row?.classList?.remove?.('organize-editing');
+      const editor = row?.querySelector?.('.conversation-organize-editor');
+      if (editor && ownedEditors.has(editor)) {
+        ownedEditors.delete(editor);
+        editor.remove?.();
+      }
+      if (rowSnapshots.has(row)) row?.classList?.remove?.('organize-editing');
+    }
+
+    function createEditor(row, rename) {
+      if (!isLive()) return false;
+      closeEditor(row);
+      const currentId = normalizeConversationId(row.dataset?.conversationOrganizeId);
+      if (!currentId) return false;
+      const currentSource = sourceSnapshot().find((item) => item.id === currentId);
+      if (!currentSource) return false;
+
+      const editor = documentRef.createElement('form');
+      editor.className = 'conversation-organize-editor';
+      const input = documentRef.createElement('input');
+      input.type = 'text';
+      input.maxLength = MAX_TITLE_CHARS;
+      input.value = metadataFor(currentId)?.title || currentSource.title;
+      input.autocomplete = 'off';
+      input.setAttribute('aria-label', 'Yeni sohbet başlığı');
+      const save = documentRef.createElement('button');
+      save.type = 'submit';
+      save.textContent = 'Kaydet';
+      const reset = documentRef.createElement('button');
+      reset.type = 'button';
+      reset.textContent = 'Otomatik';
+      const cancel = documentRef.createElement('button');
+      cancel.type = 'button';
+      cancel.textContent = 'Vazgeç';
+      editor.append(input, save, reset, cancel);
+      row.append(editor);
+      ownedEditors.add(editor);
+      row.classList?.add?.('organize-editing');
+
+      const onSubmit = (event) => {
+        event.preventDefault?.();
+        if (!isLive() || !ownedEditors.has(editor)) return;
+        const nextTitle = normalizeTitle(input.value);
+        if (!nextTitle) {
+          input.setAttribute('aria-invalid', 'true');
+          return;
+        }
+        if (persistMutation(currentId, { title: nextTitle })) {
+          closeEditor(row);
+          renderNow();
+        }
+      };
+      const onReset = () => {
+        if (!isLive() || !ownedEditors.has(editor)) return;
+        if (persistMutation(currentId, { title: null })) {
+          closeEditor(row);
+          renderNow();
+        }
+      };
+      const onCancel = () => { if (isLive()) closeEditor(row); };
+      const onKeydown = (event) => {
+        if (!isLive() || event?.key !== 'Escape') return;
+        event.preventDefault?.();
+        closeEditor(row);
+        rename.focus?.();
+      };
+      addListener(editor, 'submit', onSubmit);
+      addListener(reset, 'click', onReset);
+      addListener(cancel, 'click', onCancel);
+      addListener(input, 'keydown', onKeydown);
+      input.focus?.();
+      input.select?.();
+      return true;
+    }
+
+    function createActions(row) {
+      if (!isLive() || row.querySelector?.('.conversation-organize-actions')) return null;
+      const actions = documentRef.createElement('div');
+      actions.className = 'conversation-organize-actions';
+      const pin = documentRef.createElement('button');
+      pin.type = 'button';
+      pin.className = 'conversation-pin';
+      const rename = documentRef.createElement('button');
+      rename.type = 'button';
+      rename.className = 'conversation-rename';
+      rename.textContent = '✎';
+      rename.title = 'Başlığı düzenle';
+      rename.setAttribute('aria-label', 'Sohbet başlığını düzenle');
+      actions.append(pin, rename);
+      const remove = row.querySelector?.('.conversation-delete');
+      row.insertBefore?.(actions, remove || null);
+      ownedActions.set(row, actions);
+
+      addListener(pin, 'click', (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        if (!isLive() || ownedActions.get(row) !== actions) return;
+        const currentId = normalizeConversationId(row.dataset?.conversationOrganizeId);
+        if (!currentId) return;
+        const current = metadataFor(currentId);
+        if (persistMutation(currentId, { pinned: current?.pinned !== true })) renderNow();
+      });
+      addListener(rename, 'click', (event) => {
+        event.preventDefault?.();
+        event.stopPropagation?.();
+        if (!isLive() || ownedActions.get(row) !== actions) return;
+        createEditor(row, rename);
+      });
+      return actions;
     }
 
     function applyRow(row, source) {
-      if (!row || !source) return;
+      if (!isLive() || !row || !source) return;
+      snapshotRow(row);
       const id = source.id;
       row.dataset.conversationOrganizeId = id;
       const open = row.querySelector?.('.conversation-open');
@@ -262,100 +432,13 @@
       const meta = metadataFor(id);
       const title = meta?.title || source.title;
       open.textContent = title;
-      open.title = title;
+      open.setAttribute?.('title', title);
       remove?.setAttribute?.('aria-label', `${title} sohbetini sil`);
       row.classList?.toggle?.('conversation-pinned', meta?.pinned === true);
 
-      let actions = row.querySelector?.('.conversation-organize-actions');
-      if (!actions) {
-        actions = documentRef.createElement('div');
-        actions.className = 'conversation-organize-actions';
-
-        const pin = documentRef.createElement('button');
-        pin.type = 'button';
-        pin.className = 'conversation-pin';
-
-        const rename = documentRef.createElement('button');
-        rename.type = 'button';
-        rename.className = 'conversation-rename';
-        rename.textContent = '✎';
-        rename.title = 'Başlığı düzenle';
-        rename.setAttribute('aria-label', 'Sohbet başlığını düzenle');
-
-        actions.append(pin, rename);
-        row.insertBefore?.(actions, remove || null);
-
-        pin.addEventListener('click', (event) => {
-          event.preventDefault?.();
-          event.stopPropagation?.();
-          const currentId = normalizeConversationId(row.dataset?.conversationOrganizeId);
-          if (!currentId) return;
-          const current = metadataFor(currentId);
-          persistMutation(currentId, { pinned: current?.pinned !== true });
-          renderNow();
-        });
-
-        rename.addEventListener('click', (event) => {
-          event.preventDefault?.();
-          event.stopPropagation?.();
-          closeEditor(row);
-          const currentId = normalizeConversationId(row.dataset?.conversationOrganizeId);
-          if (!currentId) return;
-          const currentSource = sourceSnapshot().find((item) => item.id === currentId);
-          if (!currentSource) return;
-
-          const editor = documentRef.createElement('form');
-          editor.className = 'conversation-organize-editor';
-          const input = documentRef.createElement('input');
-          input.type = 'text';
-          input.maxLength = MAX_TITLE_CHARS;
-          input.value = metadataFor(currentId)?.title || currentSource.title;
-          input.autocomplete = 'off';
-          input.setAttribute('aria-label', 'Yeni sohbet başlığı');
-
-          const save = documentRef.createElement('button');
-          save.type = 'submit';
-          save.textContent = 'Kaydet';
-          const reset = documentRef.createElement('button');
-          reset.type = 'button';
-          reset.textContent = 'Otomatik';
-          const cancel = documentRef.createElement('button');
-          cancel.type = 'button';
-          cancel.textContent = 'Vazgeç';
-
-          editor.append(input, save, reset, cancel);
-          row.append(editor);
-          row.classList?.add?.('organize-editing');
-          input.focus?.();
-          input.select?.();
-
-          editor.addEventListener('submit', (submitEvent) => {
-            submitEvent.preventDefault?.();
-            const nextTitle = normalizeTitle(input.value);
-            if (!nextTitle) {
-              input.setAttribute('aria-invalid', 'true');
-              return;
-            }
-            persistMutation(currentId, { title: nextTitle });
-            closeEditor(row);
-            renderNow();
-          });
-          reset.addEventListener('click', () => {
-            persistMutation(currentId, { title: null });
-            closeEditor(row);
-            renderNow();
-          });
-          cancel.addEventListener('click', () => closeEditor(row));
-          input.addEventListener('keydown', (keyEvent) => {
-            if (keyEvent.key !== 'Escape') return;
-            keyEvent.preventDefault?.();
-            closeEditor(row);
-            rename.focus?.();
-          });
-        });
-      }
-
-      const pin = actions.querySelector?.('.conversation-pin');
+      let actions = ownedActions.get(row) || null;
+      if (!actions && !row.querySelector?.('.conversation-organize-actions')) actions = createActions(row);
+      const pin = actions?.querySelector?.('.conversation-pin');
       const pinned = meta?.pinned === true;
       if (pin) {
         pin.textContent = pinned ? '★' : '☆';
@@ -366,7 +449,7 @@
     }
 
     function renderNow() {
-      if (rendering) return;
+      if (!isLive() || rendering) return false;
       rendering = true;
       try {
         const source = sourceSnapshot();
@@ -374,9 +457,10 @@
         const allowed = new Set(sourceIds);
         for (const id of sessionMutations.keys()) if (!allowed.has(id)) sessionMutations.delete(id);
         const pruned = pruneEntries(entries, sourceIds);
-        if (JSON.stringify(pruned) !== JSON.stringify(entries)) persist(pruned);
+        if (serializeEntries(pruned) !== serializeEntries(entries) && !persist(pruned)) return false;
 
         const rows = Array.from(list.querySelectorAll?.('.conversation-row') || []);
+        for (const row of rows) snapshotRow(row);
         const untagged = rows.filter((row) => !normalizeConversationId(row.dataset?.conversationOrganizeId));
         if (untagged.length) {
           for (let index = 0; index < rows.length && index < source.length; index += 1) {
@@ -398,25 +482,44 @@
             const row = rowById.get(id);
             if (row) fragment.append(row);
           }
-          list.append(fragment);
+          if (isLive()) list.append(fragment);
         }
+        return true;
       } finally {
         rendering = false;
       }
     }
 
+    function cancelPending() {
+      if (pendingFrame === null) return;
+      if (pendingKind === 'raf') root.cancelAnimationFrame?.(pendingFrame);
+      else root.clearTimeout?.(pendingFrame);
+      pendingFrame = null;
+      pendingKind = null;
+    }
+
     function scheduleRender() {
-      if (rendering || pendingFrame !== null) return;
-      if (typeof root.requestAnimationFrame === 'function') {
-        pendingFrame = root.requestAnimationFrame(() => {
-          pendingFrame = null;
-          renderNow();
-        });
-      } else renderNow();
+      if (!isLive() || rendering || pendingFrame !== null) return false;
+      const run = () => {
+        pendingFrame = null;
+        pendingKind = null;
+        if (isLive()) renderNow();
+      };
+      if (typeof root.requestAnimationFrame === 'function' && typeof root.cancelAnimationFrame === 'function') {
+        pendingKind = 'raf';
+        pendingFrame = root.requestAnimationFrame(run);
+        return true;
+      }
+      if (typeof root.setTimeout === 'function' && typeof root.clearTimeout === 'function') {
+        pendingKind = 'timer';
+        pendingFrame = root.setTimeout(run, 0);
+        return true;
+      }
+      return renderNow();
     }
 
     function onStorage(event) {
-      if (event?.key !== STORAGE_KEY && event?.key !== SOURCE_KEY) return;
+      if (!isLive() || (event?.key !== STORAGE_KEY && event?.key !== SOURCE_KEY)) return;
       if (event.key === STORAGE_KEY) {
         const remote = parseEntries(event.newValue || '');
         entries = remote;
@@ -436,29 +539,59 @@
       scheduleRender();
     }
 
-    const observer = typeof root.MutationObserver === 'function'
-      ? new root.MutationObserver(() => scheduleRender())
-      : null;
-    observer?.observe(list, { childList: true, subtree: true });
-    root.addEventListener?.('storage', onStorage);
-    renderNow();
+    function rollback() {
+      cancelPending();
+      observer?.disconnect?.();
+      observer = null;
+      if (storageListening) {
+        try { root.removeEventListener?.('storage', onStorage); } catch {}
+        storageListening = false;
+      }
+      while (listenerCleanup.length) {
+        try { listenerCleanup.pop()?.(); } catch {}
+      }
+      for (const editor of ownedEditors) editor.remove?.();
+      ownedEditors.clear();
+      for (const [row, snapshot] of rowSnapshots) restoreRow(row, snapshot);
+      rowSnapshots.clear();
+      ownedActions.clear();
+      sessionMutations.clear();
+      if (styleOwned) {
+        documentRef.querySelector?.('link[data-hafize-conversation-organize-style]')?.remove?.();
+        styleOwned = false;
+      }
+      ACTIVE_LISTS.delete(list);
+      mounted = false;
+    }
+
+    try {
+      styleOwned = ensureStyles(documentRef);
+      mounted = true;
+      if (typeof root.MutationObserver === 'function') {
+        observer = new root.MutationObserver(() => { if (isLive()) scheduleRender(); });
+        observer.observe(list, { childList: true, subtree: true });
+      }
+      if (typeof root.addEventListener === 'function') {
+        root.addEventListener('storage', onStorage);
+        storageListening = true;
+      }
+      if (!renderNow()) throw new Error('CONVERSATION_ORGANIZE_INITIAL_RENDER_FAILED');
+    } catch {
+      rollback();
+      destroyed = true;
+      return null;
+    }
 
     return Object.freeze({
       getEntries: () => Object.freeze(entries.map((entry) => Object.freeze({ ...entry }))),
       getPendingMutationCount: () => sessionMutations.size,
-      refresh: renderNow,
+      getState: () => Object.freeze({ mounted: isLive(), destroyed, pending: pendingFrame !== null }),
+      refresh: () => isLive() ? renderNow() : false,
       destroy() {
-        observer?.disconnect?.();
-        root.removeEventListener?.('storage', onStorage);
-        if (pendingFrame !== null) root.cancelAnimationFrame?.(pendingFrame);
-        pendingFrame = null;
-        sessionMutations.clear();
-        for (const row of list.querySelectorAll?.('.conversation-row') || []) {
-          closeEditor(row);
-          row?.classList?.remove?.('conversation-pinned', 'organize-editing');
-          delete row.dataset.conversationOrganizeId;
-          row.querySelector?.('.conversation-organize-actions')?.remove?.();
-        }
+        if (destroyed) return false;
+        destroyed = true;
+        rollback();
+        return true;
       }
     });
   }
