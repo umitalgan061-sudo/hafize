@@ -46,6 +46,66 @@
     return normalizeTranscript(chunks.join(' '));
   }
 
+  function createTranscriptSession() {
+    const segments = [];
+
+    function apply(event) {
+      const results = event?.results;
+      if (!results || !Number.isSafeInteger(results.length) || results.length < 0) {
+        return Object.freeze({ changed: false, text: text(), finalText: finalText(), segmentCount: segments.length });
+      }
+
+      const requestedStart = Number.isInteger(event.resultIndex) ? event.resultIndex : 0;
+      const start = Math.max(0, Math.min(requestedStart, results.length));
+      let changed = false;
+
+      if (segments.length > results.length) {
+        segments.length = results.length;
+        changed = true;
+      }
+
+      for (let index = start; index < results.length; index += 1) {
+        const result = results[index];
+        const transcript = normalizeTranscript(result?.[0]?.transcript);
+        const isFinal = result?.isFinal === true;
+        const previous = segments[index];
+
+        if (!transcript) {
+          if (previous !== undefined) {
+            segments[index] = null;
+            changed = true;
+          }
+          continue;
+        }
+
+        if (!previous || previous.text !== transcript || previous.isFinal !== isFinal) {
+          segments[index] = Object.freeze({ text: transcript, isFinal });
+          changed = true;
+        }
+      }
+
+      return Object.freeze({ changed, text: text(), finalText: finalText(), segmentCount: segments.length });
+    }
+
+    function text() {
+      return normalizeTranscript(segments.filter(Boolean).map((segment) => segment.text).join(' '));
+    }
+
+    function finalText() {
+      return normalizeTranscript(segments.filter((segment) => segment?.isFinal).map((segment) => segment.text).join(' '));
+    }
+
+    function reset() {
+      segments.length = 0;
+    }
+
+    function snapshot() {
+      return Object.freeze(segments.map((segment) => segment ? Object.freeze({ ...segment }) : null));
+    }
+
+    return Object.freeze({ apply, text, finalText, reset, snapshot });
+  }
+
   function mapSpeechError(code) {
     switch (code) {
       case 'not-allowed':
@@ -144,6 +204,7 @@
     let recognition = null;
     let listening = false;
     let prefix = '';
+    let transcriptSession = null;
     let destroyed = false;
     let observer = null;
     let controller = null;
@@ -208,6 +269,7 @@
     function startRecognition() {
       if (destroyed || !Recognition || input.disabled || baseline.disabled || listening) return;
       prefix = input.value || '';
+      transcriptSession = createTranscriptSession();
       const current = new Recognition();
       recognition = current;
       current.lang = documentRef.documentElement?.lang || root?.navigator?.language || DEFAULT_LANGUAGE;
@@ -221,10 +283,10 @@
         announce('Dinleniyor… Ses tanıma tarayıcı sağlayıcın tarafından işlenebilir; metin otomatik gönderilmez.');
       };
       current.onresult = (event) => {
-        if (destroyed || recognition !== current) return;
-        const transcript = readRecognitionText(event);
-        if (!transcript) return;
-        input.value = mergeTranscript(prefix, transcript, input.maxLength);
+        if (destroyed || recognition !== current || !transcriptSession) return;
+        const snapshot = transcriptSession.apply(event);
+        if (!snapshot.changed) return;
+        input.value = mergeTranscript(prefix, snapshot.text, input.maxLength);
         dispatchInputEvent(input, root);
       };
       current.onerror = (event) => {
@@ -235,6 +297,7 @@
       current.onend = () => {
         if (destroyed || recognition !== current) return;
         recognition = null;
+        transcriptSession = null;
         setListening(false);
         if (!documentRef.hidden) input.focus?.();
       };
@@ -244,6 +307,7 @@
         current.start();
       } catch {
         if (recognition === current) recognition = null;
+        transcriptSession = null;
         setListening(false);
         if (!destroyed) announce('Sesli giriş başlatılamadı. Yazmaya devam edebilirsin.');
       }
@@ -291,6 +355,7 @@
       destroyed = true;
       removeBindings();
       announce.dispose?.();
+      transcriptSession = null;
       restoreOwnedDom();
       throw error;
     }
@@ -307,6 +372,7 @@
         announce.dispose?.();
         const active = recognition;
         recognition = null;
+        transcriptSession = null;
         const wasListening = listening;
         listening = false;
         if (active && wasListening) {
@@ -324,6 +390,7 @@
   return Object.freeze({
     DEFAULT_LANGUAGE,
     VOICE_INPUT_STATE_EVENT,
+    createTranscriptSession,
     dispatchVoiceInputState,
     getSpeechRecognitionConstructor,
     installVoiceInput,
