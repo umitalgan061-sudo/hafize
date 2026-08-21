@@ -61,6 +61,10 @@ function response(status, payload) {
   return { ok: status >= 200 && status < 300, status, async json() { return payload; } };
 }
 
+function settleAsyncWork() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 {
   const { documentRef, rail } = createDom();
   const requests = [];
@@ -75,7 +79,7 @@ function response(status, payload) {
     }
   });
   assert.equal(controller.mount(), true);
-  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  await settleAsyncWork();
   assert.deepEqual(requests.map(({ path }) => path), [api.HEALTH_PATH, api.STATUS_PATH]);
   for (const { init } of requests) {
     assert.equal(init.method, 'GET');
@@ -105,7 +109,7 @@ function response(status, payload) {
     fetchImpl: async (path) => { requests.push(path); return response(200, { canvaReadConfigured: false }); }
   });
   controller.mount();
-  await Promise.resolve(); await Promise.resolve();
+  await settleAsyncWork();
   assert.deepEqual(requests, [api.HEALTH_PATH]);
   const summary = find(rail.children[0], (node) => node.id === api.SUMMARY_ID);
   assert.equal(summary.dataset.state, 'off');
@@ -122,7 +126,7 @@ function response(status, payload) {
       : response(401, { error: 'AUTH_REQUIRED' })
   });
   controller.mount();
-  await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+  await settleAsyncWork();
   const summary = find(rail.children[0], (node) => node.id === api.SUMMARY_ID);
   assert.equal(summary.dataset.state, 'auth');
   assert.match(summary.textContent, /güvenli Hafize oturumu/);
@@ -133,7 +137,7 @@ function response(status, payload) {
   const { documentRef, rail } = createDom();
   const controller = api.createController({ documentRef, AbortControllerImpl: null, fetchImpl: async () => response(503, {}) });
   controller.mount();
-  await Promise.resolve(); await Promise.resolve();
+  await settleAsyncWork();
   const summary = find(rail.children[0], (node) => node.id === api.SUMMARY_ID);
   assert.equal(summary.dataset.state, 'error');
   controller.destroy();
