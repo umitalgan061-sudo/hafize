@@ -18,6 +18,7 @@
   const MAX_SNIPPET_CHARS = 180;
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 200;
+  const ACTIVE_LISTS = new WeakSet();
   const STYLE_TEXT = `
 .${SNIPPET_CLASS}{display:block;margin:4px 2px 0;color:var(--muted,#777);font-size:10px;line-height:1.35;white-space:normal;overflow-wrap:anywhere}
 .${SNIPPET_CLASS}[hidden]{display:none}
@@ -92,22 +93,37 @@
     }
   }
 
+  function snapshotNode(node) {
+    return Object.freeze({ textContent: node.textContent || '', hidden: Boolean(node.hidden) });
+  }
+
+  function restoreNode(node, snapshot) {
+    if (!node || !snapshot) return;
+    node.textContent = snapshot.textContent;
+    node.hidden = snapshot.hidden;
+  }
+
   function installStyles(documentRef) {
-    if (!documentRef?.head || documentRef.getElementById?.(STYLE_ID)) return false;
+    if (!documentRef?.head) return Object.freeze({ node: null, owned: false });
+    const existing = documentRef.getElementById?.(STYLE_ID);
+    if (existing) return Object.freeze({ node: existing, owned: false });
     const style = documentRef.createElement('style');
     style.id = STYLE_ID;
     style.textContent = STYLE_TEXT;
     documentRef.head.append(style);
-    return true;
+    return Object.freeze({ node: style, owned: true });
   }
 
-  function renderRowSnippet(documentRef, row, text) {
+  function renderRowSnippet(documentRef, row, text, { ownedNodes, hostSnapshots } = {}) {
     if (!row || typeof row.querySelector !== 'function') return false;
     let node = row.querySelector(`.${SNIPPET_CLASS}`);
     if (!node && text) {
       node = documentRef.createElement('small');
       node.className = SNIPPET_CLASS;
       row.append(node);
+      ownedNodes?.add?.(node);
+    } else if (node && !ownedNodes?.has?.(node) && hostSnapshots && !hostSnapshots.has(node)) {
+      hostSnapshots.set(node, snapshotNode(node));
     }
     if (!node) return false;
     node.textContent = text || '';
@@ -115,81 +131,168 @@
     return true;
   }
 
-  function createController({ documentRef = globalThis.document, rootRef = globalThis, MutationObserverImpl = globalThis.MutationObserver } = {}) {
-    if (!documentRef?.querySelector) throw new Error('INVALID_CONVERSATION_SEARCH_SNIPPET_DOCUMENT');
+  function createController({
+    documentRef = globalThis.document,
+    rootRef = globalThis,
+    MutationObserverImpl = globalThis.MutationObserver
+  } = {}) {
+    if (!documentRef?.querySelector || !documentRef?.createElement) throw new Error('INVALID_CONVERSATION_SEARCH_SNIPPET_DOCUMENT');
+
     let input = null;
     let list = null;
     let observer = null;
-    let queued = false;
+    let queuedHandle = null;
+    let queuedKind = null;
     let mounted = false;
     let destroyed = false;
+    let styleNode = null;
+    let ownsStyle = false;
+    const listenerCleanup = [];
+    const ownedNodes = new Set();
+    const hostSnapshots = new Map();
+
+    function isLive() {
+      return mounted && !destroyed && list && ACTIVE_LISTS.has(list);
+    }
+
+    function addListener(target, type, listener) {
+      if (typeof target?.addEventListener !== 'function' || typeof target?.removeEventListener !== 'function') {
+        throw new Error('INVALID_CONVERSATION_SEARCH_SNIPPET_LISTENER_TARGET');
+      }
+      target.addEventListener(type, listener);
+      listenerCleanup.push(() => target.removeEventListener(type, listener));
+    }
+
+    function cancelQueued() {
+      if (queuedHandle == null) return;
+      if (queuedKind === 'raf') rootRef?.cancelAnimationFrame?.(queuedHandle);
+      else rootRef?.clearTimeout?.(queuedHandle);
+      queuedHandle = null;
+      queuedKind = null;
+    }
+
+    function restoreRenderedState() {
+      for (const node of ownedNodes) node?.remove?.();
+      ownedNodes.clear();
+      for (const [node, snapshot] of hostSnapshots) restoreNode(node, snapshot);
+      hostSnapshots.clear();
+    }
+
+    function rollbackInstallation() {
+      cancelQueued();
+      observer?.disconnect?.();
+      observer = null;
+      while (listenerCleanup.length) {
+        try { listenerCleanup.pop()?.(); } catch {}
+      }
+      restoreRenderedState();
+      if (ownsStyle) styleNode?.remove?.();
+      styleNode = null;
+      ownsStyle = false;
+      if (list) ACTIVE_LISTS.delete(list);
+      mounted = false;
+      input = null;
+      list = null;
+    }
 
     function apply() {
-      if (!mounted || destroyed || !input || !list) return Object.freeze({ query: '', rows: 0, snippets: 0 });
+      if (!isLive() || !input) return Object.freeze({ query: '', rows: 0, snippets: 0 });
       const query = normalizeQuery(input.value || '');
       const index = buildSnippetIndex(readCanonicalConversations(rootRef), query);
       const rows = Array.from(list.querySelectorAll?.('.conversation-row') || []);
       for (const row of rows) {
+        if (!isLive()) break;
         const id = normalizeId(row?.dataset?.conversationId);
         const text = !row.hidden && id ? index.get(id) || '' : '';
-        renderRowSnippet(documentRef, row, text);
+        renderRowSnippet(documentRef, row, text, { ownedNodes, hostSnapshots });
       }
       return Object.freeze({ query, rows: rows.length, snippets: index.size });
     }
 
+    function runQueued() {
+      queuedHandle = null;
+      queuedKind = null;
+      if (isLive()) apply();
+    }
+
     function queueApply() {
-      if (!mounted || destroyed || queued) return;
-      queued = true;
-      const schedule = rootRef?.requestAnimationFrame?.bind?.(rootRef) || ((callback) => rootRef?.setTimeout?.(callback, 0));
-      schedule(() => {
-        queued = false;
-        if (mounted && !destroyed) apply();
-      });
+      if (!isLive() || queuedHandle != null) return false;
+      if (typeof rootRef?.requestAnimationFrame === 'function') {
+        queuedKind = 'raf';
+        queuedHandle = rootRef.requestAnimationFrame(runQueued);
+      } else if (typeof rootRef?.setTimeout === 'function') {
+        queuedKind = 'timer';
+        queuedHandle = rootRef.setTimeout(runQueued, 0);
+      } else {
+        return false;
+      }
+      return queuedHandle != null;
     }
 
     function onStorage(event) {
+      if (!isLive()) return;
       const key = rootRef?.HafizeConversationStorageGuard?.STORAGE_KEY || STORAGE_KEY;
       if (event?.key === key) queueApply();
     }
 
     function mount() {
-      if (mounted) return false;
-      destroyed = false;
+      if (mounted || destroyed) return false;
       input = documentRef.querySelector(`#${INPUT_ID}`);
       list = documentRef.querySelector(`#${LIST_ID}`);
-      if (!input || !list) {
+      if (!input || !list || ACTIVE_LISTS.has(list)) {
         input = null;
         list = null;
         return false;
       }
-      installStyles(documentRef);
-      input.addEventListener('input', queueApply);
-      rootRef?.addEventListener?.('storage', onStorage);
-      rootRef?.addEventListener?.('hafize:conversation-storage-merged', queueApply);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(queueApply);
-        observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+      ACTIVE_LISTS.add(list);
+      try {
+        const style = installStyles(documentRef);
+        styleNode = style.node;
+        ownsStyle = style.owned;
+        addListener(input, 'input', queueApply);
+        addListener(rootRef, 'storage', onStorage);
+        addListener(rootRef, 'hafize:conversation-storage-merged', queueApply);
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(queueApply);
+          observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+        }
+        mounted = true;
+        apply();
+        return true;
+      } catch {
+        rollbackInstallation();
+        return false;
       }
-      mounted = true;
-      apply();
-      return true;
     }
 
     function destroy() {
+      if (destroyed) return false;
       destroyed = true;
-      input?.removeEventListener?.('input', queueApply);
-      rootRef?.removeEventListener?.('storage', onStorage);
-      rootRef?.removeEventListener?.('hafize:conversation-storage-merged', queueApply);
+      const ownedList = list;
+      cancelQueued();
       observer?.disconnect?.();
       observer = null;
-      for (const node of Array.from(list?.querySelectorAll?.(`.${SNIPPET_CLASS}`) || [])) node.remove?.();
+      while (listenerCleanup.length) {
+        try { listenerCleanup.pop()?.(); } catch {}
+      }
+      restoreRenderedState();
+      if (ownsStyle) styleNode?.remove?.();
+      if (ownedList) ACTIVE_LISTS.delete(ownedList);
+      styleNode = null;
+      ownsStyle = false;
       input = null;
       list = null;
-      queued = false;
       mounted = false;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, apply });
+    return Object.freeze({
+      mount,
+      destroy,
+      apply,
+      queueApply,
+      getState: () => Object.freeze({ mounted, destroyed, queued: queuedHandle != null })
+    });
   }
 
   function mount(options) {
@@ -217,6 +320,8 @@
     firstMessageSnippet,
     buildSnippetIndex,
     readCanonicalConversations,
+    snapshotNode,
+    restoreNode,
     renderRowSnippet,
     createController,
     mount
