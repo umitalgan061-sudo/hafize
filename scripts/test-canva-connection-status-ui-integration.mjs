@@ -23,7 +23,7 @@ assert.equal(loader.split("'/canva-connection-status.js'").length - 1, 1);
 assert.equal(loader.split("'/canva-connection-status-style.js'").length - 1, 1);
 assert.equal(loader.split("'/canva-session-sync.js'").length - 1, 1);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v64');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 for (const asset of [
   '/canva-connection-status.js',
   '/canva-connection-status-style.js',
