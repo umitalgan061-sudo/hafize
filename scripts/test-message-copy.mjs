@@ -166,7 +166,6 @@ assert.equal(assistantCopyButton.attributes.get('aria-label'), 'Hafize yanıtın
 assert.equal(await controller.copyMessage(assistantCopyButton, assistant.content), true);
 assert.deepEqual(writes, ['Kullanıcı mesajı', 'Hafize\nyanıtı']);
 
-// Quoting preserves an unsent draft and never submits it automatically.
 documentRef.input.value = 'Kendi taslağım';
 const submitsBeforeQuote = documentRef.composer.submitCount;
 assert.equal(controller.quoteMessage(assistantQuoteButton, assistant.content), true);
@@ -176,7 +175,6 @@ assert.equal(documentRef.input.focusCount, 1);
 assert.equal(documentRef.input.dispatched.at(-1), 'input');
 assert.equal(assistantQuoteButton.textContent, 'Alıntı eklendi');
 
-// Composer bounds apply to resend and quote even though clipboard copy has a larger bound.
 const oversizedContent = new FakeNode('div');
 oversizedContent.textContent = 'x'.repeat(copyApi.MAX_COMPOSER_CHARS + 1);
 const oversizedResend = new FakeNode('button');
@@ -275,7 +273,7 @@ assert.equal(copySource.includes("input.focus?.()"), true, 'quote must return fo
 assert.equal(copySource.includes('fetch('), false, 'message actions must not create a parallel network path');
 assert.equal(loaderSource.includes("script.src = '/message-copy.js'"), true, 'loader must use fixed same-origin asset path');
 assert.equal(loaderSource.includes('data-hafize-message-copy'), true, 'loader must be idempotent');
-assert.equal(swSource.includes("`${CACHE_PREFIX}v19`"), true);
+assert.equal(swSource.includes("`${CACHE_PREFIX}v160`"), true);
 assert.equal(swSource.includes("'/message-copy.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 
