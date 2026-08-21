@@ -59,7 +59,7 @@ assert.deepEqual([...api.STABLE_STATES], ['active', 'idle', 'disabled', 'error']
   assert.ok(controller);
   assert.equal(controller.getState(), 'idle');
   assert.equal(FakeObserver.instances.length, 1);
-  assert.deepEqual(FakeObserver.instances[0].observed.options.attributeFilter, ['data-state']);
+  assert.deepEqual(Array.from(FakeObserver.instances[0].observed.options.attributeFilter), ['data-state']);
 
   h.badge.dataset.state = 'active';
   FakeObserver.instances[0].fire();
