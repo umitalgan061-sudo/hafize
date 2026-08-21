@@ -31,11 +31,12 @@ assert.match(source, /documentRef\.querySelector\('#conversationList'\)\s*===\s*
       return undefined;
     }
   });
-  assert.throws(() => listener(eventFor(hostileTarget, 'ArrowDown')), /hostile classList/,
-    'unexpected host property traps are not silently reinterpreted as navigation');
+  const hostileEvent = eventFor(hostileTarget, 'ArrowDown');
+  assert.equal(listener(hostileEvent), false, 'host property traps fail closed without escaping the controller');
+  assert.equal(hostileEvent.prevented, 0);
 
   const safeEvent = eventFor(buttons[0], 'ArrowDown');
-  assert.equal(listener(safeEvent), true, 'controller remains usable after unrelated caller catches hostile host error');
+  assert.equal(listener(safeEvent), true, 'controller remains usable after hostile host input is rejected');
   controller.destroy();
 }
 
