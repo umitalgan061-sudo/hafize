@@ -5,13 +5,14 @@ export class FakeClassList {
   contains(value) { return this.values.has(value); }
   add(value) { this.values.add(value); }
   remove(value) { this.values.delete(value); }
+  replaceAll(value) { this.values = new Set(String(value || '').split(/\s+/).filter(Boolean)); }
+  toString() { return [...this.values].join(' '); }
 }
 
 export class FakeElement {
   constructor(tag = 'div', classes = []) {
     this.tagName = tag.toUpperCase();
     this.classList = new FakeClassList(...classes);
-    this.className = classes.join(' ');
     this.dataset = {};
     this.children = [];
     this.parentNode = null;
@@ -22,6 +23,8 @@ export class FakeElement {
     this.disabled = false;
     this.id = '';
   }
+  get className() { return this.classList.toString(); }
+  set className(value) { this.classList.replaceAll(value); }
   append(...nodes) {
     for (const node of nodes) { node.parentNode = this; this.children.push(node); }
   }
