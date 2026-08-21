@@ -19,6 +19,8 @@ assert.equal(typeof api.INSTALL_MARKER, 'symbol');
   assert.ok(firstButton);
   assert.equal(f.articles[0].article.dataset.hafizeEditReady, '1');
 
+  assert.equal(first.mount(), false, 'same controller cannot mount twice');
+  assert.equal(editButton(f.articles[0].article), firstButton, 'repeated mount does not duplicate controls');
   assert.equal(second.mount(), false, 'duplicate controller cannot claim same messages surface');
   assert.equal(editButton(f.articles[0].article), firstButton, 'duplicate mount does not replace owned button');
 
@@ -36,6 +38,30 @@ assert.equal(typeof api.INSTALL_MARKER, 'symbol');
 }
 
 {
+  const f = fixture();
+  const foreignOwner = Object.freeze({ source: 'foreign-controller' });
+  f.messages[api.INSTALL_MARKER] = foreignOwner;
+  const controller = api.createController(f.options);
+  assert.equal(controller.mount(), false, 'foreign installation ownership is respected');
+  assert.equal(f.messages[api.INSTALL_MARKER], foreignOwner, 'foreign owner token is never replaced');
+  assert.equal(editButton(f.articles[0].article), null);
+  assert.equal(controller.getState().decorations, 0);
+  assert.equal(controller.destroy(), true);
+  assert.equal(f.messages[api.INSTALL_MARKER], foreignOwner, 'destroy without ownership cannot delete foreign marker');
+}
+
+{
+  const f = fixture();
+  const originalQuery = f.documentRef.querySelector.bind(f.documentRef);
+  f.documentRef.querySelector = (selector) => selector === '#messages' ? null : originalQuery(selector);
+  const controller = api.createController(f.options);
+  assert.equal(controller.mount(), false, 'missing messages host fails closed');
+  assert.equal(controller.getState().mounted, false);
+  assert.equal(controller.getState().decorations, 0);
+  assert.equal(controller.destroy(), true);
+}
+
+{
   const f = fixture({ markerValue: 'host-owned' });
   const controller = api.createController(f.options);
   assert.equal(controller.mount(), true);
@@ -49,8 +75,6 @@ assert.equal(typeof api.INSTALL_MARKER, 'symbol');
   const f = fixture({ markerValue: '1' });
   const foreign = f.documentRef.createElement('button');
   foreign.className = 'message-copy-btn message-edit-btn';
-  foreign.classList.add('message-copy-btn');
-  foreign.classList.add('message-edit-btn');
   f.articles[0].actions.prepend(foreign);
   const controller = api.createController(f.options);
   assert.equal(controller.mount(), true);
