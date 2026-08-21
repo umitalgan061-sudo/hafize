@@ -38,7 +38,7 @@ Hafize uyarlaması:
 - skill prompt'u secret veya credential alamaz;
 - project skill yalnız açıkça izin verilen proje kapsamından yüklenir.
 
-İlk adım `lib/skill-manifest.mjs` ve `docs/SKILL_MANIFEST_CONTRACT.md` ile başlatıldı. Henüz registry veya skill çalıştıran bir araç eklenmedi; sıradaki adım kaynak öncelikli `lib/skill-registry.mjs` ve daraltıcı `authorizeSkillTool()` katmanıdır.
+İlk adım `lib/skill-manifest.mjs` ve `docs/SKILL_MANIFEST_CONTRACT.md` ile başlatıldı. İkinci adımda kaynak öncelikli `lib/skill-registry.mjs`, gölgeleme kuralı, project kapsam izni ve daraltıcı `authorizeSkillTool()` eklendi (`docs/SKILL_REGISTRY_CONTRACT.md`). Henüz skill çalıştıran bir araç kaydı yoktur; sıradaki adım `inline` / `fork` execution'ın çalışma zamanı karşılığıdır.
 
 ### 3. Sub-agent lifecycle
 
