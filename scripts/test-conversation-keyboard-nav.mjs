@@ -112,6 +112,7 @@ function eventFor(target, key, extras = {}) {
   assert.equal(keydown(eventFor(h.buttons[0], 'Enter')), false);
   assert.equal(keydown(eventFor({ tagName: 'INPUT', classList: { contains: () => true } }, 'ArrowDown')), false);
   assert.equal(keydown(eventFor(h.buttons[0], 'ArrowDown', { defaultPrevented: true })), false);
+  controller.destroy();
 }
 
 assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document\.cookie|navigator\.clipboard|requestSubmit\s*\(/);
@@ -124,7 +125,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 assert.match(loader, /HafizeConversationKeyboardNav/);
 assert.match(loader, /\/conversation-keyboard-nav\.js/);
 assert.match(sw, /\/conversation-keyboard-nav\.js/);
-assert.match(sw, /hafize-shell-v28/);
+assert.match(sw, /hafize-shell-v161/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
 console.log('conversation keyboard navigation tests passed');
