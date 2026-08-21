@@ -71,6 +71,7 @@
     if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_MESSAGE_COPY_TIMER');
 
     const timers = new Map();
+    const copyGenerations = new Map();
     const ownedActions = new Set();
     const listenerCleanup = [];
     let observer = null;
@@ -81,6 +82,16 @@
 
     function ownsRoot() {
       return Boolean(!destroyed && mounted && messages && ACTIVE_MESSAGE_ROOTS.has(messages));
+    }
+
+    function beginCopy(button) {
+      const generation = (copyGenerations.get(button) || 0) + 1;
+      copyGenerations.set(button, generation);
+      return generation;
+    }
+
+    function isCurrentCopy(button, generation) {
+      return !destroyed && copyGenerations.get(button) === generation && (!mounted || ownsRoot());
     }
 
     function resetButton(button) {
@@ -141,14 +152,15 @@
         return false;
       }
 
+      const generation = beginCopy(button);
       showState(button, 'copying', 'Kopyalanıyor…');
       try {
         await clipboard.writeText(text);
-        if (destroyed || (mounted && !ownsRoot())) return false;
+        if (!isCurrentCopy(button, generation)) return false;
         showState(button, 'success', 'Kopyalandı');
         return true;
       } catch {
-        if (destroyed || (mounted && !ownsRoot())) return false;
+        if (!isCurrentCopy(button, generation)) return false;
         showState(button, 'error', 'Kopyalanamadı');
         return false;
       }
@@ -286,6 +298,7 @@
         try { resetButton(button); } catch {}
       }
       timers.clear();
+      copyGenerations.clear();
       for (const actions of ownedActions) {
         try { actions.remove?.(); } catch {}
       }
