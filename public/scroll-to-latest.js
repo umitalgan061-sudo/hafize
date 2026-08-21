@@ -14,6 +14,7 @@
   const BUTTON_ID = 'scrollToLatestBtn';
   const STYLE_ID = 'hafize-scroll-to-latest-style';
   const NEAR_BOTTOM_PX = 96;
+  const ACTIVE_DOCUMENTS = new WeakSet();
   const STYLE_TEXT = `
 .scroll-to-latest{position:fixed;z-index:40;right:clamp(16px,3vw,42px);bottom:112px;border:1px solid var(--line,#ddd);border-radius:999px;background:color-mix(in srgb,var(--surface,#fff) 94%,transparent);color:inherit;padding:8px 12px;box-shadow:0 8px 28px rgba(0,0,0,.12);font:inherit;font-size:12px;font-weight:700;cursor:pointer;backdrop-filter:blur(10px)}
 .scroll-to-latest[hidden]{display:none}
@@ -49,6 +50,30 @@
     return true;
   }
 
+  function snapshotButtonState(button) {
+    if (!button) return null;
+    return Object.freeze({
+      hidden: Boolean(button.hidden),
+      textContent: typeof button.textContent === 'string' ? button.textContent : '',
+      datasetStatePresent: Boolean(button.dataset && Object.prototype.hasOwnProperty.call(button.dataset, 'state')),
+      datasetState: button.dataset?.state,
+      ariaLabel: button.getAttribute?.('aria-label') ?? null
+    });
+  }
+
+  function restoreButtonState(button, snapshot) {
+    if (!button || !snapshot) return false;
+    button.hidden = snapshot.hidden;
+    button.textContent = snapshot.textContent;
+    if (button.dataset) {
+      if (snapshot.datasetStatePresent) button.dataset.state = snapshot.datasetState;
+      else delete button.dataset.state;
+    }
+    if (snapshot.ariaLabel == null) button.removeAttribute?.('aria-label');
+    else button.setAttribute?.('aria-label', snapshot.ariaLabel);
+    return true;
+  }
+
   function createController({
     documentRef = globalThis.document,
     windowRef = globalThis.window,
@@ -57,8 +82,11 @@
     cancelAnimationFrameImpl = globalThis.cancelAnimationFrame,
     matchMediaImpl = globalThis.matchMedia
   } = {}) {
-    if (!documentRef || typeof documentRef.querySelector !== 'function') throw new Error('INVALID_SCROLL_TO_LATEST_DOCUMENT');
-    if (!windowRef || typeof windowRef.addEventListener !== 'function' || typeof windowRef.scrollTo !== 'function') {
+    if (!documentRef || typeof documentRef.querySelector !== 'function' || typeof documentRef.createElement !== 'function') {
+      throw new Error('INVALID_SCROLL_TO_LATEST_DOCUMENT');
+    }
+    if (!windowRef || typeof windowRef.addEventListener !== 'function' || typeof windowRef.removeEventListener !== 'function' ||
+        typeof windowRef.scrollTo !== 'function') {
       throw new Error('INVALID_SCROLL_TO_LATEST_WINDOW');
     }
     if (typeof requestAnimationFrameImpl !== 'function' || typeof cancelAnimationFrameImpl !== 'function') {
@@ -67,13 +95,21 @@
 
     let button = null;
     let buttonOwned = false;
+    let buttonSnapshot = null;
+    let styleOwned = false;
     let messages = null;
     let observer = null;
     let frame = null;
     let mounted = false;
+    let destroyed = false;
     let generation = 0;
     let pinned = true;
     let unseen = false;
+    const listenerCleanup = [];
+
+    function isLive() {
+      return mounted && !destroyed && ACTIVE_DOCUMENTS.has(documentRef);
+    }
 
     function scrollHeight() {
       return Math.max(
@@ -96,8 +132,16 @@
       catch { return false; }
     }
 
+    function addListener(target, type, listener, options) {
+      if (typeof target?.addEventListener !== 'function' || typeof target?.removeEventListener !== 'function') {
+        throw new Error('INVALID_SCROLL_TO_LATEST_LISTENER_TARGET');
+      }
+      target.addEventListener(type, listener, options);
+      listenerCleanup.push(() => target.removeEventListener(type, listener, options));
+    }
+
     function setButtonState() {
-      if (!mounted || !button) return false;
+      if (!isLive() || !button) return false;
       const near = isNearBottom(metrics());
       if (near) {
         pinned = true;
@@ -114,23 +158,32 @@
     }
 
     function scheduleMeasure() {
-      if (!mounted || frame !== null) return false;
+      if (!isLive() || frame !== null) return false;
       const scheduledGeneration = generation;
-      const frameId = requestAnimationFrameImpl(() => {
-        if (frame === frameId) frame = null;
-        if (!mounted || scheduledGeneration !== generation) return;
-        setButtonState();
-      });
+      let frameId;
+      try {
+        frameId = requestAnimationFrameImpl(() => {
+          if (frame === frameId) frame = null;
+          if (!isLive() || scheduledGeneration !== generation) return;
+          setButtonState();
+        });
+      } catch {
+        return false;
+      }
       frame = frameId;
       return true;
     }
 
     function scrollToBottom({ smooth = false } = {}) {
-      if (!mounted) return false;
-      windowRef.scrollTo({
-        top: scrollHeight(),
-        behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'
-      });
+      if (!isLive()) return false;
+      try {
+        windowRef.scrollTo({
+          top: scrollHeight(),
+          behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'
+        });
+      } catch {
+        return false;
+      }
       pinned = true;
       unseen = false;
       scheduleMeasure();
@@ -138,7 +191,7 @@
     }
 
     function handleScroll() {
-      if (!mounted) return false;
+      if (!isLive()) return false;
       const near = isNearBottom(metrics());
       pinned = near;
       if (near) unseen = false;
@@ -147,7 +200,7 @@
     }
 
     function handleMutation() {
-      if (!mounted) return false;
+      if (!isLive()) return false;
       if (pinned) return scrollToBottom({ smooth: false });
       unseen = true;
       scheduleMeasure();
@@ -160,7 +213,7 @@
 
     function acquireButton() {
       const existing = documentRef.querySelector(`#${BUTTON_ID}`);
-      if (existing) return Object.freeze({ button: existing, owned: false });
+      if (existing) return Object.freeze({ button: existing, owned: false, snapshot: snapshotButtonState(existing) });
       const node = documentRef.createElement('button');
       node.id = BUTTON_ID;
       node.type = 'button';
@@ -170,54 +223,79 @@
       node.textContent = '↓ En alta git';
       node.setAttribute('aria-label', 'Sohbetin en son mesajına git');
       documentRef.body?.append(node);
-      return Object.freeze({ button: node, owned: true });
+      return Object.freeze({ button: node, owned: true, snapshot: null });
+    }
+
+    function rollbackMount() {
+      generation += 1;
+      mounted = false;
+      observer?.disconnect?.();
+      observer = null;
+      while (listenerCleanup.length) {
+        try { listenerCleanup.pop()?.(); } catch {}
+      }
+      if (frame !== null) {
+        try { cancelAnimationFrameImpl(frame); } catch {}
+        frame = null;
+      }
+      if (buttonOwned) button?.remove?.();
+      else restoreButtonState(button, buttonSnapshot);
+      if (styleOwned) documentRef.querySelector?.(`#${STYLE_ID}`)?.remove?.();
+      ACTIVE_DOCUMENTS.delete(documentRef);
+      button = null;
+      buttonOwned = false;
+      buttonSnapshot = null;
+      styleOwned = false;
+      messages = null;
     }
 
     function mount() {
-      if (mounted) return true;
+      if (destroyed || mounted || ACTIVE_DOCUMENTS.has(documentRef)) return false;
       messages = documentRef.querySelector('#messages');
       if (!messages || !documentRef.body) return false;
-      installStyles(documentRef);
-      const acquired = acquireButton();
-      button = acquired.button;
-      buttonOwned = acquired.owned;
-      if (!button) return false;
-      generation += 1;
-      mounted = true;
-      button.addEventListener('click', handleButtonClick);
-      windowRef.addEventListener('scroll', handleScroll, { passive: true });
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(handleMutation);
-        observer.observe(messages, { childList: true, subtree: true, characterData: true });
+      ACTIVE_DOCUMENTS.add(documentRef);
+      try {
+        styleOwned = installStyles(documentRef);
+        const acquired = acquireButton();
+        button = acquired.button;
+        buttonOwned = acquired.owned;
+        buttonSnapshot = acquired.snapshot;
+        if (!button) throw new Error('SCROLL_TO_LATEST_BUTTON_UNAVAILABLE');
+
+        generation += 1;
+        mounted = true;
+        addListener(button, 'click', handleButtonClick);
+        addListener(windowRef, 'scroll', handleScroll, { passive: true });
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(handleMutation);
+          observer.observe(messages, { childList: true, subtree: true, characterData: true });
+        }
+        pinned = isNearBottom(metrics());
+        unseen = false;
+        if (!scheduleMeasure()) throw new Error('SCROLL_TO_LATEST_FRAME_UNAVAILABLE');
+        return true;
+      } catch {
+        rollbackMount();
+        return false;
       }
-      pinned = isNearBottom(metrics());
-      unseen = false;
-      scheduleMeasure();
-      return true;
     }
 
     function destroy() {
-      if (!mounted) return false;
-      mounted = false;
-      generation += 1;
-      observer?.disconnect?.();
-      observer = null;
-      windowRef.removeEventListener?.('scroll', handleScroll);
-      button?.removeEventListener?.('click', handleButtonClick);
-      if (frame !== null) cancelAnimationFrameImpl(frame);
-      frame = null;
-      if (buttonOwned) button?.remove?.();
-      button = null;
-      buttonOwned = false;
-      messages = null;
+      if (destroyed) return false;
+      destroyed = true;
+      if (!mounted && !ACTIVE_DOCUMENTS.has(documentRef)) return false;
+      rollbackMount();
       return true;
     }
 
     function snapshot() {
       return Object.freeze({
         mounted,
+        destroyed,
         generation,
+        ownsDocument: ACTIVE_DOCUMENTS.has(documentRef),
         buttonOwned,
+        styleOwned,
         framePending: frame !== null,
         pinned,
         unseen,
@@ -253,6 +331,8 @@
     distanceToBottom,
     isNearBottom,
     installStyles,
+    snapshotButtonState,
+    restoreButtonState,
     createController,
     mount
   });
