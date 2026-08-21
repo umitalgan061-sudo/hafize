@@ -193,7 +193,28 @@
 
     function apply() {
       if (!isLive()) return Object.freeze({ ok: false, total: 0, visible: 0, query: '' });
-      const result = filterRows(rows(), input?.value || '', canonical.index, snapshotRow);
+      const query = normalizeQuery(input?.value || '');
+      const listRows = Array.from(rows());
+      if (query === null) {
+        let visible = 0;
+        for (const row of listRows) {
+          snapshotRow(row);
+          row.hidden = rowSnapshots.get(row);
+          if (!row.hidden) visible += 1;
+        }
+        const invalid = Object.freeze({ ok: false, total: listRows.length, visible, query: '' });
+        updateStatus(invalid);
+        return invalid;
+      }
+      let visible = 0;
+      for (const row of listRows) {
+        snapshotRow(row);
+        const hostHidden = rowSnapshots.get(row);
+        const match = rowMatches(row, query, canonical.index);
+        row.hidden = Boolean(hostHidden || !match);
+        if (!row.hidden) visible += 1;
+      }
+      const result = Object.freeze({ ok: true, total: listRows.length, visible, query });
       updateStatus(result);
       return result;
     }
