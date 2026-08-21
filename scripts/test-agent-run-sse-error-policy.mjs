@@ -173,7 +173,10 @@ assert.deepEqual(registry.agents.map(({ id }) => id), [
 ]);
 assert.equal(registry.agents.filter(({ kind }) => kind === 'selector').length, 2);
 assert.equal(registry.agents.filter(({ kind }) => kind === 'specialist').length, 2);
-assert.match(rules, /default-deny/i);
+assert.equal(registry.policy.externalWritesRequireApproval, true);
+assert.equal(registry.policy.secretsNeverEnterAgentContext, true);
+assert.equal(registry.policy.sharedTraceIdRequired, true);
+assert.equal(registry.agents.every(({ toolPolicy }) => toolPolicy?.default === 'deny'), true, 'every active agent remains backend default-deny');
 assert.match(rules, /1000/);
 
 console.log('agent run SSE terminal error policy tests passed');
