@@ -15,6 +15,7 @@
   const MAX_COMPOSER_CHARS = 12_000;
   const RESET_DELAY_MS = 1800;
   const STYLE_ID = 'hafize-message-copy-style';
+  const ACTIVE_MESSAGE_ROOTS = new WeakSet();
   const STYLE_TEXT = `
 .message-copy-actions{display:flex;justify-content:flex-end;gap:4px;margin-top:7px;min-height:26px;flex-wrap:wrap}
 .message.user .message-copy-actions{justify-content:flex-start}
@@ -61,31 +62,68 @@
     secureContext = globalThis.isSecureContext === true,
     MutationObserverImpl = globalThis.MutationObserver,
     setTimeoutImpl = globalThis.setTimeout,
-    clearTimeoutImpl = globalThis.clearTimeout
+    clearTimeoutImpl = globalThis.clearTimeout,
+    EventImpl = globalThis.Event
   } = {}) {
-    if (!documentRef || typeof documentRef.querySelector !== 'function') throw new Error('INVALID_MESSAGE_COPY_DOCUMENT');
+    if (!documentRef || typeof documentRef.querySelector !== 'function' || typeof documentRef.createElement !== 'function') {
+      throw new Error('INVALID_MESSAGE_COPY_DOCUMENT');
+    }
     if (typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function') throw new Error('INVALID_MESSAGE_COPY_TIMER');
 
-    const timers = new WeakMap();
+    const timers = new Map();
+    const copyGenerations = new Map();
+    const ownedActions = new Set();
+    const listenerCleanup = [];
     let observer = null;
+    let messages = null;
+    let mounted = false;
+    let destroyed = false;
+    let styleOwned = false;
+
+    function ownsRoot() {
+      return Boolean(!destroyed && mounted && messages && ACTIVE_MESSAGE_ROOTS.has(messages));
+    }
+
+    function beginCopy(button) {
+      const generation = (copyGenerations.get(button) || 0) + 1;
+      copyGenerations.set(button, generation);
+      return generation;
+    }
+
+    function isCurrentCopy(button, generation) {
+      return !destroyed && copyGenerations.get(button) === generation && (!mounted || ownsRoot());
+    }
 
     function resetButton(button) {
+      if (!button) return false;
       const pending = timers.get(button);
       if (pending !== undefined) clearTimeoutImpl(pending);
       timers.delete(button);
-      button.textContent = button.dataset.idleLabel || 'Kopyala';
-      button.dataset.state = 'idle';
+      button.textContent = button.dataset?.idleLabel || 'Kopyala';
+      if (button.dataset) button.dataset.state = 'idle';
       button.disabled = false;
+      return true;
     }
 
     function showState(button, state, label) {
+      if (!button || destroyed) return false;
       const pending = timers.get(button);
       if (pending !== undefined) clearTimeoutImpl(pending);
-      button.dataset.state = state;
+      if (button.dataset) button.dataset.state = state;
       button.textContent = label;
       button.disabled = state === 'copying' || state === 'sending';
-      const timer = setTimeoutImpl(() => resetButton(button), RESET_DELAY_MS);
+      let timer;
+      try {
+        timer = setTimeoutImpl(() => {
+          if (!destroyed && (!mounted || ownsRoot())) resetButton(button);
+        }, RESET_DELAY_MS);
+      } catch {
+        resetButton(button);
+        return false;
+      }
       timers.set(button, timer);
+      timer?.unref?.();
+      return true;
     }
 
     function composerNodes() {
@@ -97,12 +135,13 @@
     }
 
     function notifyComposerInput(input) {
-      if (typeof input?.dispatchEvent === 'function' && typeof globalThis.Event === 'function') {
-        input.dispatchEvent(new globalThis.Event('input', { bubbles: true }));
+      if (typeof input?.dispatchEvent === 'function' && typeof EventImpl === 'function') {
+        input.dispatchEvent(new EventImpl('input', { bubbles: true }));
       }
     }
 
     async function copyMessage(button, content) {
+      if (destroyed || (mounted && !ownsRoot())) return false;
       const text = copyText(content?.textContent);
       if (!text) {
         showState(button, 'error', 'Kopyalanamadı');
@@ -113,18 +152,22 @@
         return false;
       }
 
+      const generation = beginCopy(button);
       showState(button, 'copying', 'Kopyalanıyor…');
       try {
         await clipboard.writeText(text);
+        if (!isCurrentCopy(button, generation)) return false;
         showState(button, 'success', 'Kopyalandı');
         return true;
       } catch {
+        if (!isCurrentCopy(button, generation)) return false;
         showState(button, 'error', 'Kopyalanamadı');
         return false;
       }
     }
 
     function resendMessage(button, content) {
+      if (destroyed || (mounted && !ownsRoot())) return false;
       const text = composerText(content?.textContent);
       if (!text) {
         showState(button, 'error', 'Gönderilemedi');
@@ -150,6 +193,7 @@
       input.value = text;
       try {
         notifyComposerInput(input);
+        if (destroyed || (mounted && !ownsRoot())) return false;
         composer.requestSubmit();
         showState(button, 'success', 'Tekrar gönderildi');
         return true;
@@ -160,6 +204,7 @@
     }
 
     function quoteMessage(button, content) {
+      if (destroyed || (mounted && !ownsRoot())) return false;
       const quoted = quoteText(content?.textContent);
       if (!quoted) {
         showState(button, 'error', 'Alıntılanamadı');
@@ -192,12 +237,18 @@
       button.dataset.idleLabel = label;
       button.textContent = label;
       button.setAttribute('aria-label', ariaLabel);
-      button.addEventListener('click', handler);
+      const listener = (event) => {
+        if (!ownsRoot()) return false;
+        return handler(event);
+      };
+      if (typeof button.addEventListener !== 'function') throw new Error('INVALID_MESSAGE_COPY_LISTENER_TARGET');
+      button.addEventListener('click', listener);
+      listenerCleanup.push(() => button.removeEventListener?.('click', listener));
       return button;
     }
 
     function decorate(article) {
-      if (!article || typeof article.querySelector !== 'function') return false;
+      if (!ownsRoot() || !article || typeof article.querySelector !== 'function') return false;
       if (!article.classList?.contains('message') || article.querySelector('.message-copy-actions')) return false;
       const content = article.querySelector('.content');
       if (!content) return false;
@@ -205,44 +256,104 @@
       const actions = documentRef.createElement('div');
       actions.className = 'message-copy-actions';
       actions.setAttribute('aria-live', 'polite');
+      actions.setAttribute('data-hafize-owned-message-actions', '1');
 
-      if (article.classList.contains('user')) {
-        const resendButton = makeButton('Tekrar gönder', 'kendi mesajını tekrar gönder', () => { resendMessage(resendButton, content); });
-        actions.append(resendButton);
+      try {
+        if (article.classList.contains('user')) {
+          let resendButton;
+          resendButton = makeButton('Tekrar gönder', 'kendi mesajını tekrar gönder', () => resendMessage(resendButton, content));
+          actions.append(resendButton);
+        }
+        const sender = article.classList.contains('user') ? 'kendi mesajını' : 'Hafize yanıtını';
+        let quoteButton;
+        quoteButton = makeButton('Alıntıla', `${sender} yazara alıntıla`, () => quoteMessage(quoteButton, content));
+        let copyButton;
+        copyButton = makeButton('Kopyala', `${sender} kopyala`, () => void copyMessage(copyButton, content));
+        actions.append(quoteButton, copyButton);
+        article.append(actions);
+        ownedActions.add(actions);
+        return true;
+      } catch (error) {
+        actions.remove?.();
+        throw error;
       }
-      const sender = article.classList.contains('user') ? 'kendi mesajını' : 'Hafize yanıtını';
-      const quoteButton = makeButton('Alıntıla', `${sender} yazara alıntıla`, () => { quoteMessage(quoteButton, content); });
-      const copyButton = makeButton('Kopyala', `${sender} kopyala`, () => { void copyMessage(copyButton, content); });
-      actions.append(quoteButton, copyButton);
-      article.append(actions);
-      return true;
     }
 
-    function decorateAll(root = documentRef) {
-      const messages = root.querySelectorAll?.('.message') || [];
+    function decorateAll(root = messages || documentRef) {
+      if (!ownsRoot()) return 0;
+      const nodes = root.querySelectorAll?.('.message') || [];
       let count = 0;
-      for (const article of messages) if (decorate(article)) count += 1;
+      for (const article of nodes) if (decorate(article)) count += 1;
       return count;
     }
 
-    function mount() {
-      const messages = documentRef.querySelector('#messages');
-      if (!messages) return false;
-      installStyles(documentRef);
-      decorateAll(messages);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(() => decorateAll(messages));
-        observer.observe(messages, { childList: true, subtree: true });
+    function cleanupInstallation() {
+      observer?.disconnect?.();
+      observer = null;
+      while (listenerCleanup.length) {
+        try { listenerCleanup.pop()?.(); } catch {}
       }
-      return true;
+      for (const [button, timer] of [...timers.entries()]) {
+        try { clearTimeoutImpl(timer); } catch {}
+        try { resetButton(button); } catch {}
+      }
+      timers.clear();
+      copyGenerations.clear();
+      for (const actions of ownedActions) {
+        try { actions.remove?.(); } catch {}
+      }
+      ownedActions.clear();
+      if (styleOwned) {
+        try { documentRef.querySelector?.(`#${STYLE_ID}`)?.remove?.(); } catch {}
+        styleOwned = false;
+      }
+      if (messages) ACTIVE_MESSAGE_ROOTS.delete(messages);
+      mounted = false;
+    }
+
+    function mount() {
+      if (destroyed || mounted) return false;
+      const candidate = documentRef.querySelector('#messages');
+      if (!candidate || ACTIVE_MESSAGE_ROOTS.has(candidate)) return false;
+      messages = candidate;
+      ACTIVE_MESSAGE_ROOTS.add(messages);
+      mounted = true;
+      try {
+        styleOwned = installStyles(documentRef);
+        decorateAll(messages);
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(() => {
+            if (!ownsRoot()) return;
+            decorateAll(messages);
+          });
+          observer.observe(messages, { childList: true, subtree: true });
+        }
+        return true;
+      } catch {
+        cleanupInstallation();
+        messages = null;
+        return false;
+      }
     }
 
     function destroy() {
-      observer?.disconnect?.();
-      observer = null;
+      if (destroyed) return false;
+      destroyed = true;
+      cleanupInstallation();
+      messages = null;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, copyMessage, resendMessage, quoteMessage });
+    return Object.freeze({
+      mount,
+      destroy,
+      decorate,
+      decorateAll,
+      copyMessage,
+      resendMessage,
+      quoteMessage,
+      getState: () => Object.freeze({ mounted, destroyed, ownsRoot: ownsRoot(), ownedActions: ownedActions.size })
+    });
   }
 
   function mount(options) {
