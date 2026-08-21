@@ -119,9 +119,13 @@ function makeHost({ malformed = false } = {}) {
   assert.equal(h.summary.textContent, 'host summary');
 }
 
-assert.deepEqual(api.normalizeHealth({ canvaReadConfigured: true }), { canvaReadConfigured: true });
+const normalizedHealth = api.normalizeHealth({ canvaReadConfigured: true });
+assert.equal(normalizedHealth?.canvaReadConfigured, true);
+assert.deepEqual(Object.keys(normalizedHealth || {}), ['canvaReadConfigured']);
 assert.equal(api.normalizeHealth({ canvaReadConfigured: 'yes' }), null);
-assert.deepEqual(api.normalizeStatus({ linked: false }), { linked: false });
+const normalizedStatus = api.normalizeStatus({ linked: false });
+assert.equal(normalizedStatus?.linked, false);
+assert.deepEqual(Object.keys(normalizedStatus || {}), ['linked']);
 assert.equal(api.normalizeStatus({ linked: 1 }), null);
 
 console.log('canva connection status ownership tests passed');
