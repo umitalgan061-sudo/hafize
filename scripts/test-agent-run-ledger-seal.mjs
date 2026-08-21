@@ -43,7 +43,7 @@ import { createAgentRunLedger } from '../lib/agent-run-ledger.mjs';
     action: 'schedule.run'
   });
   const tool = ledger.recordToolStart('runtime_status');
-  ledger.recordToolFinish(tool.taskId, { ok: true });
+  ledger.recordToolFinish(tool.taskId, { ok: true, value: { status: 'ok' } });
   ledger.failOpenEntries('SCHEDULE_AGENT_RUN_CANCELLED');
   ledger.finish({ ok: true });
 
