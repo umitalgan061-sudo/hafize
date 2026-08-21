@@ -16,6 +16,7 @@
   const MARKER = 'hafizeForkReady';
   const SOURCE_RETENTION_ERROR = 'Kaynak korunamıyor';
   const STYLE_ID = 'hafize-conversation-fork-style';
+  const ACTIVE_MESSAGE_ROOTS = new WeakSet();
   const STYLE_TEXT = `
 .conversation-fork-actions{display:flex;justify-content:flex-end;margin-top:7px;min-height:28px}
 .conversation-fork-btn{border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted,#777);padding:5px 8px;font:inherit;font-size:11px;line-height:1.2;cursor:pointer;opacity:.72}
@@ -111,12 +112,22 @@
     }
 
     let observer = null;
+    let messagesRoot = null;
+    let mounted = false;
+    let destroyed = false;
     let busy = false;
+    const ownedDecorations = new Map();
+
+    function ownsRoot() {
+      return !destroyed && mounted && messagesRoot && ACTIVE_MESSAGE_ROOTS.has(messagesRoot);
+    }
 
     function showState(button, state, label) {
+      if (!ownsRoot() || !button) return false;
       button.dataset.state = state;
       button.textContent = label;
       button.disabled = state === 'working';
+      return true;
     }
 
     function blockedByComposer() {
@@ -128,12 +139,14 @@
     }
 
     function readCanonical() {
+      if (!ownsRoot()) return null;
       let raw = '[]';
       try { raw = storage.getItem(STORAGE_KEY) || '[]'; } catch { return null; }
       return guard.sanitizeStoredValue(raw);
     }
 
     function rollbackOrphanFork(forkId) {
+      if (!ownsRoot()) return false;
       try {
         const persisted = readCanonical()?.value || [];
         if (!persisted.some((conversation) => conversation.id === forkId)) return true;
@@ -145,12 +158,12 @@
     }
 
     function copyModelPreference(sourceId, forkId) {
-      if (!modelState || typeof modelState.readModelEntries !== 'function' || typeof modelState.writeModelEntries !== 'function') return;
+      if (!ownsRoot() || !modelState || typeof modelState.readModelEntries !== 'function' || typeof modelState.writeModelEntries !== 'function') return;
       try {
         const conversations = guard.sanitizeStoredValue(storage.getItem(STORAGE_KEY) || '[]').value;
         const entries = modelState.readModelEntries(storage, conversations);
         const source = entries.find((entry) => entry.conversationId === sourceId);
-        if (!source?.modelId) return;
+        if (!source?.modelId || !ownsRoot()) return;
         modelState.writeModelEntries(storage, [
           { conversationId: forkId, modelId: source.modelId },
           ...entries
@@ -161,7 +174,7 @@
     }
 
     function publishLineage(detail) {
-      if (typeof documentRef.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return false;
+      if (!ownsRoot() || typeof documentRef.dispatchEvent !== 'function' || typeof CustomEventImpl !== 'function') return false;
       try {
         documentRef.dispatchEvent(new CustomEventImpl(BRANCH_EVENT, { detail }));
         return true;
@@ -171,7 +184,7 @@
     }
 
     function forkFromMessage(button, messageId) {
-      if (busy) return false;
+      if (!ownsRoot() || busy) return false;
       const blocker = blockedByComposer();
       if (blocker) {
         showState(button, 'error', blocker);
@@ -204,13 +217,17 @@
       busy = true;
       showState(button, 'working', 'Yeni sohbet hazırlanıyor…');
       try {
+        if (!ownsRoot()) return false;
         storage.setItem(STORAGE_KEY, JSON.stringify(candidate));
+        if (!ownsRoot()) return false;
         const persisted = guard.sanitizeStoredValue(storage.getItem(STORAGE_KEY) || '[]').value;
         if (!includesConversationIds(persisted, fork.id, found.conversation.id)) {
           rollbackOrphanFork(fork.id);
           throw new Error('FORK_SOURCE_NOT_PERSISTED');
         }
+        if (!ownsRoot()) return false;
         copyModelPreference(found.conversation.id, fork.id);
+        if (!ownsRoot()) return false;
         publishLineage({
           childConversationId: fork.id,
           parentConversationId: found.conversation.id,
@@ -218,19 +235,39 @@
           mode: 'fork',
           createdAt: nowIso
         });
+        if (!ownsRoot()) return false;
         showState(button, 'success', 'Yeni sohbet hazır');
         reload();
         return true;
       } catch {
-        busy = false;
-        showState(button, 'error', 'Dallanamadı');
+        if (ownsRoot()) showState(button, 'error', 'Dallanamadı');
         return false;
+      } finally {
+        busy = false;
       }
     }
 
+    function removeDecoration(article, record) {
+      if (!record) return;
+      try { record.button?.removeEventListener?.('click', record.onClick); } catch {}
+      try { record.actions?.remove?.(); } catch {}
+      if (article?.dataset) {
+        if (record.hadMarker) article.dataset[MARKER] = record.markerValue;
+        else delete article.dataset[MARKER];
+      }
+      ownedDecorations.delete(article);
+    }
+
+    function rollbackDecorations() {
+      for (const [article, record] of [...ownedDecorations.entries()]) removeDecoration(article, record);
+    }
+
     function decorate(article) {
-      if (!article?.classList?.contains('message') || !article.classList.contains('assistant')) return false;
-      if (article.dataset?.[MARKER] === '1') return false;
+      if (!ownsRoot() || !article?.classList?.contains('message') || !article.classList.contains('assistant')) return false;
+      if (ownedDecorations.has(article)) return false;
+      if (article.querySelector?.('.conversation-fork-btn')) return false;
+      const markerValue = article.dataset?.[MARKER];
+      if (markerValue === '1') return false;
       const messageId = guard.normalizeId(article.dataset?.messageId);
       if (!messageId || !article.querySelector?.('.content')) return false;
 
@@ -243,14 +280,39 @@
       button.dataset.state = 'idle';
       button.textContent = 'Bu noktadan dallan';
       button.setAttribute('aria-label', 'bu Hafize yanıtına kadar olan bağlamdan yeni sohbet oluştur');
-      button.addEventListener('click', () => { forkFromMessage(button, messageId); });
-      actions.append(button);
-      article.append(actions);
-      if (article.dataset) article.dataset[MARKER] = '1';
-      return true;
+      const onClick = () => {
+        if (!ownsRoot() || ownedDecorations.get(article)?.button !== button) return;
+        forkFromMessage(button, messageId);
+      };
+
+      const record = Object.freeze({
+        actions,
+        button,
+        onClick,
+        hadMarker: markerValue !== undefined,
+        markerValue
+      });
+
+      try {
+        button.addEventListener('click', onClick);
+        actions.append(button);
+        article.append(actions);
+        if (article.dataset) article.dataset[MARKER] = '1';
+        ownedDecorations.set(article, record);
+        return true;
+      } catch {
+        try { button.removeEventListener?.('click', onClick); } catch {}
+        try { actions.remove?.(); } catch {}
+        if (article.dataset) {
+          if (record.hadMarker) article.dataset[MARKER] = record.markerValue;
+          else delete article.dataset[MARKER];
+        }
+        return false;
+      }
     }
 
     function decorateAll(root = documentRef) {
+      if (!ownsRoot()) return 0;
       const messages = root.querySelectorAll?.('.message.assistant') || [];
       let count = 0;
       for (const article of messages) if (decorate(article)) count += 1;
@@ -258,24 +320,57 @@
     }
 
     function mount() {
-      const messages = documentRef.querySelector('#messages');
-      if (!messages) return false;
-      installStyles(documentRef);
-      decorateAll(messages);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(() => decorateAll(messages));
-        observer.observe(messages, { childList: true, subtree: true });
+      if (destroyed || mounted) return false;
+      const candidateRoot = documentRef.querySelector('#messages');
+      if (!candidateRoot || ACTIVE_MESSAGE_ROOTS.has(candidateRoot)) return false;
+      messagesRoot = candidateRoot;
+      ACTIVE_MESSAGE_ROOTS.add(messagesRoot);
+      mounted = true;
+      try {
+        installStyles(documentRef);
+        decorateAll(messagesRoot);
+        if (typeof MutationObserverImpl === 'function') {
+          observer = new MutationObserverImpl(() => {
+            if (ownsRoot()) decorateAll(messagesRoot);
+          });
+          observer.observe(messagesRoot, { childList: true, subtree: true });
+        }
+        return true;
+      } catch {
+        observer?.disconnect?.();
+        observer = null;
+        rollbackDecorations();
+        ACTIVE_MESSAGE_ROOTS.delete(messagesRoot);
+        messagesRoot = null;
+        mounted = false;
+        return false;
       }
-      return true;
     }
 
     function destroy() {
+      if (destroyed) return false;
+      destroyed = true;
       observer?.disconnect?.();
       observer = null;
+      rollbackDecorations();
+      if (messagesRoot) ACTIVE_MESSAGE_ROOTS.delete(messagesRoot);
+      messagesRoot = null;
+      mounted = false;
       busy = false;
+      return true;
     }
 
-    return Object.freeze({ mount, destroy, decorate, decorateAll, forkFromMessage, readCanonical, rollbackOrphanFork, publishLineage });
+    return Object.freeze({
+      mount,
+      destroy,
+      decorate,
+      decorateAll,
+      forkFromMessage,
+      readCanonical,
+      rollbackOrphanFork,
+      publishLineage,
+      getState: () => Object.freeze({ mounted, destroyed, busy, ownedDecorations: ownedDecorations.size })
+    });
   }
 
   function mount(options) {
