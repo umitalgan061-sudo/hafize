@@ -15,7 +15,7 @@ function clock(start = 1_800_100_000_000) {
   const tool = ledger.recordToolStart('repo.read');
   assert.throws(() => ledger.finish(), /AGENT_RUN_HAS_OPEN_TASKS/);
 
-  const first = ledger.recordToolFinish(tool.taskId, { ok: true });
+  const first = ledger.recordToolFinish(tool.taskId, { ok: true, value: { path: 'README.md' } });
   assert.equal(first.status, 'completed');
   assert.equal(first.detail, 'ok');
 
@@ -68,7 +68,7 @@ function clock(start = 1_800_100_000_000) {
     /AGENT_RUN_TOOL_TASK_NOT_FOUND/
   );
 
-  ledger.recordToolFinish(tool.taskId, { ok: true });
+  ledger.recordToolFinish(tool.taskId, { ok: true, value: { status: 'ok' } });
   ledger.recordDelegationFinish(delegated.taskId, { ok: true });
   assert.equal(ledger.finish().status, 'completed');
 }
