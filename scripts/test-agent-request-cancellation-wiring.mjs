@@ -3,12 +3,12 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
 const start = source.indexOf('async function handleAgentRun');
-const end = source.indexOf('async function handleChat');
-assert.ok(start > 0 && end > start);
+const end = source.indexOf('const server = createServer', start);
+assert.ok(start > 0 && end > start, 'agent-run handler remains bounded before server routing');
 const agentRun = source.slice(start, end);
 
 assert.match(agentRun, /const controller = new AbortController\(\);/);
-assert.match(agentRun, /res\.on\('close', \(\) => controller\.abort\(\)\);/);
+assert.match(agentRun, /res\.once\('close', \(\) => controller\.abort\(\)\);/);
 assert.match(agentRun, /createAgentDelegator\(\{[\s\S]*?parentSignal: controller\.signal,/);
 assert.match(agentRun, /depth: delegatedDepth,/);
 assert.match(agentRun, /signal: delegatedSignal/);

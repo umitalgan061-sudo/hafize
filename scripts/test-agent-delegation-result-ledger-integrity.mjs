@@ -32,7 +32,7 @@ function build(executeAgent, { parentSignal = null } = {}) {
     agentId: selector.id,
     now: (() => {
       let tick = 1_900_000_000_000;
-      return () => ++tick;
+      return () => new Date(++tick);
     })()
   });
   const delegator = createAgentDelegator({

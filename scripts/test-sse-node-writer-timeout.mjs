@@ -37,10 +37,15 @@ const response = new SlowResponse();
 const writer = createSseNodeWriter({ response, drainTimeoutMs: 100 });
 assert.equal(writer.drainTimeoutMs, 100);
 const started = Date.now();
-await assert.rejects(() => writer.write('data: blocked\n\n'), (error) => {
-  assert.equal(error.code, 'SSE_OUTPUT_DRAIN_TIMEOUT');
-  return true;
-});
+const timeoutLease = setInterval(() => {}, 1000);
+try {
+  await assert.rejects(() => writer.write('data: blocked\n\n'), (error) => {
+    assert.equal(error.code, 'SSE_OUTPUT_DRAIN_TIMEOUT');
+    return true;
+  });
+} finally {
+  clearInterval(timeoutLease);
+}
 assert.ok(Date.now() - started >= 70, 'timeout should not resolve immediately');
 assert.equal(response.listenerCount('drain'), 0);
 assert.equal(response.listenerCount('close'), 0);

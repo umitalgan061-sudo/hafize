@@ -45,7 +45,13 @@ class FakeResponse extends EventEmitter {
   const response = new FakeResponse({ writePlan: [false] });
   const session = createAgentSseNodeSession({ response, drainTimeoutMs: 100 });
   const started = Date.now();
-  const result = await session.writeToolActivity({ state: 'running' });
+  const keepAlive = setInterval(() => {}, 1000);
+  let result;
+  try {
+    result = await session.writeToolActivity({ state: 'running' });
+  } finally {
+    clearInterval(keepAlive);
+  }
   const elapsed = Date.now() - started;
   assert.equal(result.ok, false);
   assert.equal(result.error, 'SSE_OUTPUT_DRAIN_TIMEOUT');
