@@ -17,7 +17,7 @@ const runtime = createCanvaTokenRefresh({
   now: () => 1_700_000_000_000,
   fetchImpl: async (url, init) => {
     requests.push({ url, init });
-    return { ok: true, async json() { return { access_token: 'new-access', refresh_token: 'new-refresh', token_type: 'Bearer', expires_in: 14400, scope: 'asset:read design:meta:read asset:read' }; } };
+    return { ok: true, async json() { return { access_token: 'new-access', refresh_token: 'new-refresh', token_type: 'Bearer', expires_in: 14400, scope: 'asset:read design:meta:read' }; } };
   }
 });
 
