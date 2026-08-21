@@ -32,9 +32,10 @@ assert.match(statusRoute, /CANVA_AGENT_RUNTIME\.connectionStatus\(\{ headers: re
 assert.match(statusRoute, /sendJson\(res, 200, \{ linked: status\.linked \}\)/);
 for (const forbidden of ['ownerId', 'accessToken', 'refreshToken', 'subject']) assert.equal(statusRoute.includes(forbidden), false);
 
-const primary = registry.agents.find((agent) => agent.id === 'hafize-general');
+const primary = registry.agents.find((agent) => agent.id === registry.defaultAgent);
+assert.equal(primary?.id, 'minimal-engineer');
 assert.ok(primary?.toolPolicy?.allow.includes('connector.canva.read'));
-for (const agent of registry.agents.filter((item) => item.id !== 'hafize-general')) {
+for (const agent of registry.agents.filter((item) => item.id !== registry.defaultAgent)) {
   assert.equal(agent.toolPolicy?.allow?.includes('connector.canva.read') || false, false);
 }
 
