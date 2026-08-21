@@ -15,7 +15,8 @@ assert.deepEqual(starts[0], {
   authorizationEndpoint: CANVA_AUTHORIZATION_ENDPOINT,
   clientId: 'client-1',
   redirectUri: 'https://hafize.example/oauth/canva',
-  scopes: ['profile:read']
+  scopes: ['profile:read'],
+  ownerId: undefined
 });
 assert.equal((await runtime.finish({ state: 'state-1', code: 'code-1' })).provider, 'canva');
 await assert.rejects(() => runtime.start({ capabilities: ['asset.write'] }), /explicit_user_intent/);
