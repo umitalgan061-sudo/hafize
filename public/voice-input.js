@@ -248,26 +248,27 @@
       if (changed) dispatchVoiceInputState(documentRef, root, listening);
     }
 
+    function releaseRecognition(active, method) {
+      if (!active) return false;
+      if (recognition === active) recognition = null;
+      transcriptSession = null;
+      setListening(false);
+      try { active?.[method]?.(); } catch { /* browser recognition may already be ending */ }
+      return true;
+    }
+
     function stopRecognition() {
-      if (destroyed || !recognition || !listening) return;
-      try {
-        recognition.stop();
-      } catch {
-        setListening(false);
-      }
+      if (destroyed || !recognition) return false;
+      return releaseRecognition(recognition, 'stop');
     }
 
     function abortRecognition() {
-      if (destroyed || !recognition || !listening) return;
-      try {
-        recognition.abort();
-      } catch {
-        setListening(false);
-      }
+      if (destroyed || !recognition) return false;
+      return releaseRecognition(recognition, 'abort');
     }
 
     function startRecognition() {
-      if (destroyed || !Recognition || input.disabled || baseline.disabled || listening) return;
+      if (destroyed || !Recognition || input.disabled || baseline.disabled || listening || recognition) return;
       prefix = input.value || '';
       transcriptSession = createTranscriptSession();
       const current = new Recognition();
@@ -322,12 +323,12 @@
         return;
       }
       if (input.disabled || baseline.disabled) return;
-      if (listening) stopRecognition();
+      if (listening || recognition) stopRecognition();
       else startRecognition();
     }
 
     function handleVisibilityChange() {
-      if (!destroyed && documentRef.hidden && listening) abortRecognition();
+      if (!destroyed && documentRef.hidden && recognition) abortRecognition();
     }
 
     function removeBindings() {
@@ -344,7 +345,7 @@
       observer = typeof MutationObserverCtor === 'function'
         ? new MutationObserverCtor(() => {
             if (destroyed) return;
-            if (input.disabled && listening) stopRecognition();
+            if (input.disabled && recognition) stopRecognition();
             renderButton();
           })
         : null;
@@ -375,7 +376,7 @@
         transcriptSession = null;
         const wasListening = listening;
         listening = false;
-        if (active && wasListening) {
+        if (active) {
           try { active.abort?.(); } catch { /* no-op */ }
         }
         if (wasListening) dispatchVoiceInputState(documentRef, root, false);
