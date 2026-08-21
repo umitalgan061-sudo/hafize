@@ -34,4 +34,12 @@ Destroy listener kaldırmayı best-effort dener; host `removeEventListener` sır
 
 Document query, liste query veya tekil row incelemesi hata verdiğinde controller yanlış bir hedef tahmin etmez. Document/root doğrulaması başarısızsa event tamamen işlenmeden bırakılır; malformed tek bir row ise görünür hedeflerden çıkarılır.
 
+## Non-goals
+
+- Controller sohbet açmaz, silmez, yeniden sıralamaz veya seçili sohbet state'ini yazmaz.
+- DOM root değişimini kendiliğinden sahiplenmez; yeni root açık bir lifecycle remount gerektirir.
+- Global keyboard shortcut katmanı değildir ve editable composer girdilerini ele geçirmez.
+- Focus hedefi üretmek için gizli ya da disabled satırları geçici olarak etkinleştirmez.
+- Browser/OS seviyesinde key mapping değiştirmez ve yeni tool permission istemez.
+
 Bu sınır erişilebilirlik davranışını korurken controller lifecycle'ının duplicate mount, stale callback ve DOM replacement yarışlarında deterministik kalmasını amaçlar.
