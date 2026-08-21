@@ -217,14 +217,6 @@
       return true;
     }
 
-    function addListener(target, type, handler) {
-      if (typeof target?.addEventListener !== 'function' || typeof target?.removeEventListener !== 'function') {
-        throw new Error('INVALID_MESSAGE_COPY_LISTENER_TARGET');
-      }
-      target.addEventListener(type, handler);
-      listenerCleanup.push(() => target.removeEventListener(type, handler));
-    }
-
     function makeButton(label, ariaLabel, handler) {
       const button = documentRef.createElement('button');
       button.type = 'button';
@@ -233,10 +225,13 @@
       button.dataset.idleLabel = label;
       button.textContent = label;
       button.setAttribute('aria-label', ariaLabel);
-      addListener(button, 'click', (event) => {
+      const listener = (event) => {
         if (!ownsRoot()) return false;
         return handler(event);
-      });
+      };
+      if (typeof button.addEventListener !== 'function') throw new Error('INVALID_MESSAGE_COPY_LISTENER_TARGET');
+      button.addEventListener('click', listener);
+      listenerCleanup.push(() => button.removeEventListener?.('click', listener));
       return button;
     }
 
@@ -286,7 +281,7 @@
       while (listenerCleanup.length) {
         try { listenerCleanup.pop()?.(); } catch {}
       }
-      for (const [button, timer] of timers) {
+      for (const [button, timer] of [...timers.entries()]) {
         try { clearTimeoutImpl(timer); } catch {}
         try { resetButton(button); } catch {}
       }
