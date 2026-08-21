@@ -15,6 +15,7 @@
   const NAV_ID = 'conversationSearchNavigation';
   const STATUS_ID = 'conversationSearchNavigationStatus';
   const STYLE_ID = 'hafize-conversation-search-navigation-style';
+  const ACTIVE_LISTS = new WeakSet();
   const STYLE_TEXT = `
 .conversation-search-navigation{grid-column:1/-1;display:flex;align-items:center;gap:6px}
 .conversation-search-navigation button{min-width:44px;min-height:44px;border:1px solid var(--line,#ddd);border-radius:10px;background:transparent;color:inherit;font:inherit;font-size:11px;cursor:pointer}
@@ -49,21 +50,22 @@
     return (current + (direction < 0 ? -1 : 1) + count) % count;
   }
 
-  function installStyles(documentRef) {
-    if (!documentRef?.head || documentRef.getElementById?.(STYLE_ID)) return false;
+  function createOwnedStyle(documentRef) {
+    if (!documentRef?.head || documentRef.getElementById?.(STYLE_ID)) return null;
     const style = documentRef.createElement('style');
     style.id = STYLE_ID;
     style.textContent = STYLE_TEXT;
     documentRef.head.append(style);
-    return true;
+    return style;
   }
 
-  function createNavigation(documentRef, control) {
-    const existing = documentRef.getElementById?.(NAV_ID);
-    if (existing) return existing;
+  function createOwnedNavigation(documentRef, control) {
+    if (!documentRef?.createElement || !control?.append) return null;
+    if (documentRef.getElementById?.(NAV_ID)) return null;
     const wrapper = documentRef.createElement('div');
     wrapper.id = NAV_ID;
     wrapper.className = 'conversation-search-navigation';
+    wrapper.setAttribute('data-hafize-owned', 'conversation-search-navigation');
 
     const previous = documentRef.createElement('button');
     previous.type = 'button';
@@ -82,14 +84,23 @@
     status.className = 'conversation-search-navigation-status';
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
+    status.setAttribute('aria-atomic', 'true');
 
     wrapper.append(previous, next, status);
     control.append(wrapper);
     return wrapper;
   }
 
-  function createController({ documentRef = globalThis.document, rootRef = globalThis, MutationObserverImpl = globalThis.MutationObserver } = {}) {
-    if (!documentRef?.querySelector) throw new Error('INVALID_CONVERSATION_SEARCH_NAV_DOCUMENT');
+  function createController({
+    documentRef = globalThis.document,
+    MutationObserverImpl = globalThis.MutationObserver
+  } = {}) {
+    if (!documentRef?.querySelector || !documentRef?.createElement) {
+      throw new Error('INVALID_CONVERSATION_SEARCH_NAV_DOCUMENT');
+    }
+
+    let mounted = false;
+    let destroyed = false;
     let input = null;
     let list = null;
     let nav = null;
@@ -97,37 +108,70 @@
     let next = null;
     let status = null;
     let observer = null;
+    let ownedStyle = null;
+    let ownedNavigation = null;
     let current = -1;
+    const cleanup = [];
+
+    function isLive() {
+      return !destroyed && mounted && list && ACTIVE_LISTS.has(list);
+    }
+
+    function addListener(target, type, listener) {
+      if (typeof target?.addEventListener !== 'function' || typeof target?.removeEventListener !== 'function') {
+        throw new Error('INVALID_CONVERSATION_SEARCH_NAV_LISTENER_TARGET');
+      }
+      target.addEventListener(type, listener);
+      cleanup.push(() => target.removeEventListener(type, listener));
+    }
 
     function targets() {
-      return hasQuery(input) ? visibleTargets(list) : [];
+      return isLive() && hasQuery(input) ? visibleTargets(list) : [];
     }
 
     function render() {
+      if (!isLive()) return [];
       const items = targets();
       if (current >= items.length) current = -1;
       const disabled = items.length === 0;
-      if (previous) previous.disabled = disabled;
-      if (next) next.disabled = disabled;
-      if (status) status.textContent = disabled ? '' : current >= 0 ? `${current + 1} / ${items.length}` : `${items.length} eşleşme`;
+      previous.disabled = disabled;
+      next.disabled = disabled;
+      status.textContent = disabled ? '' : current >= 0 ? `${current + 1} / ${items.length}` : `${items.length} eşleşme`;
       return items;
     }
 
     function move(direction) {
+      if (!isLive() || (direction !== 1 && direction !== -1)) return false;
       const items = render();
       if (!items.length) return false;
       current = nextIndex(current, items.length, direction);
-      items[current].focus({ preventScroll: false });
+      const target = items[current];
+      if (!target || typeof target.focus !== 'function') {
+        current = -1;
+        render();
+        return false;
+      }
+      try {
+        target.focus({ preventScroll: false });
+      } catch {
+        current = -1;
+        render();
+        return false;
+      }
+      if (!isLive()) return false;
       status.textContent = `${current + 1} / ${items.length}`;
       return true;
     }
 
     function reset() {
+      if (!isLive()) return false;
       current = -1;
       render();
+      return true;
     }
 
     function onClick(event) {
+      if (!isLive()) return;
       const direction = Number.parseInt(event?.currentTarget?.dataset?.direction || '0', 10);
       if (direction !== 1 && direction !== -1) return;
       event.preventDefault?.();
@@ -135,6 +179,7 @@
     }
 
     function onKeydown(event) {
+      if (!isLive()) return;
       if (!event?.altKey || event.ctrlKey || event.metaKey || event.shiftKey || event.repeat) return;
       if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
       if (!hasQuery(input) || !isKeyboardNavigationTarget(event.target, input, nav, list)) return;
@@ -142,44 +187,92 @@
       move(event.key === 'ArrowUp' ? -1 : 1);
     }
 
-    function mount() {
-      const control = documentRef.querySelector(`#${CONTROL_ID}`);
-      input = documentRef.querySelector(`#${INPUT_ID}`);
-      list = documentRef.querySelector(`#${LIST_ID}`);
-      if (!control || !input || !list) return false;
-      installStyles(documentRef);
-      nav = createNavigation(documentRef, control);
-      previous = nav.querySelector?.('[data-direction="-1"]');
-      next = nav.querySelector?.('[data-direction="1"]');
-      status = nav.querySelector?.(`#${STATUS_ID}`);
-      if (!previous || !next || !status) return false;
-      previous.addEventListener('click', onClick);
-      next.addEventListener('click', onClick);
-      input.addEventListener('input', reset);
-      documentRef.addEventListener?.('keydown', onKeydown);
-      if (typeof MutationObserverImpl === 'function') {
-        observer = new MutationObserverImpl(reset);
-        observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
-      }
-      render();
-      return true;
-    }
-
-    function destroy() {
-      previous?.removeEventListener?.('click', onClick);
-      next?.removeEventListener?.('click', onClick);
-      input?.removeEventListener?.('input', reset);
-      documentRef.removeEventListener?.('keydown', onKeydown);
+    function releaseInstallation() {
       observer?.disconnect?.();
       observer = null;
-      nav?.remove?.();
-      nav = null;
-      input = null;
-      list = null;
+      while (cleanup.length) {
+        try { cleanup.pop()?.(); } catch {}
+      }
+      ownedNavigation?.remove?.();
+      ownedNavigation = null;
+      ownedStyle?.remove?.();
+      ownedStyle = null;
+      if (list) ACTIVE_LISTS.delete(list);
+      mounted = false;
       current = -1;
     }
 
-    return Object.freeze({ mount, destroy, move, reset, render, currentIndex: () => current });
+    function clearReferences() {
+      input = null;
+      list = null;
+      nav = null;
+      previous = null;
+      next = null;
+      status = null;
+    }
+
+    function mount() {
+      if (destroyed || mounted) return false;
+      const control = documentRef.querySelector(`#${CONTROL_ID}`);
+      const candidateInput = documentRef.querySelector(`#${INPUT_ID}`);
+      const candidateList = documentRef.querySelector(`#${LIST_ID}`);
+      if (!control || !candidateInput || !candidateList) return false;
+      if (ACTIVE_LISTS.has(candidateList) || documentRef.getElementById?.(NAV_ID)) return false;
+
+      input = candidateInput;
+      list = candidateList;
+      ACTIVE_LISTS.add(list);
+      try {
+        ownedStyle = createOwnedStyle(documentRef);
+        ownedNavigation = createOwnedNavigation(documentRef, control);
+        if (!ownedNavigation) throw new Error('CONVERSATION_SEARCH_NAV_SURFACE_OWNED');
+        nav = ownedNavigation;
+        previous = nav.querySelector?.('[data-direction="-1"]');
+        next = nav.querySelector?.('[data-direction="1"]');
+        status = nav.querySelector?.(`#${STATUS_ID}`);
+        if (!previous || !next || !status) throw new Error('INVALID_CONVERSATION_SEARCH_NAV_SURFACE');
+
+        addListener(previous, 'click', onClick);
+        addListener(next, 'click', onClick);
+        addListener(input, 'input', reset);
+        addListener(documentRef, 'keydown', onKeydown);
+
+        if (MutationObserverImpl != null) {
+          if (typeof MutationObserverImpl !== 'function') throw new Error('INVALID_CONVERSATION_SEARCH_NAV_OBSERVER');
+          observer = new MutationObserverImpl(() => {
+            if (isLive()) reset();
+          });
+          observer.observe(list, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+        }
+
+        mounted = true;
+        render();
+        return true;
+      } catch {
+        releaseInstallation();
+        clearReferences();
+        return false;
+      }
+    }
+
+    function destroy() {
+      if (destroyed) return false;
+      destroyed = true;
+      releaseInstallation();
+      clearReferences();
+      return true;
+    }
+
+    return Object.freeze({
+      mount,
+      destroy,
+      move,
+      reset,
+      render,
+      currentIndex: () => current,
+      isMounted: () => mounted,
+      isDestroyed: () => destroyed
+    });
   }
 
   function mount(options) {
@@ -202,8 +295,8 @@
     visibleTargets,
     isKeyboardNavigationTarget,
     nextIndex,
-    installStyles,
-    createNavigation,
+    createOwnedStyle,
+    createOwnedNavigation,
     createController,
     mount
   });
