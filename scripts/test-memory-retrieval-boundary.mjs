@@ -56,4 +56,16 @@ assert.deepEqual(
   { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' }
 );
 
+// Sözleşme: bu sınır hiçbir girdi için throw etmez, her zaman sonuç döndürür.
+for (const input of [null, [], 'user-1', 42, true]) {
+  assert.deepEqual(normalizeMemoryRetrieval(input), {
+    ok: false,
+    error: 'INVALID_MEMORY_RETRIEVAL:input'
+  });
+}
+assert.deepEqual(normalizeMemoryRetrieval(), {
+  ok: false,
+  error: 'INVALID_MEMORY_RETRIEVAL:ownerId'
+});
+
 console.log('memory retrieval boundary tests passed');

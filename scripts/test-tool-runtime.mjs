@@ -16,11 +16,41 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
-  { permission: 'runtime.status', functionName: 'runtime_status' },
-  { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
-]);
+// Katalog yeni connector araçlarıyla büyüyebilir; bu yüzden donmuş liste yerine
+// her araç için geçerli olması gereken değişmezler doğrulanır.
+const permissions = listToolPermissions();
+assert.ok(permissions.length >= 3);
+assert.deepEqual(
+  permissions.filter(({ functionName }) =>
+    ['runtime_status', 'agent_delegate', 'github_read_file'].includes(functionName)
+  ),
+  [
+    { permission: 'runtime.status', functionName: 'runtime_status' },
+    { permission: 'agent.delegate', functionName: 'agent_delegate' },
+    { permission: 'repo.read', functionName: 'github_read_file' }
+  ]
+);
+assert.equal(new Set(permissions.map((entry) => entry.functionName)).size, permissions.length);
+for (const { permission, functionName } of permissions) {
+  assert.match(functionName, /^[a-z][a-z0-9_]*$/);
+  assert.match(permission, /^[a-z][a-z0-9.]*[a-z0-9]$/);
+  // Her araç, model çıktısından bağımsız olarak kullanıcıya gösterilebilir
+  // durum etiketlerine sahip olmalı ve bu etiketler iç kimlik sızdırmamalı.
+  const running = getPublicToolRunningActivity(functionName);
+  assert.equal(running?.state, 'running');
+  assert.equal(typeof running.label, 'string');
+  assert.ok(running.label.length > 0);
+  for (const outcome of [{ ok: true, value: {} }, { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' }]) {
+    const activity = getPublicToolActivity(functionName, outcome);
+    assert.equal(activity.state, outcome.ok ? 'success' : 'failure');
+    assert.equal(typeof activity.label, 'string');
+    assert.ok(activity.label.length > 0);
+    const serialized = JSON.stringify(activity);
+    assert.equal(serialized.includes(functionName), false);
+    assert.equal(serialized.includes(permission), false);
+    assert.equal(serialized.includes('PRIVATE_INTERNAL_DETAIL'), false);
+  }
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
