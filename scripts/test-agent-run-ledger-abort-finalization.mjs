@@ -32,7 +32,7 @@ function clock(start = 1_800_200_000_000) {
 {
   const ledger = createAgentRunLedger({ traceId: 'trace-partial', agentId: 'minimal-engineer', now: clock() });
   const completedTool = ledger.recordToolStart('runtime.status');
-  ledger.recordToolFinish(completedTool.taskId, { ok: true });
+  ledger.recordToolFinish(completedTool.taskId, { ok: true, value: { status: 'ok' } });
   const openDelegation = ledger.recordDelegationStart('agency-code-reviewer');
   assert.equal(ledger.failOpenEntries('AGENT_RUN_ABORTED'), 1);
 
