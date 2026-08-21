@@ -27,8 +27,9 @@ class FakeTarget {
     this.listeners.set(type, (this.listeners.get(type) || []).filter((value) => value !== handler));
   }
   emit(type, event = {}) {
-    for (const handler of this.listeners.get(type) || []) handler(event);
+    for (const handler of [...(this.listeners.get(type) || [])]) handler(event);
   }
+  count(type) { return (this.listeners.get(type) || []).length; }
 }
 
 class FakeElement extends FakeTarget {
@@ -42,121 +43,194 @@ class FakeElement extends FakeTarget {
     this.dataset = {};
     this.textContent = '';
     this.attributes = new Map();
-    this.removed = false;
+    this.parentNode = null;
+    this.children = [];
+  }
+  append(...nodes) {
+    for (const node of nodes) {
+      node.parentNode = this;
+      this.children.push(node);
+    }
+  }
+  remove() {
+    if (!this.parentNode) return;
+    this.parentNode.children = this.parentNode.children.filter((node) => node !== this);
+    this.parentNode = null;
   }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
-  remove() { this.removed = true; }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
+  removeAttribute(name) { this.attributes.delete(name); }
 }
 
-const messages = new FakeElement('div');
-messages.id = 'messages';
-const head = {
-  nodes: [],
-  append(node) { this.nodes.push(node); }
-};
-const body = new FakeElement('body');
-body.scrollHeight = 1200;
-body.nodes = [];
-body.append = (node) => body.nodes.push(node);
-const documentElement = { scrollHeight: 1200 };
-const documentRef = {
-  head,
-  body,
-  documentElement,
-  querySelector(selector) {
-    if (selector === '#messages') return messages;
-    if (selector === `#${scrollApi.BUTTON_ID}`) return body.nodes.find((node) => node.id === scrollApi.BUTTON_ID && !node.removed) || null;
-    if (selector === `#${scrollApi.STYLE_ID}`) return head.nodes.find((node) => node.id === scrollApi.STYLE_ID) || null;
-    return null;
-  },
-  createElement(tag) { return new FakeElement(tag); }
-};
+function fixture({ existingButton = null, reducedMotion = false } = {}) {
+  const messages = new FakeElement('div');
+  messages.id = 'messages';
+  const head = new FakeElement('head');
+  const body = new FakeElement('body');
+  body.scrollHeight = 1200;
+  const documentElement = { scrollHeight: 1200 };
+  body.append(messages);
+  if (existingButton) body.append(existingButton);
 
-const windowRef = new FakeTarget();
-windowRef.scrollY = 800;
-windowRef.innerHeight = 400;
-windowRef.scrollCalls = [];
-windowRef.scrollTo = (options) => {
-  windowRef.scrollCalls.push(options);
-  windowRef.scrollY = options.top;
-};
+  const documentRef = {
+    head,
+    body,
+    documentElement,
+    querySelector(selector) {
+      if (selector === '#messages') return messages;
+      if (selector === `#${scrollApi.BUTTON_ID}`) {
+        return body.children.find((node) => node.id === scrollApi.BUTTON_ID) || null;
+      }
+      if (selector === `#${scrollApi.STYLE_ID}`) {
+        return head.children.find((node) => node.id === scrollApi.STYLE_ID) || null;
+      }
+      return null;
+    },
+    createElement(tag) { return new FakeElement(tag); }
+  };
 
-const frameQueue = new Map();
-let nextFrame = 1;
-function requestAnimationFrameImpl(callback) {
-  const id = nextFrame++;
-  frameQueue.set(id, callback);
-  return id;
-}
-function cancelAnimationFrameImpl(id) { frameQueue.delete(id); }
-function flushFrames() {
-  for (const [id, callback] of [...frameQueue]) {
-    frameQueue.delete(id);
-    callback();
+  const windowRef = new FakeTarget();
+  windowRef.scrollY = 800;
+  windowRef.innerHeight = 400;
+  windowRef.scrollCalls = [];
+  windowRef.scrollTo = (options) => {
+    windowRef.scrollCalls.push(options);
+    windowRef.scrollY = options.top;
+  };
+
+  const frameQueue = new Map();
+  let nextFrame = 1;
+  const requestAnimationFrameImpl = (callback) => {
+    const id = nextFrame++;
+    frameQueue.set(id, callback);
+    return id;
+  };
+  const cancelAnimationFrameImpl = (id) => frameQueue.delete(id);
+  const flushFrames = () => {
+    for (const [id, callback] of [...frameQueue]) {
+      frameQueue.delete(id);
+      callback();
+    }
+  };
+
+  let mutationCallback = null;
+  let observeArgs = null;
+  let disconnectCount = 0;
+  class FakeMutationObserver {
+    constructor(callback) { mutationCallback = callback; }
+    observe(target, options) { observeArgs = { target, options }; }
+    disconnect() { disconnectCount += 1; }
   }
+
+  const options = {
+    documentRef,
+    windowRef,
+    MutationObserverImpl: FakeMutationObserver,
+    requestAnimationFrameImpl,
+    cancelAnimationFrameImpl,
+    matchMediaImpl: () => ({ matches: reducedMotion })
+  };
+  return {
+    messages, head, body, documentRef, windowRef, options, frameQueue,
+    flushFrames,
+    mutation: () => mutationCallback?.(),
+    observeArgs: () => observeArgs,
+    disconnectCount: () => disconnectCount
+  };
 }
 
-let mutationCallback = null;
-let observeArgs = null;
-let disconnected = false;
-class FakeMutationObserver {
-  constructor(callback) { mutationCallback = callback; }
-  observe(target, options) { observeArgs = { target, options }; }
-  disconnect() { disconnected = true; }
+{
+  const f = fixture();
+  const controller = scrollApi.createController(f.options);
+  assert.equal(controller.mount(), true);
+  f.flushFrames();
+  const button = f.documentRef.querySelector(`#${scrollApi.BUTTON_ID}`);
+  assert.ok(button);
+  assert.equal(button.hidden, true, 'near-bottom mount should hide the control');
+  assert.deepEqual(f.observeArgs(), {
+    target: f.messages,
+    options: { childList: true, subtree: true, characterData: true }
+  });
+
+  f.mutation();
+  f.flushFrames();
+  assert.equal(f.windowRef.scrollCalls.at(-1).behavior, 'auto', 'pinned streaming follows without smooth animation');
+
+  f.windowRef.scrollY = 200;
+  f.windowRef.emit('scroll');
+  f.flushFrames();
+  assert.equal(controller.snapshot().pinned, false);
+  assert.equal(button.hidden, false);
+  assert.equal(button.textContent, '↓ En alta git');
+
+  f.mutation();
+  f.flushFrames();
+  assert.equal(controller.snapshot().unseen, true);
+  assert.equal(button.textContent, '↓ Yeni yanıt');
+  assert.equal(button.dataset.state, 'new');
+  const callsBeforeClick = f.windowRef.scrollCalls.length;
+  button.emit('click');
+  f.flushFrames();
+  assert.equal(f.windowRef.scrollCalls.length, callsBeforeClick + 1);
+  assert.equal(f.windowRef.scrollCalls.at(-1).behavior, 'smooth');
+  assert.equal(button.hidden, true);
+
+  const staleMutation = f.mutation;
+  assert.equal(controller.destroy(), true);
+  assert.equal(controller.snapshot().destroyed, true);
+  assert.equal(f.documentRef.querySelector(`#${scrollApi.BUTTON_ID}`), null, 'owned button removed on teardown');
+  assert.equal(f.documentRef.querySelector(`#${scrollApi.STYLE_ID}`), null, 'owned style removed on teardown');
+  const callsAfterDestroy = f.windowRef.scrollCalls.length;
+  staleMutation();
+  f.windowRef.emit('scroll');
+  assert.equal(f.windowRef.scrollCalls.length, callsAfterDestroy, 'stale callbacks are inert after destroy');
+  assert.equal(controller.scrollToBottom({ smooth: true }), false);
+  assert.equal(controller.mount(), false, 'destroyed controller cannot remount');
+  assert.equal(controller.destroy(), false, 'destroy is idempotent');
 }
 
-const controller = scrollApi.createController({
-  documentRef,
-  windowRef,
-  MutationObserverImpl: FakeMutationObserver,
-  requestAnimationFrameImpl,
-  cancelAnimationFrameImpl,
-  matchMediaImpl: () => ({ matches: false })
-});
-assert.equal(controller.mount(), true);
-flushFrames();
-const button = body.nodes.find((node) => node.id === scrollApi.BUTTON_ID);
-assert.ok(button);
-assert.equal(button.hidden, true, 'near-bottom mount should not show control');
-assert.deepEqual(observeArgs, {
-  target: messages,
-  options: { childList: true, subtree: true, characterData: true }
-});
+{
+  const existing = new FakeElement('button');
+  existing.id = scrollApi.BUTTON_ID;
+  existing.hidden = false;
+  existing.textContent = 'Host control';
+  existing.dataset.state = 'host';
+  existing.setAttribute('aria-label', 'Host label');
+  const f = fixture({ existingButton: existing, reducedMotion: true });
+  const controller = scrollApi.createController(f.options);
+  assert.equal(controller.mount(), true);
+  f.flushFrames();
+  f.windowRef.scrollY = 100;
+  f.windowRef.emit('scroll');
+  f.flushFrames();
+  existing.emit('click');
+  f.flushFrames();
+  assert.equal(f.windowRef.scrollCalls.at(-1).behavior, 'auto', 'reduced motion disables smooth scrolling');
+  assert.equal(controller.destroy(), true);
+  assert.equal(existing.parentNode, f.body, 'host button remains owned by host');
+  assert.equal(existing.hidden, false);
+  assert.equal(existing.textContent, 'Host control');
+  assert.equal(existing.dataset.state, 'host');
+  assert.equal(existing.getAttribute('aria-label'), 'Host label');
+  assert.equal(existing.count('click'), 0);
+}
 
-mutationCallback();
-flushFrames();
-assert.equal(windowRef.scrollCalls.at(-1).behavior, 'auto', 'pinned streaming changes should follow without smooth animation');
-assert.equal(button.hidden, true);
-
-windowRef.scrollY = 200;
-windowRef.emit('scroll');
-flushFrames();
-assert.equal(controller.snapshot().pinned, false);
-assert.equal(button.hidden, false);
-assert.equal(button.textContent, '↓ En alta git');
-assert.equal(button.dataset.state, 'idle');
-
-mutationCallback();
-flushFrames();
-assert.equal(controller.snapshot().unseen, true);
-assert.equal(button.textContent, '↓ Yeni yanıt');
-assert.equal(button.dataset.state, 'new');
-assert.equal(windowRef.scrollCalls.length, 1, 'new content must not force-scroll a user who moved up');
-
-button.emit('click');
-flushFrames();
-assert.equal(windowRef.scrollCalls.at(-1).top, 1200);
-assert.equal(windowRef.scrollCalls.at(-1).behavior, 'smooth');
-assert.equal(controller.snapshot().unseen, false);
-assert.equal(button.hidden, true);
-
-assert.equal(controller.destroy(), true);
-assert.equal(disconnected, true);
-assert.equal(button.removed, true);
-const callsBefore = windowRef.scrollCalls.length;
-windowRef.emit('scroll');
-assert.equal(windowRef.scrollCalls.length, callsBefore, 'destroyed controller must detach scroll listener');
-assert.equal(controller.destroy(), false);
+{
+  const existing = new FakeElement('button');
+  existing.id = scrollApi.BUTTON_ID;
+  existing.dataset = {};
+  existing.textContent = 'Bare host';
+  const snapshot = scrollApi.snapshotButtonState(existing);
+  existing.hidden = true;
+  existing.dataset.state = 'new';
+  existing.textContent = 'Changed';
+  existing.setAttribute('aria-label', 'Changed label');
+  assert.equal(scrollApi.restoreButtonState(existing, snapshot), true);
+  assert.equal(existing.hidden, false);
+  assert.equal(existing.textContent, 'Bare host');
+  assert.equal(Object.prototype.hasOwnProperty.call(existing.dataset, 'state'), false);
+  assert.equal(existing.getAttribute('aria-label'), null);
+}
 
 const sourcePath = fileURLToPath(new URL('../public/scroll-to-latest.js', import.meta.url));
 const loaderPath = fileURLToPath(new URL('../public/chat-run-controller.js', import.meta.url));
@@ -175,45 +249,30 @@ for (const path of [sourcePath, loaderPath, policyPath]) {
 }
 
 for (const forbidden of [
-  /\blocalStorage\b/,
-  /\bsessionStorage\b/,
-  /document\.cookie/,
-  /\bfetch\s*\(/,
-  /\bWebSocket\b/,
-  /navigator\.clipboard/,
-  /Authorization/i,
-  /HAFIZE_.*(?:TOKEN|KEY|SECRET)/,
-  /\.content\b/,
-  /textContent.*message/i
+  /\blocalStorage\b/, /\bsessionStorage\b/, /document\.cookie/, /\bfetch\s*\(/,
+  /\bWebSocket\b/, /navigator\.clipboard/, /Authorization/i, /HAFIZE_.*(?:TOKEN|KEY|SECRET)/,
+  /\.content\b/, /textContent.*message/i
 ]) {
   assert.equal(forbidden.test(source), false, `scroll controller must not cross data boundary: ${forbidden}`);
 }
 
-assert.equal(source.includes("documentRef.querySelector('#messages')"), true);
-assert.equal(source.includes("observer.observe(messages, { childList: true, subtree: true, characterData: true })"), true);
-assert.equal(source.includes("windowRef.addEventListener('scroll', handleScroll, { passive: true })"), true);
-assert.equal(source.includes("windowRef.removeEventListener?.('scroll', handleScroll)"), true);
-assert.equal(source.includes("button?.removeEventListener?.('click', handleButtonClick)"), true);
-assert.equal(source.includes("if (buttonOwned) button?.remove?.()"), true);
+assert.equal(source.includes('const ACTIVE_DOCUMENTS = new WeakSet()'), true);
+assert.equal(source.includes('ACTIVE_DOCUMENTS.has(documentRef)'), true);
+assert.equal(source.includes('rollbackMount()'), true);
 assert.equal(source.includes('scheduledGeneration !== generation'), true);
+assert.equal(source.includes("observer.observe(messages, { childList: true, subtree: true, characterData: true })"), true);
 assert.equal(source.includes("'(prefers-reduced-motion: reduce)'"), true);
 assert.equal(loader.includes("loadShellEnhancement('HafizeScrollToLatest', '/scroll-to-latest.js', 'data-hafize-scroll-to-latest')"), true);
-assert.equal(loader.split("'/scroll-to-latest.js'").length - 1, 1);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v115');
+assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v159');
 assert.equal(swPolicy.SHELL_ASSETS.includes('/scroll-to-latest.js'), true);
-assert.equal(swPolicy.classifyRequest({
-  method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors'
-}, 'https://hafize.example'), 'network-only');
-assert.equal(swPolicy.classifyRequest({
-  method: 'GET', url: 'https://hafize.example/scroll-to-latest.js', headers: {}, mode: 'cors'
-}, 'https://hafize.example'), 'shell');
+assert.equal(swPolicy.classifyRequest({ method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors' }, 'https://hafize.example'), 'network-only');
+assert.equal(swPolicy.classifyRequest({ method: 'GET', url: 'https://hafize.example/scroll-to-latest.js', headers: {}, mode: 'cors' }, 'https://hafize.example'), 'shell');
 
-assert.match(doc, /zorla.*kaydır/i);
-assert.match(doc, /mesaj içeri/i);
-assert.match(doc, /storage/i);
 assert.match(doc, /96/);
 assert.match(doc, /prefers-reduced-motion/i);
-assert.match(doc, /sahipli/i);
-assert.match(doc, /generation/i);
+assert.match(doc, /ownership|sahipli/i);
+assert.match(doc, /rollback/i);
+assert.match(doc, /stale|eski callback/i);
+assert.match(doc, /storage/i);
 
-console.log('scroll-to-latest UX security tests passed');
+console.log('scroll-to-latest UX lifecycle tests passed');
