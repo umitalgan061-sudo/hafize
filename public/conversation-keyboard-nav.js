@@ -16,8 +16,12 @@
 
   function isEditableTarget(target) {
     if (!target || typeof target !== 'object') return false;
-    const tag = String(target.tagName || '').toLowerCase();
-    return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable === true;
+    try {
+      const tag = String(target.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable === true;
+    } catch {
+      return true;
+    }
   }
 
   function visibleConversationButtons(list) {
@@ -71,29 +75,33 @@
 
     function handleKeyDown(event) {
       if (!hasCurrentList() || !event || typeof event !== 'object') return false;
-      if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
-      if (!SUPPORTED_KEYS.includes(event.key) || isEditableTarget(event.target)) return false;
-      if (!event.target?.classList?.contains?.('conversation-open')) return false;
-
-      const buttons = visibleConversationButtons(list);
-      const current = buttons.indexOf(event.target);
-      if (current < 0) return false;
-      const targetIndex = nextIndex(current, event.key, buttons.length);
-      const target = buttons[targetIndex];
-      if (!target || target === event.target || typeof target.focus !== 'function') return false;
-
       try {
-        target.focus({ preventScroll: true });
+        if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
+        if (!SUPPORTED_KEYS.includes(event.key) || isEditableTarget(event.target)) return false;
+        if (!event.target?.classList?.contains?.('conversation-open')) return false;
+
+        const buttons = visibleConversationButtons(list);
+        const current = buttons.indexOf(event.target);
+        if (current < 0) return false;
+        const targetIndex = nextIndex(current, event.key, buttons.length);
+        const target = buttons[targetIndex];
+        if (!target || target === event.target || typeof target.focus !== 'function') return false;
+
+        try {
+          target.focus({ preventScroll: true });
+        } catch {
+          return false;
+        }
+        event.preventDefault?.();
+        try {
+          target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        } catch {
+          // Focus movement already succeeded; scrolling is best effort.
+        }
+        return true;
       } catch {
         return false;
       }
-      event.preventDefault?.();
-      try {
-        target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-      } catch {
-        // Focus movement already succeeded; scrolling is best effort.
-      }
-      return true;
     }
 
     function mount() {
