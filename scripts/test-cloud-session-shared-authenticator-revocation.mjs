@@ -30,17 +30,12 @@ function loginRequest() {
 }
 
 function emptyPostRequest() {
-  const bytes = Buffer.from('{}');
-  const request = (async function* () { yield bytes; })();
+  const request = (async function* () {})();
   request.socket = { remoteAddress: '127.0.0.1' };
   request.resume = () => {};
   return {
     request,
-    headers: {
-      origin: env.HAFIZE_CLOUD_SESSION_ORIGIN,
-      'content-type': 'application/json',
-      'content-length': String(bytes.length)
-    }
+    headers: { origin: env.HAFIZE_CLOUD_SESSION_ORIGIN }
   };
 }
 
