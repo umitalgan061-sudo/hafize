@@ -19,8 +19,16 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Katalog güvenlik değişmezi: model tarafından çağrılabilir hiçbir araç yazma/silme yetkisi taşımaz.
+for (const { permission, functionName } of listToolPermissions()) {
+  assert.equal(/\.(write|send|delete|admin)$/.test(permission), false, `write-capable permission registered: ${permission}`);
+  assert.equal(/(_write|_send|_delete|_create|_update)$/.test(functionName), false, `write-capable tool registered: ${functionName}`);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -32,6 +40,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -61,6 +77,26 @@ assert.deepEqual(
   { label: 'GitHub dosyası okundu', state: 'success' }
 );
 assert.equal(getPublicToolActivity('repo_delete', { ok: true }), null);
+
+// Connector araçlarının kullanıcıya görünen etiketleri hiçbir zaman connector içeriği taşımaz.
+const connectorActivity = JSON.stringify([
+  getPublicToolActivity('canva_read', {
+    ok: true,
+    value: { designs: [{ id: 'DAF_private', title: 'Gizli sunum' }] }
+  }),
+  getPublicToolActivity('gmail_read', {
+    ok: false,
+    error: 'GMAIL_READ_REAUTH_REQUIRED',
+    value: { emailAddress: 'owner@example.com', snippet: 'gizli mesaj' }
+  })
+]);
+assert.equal(connectorActivity.includes('DAF_private'), false);
+assert.equal(connectorActivity.includes('Gizli sunum'), false);
+assert.equal(connectorActivity.includes('owner@example.com'), false);
+assert.equal(connectorActivity.includes('gizli mesaj'), false);
+assert.equal(connectorActivity.includes('GMAIL_READ_REAUTH_REQUIRED'), false);
+assert.equal(connectorActivity.includes('"label":"Canva verisi okundu"'), true);
+assert.equal(connectorActivity.includes('"label":"Gmail verisi okunamadı"'), true);
 const safeActivity = JSON.stringify(getPublicToolActivity('github_read_file', {
   ok: false,
   error: 'GITHUB_REPO_NOT_ALLOWED',
