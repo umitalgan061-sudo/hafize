@@ -12,7 +12,7 @@ assert.match(authSource, /DEFAULT_MAX_REVOCATIONS = 4096/);
 assert.match(authSource, /expiresAt <= current/);
 assert.match(authSource, /SESSION_REVOCATION_UNAVAILABLE/);
 assert.match(authSource, /store\.isRevoked\(fingerprint\)/);
-assert.match(authSource, /store\.revoke\(\{ fingerprint, expiresAt: current\.expiresAt \}\)/);
+assert.match(authSource, /store\.revoke\(\{ fingerprint: current\.fingerprint, expiresAt: current\.expiresAt \}\)/);
 
 // The store is fingerprint -> expiry only. It must not retain raw cookie/token values.
 assert.doesNotMatch(authSource, /revoked\.set\([^,]+,\s*token\b/);
@@ -41,14 +41,14 @@ for (const source of [authSource, httpSource, nodeSource]) {
   assert.doesNotMatch(source, /GITHUB_TOKEN|NVIDIA_API_KEY|CANVA_.*TOKEN|GOOGLE_.*SECRET/);
 }
 
-// Selective agency architecture remains exactly four profiles and default-deny.
+// Selective agency architecture remains exactly four profiles and backend default-deny.
 assert.equal(registry.agents.length, 4);
-assert.equal(registry.security?.denyByDefault, true);
-const modes = registry.agents.map((agent) => agent.mode).sort();
-assert.deepEqual(modes, ['selector', 'selector', 'specialist', 'specialist']);
+const kinds = registry.agents.map((agent) => agent.kind).sort();
+assert.deepEqual(kinds, ['selector', 'selector', 'specialist', 'specialist']);
 for (const agent of registry.agents) {
-  assert.ok(Array.isArray(agent.tools));
-  assert.ok(Array.isArray(agent.approvals));
+  assert.equal(agent.toolPolicy?.default, 'deny');
+  assert.ok(Array.isArray(agent.toolPolicy?.allow));
+  assert.ok(Array.isArray(agent.toolPolicy?.deny));
 }
 
 console.log('cloud session revocation security contract tests passed');
