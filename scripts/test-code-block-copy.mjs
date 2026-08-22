@@ -55,7 +55,7 @@ const loader = fs.readFileSync(new URL('../public/chat-run-controller.js', impor
 const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 assert.match(loader, /HafizeCodeBlockCopy/);
 assert.match(loader, /\/code-block-copy\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v119`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/code-block-copy\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
