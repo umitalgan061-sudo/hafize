@@ -12,6 +12,7 @@ let capturedGate;
 const auth = {
   async login() { return { ok: false }; },
   authenticate() { return { ok: false }; },
+  revoke() { return false; },
   logoutCookie() { return ''; }
 };
 
