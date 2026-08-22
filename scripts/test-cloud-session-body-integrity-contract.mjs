@@ -26,10 +26,10 @@ assert.doesNotMatch(apiSource, /error\.stack|error\.detail|privateDetail/, 'priv
 assert.equal(registry.agents.length, 4, 'this transport hardening must not expand the agent roster');
 assert.equal(registry.agents.filter((agent) => agent.kind === 'selector').length, 2);
 assert.equal(registry.agents.filter((agent) => agent.kind === 'specialist').length, 2);
-assert.equal(registry.policy?.denyByDefault, true, 'tool permission remains backend default-deny');
+assert.equal(registry.agents.every((agent) => agent.toolPolicy?.default === 'deny'), true, 'tool permission remains backend default-deny');
 assert.equal(registry.policy?.externalWritesRequireApproval, true);
 assert.equal(registry.policy?.secretsNeverEnterAgentContext, true);
-assert.equal(registry.policy?.sharedTrace, true);
+assert.equal(registry.policy?.sharedTraceIdRequired, true);
 
 for (const source of [runtimeSource, apiSource]) {
   assert.doesNotMatch(source, /shell\s*:\s*true|shell=True|child_process|exec\(|spawn\(/, 'cloud auth must not gain terminal execution');
