@@ -22,7 +22,8 @@ assert.match(source, /button\.click\(\)/);
 assert.match(source, /documentRef\.visibilityState !== 'hidden'/);
 assert.match(source, /event\?\.key !== 'Escape'/);
 
-forbid(source, /localStorage|sessionStorage|indexedDB/i, 'clear-intent persistent storage');
+assert.match(source, /rootRef\?\.localStorage/, 'clear-history undo may use the existing bounded conversation store');
+forbid(source, /sessionStorage|indexedDB/i, 'clear-intent alternate persistent storage');
 forbid(source, /fetch\s*\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon/i, 'clear-intent network');
 forbid(source, /document\.cookie|authorization|bearer|credential|access[_-]?token|refresh[_-]?token/i, 'clear-intent secrets');
 forbid(source, /innerHTML|outerHTML|insertAdjacentHTML|DOMParser/i, 'clear-intent HTML parsing');
