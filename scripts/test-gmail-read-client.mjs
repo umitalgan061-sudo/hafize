@@ -43,7 +43,11 @@ assert.equal(calls[1][1], 'https://gmail.googleapis.com/gmail/v1/users/me/profil
 
 for (const input of [
   null,
+  [],
+  'owner_opaque',
+  42,
   {},
+  { ownerId: 'owner_opaque', operation: 'profile.get', extra: 'smuggled' },
   { ownerId: '../escape', operation: 'profile.get' },
   { ownerId: 'owner_opaque', operation: 'message.delete' },
   { ownerId: 'owner_opaque', operation: 'message.list', params: { maxResults: 501 } },
