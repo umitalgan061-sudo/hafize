@@ -38,7 +38,12 @@ Hafize uyarlaması:
 - skill prompt'u secret veya credential alamaz;
 - project skill yalnız açıkça izin verilen proje kapsamından yüklenir.
 
-Bu katman sıradaki geliştirme turunun önceliğidir.
+İlk dilim `lib/skill-manifest.mjs` ile uygulandı: strict manifest doğrulaması,
+`inline`/`fork` ayrımı, host izin kümesi dışına çıkan `allowedTools` isteğinin
+`SKILL_TOOL_ESCALATION` ile reddi, credential adlı argümanların ve prompt'a
+gömülü secret/`process.env` erişiminin reddi, project skill'i için açık kapsam
+zorunluluğu ve `project > user > builtin` önceliği. Sıradaki dilimler: registry
+yükleme ve çakışma çözümü, ardından inline/fork yürütme runtime'ı.
 
 ### 3. Sub-agent lifecycle
 
