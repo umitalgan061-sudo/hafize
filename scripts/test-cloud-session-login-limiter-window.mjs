@@ -19,6 +19,7 @@ function request(password, remoteAddress = '10.0.0.7') {
 const auth = {
   async login() { return { ok: false }; },
   authenticate() { return { ok: false }; },
+  revoke() { return false; },
   logoutCookie() { return 'hafize_session=; Max-Age=0'; }
 };
 
