@@ -38,6 +38,6 @@ const httpFailure = createCanvaTokenRevoke({
 });
 await assert.rejects(() => httpFailure.revoke({ ownerId: 'owner', explicitUserIntent: true }), /CANVA_TOKEN_REVOKE_FAILED:http/);
 assert.equal(httpFailureRemoves.length, 0);
-for (const input of [{ ownerId: '../owner', explicitUserIntent: true }, { ownerId: '', explicitUserIntent: true }]) await assert.rejects(() => runtime.revoke(input), /INVALID_CANVA_TOKEN_REVOKE/);
+for (const input of [null, 'owner', [], { ownerId: '../owner', explicitUserIntent: true }, { ownerId: '', explicitUserIntent: true }]) await assert.rejects(() => runtime.revoke(input), /INVALID_CANVA_TOKEN_REVOKE/);
 assert.throws(() => createCanvaTokenRevoke({ clientId: 'id', clientSecret: 'secret', tokenStore: { load() {} } }), /tokenStore/);
 console.log('canva token revoke tests passed');

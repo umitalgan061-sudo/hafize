@@ -19,8 +19,20 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Model-visible catalog stays read-only: a write/send/delete capable tool must never
+// join it silently, even if some agent policy would grant the permission.
+for (const { permission, functionName } of listToolPermissions()) {
+  assert.equal(
+    /\.(write|send|delete|revoke|create|update)$/.test(permission),
+    false,
+    `write-capable tool leaked into the model-visible catalog: ${functionName} (${permission})`
+  );
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',

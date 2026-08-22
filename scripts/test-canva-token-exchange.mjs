@@ -32,6 +32,9 @@ assert.equal(JSON.stringify(receipt).includes('client-secret'), false);
 
 for (const input of [
   {},
+  null,
+  'owner',
+  [],
   { ownerId: '../owner', code: 'authorization-code', verifier: 'v'.repeat(43), redirectUri: 'https://example.com/callback' },
   { ownerId: 'owner', code: 'short', verifier: 'v'.repeat(43), redirectUri: 'https://example.com/callback' },
   { ownerId: 'owner', code: 'authorization-code', verifier: 'short', redirectUri: 'https://example.com/callback' },
