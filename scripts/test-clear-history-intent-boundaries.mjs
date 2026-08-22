@@ -19,7 +19,7 @@ assert.match(source, /message === CLEAR_HISTORY_PROMPT/);
 assert.match(source, /replayingClear\s*=\s*true/);
 assert.match(source, /replayingClear\s*=\s*false/);
 assert.match(source, /button\.click\(\)/);
-assert.match(source, /visibilityState === 'hidden'/);
+assert.match(source, /documentRef\.visibilityState !== 'hidden'/);
 assert.match(source, /event\?\.key !== 'Escape'/);
 
 forbid(source, /localStorage|sessionStorage|indexedDB/i, 'clear-intent persistent storage');
@@ -36,7 +36,7 @@ assert.match(appSource, /if \(isStreaming\) return showToast\('Yanıt sürerken 
 assert.match(appSource, /conversations\s*=\s*\[\];/);
 assert.match(appSource, /saveConversations\(\);/);
 
-assert.match(policySource, /hafize-shell-v9[1-9]/, 'PWA shell version must remain explicit');
+assert.match(policySource, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/, 'PWA shell version must remain explicit');
 assert.match(policySource, /'\/conversation-delete-confirm\.js'/);
 assert.match(policySource, /pathname\.startsWith\('\/api\/'\)/,
   'API requests must remain network-only');
