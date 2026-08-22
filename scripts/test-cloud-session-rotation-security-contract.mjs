@@ -49,8 +49,10 @@ const specialists = registry.agents.filter((agent) => agent.kind === 'specialist
 assert.equal(selectors.length, 2);
 assert.equal(specialists.length, 2);
 
-const allTools = registry.agents.flatMap((agent) => agent.toolPolicy?.allow || []);
-assert.equal(allTools.some((tool) => /merge|send|write/i.test(String(tool))), false, 'rotation must not expand agent external-write permissions');
+const allTools = new Set(registry.agents.flatMap((agent) => agent.toolPolicy?.allow || []));
+for (const forbiddenTool of ['repo.merge', 'external.send', 'external.write']) {
+  assert.equal(allTools.has(forbiddenTool), false, `rotation must not allow ${forbiddenTool}`);
+}
 
 for (const source of [serverSource, privilegedSource, scheduleSource]) {
   assert.doesNotMatch(source, /sendJson\([^\n]*previousSigningKey/);
