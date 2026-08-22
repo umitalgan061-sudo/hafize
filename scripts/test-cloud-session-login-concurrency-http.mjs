@@ -49,7 +49,7 @@ const firstPromise = api.handle({
   headers
 });
 
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(loginCalls, 1);
 assert.equal(verification.activeCount(), 1);
 
