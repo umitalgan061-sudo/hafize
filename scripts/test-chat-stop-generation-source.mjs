@@ -65,7 +65,7 @@ assert.equal(controller.includes('AbortControllerImpl'), true);
 assert.equal(controller.includes('token !== active.token'), true,
   'stale generations must not be able to finish a newer run');
 
-assert.match(policy, /hafize-shell-v17/);
+assert.match(policy, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/);
 for (const asset of ['/chat-run-controller.js', '/chat-run-controller.css']) {
   assert.equal(policy.includes(`'${asset}'`), true, `${asset} must be PWA shell cached`);
 }
