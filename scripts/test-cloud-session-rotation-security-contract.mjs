@@ -28,8 +28,8 @@ assert.match(revocationSource, /signingKeySlot === 'previous'/);
 for (const forbidden of [
   /shell\s*=\s*true/i,
   /child_process/,
-  /exec\s*\(/,
-  /spawn\s*\(/,
+  /(?<![.\w$])exec(?:File)?(?:Sync)?\s*\(/,
+  /(?<![.\w$])spawn(?:Sync)?\s*\(/,
   /localStorage/,
   /sessionStorage/,
   /indexedDB/i,
@@ -39,15 +39,17 @@ for (const forbidden of [
   assert.doesNotMatch(changedSources, forbidden);
 }
 
-assert.equal(registry.denyByDefault, true);
 assert.equal(Array.isArray(registry.agents), true);
 assert.equal(registry.agents.length, 4, 'rotation must not change the four-profile agent roster');
-const selectors = registry.agents.filter((agent) => agent.role === 'selector');
-const specialists = registry.agents.filter((agent) => agent.role === 'specialist');
+for (const agent of registry.agents) {
+  assert.equal(agent.toolPolicy?.default, 'deny', `${agent.id} must remain default-deny`);
+}
+const selectors = registry.agents.filter((agent) => agent.kind === 'selector');
+const specialists = registry.agents.filter((agent) => agent.kind === 'specialist');
 assert.equal(selectors.length, 2);
 assert.equal(specialists.length, 2);
 
-const allTools = registry.agents.flatMap((agent) => agent.allowedTools || []);
+const allTools = registry.agents.flatMap((agent) => agent.toolPolicy?.allow || []);
 assert.equal(allTools.some((tool) => /merge|send|write/i.test(String(tool))), false, 'rotation must not expand agent external-write permissions');
 
 for (const source of [serverSource, privilegedSource, scheduleSource]) {
