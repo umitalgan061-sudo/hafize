@@ -89,7 +89,10 @@ function fingerprint(index) {
   assert.throws(() => createCloudSessionRevocationStore({ maxEntries: 15 }), /INVALID_CLOUD_SESSION_REVOCATION:maxEntries/);
   assert.throws(() => createCloudSessionRevocationStore({ maxEntries: 100_001 }), /INVALID_CLOUD_SESSION_REVOCATION:maxEntries/);
   const invalidClock = createCloudSessionRevocationStore({ maxEntries: 16, now: () => NaN });
-  assert.throws(() => invalidClock.isRevoked(fingerprint(130)), /INVALID_CLOUD_SESSION_REVOCATION:now/);
+  assert.throws(
+    () => invalidClock.revoke({ fingerprint: fingerprint(130), expiresAt: 1_700_001_060_000 }),
+    /INVALID_CLOUD_SESSION_REVOCATION:now/
+  );
 }
 
 console.log('cloud session revocation store tests passed');
