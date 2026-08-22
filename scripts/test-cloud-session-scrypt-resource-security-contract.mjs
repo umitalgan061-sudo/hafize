@@ -43,7 +43,14 @@ for (const required of [
 assert.doesNotMatch(authSource, /console\.(log|debug|info)\s*\(/);
 assert.doesNotMatch(authSource, /process\.env/);
 assert.doesNotMatch(authSource, /localStorage|sessionStorage|indexedDB|document\.cookie/i);
-assert.doesNotMatch(authSource, /child_process|shell\s*:\s*true|\bexec\(|\bspawn\(/);
+for (const forbidden of [
+  /child_process/,
+  /shell\s*:\s*true/,
+  /(?<![.\w$])exec(?:File)?(?:Sync)?\s*\(/,
+  /(?<![.\w$])spawn(?:Sync)?\s*\(/
+]) {
+  assert.doesNotMatch(authSource, forbidden);
+}
 
 // Server runtime still keeps secrets server-side and creates auth before exposing handlers.
 assert.match(serverSource, /HAFIZE_CLOUD_SESSION_PASSWORD_HASH/);
@@ -58,7 +65,7 @@ assert.equal(registry.policy.secretsNeverEnterAgentContext, true);
 assert.equal(registry.policy.sharedTraceIdRequired, true);
 assert.deepEqual(
   registry.agents.map((agent) => agent.id).sort(),
-  ['agency-code-reviewer', 'handyman-advisor', 'minimal-engineer', 'movie-coordinator'].sort()
+  ['growth-strategist', 'minimal-engineer', 'security-engineer', 'test-engineer'].sort()
 );
 for (const agent of registry.agents) {
   assert.equal(agent.toolPolicy.default, 'deny');
