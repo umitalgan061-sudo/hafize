@@ -26,7 +26,7 @@ assert.ok(copyIndex > markdownIndex, 'code copy loader must be after markdown re
 
 assert.match(sw, /'\/safe-markdown-render\.js'/);
 assert.match(sw, /'\/code-block-copy\.js'/);
-assert.match(sw, /hafize-shell-v35/);
+assert.match(sw, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 
 for (const forbidden of [
   'innerHTML',
