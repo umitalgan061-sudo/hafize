@@ -35,11 +35,11 @@ for (const source of [tokenSource, authSource, revocationSource]) {
 }
 
 assert.equal(registry.agents.length, 4);
-assert.equal(registry.runtime.externalWritesRequireApproval, true);
-assert.equal(registry.runtime.secretsNeverEnterAgentContext, true);
-assert.equal(registry.runtime.sharedTraceIdRequired, true);
+assert.equal(registry.policy.externalWritesRequireApproval, true);
+assert.equal(registry.policy.secretsNeverEnterAgentContext, true);
+assert.equal(registry.policy.sharedTraceIdRequired, true);
 for (const agent of registry.agents) {
-  assert.equal(agent.toolPolicy.denyByDefault, true, `${agent.id} must remain default-deny`);
+  assert.equal(agent.toolPolicy.default, 'deny', `${agent.id} must remain default-deny`);
 }
 
 const minimal = registry.agents.find((agent) => agent.id === 'minimal-engineer');
