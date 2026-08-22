@@ -8,7 +8,7 @@ const env = {
   HAFIZE_CLOUD_SESSION_ORIGIN: 'https://hafize.example'
 };
 let gate;
-const auth = { async login() { return { ok: false }; }, authenticate() { return { ok: false }; }, logoutCookie() { return ''; } };
+const auth = { async login() { return { ok: false }; }, authenticate() { return { ok: false }; }, revoke() { return false; }, logoutCookie() { return ''; } };
 createCloudSessionNodeServerRuntime({
   env,
   createAuth: () => auth,
