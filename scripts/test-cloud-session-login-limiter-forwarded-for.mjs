@@ -11,6 +11,7 @@ const env = {
 const auth = {
   async login() { return { ok: false }; },
   authenticate() { return { ok: false }; },
+  revoke() { return false; },
   logoutCookie() { return ''; }
 };
 const runtime = createCloudSessionNodeServerRuntime({ env, createAuth: () => auth, loginAttempts: 2, now: () => 1_000 });

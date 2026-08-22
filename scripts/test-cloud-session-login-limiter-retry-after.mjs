@@ -9,7 +9,7 @@ const env = {
 };
 let gate;
 let clock = 1_000;
-const auth = { async login() { return { ok: false }; }, authenticate() { return { ok: false }; }, logoutCookie() { return ''; } };
+const auth = { async login() { return { ok: false }; }, authenticate() { return { ok: false }; }, revoke() { return false; }, logoutCookie() { return ''; } };
 createCloudSessionNodeServerRuntime({
   env,
   createAuth: () => auth,

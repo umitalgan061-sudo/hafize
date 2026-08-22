@@ -16,6 +16,7 @@ const auth = {
     return { ok: false };
   },
   authenticate() { return { ok: false }; },
+  revoke() { return false; },
   logoutCookie() { return 'hafize_session=; Max-Age=0'; }
 };
 

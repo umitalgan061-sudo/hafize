@@ -13,6 +13,7 @@ let clock = 10_000;
 const auth = {
   async login() { return { ok: false }; },
   authenticate() { return { ok: false }; },
+  revoke() { return false; },
   logoutCookie() { return ''; }
 };
 
