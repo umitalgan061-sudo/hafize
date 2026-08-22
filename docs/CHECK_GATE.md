@@ -35,6 +35,9 @@ Yeni bir modül veya test dosyası eklendiğinde kapıya ayrıca eklenmesi
 - Her suite için 120 saniyelik zaman aşımı uygulanır; asılı kalan bir test kapıyı
   süresiz bloke edemez.
 - Herhangi bir başarısızlıkta çıkış kodu `1`'dir.
+- Keşif boş sonuç döndürürse kapı `CHECK_GATE_NO_SOURCES_DISCOVERED` /
+  `CHECK_GATE_NO_SUITES_DISCOVERED` ile durur. Bozuk bir keşif hiçbir zaman
+  "sıfır kapsamla temiz" raporlayamaz.
 - Dış servis gerektiren entegrasyon testleri (örneğin
   `scripts/test-redis-schedule-lease-live.mjs`) ilgili ortam değişkeni yoksa
   kendilerini atlar ve kapıyı kırmaz.
@@ -51,6 +54,17 @@ zinciriydi. Bu yapının iki somut sorunu vardı:
    kırık olan diğer testler görünmüyordu.
 
 Keşif tabanlı runner her iki sorunu da yapısal olarak ortadan kaldırır.
+
+## Kapının kendi testi
+
+`scripts/test-run-checks.mjs`, `run-checks.mjs`'in `discoverTargets()` ve
+`run()` yardımcılarını doğrudan çağırır (kapıyı yeniden başlatmaz, özyineleme
+oluşmaz) ve şunları doğrular:
+
+- diskteki her `scripts/test-*.mjs` dosyası suite listesinde yer alır,
+- `server.mjs` ile tüm `lib/*.mjs` ve `public/*.js` dosyaları syntax kapsamındadır,
+- registry doğrulaması ilk sırada çalışır ve keşif sırası deterministiktir,
+- `run()` başarıyı, sıfırdan farklı çıkış kodunu ve zaman aşımını doğru ayırt eder.
 
 ## Geri alma
 
