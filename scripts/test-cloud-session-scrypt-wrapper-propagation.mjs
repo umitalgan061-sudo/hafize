@@ -6,6 +6,10 @@ const SALT = Buffer.alloc(16, 4).toString('base64url');
 const DIGEST = Buffer.alloc(32, 6).toString('base64url');
 const KEY = Buffer.alloc(32, 8).toString('base64url');
 const SUBJECT = 'wrapper-user';
+const PRIVILEGED_AUTH_ENV_NAMES = {
+  tokenEnv: 'HAFIZE_TEST_PRIVILEGED_TOKEN',
+  subjectEnv: 'HAFIZE_TEST_PRIVILEGED_SUBJECT'
+};
 
 function hash(N, r, p) {
   return `scrypt$${N}$${r}$${p}$${SALT}$${DIGEST}`;
@@ -38,20 +42,22 @@ const baseEnv = {
   HAFIZE_CLOUD_SESSION_SUBJECT: SUBJECT,
   HAFIZE_CLOUD_SESSION_ORIGIN: 'https://hafize.example'
 };
-assert.doesNotThrow(() => createPrivilegedPrincipalAuthenticator({ env: baseEnv }));
+assert.doesNotThrow(() => createPrivilegedPrincipalAuthenticator({ env: baseEnv, ...PRIVILEGED_AUTH_ENV_NAMES }));
 assert.throws(
   () => createPrivilegedPrincipalAuthenticator({
-    env: { ...baseEnv, HAFIZE_CLOUD_SESSION_PASSWORD_HASH: hash(262_144, 8, 1) }
+    env: { ...baseEnv, HAFIZE_CLOUD_SESSION_PASSWORD_HASH: hash(262_144, 8, 1) },
+    ...PRIVILEGED_AUTH_ENV_NAMES
   }),
-  (error) => error?.code === 'INVALID_CLOUD_SESSION_AUTH:passwordHash.cost'
+  (error) => error?.code === 'INVALID_PRIVILEGED_PRINCIPAL_AUTH:cloudConfig'
 );
 
 // No wrapper is allowed to silently downgrade an unsafe cloud cookie config into bearer-only mode.
 assert.throws(
   () => createPrivilegedPrincipalAuthenticator({
-    env: { ...baseEnv, HAFIZE_CLOUD_SESSION_PASSWORD_HASH: hash(131_072, 8, 5) }
+    env: { ...baseEnv, HAFIZE_CLOUD_SESSION_PASSWORD_HASH: hash(131_072, 8, 5) },
+    ...PRIVILEGED_AUTH_ENV_NAMES
   }),
-  (error) => error?.code === 'INVALID_CLOUD_SESSION_AUTH:passwordHash.cost'
+  (error) => error?.code === 'INVALID_PRIVILEGED_PRINCIPAL_AUTH:cloudConfig'
 );
 
 console.log('cloud session scrypt wrapper propagation: ok');
