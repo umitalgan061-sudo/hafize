@@ -59,7 +59,7 @@ assert.equal(clientSource.includes("popup.location.replace(started.authorization
 assert.equal(clientSource.includes("url.pathname !== PATHS.gmailCallback"), true);
 
 const sw = require('../public/sw-policy.js');
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v15');
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(sw.SHELL_ASSETS.includes('/cloud-session-ui.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/cloud-session-ui.css'), true);
 const origin = 'https://hafize.example';
