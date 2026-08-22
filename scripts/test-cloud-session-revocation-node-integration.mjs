@@ -55,12 +55,10 @@ const statusBefore = await runtime.handle({
 assert.equal(statusBefore.status, 200);
 assert.deepEqual(statusBefore.body, { authenticated: true, expiresAt: now + 60_000 });
 
-const logoutInput = requestJson({});
 const logout = await runtime.handle({
-  request: logoutInput.request,
   method: 'POST',
   pathname: '/api/session/logout',
-  headers: { ...logoutInput.headers, cookie }
+  headers: { origin, cookie }
 });
 assert.equal(logout.status, 200);
 assert.deepEqual(logout.body, { authenticated: false });
@@ -75,12 +73,10 @@ const replay = await runtime.handle({
 assert.equal(replay.status, 401);
 assert.deepEqual(replay.body, { authenticated: false, error: 'AUTH_REQUIRED' });
 
-const repeatedLogoutInput = requestJson({});
 const repeatedLogout = await runtime.handle({
-  request: repeatedLogoutInput.request,
   method: 'POST',
   pathname: '/api/session/logout',
-  headers: { ...repeatedLogoutInput.headers, cookie }
+  headers: { origin, cookie }
 });
 assert.equal(repeatedLogout.status, 401);
 assert.equal(repeatedLogout.headers['set-cookie'], undefined);
@@ -107,12 +103,10 @@ const thirdLoginInput = requestJson({ password });
 const thirdLogin = await runtime.handle({ request: thirdLoginInput.request, method: 'POST', pathname: '/api/session/login', headers: thirdLoginInput.headers });
 assert.equal(thirdLogin.status, 200);
 const thirdCookie = cookieFrom(thirdLogin);
-const foreignLogoutInput = requestJson({});
 const foreignLogout = await runtime.handle({
-  request: foreignLogoutInput.request,
   method: 'POST',
   pathname: '/api/session/logout',
-  headers: { ...foreignLogoutInput.headers, origin: 'https://evil.example', cookie: thirdCookie }
+  headers: { origin: 'https://evil.example', cookie: thirdCookie }
 });
 assert.equal(foreignLogout.status, 403);
 assert.equal((await runtime.handle({ method: 'GET', pathname: '/api/session/status', headers: { cookie: thirdCookie } })).status, 200);
