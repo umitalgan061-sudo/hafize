@@ -16,6 +16,10 @@ function request(password, remoteAddress) {
   };
 }
 
+function settleEventLoop() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 const pending = [deferred(), deferred()];
 let calls = 0;
 const runtime = createCloudSessionNodeServerRuntime({
@@ -48,7 +52,7 @@ const args = (password, address) => ({
 
 const first = runtime.handle(args('first-password-long-enough', '198.51.100.1'));
 const second = runtime.handle(args('second-password-long-enough', '198.51.100.2'));
-for (let turn = 0; turn < 4; turn += 1) await Promise.resolve();
+await settleEventLoop();
 assert.equal(calls, 2, 'default production gate admits two concurrent password verifications');
 
 const third = await runtime.handle(args('third-password-long-enough', '198.51.100.3'));
