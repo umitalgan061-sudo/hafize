@@ -63,7 +63,7 @@ assert.ok(!source.includes('requestSubmit'));
 assert.ok(!source.includes('innerHTML'));
 
 const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
-assert.match(sw, /hafize-shell-v36/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/code-block-copy\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 

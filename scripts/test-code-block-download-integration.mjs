@@ -10,7 +10,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 assert.match(loader, /HafizeCodeBlockDownload/);
 assert.match(loader, /\/code-block-download\.js/);
 assert.match(loader, /data-hafize-code-block-download/);
-assert.match(sw, /hafize-shell-v41/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/code-block-download\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 assert.match(copy, /hafize-code-shell/);
