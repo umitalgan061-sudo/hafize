@@ -48,7 +48,7 @@ afterPrune.complete({ authenticated: false });
 const unknown1 = gate({ request: {} });
 assert.equal(unknown1.ok, true);
 unknown1.complete({ authenticated: false });
-const unknown2 = gate({ request: { socket: { remoteAddress: '\ninvalid' } } });
+const unknown2 = gate({ request: { socket: { remoteAddress: 'invalid\npeer' } } });
 assert.equal(unknown2.ok, true, 'invalid peer identifiers share the bounded unknown-peer bucket');
 unknown2.complete({ authenticated: false });
 const unknownBlocked = gate({ request: { socket: {} } });
