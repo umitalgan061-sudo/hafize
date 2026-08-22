@@ -54,8 +54,7 @@ const firstPromise = runtime.handle({
   pathname: '/api/session/login',
   headers
 });
-await Promise.resolve();
-await Promise.resolve();
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(loginCalls, 1);
 
 const busy = await runtime.handle({
