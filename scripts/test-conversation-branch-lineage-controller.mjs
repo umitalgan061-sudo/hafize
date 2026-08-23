@@ -36,7 +36,7 @@ function node(tag = 'div') {
 
 const conversations = [
   { id: 'child-1', title: 'Dal', messages: [] },
-  { id: 'parent-1', title: 'Kaynak', messages: [] }
+  { id: 'parent-1', title: 'Kaynak', messages: [{ id: 'message-1' }] }
 ];
 let conversationRaw = JSON.stringify(conversations);
 const values = new Map([['hafize.conversations.v1', conversationRaw]]);
