@@ -56,16 +56,35 @@ function memoryStorage(initial) {
   };
 }
 
-function classList(active = false) {
-  return { contains(name) { return name === 'active' && active; } };
+function classList(active = false, names = []) {
+  return {
+    contains(name) {
+      if (name === 'active') return active;
+      return names.includes(name);
+    }
+  };
+}
+
+function button() {
+  return {
+    dataset: {},
+    textContent: '',
+    disabled: false,
+    parentNode: null,
+    addEventListener() {},
+    removeEventListener() {},
+    setAttribute() {},
+    remove() { this.parentNode = null; }
+  };
 }
 
 function forkDocument() {
+  const messages = { querySelectorAll() { return []; } };
   return {
     querySelector(selector) {
       if (selector === '#messageInput') return { value: '' };
       if (selector === '#sendBtn') return { classList: classList(false) };
-      if (selector === '#messages') return { querySelectorAll() { return []; } };
+      if (selector === '#messages') return messages;
       return null;
     }
   };
@@ -78,12 +97,32 @@ function editDocument(conversations, activeId) {
   }));
   const input = { value: '', focus() {}, dispatchEvent() {}, setSelectionRange() {} };
   const list = { querySelectorAll(selector) { return selector === '.conversation-row' ? rows : []; } };
+  const content = { textContent: 'Kaynak soru' };
+  const actions = {
+    child: null,
+    prepend(node) { this.child = node; node.parentNode = this; },
+    contains(node) { return this.child === node; }
+  };
+  const article = {
+    classList: classList(false, ['message', 'user']),
+    dataset: { messageId: 'source-user' },
+    querySelector(selector) {
+      if (selector === '.content') return content;
+      if (selector === '.message-copy-actions') return actions;
+      return null;
+    }
+  };
+  const messages = {
+    querySelectorAll(selector) { return selector === '.message.user' ? [article] : []; }
+  };
   return {
+    __editFixture: { article, content, actions },
+    createElement(tagName) { return tagName === 'button' ? button() : {}; },
     querySelector(selector) {
       if (selector === '#messageInput') return input;
       if (selector === '#sendBtn') return { classList: classList(false) };
       if (selector === '#conversationList') return list;
-      if (selector === '#messages') return { querySelectorAll() { return []; } };
+      if (selector === '#messages') return messages;
       return null;
     },
     querySelectorAll(selector) {
@@ -101,10 +140,6 @@ function cryptoSequence() {
       return `00000000-0000-4000-8000-${String(counter).padStart(12, '0')}`;
     }
   };
-}
-
-function button() {
-  return { dataset: {}, textContent: '', disabled: false };
 }
 
 assert.equal(forkApi.SOURCE_RETENTION_ERROR, 'Kaynak korunamıyor');
@@ -144,8 +179,9 @@ assert.equal(editApi.includesConversationIds([{ id: 'a' }], 'a', 'a'), false, 'd
   const storage = memoryStorage(canonical);
   const handoff = memoryStorage([]);
   let reloads = 0;
+  const documentRef = editDocument(canonical, source.id);
   const controller = editApi.createController({
-    documentRef: editDocument(canonical, source.id),
+    documentRef,
     storage,
     handoffStorage: handoff,
     guard,
@@ -155,9 +191,10 @@ assert.equal(editApi.includesConversationIds([{ id: 'a' }], 'a', 'a'), false, 'd
     now: () => new Date('2026-08-19T08:00:00.000Z'),
     reload: () => { reloads += 1; }
   });
-  const action = button();
-  const article = { dataset: { messageId: 'source-user' } };
-  const content = { textContent: 'Kaynak soru' };
+  assert.equal(controller.mount(), true);
+  const { article, content, actions } = documentRef.__editFixture;
+  const action = actions.child;
+  assert.ok(action, 'mounted edit controller must own a decorated action');
   assert.equal(controller.editMessage(action, article, content), false);
   assert.equal(action.dataset.state, 'error');
   assert.equal(action.textContent, editApi.SOURCE_RETENTION_ERROR);
@@ -212,6 +249,7 @@ assert.equal(editApi.includesConversationIds([{ id: 'a' }], 'a', 'a'), false, 'd
     now: () => new Date('2026-08-19T08:00:00.000Z'),
     reload: () => { throw new Error('orphan race must not reload'); }
   });
+  assert.equal(controller.mount(), true);
   const action = button();
   assert.equal(controller.forkFromMessage(action, 'source-assistant'), false);
   const finalState = guard.sanitizeStoredValue(racingStorage.getItem(guard.STORAGE_KEY)).value;
