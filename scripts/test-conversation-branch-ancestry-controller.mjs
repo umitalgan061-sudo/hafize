@@ -62,8 +62,8 @@ const documentRef = {
 
 const conversations = [
   { id: 'leaf', messages: [] },
-  { id: 'middle', messages: [] },
-  { id: 'root', messages: [] }
+  { id: 'middle', messages: [{ id: 'm-leaf' }] },
+  { id: 'root', messages: [{ id: 'm-middle' }] }
 ];
 const branchEntries = [
   {
