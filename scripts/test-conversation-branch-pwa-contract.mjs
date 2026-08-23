@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
 
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v97');
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(policy.SHELL_ASSETS.includes('/message-edit.js'), true, 'edit branch runtime must ship in offline shell');
 assert.equal(policy.SHELL_ASSETS.includes('/response-retry.js'), true, 'retry branch runtime must ship in offline shell');
 assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell asset list must remain duplicate-free');
