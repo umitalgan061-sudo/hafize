@@ -96,7 +96,7 @@ function createHarness({ hostStatus = null, historyTexts = ['ilk mesaj', 'ikinci
       if (selector === '#messageInput') return input;
       if (selector === '#messages') return messages;
       if (selector === '#composer') return composer;
-      if (selector === `#${api.STATUS_ID}`) return status;
+      if (selector === `#${api.STATUS_ID}`) return status?.parent ? status : null;
       return null;
     },
     createElement(tag) {
