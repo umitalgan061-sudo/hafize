@@ -31,7 +31,7 @@ for (const token of forbidden) assert.equal(source.includes(token), false, `forb
 assert.match(source, /BlobImpl/);
 assert.match(source, /createObjectURL/);
 assert.match(source, /revokeObjectURL/);
-assert.match(source, /anchor\.remove/);
+assert.match(source, /anchor\?\.remove\?\.\(\)/);
 assert.match(source, /rel = 'noopener'/);
 assert.match(source, /\.message\.assistant \.content\.hafize-markdown pre/);
 console.log('code block download contract ok');
