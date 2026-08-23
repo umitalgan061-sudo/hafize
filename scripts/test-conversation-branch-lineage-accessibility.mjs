@@ -7,9 +7,9 @@ assert.match(source, /banner\.setAttribute\('role', 'status'\)/);
 assert.match(source, /sourceButton\.type = 'button'/);
 assert.match(source, /sourceButton\.textContent = 'Kaynak sohbeti aç'/);
 assert.match(source, /label\.textContent = `\$\{mode\}\$\{depthText\}\$\{siblingText\} · kaynak sohbet korunuyor`/);
-assert.match(source, /\.conversation-branch-source:focus-visible\{outline:2px solid/);
+assert.match(source, /\.conversation-branch-source:focus-visible,\.conversation-branch-root:focus-visible,\.conversation-branch-prev:focus-visible,\.conversation-branch-next:focus-visible\{outline:2px solid/);
 assert.match(source, /@media\(max-width:620px\)/);
-assert.match(source, /\.conversation-branch-source\{min-height:44px\}/);
+assert.match(source, /\.conversation-branch-source,\.conversation-branch-root,\.conversation-branch-prev,\.conversation-branch-next\{min-height:44px\}/);
 assert.match(source, /@media\(forced-colors:active\)/);
 
 assert.doesNotMatch(source, /aria-label[^\n]*(?:content|title|message)/i);
