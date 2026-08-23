@@ -26,6 +26,6 @@ assert.doesNotMatch(lineage, /innerHTML|insertAdjacentHTML|eval\(|new Function/)
 assert.doesNotMatch(lineage, /ownerId|traceId|credential|accessToken|refreshToken/);
 assert.match(shell, /conversation-branch-lineage\.js/);
 assert.match(policy, /conversation-branch-lineage\.js/);
-assert.match(policy, /hafize-shell-v99/);
+assert.match(policy, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 
 console.log('conversation branch lineage integration contract: ok');
