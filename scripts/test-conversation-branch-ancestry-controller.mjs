@@ -100,7 +100,7 @@ const windowRef = { addEventListener() {}, removeEventListener() {} };
 
 const controller = api.createController({ documentRef, storage, guard, MutationObserverImpl: Observer, windowRef });
 assert.equal(controller.mount(), true);
-assert.deepEqual(observed.options.attributeFilter, ['class', 'data-conversation-organize-id']);
+assert.deepEqual(Array.from(observed.options.attributeFilter), ['class', 'data-conversation-organize-id']);
 
 const context = controller.currentContext();
 assert.equal(context.entry.childConversationId, 'leaf');
