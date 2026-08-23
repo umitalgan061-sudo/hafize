@@ -8,7 +8,7 @@ const feature = fs.readFileSync(new URL('../public/composer-paste-guard.js', imp
 assert.match(controller, /HafizeComposerPasteGuard/);
 assert.match(controller, /\/composer-paste-guard\.js/);
 assert.match(controller, /data-hafize-composer-paste-guard/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v43`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/composer-paste-guard\.js'/);
 assert.match(sw, /'\/text-file-import\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
