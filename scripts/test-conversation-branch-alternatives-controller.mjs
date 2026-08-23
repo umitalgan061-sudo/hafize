@@ -62,7 +62,7 @@ const documentRef = {
   removeEventListener(name) { documentListeners.delete(name); }
 };
 
-const conversations = rows.map((item) => ({ id: item.dataset.conversationId, messages: [] }));
+const conversations = rows.map((item) => ({ id: item.dataset.conversationId, messages: item.dataset.conversationId === 'root' ? [{ id: 'm1' }] : [] }));
 const lineage = [
   { childConversationId: 'branch-c', parentConversationId: 'root', sourceMessageId: 'm1', mode: 'edit', createdAt: '2026-08-19T02:00:00.000Z' },
   { childConversationId: 'branch-b', parentConversationId: 'root', sourceMessageId: 'm1', mode: 'fork', createdAt: '2026-08-19T01:00:00.000Z' },
