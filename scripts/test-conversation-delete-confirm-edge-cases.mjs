@@ -46,6 +46,7 @@ assert.equal(api.shouldDeferToDraftGuard({ closest: () => ({ classList: { contai
 
 assert.doesNotMatch(source, /innerHTML|outerHTML|eval\s*\(|Function\s*\(/);
 assert.doesNotMatch(source, /Authorization|Bearer|api[_-]?key|secret/i);
-assert.match(source, /Bu işlem geri alınamaz/);
+assert.match(source, /const PENDING_TEXT = 'Sil\?'/);
+assert.match(source, /const UNDO_TEXT = 'Geri al'/);
 
 console.log('conversation delete confirmation edge-case tests passed');
