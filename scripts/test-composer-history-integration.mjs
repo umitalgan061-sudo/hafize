@@ -8,7 +8,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 assert.match(loader, /HafizeComposerHistory/);
 assert.match(loader, /\/composer-history\.js/);
 assert.match(loader, /data-hafize-composer-history/);
-assert.match(sw, /hafize-shell-v40/);
+assert.match(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/composer-history\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
