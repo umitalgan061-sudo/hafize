@@ -28,8 +28,8 @@
   }
 
   function collapsedSelection(input) {
-    const start = Number(input?.selectionStart);
-    const end = Number(input?.selectionEnd);
+    const start = input?.selectionStart;
+    const end = input?.selectionEnd;
     return Number.isInteger(start) && Number.isInteger(end) && start === end ? start : null;
   }
 
