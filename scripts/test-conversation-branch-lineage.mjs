@@ -42,7 +42,7 @@ const bounded = api.normalizeEntries(Array.from({ length: 70 }, (_, index) => ({
 })), exactIds);
 assert.equal(bounded.length, api.MAX_ENTRIES);
 
-assert.deepEqual(api.parseEntries('{bad json', ids), []);
+assert.deepEqual(Array.from(api.parseEntries('{bad json', ids)), []);
 assert.equal(api.normalizeId('a'.repeat(api.MAX_ID_CHARS + 1)), '');
 assert.equal(api.normalizeId('ok:id-1'), 'ok:id-1');
 assert.equal(api.normalizeMode('edit'), 'edit');
