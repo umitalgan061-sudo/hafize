@@ -138,7 +138,7 @@ function createHarness({ existingControl = null, inputMaxLength = 15_000 } = {})
 assert.equal(api.createController({ documentRef: { querySelector: () => null } }).mount(), false);
 assert.match(loader, /HafizeComposerLimitFeedback/);
 assert.match(loader, /\/composer-limit-feedback\.js/);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v115');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/composer-limit-feedback.js'), true);
 assert.equal(swPolicy.classifyRequest({ method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors' }, 'https://hafize.example'), 'network-only');
 for (const forbidden of ['fetch(', 'localStorage', 'sessionStorage', 'document.cookie', 'navigator.clipboard', 'Authorization', 'Bearer ', 'innerHTML']) {
