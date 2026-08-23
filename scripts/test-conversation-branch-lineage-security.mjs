@@ -88,7 +88,7 @@ assert.match(lineageSource, /textContent =/);
 assert.doesNotMatch(lineageSource, /\.innerHTML\s*=/);
 assert.match(lineageSource, /MAX_ENTRIES = 60/);
 assert.match(lineageSource, /childConversationId === parentConversationId/);
-assert.match(lineageSource, /validConversationIds\.has\(childConversationId\)/);
-assert.match(lineageSource, /validConversationIds\.has\(parentConversationId\)/);
+assert.match(lineageSource, /conversationExists\(validConversations, childConversationId\)/);
+assert.match(lineageSource, /conversationExists\(validConversations, parentConversationId\)/);
 
 console.log('conversation branch lineage security contract: ok');
