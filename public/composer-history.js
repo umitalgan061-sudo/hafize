@@ -135,9 +135,10 @@
       const next = cursor + direction;
       if (next < 0) { announce(`En eski mesaja ulaştın · 1/${history.length}`); return false; }
       if (next >= history.length) {
+        const hadDraft = Boolean(draft);
         writeValue(draft);
         reset({ keepStatus: true });
-        announce(draft ? 'Mevcut taslağa döndün.' : 'Mesaj geçmişinden çıktın.');
+        announce(hadDraft ? 'Mevcut taslağa döndün.' : 'Mesaj geçmişinden çıktın.');
         return true;
       }
       cursor = next;
