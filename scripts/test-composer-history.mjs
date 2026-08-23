@@ -150,7 +150,7 @@ function createHarness({ hostStatus = null, historyTexts = ['ilk mesaj', 'ikinci
   assert.equal(h.input.listener('keydown'), null);
   assert.equal(h.input.listener('input'), null);
   assert.equal(h.messages.listener('hafize:conversation-changed'), null);
-  assert.deepEqual(controller.snapshot(), { mounted: false, historyLength: 0, cursor: null, navigating: false, hasDraft: false });
+  assert.deepEqual({ ...controller.snapshot() }, { mounted: false, historyLength: 0, cursor: null, navigating: false, hasDraft: false });
   assert.equal(controller.recall(-1), false);
   assert.equal(controller.onKeydown(key('ArrowUp')), false);
   assert.equal(controller.onInput(), false);
