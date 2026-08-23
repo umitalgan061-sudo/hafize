@@ -16,18 +16,22 @@ const raw = JSON.stringify([
     title: 'Ankara Planlama',
     ownerId: 'owner-secret-canary',
     traceId: 'trace-secret-canary',
+    createdAt: '2026-08-19T03:00:00.000Z',
+    updatedAt: '2026-08-19T03:00:03.000Z',
     messages: [
-      { id: 'm-1', role: 'user', content: 'İmar planında yeşil alan oranını bul', createdAt: '2026-08-19T03:00:00.000Z' },
-      { id: 'm-2', role: 'assistant', content: 'Yeşil alan oranını birlikte inceleyebiliriz.', createdAt: '2026-08-19T03:00:01.000Z' },
-      { id: 'm-3', role: 'system', content: 'system-secret-canary', createdAt: '2026-08-19T03:00:02.000Z' },
-      { id: 'm-4', role: 'tool', content: 'tool-secret-canary', createdAt: '2026-08-19T03:00:03.000Z' }
+      { id: 'm-1', role: 'user', content: 'İmar planında yeşil alan oranını bul', at: '2026-08-19T03:00:00.000Z' },
+      { id: 'm-2', role: 'assistant', content: 'Yeşil alan oranını birlikte inceleyebiliriz.', at: '2026-08-19T03:00:01.000Z' },
+      { id: 'm-3', role: 'system', content: 'system-secret-canary', at: '2026-08-19T03:00:02.000Z' },
+      { id: 'm-4', role: 'tool', content: 'tool-secret-canary', at: '2026-08-19T03:00:03.000Z' }
     ]
   },
   {
     id: 'conv-2',
     title: 'Kod İncelemesi',
+    createdAt: '2026-08-19T03:01:00.000Z',
+    updatedAt: '2026-08-19T03:01:00.000Z',
     messages: [
-      { id: 'm-5', role: 'user', content: 'SSE backpressure testlerini incele', createdAt: '2026-08-19T03:01:00.000Z' }
+      { id: 'm-5', role: 'user', content: 'SSE backpressure testlerini incele', at: '2026-08-19T03:01:00.000Z' }
     ]
   }
 ]);
