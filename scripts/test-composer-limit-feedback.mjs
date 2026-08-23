@@ -77,7 +77,7 @@ function createHarness({ existingControl = null, inputMaxLength = 15_000 } = {})
   const h = createHarness();
   const controller = api.createController({ documentRef: h.documentRef });
   assert.equal(controller.mount(), true);
-  assert.deepEqual(controller.lifecycleSnapshot(), { mounted: true, controlOwned: true, hasInput: true });
+  assert.deepEqual({ ...controller.lifecycleSnapshot() }, { mounted: true, controlOwned: true, hasInput: true });
   assert.equal(h.input.maxLength, 12_000);
   assert.equal(h.input.listenerCount('input'), 1);
   assert.equal(h.control.dataset.state, 'normal');
@@ -109,7 +109,7 @@ function createHarness({ existingControl = null, inputMaxLength = 15_000 } = {})
   const h = createHarness({ existingControl: host, inputMaxLength: 8000 });
   const controller = api.createController({ documentRef: h.documentRef });
   assert.equal(controller.mount(), true);
-  assert.deepEqual(controller.lifecycleSnapshot(), { mounted: true, controlOwned: false, hasInput: true });
+  assert.deepEqual({ ...controller.lifecycleSnapshot() }, { mounted: true, controlOwned: false, hasInput: true });
   h.input.value = 'x'.repeat(7900); h.input.emit('input');
   assert.notEqual(host.dataset.state, 'host-state');
   assert.notEqual(label.textContent, 'Host label');
