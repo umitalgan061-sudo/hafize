@@ -111,8 +111,8 @@ const banner = stage.children[0];
 assert.equal(banner.hidden, false);
 const label = banner.children[0];
 const actions = banner.children[1];
-const sourceButton = actions.children[0];
-const rootButton = actions.children[1];
+const sourceButton = actions.children[2];
+const rootButton = actions.children[3];
 assert.match(label.textContent, /2\. seviye dal/);
 assert.equal(rootButton.hidden, false);
 
