@@ -4,7 +4,7 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('../public/conversation-delete-confirm.js', import.meta.url), 'utf8');
 const module = { exports: {} };
-vm.runInNewContext(source, { module, exports: module.exports, globalThis: {} });
+vm.runInNewContext(source, { module, exports: module.exports, globalThis: { setTimeout, clearTimeout } });
 const api = module.exports;
 
 assert.equal(api.safeTitle(null), api.FALLBACK_TITLE);
@@ -18,12 +18,12 @@ assert.equal(api.shouldDeferToDraftGuard({ closest: () => ({ classList: { contai
     removeEventListener() {},
     querySelector() { return null; }
   };
-  assert.throws(() => api.createController({ documentRef, confirmImpl: null }), /INVALID_CONVERSATION_DELETE_CONFIRM_FN/);
+  assert.throws(() => api.createController({ documentRef, setTimeoutImpl: null }), /INVALID_CONVERSATION_DELETE_CONFIRM_TIMER/);
 }
 
 {
-  assert.throws(() => api.createController({ documentRef: {}, confirmImpl: () => true }), /INVALID_CONVERSATION_DELETE_CONFIRM_DOCUMENT/);
-  assert.equal(api.mount({ documentRef: {}, confirmImpl: () => true }), null);
+  assert.throws(() => api.createController({ documentRef: {} }), /INVALID_CONVERSATION_DELETE_CONFIRM_DOCUMENT/);
+  assert.equal(api.mount({ documentRef: {} }), null);
 }
 
 {
@@ -34,7 +34,7 @@ assert.equal(api.shouldDeferToDraftGuard({ closest: () => ({ classList: { contai
     querySelector() { return { value: '' }; }
   };
   let called = 0;
-  const controller = api.createController({ documentRef, confirmImpl: () => { called += 1; return true; } });
+  const controller = api.createController({ documentRef });
   controller.mount();
   const unrelated = { defaultPrevented: false, target: { closest: () => null } };
   assert.equal(capture(unrelated), false);
