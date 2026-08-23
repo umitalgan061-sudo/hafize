@@ -6,7 +6,7 @@ const source = await readFile(new URL('../public/conversation-branch-lineage.js'
 assert.match(source, /banner\.setAttribute\('role', 'status'\)/);
 assert.match(source, /sourceButton\.type = 'button'/);
 assert.match(source, /sourceButton\.textContent = 'Kaynak sohbeti aç'/);
-assert.match(source, /label\.textContent = `\$\{mode\} · kaynak sohbet korunuyor`/);
+assert.match(source, /label\.textContent = `\$\{mode\}\$\{depthText\}\$\{siblingText\} · kaynak sohbet korunuyor`/);
 assert.match(source, /\.conversation-branch-source:focus-visible\{outline:2px solid/);
 assert.match(source, /@media\(max-width:620px\)/);
 assert.match(source, /\.conversation-branch-source\{min-height:44px\}/);
