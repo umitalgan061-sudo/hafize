@@ -73,7 +73,7 @@ assert.equal(api.normalizeEntry({
 
 for (const [source, mode] of [[forkSource, 'fork'], [editSource, 'edit']]) {
   const persistAt = source.indexOf('storage.setItem(STORAGE_KEY');
-  const verifyAt = source.indexOf(mode === 'fork' ? "throw new Error('FORK_NOT_PERSISTED')" : "throw new Error('EDIT_BRANCH_NOT_PERSISTED')");
+  const verifyAt = source.indexOf(mode === 'fork' ? "throw new Error('FORK_SOURCE_NOT_PERSISTED')" : "throw new Error('EDIT_BRANCH_SOURCE_NOT_PERSISTED')");
   const publishAt = source.indexOf('publishLineage({');
   assert.ok(persistAt >= 0 && verifyAt > persistAt && publishAt > verifyAt, `${mode} lineage must publish only after canonical persistence verification`);
   const detail = source.slice(publishAt, source.indexOf('});', publishAt) + 3);
