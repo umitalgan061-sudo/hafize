@@ -65,7 +65,7 @@ function nav(key) {
 
 assert.equal(nav('ArrowUp'), 1);
 assert.equal(input.value, 'üç');
-assert.deepEqual(range, [3, 3]);
+assert.deepEqual(range, [2, 2]);
 assert.match(status.textContent, /3\/3/);
 assert.equal(nav('ArrowUp'), 1);
 assert.equal(input.value, 'iki');
