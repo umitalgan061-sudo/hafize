@@ -19,7 +19,7 @@ assert.doesNotMatch(source, /message\.content/);
 
 const renderAt = source.indexOf('function render()');
 const activeAt = source.indexOf('function activeConversationId()');
-const openAt = source.indexOf('function openSource()');
+const openAt = source.indexOf('function openConversation(');
 assert.ok(activeAt >= 0 && renderAt > activeAt && openAt >= 0);
 assert.match(source.slice(openAt, renderAt), /entry\.parentConversationId/);
 assert.match(source.slice(openAt, renderAt), /\.conversation-open/);
