@@ -128,6 +128,7 @@ assert.equal(editApi.includesConversationIds([{ id: 'a' }], 'a', 'a'), false, 'd
     now: () => new Date('2026-08-19T08:00:00.000Z'),
     reload: () => { reloads += 1; }
   });
+  assert.equal(controller.mount(), true);
   const action = button();
   assert.equal(controller.forkFromMessage(action, 'source-assistant'), false);
   assert.equal(action.dataset.state, 'error');
