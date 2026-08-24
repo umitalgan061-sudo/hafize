@@ -73,7 +73,7 @@ assert.equal(controller.compactStoredEntries(), true);
 assert.equal(storage.state.get(lineage.STORAGE_KEY), '[]');
 
 storage.state.set(lineage.STORAGE_KEY, JSON.stringify(valid));
-assert.equal(controller.compactStoredEntries(), true, 'canonical ISO serialization may be compacted once');
+assert.equal(controller.compactStoredEntries(), false, 'canonical ISO storage remains stable without a redundant write');
 assert.equal(controller.readEntries().length, 1);
 assert.equal(controller.compactStoredEntries(), false, 'canonical storage remains stable');
 
