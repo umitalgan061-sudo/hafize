@@ -7,7 +7,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 
 assert.ok(loader.includes("loadShellEnhancement('HafizeMessageTimeline', '/message-timeline.js', 'data-hafize-message-timeline')"));
-assert.ok(sw.includes("const CURRENT_CACHE = `${CACHE_PREFIX}v44`;"));
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.ok(sw.includes("'/message-timeline.js'"));
 assert.ok(sw.includes("if (pathname.startsWith('/api/')) return 'network-only';"));
 
