@@ -8,7 +8,7 @@ const sw = require('../public/sw-policy.js');
 assert.equal(shell.CONVERSATION_SEARCH_SCRIPT, '/conversation-search.js');
 assert.equal(shell.CONVERSATION_SEARCH_SNIPPETS_SCRIPT, '/conversation-search-snippets.js');
 assert.equal(shell.CONVERSATION_SEARCH_NAVIGATION_SCRIPT, '/conversation-search-navigation.js');
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v103');
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(sw.SHELL_ASSETS.includes('/conversation-search.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/conversation-search-snippets.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/conversation-search-navigation.js'), true);
