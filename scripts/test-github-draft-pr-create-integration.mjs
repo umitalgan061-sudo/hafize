@@ -47,7 +47,7 @@ assert.match(source, /MutationObserver/);
 assert.match(source, /approvalToken/);
 
 assert.match(doc, /draft Pull Request/i);
-assert.match(doc, /iki aşamalı açık onay/i);
+assert.match(doc, /İki aşamalı açık onay/);
 assert.match(doc, /replay protection/i);
 assert.match(doc, /localStorage/);
 assert.match(doc, /GITHUB_TOKEN/);
