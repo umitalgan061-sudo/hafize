@@ -40,8 +40,10 @@ assert.ok(source.includes('sessionRecorded'), 'cross-tab reconciliation remains 
 assert.ok(source.includes('sessionRecorded.clear()'), 'destroy clears session-only reconciliation state');
 
 assert.equal(registry.agents.length, 4, 'selective roster remains exactly four profiles');
-assert.equal(registry.routing?.denyByDefault, true, 'backend/tool routing remains default-deny');
-assert.equal(registry.routing?.externalWritesRequireApproval, true, 'external writes still require explicit approval');
-assert.equal(registry.routing?.secretsInAgentContext, false, 'secrets never enter agent context');
+assert.equal(registry.policy?.topology, 'hierarchical', 'agent topology remains hierarchical');
+assert.equal(registry.policy?.externalWritesRequireApproval, true, 'external writes still require explicit approval');
+assert.equal(registry.policy?.secretsNeverEnterAgentContext, true, 'secrets never enter agent context');
+assert.equal(registry.policy?.sharedTraceIdRequired, true, 'shared trace remains required');
+for (const agent of registry.agents) assert.equal(agent.toolPolicy?.default, 'deny', `${agent.id} remains default-deny`);
 
 console.log('conversation lineage security contract: ok');
