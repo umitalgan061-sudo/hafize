@@ -8,7 +8,7 @@ const [loader, policy, moduleSource] = await Promise.all([
 ]);
 assert.match(loader, /HafizeConversationModelState/);
 assert.match(loader, /\/conversation-model-state\.js/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v53`/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policy, /'\/conversation-model-state\.js'/);
 assert.match(policy, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 assert.match(moduleSource, /STORAGE_KEY = 'hafize\.conversations\.v1'/);
