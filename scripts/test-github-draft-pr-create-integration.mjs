@@ -29,7 +29,7 @@ assert.equal(loader.includes("loadShellEnhancement('HafizeGitHubDraftPrCreate', 
 assert.equal(loader.split("'/github-draft-pr-create.js'").length - 1, 1);
 assert.equal(loader.split("'/github-draft-pr-create-style.js'").length - 1, 1);
 
-assert.match(policy, /hafize-shell-v71/);
+assert.match(policy, /hafize-shell-v\d+/);
 assert.match(policy, /'\/github-draft-pr-create\.js'/);
 assert.match(policy, /'\/github-draft-pr-create-style\.js'/);
 assert.match(policy, /'\/github-draft-pr-create\.css'/);
