@@ -49,7 +49,14 @@ assert.match(appShell, /allowedBrowserOrigins = \[\]/,
   'app shell must default external browser access to deny-all');
 assert.match(appShell, /appOpeners,\s*allowedBrowserOrigins,\s*isTrustedSender:/,
   'app shell must wire the allowlist alongside trusted-sender enforcement');
-assert.equal(contract.includes("new Set(['url', 'explicitUserIntent'])"), true,
-  'renderer browser.open args must not accept policy fields');
+assert.equal(contract.includes("new Set(['url', 'explicitUserIntent', 'actionId'])"), true,
+  'renderer browser.open args may carry only target, explicit intent, and replay action id');
+for (const policyField of ['allowedBrowserOrigins', 'allowedOrigins', 'appOpeners', 'isTrustedSender']) {
+  assert.doesNotMatch(
+    contract,
+    new RegExp(`new Set\\(\\['url', 'explicitUserIntent', 'actionId'[^\\]]*${policyField}`),
+    `renderer browser.open args must not accept policy field: ${policyField}`
+  );
+}
 
 console.log('device bridge source isolation tests passed');
