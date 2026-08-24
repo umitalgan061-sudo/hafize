@@ -3,15 +3,21 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../public/conversation-search.js', import.meta.url), 'utf8');
 
-assert.match(source, /input\.addEventListener\('input', onInput\)/);
-assert.match(source, /input\.removeEventListener\?\.\('input', onInput\)/);
-assert.match(source, /input\.addEventListener\('keydown', onInputKeydown\)/);
-assert.match(source, /input\.removeEventListener\?\.\('keydown', onInputKeydown\)/);
-assert.match(source, /clearButton\.addEventListener\('click', onClearClick\)/);
-assert.match(source, /clearButton\.removeEventListener\?\.\('click', onClearClick\)/);
-assert.match(source, /if \(destroyed \|\| refreshQueued\) return/);
-assert.match(source, /if \(!destroyed\) refreshAndApply\(\)/);
+assert.match(source, /function addListener\(target, type, listener\)/);
+assert.match(source, /target\.addEventListener\(type, listener\)/);
+assert.match(source, /listenerCleanup\.push\(\(\) => target\.removeEventListener\(type, listener\)\)/);
+assert.match(source, /addListener\(input, 'input', onInput\)/);
+assert.match(source, /addListener\(input, 'keydown', onInputKeydown\)/);
+assert.match(source, /addListener\(clearButton, 'click', onClearClick\)/);
+assert.match(source, /addListener\(rootRef, 'storage', onStorage\)/);
+assert.match(source, /addListener\(rootRef, 'hafize:conversation-storage-merged', queueRefresh\)/);
+assert.match(source, /if \(!isLive\(\) \|\| scheduledRefresh\) return false/);
+assert.match(source, /if \(!isLive\(\) \|\| generation !== refreshGeneration\) return/);
+assert.match(source, /cancelScheduledRefresh\(\)/);
+assert.match(source, /while \(listenerCleanup\.length\) \{ try \{ listenerCleanup\.pop\(\)\?\.\(\); \} catch \{\} \}/);
+assert.match(source, /observer\?\.disconnect\?\.\(\)/);
 assert.match(source, /if \(ownsControl\) control\?\.remove\?\.\(\)/);
+assert.match(source, /if \(list\) ACTIVE_LISTS\.delete\(list\)/);
 assert.match(source, /control = null;[\s\S]*input = null;[\s\S]*clearButton = null;[\s\S]*status = null;[\s\S]*list = null;/);
 
 for (const forbidden of [
