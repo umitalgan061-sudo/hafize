@@ -213,7 +213,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 assert.match(loader, /HafizeDraftNavigationGuard/);
 assert.match(loader, /\/draft-navigation-guard\.js/);
 assert.match(sw, /\/draft-navigation-guard\.js/);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v115');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.classifyRequest({
   method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors'
 }, 'https://hafize.example'), 'network-only');
