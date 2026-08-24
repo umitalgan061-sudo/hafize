@@ -22,8 +22,9 @@ assert.match(swPolicy, /pathname\.startsWith\(['"]\/api\/['"]\).*network-only/s)
 assert.match(searchSource, /HafizeConversationStorageGuard/);
 assert.match(searchSource, /guard\.sanitizeStoredValue\(raw\)/);
 assert.match(searchSource, /message\?\.role !== 'user' && message\?\.role !== 'assistant'/);
-assert.match(searchSource, /addEventListener\?\.\('storage', onStorage\)/);
-assert.match(searchSource, /hafize:conversation-storage-merged/);
+assert.match(searchSource, /addListener\(rootRef, 'storage', onStorage\)/);
+assert.match(searchSource, /addListener\(rootRef, 'hafize:conversation-storage-merged', queueRefresh\)/);
+assert.match(searchSource, /listenerCleanup\.push\(\(\) => target\.removeEventListener\(type, listener\)\)/);
 assert.match(searchSource, /requestAnimationFrame/);
 
 assert.match(guardSource, /MAX_CONVERSATIONS\s*=\s*30/);
