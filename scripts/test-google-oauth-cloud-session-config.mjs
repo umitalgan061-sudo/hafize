@@ -49,7 +49,7 @@ for (const missing of Object.keys(completeSession)) {
     () => createGoogleOAuthHttpRuntime({ env: partial, ...dependencies() }),
     missing === 'HAFIZE_CLOUD_SESSION_ORIGIN'
       ? /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:HAFIZE_CLOUD_SESSION_ORIGIN/
-      : /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:cloudSession|INVALID_CLOUD_SESSION_NODE_SERVER_RUNTIME/,
+      : /INVALID_GOOGLE_OAUTH_HTTP_RUNTIME:cloudSession|INVALID_CLOUD_SESSION_SERVER:partialConfig/,
     `OAuth startup must fail closed without ${missing}`
   );
 }
