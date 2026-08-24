@@ -14,7 +14,7 @@ assert.match(uiShell, /installConversationStorageGuard\(documentRef\);\s*install
 assert.match(uiShell, /appendFixedScript\(documentRef, CONVERSATION_SEARCH_SCRIPT_ID, CONVERSATION_SEARCH_SCRIPT\)/);
 assert.match(uiShell, /script\.async\s*=\s*false/);
 
-assert.match(swPolicy, /hafize-shell-v100/);
+assert.match(swPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 const searchAssetMatches = swPolicy.match(/['"]\/conversation-search\.js['"]/g) || [];
 assert.equal(searchAssetMatches.length, 1, 'conversation search must appear exactly once in PWA shell assets');
 assert.match(swPolicy, /pathname\.startsWith\(['"]\/api\/['"]\).*network-only/s);
