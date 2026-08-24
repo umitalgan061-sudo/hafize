@@ -9,12 +9,13 @@ const salt = Buffer.alloc(16, 81);
 const digest = scryptSync(password, salt, 32, { N: 16_384, r: 8, p: 1, maxmem: 32 * 1024 * 1024 });
 const signingKey = Buffer.alloc(32, 82).toString('base64url');
 const origin = 'https://hafize.example';
+const bearerToken = 'github-service-token-0123456789abcdef';
 const env = {
   HAFIZE_CLOUD_SESSION_PASSWORD_HASH: `scrypt$16384$8$1$${salt.toString('base64url')}$${digest.toString('base64url')}`,
   HAFIZE_CLOUD_SESSION_SIGNING_KEY: signingKey,
   HAFIZE_CLOUD_SESSION_SUBJECT: 'user:github-write',
   HAFIZE_CLOUD_SESSION_ORIGIN: origin,
-  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'github-service-token',
+  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: bearerToken,
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'service:github-write'
 };
 const issuer = createRevocableCloudSessionAuth({
@@ -76,7 +77,7 @@ assert.equal(prepareCalls, 1);
 assert.equal(readCalls, 1);
 
 // Bearer remains valid for automation/server-to-server clients without Origin.
-const bearerPrepared = await prepare({ authorization: 'Bearer github-service-token' });
+const bearerPrepared = await prepare({ authorization: `Bearer ${bearerToken}` });
 assert.equal(bearerPrepared.status, 200);
 assert.equal(prepareCalls, 2);
 assert.equal(readCalls, 2);
