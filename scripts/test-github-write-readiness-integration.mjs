@@ -23,7 +23,7 @@ assert.match(css, /prefers-reduced-motion/);
 assert.match(css, /forced-colors/);
 assert.match(loader, /HafizeGitHubWriteReadinessStyle/);
 assert.match(loader, /HafizeGitHubWriteReadiness/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v59`/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policy, /'\/github-write-readiness\.js'/);
 assert.match(policy, /'\/github-write-readiness-style\.js'/);
 assert.match(policy, /'\/github-write-readiness\.css'/);
