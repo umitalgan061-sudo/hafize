@@ -79,7 +79,7 @@ const conversations = Array.from({ length: guard.MAX_CONVERSATIONS + 5 }, (_, in
 }));
 const normalized = guard.normalizeConversations(conversations);
 assert.equal(normalized.length, guard.MAX_CONVERSATIONS);
-assert.equal(normalized[0].id, `conv-${guard.MAX_CONVERSATIONS - 1}`);
+assert.equal(normalized[0].id, `conv-${conversations.length - 1}`);
 
 const duplicateConversations = guard.normalizeConversations([
   conversation({ id: 'dup' }),
