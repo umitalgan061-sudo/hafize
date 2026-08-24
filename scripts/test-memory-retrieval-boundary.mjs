@@ -30,6 +30,9 @@ assert.equal('ownerId' in normalized.records[0], false);
 for (const content of [
   'password: legacy-secret-value',
   'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'ghp_1234567890abcdefghijklmnopqrstuvwx',
+  'nvapi-1234567890abcdefghijklmnopqrstuv',
   '-----BEGIN PRIVATE KEY-----\nlegacy-private-material'
 ]) {
   assert.deepEqual(
@@ -40,7 +43,9 @@ for (const content of [
 
 for (const sourceRef of [
   'import:access_token=abcdef123456',
-  'Authorization: Bearer abcdefghijklmnop'
+  'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'nvapi-1234567890abcdefghijklmnopqrstuv'
 ]) {
   assert.deepEqual(
     normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, sourceRef }] }),
