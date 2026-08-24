@@ -8,11 +8,12 @@ class Response extends EventEmitter {
 }
 
 const secret = Buffer.alloc(32, 13).toString('base64url');
+const authToken = `owner-token-${'x'.repeat(24)}`;
 const baseEnv = {
   GITHUB_TOKEN: 'server-held-token',
   HAFIZE_GITHUB_WRITE_REPOS: 'umitalgan061-sudo/hafize',
   HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: secret,
-  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'owner-token',
+  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: authToken,
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'owner-13',
   HAFIZE_GITHUB_WRITE_OWNER_KEY: secret,
   HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
@@ -49,13 +50,13 @@ const dependencies = {
 
 const disabled = createGitHubWriteNodeServerRuntime({ env: baseEnv, ...dependencies });
 assert.equal(disabled.configured, false);
-assert.deepEqual(await disabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/execute', headers: { authorization: 'Bearer owner-token' } }), { matched: false });
+assert.deepEqual(await disabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/execute', headers: { authorization: `Bearer ${authToken}` } }), { matched: false });
 assert.equal(network.length, 0);
 assert.equal(writes.length, 0);
 
 const enabled = createGitHubWriteNodeServerRuntime({ env: { ...baseEnv, HAFIZE_GITHUB_WRITE_ENABLED: 'true' }, ...dependencies });
 assert.equal(enabled.configured, true);
-const prepared = await enabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/prepare', headers: { authorization: 'Bearer owner-token' } });
+const prepared = await enabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/prepare', headers: { authorization: `Bearer ${authToken}` } });
 assert.deepEqual(prepared, { matched: true, status: 200 });
 assert.equal(network.length, 0, 'prepare must never write to GitHub');
 const approvalToken = writes.at(-1).body.approvalToken;
@@ -64,7 +65,7 @@ assert.equal(JSON.stringify(writes.at(-1)).includes(baseEnv.GITHUB_TOKEN), false
 assert.equal(JSON.stringify(writes.at(-1)).includes(secret), false);
 
 requestBody = { command, approvalToken };
-const executed = await enabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/execute', headers: { authorization: 'Bearer owner-token' } });
+const executed = await enabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/execute', headers: { authorization: `Bearer ${authToken}` } });
 assert.deepEqual(executed, { matched: true, status: 200 });
 assert.deepEqual(writes.at(-1).body.receipt, {
   operation: 'branch.create', repository: 'umitalgan061-sudo/hafize', branch: 'hafize/opt-in-e2e', sha: 'b'.repeat(40)
@@ -73,7 +74,7 @@ assert.equal(network.length, 2);
 assert.deepEqual(network.map((call) => call.method), ['GET', 'POST']);
 assert.equal(network.every((call) => call.authorization === 'Bearer server-held-token'), true);
 
-const replayed = await enabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/execute', headers: { authorization: 'Bearer owner-token' } });
+const replayed = await enabled.handle({ request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/execute', headers: { authorization: `Bearer ${authToken}` } });
 assert.deepEqual(replayed, { matched: true, status: 409 });
 assert.equal(writes.at(-1).body.error, 'GITHUB_WRITE_APPROVAL_REPLAYED');
 assert.equal(network.length, 2, 'replayed approval must not reach GitHub');
