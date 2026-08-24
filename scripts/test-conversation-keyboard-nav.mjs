@@ -44,7 +44,7 @@ function makeButton(name, { rowHidden = false, hidden = false, disabled = false 
   const disabled = makeButton('disabled', { disabled: true });
   const b = makeButton('b');
   const result = api.visibleConversationButtons({ querySelectorAll: () => [a, hidden, disabled, b] });
-  assert.deepEqual(result.map((item) => item.name), ['a', 'b']);
+  assert.deepEqual(Array.from(result, (item) => item.name), ['a', 'b']);
 }
 
 function makeHarness() {
