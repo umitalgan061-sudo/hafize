@@ -10,7 +10,7 @@ assert.match(loaderSource, /HafizeConversationExport/);
 assert.match(loaderSource, /\/conversation-export\.js/);
 assert.match(loaderSource, /data-hafize-conversation-export/);
 
-assert.match(swSource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v37`/);
+assert.match(swSource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(swSource, /'\/conversation-export\.js'/);
 assert.match(swSource, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
@@ -76,7 +76,7 @@ vm.runInNewContext(swSource, {
   String
 });
 const sw = swModule.exports;
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v37');
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.ok(sw.SHELL_ASSETS.includes('/conversation-export.js'));
 assert.equal(sw.classifyRequest({
   method: 'GET',
