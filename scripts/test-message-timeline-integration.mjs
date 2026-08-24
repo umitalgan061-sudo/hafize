@@ -21,6 +21,6 @@ assert.ok(timeline.includes("role', 'separator'"));
 assert.ok(timeline.includes("aria-label', `Gönderim zamanı: ${time.title}`"));
 assert.ok(timeline.includes("windowRef?.addEventListener?.('storage', onStorage)"));
 assert.ok(timeline.includes('MAX_CONVERSATIONS = 30'));
-assert.ok(timeline.includes('MAX_MESSAGES_PER_CONVERSATION = 2000'));
+assert.ok(timeline.includes('MAX_MESSAGES_PER_CONVERSATION = 200'));
 
 console.log('message timeline integration tests passed');
