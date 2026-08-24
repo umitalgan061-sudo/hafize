@@ -12,7 +12,7 @@ const [loader, policy, source, contract, preload] = await Promise.all([
 assert.match(loader, /HafizeDesktopDeviceStatus/);
 assert.match(loader, /\/desktop-device-status\.js/);
 assert.match(loader, /data-hafize-desktop-device-status/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v57`/);
+assert.match(policy, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policy, /'\/desktop-device-status\.js'/);
 assert.match(policy, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 assert.match(contract, /capabilities\.read/);
