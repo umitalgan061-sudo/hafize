@@ -146,8 +146,17 @@ assert.equal(clean.toggle.hasAttribute('data-consent-pending'), false, 'controll
 
 const collision = createHarness({ existingReview: true });
 collision.toggle.setAttribute('aria-pressed', 'false');
-assert.equal(api.installHandsFreeConsent(collision.documentRef, collision.root), null, 'existing review id must fail closed');
+const collisionController = api.installHandsFreeConsent(collision.documentRef, collision.root);
+assert.ok(collisionController, 'existing review id must install a fail-closed controller');
+assert.equal(collisionController.isBlocked(), true);
+assert.equal(collisionController.getBlockReason(), 'review-collision');
+assert.equal(collisionController.begin(), false, 'blocked controller must never start consent');
+assert.equal(collision.toggle.disabled, true, 'review collision must disable the hands-free toggle');
+assert.equal(collision.toggle.getAttribute('data-consent-blocked'), 'review-collision');
 assert.equal(collision.parent.children.length, 2);
+collisionController.destroy();
+assert.equal(collision.toggle.disabled, false, 'destroy must restore the host toggle baseline');
+assert.equal(collision.toggle.hasAttribute('data-consent-blocked'), false);
 
 const insecure = createHarness();
 insecure.toggle.setAttribute('aria-pressed', 'false');
