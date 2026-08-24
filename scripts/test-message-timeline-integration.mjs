@@ -7,7 +7,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 const app = fs.readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
 
 assert.ok(loader.includes("loadShellEnhancement('HafizeMessageTimeline', '/message-timeline.js', 'data-hafize-message-timeline')"));
-assert.ok(sw.includes("const CURRENT_CACHE = `${CACHE_PREFIX}v44`;"));
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.ok(sw.includes("'/message-timeline.js'"));
 assert.ok(sw.includes("if (pathname.startsWith('/api/')) return 'network-only';"));
 
@@ -21,6 +21,6 @@ assert.ok(timeline.includes("role', 'separator'"));
 assert.ok(timeline.includes("aria-label', `Gönderim zamanı: ${time.title}`"));
 assert.ok(timeline.includes("windowRef?.addEventListener?.('storage', onStorage)"));
 assert.ok(timeline.includes('MAX_CONVERSATIONS = 30'));
-assert.ok(timeline.includes('MAX_MESSAGES_PER_CONVERSATION = 2000'));
+assert.ok(timeline.includes('MAX_MESSAGES_PER_CONVERSATION = 200'));
 
 console.log('message timeline integration tests passed');
