@@ -5,7 +5,7 @@ const policySource = await readFile(new URL('../public/sw-policy.js', import.met
 const indexSource = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const shellSource = await readFile(new URL('../public/ui-shell.js', import.meta.url), 'utf8');
 
-assert.match(policySource, /hafize-shell-v90/);
+assert.match(policySource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policySource, /'\/conversation-storage-guard\.js'/);
 assert.match(indexSource, /id="hafizeConversationStorageGuardScript" src="\/conversation-storage-guard\.js" defer/);
 assert.match(shellSource, /CONVERSATION_STORAGE_GUARD_SCRIPT_ID = 'hafizeConversationStorageGuardScript'/);
