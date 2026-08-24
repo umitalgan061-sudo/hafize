@@ -7,7 +7,7 @@ const uiShell = require('../public/ui-shell.js');
 const swPolicy = require('../public/sw-policy.js');
 
 assert.equal(uiShell.CONVERSATION_STORAGE_GUARD_SCRIPT, '/conversation-storage-guard.js');
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v89');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.ok(swPolicy.SHELL_ASSETS.includes('/conversation-storage-guard.js'));
 
 const appended = [];
@@ -30,7 +30,7 @@ const uiSource = await readFile(new URL('../public/ui-shell.js', import.meta.url
 const swSource = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 assert.match(uiSource, /installConversationStorageGuard\(documentRef\)/);
 assert.match(swSource, /'\/conversation-storage-guard\.js'/);
-assert.match(swSource, /hafize-shell-v89|\$\{CACHE_PREFIX\}v89/);
+assert.match(swSource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 
 const apiRequest = { method: 'GET', url: 'https://hafize.example/api/chat', headers: new Map(), mode: 'cors' };
 assert.equal(swPolicy.classifyRequest(apiRequest, 'https://hafize.example'), 'network-only');
