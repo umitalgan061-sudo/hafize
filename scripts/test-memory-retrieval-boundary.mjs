@@ -27,6 +27,25 @@ assert.deepEqual(normalized, {
 });
 assert.equal('ownerId' in normalized.records[0], false);
 
+for (const content of [
+  'password: legacy-secret-value',
+  'Authorization: Bearer abcdefghijklmnop',
+  '-----BEGIN PRIVATE KEY-----\nlegacy-private-material'
+]) {
+  assert.deepEqual(
+    normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, content }] }),
+    { ok: false, error: 'MEMORY_RETRIEVAL_PLAINTEXT_CREDENTIAL_BLOCKED' }
+  );
+}
+
+assert.equal(
+  normalizeMemoryRetrieval({
+    ownerId: 'user-1',
+    records: [{ ...record, content: 'Parolamı belleğe kaydetme.' }]
+  }).ok,
+  true
+);
+
 assert.deepEqual(
   normalizeMemoryRetrieval({ ownerId: 'user-2', records: [record] }),
   { ok: false, error: 'MEMORY_RETRIEVAL_SCOPE_MISMATCH' }
