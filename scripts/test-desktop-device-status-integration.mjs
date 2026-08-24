@@ -43,8 +43,8 @@ for (const forbidden of [
 
 assert.match(source, /bridge\.getSystemInfo\(\)/);
 assert.match(source, /bridge\.getCapabilities\(\)/);
-assert.match(source, /bridge\.openBrowser\(value\)/);
-assert.match(source, /bridge\.openApp\(value\)/);
+assert.match(source, /bridge\.openBrowser\(action\.value\)/);
+assert.match(source, /bridge\.openApp\(action\.value\)/);
 assert.match(source, /görünür düğme tıklaması/);
 assert.match(source, /aria-busy/);
 assert.match(source, /prefers-reduced-motion/);
