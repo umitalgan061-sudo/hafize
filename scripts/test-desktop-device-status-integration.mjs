@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [loader, policy, source, contract, preload] = await Promise.all([
+const [loader, policy, source, style, contract, preload] = await Promise.all([
   readFile(new URL('../public/chat-run-controller.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8'),
   readFile(new URL('../public/desktop-device-status.js', import.meta.url), 'utf8'),
+  readFile(new URL('../public/desktop-device-status.css', import.meta.url), 'utf8'),
   readFile(new URL('../desktop/device-bridge-contract.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../desktop/device-bridge-preload.mjs', import.meta.url), 'utf8')
 ]);
@@ -43,11 +44,12 @@ for (const forbidden of [
 
 assert.match(source, /bridge\.getSystemInfo\(\)/);
 assert.match(source, /bridge\.getCapabilities\(\)/);
-assert.match(source, /bridge\.openBrowser\(value\)/);
-assert.match(source, /bridge\.openApp\(value\)/);
-assert.match(source, /görünür düğme tıklaması/);
+assert.match(source, /bridge\.openBrowser\(action\.value\)/);
+assert.match(source, /bridge\.openApp\(action\.value\)/);
+assert.match(source, /confirmButton\.addEventListener\('click', confirmPendingAction\)/);
+assert.match(source, /status\.textContent = 'Hedefi kontrol et ve yalnız istiyorsan onayla\.'/);
 assert.match(source, /aria-busy/);
-assert.match(source, /prefers-reduced-motion/);
-assert.match(source, /forced-colors/);
+assert.match(style, /prefers-reduced-motion/);
+assert.match(style, /forced-colors/);
 
 console.log('desktop device status integration tests passed');
