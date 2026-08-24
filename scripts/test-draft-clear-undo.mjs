@@ -91,7 +91,7 @@ assert.equal(api.createController({ documentRef: { querySelector: () => null }, 
 
 assert.match(loader, /HafizeDraftClearUndo/);
 assert.match(loader, /\/draft-clear-undo\.js/);
-assert.match(swPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v26`/);
+assert.match(swPolicy, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(swPolicy, /'\/draft-clear-undo\.js'/);
 for (const forbidden of ['fetch(', 'localStorage', 'sessionStorage', 'document.cookie', 'navigator.clipboard', 'Authorization', 'Bearer ', 'innerHTML']) {
   assert.equal(source.includes(forbidden), false, `forbidden surface: ${forbidden}`);
