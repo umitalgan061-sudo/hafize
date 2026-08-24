@@ -43,10 +43,11 @@ const conversations = guard.sanitizeStoredValue(JSON.stringify([
     ]
   }
 ])).value;
+const conversationsById = new Map(conversations.map((conversation) => [conversation.id, conversation]));
 
-assert.equal(snippets.firstMessageSnippet(conversations[0], 'hedef'), 'Sen: İmar planında yeşil alan hedefini ara');
-assert.equal(snippets.firstMessageSnippet(conversations[1], 'backpressure'), 'Hafize: SSE backpressure sınırı hazır.');
-assert.equal(snippets.firstMessageSnippet(conversations[0], 'system-secret-canary'), '');
+assert.equal(snippets.firstMessageSnippet(conversationsById.get('conv-1'), 'hedef'), 'Sen: İmar planında yeşil alan hedefini ara');
+assert.equal(snippets.firstMessageSnippet(conversationsById.get('conv-2'), 'backpressure'), 'Hafize: SSE backpressure sınırı hazır.');
+assert.equal(snippets.firstMessageSnippet(conversationsById.get('conv-1'), 'system-secret-canary'), '');
 
 const index = snippets.buildSnippetIndex(conversations, 'hedef');
 assert.equal(index.size, 1);
