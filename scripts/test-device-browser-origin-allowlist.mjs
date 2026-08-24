@@ -67,8 +67,7 @@ for (const url of [
   'https://evil.example/',
   'https://sub.docs.example.com/',
   'https://docs.example.com.evil.test/',
-  'https://support.example.com:444/',
-  'https://xn--docs-9za.example.com/'
+  'https://support.example.com:444/'
 ]) {
   assert.deepEqual(await configured.handler.handle(browser(url)), {
     ok: false,
@@ -76,6 +75,12 @@ for (const url of [
   }, `unexpected browser permission for ${url}`);
 }
 assert.equal(configured.opened.length, openedBeforeBlocked, 'blocked origins must not call openExternal');
+
+assert.deepEqual(await configured.handler.handle(browser('https://xn--docs-9za.example.com/')), {
+  ok: false,
+  error: 'INVALID_DEVICE_URL'
+}, 'IDN/punycode targets must fail URL normalization before origin policy');
+assert.equal(configured.opened.length, openedBeforeBlocked, 'rejected URLs must not call openExternal');
 
 assert.deepEqual(await configured.handler.handle(browser('https://docs.example.com/private', false)), {
   ok: false,
