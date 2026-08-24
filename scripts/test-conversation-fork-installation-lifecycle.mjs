@@ -34,9 +34,10 @@ const api = require('../public/conversation-fork.js');
   const f = fixture({ existingMarker: 'host-value' });
   const controller = api.createController(controllerOptions(f));
   assert.equal(controller.mount(), true);
-  assert.equal(f.article.querySelector('.conversation-fork-btn'), null, 'foreign marker prevents takeover');
-  assert.equal(f.article.dataset.hafizeForkReady, 'host-value');
+  assert.equal(f.article.querySelectorAll('.conversation-fork-btn').length, 1, 'foreign marker does not duplicate controls');
+  assert.equal(f.article.dataset.hafizeForkReady, '1', 'mounted controller owns its marker while decorated');
   controller.destroy();
+  assert.equal(f.article.querySelector('.conversation-fork-btn'), null, 'owned control is removed before marker restoration');
   assert.equal(f.article.dataset.hafizeForkReady, 'host-value', 'foreign marker survives teardown exactly');
 }
 
