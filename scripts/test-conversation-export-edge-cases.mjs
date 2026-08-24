@@ -73,17 +73,59 @@ const anchor = {
   remove() { removed += 1; }
 };
 const root = messagesRoot([message('user', 'Soru'), message('assistant', 'Yanıt')]);
+const markdownButton = { addEventListener() {}, removeEventListener() {}, focus() {} };
+const textButton = { addEventListener() {}, removeEventListener() {}, focus() {} };
+const status = {
+  textContent: '',
+  dataset: { state: 'idle' },
+  hasAttribute() { return false; },
+  getAttribute() { return null; },
+  removeAttribute() {},
+  setAttribute() {}
+};
+const closeButton = { addEventListener() {}, removeEventListener() {}, focus() {} };
+const panel = {
+  parentNode: null,
+  querySelectorAll(selector) {
+    return selector === '.conversation-export-option' ? [markdownButton, textButton] : [];
+  },
+  querySelector(selector) {
+    if (selector === '.conversation-export-status') return status;
+    if (selector === '.conversation-export-cancel') return closeButton;
+    return null;
+  }
+};
+const backdrop = {
+  hidden: true,
+  addEventListener() {},
+  removeEventListener() {},
+  contains(node) { return node === panel; }
+};
+panel.parentNode = backdrop;
+const trigger = {
+  addEventListener() {},
+  removeEventListener() {},
+  setAttribute() {},
+  removeAttribute() {},
+  hasAttribute() { return false; },
+  getAttribute() { return null; },
+  focus() {}
+};
 const documentRef = {
   body: { append(node) { assert.equal(node, anchor); appended += 1; } },
   querySelector(selector) {
     if (selector === '#messages') return root;
+    if (selector === '#conversationExportBtn') return trigger;
+    if (selector === '#conversationExportDialog') return panel;
     if (selector === '.conversation-row.active .conversation-open') return { textContent: 'Güvenli / sohbet' };
     return null;
   },
   createElement(tag) {
     assert.equal(tag, 'a');
     return anchor;
-  }
+  },
+  addEventListener() {},
+  removeEventListener() {}
 };
 const urlApi = {
   createObjectURL(blob) {
@@ -101,6 +143,7 @@ const controller = api.createController({
   clearTimeoutImpl() {}
 });
 
+assert.equal(controller.mount(), true);
 assert.equal(controller.download('markdown'), true);
 assert.equal(anchorClicks, 1);
 assert.equal(appended, 1);
