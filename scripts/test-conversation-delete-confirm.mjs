@@ -174,7 +174,8 @@ function harness({ active = false, draft = '' } = {}) {
 }
 
 assert.doesNotMatch(source, /confirm\s*\(/, 'native blocking confirm must no longer control conversation deletion');
-assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document\.cookie|navigator\.clipboard|requestSubmit\s*\(/);
+assert.match(source, /rootRef\?\.localStorage/, 'bounded undo may reuse the canonical conversation storage');
+assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|sessionStorage|document\.cookie|navigator\.clipboard|requestSubmit\s*\(/);
 assert.doesNotMatch(source, /\.click\s*\(/);
 assert.match(source, /addEventListener\('click', onCaptureClick, true\)/);
 assert.match(source, /addEventListener\('keydown', onKeydown, true\)/);
