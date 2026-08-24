@@ -77,6 +77,9 @@ for (const content of [
   'client secret: verysecretvalue',
   'Authorization: Bearer abcdefghijklmnop',
   'Proxy-Authorization: Basic dXNlcjpwYXNzd29yZA==',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'ghp_1234567890abcdefghijklmnopqrstuvwx',
+  'nvapi-1234567890abcdefghijklmnopqrstuv',
   '-----BEGIN PRIVATE KEY-----\nplaintext-private-material'
 ]) {
   assert.deepEqual(
@@ -88,7 +91,8 @@ for (const content of [
 
 for (const sourceRef of [
   'import:access_token=abcdef123456',
-  'Authorization: Bearer abcdefghijklmnop'
+  'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ'
 ]) {
   assert.deepEqual(
     memoryWrite('Normal memory content.', sourceRef),
@@ -101,7 +105,8 @@ for (const content of [
   'API keyleri yalnız sunucu tarafında sakla.',
   'Parolamı hafızaya kaydetme.',
   'Authorization header kullanımı hakkında not.',
-  'secret yönetimi için ayrı bir tasarım gerekiyor.'
+  'secret yönetimi için ayrı bir tasarım gerekiyor.',
+  'GitHub PAT ve NVIDIA API anahtarlarını secret manager içinde tut.'
 ]) {
   assert.equal(memoryWrite(content).ok, true, `non-secret discussion must remain storable: ${content}`);
 }
@@ -183,7 +188,8 @@ assert.deepEqual(
 for (const query of [
   'password: hunter22',
   'Authorization: Bearer abcdefghijklmnop',
-  'api_key=abcdef123456'
+  'api_key=abcdef123456',
+  'nvapi-1234567890abcdefghijklmnopqrstuv'
 ]) {
   assert.deepEqual(
     normalizeMemoryRead({ ownerId: 'owner', query }),
