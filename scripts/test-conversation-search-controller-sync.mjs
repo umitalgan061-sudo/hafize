@@ -107,8 +107,8 @@ const documentRef = {
 };
 
 let stored = JSON.stringify([
-  { id: 'conv-1', title: 'Birinci sohbet', messages: [{ id: 'm1', role: 'user', content: 'ilk needle', createdAt: '2026-08-19T03:00:00.000Z' }] },
-  { id: 'conv-2', title: 'İkinci sohbet', messages: [{ id: 'm2', role: 'assistant', content: 'başka içerik', createdAt: '2026-08-19T03:00:01.000Z' }] }
+  { id: 'conv-1', title: 'Birinci sohbet', createdAt: '2026-08-19T02:00:00.000Z', updatedAt: '2026-08-19T03:00:00.000Z', messages: [{ id: 'm1', role: 'user', content: 'ilk needle', at: '2026-08-19T03:00:00.000Z' }] },
+  { id: 'conv-2', title: 'İkinci sohbet', createdAt: '2026-08-19T02:00:01.000Z', updatedAt: '2026-08-19T03:00:01.000Z', messages: [{ id: 'm2', role: 'assistant', content: 'başka içerik', at: '2026-08-19T03:00:01.000Z' }] }
 ]);
 const rootListeners = new Map();
 const rootRef = {
@@ -144,8 +144,8 @@ assert.equal(row1.hidden, false);
 assert.equal(row2.hidden, true);
 
 stored = JSON.stringify([
-  { id: 'conv-1', title: 'Birinci sohbet', messages: [{ id: 'm1', role: 'user', content: 'artık yok', createdAt: '2026-08-19T03:00:00.000Z' }] },
-  { id: 'conv-2', title: 'İkinci sohbet', messages: [{ id: 'm2', role: 'assistant', content: 'needle yeni sekmeden geldi', createdAt: '2026-08-19T03:00:01.000Z' }] }
+  { id: 'conv-1', title: 'Birinci sohbet', createdAt: '2026-08-19T02:00:00.000Z', updatedAt: '2026-08-19T04:00:00.000Z', messages: [{ id: 'm1', role: 'user', content: 'artık yok', at: '2026-08-19T04:00:00.000Z' }] },
+  { id: 'conv-2', title: 'İkinci sohbet', createdAt: '2026-08-19T02:00:01.000Z', updatedAt: '2026-08-19T04:00:01.000Z', messages: [{ id: 'm2', role: 'assistant', content: 'needle yeni sekmeden geldi', at: '2026-08-19T04:00:01.000Z' }] }
 ]);
 rootRef.dispatch('storage', { key: guard.STORAGE_KEY });
 assert.equal(row1.hidden, true);
