@@ -12,7 +12,7 @@ function load(path) {
 const draftApi = load('../public/draft-navigation-guard.js');
 const deleteApi = load('../public/conversation-delete-confirm.js');
 
-function runScenario(order, draftValue, approved) {
+function runScenario(order, draftValue, attempts = 1) {
   const capture = [];
   const inputListeners = new Map();
   const input = {
@@ -30,6 +30,7 @@ function runScenario(order, draftValue, approved) {
     querySelector: (selector) => selector === '.conversation-open' ? { textContent: 'Aktif sohbet' } : null
   };
   const button = {
+    textContent: '×',
     classList: { contains: () => false },
     closest(selector) {
       if (selector === '.conversation-delete') return this;
@@ -50,45 +51,52 @@ function runScenario(order, draftValue, approved) {
     addEventListener(type, fn, useCapture) { if (type === 'click' && useCapture) capture.push(fn); },
     removeEventListener() {}
   };
-  let confirms = 0;
   const controllers = {
     draft: draftApi.createController({ documentRef }),
-    deletion: deleteApi.createController({ documentRef, confirmImpl: () => { confirms += 1; return approved; } })
+    deletion: deleteApi.createController({
+      documentRef,
+      setTimeoutImpl: () => 1,
+      clearTimeoutImpl() {}
+    })
   };
   for (const name of order) controllers[name].mount();
 
-  const event = {
-    target,
-    defaultPrevented: false,
-    prevented: false,
-    stopped: false,
-    preventDefault() { this.prevented = true; this.defaultPrevented = true; },
-    stopImmediatePropagation() { this.stopped = true; }
-  };
-  for (const listener of capture) {
-    if (event.stopped) break;
-    listener(event);
+  const events = [];
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const event = {
+      target,
+      defaultPrevented: false,
+      prevented: false,
+      stopped: false,
+      preventDefault() { this.prevented = true; this.defaultPrevented = true; },
+      stopImmediatePropagation() { this.stopped = true; }
+    };
+    for (const listener of capture) {
+      if (event.stopped) break;
+      listener(event);
+    }
+    events.push(event);
   }
-  return { confirms, event, input, status };
+  return { events, input, status, button };
 }
 
 for (const order of [['draft', 'deletion'], ['deletion', 'draft']]) {
-  const protectedDraft = runScenario(order, 'gönderilmemiş taslak', false);
-  assert.equal(protectedDraft.confirms, 0, `no delete prompt before draft resolution: ${order.join('>')}`);
-  assert.equal(protectedDraft.event.prevented, true);
-  assert.equal(protectedDraft.event.stopped, true);
+  const protectedDraft = runScenario(order, 'gönderilmemiş taslak');
+  assert.equal(protectedDraft.events[0].prevented, true);
+  assert.equal(protectedDraft.events[0].stopped, true);
   assert.equal(protectedDraft.input.focused, true);
   assert.match(protectedDraft.status.textContent, /Gönderilmemiş taslak/);
 
-  const emptyDraft = runScenario(order, '', false);
-  assert.equal(emptyDraft.confirms, 1, `delete prompt required with no draft: ${order.join('>')}`);
-  assert.equal(emptyDraft.event.prevented, true);
-  assert.equal(emptyDraft.event.stopped, true);
+  const emptyDraft = runScenario(order, '');
+  assert.equal(emptyDraft.events[0].prevented, true, `first delete click requires confirmation: ${order.join('>')}`);
+  assert.equal(emptyDraft.events[0].stopped, true);
+  assert.equal(emptyDraft.button.textContent, 'Sil?');
 
-  const approved = runScenario(order, '', true);
-  assert.equal(approved.confirms, 1);
-  assert.equal(approved.event.prevented, false);
-  assert.equal(approved.event.stopped, false);
+  const approved = runScenario(order, '', 2);
+  assert.equal(approved.events[0].prevented, true);
+  assert.equal(approved.events[0].stopped, true);
+  assert.equal(approved.events[1].prevented, false, `second delete click is approved: ${order.join('>')}`);
+  assert.equal(approved.events[1].stopped, false);
 }
 
 console.log('conversation delete + draft guard integration tests passed');
