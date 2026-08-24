@@ -38,10 +38,11 @@ function assistantArticle(id) {
   late.dataset.hafizeForkReady = 'foreign';
   f.messages.append(late);
   f.getObserver().fire();
-  assert.equal(late.querySelector('.conversation-fork-btn'), null, 'foreign late marker is respected');
-  assert.equal(late.dataset.hafizeForkReady, 'foreign');
+  assert.equal(late.querySelectorAll('.conversation-fork-btn').length, 1, 'foreign late marker does not duplicate controls');
+  assert.equal(late.dataset.hafizeForkReady, '1', 'live observer owns its marker while decorated');
   controller.destroy();
-  assert.equal(late.dataset.hafizeForkReady, 'foreign');
+  assert.equal(late.querySelector('.conversation-fork-btn'), null, 'late owned control is removed on destroy');
+  assert.equal(late.dataset.hafizeForkReady, 'foreign', 'foreign late marker is restored exactly');
 }
 
 {
