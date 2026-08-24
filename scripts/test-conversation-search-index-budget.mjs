@@ -16,10 +16,15 @@ function makeConversation(index, messageCount = 200) {
   };
 }
 
+const countLimitedIndex = search.buildCanonicalIndex(
+  Array.from({ length: search.MAX_INDEXED_CONVERSATIONS }, (_, conversationIndex) => makeConversation(conversationIndex, 1))
+);
+assert.equal(countLimitedIndex.size, search.MAX_INDEXED_CONVERSATIONS);
+
 const index = search.buildCanonicalIndex(
   Array.from({ length: search.MAX_INDEXED_CONVERSATIONS }, (_, conversationIndex) => makeConversation(conversationIndex))
 );
-assert.equal(index.size, search.MAX_INDEXED_CONVERSATIONS);
+assert.equal(index.size > 0 && index.size < search.MAX_INDEXED_CONVERSATIONS, true);
 
 let totalChars = 0;
 for (const [id, text] of index) {
