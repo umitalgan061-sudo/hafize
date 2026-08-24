@@ -8,12 +8,13 @@ class Response extends EventEmitter {
 }
 
 const secret = Buffer.alloc(32, 7).toString('base64url');
+const authToken = 'user-bearer-token-0123456789abcdef';
 const env = {
   HAFIZE_GITHUB_WRITE_ENABLED: 'true',
   GITHUB_TOKEN: 'server-held-github-token',
   HAFIZE_GITHUB_WRITE_REPOS: 'umitalgan061-sudo/hafize',
   HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: secret,
-  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'user-bearer-token',
+  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: authToken,
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'user-1',
   HAFIZE_GITHUB_WRITE_OWNER_KEY: secret,
   HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
@@ -35,7 +36,7 @@ assert.equal(writes.at(-1).body.error, 'AUTH_REQUIRED');
 
 const prepared = await runtime.handle({
   request: {}, response: new Response(), method: 'POST', pathname: '/api/github/write/prepare',
-  headers: { authorization: 'Bearer user-bearer-token' }
+  headers: { authorization: `Bearer ${authToken}` }
 });
 assert.deepEqual(prepared, { matched: true, status: 200 });
 assert.equal(typeof writes.at(-1).body.approvalToken, 'string');
