@@ -35,6 +35,25 @@ for (const body of [
   await assert.rejects(() => preparer.prepare(body), /INVALID_CHAT_REQUEST/);
 }
 
+const callsBeforeCredentialChecks = compactCalls;
+for (const message of [
+  { role: 'user', content: 'Authorization: Bearer abcdefghijklmnop' },
+  { role: 'user', content: 'github_pat_1234567890abcdefghijABCDEFGHIJ' },
+  { role: 'assistant', content: 'nvapi-1234567890abcdefghijklmnopqrstuv' }
+]) {
+  await assert.rejects(
+    () => preparer.prepare({ model: 'x', messages: [message] }),
+    /CHAT_PLAINTEXT_CREDENTIAL_NOT_ALLOWED/
+  );
+}
+assert.equal(compactCalls, callsBeforeCredentialChecks, 'credential-bearing messages never reach compaction/provider preparation');
+
+const safeSecurityDiscussion = await preparer.prepare({
+  model: 'x',
+  messages: [{ role: 'user', content: 'GitHub PAT ve NVIDIA API key güvenliğini açıkla.' }]
+});
+assert.equal(safeSecurityDiscussion.payload.messages.at(-1).content, 'GitHub PAT ve NVIDIA API key güvenliğini açıkla.');
+
 await assert.rejects(
   () => preparer.prepare({ model: 'x', agentId: 'missing', messages: [{ role: 'user', content: 'x' }] }),
   /INVALID_AGENT/
