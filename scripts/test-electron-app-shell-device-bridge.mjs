@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { createElectronAppShell } from '../desktop/app-shell.mjs';
 import { DEVICE_BRIDGE_CHANNEL } from '../desktop/device-bridge-contract.mjs';
 
+const ACTION_BROWSER = '30000000-0000-4000-8000-000000000001';
+const ACTION_BLOCKED = '30000000-0000-4000-8000-000000000002';
+const ACTION_APP = '30000000-0000-4000-8000-000000000003';
+
 class WebContents {
   constructor() {
     this.listeners = new Map();
@@ -85,19 +89,19 @@ assert.deepEqual(info, {
 });
 const browser = await invoke(trustedEvent, {
   operation: 'browser.open',
-  args: { url: 'https://example.com/help', explicitUserIntent: true }
+  args: { url: 'https://example.com/help', explicitUserIntent: true, actionId: ACTION_BROWSER }
 });
 assert.equal(browser.ok, true);
 assert.deepEqual(externalUrls, ['https://example.com/help']);
 const blockedBrowser = await invoke(trustedEvent, {
   operation: 'browser.open',
-  args: { url: 'https://evil.example/help', explicitUserIntent: true }
+  args: { url: 'https://evil.example/help', explicitUserIntent: true, actionId: ACTION_BLOCKED }
 });
 assert.deepEqual(blockedBrowser, { ok: false, error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED' });
 assert.deepEqual(externalUrls, ['https://example.com/help'], 'blocked origin must not reach Electron shell');
 const openedApp = await invoke(trustedEvent, {
   operation: 'app.open',
-  args: { appId: 'notes', explicitUserIntent: true }
+  args: { appId: 'notes', explicitUserIntent: true, actionId: ACTION_APP }
 });
 assert.equal(openedApp.ok, true);
 assert.equal(appOpenCalls, 1);
