@@ -24,25 +24,30 @@ const conversations = guard.sanitizeStoredValue(JSON.stringify([
     title: 'Ankara',
     ownerId: 'owner-secret-canary',
     traceId: 'trace-secret-canary',
+    createdAt: '2026-08-19T04:00:00.000Z',
+    updatedAt: '2026-08-19T04:00:03.000Z',
     messages: [
-      { id: 'm-1', role: 'user', content: 'İmar planında yeşil alan hedefini ara', createdAt: '2026-08-19T04:00:00.000Z' },
-      { id: 'm-2', role: 'assistant', content: 'Hedef bulundu.', createdAt: '2026-08-19T04:00:01.000Z' },
-      { id: 'm-3', role: 'system', content: 'system-secret-canary', createdAt: '2026-08-19T04:00:02.000Z' },
-      { id: 'm-4', role: 'tool', content: 'tool-secret-canary', createdAt: '2026-08-19T04:00:03.000Z' }
+      { id: 'm-1', role: 'user', content: 'İmar planında yeşil alan hedefini ara', at: '2026-08-19T04:00:00.000Z' },
+      { id: 'm-2', role: 'assistant', content: 'Hedef bulundu.', at: '2026-08-19T04:00:01.000Z' },
+      { id: 'm-3', role: 'system', content: 'system-secret-canary', at: '2026-08-19T04:00:02.000Z' },
+      { id: 'm-4', role: 'tool', content: 'tool-secret-canary', at: '2026-08-19T04:00:03.000Z' }
     ]
   },
   {
     id: 'conv-2',
     title: 'Kod',
+    createdAt: '2026-08-19T04:01:00.000Z',
+    updatedAt: '2026-08-19T04:01:00.000Z',
     messages: [
-      { id: 'm-5', role: 'assistant', content: 'SSE backpressure sınırı hazır.', createdAt: '2026-08-19T04:01:00.000Z' }
+      { id: 'm-5', role: 'assistant', content: 'SSE backpressure sınırı hazır.', at: '2026-08-19T04:01:00.000Z' }
     ]
   }
 ])).value;
+const conversationsById = new Map(conversations.map((conversation) => [conversation.id, conversation]));
 
-assert.equal(snippets.firstMessageSnippet(conversations[0], 'hedef'), 'Sen: İmar planında yeşil alan hedefini ara');
-assert.equal(snippets.firstMessageSnippet(conversations[1], 'backpressure'), 'Hafize: SSE backpressure sınırı hazır.');
-assert.equal(snippets.firstMessageSnippet(conversations[0], 'system-secret-canary'), '');
+assert.equal(snippets.firstMessageSnippet(conversationsById.get('conv-1'), 'hedef'), 'Sen: İmar planında yeşil alan hedefini ara');
+assert.equal(snippets.firstMessageSnippet(conversationsById.get('conv-2'), 'backpressure'), 'Hafize: SSE backpressure sınırı hazır.');
+assert.equal(snippets.firstMessageSnippet(conversationsById.get('conv-1'), 'system-secret-canary'), '');
 
 const index = snippets.buildSnippetIndex(conversations, 'hedef');
 assert.equal(index.size, 1);
