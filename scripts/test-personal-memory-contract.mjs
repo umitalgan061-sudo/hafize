@@ -80,6 +80,7 @@ for (const content of [
   'github_pat_1234567890abcdefghijABCDEFGHIJ',
   'ghp_1234567890abcdefghijklmnopqrstuvwx',
   'nvapi-1234567890abcdefghijklmnopqrstuv',
+  'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
   '-----BEGIN PRIVATE KEY-----\nplaintext-private-material'
 ]) {
   assert.deepEqual(
@@ -92,7 +93,8 @@ for (const content of [
 for (const sourceRef of [
   'import:access_token=abcdef123456',
   'Authorization: Bearer abcdefghijklmnop',
-  'github_pat_1234567890abcdefghijABCDEFGHIJ'
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'ya29.A0ARrdaM_exampleGoogleOauthToken123456789'
 ]) {
   assert.deepEqual(
     memoryWrite('Normal memory content.', sourceRef),
@@ -189,7 +191,8 @@ for (const query of [
   'password: hunter22',
   'Authorization: Bearer abcdefghijklmnop',
   'api_key=abcdef123456',
-  'nvapi-1234567890abcdefghijklmnopqrstuv'
+  'nvapi-1234567890abcdefghijklmnopqrstuv',
+  'ya29.A0ARrdaM_exampleGoogleOauthToken123456789'
 ]) {
   assert.deepEqual(
     normalizeMemoryRead({ ownerId: 'owner', query }),
