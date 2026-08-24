@@ -19,7 +19,7 @@ const guard = {
   }
 };
 const conversations = [
-  { id: 'root', messages: [] },
+  { id: 'root', messages: [{ id: 'm1', role: 'assistant', content: 'source' }] },
   { id: 'child', messages: [] },
   { id: 'sibling', messages: [] }
 ];
