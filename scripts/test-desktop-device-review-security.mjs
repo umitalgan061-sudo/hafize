@@ -47,7 +47,7 @@ assert.match(preload, /openApp/, 'preload must expose the bounded app method');
 assert.doesNotMatch(preload, /shell\s*:\s*true|child_process|exec\s*\(|spawn\s*\(/, 'preload must not expose command execution');
 
 assert.match(main, /allowedBrowserOrigins/, 'main process must retain browser-origin allowlisting');
-assert.match(main, /allowedAppIds/, 'main process must retain application allowlisting');
+assert.match(main, /appOpeners[\s\S]*allowedApps:\s*handler\.allowedApps/, 'main process must retain the bounded application opener allowlist');
 assert.match(main, /shell\.openExternal/, 'browser opening must stay in the bounded Electron main process path');
 assert.doesNotMatch(main, /shell\.openPath\s*\([^)]*request|exec\s*\(|spawn\s*\(/, 'main process must not turn requests into general execution');
 
