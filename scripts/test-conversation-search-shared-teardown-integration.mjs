@@ -20,38 +20,73 @@ function emitter(extra = {}) {
   };
 }
 
-const input = emitter({ value: 'needle', focus() {} });
-const clear = emitter({ disabled: false });
-const status = { textContent: '' };
-const list = {
-  querySelectorAll(selector) {
-    if (selector === '.conversation-row') return [];
-    if (selector === `.${snippets.SNIPPET_CLASS}`) return [];
-    return [];
+class FakeNode {
+  constructor(tag = 'div') {
+    Object.assign(this, emitter());
+    this.tagName = tag.toUpperCase();
+    this.children = [];
+    this.parentNode = null;
+    this.dataset = {};
+    this.id = '';
+    this.className = '';
+    this.textContent = '';
+    this.value = '';
+    this.hidden = false;
+    this.disabled = false;
   }
-};
-const control = {
-  querySelector(selector) {
-    if (selector === `#${search.INPUT_ID}`) return input;
-    if (selector === '.conversation-search-clear') return clear;
-    if (selector === `#${search.STATUS_ID}`) return status;
-    return null;
-  },
-  remove() {}
-};
-const history = { insertBefore() {} };
+  append(...nodes) {
+    for (const node of nodes) {
+      node.parentNode = this;
+      this.children.push(node);
+    }
+  }
+  insertBefore(node, reference) {
+    node.parentNode = this;
+    const index = this.children.indexOf(reference);
+    if (index < 0) this.children.push(node);
+    else this.children.splice(index, 0, node);
+  }
+  remove() {
+    if (!this.parentNode) return;
+    this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+    this.parentNode = null;
+  }
+  setAttribute() {}
+  matches(selector) {
+    if (selector.startsWith('#')) return this.id === selector.slice(1);
+    if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
+    return false;
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+  querySelectorAll(selector) {
+    const matches = [];
+    for (const child of this.children) {
+      if (child.matches(selector)) matches.push(child);
+      matches.push(...child.querySelectorAll(selector));
+    }
+    return matches;
+  }
+}
+
+const head = new FakeNode('head');
+const history = new FakeNode('section');
+history.className = 'history-block';
+const list = new FakeNode();
+list.id = 'conversationList';
+history.append(list);
+const roots = [head, history];
 const documentRef = {
-  head: { append() {} },
-  getElementById: () => ({}),
+  head,
+  createElement: (tag) => new FakeNode(tag),
   querySelector(selector) {
-    if (selector === '.history-block') return history;
-    if (selector === '#conversationList') return list;
-    if (selector === '#conversationSearchControl') return control;
-    if (selector === '#conversationSearchInput') return input;
-    if (selector === `#${search.STYLE_ID}`) return {};
+    for (const root of roots) {
+      if (root.matches(selector)) return root;
+      const found = root.querySelector(selector);
+      if (found) return found;
+    }
     return null;
   },
-  createElement() { throw new Error('unexpected element creation'); }
+  getElementById(id) { return this.querySelector(`#${id}`); }
 };
 
 let storageReads = 0;
@@ -72,8 +107,11 @@ class Observer {
 }
 
 const searchController = search.createController({ documentRef, rootRef: root, MutationObserverImpl: Observer });
-const snippetController = snippets.createController({ documentRef, rootRef: root, MutationObserverImpl: Observer });
 assert.equal(searchController.mount(), true);
+const input = documentRef.querySelector(`#${search.INPUT_ID}`);
+assert.ok(input, 'search controller must create and own the shared input');
+
+const snippetController = snippets.createController({ documentRef, rootRef: root, MutationObserverImpl: Observer });
 assert.equal(snippetController.mount(), true);
 assert.equal(root.count('storage'), 2);
 assert.equal(root.count('hafize:conversation-storage-merged'), 2);
@@ -87,6 +125,7 @@ searchController.destroy();
 snippetController.destroy();
 assert.equal(root.count('storage'), 0);
 assert.equal(root.count('hafize:conversation-storage-merged'), 0);
+assert.equal(documentRef.querySelector(`#${search.CONTROL_ID}`), null, 'owned search control must be removed');
 
 for (const callback of queued.splice(0)) callback();
 assert.equal(storageReads, initialReads, 'destroyed shared search controllers must not re-read storage from queued work');
