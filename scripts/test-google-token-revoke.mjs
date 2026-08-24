@@ -155,7 +155,7 @@ for (const upstream of [
   });
   await assert.rejects(
     () => runtime.disconnect({ ownerId: OWNER, explicitUserIntent: true }),
-    /GOOGLE_REFRESH_LEASE_LOST/
+    (error) => error?.code === 'GOOGLE_REFRESH_LEASE_LOST'
   );
   assert.notEqual(getStored(), null, 'revoked remote token stays locally until lease ownership is reconfirmed');
   assert.equal(events.some(([name]) => name === 'remove'), false);
