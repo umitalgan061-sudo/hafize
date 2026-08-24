@@ -28,7 +28,7 @@ for (const forbidden of [
   /innerHTML/,
   /outerHTML/,
   /insertAdjacentHTML/,
-  /\bshell\s*=/,
+  /\bshell\s*:\s*true\b/,
   /child_process/,
   /\bexec\s*\(/,
   /\bspawn\s*\(/
