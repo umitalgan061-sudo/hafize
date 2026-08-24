@@ -180,6 +180,22 @@ assert.deepEqual(
   { ok: true, command: { ownerId: 'owner', query: 'tercihler', kinds: [], limit: 5 } }
 );
 
+for (const query of [
+  'password: hunter22',
+  'Authorization: Bearer abcdefghijklmnop',
+  'api_key=abcdef123456'
+]) {
+  assert.deepEqual(
+    normalizeMemoryRead({ ownerId: 'owner', query }),
+    { ok: false, error: 'MEMORY_PLAINTEXT_CREDENTIAL_NOT_ALLOWED' },
+    `credential-bearing memory query must be rejected: ${query}`
+  );
+}
+assert.equal(
+  normalizeMemoryRead({ ownerId: 'owner', query: 'API key güvenliği hakkında notlar' }).ok,
+  true
+);
+
 assert.deepEqual(
   normalizeMemoryRead({ ownerId: 'owner', query: 'x', kinds: ['note', 'note'] }),
   { ok: false, error: 'INVALID_MEMORY_COMMAND:kinds.duplicate' }
