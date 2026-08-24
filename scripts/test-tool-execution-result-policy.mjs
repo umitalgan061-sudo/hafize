@@ -39,6 +39,25 @@ assert.equal(TOOL_EXECUTION_RESULT_POLICY.maxNodes, 8192);
 }
 
 {
+  for (const value of [
+    { message: 'Authorization: Bearer abcdefghijklmnop' },
+    { nested: { value: 'github_pat_1234567890abcdefghijABCDEFGHIJ' } },
+    { output: 'nvapi-1234567890abcdefghijklmnopqrstuv' },
+    { access_token: 'opaque-value-without-provider-prefix' },
+    { nested: { clientSecret: 'another-opaque-value' } }
+  ]) {
+    assert.deepEqual(
+      createToolSuccessResult(value),
+      { ok: false, error: 'TOOL_RESULT_PLAINTEXT_CREDENTIAL_BLOCKED' }
+    );
+  }
+  assert.deepEqual(
+    createToolSuccessResult({ token_count: 42, note: 'GitHub PAT güvenli biçimde secret manager içinde tutuluyor.' }),
+    { ok: true, value: { token_count: 42, note: 'GitHub PAT güvenli biçimde secret manager içinde tutuluyor.' } }
+  );
+}
+
+{
   const circular = { name: 'loop' };
   circular.self = circular;
   const result = createToolSuccessResult(circular);
@@ -101,6 +120,10 @@ assert.equal(TOOL_EXECUTION_RESULT_POLICY.maxNodes, 8192);
     ok: false,
     error: 'TOOL_EXECUTION_FAILED'
   });
+  assert.deepEqual(
+    createToolFailureResult('GITHUB_READ_FAILED', { status: 502, reason: 'Authorization: Bearer abcdefghijklmnop' }),
+    { ok: false, error: 'GITHUB_READ_FAILED', status: 502 }
+  );
 }
 
 {
