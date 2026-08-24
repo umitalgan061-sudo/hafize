@@ -31,18 +31,23 @@ class NodeStub {
   click() { this.listeners.get('click')?.({ target: this }); }
   focus() { this.ownerDocument.activeElement = this; }
   remove() { this.removed = true; this.parentNode = null; }
+  matches(selector) {
+    if (selector === 'button:not([disabled])') return this.tagName === 'BUTTON' && !this.disabled;
+    if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
+    return false;
+  }
   querySelectorAll(selector) {
-    if (selector !== 'button:not([disabled])') return [];
     const found = [];
     const visit = (node) => {
       for (const child of node.children) {
-        if (child.tagName === 'BUTTON' && !child.disabled) found.push(child);
+        if (child.matches(selector)) found.push(child);
         visit(child);
       }
     };
     visit(this);
     return found;
   }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
 }
 
 const documentRef = {
