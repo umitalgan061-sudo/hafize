@@ -15,6 +15,29 @@ function target(extra = {}) {
   };
 }
 
+function element(tag = 'div') {
+  const children = [];
+  return target({
+    tagName: tag.toUpperCase(),
+    dataset: {},
+    id: '',
+    textContent: '',
+    disabled: false,
+    append(...nodes) { children.push(...nodes); },
+    setAttribute(name, value) {
+      if (name === 'data-direction') this.dataset.direction = String(value);
+    },
+    contains(value) { return value === this || children.includes(value); },
+    querySelector(selector) {
+      if (selector === '[data-direction="-1"]') return children.find((child) => child.dataset?.direction === '-1') || null;
+      if (selector === '[data-direction="1"]') return children.find((child) => child.dataset?.direction === '1') || null;
+      if (selector === `#${nav.STATUS_ID}`) return children.find((child) => child.id === nav.STATUS_ID) || null;
+      return null;
+    },
+    remove() {}
+  });
+}
+
 const focused = [];
 const buttons = Array.from({ length: 4 }, (_, index) => ({
   id: `conversation-${index}`,
@@ -25,35 +48,28 @@ const rows = buttons.map((button) => ({
   querySelector(selector) { return selector === '.conversation-open' ? button : null; }
 }));
 const input = target({ value: 'ankara' });
-const previous = target({ dataset: { direction: '-1' } });
-const next = target({ dataset: { direction: '1' } });
-const status = { textContent: '' };
-const navNode = {
-  contains(value) { return value === previous || value === next; },
-  querySelector(selector) {
-    if (selector === '[data-direction="-1"]') return previous;
-    if (selector === '[data-direction="1"]') return next;
-    if (selector === `#${nav.STATUS_ID}`) return status;
-    return null;
-  },
-  remove() {}
-};
+const list = { querySelectorAll: () => rows };
+const control = { append(node) { navNode = node; } };
+let navNode = null;
 const documentEvents = target();
 const documentRef = {
   ...documentEvents,
   head: { append() {} },
   getElementById(id) { return id === nav.NAV_ID ? navNode : null; },
   querySelector(selector) {
-    if (selector === `#${nav.CONTROL_ID}`) return { append() {} };
+    if (selector === `#${nav.CONTROL_ID}`) return control;
     if (selector === `#${nav.INPUT_ID}`) return input;
-    if (selector === `#${nav.LIST_ID}`) return { querySelectorAll: () => rows };
+    if (selector === `#${nav.LIST_ID}`) return list;
     return null;
   },
-  createElement() { throw new Error('unexpected element creation'); }
+  createElement: (tag) => element(tag)
 };
 
-const controller = nav.createController({ documentRef, rootRef: {}, MutationObserverImpl: null });
+const controller = nav.createController({ documentRef, MutationObserverImpl: null });
 assert.equal(controller.mount(), true);
+assert.ok(navNode, 'controller must create and own navigation');
+const previous = navNode.querySelector('[data-direction="-1"]');
+const status = navNode.querySelector(`#${nav.STATUS_ID}`);
 
 function key(targetRef, keyName, extra = {}) {
   let prevented = false;
