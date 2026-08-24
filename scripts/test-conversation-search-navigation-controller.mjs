@@ -15,6 +15,32 @@ function eventTarget(extra = {}) {
   };
 }
 
+function element(tag = 'div') {
+  const children = [];
+  const node = eventTarget({
+    tagName: tag.toUpperCase(),
+    dataset: {},
+    id: '',
+    className: '',
+    textContent: '',
+    disabled: false,
+    removed: false,
+    append(...nodes) { children.push(...nodes); },
+    setAttribute(name, value) {
+      if (name === 'data-direction') this.dataset.direction = String(value);
+    },
+    contains(target) { return target === this || children.includes(target); },
+    querySelector(selector) {
+      if (selector === '[data-direction="-1"]') return children.find((child) => child.dataset?.direction === '-1') || null;
+      if (selector === '[data-direction="1"]') return children.find((child) => child.dataset?.direction === '1') || null;
+      if (selector === `#${nav.STATUS_ID}`) return children.find((child) => child.id === nav.STATUS_ID) || null;
+      return null;
+    },
+    remove() { this.removed = true; }
+  });
+  return node;
+}
+
 const focusLog = [];
 const buttons = [0, 1, 2].map((index) => ({ focus: () => focusLog.push(index) }));
 const rows = buttons.map((button) => ({
@@ -22,24 +48,11 @@ const rows = buttons.map((button) => ({
   querySelector(selector) { return selector === '.conversation-open' ? button : null; }
 }));
 const input = eventTarget({ value: 'hedef' });
-const previous = eventTarget({ dataset: { direction: '-1' }, disabled: false });
-const next = eventTarget({ dataset: { direction: '1' }, disabled: false });
-const status = { textContent: '' };
-const navNode = {
-  removed: false,
-  contains(target) { return target === previous || target === next; },
-  querySelector(selector) {
-    if (selector === '[data-direction="-1"]') return previous;
-    if (selector === '[data-direction="1"]') return next;
-    if (selector === `#${nav.STATUS_ID}`) return status;
-    return null;
-  },
-  remove() { this.removed = true; }
-};
-const control = { append() {} };
+const control = { append(node) { navNode = node; } };
 const list = { querySelectorAll: () => rows };
 const head = { append() {} };
 const documentEvents = eventTarget();
+let navNode = null;
 const documentRef = {
   ...documentEvents,
   head,
@@ -50,7 +63,7 @@ const documentRef = {
     if (selector === `#${nav.LIST_ID}`) return list;
     return null;
   },
-  createElement() { throw new Error('existing nav should be reused'); }
+  createElement: (tag) => element(tag)
 };
 class Observer {
   constructor(fn) { this.fn = fn; }
@@ -58,8 +71,12 @@ class Observer {
   disconnect() { this.disconnected = true; }
 }
 
-const controller = nav.createController({ documentRef, rootRef: {}, MutationObserverImpl: Observer });
+const controller = nav.createController({ documentRef, MutationObserverImpl: Observer });
 assert.equal(controller.mount(), true);
+assert.ok(navNode, 'controller must create and own navigation');
+const previous = navNode.querySelector('[data-direction="-1"]');
+const next = navNode.querySelector('[data-direction="1"]');
+const status = navNode.querySelector(`#${nav.STATUS_ID}`);
 assert.equal(status.textContent, '3 eşleşme');
 
 let prevented = 0;
