@@ -66,8 +66,8 @@ class FakeElement {
   }
   matches(selector) {
     if (selector.startsWith('#')) return this.id === selector.slice(1);
-    if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
     if (selector === '.message.user[data-message-id]') return this.className.split(/\s+/).includes('message') && this.className.split(/\s+/).includes('user') && Boolean(this.dataset.messageId);
+    if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
     if (selector === '.content') return this.className.split(/\s+/).includes('content');
     if (selector === 'link[data-hafize-conversation-outline-style]') return this.tagName === 'LINK' && this.getAttribute('data-hafize-conversation-outline-style') !== null;
     return false;
