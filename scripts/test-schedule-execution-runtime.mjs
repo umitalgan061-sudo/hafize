@@ -34,7 +34,6 @@ const guarded = createScheduleExecutionRuntime({
           ok: true,
           content: 'completed',
           taskLedger: { traceId: 'trace-2' },
-          guarded: true,
           leaseStatus: 'completed',
           deduplicated: false
         };
@@ -50,15 +49,8 @@ assert.equal(guardInput.executeAgentTask, executor.executeAgentTask);
 assert.equal(guardInput.renewIntervalMs, 1234);
 assert.deepEqual(
   await guarded.executeAgentTask({ scheduleId: 'schedule_2' }),
-  {
-    ok: true,
-    content: 'completed',
-    taskLedger: { traceId: 'trace-2' },
-    guarded: true,
-    leaseStatus: 'completed',
-    deduplicated: false
-  },
-  'unexpected runtime result keys must remain visible so the worker policy can reject them'
+  { ok: true },
+  'known agent/lease metadata must not make a successful worker result contract-invalid'
 );
 
 assert.deepEqual(
