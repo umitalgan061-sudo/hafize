@@ -61,11 +61,12 @@ assert.deepEqual(
   { ok: false, error: 'MEMORY_SENSITIVITY_NOT_ALLOWED' }
 );
 
-const memoryWrite = (content) => normalizeMemoryWrite({
+const memoryWrite = (content, sourceRef) => normalizeMemoryWrite({
   ownerId: 'owner',
   kind: 'note',
   content,
   sourceType: 'user_note',
+  sourceRef,
   sensitivity: 'personal',
   explicitUserIntent: true
 });
@@ -85,6 +86,17 @@ for (const content of [
   );
 }
 
+for (const sourceRef of [
+  'import:access_token=abcdef123456',
+  'Authorization: Bearer abcdefghijklmnop'
+]) {
+  assert.deepEqual(
+    memoryWrite('Normal memory content.', sourceRef),
+    { ok: false, error: 'MEMORY_PLAINTEXT_CREDENTIAL_NOT_ALLOWED' },
+    `credential-bearing sourceRef must be rejected: ${sourceRef}`
+  );
+}
+
 for (const content of [
   'API keyleri yalnız sunucu tarafında sakla.',
   'Parolamı hafızaya kaydetme.',
@@ -93,6 +105,7 @@ for (const content of [
 ]) {
   assert.equal(memoryWrite(content).ok, true, `non-secret discussion must remain storable: ${content}`);
 }
+assert.equal(memoryWrite('Normal memory content.', 'conversation-7:message-4').ok, true);
 
 for (const kind of ['identity', 'preference', 'project', 'note']) {
   assert.equal(normalizeMemoryWrite({
