@@ -39,24 +39,25 @@ assert.match(shell, /const DESKTOP_DEVICE_SCRIPT = '\/desktop-device-status\.js'
 assert.match(shell, /const DESKTOP_DEVICE_STYLE = '\/desktop-device-status\.css'/, 'desktop stylesheet path must be fixed same-origin');
 assert.doesNotMatch(shell, /hafizeDevice[^\n]{0,80}(localStorage|sessionStorage)/, 'device bridge must not be persisted');
 
-assert.match(preload, /navigator\.userActivation/, 'preload must keep a user-activation gate for external opens');
-assert.match(preload, /isActive/, 'preload must require active user activation');
+assert.match(preload, /navigator\?\.userActivation\?\.isActive\s*===\s*true/, 'preload must keep a fail-closed user-activation gate for external opens');
+assert.match(preload, /createActionId\s*=\s*\(\)\s*=>\s*globalThis\.crypto\?\.randomUUID\?\.\(\)/, 'preload must generate a fresh action ID for external opens');
+assert.match(preload, /explicitUserIntent:\s*true,\s*actionId/, 'preload must bind explicit user intent to the generated action ID');
 assert.match(preload, /openBrowser/, 'preload must expose the bounded browser method');
 assert.match(preload, /openApp/, 'preload must expose the bounded app method');
 assert.doesNotMatch(preload, /shell\s*:\s*true|child_process|exec\s*\(|spawn\s*\(/, 'preload must not expose command execution');
 
 assert.match(main, /allowedBrowserOrigins/, 'main process must retain browser-origin allowlisting');
-assert.match(main, /allowedAppIds/, 'main process must retain application allowlisting');
+assert.match(main, /appOpeners[\s\S]*allowedApps:\s*handler\.allowedApps/, 'main process must retain the bounded application opener allowlist');
 assert.match(main, /shell\.openExternal/, 'browser opening must stay in the bounded Electron main process path');
 assert.doesNotMatch(main, /shell\.openPath\s*\([^)]*request|exec\s*\(|spawn\s*\(/, 'main process must not turn requests into general execution');
 
 const registry = JSON.parse(registryText);
 assert.equal(registry.agents.length, 4, 'device UI must not grow the agent roster');
-assert.equal(registry.agents.filter((agent) => agent.role === 'selector').length, 2, 'two selectors must remain');
-assert.equal(registry.agents.filter((agent) => agent.role === 'specialist').length, 2, 'two specialists must remain');
+assert.equal(registry.agents.filter((agent) => agent.kind === 'selector').length, 2, 'two selectors must remain');
+assert.equal(registry.agents.filter((agent) => agent.kind === 'specialist').length, 2, 'two specialists must remain');
 assert.ok(registry.agents.every((agent) => !JSON.stringify(agent).includes('openBrowser') && !JSON.stringify(agent).includes('openApp')), 'device bridge must not become an agent tool');
 
-assert.match(sw, /hafize-shell-v81/, 'device review must bump the shell cache');
+assert.match(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/, 'device assets must remain behind a versioned shell cache');
 assert.match(sw, /'\/desktop-device-status\.js'/, 'desktop device script remains a shell asset');
 assert.match(sw, /'\/desktop-device-status\.css'/, 'desktop device stylesheet must be cached');
 assert.match(css, /min-height:44px/, 'review and launcher targets must meet the mobile target size');
