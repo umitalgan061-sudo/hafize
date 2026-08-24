@@ -9,7 +9,7 @@ function element(id = '') {
     setAttribute(k,v){attrs.set(k,String(v));}, getAttribute(k){return attrs.get(k)??null;}, removeAttribute(k){attrs.delete(k);},
     append(...nodes){nodes.forEach(n=>{n.parentNode=this;children.push(n);});}, insertAdjacentElement(_p,node){node.parentNode=this.parentNode;this.parentNode.children.push(node);},
     addEventListener(type,fn,capture){if(type==='click')listeners[capture?'capture':'bubble'].push(fn);}, removeEventListener(){}, focus(){}, remove(){},
-    click(){const event={preventDefault(){},stopImmediatePropagation(){this.stopped=true;}};for(const fn of listeners.capture){fn(event);if(event.stopped)return;}for(const fn of listeners.bubble)fn(event);}
+    click(){const event={isTrusted:true,preventDefault(){},stopImmediatePropagation(){this.stopped=true;}};for(const fn of listeners.capture){fn(event);if(event.stopped)return;}for(const fn of listeners.bubble)fn(event);}
   };
 }
 
