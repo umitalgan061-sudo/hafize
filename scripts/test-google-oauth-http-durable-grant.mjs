@@ -2,18 +2,17 @@ import assert from 'node:assert/strict';
 import { createGoogleOAuthHttpRuntime, GOOGLE_OAUTH_HTTP_PATHS } from '../lib/google-oauth-http-runtime.mjs';
 import { createOAuthFlowStore } from '../lib/oauth-flow-store.mjs';
 
-const TOKEN = 'd'.repeat(48);
+const ORIGIN = 'https://hafize.example.test';
 const ENV = {
-  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/api/connectors/gmail/oauth/callback',
+  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: `${ORIGIN}/api/connectors/gmail/oauth/callback`,
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-  HAFIZE_CONNECTOR_AUTH_TOKEN: TOKEN,
-  HAFIZE_CONNECTOR_AUTH_SUBJECT: 'durable@example.test',
   HAFIZE_CONNECTOR_OWNER_KEY_B64: Buffer.alloc(32, 11).toString('base64'),
-  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test'
+  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test',
+  HAFIZE_CLOUD_SESSION_ORIGIN: ORIGIN
 };
 
 function callbackUrl(state) {
-  return new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=authorization-code`);
+  return new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=authorization-code`);
 }
 
 async function makeRuntime({ existingRefreshToken = null, providerRefreshToken = null } = {}) {
@@ -33,6 +32,12 @@ async function makeRuntime({ existingRefreshToken = null, providerRefreshToken =
   const runtime = await createGoogleOAuthHttpRuntime({
     env: ENV,
     readJson: async (request) => request.body,
+    createSessionRuntime: () => ({
+      configured: true,
+      authenticator: {
+        authenticate: () => ({ ok: true, principal: { authenticated: true, subject: 'durable@example.test' } })
+      }
+    }),
     createTokenStoreRuntime: () => tokenStore,
     createFlowStoreRuntime: async () => ({ configured: true, store, async close() {} }),
     fetchImpl: async () => ({
@@ -56,8 +61,8 @@ async function start(runtime) {
     request: { body: { capabilities: ['gmail.read'] } },
     method: 'POST',
     pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-    url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`),
-    headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
+    url: new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.start}`),
+    headers: { origin: ORIGIN, 'content-type': 'application/json' }
   });
   assert.equal(response.status, 200);
   const authorization = new URL(response.body.authorizationUrl);
