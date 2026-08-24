@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const policySource = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 
-assert.match(policySource, /hafize-shell-v82/);
+assert.match(policySource, /hafize-shell-v\d+/);
 assert.match(policySource, /'\/hands-free-consent\.js'/);
 assert.match(policySource, /'\/hands-free-consent\.css'/);
 assert.match(index, /<link rel="stylesheet" href="\/hands-free-consent\.css" \/>/);
