@@ -124,7 +124,7 @@ const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), '
 assert.match(loader, /HafizeConversationKeyboardNav/);
 assert.match(loader, /\/conversation-keyboard-nav\.js/);
 assert.match(sw, /\/conversation-keyboard-nav\.js/);
-assert.match(sw, /hafize-shell-v28/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
 console.log('conversation keyboard navigation tests passed');
