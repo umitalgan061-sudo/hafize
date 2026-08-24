@@ -176,7 +176,8 @@ function harness({ active = false, draft = '' } = {}) {
 assert.doesNotMatch(source, /confirm\s*\(/, 'native blocking confirm must no longer control conversation deletion');
 assert.match(source, /rootRef\?\.localStorage/, 'bounded undo may reuse the canonical conversation storage');
 assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|sessionStorage|document\.cookie|navigator\.clipboard|requestSubmit\s*\(/);
-assert.doesNotMatch(source, /\.click\s*\(/);
+assert.match(source, /replayingClear = true;\s*button\.click\(\);/s, 'approved clear-history intent may replay the existing clear button once');
+assert.equal((source.match(/\.click\s*\(/g) || []).length, 1, 'no other programmatic clicks may bypass explicit user intent');
 assert.match(source, /addEventListener\('click', onCaptureClick, true\)/);
 assert.match(source, /addEventListener\('keydown', onKeydown, true\)/);
 assert.match(source, /visibilitychange/);
