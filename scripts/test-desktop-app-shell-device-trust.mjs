@@ -113,7 +113,7 @@ assert.equal(bridgeDisposed, 2);
 assert.equal(permissionDisposed, 2);
 assert.equal(app.listeners.size, 0);
 assert.equal(recreated.destroyed, true);
-assert.throws(() => shell.createWindow(), /DESKTOP_APP_SHELL_DISPOSED/);
+await assert.rejects(shell.createWindow(), /DESKTOP_APP_SHELL_DISPOSED/);
 
 for (const badUrl of ['https://example.com/', 'file:///tmp/app.html', 'http://user:pass@127.0.0.1:4173/']) {
   assert.throws(() => createElectronAppShell({
