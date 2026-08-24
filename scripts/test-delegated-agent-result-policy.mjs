@@ -53,6 +53,18 @@ expectInvalid({ ok: true, content: 7 }, 'content_type');
 expectInvalid({ ok: true, content: 'x'.repeat(MAX_DELEGATED_CONTENT_CHARS + 1) }, 'content_size');
 assert.equal(normalizeDelegatedAgentResult({ ok: true, content: 'x'.repeat(MAX_DELEGATED_CONTENT_CHARS) }).ok, true);
 
+for (const content of [
+  'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'nvapi-1234567890abcdefghijklmnopqrstuv'
+]) {
+  expectInvalid({ ok: true, content }, 'content_credential');
+}
+assert.equal(
+  normalizeDelegatedAgentResult({ ok: true, content: 'GitHub PAT güvenliği hakkında inceleme.' }).ok,
+  true
+);
+
 expectInvalid({ ok: false }, 'failure_shape');
 expectInvalid({ ok: false, error: 'FAILED', detail: 'raw provider text' }, 'failure_shape');
 expectInvalid({ ok: false, error: '' }, 'error_size');
