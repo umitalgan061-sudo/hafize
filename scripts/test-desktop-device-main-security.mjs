@@ -81,14 +81,20 @@ function createFixture({ trusted = true, shellFailure = false, appFailure = fals
 
   const browser = await invoke(
     { trusted: true },
-    { operation: 'browser.open', args: { url: 'https://github.com/', explicitUserIntent: true } }
+    {
+      operation: 'browser.open',
+      args: { url: 'https://github.com/', explicitUserIntent: true, actionId: '11111111-1111-4111-8111-111111111111' }
+    }
   );
   assert.deepEqual(browser, { ok: true, value: { opened: true, kind: 'browser' } });
   assert.deepEqual(fixture.opened, ['https://github.com/']);
 
   const app = await invoke(
     { trusted: true },
-    { operation: 'app.open', args: { appId: 'calculator', explicitUserIntent: true } }
+    {
+      operation: 'app.open',
+      args: { appId: 'calculator', explicitUserIntent: true, actionId: '22222222-2222-4222-8222-222222222222' }
+    }
   );
   assert.deepEqual(app, { ok: true, value: { opened: true, kind: 'app', appId: 'calculator' } });
   assert.deepEqual(fixture.appOpened, ['calculator']);
@@ -114,21 +120,30 @@ function createFixture({ trusted = true, shellFailure = false, appFailure = fals
   const invoke = fixture.ipcMain.handlers.get(DEVICE_BRIDGE_CHANNEL);
   const wrongOrigin = await invoke(
     { trusted: true },
-    { operation: 'browser.open', args: { url: 'https://example.com/', explicitUserIntent: true } }
+    {
+      operation: 'browser.open',
+      args: { url: 'https://example.com/', explicitUserIntent: true, actionId: '33333333-3333-4333-8333-333333333333' }
+    }
   );
   assert.deepEqual(wrongOrigin, { ok: false, error: 'DEVICE_BROWSER_ORIGIN_NOT_ALLOWED' });
   assert.deepEqual(fixture.opened, []);
 
   const wrongApp = await invoke(
     { trusted: true },
-    { operation: 'app.open', args: { appId: 'terminal', explicitUserIntent: true } }
+    {
+      operation: 'app.open',
+      args: { appId: 'terminal', explicitUserIntent: true, actionId: '44444444-4444-4444-8444-444444444444' }
+    }
   );
   assert.deepEqual(wrongApp, { ok: false, error: 'DEVICE_APP_NOT_ALLOWED' });
   assert.deepEqual(fixture.appOpened, []);
 
   const missingIntent = await invoke(
     { trusted: true },
-    { operation: 'browser.open', args: { url: 'https://github.com/' } }
+    {
+      operation: 'browser.open',
+      args: { url: 'https://github.com/', actionId: '55555555-5555-4555-8555-555555555555' }
+    }
   );
   assert.deepEqual(missingIntent, { ok: false, error: 'DEVICE_ACTION_REQUIRES_EXPLICIT_USER_INTENT' });
 
@@ -141,7 +156,10 @@ function createFixture({ trusted = true, shellFailure = false, appFailure = fals
   const invoke = shellFixture.ipcMain.handlers.get(DEVICE_BRIDGE_CHANNEL);
   const result = await invoke(
     { trusted: true },
-    { operation: 'browser.open', args: { url: 'https://github.com/', explicitUserIntent: true } }
+    {
+      operation: 'browser.open',
+      args: { url: 'https://github.com/', explicitUserIntent: true, actionId: '66666666-6666-4666-8666-666666666666' }
+    }
   );
   assert.deepEqual(result, { ok: false, error: 'DEVICE_ACTION_FAILED' });
 
@@ -149,7 +167,10 @@ function createFixture({ trusted = true, shellFailure = false, appFailure = fals
   const invokeApp = appFixture.ipcMain.handlers.get(DEVICE_BRIDGE_CHANNEL);
   const appResult = await invokeApp(
     { trusted: true },
-    { operation: 'app.open', args: { appId: 'calculator', explicitUserIntent: true } }
+    {
+      operation: 'app.open',
+      args: { appId: 'calculator', explicitUserIntent: true, actionId: '77777777-7777-4777-8777-777777777777' }
+    }
   );
   assert.deepEqual(appResult, { ok: false, error: 'DEVICE_ACTION_FAILED' });
 }
