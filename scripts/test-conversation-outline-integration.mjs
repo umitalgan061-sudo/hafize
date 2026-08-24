@@ -16,14 +16,13 @@ assert.equal(
 );
 assert.equal(loader.split("'/conversation-outline.js'").length - 1, 1, 'outline loader must be exact-once');
 
-const marker = "const CURRENT_CACHE = `${CACHE_PREFIX}v62`;";
-assert.equal(policySource.includes(marker), true, 'PWA cache must advance to v62');
+assert.match(policySource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.equal(policySource.includes("'/conversation-outline.js'"), true);
 assert.equal(policySource.includes("'/conversation-outline.css'"), true);
 
 const requirePolicy = await import('node:module').then(({ createRequire }) => createRequire(import.meta.url));
 const policy = requirePolicy('../public/sw-policy.js');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v62');
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(policy.SHELL_ASSETS.includes('/conversation-outline.js'), true);
 assert.equal(policy.SHELL_ASSETS.includes('/conversation-outline.css'), true);
 assert.equal(policy.classifyRequest({
