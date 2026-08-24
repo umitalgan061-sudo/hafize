@@ -145,4 +145,11 @@ const missing = createGoogleTokenRefresh({
 await assert.rejects(() => missing.refresh({ ownerId: OWNER }), /INVALID_GOOGLE_TOKEN_REFRESH:refreshToken/);
 assert.equal(missingFetchCalls, 0);
 
+for (const input of [null, []]) {
+  assert.throws(
+    () => refresh.refresh(input),
+    (error) => error?.code === 'INVALID_GOOGLE_TOKEN_REFRESH:input'
+  );
+}
+
 console.log('google token refresh security tests passed');
