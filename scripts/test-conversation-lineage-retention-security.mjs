@@ -10,7 +10,7 @@ assert.match(source, /function compactStoredEntries\(/);
 assert.match(source, /storage\.setItem\(STORAGE_KEY, canonical\)/);
 assert.match(source, /if \(raw === canonical\) return false/);
 assert.match(source, /compactStoredEntries\(list\);/);
-assert.match(source, /parseEntries\(raw, conversationIds\(list\)\)/);
+assert.match(source, /parseEntries\(raw, conversationIndex\(list\)\)/);
 
 assert.doesNotMatch(source, /\bfetch\s*\(/);
 assert.doesNotMatch(source, /XMLHttpRequest/);
