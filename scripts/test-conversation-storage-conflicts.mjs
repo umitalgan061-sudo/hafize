@@ -18,13 +18,14 @@ const conversation = ({ id = 'c1', title = 'Sohbet', minute = 0, messages = [], 
   updatedAt: iso(minute),
   messages
 });
+const toHostValue = (value) => JSON.parse(JSON.stringify(value));
 
 {
   const base = [conversation({ messages: [message('m1', 'ilk', 0)] })];
   const local = [conversation({ minute: 2, messages: [message('m1', 'ilk', 0), message('m2', 'yerel', 2)] })];
   const result = api.reconcileConversationSnapshots(base, base, local);
   assert.equal(result.conflicts, 0);
-  assert.deepEqual(JSON.parse(JSON.stringify(result.value)), api.normalizeConversations(local));
+  assert.deepEqual(toHostValue(result.value), toHostValue(api.normalizeConversations(local)));
 }
 
 {
@@ -43,7 +44,7 @@ const conversation = ({ id = 'c1', title = 'Sohbet', minute = 0, messages = [], 
   const result = api.reconcileConversationSnapshots(base, remote, local);
   assert.equal(result.conflicts, 1);
   assert.equal(result.remoteChangesPreserved, 1);
-  assert.deepEqual(result.value[0].messages.map((item) => item.id), ['m1', 'm2', 'm3']);
+  assert.deepEqual(toHostValue(result.value[0].messages.map((item) => item.id)), ['m1', 'm2', 'm3']);
 }
 
 {
