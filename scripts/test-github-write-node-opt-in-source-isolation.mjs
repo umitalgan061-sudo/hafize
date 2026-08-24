@@ -12,7 +12,7 @@ assert.match(runtimeSource, /fail\('enabled'\)/);
 assert.match(runtimeSource, /if \(!readEnabled\(env\)\)/);
 assert.match(runtimeSource, /configured: false/);
 assert.match(runtimeSource, /return \{ matched: false \}/);
-assert.match(runtimeSource, /if \(runtime\.configured !== true\) fail\('configuration'\)/);
+assert.match(runtimeSource, /if \(runtime\.configured !== true \|\| typeof runtime\.close !== 'function'\) fail\('configuration'\)/);
 
 assert.doesNotMatch(runtimeSource, /process\.env\.GITHUB_TOKEN/);
 assert.doesNotMatch(runtimeSource, /process\.env\.HAFIZE_GITHUB_WRITE_(?:APPROVAL_SECRET|AUTH_TOKEN|OWNER_KEY|REPLAY_REDIS_URL)/);
