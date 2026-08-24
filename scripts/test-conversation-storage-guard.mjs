@@ -70,7 +70,7 @@ const duplicateMessages = guard.normalizeConversation(conversation({
   messages: [message({ id: 'same' }), message({ id: 'same', content: 'ikinci' })]
 }));
 assert.equal(duplicateMessages.messages.length, 1);
-assert.equal(duplicateMessages.messages[0].content, 'Merhaba');
+assert.equal(duplicateMessages.messages[0].content, 'ikinci', 'newest duplicate message candidate wins during bounded reverse scan');
 
 const conversations = Array.from({ length: guard.MAX_CONVERSATIONS + 5 }, (_, index) => conversation({
   id: `conv-${index}`,
