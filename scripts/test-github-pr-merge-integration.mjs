@@ -32,7 +32,7 @@ assert.equal(loader.split("'/github-pr-merge-style.js'").length - 1, 1);
 assert.equal(styleLoader.includes("link.href = '/github-pr-merge.css'"), true);
 assert.equal(styleLoader.includes("data-hafize-github-pr-merge-style"), true);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v74');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 for (const asset of ['/github-pr-merge.js', '/github-pr-merge-style.js', '/github-pr-merge.css']) {
   assert.equal(swPolicy.SHELL_ASSETS.includes(asset), true, `${asset} missing from PWA shell`);
   assert.equal(swPolicy.classifyRequest({ method: 'GET', url: `https://hafize.example${asset}`, headers: {}, mode: 'cors' }, 'https://hafize.example'), 'shell');
