@@ -74,7 +74,7 @@ for (const forbidden of [
   assert.equal(forbidden.test(authSource), false, `auth source must not expose forbidden surface: ${forbidden}`);
 }
 
-assert.match(doc, /bearer.*birincil/i);
+assert.match(doc, /bearer.*doğrudan kullanılır/i);
 assert.match(doc, /cloud-session.*fallback/i);
 assert.match(doc, /approval.*değişmez/i);
 assert.match(doc, /replay/i);
