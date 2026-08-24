@@ -38,10 +38,27 @@ for (const content of [
   );
 }
 
+for (const sourceRef of [
+  'import:access_token=abcdef123456',
+  'Authorization: Bearer abcdefghijklmnop'
+]) {
+  assert.deepEqual(
+    normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, sourceRef }] }),
+    { ok: false, error: 'MEMORY_RETRIEVAL_PLAINTEXT_CREDENTIAL_BLOCKED' }
+  );
+}
+
 assert.equal(
   normalizeMemoryRetrieval({
     ownerId: 'user-1',
     records: [{ ...record, content: 'Parolamı belleğe kaydetme.' }]
+  }).ok,
+  true
+);
+assert.equal(
+  normalizeMemoryRetrieval({
+    ownerId: 'user-1',
+    records: [{ ...record, sourceRef: 'conversation-9:message-2' }]
   }).ok,
   true
 );
