@@ -2,27 +2,26 @@ import assert from 'node:assert/strict';
 import { createGoogleOAuthHttpRuntime, GOOGLE_OAUTH_HTTP_PATHS } from '../lib/google-oauth-http-runtime.mjs';
 import { createOAuthFlowStore } from '../lib/oauth-flow-store.mjs';
 
-const TOKEN = 'z'.repeat(48);
+const ORIGIN = 'https://hafize.example.test';
 const KEY = Buffer.alloc(32, 3).toString('base64');
 const sharedStore = createOAuthFlowStore({ now: () => 50_000 });
 const base = {
-  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/api/connectors/gmail/oauth/callback',
+  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: `${ORIGIN}/api/connectors/gmail/oauth/callback`,
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-  HAFIZE_CONNECTOR_AUTH_TOKEN: TOKEN,
   HAFIZE_CONNECTOR_OWNER_KEY_B64: KEY,
-  HAFIZE_OAUTH_REDIS_URL: 'rediss://shared.example.test'
+  HAFIZE_OAUTH_REDIS_URL: 'rediss://shared.example.test',
+  HAFIZE_CLOUD_SESSION_ORIGIN: ORIGIN
 };
 const exchanges = [];
 
 function makeRuntime(subject, instance) {
   return createGoogleOAuthHttpRuntime({
-    env: { ...base, HAFIZE_CONNECTOR_AUTH_SUBJECT: subject },
+    env: base,
     readJson: async (request) => request.body,
-    createAuthenticator: ({ token, subject: configuredSubject }) => ({
-      authenticate({ headers }) {
-        return headers.authorization === `Bearer ${token}`
-          ? { ok: true, principal: { authenticated: true, subject: configuredSubject } }
-          : { ok: false, error: 'AUTH_REQUIRED' };
+    createSessionRuntime: () => ({
+      configured: true,
+      authenticator: {
+        authenticate: () => ({ ok: true, principal: { authenticated: true, subject } })
       }
     }),
     createOwnerResolver: () => ({ resolve(principal) { return { ownerId: `owner_${principal.subject}` }; } }),
@@ -39,8 +38,8 @@ const instanceB = await makeRuntime('bravo', 'B');
 const started = await instanceA.handle({
   request: { body: { capabilities: ['gmail.read'] } },
   method: 'POST', pathname: GOOGLE_OAUTH_HTTP_PATHS.start,
-  url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`),
-  headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
+  url: new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.start}`),
+  headers: { origin: ORIGIN, 'content-type': 'application/json' }
 });
 assert.equal(started.status, 200);
 const state = new URL(started.body.authorizationUrl).searchParams.get('state');
@@ -48,7 +47,7 @@ assert.equal(sharedStore.size(), 1);
 
 const callbackOnB = await instanceB.handle({
   method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback,
-  url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=code-from-google`),
+  url: new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=code-from-google`),
   headers: {}
 });
 assert.equal(callbackOnB.status, 200);
@@ -62,8 +61,8 @@ assert.equal(sharedStore.size(), 0);
 
 const replayOnA = await instanceA.handle({
   method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback,
-  url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=code-from-google`),
-  headers: { authorization: `Bearer ${TOKEN}` }
+  url: new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=code-from-google`),
+  headers: {}
 });
 assert.equal(replayOnA.status, 400);
 assert.equal(exchanges.length, 1);
