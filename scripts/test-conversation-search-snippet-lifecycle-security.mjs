@@ -3,12 +3,22 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../public/conversation-search-snippets.js', import.meta.url), 'utf8');
 
-assert.match(source, /if \(!mounted \|\| destroyed \|\| !input \|\| !list\)/);
-assert.match(source, /if \(!mounted \|\| destroyed \|\| queued\) return/);
-assert.match(source, /if \(mounted && !destroyed\) apply\(\)/);
-assert.match(source, /if \(mounted\) return false/);
-assert.match(source, /input\?\.removeEventListener\?\.\('input', queueApply\)/);
-assert.match(source, /input = null;[\s\S]*list = null;[\s\S]*queued = false;[\s\S]*mounted = false;/);
+assert.match(source, /function isLive\(\) \{[\s\S]*return mounted && !destroyed && list && ACTIVE_LISTS\.has\(list\)/);
+assert.match(source, /function addListener\(target, type, listener\)/);
+assert.match(source, /target\.addEventListener\(type, listener\)/);
+assert.match(source, /listenerCleanup\.push\(\(\) => target\.removeEventListener\(type, listener\)\)/);
+assert.match(source, /if \(!isLive\(\) \|\| !input\) return Object\.freeze/);
+assert.match(source, /if \(!isLive\(\) \|\| queuedHandle != null\) return false/);
+assert.match(source, /if \(isLive\(\)\) apply\(\)/);
+assert.match(source, /if \(mounted \|\| destroyed\) return false/);
+assert.match(source, /if \(!input \|\| !list \|\| ACTIVE_LISTS\.has\(list\)\)/);
+assert.match(source, /ACTIVE_LISTS\.add\(list\)/);
+assert.match(source, /cancelQueued\(\)/);
+assert.match(source, /observer\?\.disconnect\?\.\(\)/);
+assert.match(source, /while \(listenerCleanup\.length\)/);
+assert.match(source, /if \(list\) ACTIVE_LISTS\.delete\(list\)/);
+assert.match(source, /mounted = false;[\s\S]*input = null;[\s\S]*list = null;/);
+assert.match(source, /const ownedList = list;[\s\S]*if \(ownedList\) ACTIVE_LISTS\.delete\(ownedList\)/);
 
 for (const forbidden of [
   'fetch(', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'sendBeacon',
