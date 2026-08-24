@@ -182,7 +182,7 @@ try {
     assert.equal(enabled.output.stderr.includes(secret), false);
   }
 } finally {
-  assert.equal(await stopServer(enabled.child), 0);
+  assert.equal(await stopServer(enabled.child), 0, `enabled server shutdown stderr: ${enabled.output.stderr}`);
 }
 
 const invalidPort = await reservePort();
