@@ -16,8 +16,11 @@ function createHandler({ allowedBrowserOrigins = [], openExternal } = {}) {
   return { handler, opened };
 }
 
+let nextActionId = 0;
 function browser(url, explicitUserIntent = true) {
-  return { operation: 'browser.open', args: { url, explicitUserIntent } };
+  nextActionId += 1;
+  const actionId = `00000000-0000-4000-8000-${nextActionId.toString(16).padStart(12, '0')}`;
+  return { operation: 'browser.open', args: { url, explicitUserIntent, actionId } };
 }
 
 const empty = createHandler();
