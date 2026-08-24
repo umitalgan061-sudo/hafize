@@ -21,7 +21,7 @@ function row({ organizedId = '', conversationId = '', active = false } = {}) {
 const conversations = [
   { id: 'recent', messages: [] },
   { id: 'pinned', messages: [] },
-  { id: 'older', messages: [] }
+  { id: 'older', messages: [{ id: 'msg-1', role: 'assistant', content: 'source' }] }
 ];
 const rows = [
   row({ organizedId: 'pinned', active: true }),
