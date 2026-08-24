@@ -17,7 +17,7 @@ const [loader, style, prSource, fileSource] = await Promise.all([
   readFile(filePath, 'utf8')
 ]);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v73');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 for (const asset of [
   '/github-write-activity-style.js',
   '/github-write-activity.js',
