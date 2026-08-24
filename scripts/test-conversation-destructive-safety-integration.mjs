@@ -137,7 +137,7 @@ const conversation = (minute, messages) => ({
 
 const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 const loader = fs.readFileSync(new URL('../public/chat-run-controller.js', import.meta.url), 'utf8');
-assert.match(sw, /hafize-shell-v91/);
+assert.match(sw, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/);
 assert.match(sw, /\/conversation-delete-confirm\.js/);
 assert.match(sw, /\/conversation-storage-guard\.js/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
