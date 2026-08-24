@@ -111,10 +111,25 @@ let stored = JSON.stringify([
   { id: 'conv-2', title: 'İkinci sohbet', createdAt: '2026-08-19T02:00:01.000Z', updatedAt: '2026-08-19T03:00:01.000Z', messages: [{ id: 'm2', role: 'assistant', content: 'başka içerik', at: '2026-08-19T03:00:01.000Z' }] }
 ]);
 const rootListeners = new Map();
+const animationFrames = [];
+let nextAnimationFrameId = 1;
+function flushAnimationFrame() {
+  const pending = animationFrames.shift();
+  assert.ok(pending, 'expected a queued animation frame');
+  pending.callback();
+}
 const rootRef = {
   HafizeConversationStorageGuard: guard,
   localStorage: { getItem: () => stored },
-  requestAnimationFrame(callback) { callback(); return 1; },
+  requestAnimationFrame(callback) {
+    const id = nextAnimationFrameId++;
+    animationFrames.push({ id, callback });
+    return id;
+  },
+  cancelAnimationFrame(id) {
+    const index = animationFrames.findIndex((entry) => entry.id === id);
+    if (index >= 0) animationFrames.splice(index, 1);
+  },
   addEventListener(type, callback) {
     const list = rootListeners.get(type) || [];
     list.push(callback);
@@ -148,11 +163,13 @@ stored = JSON.stringify([
   { id: 'conv-2', title: 'İkinci sohbet', createdAt: '2026-08-19T02:00:01.000Z', updatedAt: '2026-08-19T04:00:01.000Z', messages: [{ id: 'm2', role: 'assistant', content: 'needle yeni sekmeden geldi', at: '2026-08-19T04:00:01.000Z' }] }
 ]);
 rootRef.dispatch('storage', { key: guard.STORAGE_KEY });
+flushAnimationFrame();
 assert.equal(row1.hidden, true);
 assert.equal(row2.hidden, false);
 
 stored = 'not-json';
 rootRef.dispatch('hafize:conversation-storage-merged', {});
+flushAnimationFrame();
 assert.equal(row1.hidden, true, 'invalid storage must not expose arbitrary raw content');
 assert.equal(row2.hidden, true, 'invalid storage must fail closed to title-only matching');
 
@@ -160,6 +177,7 @@ controller.clear({ focus: false });
 assert.equal(row1.hidden, false);
 assert.equal(row2.hidden, false);
 controller.destroy();
+assert.equal(animationFrames.length, 0);
 assert.equal(documentRef.querySelector('#conversationSearchControl'), null);
 assert.equal((rootListeners.get('storage') || []).length, 0);
 assert.equal((rootListeners.get('hafize:conversation-storage-merged') || []).length, 0);
