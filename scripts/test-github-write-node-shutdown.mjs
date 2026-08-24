@@ -17,7 +17,7 @@ const env = {
   GITHUB_TOKEN: 'server-held-github-token',
   HAFIZE_GITHUB_WRITE_REPOS: 'umitalgan061-sudo/hafize',
   HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: secret,
-  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'shutdown-owner-token',
+  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'shutdown-owner-token-fixture-32-chars',
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'shutdown-owner',
   HAFIZE_GITHUB_WRITE_OWNER_KEY: secret,
   HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
