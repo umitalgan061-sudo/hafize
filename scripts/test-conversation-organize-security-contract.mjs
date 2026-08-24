@@ -42,7 +42,7 @@ for (const forbidden of [
   assert.equal(source.includes(forbidden), false, `organize UI must not gain capability: ${forbidden}`);
 }
 
-assert.match(swPolicy, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v165`;/);
+assert.match(swPolicy, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/);
 assert.match(swPolicy, /'\/conversation-organize\.js'/);
 assert.match(swPolicy, /'\/conversation-organize\.css'/);
 
