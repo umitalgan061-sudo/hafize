@@ -53,6 +53,7 @@ function baseEnv(port) {
 function enabledEnv(port) {
   const approvalSecret = Buffer.alloc(32, 71).toString('base64url');
   const ownerKey = Buffer.alloc(32, 72).toString('base64url');
+  const ownerToken = 'production-test-owner-token-fixture-32-chars';
   return {
     env: {
       ...baseEnv(port),
@@ -60,12 +61,12 @@ function enabledEnv(port) {
       HAFIZE_GITHUB_WRITE_ENABLED: 'true',
       HAFIZE_GITHUB_WRITE_REPOS: 'umitalgan061-sudo/hafize',
       HAFIZE_GITHUB_WRITE_APPROVAL_SECRET: approvalSecret,
-      HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'production-test-owner-token',
+      HAFIZE_GITHUB_WRITE_AUTH_TOKEN: ownerToken,
       HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'production-test-owner',
       HAFIZE_GITHUB_WRITE_OWNER_KEY: ownerKey,
       HAFIZE_GITHUB_WRITE_REPLAY_REDIS_URL: 'redis://shared-replay:6379/0'
     },
-    secrets: [approvalSecret, ownerKey, 'production-test-github-token', 'production-test-owner-token']
+    secrets: [approvalSecret, ownerKey, 'production-test-github-token', ownerToken]
   };
 }
 
@@ -169,7 +170,7 @@ try {
 
   const prepared = await request(enabledPort, '/api/github/write/prepare', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer production-test-owner-token' },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${enabledConfig.env.HAFIZE_GITHUB_WRITE_AUTH_TOKEN}` },
     body: JSON.stringify({ command })
   });
   assert.equal(prepared.status, 200);
