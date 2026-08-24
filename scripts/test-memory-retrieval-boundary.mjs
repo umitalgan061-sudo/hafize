@@ -33,6 +33,7 @@ for (const content of [
   'github_pat_1234567890abcdefghijABCDEFGHIJ',
   'ghp_1234567890abcdefghijklmnopqrstuvwx',
   'nvapi-1234567890abcdefghijklmnopqrstuv',
+  'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
   '-----BEGIN PRIVATE KEY-----\nlegacy-private-material'
 ]) {
   assert.deepEqual(
@@ -45,7 +46,8 @@ for (const sourceRef of [
   'import:access_token=abcdef123456',
   'Authorization: Bearer abcdefghijklmnop',
   'github_pat_1234567890abcdefghijABCDEFGHIJ',
-  'nvapi-1234567890abcdefghijklmnopqrstuv'
+  'nvapi-1234567890abcdefghijklmnopqrstuv',
+  'ya29.A0ARrdaM_exampleGoogleOauthToken123456789'
 ]) {
   assert.deepEqual(
     normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, sourceRef }] }),
