@@ -6,20 +6,19 @@ import {
 } from '../lib/google-oauth-http-runtime.mjs';
 import { createOAuthFlowStore } from '../lib/oauth-flow-store.mjs';
 
-const TOKEN = 'l'.repeat(48);
+const ORIGIN = 'https://hafize.example.test';
 const ENV = {
-  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/api/connectors/gmail/oauth/callback',
+  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: `${ORIGIN}/api/connectors/gmail/oauth/callback`,
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-  HAFIZE_CONNECTOR_AUTH_TOKEN: TOKEN,
-  HAFIZE_CONNECTOR_AUTH_SUBJECT: 'limits@example.test',
   HAFIZE_CONNECTOR_OWNER_KEY_B64: Buffer.alloc(32, 13).toString('base64'),
-  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test'
+  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test',
+  HAFIZE_CLOUD_SESSION_ORIGIN: ORIGIN
 };
-const START_URL = new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`);
+const START_URL = new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.start}`);
 
 function headers(extra = {}) {
   return {
-    authorization: `Bearer ${TOKEN}`,
+    origin: ORIGIN,
     'content-type': 'application/json; charset=utf-8',
     ...extra
   };
@@ -68,6 +67,12 @@ async function makeRuntime({ startBodyTimeoutMs } = {}) {
       fallbackReads += 1;
       return request?.body || {};
     },
+    createSessionRuntime: () => ({
+      configured: true,
+      authenticator: {
+        authenticate: () => ({ ok: true, principal: { authenticated: true, subject: 'limits@example.test' } })
+      }
+    }),
     createTokenStoreRuntime: () => ({ async save() {} }),
     createFlowStoreRuntime: async () => ({ configured: true, store, async close() {} }),
     createTokenExchange: () => ({
@@ -137,7 +142,7 @@ async function start(runtime, request, requestHeaders = headers()) {
 {
   const state = await makeRuntime();
   const response = await start(state.runtime, { body: { capabilities: ['gmail.read'] } }, {
-    authorization: `Bearer ${TOKEN}`,
+    origin: ORIGIN,
     'content-type': 'text/plain'
   });
   assert.equal(response.status, 415);
@@ -168,7 +173,7 @@ async function start(runtime, request, requestHeaders = headers()) {
   const oauthState = new URL(started.body.authorizationUrl).searchParams.get('state');
   assert.equal(state.store.size(), 1);
 
-  const hugeQuery = new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}`);
+  const hugeQuery = new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.callback}`);
   hugeQuery.searchParams.set('state', oauthState);
   hugeQuery.searchParams.set('code', 'authorization-code');
   hugeQuery.searchParams.set('error_description', 'x'.repeat(GOOGLE_OAUTH_HTTP_LIMITS.maxCallbackQueryBytes));
@@ -182,7 +187,7 @@ async function start(runtime, request, requestHeaders = headers()) {
   const valid = await state.runtime.handle({
     method: 'GET',
     pathname: GOOGLE_OAUTH_HTTP_PATHS.callback,
-    url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${oauthState}&code=authorization-code`),
+    url: new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${oauthState}&code=authorization-code`),
     headers: {}
   });
   assert.equal(valid.status, 200);
