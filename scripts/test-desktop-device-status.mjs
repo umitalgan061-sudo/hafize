@@ -12,6 +12,7 @@ function element(tagName) {
     appendChild(node) { this.append(node); return node; }, replaceChildren(...nodes) { this.children = []; this.append(...nodes); },
     setAttribute(name, value) { this.attributes.set(name, String(value)); }, getAttribute(name) { return this.attributes.get(name) ?? null; },
     addEventListener(name, fn) { this.listeners.set(name, fn); }, removeEventListener(name, fn) { if (this.listeners.get(name) === fn) this.listeners.delete(name); },
+    focus() { this.focused = true; },
     remove() { if (!this.parent) return; this.parent.children = this.parent.children.filter((node) => node !== this); this.parent = null; }
   };
 }
@@ -19,6 +20,7 @@ function element(tagName) {
 const head = element('head');
 const rail = element('aside');
 const byId = new Map();
+const documentListeners = new Map();
 const documentRef = {
   head,
   createElement(tag) {
@@ -27,7 +29,9 @@ const documentRef = {
     return node;
   },
   getElementById(id) { return byId.get(id) || null; },
-  querySelector(selector) { return selector === '.utility-rail' ? rail : null; }
+  querySelector(selector) { return selector === '.utility-rail' ? rail : null; },
+  addEventListener(name, fn) { documentListeners.set(name, fn); },
+  removeEventListener(name, fn) { if (documentListeners.get(name) === fn) documentListeners.delete(name); }
 };
 
 const context = { module: { exports: {} }, exports: {}, console, URL, globalThis: {} };
@@ -59,25 +63,45 @@ assert.equal(infoCalls, 1);
 assert.equal(capabilityCalls, 1);
 const card = rail.children[0];
 assert.equal(card.getAttribute('aria-busy'), 'false');
-assert.match(card.children[1].textContent, /görünür düğme/);
+assert.match(card.children[1].textContent, /ayrıca onay ister/);
 assert.equal(card.children[2].children.length, 5);
 const launchers = card.children[3];
+const review = card.children[4];
+const reviewText = review.children[0];
+const [confirmButton, cancelButton] = review.children[1].children;
 assert.equal(launchers.hidden, false);
 assert.equal(launchers.children.length, 2);
 assert.equal(launchers.children[0].textContent, 'github.com');
 assert.equal(launchers.children[1].textContent, 'Uygulama · calculator');
+assert.equal(review.hidden, true);
 
-await launchers.children[0].listeners.get('click')();
-await new Promise((resolve) => setImmediate(resolve));
-await launchers.children[1].listeners.get('click')();
-await new Promise((resolve) => setImmediate(resolve));
+launchers.children[0].listeners.get('click')();
+assert.deepEqual(opened, []);
+assert.equal(review.hidden, false);
+assert.match(reviewText.textContent, /github\.com/);
+assert.equal(confirmButton.disabled, false);
+assert.equal(confirmButton.focused, true);
+await confirmButton.listeners.get('click')();
+assert.deepEqual(opened, [['browser', 'https://github.com/']]);
+assert.equal(review.hidden, true);
+
+launchers.children[1].listeners.get('click')();
+assert.deepEqual(opened, [['browser', 'https://github.com/']]);
+assert.match(reviewText.textContent, /calculator/);
+await confirmButton.listeners.get('click')();
 assert.deepEqual(opened, [['browser', 'https://github.com/'], ['app', 'calculator']]);
 
-const refresh = card.children[4].children[0];
+launchers.children[0].listeners.get('click')();
+cancelButton.listeners.get('click')();
+assert.equal(review.hidden, true);
+assert.equal(controller.getPendingAction(), null);
+
+const refresh = card.children[5].children[0];
 await refresh.listeners.get('click')();
 assert.equal(infoCalls, 2);
 assert.equal(capabilityCalls, 2);
 assert.equal(controller.destroy(), true);
+assert.equal(documentListeners.has('keydown'), false);
 assert.equal(rail.children.length, 0);
 
 const failingBridge = {
