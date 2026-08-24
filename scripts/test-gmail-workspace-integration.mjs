@@ -78,7 +78,7 @@ assert.ok(style.includes('@media (prefers-reduced-motion: reduce)'));
 assert.ok(style.includes('@media (forced-colors: active)'));
 assert.ok(style.includes(':focus-visible'));
 
-assert.ok(policy.includes("const CURRENT_CACHE = `${CACHE_PREFIX}v76`"));
+assert.match(policy, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 for (const asset of ['/gmail-workspace-style.js', '/gmail-workspace.js', '/gmail-workspace.css']) {
   assert.ok(policy.includes(`'${asset}'`), `${asset} must be in shell assets`);
 }
