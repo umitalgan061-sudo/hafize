@@ -28,7 +28,7 @@
   }
 
   function nextIndex(current, key, length) {
-    if (!Number.isInteger(current) || !Number.isInteger(length) || length <= 0) return -1;
+    if (!Number.isInteger(current) || !Number.isInteger(length) || length <= 0 || current < 0 || current >= length) return -1;
     if (key === 'Home') return 0;
     if (key === 'End') return length - 1;
     if (key === 'ArrowUp') return Math.max(0, current - 1);
