@@ -10,7 +10,8 @@ const runtime = await createGoogleOAuthHttpRuntime({
     HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/api/connectors/gmail/oauth/callback',
     HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'client', HAFIZE_CONNECTOR_AUTH_TOKEN: token,
     HAFIZE_CONNECTOR_AUTH_SUBJECT: 'subject', HAFIZE_CONNECTOR_OWNER_KEY_B64: Buffer.alloc(32, 4).toString('base64'),
-    HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test'
+    HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test',
+    HAFIZE_CLOUD_SESSION_ORIGIN: 'https://hafize.example.test'
   },
   readJson: async () => ({ capabilities: ['gmail.read'] }),
   createTokenStoreRuntime: () => ({ async save() {} }),
