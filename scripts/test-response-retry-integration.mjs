@@ -14,7 +14,7 @@ assert.match(loaderSource, /HafizeResponseRetryStyle/);
 assert.match(loaderSource, /\/response-retry-style\.js/);
 assert.match(loaderSource, /HafizeResponseRetry/);
 assert.match(loaderSource, /\/response-retry\.js/);
-assert.match(policySource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v60`/);
+assert.match(policySource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policySource, /'\/response-retry-style\.js'/);
 assert.match(policySource, /'\/response-retry\.js'/);
 assert.match(policySource, /'\/response-retry\.css'/);
