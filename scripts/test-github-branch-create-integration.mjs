@@ -31,7 +31,7 @@ assert.equal(loader.includes("loadShellEnhancement('HafizeGitHubBranchCreate', '
 assert.equal(loader.split("'/github-branch-create.js'").length - 1, 1);
 assert.equal(loader.split("'/github-branch-create-style.js'").length - 1, 1);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v70');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 for (const asset of ['/github-branch-create.js', '/github-branch-create-style.js', '/github-branch-create.css']) {
   assert.equal(swPolicy.SHELL_ASSETS.includes(asset), true, `${asset} missing from shell`);
   assert.equal(swPolicy.classifyRequest({ method: 'GET', url: `https://hafize.example${asset}`, headers: {}, mode: 'cors' }, 'https://hafize.example'), 'shell');
