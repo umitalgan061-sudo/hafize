@@ -62,6 +62,16 @@ assert.equal(GOOGLE_TOKEN_REVOKE_LIMITS.timeoutMs, 15_000);
 
 {
   const { runtime } = harness();
+  for (const input of [null, []]) {
+    await assert.rejects(
+      () => runtime.disconnect(input),
+      /INVALID_GOOGLE_TOKEN_REVOKE:input/
+    );
+  }
+}
+
+{
+  const { runtime } = harness();
   await assert.rejects(
     () => runtime.disconnect({ ownerId: OWNER }),
     /GOOGLE_TOKEN_REVOKE_REQUIRES_INTENT/
