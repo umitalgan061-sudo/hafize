@@ -71,7 +71,7 @@ assert.equal(sw.shouldDeleteCache(staleCache), true);
 assert.equal(sw.shouldDeleteCache(sw.CURRENT_CACHE), false);
 
 // Documentation must record the same non-goals, not imply new permissions.
-assert.match(docs, /tek controller/i);
+assert.match(docs, /yalnız bir outline controller/i);
 assert.match(docs, /WeakSet/);
 assert.match(docs, /fail-closed|fail closed/i);
 assert.match(docs, /storage okuyup yazmaz/i);
