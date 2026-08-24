@@ -9,6 +9,7 @@ const module = { exports: {} };
 vm.runInNewContext(source, { module, exports: module.exports, globalThis: {} });
 const api = module.exports;
 const swPolicy = require('../public/sw-policy.js');
+const plain = (value) => JSON.parse(JSON.stringify(value));
 
 assert.equal(api.MAX_DRAFT_CHARS, 12000);
 assert.equal(api.hasMeaningfulDraft(''), false);
@@ -121,7 +122,7 @@ function clickEvent(selector = '.conversation-open') {
   const controller = api.createController({ documentRef: h.documentRef });
   assert.equal(controller.mount(), true);
   assert.equal(controller.mount(), false, 'double mount must not duplicate listeners');
-  assert.deepEqual(controller.snapshot(), { mounted: true, statusOwned: true, hasMountedInput: true });
+  assert.deepEqual(plain(controller.snapshot()), { mounted: true, statusOwned: true, hasMountedInput: true });
   assert.equal(h.documentRef.listenerCount('click'), 1);
   assert.equal(h.input.listenerCount('input'), 1);
   assert.equal(h.status.hidden, true);
@@ -171,7 +172,7 @@ function clickEvent(selector = '.conversation-open') {
   const hostStatus = h.status;
   const controller = api.createController({ documentRef: h.documentRef });
   assert.equal(controller.mount(), true);
-  assert.deepEqual(controller.snapshot(), { mounted: true, statusOwned: false, hasMountedInput: true });
+  assert.deepEqual(plain(controller.snapshot()), { mounted: true, statusOwned: false, hasMountedInput: true });
 
   const event = clickEvent('#newChatBtn');
   h.documentRef.emit('click', event);
