@@ -47,7 +47,7 @@ const lineage = {
   createdAt: '2026-08-19T00:00:00.000Z'
 };
 const values = new Map([
-  [api.CONVERSATION_KEY, JSON.stringify([{ id: 'root', messages: [] }, { id: 'child', messages: [] }])],
+  [api.CONVERSATION_KEY, JSON.stringify([{ id: 'root', messages: [{ id: 'm1', role: 'assistant', content: 'source' }] }, { id: 'child', messages: [] }])],
   [api.STORAGE_KEY, JSON.stringify([lineage])]
 ]);
 const writes = [];

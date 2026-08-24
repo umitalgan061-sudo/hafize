@@ -7,11 +7,12 @@ const sandbox = { module: { exports: {} }, exports: {}, console, globalThis: {} 
 vm.runInNewContext(source, sandbox, { filename: 'conversation-branch-lineage.js' });
 const api = sandbox.module.exports;
 
-const validIds = new Set(['root']);
+const validIndex = new Map([['root', new Set()]]);
 const rawEntries = [];
 for (let index = 0; index < 200; index += 1) {
   const child = `branch-${index}`;
-  validIds.add(child);
+  validIndex.set(child, new Set());
+  validIndex.get('root').add(`m-${index}`);
   rawEntries.push({
     childConversationId: child,
     parentConversationId: 'root',
@@ -21,13 +22,14 @@ for (let index = 0; index < 200; index += 1) {
   });
 }
 
-const parsed = api.parseEntries(JSON.stringify(rawEntries), validIds);
+const parsed = api.parseEntries(JSON.stringify(rawEntries), validIndex);
 assert.equal(parsed.length, api.MAX_ENTRIES);
 assert.equal(parsed[0].childConversationId, 'branch-0');
 assert.equal(parsed.at(-1).childConversationId, `branch-${api.MAX_ENTRIES - 1}`);
 
 const mixed = [];
 for (let index = 0; index < 120; index += 1) {
+  validIndex.get('root').add(`source-${index}`);
   mixed.push({
     childConversationId: index % 3 === 0 ? `deleted-${index}` : `branch-${index}`,
     parentConversationId: 'root',
@@ -36,10 +38,11 @@ for (let index = 0; index < 120; index += 1) {
     createdAt: new Date(Date.UTC(2026, 7, 19, 1, 0, index)).toISOString()
   });
 }
-const mixedParsed = api.parseEntries(JSON.stringify(mixed), validIds);
+const mixedParsed = api.parseEntries(JSON.stringify(mixed), validIndex);
 assert.ok(mixedParsed.length <= api.MAX_ENTRIES);
-assert.ok(mixedParsed.every((entry) => validIds.has(entry.childConversationId)));
+assert.ok(mixedParsed.every((entry) => validIndex.has(entry.childConversationId)));
 
+for (let index = 0; index < 200; index += 1) validIndex.get('root').add(`dup-${index}`);
 const duplicateFlood = Array.from({ length: 200 }, (_, index) => ({
   childConversationId: 'branch-1',
   parentConversationId: 'root',
@@ -47,14 +50,14 @@ const duplicateFlood = Array.from({ length: 200 }, (_, index) => ({
   mode: 'fork',
   createdAt: new Date(Date.UTC(2026, 7, 19, 2, 0, index)).toISOString()
 }));
-assert.equal(api.parseEntries(JSON.stringify(duplicateFlood), validIds).length, 1);
+assert.equal(api.parseEntries(JSON.stringify(duplicateFlood), validIndex).length, 1);
 
 const oversizedJson = JSON.stringify(rawEntries).padEnd(api.MAX_STORAGE_CHARS + 1, ' ');
 assert.ok(oversizedJson.length > api.MAX_STORAGE_CHARS);
-assert.equal(api.parseEntries(oversizedJson, validIds).length, 0);
+assert.equal(api.parseEntries(oversizedJson, validIndex).length, 0);
 
 const exactBoundary = JSON.stringify([]).padEnd(api.MAX_STORAGE_CHARS, ' ');
 assert.equal(exactBoundary.length, api.MAX_STORAGE_CHARS);
-assert.equal(api.parseEntries(exactBoundary, validIds).length, 0, 'non-canonical padded JSON is rejected by JSON parse');
+assert.equal(api.parseEntries(exactBoundary, validIndex).length, 0, 'non-canonical padded JSON is rejected by JSON parse');
 
 console.log('conversation lineage retention stress tests passed');
