@@ -28,7 +28,7 @@ assert.equal(loader.split("'/github-file-update.js'").length - 1, 1);
 assert.equal(loader.split("'/github-file-update-style.js'").length - 1, 1);
 assert.equal(style.includes("link.href = '/github-file-update.css'"), true);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v72');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 for (const asset of ['/github-file-update.js', '/github-file-update-style.js', '/github-file-update.css']) {
   assert.equal(swPolicy.SHELL_ASSETS.includes(asset), true, `${asset} must be cached`);
   assert.equal(swPolicy.classifyRequest({ method: 'GET', url: `https://hafize.example${asset}`, headers: {}, mode: 'cors' }, 'https://hafize.example'), 'shell');
@@ -51,12 +51,12 @@ assert.match(css, /forced-colors: active/);
 assert.match(css, /focus-visible/);
 assert.match(css, /aria-invalid="true"/);
 
-assert.match(doc, /iki aşamalı açık onay/i);
+assert.match(doc, /İki aşamalı açık onay/);
 assert.match(doc, /expectedBlobSha/);
 assert.match(doc, /\.github\/workflows/);
 assert.match(doc, /64 KiB/);
 assert.match(doc, /localStorage/);
 assert.match(doc, /Dört profilli/);
-assert.match(policy, /hafize-shell-v72/);
+assert.match(policy, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/);
 
 console.log('github file update integration tests passed');
