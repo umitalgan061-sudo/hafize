@@ -30,12 +30,16 @@ class Observer {
 }
 class Event { constructor(type) { this.type = type; } }
 
-function storage(initial = []) {
-  let raw = JSON.stringify(initial);
+function storage(conversations = [], models = []) {
+  const values = new Map([
+    [api.CONVERSATION_STORAGE_KEY, JSON.stringify(conversations)],
+    [api.MODEL_STORAGE_KEY, JSON.stringify(models)]
+  ]);
   return {
-    getItem(key) { return key === api.STORAGE_KEY ? raw : null; },
-    setItem(key, value) { if (key === api.STORAGE_KEY) raw = value; },
-    value() { return JSON.parse(raw); }
+    getItem(key) { return values.has(key) ? values.get(key) : null; },
+    setItem(key, value) { values.set(String(key), String(value)); },
+    conversations() { return JSON.parse(values.get(api.CONVERSATION_STORAGE_KEY) || '[]'); },
+    models() { return JSON.parse(values.get(api.MODEL_STORAGE_KEY) || '[]'); }
   };
 }
 function harness({ conversations, activeIndex = 0, selected = 'nvidia/model-a', disabled = false }) {
@@ -68,16 +72,18 @@ assert.deepEqual([...api.modelIds({ options: [{ value: 'a' }, { value: 'a' }, { 
   const h = harness({ conversations: [{ id: 'a', modelId: 'local:llama3' }, { id: 'b', modelId: 'nvidia/model-a' }] });
   assert.equal(h.controller.mount(), true);
   assert.equal(h.select.value, 'local:llama3');
+  assert.equal(h.store.models().find((entry) => entry.conversationId === 'a')?.modelId, 'local:llama3', 'legacy inline model migrates to isolated model storage');
   assert.equal(Observer.instances.at(-1).observed.length, 3);
   h.rows[0].classList.remove('active'); h.rows[1].classList.add('active');
   Observer.instances.at(-1).trigger(); h.queued.shift()();
   assert.equal(h.select.value, 'nvidia/model-a');
   h.select.value = 'local:llama3'; h.select.dispatchEvent(new Event('change'));
-  assert.equal(h.store.value()[1].modelId, 'local:llama3');
+  assert.equal(h.store.models().find((entry) => entry.conversationId === 'b')?.modelId, 'local:llama3');
+  assert.equal(h.store.conversations()[1].modelId, 'nvidia/model-a', 'model persistence never rewrites canonical conversation payloads');
   h.send.classList.add('streaming'); Observer.instances.at(-1).trigger(); h.queued.shift()();
   assert.equal(h.select.disabled, true);
   h.select.value = 'nvidia/model-a'; h.select.dispatchEvent(new Event('change'));
-  assert.equal(h.store.value()[1].modelId, 'local:llama3');
+  assert.equal(h.store.models().find((entry) => entry.conversationId === 'b')?.modelId, 'local:llama3');
   h.send.classList.remove('streaming'); Observer.instances.at(-1).trigger(); h.queued.shift()();
   assert.equal(h.select.disabled, false);
   assert.equal(h.select.value, 'local:llama3');
@@ -87,12 +93,14 @@ assert.deepEqual([...api.modelIds({ options: [{ value: 'a' }, { value: 'a' }, { 
 {
   const h = harness({ conversations: [{ id: 'legacy' }], selected: 'nvidia/model-a' });
   h.controller.mount();
-  assert.equal(h.store.value()[0].modelId, 'nvidia/model-a');
+  assert.equal(h.store.models()[0]?.modelId, 'nvidia/model-a');
+  assert.equal(h.store.models()[0]?.conversationId, 'legacy');
 }
 {
   const h = harness({ conversations: [{ id: 'stale', modelId: 'removed/model' }], selected: 'local:llama3', disabled: true });
   h.controller.mount();
-  assert.equal(h.store.value()[0].modelId, 'local:llama3');
+  assert.equal(h.store.models()[0]?.modelId, 'local:llama3');
+  assert.equal(h.store.models()[0]?.conversationId, 'stale');
   h.send.classList.add('streaming'); h.controller.syncRunLock();
   h.send.classList.remove('streaming'); h.controller.syncRunLock();
   assert.equal(h.select.disabled, true);
@@ -100,6 +108,7 @@ assert.deepEqual([...api.modelIds({ options: [{ value: 'a' }, { value: 'a' }, { 
 {
   const bad = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
   assert.deepEqual(api.readConversations(bad), []);
-  assert.equal(api.writeConversations(bad, []), false);
+  assert.deepEqual(api.readModelEntries(bad, []), []);
+  assert.equal(api.writeModelEntries(bad, [], []), false);
 }
 console.log('conversation model state tests passed');
