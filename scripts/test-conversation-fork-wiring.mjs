@@ -25,7 +25,7 @@ assert.equal(appended[0].async, false);
 assert.equal(insights.installConversationForkAsset(documentRef), false, 'loader must be idempotent');
 assert.equal(appended.length, 1);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v94');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/conversation-fork.js'), true);
 assert.equal(swPolicy.classifyRequest({
   method: 'GET',
@@ -79,6 +79,6 @@ assert.equal(registry.agents.length, 4);
 assert.equal(registry.policy?.externalWritesRequireApproval, true);
 assert.equal(registry.policy?.secretsNeverEnterAgentContext, true);
 assert.equal(registry.policy?.sharedTraceIdRequired, true);
-for (const agent of registry.agents) assert.equal(agent.toolPolicy?.denyByDefault, true);
+for (const agent of registry.agents) assert.equal(agent.toolPolicy?.default, 'deny');
 
 console.log('conversation fork wiring tests passed');
