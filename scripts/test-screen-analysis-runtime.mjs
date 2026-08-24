@@ -18,11 +18,17 @@ for (const request of [
   { ...valid, token: 'secret' },
   { ...valid, model: 'bad\nmodel' },
   { ...valid, prompt: '' },
+  { ...valid, prompt: 'Authorization: Bearer abcdefghijklmnop' },
+  { ...valid, prompt: 'nvapi-1234567890abcdefghijklmnopqrstuv' },
   { ...valid, image: 'data:image/png;base64,AAAA' },
   { ...valid, image: 'data:image/jpeg;base64,AAAA' }
 ]) {
   assert.equal(validateScreenAnalysisRequest(request).ok, false);
 }
+assert.equal(
+  validateScreenAnalysisRequest({ ...valid, prompt: 'API key güvenliği hakkında ekranı incele.' }).ok,
+  true
+);
 
 const calls = [];
 const runtime = createScreenAnalysisRuntime({
@@ -64,6 +70,20 @@ const leaking = createScreenAnalysisRuntime({
 const failed = await leaking.analyze(valid);
 assert.deepEqual(failed, { ok: false, status: 502, error: 'SCREEN_ANALYSIS_FAILED' });
 assert.equal(JSON.stringify(failed).includes('/Users/umit'), false);
+
+for (const content of [
+  'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'nvapi-1234567890abcdefghijklmnopqrstuv'
+]) {
+  const credentialOutput = createScreenAnalysisRuntime({
+    async complete() { return { choices: [{ message: { content } }] }; }
+  });
+  assert.deepEqual(
+    await credentialOutput.analyze(valid),
+    { ok: false, status: 502, error: 'SCREEN_ANALYSIS_PLAINTEXT_CREDENTIAL_BLOCKED' }
+  );
+}
 
 const empty = createScreenAnalysisRuntime({ async complete() { return { choices: [{ message: { content: '' } }] }; } });
 assert.equal((await empty.analyze(valid)).error, 'INVALID_SCREEN_ANALYSIS_RESPONSE');
