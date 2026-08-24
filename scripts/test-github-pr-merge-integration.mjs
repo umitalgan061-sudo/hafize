@@ -51,7 +51,7 @@ assert.equal(source.includes("method: 'POST'"), true);
 assert.equal(source.includes("credentials: 'same-origin'"), true);
 assert.equal(source.includes("cache: 'no-store'"), true);
 assert.equal(source.includes('MOUNT_TIMEOUT_MS = 10_000'), true);
-assert.equal(source.includes("event?.key === 'Escape'"), true);
+assert.equal(source.includes("event?.key !== 'Escape'"), true);
 assert.equal(source.includes("setAttribute('aria-live', 'polite')"), true);
 assert.equal(source.includes("setAttribute('aria-atomic', 'true')"), true);
 assert.equal(source.includes("approveButton.hidden = true"), true);
