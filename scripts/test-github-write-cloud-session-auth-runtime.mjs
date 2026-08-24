@@ -115,7 +115,7 @@ const command = Object.freeze({
     request: request({ command }),
     method: 'POST',
     pathname: '/api/github/write/prepare',
-    headers: { cookie }
+    headers: { cookie, origin: config.HAFIZE_CLOUD_SESSION_ORIGIN }
   });
   assert.equal(prepared.matched, true);
   assert.equal(prepared.status, 200);
@@ -127,7 +127,7 @@ const command = Object.freeze({
     request: request({ command, approvalToken: prepared.body.approvalToken }),
     method: 'POST',
     pathname: '/api/github/write/execute',
-    headers: { cookie }
+    headers: { cookie, origin: config.HAFIZE_CLOUD_SESSION_ORIGIN }
   });
   assert.equal(executed.status, 200);
   assert.equal(executed.body.receipt.operation, 'branch.create');
@@ -138,7 +138,7 @@ const command = Object.freeze({
     request: request({ command, approvalToken: prepared.body.approvalToken }),
     method: 'POST',
     pathname: '/api/github/write/execute',
-    headers: { cookie }
+    headers: { cookie, origin: config.HAFIZE_CLOUD_SESSION_ORIGIN }
   });
   assert.equal(replayed.status, 409);
   assert.equal(replayed.body.error, 'GITHUB_WRITE_APPROVAL_REPLAYED');
@@ -163,7 +163,7 @@ const command = Object.freeze({
     request: request({ command }),
     method: 'POST',
     pathname: '/api/github/write/prepare',
-    headers: { cookie }
+    headers: { cookie, origin: config.HAFIZE_CLOUD_SESSION_ORIGIN }
   });
   assert.equal(prepared.status, 200);
 
