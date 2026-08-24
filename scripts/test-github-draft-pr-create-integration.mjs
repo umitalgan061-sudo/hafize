@@ -29,7 +29,7 @@ assert.equal(loader.includes("loadShellEnhancement('HafizeGitHubDraftPrCreate', 
 assert.equal(loader.split("'/github-draft-pr-create.js'").length - 1, 1);
 assert.equal(loader.split("'/github-draft-pr-create-style.js'").length - 1, 1);
 
-assert.match(policy, /hafize-shell-v71/);
+assert.match(policy, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policy, /'\/github-draft-pr-create\.js'/);
 assert.match(policy, /'\/github-draft-pr-create-style\.js'/);
 assert.match(policy, /'\/github-draft-pr-create\.css'/);
@@ -47,7 +47,7 @@ assert.match(source, /MutationObserver/);
 assert.match(source, /approvalToken/);
 
 assert.match(doc, /draft Pull Request/i);
-assert.match(doc, /iki aşamalı açık onay/i);
+assert.match(doc, /İki aşamalı açık onay/);
 assert.match(doc, /replay protection/i);
 assert.match(doc, /localStorage/);
 assert.match(doc, /GITHUB_TOKEN/);
