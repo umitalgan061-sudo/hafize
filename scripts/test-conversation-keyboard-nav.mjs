@@ -15,6 +15,7 @@ assert.equal(api.nextIndex(3, 'ArrowDown', 4), 3);
 assert.equal(api.nextIndex(2, 'Home', 4), 0);
 assert.equal(api.nextIndex(1, 'End', 4), 3);
 assert.equal(api.nextIndex(-1, 'End', 4), -1);
+assert.equal(api.nextIndex(4, 'Home', 4), -1);
 assert.equal(api.nextIndex(0, 'ArrowDown', 0), -1);
 
 for (const tagName of ['INPUT', 'textarea', 'Select']) {
