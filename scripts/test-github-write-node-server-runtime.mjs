@@ -12,7 +12,8 @@ const disabled = createGitHubWriteNodeServerRuntime({
   fetchImpl: async () => { throw new Error('disabled runtime must not fetch'); }
 });
 assert.equal(disabled.configured, false);
-assert.deepEqual(Object.keys(disabled).sort(), ['configured', 'handle']);
+assert.deepEqual(Object.keys(disabled).sort(), ['close', 'configured', 'handle']);
+assert.equal(typeof disabled.close, 'function');
 assert.equal('runtime' in disabled, false);
 assert.equal('writer' in disabled, false);
 assert.equal('token' in disabled, false);
@@ -31,6 +32,7 @@ assert.deepEqual(await disabled.handle({
   pathname: '/api/health',
   headers: {}
 }), { matched: false });
+await disabled.close();
 
 assert.throws(
   () => createGitHubWriteNodeServerRuntime({ env: {}, sendJson }),
