@@ -10,7 +10,7 @@ assert.match(source, /let destroyed = false/);
 assert.match(source, /function clearTimer\(\)/);
 assert.match(source, /function expire\(\)/);
 assert.match(source, /function cancel\(/);
-assert.match(source, /function destroy\(\)/);
+assert.match(source, /destroy\(\) \{/);
 assert.match(source, /visibilitychange/);
 assert.match(source, /keydown/);
 assert.match(source, /Escape/);
