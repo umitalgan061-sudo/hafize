@@ -61,6 +61,39 @@ assert.deepEqual(
   { ok: false, error: 'MEMORY_SENSITIVITY_NOT_ALLOWED' }
 );
 
+const memoryWrite = (content) => normalizeMemoryWrite({
+  ownerId: 'owner',
+  kind: 'note',
+  content,
+  sourceType: 'user_note',
+  sensitivity: 'personal',
+  explicitUserIntent: true
+});
+
+for (const content of [
+  'api_key=abcdef123456',
+  'password: hunter22',
+  'client secret: verysecretvalue',
+  'Authorization: Bearer abcdefghijklmnop',
+  'Proxy-Authorization: Basic dXNlcjpwYXNzd29yZA==',
+  '-----BEGIN PRIVATE KEY-----\nplaintext-private-material'
+]) {
+  assert.deepEqual(
+    memoryWrite(content),
+    { ok: false, error: 'MEMORY_PLAINTEXT_CREDENTIAL_NOT_ALLOWED' },
+    `plaintext credential must be rejected: ${content.split('\n', 1)[0]}`
+  );
+}
+
+for (const content of [
+  'API keyleri yalnız sunucu tarafında sakla.',
+  'Parolamı hafızaya kaydetme.',
+  'Authorization header kullanımı hakkında not.',
+  'secret yönetimi için ayrı bir tasarım gerekiyor.'
+]) {
+  assert.equal(memoryWrite(content).ok, true, `non-secret discussion must remain storable: ${content}`);
+}
+
 for (const kind of ['identity', 'preference', 'project', 'note']) {
   assert.equal(normalizeMemoryWrite({
     ownerId: 'owner',
