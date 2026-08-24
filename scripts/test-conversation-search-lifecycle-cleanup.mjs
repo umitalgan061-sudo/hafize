@@ -4,109 +4,190 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const search = require('../public/conversation-search.js');
 
-function eventTarget(extra = {}) {
-  const listeners = new Map();
-  return {
-    ...extra,
-    addEventListener(type, fn) { listeners.set(type, fn); },
-    removeEventListener(type, fn) { if (listeners.get(type) === fn) listeners.delete(type); },
-    fire(type, event = {}) { listeners.get(type)?.(event); },
-    listenerCount() { return listeners.size; }
-  };
+class El {
+  constructor(tag = 'div') {
+    this.tagName = tag.toUpperCase();
+    this.children = [];
+    this.parentNode = null;
+    this.listeners = new Map();
+    this.attributes = new Map();
+    this.dataset = {};
+    this.hidden = false;
+    this.disabled = false;
+    this.value = '';
+    this.id = '';
+    this.className = '';
+    this.textContent = '';
+    this.focusCount = 0;
+  }
+  append(...nodes) {
+    for (const node of nodes) {
+      node.parentNode = this;
+      this.children.push(node);
+    }
+  }
+  insertBefore(node, before) {
+    node.parentNode = this;
+    const index = this.children.indexOf(before);
+    if (index < 0) this.children.push(node);
+    else this.children.splice(index, 0, node);
+  }
+  remove() {
+    if (!this.parentNode) return;
+    this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+    this.parentNode = null;
+  }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  addEventListener(type, callback) {
+    const list = this.listeners.get(type) || [];
+    list.push(callback);
+    this.listeners.set(type, list);
+  }
+  removeEventListener(type, callback) {
+    this.listeners.set(type, (this.listeners.get(type) || []).filter((entry) => entry !== callback));
+  }
+  fire(type, event = {}) {
+    for (const callback of this.listeners.get(type) || []) callback(event);
+  }
+  listenerCount() {
+    let count = 0;
+    for (const listeners of this.listeners.values()) count += listeners.length;
+    return count;
+  }
+  focus() { this.focusCount += 1; }
+  matches(selector) {
+    if (selector.startsWith('#')) return this.id === selector.slice(1);
+    if (selector.startsWith('.')) return this.className.split(/\s+/).includes(selector.slice(1));
+    return false;
+  }
+  querySelector(selector) { return this.querySelectorAll(selector)[0] || null; }
+  querySelectorAll(selector) {
+    const matches = [];
+    for (const child of this.children) {
+      if (child.matches(selector)) matches.push(child);
+      matches.push(...child.querySelectorAll(selector));
+    }
+    return matches;
+  }
 }
 
-function makeFixture({ preexisting = false } = {}) {
-  const input = eventTarget({ value: '', focusCount: 0, focus() { this.focusCount += 1; } });
-  const clear = eventTarget({ disabled: true });
-  const status = { textContent: '' };
-  const list = { querySelectorAll: () => [] };
-  const control = {
-    removed: false,
+function makeFixture() {
+  const head = new El('head');
+  const body = new El('body');
+  const history = new El('section');
+  history.className = 'history-block';
+  const list = new El();
+  list.id = 'conversationList';
+  history.append(list);
+  body.append(history);
+
+  const documentRef = {
+    head,
+    body,
+    createElement: (tag) => new El(tag),
     querySelector(selector) {
-      if (selector === `#${search.INPUT_ID}`) return input;
-      if (selector === '.conversation-search-clear') return clear;
-      if (selector === `#${search.STATUS_ID}`) return status;
-      return null;
-    },
-    remove() { this.removed = true; }
+      if (selector === '.history-block') return history;
+      if (selector === '#conversationList') return list;
+      return body.querySelector(selector) || head.querySelector(selector);
+    }
   };
-  const history = { insertBefore() {} };
-  const root = eventTarget({
-    requestAnimationFrame(callback) { this.pending = callback; return 1; },
+
+  const rootListeners = new Map();
+  const animationFrames = new Map();
+  let nextAnimationFrameId = 1;
+  const root = {
     localStorage: { getItem: () => '[]' },
     HafizeConversationStorageGuard: {
       STORAGE_KEY: 'hafize.conversations.v1',
       sanitizeStoredValue: () => ({ value: [] })
-    }
-  });
-  const documentRef = {
-    head: { append() {} },
-    querySelector(selector) {
-      if (selector === '.history-block') return history;
-      if (selector === '#conversationList') return list;
-      if (selector === `#${search.CONTROL_ID}`) return preexisting ? control : null;
-      if (selector === `#${search.STYLE_ID}`) return {};
-      return null;
     },
-    createElement(tag) {
-      if (tag === 'div') return control;
-      throw new Error(`unexpected createElement ${tag}`);
-    }
+    addEventListener(type, callback) {
+      const listeners = rootListeners.get(type) || [];
+      listeners.push(callback);
+      rootListeners.set(type, listeners);
+    },
+    removeEventListener(type, callback) {
+      rootListeners.set(type, (rootListeners.get(type) || []).filter((entry) => entry !== callback));
+    },
+    fire(type, event = {}) {
+      for (const callback of rootListeners.get(type) || []) callback(event);
+    },
+    listenerCount() {
+      let count = 0;
+      for (const listeners of rootListeners.values()) count += listeners.length;
+      return count;
+    },
+    requestAnimationFrame(callback) {
+      const id = nextAnimationFrameId++;
+      animationFrames.set(id, callback);
+      return id;
+    },
+    cancelAnimationFrame(id) { animationFrames.delete(id); }
   };
-  return { input, clear, status, list, control, history, root, documentRef };
-}
 
-class Observer {
-  constructor(callback) { this.callback = callback; }
-  observe() { this.observing = true; }
-  disconnect() { this.disconnected = true; }
+  class Observer {
+    constructor(callback) { this.callback = callback; }
+    observe() { this.observing = true; }
+    disconnect() { this.disconnected = true; }
+  }
+
+  return { documentRef, root, animationFrames, Observer };
 }
 
 {
-  const f = makeFixture({ preexisting: true });
-  const controller = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: Observer });
+  const f = makeFixture();
+  const controller = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: f.Observer });
   assert.equal(controller.mount(), true);
-  assert.equal(f.input.listenerCount(), 2);
-  assert.equal(f.clear.listenerCount(), 1);
+  const input = f.documentRef.querySelector(`#${search.INPUT_ID}`);
+  const clear = f.documentRef.querySelector('.conversation-search-clear');
+  assert.ok(input);
+  assert.ok(clear);
+  assert.equal(input.listenerCount(), 2);
+  assert.equal(clear.listenerCount(), 1);
   assert.equal(f.root.listenerCount(), 2);
 
-  f.input.value = 'aranan';
-  f.input.fire('input');
-  f.input.fire('keydown', {
+  input.value = 'aranan';
+  input.fire('input');
+  input.fire('keydown', {
     key: 'Escape',
     defaultPrevented: false,
     preventDefault() { this.prevented = true; }
   });
-  assert.equal(f.input.value, '');
-  assert.equal(f.input.focusCount, 1);
+  assert.equal(input.value, '');
+  assert.equal(input.focusCount, 1);
 
-  controller.destroy();
-  assert.equal(f.input.listenerCount(), 0);
-  assert.equal(f.clear.listenerCount(), 0);
+  assert.equal(controller.destroy(), true);
+  assert.equal(input.listenerCount(), 0);
+  assert.equal(clear.listenerCount(), 0);
   assert.equal(f.root.listenerCount(), 0);
-  assert.equal(f.control.removed, false, 'preexisting control must not be removed');
+  assert.equal(f.documentRef.querySelector(`#${search.CONTROL_ID}`), null, 'owned control must be removed');
   assert.equal(controller.apply().ok, false, 'destroyed controller must be inert');
 }
 
 {
-  const f = makeFixture({ preexisting: true });
-  const controller = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: Observer });
+  const f = makeFixture();
+  const controller = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: f.Observer });
   assert.equal(controller.mount(), true);
   f.root.fire('hafize:conversation-storage-merged');
-  assert.equal(typeof f.root.pending, 'function');
+  assert.equal(f.animationFrames.size, 1);
+  const staleRefresh = [...f.animationFrames.values()][0];
   controller.destroy();
-  assert.doesNotThrow(() => f.root.pending());
-  assert.equal(f.input.listenerCount(), 0);
+  assert.equal(f.animationFrames.size, 0, 'destroy must cancel queued refresh');
+  assert.doesNotThrow(() => staleRefresh());
+  assert.equal(f.root.listenerCount(), 0);
 }
 
 {
-  const f = makeFixture({ preexisting: true });
-  const controller = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: Observer });
+  const f = makeFixture();
+  const controller = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: f.Observer });
   assert.equal(controller.mount(), true);
   assert.equal(controller.mount(), false, 'double mount must fail closed');
   controller.destroy();
-  assert.equal(controller.mount(), true, 'same controller may mount cleanly after destroy');
-  controller.destroy();
+  assert.equal(controller.mount(), false, 'destroy is terminal for the same controller');
+
+  const replacement = search.createController({ documentRef: f.documentRef, rootRef: f.root, MutationObserverImpl: f.Observer });
+  assert.equal(replacement.mount(), true, 'a new controller may mount after ownership is released');
+  replacement.destroy();
 }
 
 console.log('conversation search lifecycle cleanup tests passed');
