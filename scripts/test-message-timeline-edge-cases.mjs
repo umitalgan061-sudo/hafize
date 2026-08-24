@@ -14,10 +14,11 @@ assert.equal(api.normalizeIso('2026-08-16'), null);
 assert.equal(api.normalizeIso('x'.repeat(65)), null);
 
 const duplicate = JSON.stringify([
-  { messages: [{ id: 'same', at: '2026-08-16T10:00:00Z' }] },
-  { messages: [{ id: 'same', at: '2026-08-17T10:00:00Z' }] }
+  { id: 'c1', messages: [{ id: 'same', at: '2026-08-16T10:00:00Z' }] },
+  { id: 'c2', messages: [{ id: 'same', at: '2026-08-17T10:00:00Z' }] }
 ]);
-assert.equal(api.readMessageTimes(duplicate).get('same'), '2026-08-16T10:00:00.000Z');
+assert.equal(api.readMessageTimes(duplicate, 'c1').get('same'), '2026-08-16T10:00:00.000Z');
+assert.equal(api.readMessageTimes(duplicate, 'c2').get('same'), '2026-08-17T10:00:00.000Z');
 
 const mixed = JSON.stringify([
   null,

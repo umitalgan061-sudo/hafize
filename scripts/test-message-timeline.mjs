@@ -50,8 +50,8 @@ assert.equal(api.readMessageTimes(raw, 'missing').size, 0);
 assert.equal(api.readMessageTimes(raw, '../bad').size, 0);
 assert.equal(api.readMessageTimes('{broken', 'c1').size, 0);
 assert.equal(api.readMessageTimes('{}', 'c1').size, 0);
-assert.deepEqual(api.parseConversationList('{broken'), []);
-assert.deepEqual(api.parseConversationList('x'.repeat(api.MAX_STORAGE_CHARS + 1)), [], 'oversized raw storage must be rejected before JSON.parse');
+assert.deepEqual(Array.from(api.parseConversationList('{broken')), []);
+assert.deepEqual(Array.from(api.parseConversationList('x'.repeat(api.MAX_STORAGE_CHARS + 1))), [], 'oversized raw storage must be rejected before JSON.parse');
 
 function classList(active = false) {
   return { contains(name) { return name === 'active' && active; } };
