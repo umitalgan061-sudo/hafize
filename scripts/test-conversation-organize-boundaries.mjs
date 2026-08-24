@@ -46,7 +46,7 @@ assert.equal(source.includes("storage?.getItem?.(STORAGE_KEY)"), true);
 assert.equal(source.includes("open.textContent = title"), true, 'title rendering must use textContent');
 assert.equal(source.includes("input.maxLength = MAX_TITLE_CHARS"), true);
 assert.equal(source.includes("input.autocomplete = 'off'"), true);
-assert.equal(source.includes("keyEvent.key !== 'Escape'"), true);
+assert.equal(source.includes("event?.key !== 'Escape'"), true);
 assert.equal(source.includes("observer?.observe(list, { childList: true, subtree: true })"), true);
 assert.equal(source.includes("root.addEventListener?.('storage', onStorage)"), true);
 assert.equal(source.includes("root.removeEventListener?.('storage', onStorage)"), true);
