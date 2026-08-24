@@ -106,7 +106,9 @@ assert.equal(rail.children.length, 0);
 
 const failingBridge = {
   async getSystemInfo() { return { ok: false, error: 'DEVICE_ACTION_FAILED' }; },
-  async getCapabilities() { return { ok: true, value: { browserOrigins: ['https://example.com'] } }; }
+  async getCapabilities() { return { ok: true, value: { browserOrigins: ['https://example.com'] } }; },
+  async openBrowser() { throw new Error('unexpected browser action'); },
+  async openApp() { throw new Error('unexpected app action'); }
 };
 const failing = api.createController({ documentRef, bridge: failingBridge });
 assert.equal(failing.mount(), true);
