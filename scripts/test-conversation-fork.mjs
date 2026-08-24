@@ -27,12 +27,13 @@ function buttonStub() {
 function documentStub({ draft = '', streaming = false } = {}) {
   const input = { value: draft };
   const send = { classList: classList(streaming ? ['streaming'] : []) };
+  const messages = { querySelectorAll() { return []; } };
   return {
     head: { append() {} },
     querySelector(selector) {
       if (selector === '#messageInput') return input;
       if (selector === '#sendBtn') return send;
-      if (selector === '#messages') return { querySelectorAll() { return []; } };
+      if (selector === '#messages') return messages;
       if (selector === `#${forkApi.STYLE_ID}`) return null;
       return null;
     },
@@ -98,6 +99,7 @@ const controller = forkApi.createController({
   now: () => new Date('2026-08-19T00:05:00.000Z'),
   reload: () => { reloads += 1; }
 });
+assert.equal(controller.mount(), true);
 const successButton = buttonStub();
 assert.equal(controller.forkFromMessage(successButton, 'm-2'), true);
 assert.equal(reloads, 1);
@@ -123,6 +125,7 @@ const draftController = forkApi.createController({
   now: () => new Date('2026-08-19T00:05:00.000Z'),
   reload: () => { throw new Error('must not reload'); }
 });
+assert.equal(draftController.mount(), true);
 const draftButton = buttonStub();
 assert.equal(draftController.forkFromMessage(draftButton, 'm-2'), false);
 assert.equal(draftButton.textContent, 'Taslak korunuyor');
@@ -136,6 +139,7 @@ const streamController = forkApi.createController({
   MutationObserverImpl: null,
   cryptoRef
 });
+assert.equal(streamController.mount(), true);
 const streamButton = buttonStub();
 assert.equal(streamController.forkFromMessage(streamButton, 'm-2'), false);
 assert.equal(streamButton.textContent, 'Yanıt sürüyor');
