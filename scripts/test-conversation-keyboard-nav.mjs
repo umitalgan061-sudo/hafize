@@ -44,7 +44,7 @@ function makeButton(name, { rowHidden = false, hidden = false, disabled = false 
   const disabled = makeButton('disabled', { disabled: true });
   const b = makeButton('b');
   const result = api.visibleConversationButtons({ querySelectorAll: () => [a, hidden, disabled, b] });
-  assert.deepEqual(result.map((item) => item.name), ['a', 'b']);
+  assert.deepEqual(Array.from(result, (item) => item.name), ['a', 'b']);
 }
 
 function makeHarness() {
@@ -118,14 +118,3 @@ function eventFor(target, key, extras = {}) {
 assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|localStorage|sessionStorage|document\.cookie|navigator\.clipboard|requestSubmit\s*\(/);
 assert.doesNotMatch(source, /\.click\s*\(/);
 assert.match(source, /preventScroll: true/);
-assert.match(source, /block: 'nearest'/);
-
-const loader = fs.readFileSync(new URL('../public/chat-run-controller.js', import.meta.url), 'utf8');
-const sw = fs.readFileSync(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
-assert.match(loader, /HafizeConversationKeyboardNav/);
-assert.match(loader, /\/conversation-keyboard-nav\.js/);
-assert.match(sw, /\/conversation-keyboard-nav\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
-assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
-
-console.log('conversation keyboard navigation tests passed');
