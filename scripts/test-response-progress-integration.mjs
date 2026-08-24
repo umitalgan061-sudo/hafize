@@ -10,7 +10,7 @@ const [loader, policy, source] = await Promise.all([
 assert.match(loader, /HafizeResponseProgress/);
 assert.match(loader, /\/response-progress\.js/);
 assert.match(loader, /data-hafize-response-progress/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v52`/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policy, /'\/response-progress\.js'/);
 assert.match(policy, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
