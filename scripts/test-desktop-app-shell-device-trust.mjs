@@ -29,7 +29,7 @@ function createBrowserWindowClass() {
         mainFrame: { url: 'http://127.0.0.1:4173/' },
         on(name, fn) { this.listeners.set(name, fn); },
         removeListener(name, fn) { if (this.listeners.get(name) === fn) this.listeners.delete(name); },
-        setWindowOpenHandler: (fn) => { this.windowOpenHandler = fn; }
+        setWindowOpenHandler(fn) { this.windowOpenHandler = fn; }
       };
       windows.push(this);
     }
