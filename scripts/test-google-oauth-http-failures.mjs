@@ -2,22 +2,28 @@ import assert from 'node:assert/strict';
 import { createGoogleOAuthHttpRuntime, GOOGLE_OAUTH_HTTP_PATHS } from '../lib/google-oauth-http-runtime.mjs';
 import { createOAuthFlowStore } from '../lib/oauth-flow-store.mjs';
 
-const TOKEN = 'q'.repeat(48);
+const ORIGIN = 'https://hafize.example.test';
 const ENV = {
-  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: 'https://hafize.example.test/api/connectors/gmail/oauth/callback',
+  HAFIZE_GOOGLE_OAUTH_REDIRECT_URI: `${ORIGIN}/api/connectors/gmail/oauth/callback`,
   HAFIZE_GOOGLE_OAUTH_CLIENT_ID: 'client-id',
-  HAFIZE_CONNECTOR_AUTH_TOKEN: TOKEN,
-  HAFIZE_CONNECTOR_AUTH_SUBJECT: 'subject',
   HAFIZE_CONNECTOR_OWNER_KEY_B64: Buffer.alloc(32, 9).toString('base64'),
-  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test'
+  HAFIZE_OAUTH_REDIS_URL: 'rediss://redis.example.test',
+  HAFIZE_CLOUD_SESSION_ORIGIN: ORIGIN
 };
-const startUrl = new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.start}`);
-const headers = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
+const startUrl = new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.start}`);
+const headers = { origin: ORIGIN, 'content-type': 'application/json' };
+const sessionRuntime = () => ({
+  configured: true,
+  authenticator: {
+    authenticate: () => ({ ok: true, principal: { authenticated: true, subject: 'subject' } })
+  }
+});
 
 async function createRuntime({ store = createOAuthFlowStore(), exchange, readJson, close } = {}) {
   return createGoogleOAuthHttpRuntime({
     env: ENV,
     readJson: readJson || (async (request) => request.body),
+    createSessionRuntime: sessionRuntime,
     createTokenStoreRuntime: () => ({ async save() {} }),
     createFlowStoreRuntime: async () => ({ configured: true, store, close: close || (async () => {}) }),
     createTokenExchange: () => ({ exchange: exchange || (async () => ({ ownerId: 'owner', refreshTokenStored: true })) })
@@ -36,7 +42,7 @@ async function start(runtime) {
 async function callback(runtime, state) {
   return runtime.handle({
     method: 'GET', pathname: GOOGLE_OAUTH_HTTP_PATHS.callback,
-    url: new URL(`https://hafize.example.test${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=authorization-code`),
+    url: new URL(`${ORIGIN}${GOOGLE_OAUTH_HTTP_PATHS.callback}?state=${state}&code=authorization-code`),
     headers: {}
   });
 }
@@ -88,6 +94,7 @@ for (const [code, expectedStatus, expectedBody] of [
   await assert.rejects(() => createGoogleOAuthHttpRuntime({
     env: ENV,
     readJson: async () => ({}),
+    createSessionRuntime: sessionRuntime,
     createTokenStoreRuntime: () => ({ async save() {} }),
     createFlowStoreRuntime: async () => ({ configured: true, store: createOAuthFlowStore(), async close() { closes += 1; } }),
     createOAuthRuntime: () => { throw new Error('composition secret'); }
