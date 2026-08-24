@@ -47,7 +47,7 @@ assert.equal(source.includes("open.textContent = title"), true, 'title rendering
 assert.equal(source.includes("input.maxLength = MAX_TITLE_CHARS"), true);
 assert.equal(source.includes("input.autocomplete = 'off'"), true);
 assert.equal(source.includes("event?.key !== 'Escape'"), true);
-assert.equal(source.includes("observer?.observe(list, { childList: true, subtree: true })"), true);
+assert.equal(source.includes("observer.observe(list, { childList: true, subtree: true })"), true);
 assert.equal(source.includes("root.addEventListener?.('storage', onStorage)"), true);
 assert.equal(source.includes("root.removeEventListener?.('storage', onStorage)"), true);
 assert.equal(source.includes('pruneEntries(entries, sourceIds)'), true, 'stale metadata must be pruned');
