@@ -34,7 +34,7 @@ assert.equal(authOptions.token, env.HAFIZE_CONNECTOR_AUTH_TOKEN);
 assert.equal(authOptions.subject, env.HAFIZE_CONNECTOR_AUTH_SUBJECT);
 assert.deepEqual(ownerOptions.key, Buffer.alloc(32, 2));
 assert.equal(memoryOptions.env, env);
-assert.deepEqual(runtime.authenticate({ authorization: 'Bearer ok' }), { ownerId: 'owner_private' });
+assert.deepEqual(runtime.authenticate({ authorization: 'Bearer ok' }), { ownerId: 'owner_private', authMode: 'bearer' });
 assert.equal(runtime.authenticate({}), null);
 
 const disabled = await createPersonalMemoryControlRuntime({ env: {} });
