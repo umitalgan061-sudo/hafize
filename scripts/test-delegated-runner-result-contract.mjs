@@ -19,6 +19,8 @@ const registry = {
 const runLedger = {
   recordToolStart() { throw new Error('no tool should be started'); },
   recordToolFinish() { throw new Error('no tool should be finished'); },
+  recordDelegationStart() { throw new Error('no nested delegation should be started'); },
+  recordDelegationFinish() { throw new Error('no nested delegation should be finished'); },
   snapshot() { return { entries: [] }; }
 };
 
