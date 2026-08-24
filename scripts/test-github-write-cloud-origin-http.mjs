@@ -22,7 +22,7 @@ const issuer = createRevocableCloudSessionAuth({
   signingKey,
   subject: env.HAFIZE_CLOUD_SESSION_SUBJECT
 });
-const login = await issuer.login(password);
+const login = await issuer.login({ password });
 const cookie = login.setCookie.split(';', 1)[0];
 const authenticator = createPrivilegedPrincipalAuthenticator({
   env,
