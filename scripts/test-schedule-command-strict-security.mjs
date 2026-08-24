@@ -20,6 +20,18 @@ assert.equal(strictMaxAttempts(6).ok, false);
 assert.equal(strictMaxAttempts('5').ok, false);
 assert.equal(strictTask('  hello  '), 'hello');
 assert.equal(strictTask('x'.repeat(20_001)), null);
+for (const task of [
+  'password: hunter22',
+  'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'nvapi-1234567890abcdefghijklmnopqrstuv'
+]) {
+  assert.equal(strictTask(task), null, `credential-bearing scheduled task must be rejected: ${task}`);
+}
+assert.equal(
+  strictTask('GitHub PAT ve NVIDIA API key güvenliğini incele.'),
+  'GitHub PAT ve NVIDIA API key güvenliğini incele.'
+);
 
 assert.match(boundarySource, /parsed <= nowMs/);
 assert.match(boundarySource, /if \(!task \|\| !attempts\.ok\) return fail\('INVALID_SCHEDULE_COMMAND'\)/);
