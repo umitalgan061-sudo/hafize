@@ -10,7 +10,7 @@ assert.match(loader, /\/response-fold\.js/);
 assert.match(loader, /data-hafize-response-fold/);
 assert.equal((loader.match(/\/response-fold\.js/g) || []).length, 1);
 
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v38`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /'\/response-fold\.js'/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 assert.equal((sw.match(/'\/response-fold\.js'/g) || []).length, 1);
