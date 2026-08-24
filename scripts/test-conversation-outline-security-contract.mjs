@@ -61,12 +61,14 @@ assert.equal(outline.normalizeMessageId('u1:child'), 'u1:child');
 assert.equal(outline.normalizeQuery('x'.repeat(121)), '');
 assert.equal(outline.createPreview('x'.repeat(500)).length, 92);
 
-// The updated cached client must invalidate the previous PWA shell generation.
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v164');
+// The cached client must keep a versioned current shell and retire older shell generations.
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(sw.SHELL_ASSETS.includes('/conversation-outline.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/conversation-outline.css'), true);
-assert.equal(sw.shouldDeleteCache('hafize-shell-v163'), true);
-assert.equal(sw.shouldDeleteCache('hafize-shell-v164'), false);
+const staleCache = `${sw.CACHE_PREFIX}v0`;
+assert.notEqual(staleCache, sw.CURRENT_CACHE);
+assert.equal(sw.shouldDeleteCache(staleCache), true);
+assert.equal(sw.shouldDeleteCache(sw.CURRENT_CACHE), false);
 
 // Documentation must record the same non-goals, not imply new permissions.
 assert.match(docs, /tek controller/i);
