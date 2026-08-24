@@ -37,7 +37,7 @@ assert.equal(
   false,
   'generic NVIDIA tool runtime must not silently register GitHub write operations'
 );
-assert.match(toolRuntimeSource, /github\.read_file/);
+assert.match(toolRuntimeSource, /'github_read_file'[\s\S]*?permission: 'repo\.read'/);
 
 const publicDirectoryMentions = [...serverSource.matchAll(/GITHUB_WRITE_NODE_SERVER_RUNTIME/g)].length;
 assert.equal(publicDirectoryMentions >= 3, true);
