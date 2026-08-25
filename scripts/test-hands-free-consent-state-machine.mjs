@@ -8,7 +8,7 @@ assert.match(source, /function expire\(\)/);
 assert.match(source, /function onConfirm\(/);
 assert.match(source, /function onToggleCapture\(/);
 assert.match(source, /documentRef\?\.hidden !== true/);
-assert.match(source, /root\?\.isSecureContext !== false/);
+assert.match(source, /root\?\.isSecureContext === true/);
 assert.match(source, /if \(destroyed \|\| pending \|\| !canReview/);
 assert.match(source, /if \(destroyed \|\| !pending \|\| !canReview/);
 assert.match(source, /root\.setTimeout\(expire, CONSENT_TIMEOUT_MS\)/);
