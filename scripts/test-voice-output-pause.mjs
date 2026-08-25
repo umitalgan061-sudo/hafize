@@ -134,7 +134,9 @@ assert.deepEqual(states.at(-1), {
   speaking: true,
   thinking: false,
   enabled: true,
-  supported: true
+  supported: true,
+  voiceInputListening: false,
+  error: false
 });
 
 pause.click();
