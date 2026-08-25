@@ -39,7 +39,9 @@ assert.equal((html.match(/<script src="\/hands-free-consent\.js" defer><\/script
 assert.match(consent, /Onayla ve dinlemeyi aç/);
 assert.match(consent, /event\?\.preventDefault\?\.\(\)/);
 assert.match(consent, /event\?\.stopImmediatePropagation\?\.\(\)/);
-assert.match(consent, /controller\?\.enable\?\.\(\)/);
+assert.match(consent, /bypass = true/);
+assert.match(consent, /toggle\.click\?\.\(\)/);
+assert.match(consent, /finally \{ bypass = false; \}/);
 assert.doesNotMatch(consent, /fetch\s*\(/);
 
 assert.match(handsFree, /SESSION_LIMIT_MS\s*=\s*30 \* 60 \* 1000/);
