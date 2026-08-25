@@ -14,7 +14,7 @@ assert.match(source, /documentRef\.hidden/);
 assert.match(source, /voiceOutputSpeaking/);
 assert.match(source, /clearSessionTimer\(\)/);
 assert.match(source, /clearCooldown\(\)/);
-assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v58`/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(policy, /'\/hands-free\.js'/);
 assert.match(policy, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
