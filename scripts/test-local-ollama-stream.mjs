@@ -18,9 +18,7 @@ const provider = createLocalOllamaProvider({
 
 const stream = await provider.stream({
   model: 'local:qwen3',
-  messages: [{ role: 'user', content: 'Merhaba' }],
-  tools: [{ type: 'function', function: { name: 'read_only', parameters: { type: 'object', properties: {} } } }],
-  tool_choice: 'auto'
+  messages: [{ role: 'user', content: 'Merhaba' }]
 });
 assert.equal(stream, body);
 assert.equal(calls.length, 1);
@@ -28,7 +26,17 @@ assert.equal(calls[0].init.headers.Accept, 'text/event-stream');
 const payload = JSON.parse(calls[0].init.body);
 assert.equal(payload.stream, true);
 assert.equal(payload.model, 'qwen3');
-assert.equal(payload.tools[0].function.name, 'read_only');
+
+await assert.rejects(
+  () => provider.stream({
+    model: 'local:qwen3',
+    messages: [{ role: 'user', content: 'read' }],
+    tools: [{ type: 'function', function: { name: 'read_only', parameters: { type: 'object', properties: {} } } }],
+    tool_choice: 'auto'
+  }),
+  (error) => error?.code === 'LOCAL_PROVIDER_TOOLS_UNSUPPORTED' && error?.status === 400
+);
+assert.equal(calls.length, 1);
 
 const invalid = createLocalOllamaProvider({
   enabled: true,
