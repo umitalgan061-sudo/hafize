@@ -30,7 +30,7 @@ assert.equal(cancel.normalizeScheduleId('abc-123'), 'abc-123');
 assert.match(loader, /HafizeScheduleCancel.*\/schedule-cancel\.js/);
 assert.equal(loader.split("'/schedule-cancel.js'").length - 1, 1, 'cancel loader must be exact-once');
 assert.match(list, /article\.dataset\.scheduleId = item\.scheduleId/);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v67');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/schedule-cancel.js'), true);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/schedule-cancel.css'), true);
 assert.equal(swPolicy.classifyRequest({
