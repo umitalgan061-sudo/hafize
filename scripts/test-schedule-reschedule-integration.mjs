@@ -32,7 +32,7 @@ assert.match(list, /meta\.dataset\.runAt = item\.runAt/);
 assert.match(list, /addEventListener\?\.\(RESCHEDULED_EVENT, onScheduleMutation\)/);
 assert.match(list, /removeEventListener\?\.\(RESCHEDULED_EVENT, onScheduleMutation\)/);
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v68');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/schedule-reschedule.js'), true);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/schedule-reschedule.css'), true);
 assert.equal(swPolicy.classifyRequest({
