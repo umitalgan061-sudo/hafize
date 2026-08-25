@@ -58,7 +58,11 @@ await assert.rejects(
     enabled: true,
     jsonTimeoutMs: 20,
     fetchImpl: async (_url, init) => new Promise((_resolve, reject) => {
-      init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })), { once: true });
+      const failSafe = setTimeout(() => reject(new Error('LOCAL_PROVIDER_TIMEOUT_TEST_STALLED')), 250);
+      init.signal.addEventListener('abort', () => {
+        clearTimeout(failSafe);
+        reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+      }, { once: true });
     })
   }).complete({ model: 'local:llama3', messages: [{ role: 'user', content: 'x' }] }),
   (error) => error?.code === 'LOCAL_PROVIDER_TIMEOUT' && error?.status === 504
