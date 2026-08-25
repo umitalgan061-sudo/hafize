@@ -86,11 +86,21 @@ const timed = createLocalProviderStreamDeadline(async (_payload, { signal }) => 
   });
 }, { timeoutMs: 1_000 });
 const timedBody = await timed({}, {});
-await assert.rejects(timedBody[Symbol.asyncIterator]().next(), (error) => {
-  assert.equal(error.code, 'LOCAL_PROVIDER_STREAM_TIMEOUT');
-  assert.equal(error.status, 504);
-  return true;
-});
+let timeoutGuard = null;
+try {
+  await Promise.race([
+    assert.rejects(timedBody[Symbol.asyncIterator]().next(), (error) => {
+      assert.equal(error.code, 'LOCAL_PROVIDER_STREAM_TIMEOUT');
+      assert.equal(error.status, 504);
+      return true;
+    }),
+    new Promise((_, reject) => {
+      timeoutGuard = setTimeout(() => reject(new Error('LOCAL_PROVIDER_STREAM_TIMEOUT_NOT_OBSERVED')), 1_500);
+    })
+  ]);
+} finally {
+  clearTimeout(timeoutGuard);
+}
 assert.equal(timedSignal.aborted, true);
 
 let earlyFinally = 0;
