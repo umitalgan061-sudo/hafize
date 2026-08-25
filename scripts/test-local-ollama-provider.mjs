@@ -87,24 +87,28 @@ assert.equal(request.messages[0].role, 'system');
 assert.deepEqual(await provider.listModels(), ['local:qwen3', 'local:gemma3']);
 assert.equal(calls[1].url, 'http://localhost:11434/v1/models');
 
-const toolCalls = [];
+let toolFetchCalls = 0;
 const toolsProvider = createLocalOllamaProvider({
   enabled: true,
-  async fetchImpl(_url, init) {
-    toolCalls.push(JSON.parse(init.body));
-    return jsonResponse({
-      choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'safe_read', arguments: '{}' } }] } }]
-    });
+  async fetchImpl() {
+    toolFetchCalls += 1;
+    throw new Error('tool request must be rejected before local provider fetch');
   }
 });
-await toolsProvider.complete({
-  model: 'local:qwen3',
-  messages: [{ role: 'user', content: 'read' }],
-  tools: [{ type: 'function', function: { name: 'safe_read', description: 'read', parameters: { type: 'object', properties: {} } } }],
-  tool_choice: 'auto'
-});
-assert.equal(toolCalls[0].tools[0].function.name, 'safe_read');
-assert.equal(toolCalls[0].tool_choice, 'auto');
+await assert.rejects(
+  () => toolsProvider.complete({
+    model: 'local:qwen3',
+    messages: [{ role: 'user', content: 'read' }],
+    tools: [{ type: 'function', function: { name: 'safe_read', description: 'read', parameters: { type: 'object', properties: {} } } }],
+    tool_choice: 'auto'
+  }),
+  (error) => {
+    assert.equal(error?.code, 'LOCAL_PROVIDER_TOOLS_UNSUPPORTED');
+    assert.equal(error?.status, 400);
+    return true;
+  }
+);
+assert.equal(toolFetchCalls, 0, 'local provider tool requests must fail closed before network access');
 
 const streamingProvider = createLocalOllamaProvider({
   enabled: true,
@@ -180,4 +184,4 @@ await assert.rejects(
   /LOCAL_PROVIDER_CANCELLED/
 );
 
-console.log('local Ollama provider boundary tests passed: loopback, bounded media types, SSE streaming, secret-free failure, and cancellation verified');
+console.log('local Ollama provider boundary tests passed: loopback, bounded media types, tool denial, SSE streaming, secret-free failure, and cancellation verified');
