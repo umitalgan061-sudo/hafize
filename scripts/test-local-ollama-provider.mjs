@@ -87,24 +87,28 @@ assert.equal(request.messages[0].role, 'system');
 assert.deepEqual(await provider.listModels(), ['local:qwen3', 'local:gemma3']);
 assert.equal(calls[1].url, 'http://localhost:11434/v1/models');
 
-const toolCalls = [];
 const toolsProvider = createLocalOllamaProvider({
   enabled: true,
-  async fetchImpl(_url, init) {
-    toolCalls.push(JSON.parse(init.body));
-    return jsonResponse({
-      choices: [{ message: { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'safe_read', arguments: '{}' } }] } }]
-    });
+  async fetchImpl() {
+    throw new Error('tool-bearing local request must fail before network');
   }
 });
-await toolsProvider.complete({
-  model: 'local:qwen3',
-  messages: [{ role: 'user', content: 'read' }],
-  tools: [{ type: 'function', function: { name: 'safe_read', description: 'read', parameters: { type: 'object', properties: {} } } }],
-  tool_choice: 'auto'
-});
-assert.equal(toolCalls[0].tools[0].function.name, 'safe_read');
-assert.equal(toolCalls[0].tool_choice, 'auto');
+await assert.rejects(
+  () => toolsProvider.complete({
+    model: 'local:qwen3',
+    messages: [{ role: 'user', content: 'read' }],
+    tools: [{ type: 'function', function: { name: 'safe_read', description: 'read', parameters: { type: 'object', properties: {} } } }]
+  }),
+  /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/
+);
+await assert.rejects(
+  () => toolsProvider.complete({
+    model: 'local:qwen3',
+    messages: [{ role: 'user', content: 'read' }],
+    tool_choice: 'auto'
+  }),
+  /LOCAL_PROVIDER_TOOLS_UNSUPPORTED/
+);
 
 const streamingProvider = createLocalOllamaProvider({
   enabled: true,
@@ -180,4 +184,4 @@ await assert.rejects(
   /LOCAL_PROVIDER_CANCELLED/
 );
 
-console.log('local Ollama provider boundary tests passed: loopback, bounded media types, SSE streaming, secret-free failure, and cancellation verified');
+console.log('local Ollama provider boundary tests passed: loopback, tool rejection, bounded media types, SSE streaming, secret-free failure, and cancellation verified');
