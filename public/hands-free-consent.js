@@ -53,7 +53,7 @@
       toggle
       && !toggle.disabled
       && documentRef?.hidden !== true
-      && root?.isSecureContext !== false
+      && root?.isSecureContext === true
       && toggle.getAttribute?.('aria-pressed') !== 'true'
     );
   }
