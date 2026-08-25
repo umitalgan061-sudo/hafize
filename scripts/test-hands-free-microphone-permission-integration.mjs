@@ -157,7 +157,7 @@ function createHarness({ permissionState = 'granted' } = {}) {
 
   assert.equal(runtime.isEnabled(), false, 'reset-to-prompt also requires fresh explicit consent');
   assert.equal(h.recognitionInstances[0].aborted, true);
-  assert.equal(guard.hasPendingNotice(), true);
+  assert.equal(guard.hasPendingNotice(), false, 'visible permission revocation should surface its re-consent notice immediately');
   assert.equal(h.toast.classList.contains('hidden'), false, 'visible permission revocation may immediately expose the re-consent notice');
   assert.match(h.toast.textContent, /mikrofon iznini kontrol/i);
 
