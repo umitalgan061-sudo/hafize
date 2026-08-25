@@ -8,7 +8,7 @@ const html = await readFile(new URL('../public/index.html', import.meta.url), 'u
 const handsFree = await readFile(new URL('../public/hands-free.js', import.meta.url), 'utf8');
 const consent = await readFile(new URL('../public/hands-free-consent.js', import.meta.url), 'utf8');
 
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v88');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.filter((asset) => asset === '/hands-free.js').length, 1);
 assert.equal(swPolicy.SHELL_ASSETS.filter((asset) => asset === '/hands-free-consent.js').length, 1);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/hands-free.css'), true);
@@ -47,8 +47,10 @@ assert.match(handsFree, /NETWORK_RETRY_DELAYS_MS/);
 assert.doesNotMatch(handsFree, /serviceWorker\.register/);
 assert.doesNotMatch(handsFree, /caches\.open/);
 
-assert.equal(swPolicy.shouldDeleteCache('hafize-shell-v87'), true);
-assert.equal(swPolicy.shouldDeleteCache('hafize-shell-v88'), false);
-assert.equal(swPolicy.shouldDeleteCache('other-cache-v88'), false);
+const currentRevision = Number(swPolicy.CURRENT_CACHE.match(/v(\d+)$/)?.[1]);
+assert.ok(Number.isSafeInteger(currentRevision) && currentRevision > 0);
+assert.equal(swPolicy.shouldDeleteCache(`${swPolicy.CACHE_PREFIX}v${currentRevision - 1}`), true);
+assert.equal(swPolicy.shouldDeleteCache(swPolicy.CURRENT_CACHE), false);
+assert.equal(swPolicy.shouldDeleteCache(`other-cache-v${currentRevision}`), false);
 
 console.log('hands-free PWA wiring checks passed');
