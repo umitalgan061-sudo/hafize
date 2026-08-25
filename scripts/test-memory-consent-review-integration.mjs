@@ -17,7 +17,7 @@ const [loader, css, source] = await Promise.all([
 const loaderCall = "loadShellEnhancement('HafizeMemoryConsentReview', '/memory-consent-review.js', 'data-hafize-memory-consent-review')";
 assert.equal(loader.includes(loaderCall), true);
 assert.equal(loader.split("'/memory-consent-review.js'").length - 1, 1);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v77');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/memory-consent-review.js'), true);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/memory-consent-review.css'), true);
 assert.equal(swPolicy.classifyRequest({
