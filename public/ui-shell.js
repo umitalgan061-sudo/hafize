@@ -19,6 +19,8 @@
   const DESKTOP_DEVICE_STYLE_ID = 'hafizeDesktopDeviceStyle';
   const SCHEDULE_LIST_FILTER_SCRIPT = '/schedule-list-filter.js';
   const SCHEDULE_LIST_FILTER_SCRIPT_ID = 'hafizeScheduleListFilterScript';
+  const WORKSPACE_NAVIGATION_SCRIPT = '/workspace-navigation.js';
+  const WORKSPACE_NAVIGATION_SCRIPT_ID = 'hafizeWorkspaceNavigationScript';
   const CONVERSATION_STORAGE_GUARD_SCRIPT = '/conversation-storage-guard.js';
   const CONVERSATION_STORAGE_GUARD_SCRIPT_ID = 'hafizeConversationStorageGuardScript';
   const CONVERSATION_SEARCH_SCRIPT = '/conversation-search.js';
@@ -84,6 +86,10 @@
 
   function installScheduleListFilterAsset(documentRef) {
     return appendFixedScript(documentRef, SCHEDULE_LIST_FILTER_SCRIPT_ID, SCHEDULE_LIST_FILTER_SCRIPT);
+  }
+
+  function installWorkspaceNavigation(documentRef) {
+    return appendFixedScript(documentRef, WORKSPACE_NAVIGATION_SCRIPT_ID, WORKSPACE_NAVIGATION_SCRIPT);
   }
 
   function installConversationStorageGuard(documentRef) {
@@ -203,6 +209,7 @@
     installChatAccessibility(documentRef);
     installDesktopDeviceAssets(documentRef, root);
     installScheduleListFilterAsset(documentRef);
+    installWorkspaceNavigation(documentRef);
     installConversationStorageGuard(documentRef);
     installConversationSearch(documentRef);
     installConversationSearchSnippets(documentRef);
@@ -307,6 +314,7 @@
     DESKTOP_DEVICE_SCRIPT,
     DESKTOP_DEVICE_STYLE,
     SCHEDULE_LIST_FILTER_SCRIPT,
+    WORKSPACE_NAVIGATION_SCRIPT,
     CONVERSATION_STORAGE_GUARD_SCRIPT,
     CONVERSATION_SEARCH_SCRIPT,
     CONVERSATION_SEARCH_SNIPPETS_SCRIPT,
@@ -317,6 +325,7 @@
     appendFixedScript,
     installDesktopDeviceAssets,
     installScheduleListFilterAsset,
+    installWorkspaceNavigation,
     installConversationStorageGuard,
     installConversationSearch,
     installConversationSearchSnippets,
