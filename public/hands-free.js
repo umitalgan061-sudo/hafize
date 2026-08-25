@@ -29,6 +29,7 @@
   ]);
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
   const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
+  const HANDS_FREE_REVOKE_EVENT = 'hafize:hands-free-revoke';
   const ACTIVE_INSTALLATIONS = new WeakMap();
 
   function getRecognitionConstructor(root) {
@@ -519,6 +520,11 @@
       render();
     }
 
+    function handleRevoke() {
+      if (destroyed || !enabled) return;
+      setEnabled(false);
+    }
+
     function unbindListeners() {
       if (!listenersBound) return;
       listenersBound = false;
@@ -526,6 +532,7 @@
       documentRef.removeEventListener?.('visibilitychange', handleVisibility);
       documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
       documentRef.removeEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
+      documentRef.removeEventListener?.(HANDS_FREE_REVOKE_EVENT, handleRevoke);
     }
 
     function releaseOwnership() {
@@ -537,6 +544,7 @@
       documentRef.addEventListener?.('visibilitychange', handleVisibility);
       documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
       documentRef.addEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
+      documentRef.addEventListener?.(HANDS_FREE_REVOKE_EVENT, handleRevoke);
       listenersBound = true;
 
       const MutationObserverCtor = root?.MutationObserver;
@@ -610,6 +618,7 @@
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
     HANDOFF_TIMEOUT_MS,
+    HANDS_FREE_REVOKE_EVENT,
     NETWORK_RETRY_DELAYS_MS,
     POST_OUTPUT_COOLDOWN_MS,
     RESTART_DELAY_MS,
