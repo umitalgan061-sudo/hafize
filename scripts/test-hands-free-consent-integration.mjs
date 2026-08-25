@@ -17,7 +17,7 @@ const toggle=element('handsFreeToggle'); toggle.setAttribute('aria-pressed','fal
 const indicator=element('handsFreeIndicator'); const card=element('voice-card'); card.append(toggle,indicator);
 const docListeners=new Map();
 const doc={hidden:false,querySelector(s){return s==='#handsFreeToggle'?toggle:s==='#handsFreeIndicator'?indicator:null;},getElementById(){return null;},createElement(){return element();},addEventListener(t,fn){const list=docListeners.get(t)||[];list.push(fn);docListeners.set(t,list);},removeEventListener(){}};
-const timers=new Map(); let id=0; const root={setTimeout(fn,ms){const n=++id;timers.set(n,{fn,ms});return n;},clearTimeout(n){timers.delete(n);}};
+const timers=new Map(); let id=0; const root={isSecureContext:true,setTimeout(fn,ms){const n=++id;timers.set(n,{fn,ms});return n;},clearTimeout(n){timers.delete(n);}};
 
 let starts=0; let stops=0;
 toggle.addEventListener('click',()=>{const next=toggle.getAttribute('aria-pressed')!=='true';toggle.setAttribute('aria-pressed',String(next));if(next)starts+=1;else stops+=1;});
