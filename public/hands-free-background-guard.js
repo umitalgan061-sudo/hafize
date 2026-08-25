@@ -75,6 +75,14 @@
       announceRevocation();
     }
 
+    function onWindowBlur() {
+      revoke('window-blur');
+    }
+
+    function onWindowFocus() {
+      announceRevocation();
+    }
+
     function onFreeze() {
       revoke('freeze');
     }
@@ -84,12 +92,16 @@
       documentRef.addEventListener?.('freeze', onFreeze, true);
       root?.addEventListener?.('pagehide', onPageHide, true);
       root?.addEventListener?.('pageshow', onPageShow, true);
+      root?.addEventListener?.('blur', onWindowBlur, true);
+      root?.addEventListener?.('focus', onWindowFocus, true);
       if (documentRef.hidden === true) revoke('hidden-at-install');
     } catch (error) {
       documentRef.removeEventListener?.('visibilitychange', onVisibilityChange, true);
       documentRef.removeEventListener?.('freeze', onFreeze, true);
       root?.removeEventListener?.('pagehide', onPageHide, true);
       root?.removeEventListener?.('pageshow', onPageShow, true);
+      root?.removeEventListener?.('blur', onWindowBlur, true);
+      root?.removeEventListener?.('focus', onWindowFocus, true);
       restoreRevokedAttribute();
       throw error;
     }
@@ -108,6 +120,8 @@
         documentRef.removeEventListener?.('freeze', onFreeze, true);
         root?.removeEventListener?.('pagehide', onPageHide, true);
         root?.removeEventListener?.('pageshow', onPageShow, true);
+        root?.removeEventListener?.('blur', onWindowBlur, true);
+        root?.removeEventListener?.('focus', onWindowFocus, true);
         restoreRevokedAttribute();
         if (activeInstallations.get(toggle) === controller) activeInstallations.delete(toggle);
       }
