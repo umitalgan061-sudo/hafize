@@ -14,8 +14,9 @@
 
   const HANDS_FREE_REVOKE_EVENT = 'hafize:hands-free-revoke';
   const REVOKED_ATTR = 'data-background-revoked';
-  const REVOCATION_NOTICE = 'Eller serbest, uygulama arka plana geçtiği veya mikrofon izni kaldırıldığı için kapatıldı. Yeniden dinlemek için mikrofon iznini kontrol edip Eller serbest düğmesinden tekrar onay ver.';
+  const REVOCATION_NOTICE = 'Eller serbest, uygulama arka plana geçtiği, mikrofon izni kaldırıldığı veya kullanılabilir mikrofon kalmadığı için kapatıldı. Yeniden dinlemek için mikrofonu ve izni kontrol edip Eller serbest düğmesinden tekrar onay ver.';
   const MICROPHONE_PERMISSION_REASON = 'microphone-permission-withdrawn';
+  const MICROPHONE_DEVICE_REASON = 'microphone-device-unavailable';
   const activeInstallations = new WeakMap();
 
   function isHandsFreeEnabled(toggle) {
@@ -24,6 +25,11 @@
 
   function normalizePermissionState(value) {
     return value === 'granted' || value === 'prompt' || value === 'denied' ? value : 'unknown';
+  }
+
+  function hasAudioInput(devices) {
+    if (!Array.isArray(devices)) return null;
+    return devices.some((device) => device?.kind === 'audioinput');
   }
 
   function createRevokeEvent(root, reason) {
@@ -54,6 +60,9 @@
     let permissionStatus = null;
     let permissionState = 'unavailable';
     let permissionWatchGeneration = 0;
+    let deviceWatchGeneration = 0;
+    let deviceAvailability = 'unavailable';
+    let mediaDevicesListening = false;
 
     function restoreRevokedAttribute() {
       if (baseline.revokedPresent) toggle.setAttribute?.(REVOKED_ATTR, baseline.revokedValue ?? '');
@@ -141,6 +150,60 @@
       return Boolean(permissionStatus);
     }
 
+    async function checkMicrophoneDeviceAvailability() {
+      const mediaDevices = root?.navigator?.mediaDevices;
+      if (typeof mediaDevices?.enumerateDevices !== 'function') {
+        deviceAvailability = 'unavailable';
+        return false;
+      }
+      if (!isHandsFreeEnabled(toggle)) {
+        deviceAvailability = 'inactive';
+        return false;
+      }
+      const generation = ++deviceWatchGeneration;
+      let devices;
+      try {
+        devices = await mediaDevices.enumerateDevices();
+      } catch {
+        if (!destroyed && generation === deviceWatchGeneration) deviceAvailability = 'unavailable';
+        return false;
+      }
+      if (destroyed || generation !== deviceWatchGeneration) return false;
+      const available = hasAudioInput(devices);
+      if (available == null) {
+        deviceAvailability = 'unknown';
+        return false;
+      }
+      deviceAvailability = available ? 'available' : 'missing';
+      if (!available && isHandsFreeEnabled(toggle)) revoke(MICROPHONE_DEVICE_REASON);
+      return available;
+    }
+
+    function onMediaDeviceChange() {
+      if (destroyed || !isHandsFreeEnabled(toggle)) return;
+      void checkMicrophoneDeviceAvailability();
+    }
+
+    function attachMediaDeviceWatch() {
+      const mediaDevices = root?.navigator?.mediaDevices;
+      if (
+        mediaDevicesListening
+        || typeof mediaDevices?.addEventListener !== 'function'
+        || typeof mediaDevices?.enumerateDevices !== 'function'
+      ) return false;
+      mediaDevices.addEventListener('devicechange', onMediaDeviceChange);
+      mediaDevicesListening = true;
+      if (isHandsFreeEnabled(toggle)) void checkMicrophoneDeviceAvailability();
+      return true;
+    }
+
+    function detachMediaDeviceWatch() {
+      if (!mediaDevicesListening) return;
+      root?.navigator?.mediaDevices?.removeEventListener?.('devicechange', onMediaDeviceChange);
+      mediaDevicesListening = false;
+      deviceWatchGeneration += 1;
+    }
+
     function onVisibilityChange() {
       if (documentRef.hidden === true) revoke('hidden');
       else announceRevocation();
@@ -175,9 +238,12 @@
       root?.addEventListener?.('focus', onWindowFocus, true);
       if (documentRef.hidden === true) revoke('hidden-at-install');
       void watchMicrophonePermission();
+      attachMediaDeviceWatch();
     } catch (error) {
       permissionWatchGeneration += 1;
+      deviceWatchGeneration += 1;
       detachPermissionStatus();
+      detachMediaDeviceWatch();
       documentRef.removeEventListener?.('visibilitychange', onVisibilityChange, true);
       documentRef.removeEventListener?.('freeze', onFreeze, true);
       root?.removeEventListener?.('pagehide', onPageHide, true);
@@ -193,16 +259,21 @@
       hasPendingNotice: () => !destroyed && noticePending,
       getLastReason: () => destroyed ? '' : lastReason,
       getMicrophonePermissionState: () => destroyed ? 'unavailable' : permissionState,
+      getMicrophoneDeviceAvailability: () => destroyed ? 'unavailable' : deviceAvailability,
       revoke: () => revoke('explicit-guard'),
       announce: announceRevocation,
       refreshMicrophonePermission: () => destroyed ? Promise.resolve(false) : watchMicrophonePermission(),
+      refreshMicrophoneDevices: () => destroyed ? Promise.resolve(false) : checkMicrophoneDeviceAvailability(),
       destroy() {
         if (destroyed) return;
         destroyed = true;
         noticePending = false;
         permissionWatchGeneration += 1;
+        deviceWatchGeneration += 1;
         detachPermissionStatus();
+        detachMediaDeviceWatch();
         permissionState = 'unavailable';
+        deviceAvailability = 'unavailable';
         documentRef.removeEventListener?.('visibilitychange', onVisibilityChange, true);
         documentRef.removeEventListener?.('freeze', onFreeze, true);
         root?.removeEventListener?.('pagehide', onPageHide, true);
@@ -219,10 +290,12 @@
 
   return Object.freeze({
     HANDS_FREE_REVOKE_EVENT,
+    MICROPHONE_DEVICE_REASON,
     MICROPHONE_PERMISSION_REASON,
     REVOKED_ATTR,
     REVOCATION_NOTICE,
     createRevokeEvent,
+    hasAudioInput,
     isHandsFreeEnabled,
     installHandsFreeBackgroundGuard,
     normalizePermissionState
