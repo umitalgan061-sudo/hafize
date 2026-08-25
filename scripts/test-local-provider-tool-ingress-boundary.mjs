@@ -6,10 +6,10 @@ const BASE_REQUEST = Object.freeze({
   messages: Object.freeze([{ role: 'user', content: 'Merhaba Hafize' }])
 });
 
-function expectCode(code) {
+function expectCode(code, status = 400) {
   return (error) => {
     assert.equal(error?.code, code);
-    assert.equal(error?.status, 400);
+    assert.equal(error?.status, status);
     return true;
   };
 }
@@ -50,7 +50,11 @@ for (const toolChoice of ['none', 'auto', null, undefined, { type: 'function', f
   const { provider, calls } = createNoNetworkProvider();
   const request = Object.create({ tools: [{ type: 'function' }] });
   Object.assign(request, BASE_REQUEST);
-  await assert.rejects(provider.complete(request), /network must not be reached/);
+  await assert.rejects(
+    provider.complete(request),
+    expectCode('LOCAL_PROVIDER_UNAVAILABLE', 502),
+    'inherited tools are ignored as non-payload properties and upstream failures remain sanitized'
+  );
   assert.equal(calls(), 1, 'inherited properties are not treated as request payload fields');
 }
 
