@@ -57,6 +57,7 @@ const documentRef = {
 let timerId = 0;
 const timers = new Map();
 const root = {
+  isSecureContext: true,
   setTimeout(fn, ms) { const id = ++timerId; timers.set(id, { fn, ms }); return id; },
   clearTimeout(id) { timers.delete(id); }
 };
