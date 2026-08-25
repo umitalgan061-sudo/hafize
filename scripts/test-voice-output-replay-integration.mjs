@@ -14,7 +14,7 @@ assert.match(source, /function stopSpeech\(\)/);
 assert.match(source, /normalizeSpeechText\(latestAssistantText\(\)\)/);
 assert.match(source, /if \(!enabled \|\| !supported \|\| speaking \|\| thinking\) return false/);
 assert.match(css, /\.voice-playback-actions/);
-assert.match(policy, /hafize-shell-v48/);
+assert.match(policy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.ok(policy.includes("if (pathname.startsWith('/api/')) return 'network-only';"));
 
 for (const forbidden of [
