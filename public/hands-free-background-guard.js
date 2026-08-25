@@ -12,6 +12,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeHandsFreeBackgroundGuard() {
   'use strict';
 
+  const HANDS_FREE_REVOKE_EVENT = 'hafize:hands-free-revoke';
   const REVOKED_ATTR = 'data-background-revoked';
   const REVOCATION_NOTICE = 'Eller serbest, uygulama arka plana geçtiği için kapatıldı. Yeniden dinlemek için Eller serbest düğmesinden tekrar onay ver.';
   const activeInstallations = new WeakMap();
@@ -20,10 +21,21 @@
     return toggle?.getAttribute?.('aria-pressed') === 'true';
   }
 
+  function createRevokeEvent(root, reason) {
+    const detail = Object.freeze({
+      source: 'hands-free-background-guard',
+      reason: typeof reason === 'string' && reason ? reason : 'background'
+    });
+    if (typeof root?.CustomEvent === 'function') {
+      return new root.CustomEvent(HANDS_FREE_REVOKE_EVENT, { detail });
+    }
+    return { type: HANDS_FREE_REVOKE_EVENT, detail };
+  }
+
   function installHandsFreeBackgroundGuard(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const toast = documentRef?.querySelector?.('#toast') || null;
-    if (!toggle || typeof toggle.click !== 'function') return null;
+    if (!toggle || typeof documentRef?.dispatchEvent !== 'function') return null;
     if (activeInstallations.has(toggle)) throw new Error('HANDS_FREE_BACKGROUND_GUARD_ALREADY_INSTALLED');
 
     const baseline = Object.freeze({
@@ -48,15 +60,23 @@
       return true;
     }
 
+    function markRevocationFailure() {
+      lastReason = 'revocation-failed';
+      noticePending = false;
+      toggle.setAttribute?.(REVOKED_ATTR, lastReason);
+      return false;
+    }
+
     function revoke(reason) {
       if (destroyed || !isHandsFreeEnabled(toggle)) return false;
-      lastReason = typeof reason === 'string' && reason ? reason : 'background';
-      toggle.click();
-      if (isHandsFreeEnabled(toggle)) {
-        lastReason = 'revocation-failed';
-        toggle.setAttribute?.(REVOKED_ATTR, lastReason);
-        return false;
+      const requestedReason = typeof reason === 'string' && reason ? reason : 'background';
+      try {
+        documentRef.dispatchEvent(createRevokeEvent(root, requestedReason));
+      } catch {
+        return markRevocationFailure();
       }
+      if (isHandsFreeEnabled(toggle)) return markRevocationFailure();
+      lastReason = requestedReason;
       toggle.setAttribute?.(REVOKED_ATTR, lastReason);
       noticePending = lastReason !== 'explicit-guard';
       return true;
@@ -131,8 +151,10 @@
   }
 
   return Object.freeze({
+    HANDS_FREE_REVOKE_EVENT,
     REVOKED_ATTR,
     REVOCATION_NOTICE,
+    createRevokeEvent,
     isHandsFreeEnabled,
     installHandsFreeBackgroundGuard
   });
