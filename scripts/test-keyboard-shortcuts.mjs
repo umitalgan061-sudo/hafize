@@ -1,188 +1,176 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
-const { SHORTCUTS, createKeyboardShortcutController } = require('../public/keyboard-shortcuts.js');
-const shortcutPath = fileURLToPath(new URL('../public/keyboard-shortcuts.js', import.meta.url));
-const loaderPath = fileURLToPath(new URL('../public/app.js', import.meta.url));
-const swPath = fileURLToPath(new URL('../public/sw-policy.js', import.meta.url));
-const [shortcutSource, loaderSource, swSource] = await Promise.all([
-  readFile(shortcutPath, 'utf8'),
-  readFile(loaderPath, 'utf8'),
-  readFile(swPath, 'utf8')
-]);
+const api = require('../public/keyboard-shortcuts.js');
 
-assert.deepEqual(SHORTCUTS, {
-  newConversation: 'mod+shift+o',
-  focusComposer: 'mod+k',
-  focusConversationSearch: 'mod+shift+f',
-  stopGeneration: 'escape'
-});
-assert.equal(Object.isFrozen(SHORTCUTS), true);
-
-function createClassList(initial = []) {
-  const values = new Set(initial);
-  return {
-    contains: (value) => values.has(value),
-    add: (value) => values.add(value),
-    delete: (value) => values.delete(value)
-  };
+class FakeClassList {
+  constructor(node) { this.node = node; }
+  contains(name) { return this.node.className.split(/\s+/).includes(name); }
 }
 
-function createDocument() {
-  const listeners = new Map();
-  const input = {
-    disabled: false,
-    focusCalls: 0,
-    focus() { this.focusCalls += 1; }
-  };
-  const sendButton = {
-    disabled: false,
-    classList: createClassList(),
-    clickCalls: 0,
-    click() { this.clickCalls += 1; }
-  };
-  const newConversation = {
-    disabled: false,
-    clickCalls: 0,
-    click() { this.clickCalls += 1; }
-  };
-  const search = {
-    disabled: false,
-    clickCalls: 0,
-    click() { this.clickCalls += 1; }
-  };
-  const nodes = {
-    '#messageInput': input,
-    '#sendButton': sendButton,
-    '#newConversationBtn': newConversation,
-    '#conversationSearch': search
-  };
-  const documentRef = {
-    activeElement: null,
-    addEventListener(type, handler) {
-      listeners.set(type, handler);
-    },
-    removeEventListener(type, handler) {
-      if (listeners.get(type) === handler) listeners.delete(type);
-    },
-    querySelector(selector) {
-      return nodes[selector] || null;
-    }
-  };
-  return { documentRef, listeners, input, sendButton, newConversation, search };
+class FakeNode {
+  constructor(tagName = 'div') {
+    this.tagName = tagName.toUpperCase();
+    this.className = '';
+    this.disabled = false;
+    this.value = '';
+    this.isContentEditable = false;
+    this.focusCount = 0;
+    this.clickCount = 0;
+    this.selection = null;
+    this.classList = new FakeClassList(this);
+  }
+  focus() { this.focusCount += 1; }
+  click() { this.clickCount += 1; }
+  setSelectionRange(start, end) { this.selection = [start, end]; }
+  closest(selector) { return selector === '[contenteditable="true"]' && this.parentEditable ? {} : null; }
 }
 
-function keyEvent(overrides = {}) {
+class FakeDocument {
+  constructor() {
+    this.listeners = new Map();
+    this.input = new FakeNode('textarea');
+    this.input.value = 'taslak';
+    this.send = new FakeNode('button');
+  }
+  querySelector(selector) {
+    if (selector === '#messageInput') return this.input;
+    if (selector === '#sendBtn') return this.send;
+    return null;
+  }
+  addEventListener(name, handler) { this.listeners.set(name, handler); }
+  removeEventListener(name, handler) {
+    if (this.listeners.get(name) === handler) this.listeners.delete(name);
+  }
+}
+
+function keyEvent(key, overrides = {}) {
   return {
-    key: '',
+    key,
+    altKey: false,
     ctrlKey: false,
     metaKey: false,
     shiftKey: false,
-    altKey: false,
+    repeat: false,
     defaultPrevented: false,
-    prevented: false,
-    target: { tagName: 'BODY', isContentEditable: false },
-    preventDefault() {
-      this.defaultPrevented = true;
-      this.prevented = true;
-    },
+    target: new FakeNode('div'),
+    prevented: 0,
+    stopped: 0,
+    preventDefault() { this.prevented += 1; },
+    stopPropagation() { this.stopped += 1; },
     ...overrides
   };
 }
 
-{
-  const host = createDocument();
-  const controller = createKeyboardShortcutController({ documentRef: host.documentRef });
-  assert.equal(controller.install(), true);
-  assert.equal(controller.install(), false, 'install must be idempotent');
-  const handler = host.listeners.get('keydown');
-  assert.equal(typeof handler, 'function');
+assert.deepEqual(api.SHORTCUTS, {
+  focusComposer: 'mod+k',
+  focusComposerSlash: '/',
+  focusConversationSearch: 'mod+shift+f',
+  stopResponse: 'escape'
+});
+assert.equal(api.isEditableTarget(new FakeNode('input')), true);
+assert.equal(api.isEditableTarget(new FakeNode('textarea')), true);
+assert.equal(api.isEditableTarget(new FakeNode('select')), true);
+const editable = new FakeNode('div');
+editable.isContentEditable = true;
+assert.equal(api.isEditableTarget(editable), true);
+const nestedEditable = new FakeNode('span');
+nestedEditable.parentEditable = true;
+assert.equal(api.isEditableTarget(nestedEditable), true);
+assert.equal(api.isEditableTarget(new FakeNode('button')), false);
+assert.equal(api.isEditableTarget(null), false);
 
-  const focus = keyEvent({ key: 'k', ctrlKey: true });
-  handler(focus);
-  assert.equal(focus.prevented, true);
-  assert.equal(host.input.focusCalls, 1);
+assert.equal(api.isPlainSlash(keyEvent('/')), true);
+assert.equal(api.isPlainSlash(keyEvent('/', { shiftKey: true })), false);
+assert.equal(api.isPlainSlash(keyEvent('/', { ctrlKey: true })), false);
+assert.equal(api.isModK(keyEvent('k', { ctrlKey: true })), true);
+assert.equal(api.isModK(keyEvent('K', { metaKey: true })), true);
+assert.equal(api.isModK(keyEvent('k', { ctrlKey: true, shiftKey: true })), false);
+assert.equal(api.isEscape(keyEvent('Escape')), true);
+assert.equal(api.isEscape(keyEvent('Escape', { altKey: true })), false);
 
-  const macFocus = keyEvent({ key: 'K', metaKey: true });
-  handler(macFocus);
-  assert.equal(macFocus.prevented, true);
-  assert.equal(host.input.focusCalls, 2);
+const documentRef = new FakeDocument();
+const controller = api.createController({ documentRef });
+assert.equal(controller.mount(), true);
+assert.equal(controller.mount(), true, 'mount must be idempotent');
+assert.equal(documentRef.listeners.size, 1);
+assert.equal(typeof documentRef.listeners.get('keydown'), 'function');
 
-  const newConversation = keyEvent({ key: 'O', ctrlKey: true, shiftKey: true });
-  handler(newConversation);
-  assert.equal(newConversation.prevented, true);
-  assert.equal(host.newConversation.clickCalls, 1);
+const modK = keyEvent('k', { ctrlKey: true });
+assert.equal(controller.handleKeydown(modK), true);
+assert.equal(modK.prevented, 1);
+assert.equal(documentRef.input.focusCount, 1);
+assert.deepEqual(documentRef.input.selection, [6, 6], 'focus shortcut should place caret at draft end');
 
-  const search = keyEvent({ key: 'F', ctrlKey: true, shiftKey: true });
-  handler(search);
-  assert.equal(search.prevented, true);
-  assert.equal(host.search.clickCalls, 1);
+const cmdK = keyEvent('K', { metaKey: true });
+assert.equal(controller.handleKeydown(cmdK), true);
+assert.equal(cmdK.prevented, 1);
+assert.equal(documentRef.input.focusCount, 2);
 
-  const idleEscape = keyEvent({ key: 'Escape' });
-  handler(idleEscape);
-  assert.equal(idleEscape.prevented, false);
-  assert.equal(host.sendButton.clickCalls, 0);
+const plainSlash = keyEvent('/');
+assert.equal(controller.handleKeydown(plainSlash), true);
+assert.equal(plainSlash.prevented, 1);
+assert.equal(documentRef.input.focusCount, 3);
 
-  host.sendButton.classList.add('streaming');
-  const streamingEscape = keyEvent({ key: 'Escape' });
-  handler(streamingEscape);
-  assert.equal(streamingEscape.prevented, true);
-  assert.equal(host.sendButton.clickCalls, 1);
+const slashInsideTextarea = keyEvent('/', { target: documentRef.input });
+assert.equal(controller.handleKeydown(slashInsideTextarea), false);
+assert.equal(slashInsideTextarea.prevented, 0, 'typing slash in composer must remain normal text input');
+assert.equal(documentRef.input.focusCount, 3);
 
-  const repeatEscape = keyEvent({ key: 'Escape', repeat: true });
-  handler(repeatEscape);
-  assert.equal(repeatEscape.prevented, false);
-  assert.equal(host.sendButton.clickCalls, 1);
+const slashInsideContentEditable = keyEvent('/', { target: editable });
+assert.equal(controller.handleKeydown(slashInsideContentEditable), false);
+assert.equal(slashInsideContentEditable.prevented, 0);
 
-  controller.destroy();
-  assert.equal(host.listeners.has('keydown'), false);
-}
+const repeated = keyEvent('k', { ctrlKey: true, repeat: true });
+assert.equal(controller.handleKeydown(repeated), false);
+assert.equal(repeated.prevented, 0, 'key repeat must not re-trigger actions');
 
-for (const event of [
-  keyEvent({ key: 'k', ctrlKey: true, shiftKey: true }),
-  keyEvent({ key: 'k', ctrlKey: true, altKey: true }),
-  keyEvent({ key: 'o', ctrlKey: true }),
-  keyEvent({ key: 'f', ctrlKey: true, shiftKey: false }),
-  keyEvent({ key: 'x', ctrlKey: true }),
-  keyEvent({ key: 'Escape', altKey: true }),
-  keyEvent({ key: 'Escape', ctrlKey: true })
-]) {
-  const host = createDocument();
-  host.sendButton.classList.add('streaming');
-  const controller = createKeyboardShortcutController({ documentRef: host.documentRef });
-  controller.install();
-  host.listeners.get('keydown')(event);
-  assert.equal(event.prevented, false, `unregistered shortcut must not be consumed: ${event.key}`);
-  assert.equal(host.input.focusCalls, 0);
-  assert.equal(host.newConversation.clickCalls, 0);
-  assert.equal(host.search.clickCalls, 0);
-  assert.equal(host.sendButton.clickCalls, 0);
-}
+const alreadyHandled = keyEvent('k', { ctrlKey: true, defaultPrevented: true });
+assert.equal(controller.handleKeydown(alreadyHandled), false);
+assert.equal(alreadyHandled.prevented, 0, 'another handler keeps priority after preventDefault');
 
-{
-  const host = createDocument();
-  host.documentRef.activeElement = host.input;
-  const controller = createKeyboardShortcutController({ documentRef: host.documentRef });
-  controller.install();
-  const event = keyEvent({ key: 'o', ctrlKey: true, shiftKey: true, target: { tagName: 'TEXTAREA', isContentEditable: false } });
-  host.listeners.get('keydown')(event);
-  assert.equal(event.prevented, false, 'new-conversation shortcut must not hijack editable input');
-  assert.equal(host.newConversation.clickCalls, 0);
-}
+const idleEscape = keyEvent('Escape');
+assert.equal(controller.handleKeydown(idleEscape), false);
+assert.equal(documentRef.send.clickCount, 0);
+assert.equal(idleEscape.prevented, 0, 'Escape must remain untouched when no generation is active');
 
-{
-  const host = createDocument();
-  const controller = createKeyboardShortcutController({ documentRef: host.documentRef });
-  controller.install();
-  host.newConversation.disabled = true;
-  const event = keyEvent({ key: 'o', metaKey: true, shiftKey: true });
-  host.listeners.get('keydown')(event);
-  assert.equal(event.prevented, false, 'disabled action must remain fail-closed');
-  assert.equal(host.newConversation.clickCalls, 0);
-}
+documentRef.send.className = 'send-btn streaming';
+const activeEscape = keyEvent('Escape');
+assert.equal(controller.handleKeydown(activeEscape), true);
+assert.equal(activeEscape.prevented, 1);
+assert.equal(activeEscape.stopped, 1);
+assert.equal(documentRef.send.clickCount, 1, 'stop shortcut must reuse the visible stop button click path');
+
+const activeEscapeFromTextarea = keyEvent('Escape', { target: documentRef.input });
+assert.equal(controller.handleKeydown(activeEscapeFromTextarea), true,
+  'Escape should still stop an active response while focus is in composer');
+assert.equal(documentRef.send.clickCount, 2);
+
+const unrelated = keyEvent('x');
+assert.equal(controller.handleKeydown(unrelated), false);
+assert.equal(unrelated.prevented, 0);
+
+documentRef.input.disabled = true;
+const disabledFocus = keyEvent('k', { ctrlKey: true });
+assert.equal(controller.handleKeydown(disabledFocus), false);
+assert.equal(disabledFocus.prevented, 0);
+documentRef.input.disabled = false;
+
+controller.destroy();
+assert.equal(documentRef.listeners.has('keydown'), false);
+controller.destroy();
+
+assert.throws(() => api.createController({ documentRef: null }), /INVALID_KEYBOARD_SHORTCUT_DOCUMENT/);
+
+const sourcePaths = [
+  '../public/keyboard-shortcuts.js',
+  '../public/chat-run-controller.js',
+  '../public/sw-policy.js'
+].map((relative) => fileURLToPath(new URL(relative, import.meta.url)));
+const [shortcutSource, loaderSource, swSource] = await Promise.all(sourcePaths.map((path) => readFile(path, 'utf8')));
 
 for (const forbidden of [
   'fetch(', 'XMLHttpRequest', 'WebSocket', 'localStorage', 'sessionStorage',
