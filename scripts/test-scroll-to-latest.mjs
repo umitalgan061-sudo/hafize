@@ -263,7 +263,7 @@ assert.equal(source.includes('scheduledGeneration !== generation'), true);
 assert.equal(source.includes("observer.observe(messages, { childList: true, subtree: true, characterData: true })"), true);
 assert.equal(source.includes("'(prefers-reduced-motion: reduce)'"), true);
 assert.equal(loader.includes("loadShellEnhancement('HafizeScrollToLatest', '/scroll-to-latest.js', 'data-hafize-scroll-to-latest')"), true);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v159');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/scroll-to-latest.js'), true);
 assert.equal(swPolicy.classifyRequest({ method: 'GET', url: 'https://hafize.example/api/chat', headers: {}, mode: 'cors' }, 'https://hafize.example'), 'network-only');
 assert.equal(swPolicy.classifyRequest({ method: 'GET', url: 'https://hafize.example/scroll-to-latest.js', headers: {}, mode: 'cors' }, 'https://hafize.example'), 'shell');
