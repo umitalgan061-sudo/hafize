@@ -11,6 +11,8 @@ for (const required of [
   "redirect: 'error'",
   "requireMediaType(response, 'application/json')",
   "requireMediaType(response, 'text/event-stream')",
+  'assertNoLocalToolRequest(input)',
+  'LOCAL_PROVIDER_TOOLS_UNSUPPORTED',
   'MAX_COMPLETION_JSON_BYTES',
   'MAX_MODELS_JSON_BYTES',
   'MAX_STREAM_BYTES',
@@ -36,11 +38,17 @@ assert.match(production, /defaultProvider\s*=\s*'nvidia'/);
 assert.match(production, /isLocalProviderModel\(model\)/);
 assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_ENABLED/);
 assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_BASE_URL/);
-assert.equal(registry.defaultAgent, 'general-orchestrator');
+
+assert.equal(registry.defaultAgent, 'minimal-engineer');
+assert.equal(registry.policy?.topology, 'hierarchical');
+assert.equal(registry.policy?.externalWritesRequireApproval, true);
+assert.equal(registry.policy?.secretsNeverEnterAgentContext, true);
+assert.equal(registry.policy?.sharedTraceIdRequired, true);
 assert.equal(registry.agents.length, 4);
 for (const agent of registry.agents) {
-  assert.equal(Array.isArray(agent.tools?.allow), true);
-  assert.equal(agent.tools?.denyByDefault, true);
+  assert.equal(agent?.toolPolicy?.default, 'deny', `${agent?.id || 'unknown'} must remain default-deny`);
+  assert.equal(Array.isArray(agent?.toolPolicy?.allow), true);
+  assert.equal(Array.isArray(agent?.toolPolicy?.deny), true);
 }
 
-console.log('local provider security contract tests passed');
+console.log('local provider security contract tests passed: loopback-only local runtime, tool denial, NVIDIA default, and canonical default-deny registry verified');
