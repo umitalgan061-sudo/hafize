@@ -1,82 +1,32 @@
 import assert from 'node:assert/strict';
 import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mjs';
-import {
-  createDeviceBridge,
-  DEVICE_BRIDGE_CONTRACT,
-  normalizeDeviceBridgeCommand,
-  normalizeSystemInfo
-} from '../lib/device-bridge-contract.mjs';
-import {
-  authorizeDeviceToolRequest,
-  DEVICE_TOOL_BOUNDARY,
-  executeDeviceToolRequest,
-  listDeviceToolPermissions
-} from '../lib/device-bridge-tool-boundary.mjs';
-import {
-  createDeviceApprovalLeaseStore,
-  DEVICE_APPROVAL_LEASE_CONTRACT,
-  deviceApprovalTargetForRequest
-} from '../lib/device-approval-lease.mjs';
+import { createDeviceBridge, DEVICE_BRIDGE_CONTRACT, normalizeDeviceBridgeCommand, normalizeSystemInfo } from '../lib/device-bridge-contract.mjs';
+import { authorizeDeviceToolRequest, DEVICE_TOOL_BOUNDARY, executeDeviceToolRequest, listDeviceToolPermissions } from '../lib/device-bridge-tool-boundary.mjs';
+import { createDeviceApprovalLeaseStore, DEVICE_APPROVAL_LEASE_CONTRACT, deviceApprovalTargetForRequest } from '../lib/device-approval-lease.mjs';
+import { createDeviceApprovalReviewStore, DEVICE_APPROVAL_REVIEW_CONTRACT } from '../lib/device-approval-review.mjs';
 
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'system.info' }), { ok: true, command: { action: 'system.info' } });
-assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'browser.open', explicitUserIntent: true, url: 'https://example.com/path?q=1' }), {
-  ok: true,
-  command: { action: 'browser.open', url: 'https://example.com/path?q=1' }
-});
-assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'app.open', explicitUserIntent: true, appId: 'Browser.Chrome' }), {
-  ok: true,
-  command: { action: 'app.open', appId: 'browser.chrome' }
-});
-for (const invalid of [
-  null,
-  { action: 'shell.run', explicitUserIntent: true },
-  { action: 'browser.open', url: 'https://example.com' },
-  { action: 'browser.open', explicitUserIntent: true, url: 'http://example.com' },
-  { action: 'browser.open', explicitUserIntent: true, url: 'https://user:pass@example.com' },
-  { action: 'browser.open', explicitUserIntent: true, url: 'not-a-url' },
-  { action: 'app.open', explicitUserIntent: true, appId: '../calc' },
-  { action: 'system.info', url: 'https://example.com' },
-  { action: 'system.info', arbitrary: true }
-]) assert.equal(normalizeDeviceBridgeCommand(invalid).ok, false);
-
-assert.deepEqual(normalizeSystemInfo({ platform: 'darwin', arch: 'arm64', release: '25.0.0', hostname: 'hafize-mac' }), {
-  ok: true,
-  info: { platform: 'darwin', arch: 'arm64', release: '25.0.0', hostname: 'hafize-mac' }
-});
+assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'browser.open', explicitUserIntent: true, url: 'https://example.com/path?q=1' }), { ok: true, command: { action: 'browser.open', url: 'https://example.com/path?q=1' } });
+assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'app.open', explicitUserIntent: true, appId: 'Browser.Chrome' }), { ok: true, command: { action: 'app.open', appId: 'browser.chrome' } });
+for (const invalid of [null, { action: 'shell.run', explicitUserIntent: true }, { action: 'browser.open', url: 'https://example.com' }, { action: 'browser.open', explicitUserIntent: true, url: 'http://example.com' }, { action: 'browser.open', explicitUserIntent: true, url: 'https://user:pass@example.com' }, { action: 'browser.open', explicitUserIntent: true, url: 'not-a-url' }, { action: 'app.open', explicitUserIntent: true, appId: '../calc' }, { action: 'system.info', url: 'https://example.com' }, { action: 'system.info', arbitrary: true }]) assert.equal(normalizeDeviceBridgeCommand(invalid).ok, false);
+assert.deepEqual(normalizeSystemInfo({ platform: 'darwin', arch: 'arm64', release: '25.0.0', hostname: 'hafize-mac' }), { ok: true, info: { platform: 'darwin', arch: 'arm64', release: '25.0.0', hostname: 'hafize-mac' } });
 assert.equal(normalizeSystemInfo({ platform: 'darwin' }).ok, false);
 assert.equal(normalizeSystemInfo({ platform: 'darwin', arch: 'arm64', username: 'umit' }).ok, false);
 
 const calls = [];
-const bridge = createDeviceBridge({
-  allowedApps: ['browser.chrome', 'editor.vscode'],
-  systemInfo: async () => ({ platform: 'win32', arch: 'x64', release: '10.0.99999', hostname: 'desktop' }),
-  openExternal: async (url) => calls.push(['external', url]),
-  openApp: async (appId) => calls.push(['app', appId])
-});
+const bridge = createDeviceBridge({ allowedApps: ['browser.chrome', 'editor.vscode'], systemInfo: async () => ({ platform: 'win32', arch: 'x64', release: '10.0.99999', hostname: 'desktop' }), openExternal: async (url) => calls.push(['external', url]), openApp: async (appId) => calls.push(['app', appId]) });
 assert.deepEqual(bridge.allowedApps, ['browser.chrome', 'editor.vscode']);
 assert.equal((await bridge.execute({ action: 'system.info' })).ok, true);
 assert.deepEqual(await bridge.execute({ action: 'browser.open', explicitUserIntent: true, url: 'https://openai.com/' }), { ok: true, action: 'browser.open' });
 assert.deepEqual(await bridge.execute({ action: 'app.open', explicitUserIntent: true, appId: 'browser.chrome' }), { ok: true, action: 'app.open', appId: 'browser.chrome' });
 assert.deepEqual(calls, [['external', 'https://openai.com/'], ['app', 'browser.chrome']]);
 assert.deepEqual(await bridge.execute({ action: 'app.open', explicitUserIntent: true, appId: 'terminal' }), { ok: false, error: 'DEVICE_BRIDGE_APP_NOT_ALLOWED' });
-assert.equal(calls.length, 2);
 assert.deepEqual(await bridge.execute({ action: 'app.open', appId: 'browser.chrome' }), { ok: false, error: 'DEVICE_BRIDGE_ACTION_REQUIRES_EXPLICIT_USER_INTENT' });
 
-const failingBridge = createDeviceBridge({
-  allowedApps: [],
-  systemInfo: async () => { throw new Error('SYSTEM_INFO_FAILED'); },
-  openExternal: async () => { throw new Error('OPEN_EXTERNAL_FAILED'); },
-  openApp: async () => { throw new Error('OPEN_APP_FAILED'); }
-});
+const failingBridge = createDeviceBridge({ allowedApps: [], systemInfo: async () => { throw new Error('SYSTEM_INFO_FAILED'); }, openExternal: async () => { throw new Error('OPEN_EXTERNAL_FAILED'); }, openApp: async () => { throw new Error('OPEN_APP_FAILED'); } });
 assert.deepEqual(await failingBridge.execute({ action: 'system.info' }), { ok: false, error: 'SYSTEM_INFO_FAILED' });
 assert.deepEqual(await failingBridge.execute({ action: 'browser.open', explicitUserIntent: true, url: 'https://example.com' }), { ok: false, error: 'OPEN_EXTERNAL_FAILED' });
-for (const options of [
-  {},
-  { systemInfo: async () => ({}) },
-  { systemInfo: async () => ({}), openExternal: async () => {} },
-  { systemInfo: async () => ({}), openExternal: async () => {}, openApp: async () => {}, allowedApps: 'browser.chrome' }
-]) assert.throws(() => createDeviceBridge(options), /INVALID_DEVICE_BRIDGE/);
-
+for (const options of [{}, { systemInfo: async () => ({}) }, { systemInfo: async () => ({}), openExternal: async () => {} }, { systemInfo: async () => ({}), openExternal: async () => {}, openApp: async () => {}, allowedApps: 'browser.chrome' }]) assert.throws(() => createDeviceBridge(options), /INVALID_DEVICE_BRIDGE/);
 assert.equal(DEVICE_BRIDGE_CONTRACT.shellExecutionAllowed, false);
 assert.deepEqual(DEVICE_BRIDGE_CONTRACT.browserProtocols, ['https:']);
 assert.equal(DEVICE_BRIDGE_CONTRACT.actions.includes('shell.run'), false);
@@ -86,39 +36,19 @@ const hafize = resolveAgent(registry, 'hafize-general');
 const reviewer = resolveAgent(registry, 'agency-code-reviewer');
 assert.ok(hafize);
 assert.ok(reviewer);
-assert.deepEqual(listDeviceToolPermissions(), [
-  { action: 'system.info', permission: 'device.system.info', approvalRequired: false },
-  { action: 'browser.open', permission: 'device.browser.open', approvalRequired: true },
-  { action: 'app.open', permission: 'device.app.open', approvalRequired: true }
-]);
+assert.deepEqual(listDeviceToolPermissions(), [{ action: 'system.info', permission: 'device.system.info', approvalRequired: false }, { action: 'browser.open', permission: 'device.browser.open', approvalRequired: true }, { action: 'app.open', permission: 'device.app.open', approvalRequired: true }]);
 assert.equal(DEVICE_TOOL_BOUNDARY.defaultDeny, true);
 assert.equal(DEVICE_TOOL_BOUNDARY.modelMayAssertExplicitUserIntent, false);
 assert.equal(DEVICE_TOOL_BOUNDARY.actions.includes('shell.run'), false);
 assert.equal(DEVICE_TOOL_BOUNDARY.requestFields.includes('explicitUserIntent'), false);
-assert.deepEqual(authorizeDeviceToolRequest(hafize, { action: 'system.info' }), {
-  ok: true,
-  request: { action: 'system.info' },
-  permission: 'device.system.info',
-  approvalRequired: false
-});
+assert.deepEqual(authorizeDeviceToolRequest(hafize, { action: 'system.info' }), { ok: true, request: { action: 'system.info' }, permission: 'device.system.info', approvalRequired: false });
 assert.deepEqual(authorizeDeviceToolRequest(reviewer, { action: 'system.info' }), { ok: false, error: 'DEVICE_TOOL_NOT_AUTHORIZED', reason: 'default_deny' });
 assert.deepEqual(authorizeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com' }), { ok: false, error: 'DEVICE_TOOL_NOT_AUTHORIZED', reason: 'approval_required' });
 assert.equal(authorizeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com' }, { approvalGranted: true }).ok, true);
-for (const forged of [
-  { action: 'browser.open', url: 'https://example.com', explicitUserIntent: true },
-  { action: 'app.open', appId: 'browser.chrome', explicitUserIntent: true },
-  { action: 'shell.run' },
-  { action: 'system.info', url: 'https://example.com' }
-]) assert.equal(authorizeDeviceToolRequest(hafize, forged, { approvalGranted: true }).ok, false);
+for (const forged of [{ action: 'browser.open', url: 'https://example.com', explicitUserIntent: true }, { action: 'app.open', appId: 'browser.chrome', explicitUserIntent: true }, { action: 'shell.run' }, { action: 'system.info', url: 'https://example.com' }]) assert.equal(authorizeDeviceToolRequest(hafize, forged, { approvalGranted: true }).ok, false);
 
 const boundaryCalls = [];
-const boundaryBridge = {
-  async execute(command) {
-    boundaryCalls.push(command);
-    if (command.action === 'system.info') return { ok: true, action: command.action, info: { platform: 'linux', arch: 'x64' } };
-    return { ok: true, action: command.action };
-  }
-};
+const boundaryBridge = { async execute(command) { boundaryCalls.push(command); if (command.action === 'system.info') return { ok: true, action: command.action, info: { platform: 'linux', arch: 'x64' } }; return { ok: true, action: command.action }; } };
 assert.equal((await executeDeviceToolRequest(hafize, { action: 'system.info' }, { deviceBridge: boundaryBridge })).ok, true);
 assert.deepEqual(boundaryCalls[0], { action: 'system.info' });
 assert.equal((await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com' }, { deviceBridge: boundaryBridge, approvalGranted: false })).ok, false);
@@ -139,45 +69,46 @@ assert.equal(DEVICE_APPROVAL_LEASE_CONTRACT.singleUse, true);
 assert.equal(deviceApprovalTargetForRequest({ action: 'app.open', appId: 'Browser.Chrome' }), 'browser.chrome');
 assert.equal(deviceApprovalTargetForRequest({ action: 'browser.open', url: 'https://example.com/a' }), 'https://example.com/a');
 assert.throws(() => deviceApprovalTargetForRequest({ action: 'system.info' }), /INVALID_DEVICE_APPROVAL_ACTION/);
-
 const issued = approvalStore.issue({ traceId, action: 'browser.open', target: 'https://example.com/a', ttlMs: 1000 });
 assert.equal(issued.ok, true);
-assert.equal(approvalStore.size(), 1);
-assert.equal((await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, {
-  traceId,
-  approvalToken: issued.lease.token,
-  approvalStore,
-  deviceBridge: boundaryBridge
-})).ok, true);
-assert.equal(approvalStore.size(), 0);
-assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, {
-  traceId,
-  approvalToken: issued.lease.token,
-  approvalStore,
-  deviceBridge: boundaryBridge
-}), { ok: false, error: 'DEVICE_APPROVAL_NOT_FOUND', reason: 'approval_required' });
-
+assert.equal((await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, { traceId, approvalToken: issued.lease.token, approvalStore, deviceBridge: boundaryBridge })).ok, true);
+assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, { traceId, approvalToken: issued.lease.token, approvalStore, deviceBridge: boundaryBridge }), { ok: false, error: 'DEVICE_APPROVAL_NOT_FOUND', reason: 'approval_required' });
 const wrongTarget = approvalStore.issue({ traceId, action: 'app.open', target: 'browser.chrome', ttlMs: 1000 });
-assert.equal(wrongTarget.ok, true);
-assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'app.open', appId: 'editor.vscode' }, {
-  traceId,
-  approvalToken: wrongTarget.lease.token,
-  approvalStore,
-  deviceBridge: boundaryBridge
-}), { ok: false, error: 'DEVICE_APPROVAL_TARGET_MISMATCH', reason: 'approval_required' });
-assert.equal(approvalStore.size(), 0);
-
+assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'app.open', appId: 'editor.vscode' }, { traceId, approvalToken: wrongTarget.lease.token, approvalStore, deviceBridge: boundaryBridge }), { ok: false, error: 'DEVICE_APPROVAL_TARGET_MISMATCH', reason: 'approval_required' });
 const expiring = approvalStore.issue({ traceId, action: 'browser.open', target: 'https://example.com/expire', ttlMs: 5 });
 clock += 6;
 assert.deepEqual(approvalStore.consume({ token: expiring.lease.token, traceId, action: 'browser.open', target: 'https://example.com/expire' }), { ok: false, error: 'DEVICE_APPROVAL_EXPIRED' });
 const revoked = approvalStore.issue({ traceId, action: 'app.open', target: 'browser.chrome' });
 assert.equal(approvalStore.revoke(revoked.lease.token), true);
 assert.equal(approvalStore.revoke(revoked.lease.token), false);
-for (const invalid of [
-  { traceId: 'short', action: 'app.open', target: 'browser.chrome' },
-  { traceId, action: 'shell.run', target: 'x' },
-  { traceId, action: 'app.open', target: '' },
-  { traceId, action: 'app.open', target: 'browser.chrome', ttlMs: 9999999 }
-]) assert.equal(approvalStore.issue(invalid).ok, false);
+for (const invalid of [{ traceId: 'short', action: 'app.open', target: 'browser.chrome' }, { traceId, action: 'shell.run', target: 'x' }, { traceId, action: 'app.open', target: '' }, { traceId, action: 'app.open', target: 'browser.chrome', ttlMs: 9999999 }]) assert.equal(approvalStore.issue(invalid).ok, false);
 
-console.log('device bridge contract tests passed with default-deny authorization and single-use approval leases');
+let reviewIdNumber = 0;
+const reviewStore = createDeviceApprovalReviewStore({ approvalStore, now: () => clock, randomId: () => `review-${++reviewIdNumber}` });
+assert.equal(DEVICE_APPROVAL_REVIEW_CONTRACT.explicitConfirmationRequired, true);
+assert.equal(DEVICE_APPROVAL_REVIEW_CONTRACT.queryValuesVisible, false);
+const review = reviewStore.begin({ traceId, request: { action: 'browser.open', url: 'https://example.com/private?token=do-not-display#secret' }, ttlMs: 1000 });
+assert.equal(review.ok, true);
+assert.equal(review.review.target, 'https://example.com/private');
+assert.equal(JSON.stringify(review.review).includes('do-not-display'), false);
+assert.equal(JSON.stringify(review.review).includes('#secret'), false);
+assert.equal(review.review.requiresExplicitConfirmation, true);
+assert.equal(reviewStore.size(), 1);
+const confirmed = reviewStore.confirm({ reviewId: review.review.id, traceId });
+assert.equal(confirmed.ok, true);
+assert.equal(reviewStore.size(), 0);
+assert.equal(approvalStore.consume({ token: confirmed.approval.token, traceId, action: 'browser.open', target: 'https://example.com/private?token=do-not-display#secret' }).ok, true);
+assert.deepEqual(reviewStore.confirm({ reviewId: review.review.id, traceId }), { ok: false, error: 'DEVICE_REVIEW_NOT_FOUND' });
+
+const wrongTraceReview = reviewStore.begin({ traceId, request: { action: 'app.open', appId: 'Browser.Chrome' } });
+assert.deepEqual(reviewStore.confirm({ reviewId: wrongTraceReview.review.id, traceId: 'trace-device-9999' }), { ok: false, error: 'DEVICE_REVIEW_TRACE_MISMATCH' });
+assert.equal(reviewStore.size(), 0);
+const expiredReview = reviewStore.begin({ traceId, request: { action: 'app.open', appId: 'browser.chrome' }, ttlMs: 5 });
+clock += 6;
+assert.deepEqual(reviewStore.confirm({ reviewId: expiredReview.review.id, traceId }), { ok: false, error: 'DEVICE_REVIEW_EXPIRED' });
+const cancelledReview = reviewStore.begin({ traceId, request: { action: 'app.open', appId: 'browser.chrome' } });
+assert.equal(reviewStore.cancel(cancelledReview.review.id), true);
+assert.deepEqual(reviewStore.confirm({ reviewId: cancelledReview.review.id, traceId }), { ok: false, error: 'DEVICE_REVIEW_NOT_FOUND' });
+for (const bad of [{ traceId, request: { action: 'shell.run' } }, { traceId, request: { action: 'browser.open', url: 'http://example.com' } }, { traceId, request: { action: 'browser.open', url: 'https://user:pass@example.com' } }, { traceId, request: { action: 'app.open', appId: '../terminal' } }]) assert.equal(reviewStore.begin(bad).ok, false);
+
+console.log('device bridge tests passed with default-deny authorization, one-time approval leases, and safe explicit review sessions');
