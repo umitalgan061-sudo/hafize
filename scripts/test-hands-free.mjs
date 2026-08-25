@@ -122,6 +122,16 @@ function createHarness({ handoffStartsVoice = true } = {}) {
   };
 }
 
+function finishOutputCooldown(harness, controller) {
+  assert.equal(controller.isCoolingDown(), true, 'TTS end must enter echo-suppression cooldown');
+  assert.equal(harness.pendingTimers(api.POST_OUTPUT_COOLDOWN_MS).length, 1);
+  assert.equal(harness.pendingTimers(api.RESTART_DELAY_MS).length, 0, 'wake restart must wait for cooldown');
+  harness.runTimer(harness.pendingTimers(api.POST_OUTPUT_COOLDOWN_MS)[0]);
+  assert.equal(controller.isCoolingDown(), false);
+  assert.equal(harness.pendingTimers(api.RESTART_DELAY_MS).length, 1);
+  harness.runTimer(harness.pendingTimers(api.RESTART_DELAY_MS)[0]);
+}
+
 const harness = createHarness();
 const controller = api.installHandsFree(harness.documentRef, harness.root);
 assert.equal(controller.isSupported, true);
@@ -148,8 +158,7 @@ assert.match(harness.indicator.textContent, /Hafize konuşuyor/);
 
 harness.outputState(false);
 assert.equal(controller.isVoiceOutputSpeaking(), false);
-assert.equal(harness.pendingTimers(350).length, 1, 'TTS bittikten sonra wake restart gecikmeli olmalı');
-harness.runTimer(harness.pendingTimers(350)[0]);
+finishOutputCooldown(harness, controller);
 assert.equal(harness.recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -161,7 +170,7 @@ harness.outputState(true, 'speaking');
 assert.equal(harness.pendingTimers(350).length, 0);
 assert.equal(harness.recognitions.length, recognitionCountWhileSpeaking, 'duplicate speaking state yeni recognizer başlatmamalı');
 harness.outputState(false);
-harness.runTimer(harness.pendingTimers(350)[0]);
+finishOutputCooldown(harness, controller);
 assert.equal(harness.recognitions.length, 3);
 
 harness.recognitions[2].onresult?.({ resultIndex: 0, results: [[{ transcript: 'merhaba dünya' }]] });
@@ -211,8 +220,7 @@ failed.runTimer(failed.pendingTimers(api.HANDOFF_TIMEOUT_MS)[0]);
 assert.equal(failedController.isHandoffWaiting(), false);
 assert.equal(failed.pendingTimers(350).length, 0, 'TTS aktifken failed handoff wake restart etmemeli');
 failed.outputState(false);
-assert.equal(failed.pendingTimers(350).length, 1);
-failed.runTimer(failed.pendingTimers(350)[0]);
+finishOutputCooldown(failed, failedController);
 assert.equal(failed.recognitions.length, 2);
 assert.equal(failedController.isListening(), true);
 
