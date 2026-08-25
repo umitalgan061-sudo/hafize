@@ -52,11 +52,15 @@ assert.match(consentSource, /visibilitychange/);
 assert.doesNotMatch(source, /CONSENT_TIMEOUT_MS\s*=/, 'lifecycle recovery must not bypass the separate explicit consent layer');
 
 assert.match(voiceOutputSource, /VOICE_INPUT_STATE_EVENT/);
-assert.match(voiceOutputSource, /cancelSpeech\('voice-input'/);
+assert.match(
+  voiceOutputSource,
+  /function setVoiceInputListening\(next\)[\s\S]*?if \(voiceInputListening\) cancelSpeech\(\{ renderState: false }\)/,
+  'voice input activation must cancel speech before rendering the listening state'
+);
 assert.match(voiceOutputSource, /visibilitychange/);
 assert.match(voiceOutputSource, /composer\?\.addEventListener\?\.\('submit'/);
 
-assert.match(swPolicySource, /hafize-shell-v88/);
+assert.match(swPolicySource, /const CURRENT_CACHE = `\$\{CACHE_PREFIX}v\d+`/);
 assert.match(swPolicySource, /'\/hands-free\.js'/);
 assert.match(swPolicySource, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
