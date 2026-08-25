@@ -55,7 +55,15 @@ function buildHarness({ secure = true } = {}) {
   const timers = new Map();
   const root = {
     isSecureContext: secure,
-    setTimeout(callback) { timerId += 1; timers.set(timerId, callback); return timerId; },
+    setTimeout(callback) {
+      timerId += 1;
+      const id = timerId;
+      timers.set(id, () => {
+        timers.delete(id);
+        callback();
+      });
+      return id;
+    },
     clearTimeout(id) { timers.delete(id); }
   };
   return { toggle, documentRef, root, timers };
