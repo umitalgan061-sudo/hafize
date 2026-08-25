@@ -24,7 +24,7 @@ assert.deepEqual(short, {
   kind: 'preference',
   content: 'Tenis oynamayı seviyorum.',
   preview: 'Tenis oynamayı seviyorum.',
-  characters: 24
+  characters: 25
 });
 assert.equal(Object.isFrozen(short), true);
 
