@@ -88,7 +88,8 @@ assert.equal(controller.isSupported, true);
 assert.equal(controller.isEnabled(), false, 'sesli yanıt açık kullanıcı tercihi olmadan başlamamalı');
 assert.equal(toggle.getAttribute('aria-pressed'), 'false');
 assert.deepEqual(outputStates.at(-1), {
-  source: 'voice-output', state: 'idle', speaking: false, thinking: false, enabled: false, supported: true
+  source: 'voice-output', state: 'idle', speaking: false, thinking: false, enabled: false, supported: true,
+  voiceInputListening: false, error: false
 });
 
 input.disabled = true;
