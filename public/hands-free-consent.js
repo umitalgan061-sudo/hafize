@@ -129,6 +129,9 @@
     if (activeInstallations.has(toggle)) throw new Error('HANDS_FREE_CONSENT_ALREADY_INSTALLED');
 
     const baseline = snapshotToggle(toggle);
+    if (root?.isSecureContext !== true) {
+      return installBlockedConsent(toggle, baseline, 'insecure-context');
+    }
     if (documentRef.getElementById?.(REVIEW_ID)) {
       return installBlockedConsent(toggle, baseline, 'review-collision');
     }
