@@ -10,12 +10,13 @@ assert.equal(LOCAL_PROVIDER_DEFAULTS.maxStreamChunkBytes, MODEL_PROVIDER_PRODUCT
 assert.equal(LOCAL_PROVIDER_DEFAULTS.jsonTimeoutMs, MODEL_PROVIDER_PRODUCTION_DEFAULTS.jsonTimeoutMs);
 assert.equal(LOCAL_PROVIDER_DEFAULTS.maxJsonTimeoutMs, MODEL_PROVIDER_PRODUCTION_DEFAULTS.maxJsonTimeoutMs);
 
-const boundary = await readFile(new URL('../lib/model-provider-server-boundary.mjs', import.meta.url), 'utf8');
+const router = await readFile(new URL('../lib/model-provider-router.mjs', import.meta.url), 'utf8');
 const runtime = await readFile(new URL('../lib/local-provider-server-runtime.mjs', import.meta.url), 'utf8');
 const production = await readFile(new URL('../lib/model-provider-production-runtime.mjs', import.meta.url), 'utf8');
 
-assert.match(boundary, /isLocalProviderModel/);
-assert.match(runtime, /defaultProvider:\s*'nvidia'/);
+assert.match(router, /startsWith\(LOCAL_MODEL_PREFIX\)/);
+assert.match(router, /defaultProvider:\s*'nvidia'/);
+assert.match(runtime, /defaultProvider:\s*router\.defaultProvider/);
 assert.match(production, /defaultProvider:\s*runtime\.defaultProvider/);
 assert.doesNotMatch(runtime, /approvalGranted\s*:\s*true/);
 assert.doesNotMatch(runtime, /tool[_-]?permission/i);
