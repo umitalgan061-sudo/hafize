@@ -65,14 +65,14 @@ assert.match(swPolicySource, /'\/hands-free\.js'/);
 assert.match(swPolicySource, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 
 assert.equal(registry.agents.length, 4, 'hands-free lifecycle changes must not mutate the selective four-agent roster');
-assert.equal(registry.agents.filter((agent) => agent.role === 'selector').length, 2);
-assert.equal(registry.agents.filter((agent) => agent.role === 'specialist').length, 2);
-assert.equal(registry.defaults.externalWritesRequireApproval, true);
-assert.equal(registry.defaults.secretsNeverEnterAgentContext, true);
-assert.equal(registry.defaults.sharedTraceIdRequired, true);
+assert.equal(registry.agents.filter((agent) => agent.kind === 'selector').length, 2);
+assert.equal(registry.agents.filter((agent) => agent.kind === 'specialist').length, 2);
+assert.equal(registry.policy.externalWritesRequireApproval, true);
+assert.equal(registry.policy.secretsNeverEnterAgentContext, true);
+assert.equal(registry.policy.sharedTraceIdRequired, true);
 
 for (const agent of registry.agents) {
-  assert.equal(agent.toolPolicy?.denyByDefault, true, `${agent.id} must remain backend default-deny`);
+  assert.equal(agent.toolPolicy?.default, 'deny', `${agent.id} must remain backend default-deny`);
 }
 
 const publicMessages = [...source.matchAll(/announce\('([^']+)'\)/g)].map((match) => match[1]);
