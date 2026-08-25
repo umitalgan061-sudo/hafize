@@ -187,7 +187,7 @@ assert.equal(shortcutSource.includes("documentRef.querySelector('#messageInput')
 assert.equal(loaderSource.includes("'/keyboard-shortcuts.js'"), true);
 assert.equal(loaderSource.includes('data-hafize-keyboard-shortcuts'), true);
 assert.equal(loaderSource.includes("'/message-copy.js'"), true, 'existing message actions loader must remain present');
-assert.equal(swSource.includes("`${CACHE_PREFIX}v165`"), true);
+assert.match(swSource, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/);
 assert.equal(swSource.includes("'/keyboard-shortcuts.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 

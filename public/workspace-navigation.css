@@ -1,0 +1,146 @@
+.workspace-navigation-intro {
+  display: grid;
+  gap: 6px;
+  border: 0;
+  padding: 8px 4px 10px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.workspace-navigation-intro[hidden] {
+  display: none !important;
+}
+
+.workspace-navigation-intro:focus {
+  outline: none;
+}
+
+.workspace-navigation-intro:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 5px;
+  border-radius: 14px;
+}
+
+.workspace-navigation-eyebrow {
+  color: var(--premium-orange-strong, var(--accent-strong));
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.workspace-navigation-title {
+  margin: 0;
+  color: var(--premium-text, var(--ink));
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(32px, 5vw, 48px);
+  font-weight: 500;
+  letter-spacing: -.025em;
+}
+
+.workspace-navigation-description {
+  max-width: 680px;
+  margin: 0;
+  color: var(--premium-muted, var(--muted));
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.main[data-workspace="tasks"],
+.main[data-workspace="connections"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.main[data-workspace="tasks"] .primary-column,
+.main[data-workspace="connections"] .primary-column {
+  display: none !important;
+}
+
+.main[data-workspace="tasks"] .utility-rail,
+.main[data-workspace="connections"] .utility-rail {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(100%, 960px);
+  max-width: 960px;
+  justify-self: center;
+  align-content: start;
+  padding: 46px 18px 48px;
+  gap: 18px;
+}
+
+.main[data-workspace="tasks"] .workspace-navigation-intro,
+.main[data-workspace="connections"] .workspace-navigation-intro {
+  grid-column: 1 / -1;
+}
+
+.main[data-workspace="tasks"] #scheduleListCard {
+  grid-column: 1 / -1;
+}
+
+.main[data-workspace="tasks"] #scheduleListCard .schedule-list-items {
+  max-height: min(58vh, 620px);
+}
+
+.main[data-workspace="tasks"] #scheduleRuntimeCard,
+.main[data-workspace="connections"] #accountConnectionCard,
+.main[data-workspace="connections"] #canvaConnectionCard,
+.main[data-workspace="connections"] #githubWriteReadinessCard {
+  min-width: 0;
+}
+
+.main[data-workspace="tasks"] .utility-card,
+.main[data-workspace="connections"] .utility-card {
+  box-shadow: var(--premium-shadow, 0 18px 55px rgba(75, 62, 49, .10));
+}
+
+.nav-item[aria-current="page"] {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 30%, var(--premium-line, var(--line)));
+  background: color-mix(in srgb, var(--premium-orange, var(--accent)) 10%, transparent);
+}
+
+.nav-item:not(:disabled):focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent-strong));
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .main[data-workspace="tasks"] .utility-rail,
+  .main[data-workspace="connections"] .utility-rail {
+    grid-template-columns: 1fr;
+    width: 100%;
+    padding: 32px 0 40px;
+    gap: 14px;
+  }
+
+  .main[data-workspace="tasks"] .workspace-navigation-intro,
+  .main[data-workspace="connections"] .workspace-navigation-intro,
+  .main[data-workspace="tasks"] #scheduleListCard {
+    grid-column: 1;
+  }
+
+  .workspace-navigation-intro {
+    padding-inline: 4px;
+  }
+
+  .workspace-navigation-description {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main[data-workspace="tasks"] *,
+  .main[data-workspace="connections"] * {
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .nav-item[aria-current="page"] {
+    border: 1px solid Highlight;
+  }
+
+  .workspace-navigation-intro:focus-visible {
+    outline-color: Highlight;
+  }
+}

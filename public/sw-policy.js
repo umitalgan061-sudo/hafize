@@ -11,7 +11,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v165`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v166`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -129,6 +129,8 @@
     '/hands-free-consent.js',
     '/hands-free.js',
     '/conversation-storage-guard.js',
+    '/workspace-navigation.js',
+    '/workspace-navigation.css',
     '/ui-shell.js',
     '/sw-policy.js',
     '/manifest.webmanifest',
