@@ -50,7 +50,10 @@ for (const toolChoice of ['none', 'auto', null, undefined, { type: 'function', f
   const { provider, calls } = createNoNetworkProvider();
   const request = Object.create({ tools: [{ type: 'function' }] });
   Object.assign(request, BASE_REQUEST);
-  await assert.rejects(provider.complete(request), /network must not be reached/);
+  await assert.rejects(
+    provider.complete(request),
+    (error) => error?.code === 'LOCAL_PROVIDER_UNAVAILABLE' && error?.status === 502
+  );
   assert.equal(calls(), 1, 'inherited properties are not treated as request payload fields');
 }
 
