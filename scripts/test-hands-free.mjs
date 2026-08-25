@@ -147,7 +147,7 @@ assert.equal(harness.recognitions[0].interimResults, false);
 assert.equal(controller.isListening(), true);
 assert.equal(harness.indicator.hidden, false);
 assert.match(harness.indicator.textContent, /Hafize/);
-assert.match(harness.toast.textContent, /bu oturum için açıldı/);
+assert.match(harness.toast.textContent, /bu oturum için 30 dakika açıldı/);
 
 harness.outputState(true);
 assert.equal(controller.isVoiceOutputSpeaking(), true);
