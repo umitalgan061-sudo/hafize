@@ -12,7 +12,11 @@ const provider = createLocalOllamaProvider({
   enabled: true,
   async fetchImpl(url, init) {
     calls.push({ url, init });
-    return { ok: true, body };
+    return {
+      ok: true,
+      headers: { get: (name) => name.toLowerCase() === 'content-type' ? 'text/event-stream' : null },
+      body
+    };
   }
 });
 
@@ -20,7 +24,8 @@ const stream = await provider.stream({
   model: 'local:qwen3',
   messages: [{ role: 'user', content: 'Merhaba' }]
 });
-assert.equal(stream, body);
+assert.notEqual(stream, body);
+assert.equal(typeof stream[Symbol.asyncIterator], 'function');
 assert.equal(calls.length, 1);
 assert.equal(calls[0].init.headers.Accept, 'text/event-stream');
 const payload = JSON.parse(calls[0].init.body);
@@ -40,7 +45,13 @@ assert.equal(calls.length, 1);
 
 const invalid = createLocalOllamaProvider({
   enabled: true,
-  async fetchImpl() { return { ok: true, body: null }; }
+  async fetchImpl() {
+    return {
+      ok: true,
+      headers: { get: (name) => name.toLowerCase() === 'content-type' ? 'text/event-stream' : null },
+      body: null
+    };
+  }
 });
 await assert.rejects(
   () => invalid.stream({ model: 'local:qwen3', messages: [{ role: 'user', content: 'x' }] }),
