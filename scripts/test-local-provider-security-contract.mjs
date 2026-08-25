@@ -41,8 +41,8 @@ assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_BASE_URL/);
 assert.equal(registry.defaultAgent, 'minimal-engineer');
 assert.equal(registry.agents.length, 4);
 for (const agent of registry.agents) {
-  assert.equal(Array.isArray(agent.tools?.allow), true);
-  assert.equal(agent.tools?.denyByDefault, true);
+  assert.equal(Array.isArray(agent.toolPolicy?.allow), true);
+  assert.equal(agent.toolPolicy?.default, 'deny');
 }
 
 console.log('local provider security contract tests passed');
