@@ -78,11 +78,15 @@ assert.equal(consent.canReview({ hidden: false }, { isSecureContext: true }, { d
 const insecure = buildHarness({ secure: false });
 const insecureController = consent.installHandsFreeConsent(insecure.documentRef, insecure.root);
 assert.ok(insecureController);
+assert.equal(insecureController.isBlocked(), true, 'güvensiz context görünür biçimde bloklanmalı');
+assert.equal(insecureController.getBlockReason(), 'insecure-context');
+assert.equal(insecure.toggle.disabled, true, 'güvensiz context toggle aktif görünmemeli');
 assert.equal(insecureController.begin(), false, 'güvensiz context consent review başlatmamalı');
 insecure.toggle.click();
 assert.equal(insecureController.isPending(), false);
 assert.equal(insecure.timers.size, 0, 'güvensiz context consent timerı oluşturmamalı');
 insecureController.destroy();
+assert.equal(insecure.toggle.disabled, false);
 assert.equal(insecure.toggle.title, 'Host title');
 assert.equal(insecure.toggle.getAttribute('aria-describedby'), 'host-description');
 
@@ -105,4 +109,4 @@ assert.equal(normal.timers.size, 0);
 assert.equal(normal.toggle.title, 'Host title');
 assert.equal(normal.toggle.getAttribute('aria-describedby'), 'host-description');
 
-console.log('Hands-free consent secure-context OK: insecure denial, timeout expiry and retry lifecycle');
+console.log('Hands-free consent secure-context OK: blocked insecure state, timeout expiry and retry lifecycle');
