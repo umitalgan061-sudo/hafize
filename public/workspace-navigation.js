@@ -13,11 +13,7 @@
   'use strict';
 
   const WORKSPACES = Object.freeze(['chat', 'tasks', 'connections']);
-  const NAV_IDS = Object.freeze({
-    chat: 'navChatBtn',
-    tasks: 'navTasksBtn',
-    connections: 'navConnectionsBtn'
-  });
+  const NAV_INDEX = Object.freeze({ chat: 0, tasks: 1, connections: 2 });
   const CARD_IDS = Object.freeze({
     tasks: Object.freeze(['scheduleRuntimeCard', 'scheduleListCard']),
     connections: Object.freeze(['accountConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard'])
@@ -58,6 +54,14 @@
   function workspaceCopy(workspace) {
     const key = normalizeWorkspace(workspace);
     return COPY[key] || null;
+  }
+
+  function resolveNavigation(documentRef) {
+    const navList = documentRef?.querySelector?.('.nav-list');
+    const buttons = Array.from(navList?.querySelectorAll?.('.nav-item') || []);
+    if (buttons.length < WORKSPACES.length) return null;
+    const resolved = Object.fromEntries(WORKSPACES.map((workspace) => [workspace, buttons[NAV_INDEX[workspace]]]));
+    return WORKSPACES.every((workspace) => resolved[workspace]) ? Object.freeze(resolved) : null;
   }
 
   function snapshotAttribute(node, name) {
@@ -130,10 +134,8 @@
     const main = documentRef.querySelector('.main');
     const primary = documentRef.querySelector('.primary-column');
     const rail = documentRef.querySelector('.utility-rail');
-    const nav = Object.fromEntries(WORKSPACES.map((workspace) => [workspace, documentRef.getElementById?.(NAV_IDS[workspace])]));
-    if (!main || !primary || !rail || WORKSPACES.some((workspace) => !nav[workspace])) {
-      throw new Error('WORKSPACE_NAVIGATION_HOST_UNAVAILABLE');
-    }
+    const nav = resolveNavigation(documentRef);
+    if (!main || !primary || !rail || !nav) throw new Error('WORKSPACE_NAVIGATION_HOST_UNAVAILABLE');
 
     let mounted = false;
     let destroyed = false;
@@ -345,7 +347,7 @@
 
   return Object.freeze({
     WORKSPACES,
-    NAV_IDS,
+    NAV_INDEX,
     CARD_IDS,
     INTRO_ID,
     STYLE_ID,
@@ -355,6 +357,7 @@
     allowedCardIds,
     isWorkspaceCard,
     workspaceCopy,
+    resolveNavigation,
     createController,
     mount
   });
