@@ -68,6 +68,7 @@ function keyEvent(key, overrides = {}) {
 assert.deepEqual(api.SHORTCUTS, {
   focusComposer: 'mod+k',
   focusComposerSlash: '/',
+  focusConversationSearch: 'mod+shift+f',
   stopResponse: 'escape'
 });
 assert.equal(api.isEditableTarget(new FakeNode('input')), true);
