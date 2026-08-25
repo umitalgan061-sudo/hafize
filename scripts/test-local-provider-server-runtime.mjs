@@ -246,11 +246,18 @@ const timeoutRuntime = createLocalProviderServerRuntime({
 const timedStream = await timeoutRuntime.stream({
   payload: { model: 'local:qwen', messages: [{ role: 'user', content: 'timeout' }] }
 });
-await assert.rejects(timedStream.body[Symbol.asyncIterator]().next(), (error) => {
-  assert.equal(error.code, 'LOCAL_PROVIDER_STREAM_TIMEOUT');
-  assert.equal(error.status, 504);
-  return true;
-});
+const timeoutFailSafe = setTimeout(() => {
+  throw new Error('LOCAL_PROVIDER_STREAM_TIMEOUT_TEST_STALLED');
+}, 1_500);
+try {
+  await assert.rejects(timedStream.body[Symbol.asyncIterator]().next(), (error) => {
+    assert.equal(error.code, 'LOCAL_PROVIDER_STREAM_TIMEOUT');
+    assert.equal(error.status, 504);
+    return true;
+  });
+} finally {
+  clearTimeout(timeoutFailSafe);
+}
 assert.equal(timeoutOwnedSignal.aborted, true, 'deadline must abort the local provider fetch signal');
 
 const beforeToolGate = localCalls.length;
