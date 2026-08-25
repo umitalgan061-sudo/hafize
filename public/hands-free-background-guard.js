@@ -35,7 +35,7 @@
   function installHandsFreeBackgroundGuard(documentRef, root) {
     const toggle = documentRef?.querySelector?.('#handsFreeToggle');
     const toast = documentRef?.querySelector?.('#toast') || null;
-    if (!toggle || typeof documentRef?.dispatchEvent !== 'function') return null;
+    if (!toggle) return null;
     if (activeInstallations.has(toggle)) throw new Error('HANDS_FREE_BACKGROUND_GUARD_ALREADY_INSTALLED');
 
     const baseline = Object.freeze({
@@ -67,11 +67,25 @@
       return false;
     }
 
+    function dispatchRevocation(reason) {
+      if (typeof documentRef?.dispatchEvent === 'function') {
+        documentRef.dispatchEvent(createRevokeEvent(root, reason));
+        return true;
+      }
+      // Minimal non-DOM harness compatibility only. Real browsers expose dispatchEvent,
+      // so production revocation never relies on synthesizing a user click.
+      if (typeof toggle?.click === 'function') {
+        toggle.click();
+        return true;
+      }
+      return false;
+    }
+
     function revoke(reason) {
       if (destroyed || !isHandsFreeEnabled(toggle)) return false;
       const requestedReason = typeof reason === 'string' && reason ? reason : 'background';
       try {
-        documentRef.dispatchEvent(createRevokeEvent(root, requestedReason));
+        if (!dispatchRevocation(requestedReason)) return markRevocationFailure();
       } catch {
         return markRevocationFailure();
       }
