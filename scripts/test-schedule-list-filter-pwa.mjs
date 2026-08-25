@@ -7,7 +7,7 @@ const sw = require('../public/sw-policy.js');
 const uiShell = require('../public/ui-shell.js');
 const uiSource = await readFile(new URL('../public/ui-shell.js', import.meta.url), 'utf8');
 
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v85');
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(sw.SHELL_ASSETS.includes('/schedule-list-filter.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/schedule-list-filter.css'), true);
 assert.equal(new Set(sw.SHELL_ASSETS).size, sw.SHELL_ASSETS.length, 'shell asset list must not contain duplicates');

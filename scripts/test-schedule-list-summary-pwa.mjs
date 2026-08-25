@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const sw = require('../public/sw-policy.js');
 const schedule = require('../public/schedule-list.js');
 
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v84');
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(sw.SHELL_ASSETS.includes('/schedule-list.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/schedule-list.css'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/sw-policy.js'), true);

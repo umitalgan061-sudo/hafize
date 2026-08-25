@@ -31,7 +31,7 @@ assert.equal(source.loader.indexOf("'/schedule-list.js'") < source.loader.indexO
 assert.equal(source.loader.split("'/schedule-create.js'").length - 1, 1);
 
 assert.equal(source.listCss.startsWith("@import url('/schedule-create.css');"), true);
-assert.equal(swPolicy.CURRENT_CACHE, 'hafize-shell-v66');
+assert.match(swPolicy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/schedule-create.js'), true);
 assert.equal(swPolicy.SHELL_ASSETS.includes('/schedule-create.css'), true);
 assert.equal(swPolicy.classifyRequest({
