@@ -166,7 +166,8 @@ assert.deepEqual(await enabled.listModels({ signal: modelController.signal }), [
 ]);
 const modelCall = localCalls.find((call) => call.url.endsWith('/models'));
 assert.ok(modelCall);
-assert.equal(modelCall.init.signal, modelController.signal);
+assert.notEqual(modelCall.init.signal, modelController.signal, 'model listing must use an owned bounded signal');
+assert.equal(modelCall.init.signal.aborted, false);
 assert.equal('Authorization' in (modelCall.init.headers || {}), false);
 
 const localController = new AbortController();
@@ -183,7 +184,8 @@ assert.equal(localCompletion.provider, 'local');
 assert.equal(localCompletion.result.choices[0].message.content, 'local');
 const completionCall = localCalls.find((call) => call.url.endsWith('/chat/completions') && JSON.parse(call.init.body).stream === false);
 assert.ok(completionCall);
-assert.equal(completionCall.init.signal, localController.signal);
+assert.notEqual(completionCall.init.signal, localController.signal, 'completion must use an owned bounded signal');
+assert.equal(completionCall.init.signal.aborted, false);
 assert.equal(JSON.parse(completionCall.init.body).model, 'qwen2.5');
 assert.equal('Authorization' in completionCall.init.headers, false);
 
