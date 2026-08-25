@@ -94,7 +94,18 @@ const root = {
   setTimeout(fn, ms) { const item = { id: ++timerId, fn, ms, cleared: false }; timers.push(item); return item.id; },
   clearTimeout(id) { const item = timers.find((timer) => timer.id === id); if (item) item.cleared = true; }
 };
-const pendingRestart = () => timers.find((timer) => !timer.cleared && timer.ms === 350);
+const pendingTimer = (ms) => timers.find((timer) => !timer.cleared && timer.ms === ms);
+function finishEchoCooldown() {
+  const cooldown = pendingTimer(handsFreeApi.POST_OUTPUT_COOLDOWN_MS);
+  assert.ok(cooldown, 'TTS completion must enter bounded echo-suppression cooldown');
+  assert.equal(pendingTimer(handsFreeApi.RESTART_DELAY_MS), undefined, 'wake restart must wait for cooldown');
+  cooldown.cleared = true;
+  cooldown.fn();
+  const restart = pendingTimer(handsFreeApi.RESTART_DELAY_MS);
+  assert.ok(restart, 'cooldown completion must schedule bounded wake restart');
+  restart.cleared = true;
+  restart.fn();
+}
 
 const handsFree = handsFreeApi.installHandsFree(documentRef, root);
 const voiceOutput = voiceOutputApi.installVoiceOutput(documentRef, root);
@@ -108,15 +119,12 @@ assert.equal(utterances.length, 1);
 assert.equal(handsFree.isVoiceOutputSpeaking(), true);
 assert.equal(recognitions[0].aborted, true, 'real voice-output event must abort active wake recognizer');
 assert.equal(handsFree.isListening(), false);
-assert.equal(pendingRestart(), undefined, 'wake restart must remain blocked for entire TTS utterance');
+assert.equal(pendingTimer(handsFreeApi.RESTART_DELAY_MS), undefined, 'wake restart must remain blocked for entire TTS utterance');
 
 utterances[0].onend?.();
 assert.equal(voiceOutput.isSpeaking(), false);
 assert.equal(handsFree.isVoiceOutputSpeaking(), false);
-const restart = pendingRestart();
-assert.ok(restart, 'TTS completion must schedule bounded wake restart');
-restart.cleared = true;
-restart.fn();
+finishEchoCooldown();
 assert.equal(recognitions.length, 2);
 assert.equal(handsFree.isListening(), true);
 
@@ -124,7 +132,9 @@ voiceOutput.speak('Yeni yanıt.');
 assert.equal(recognitions[1].aborted, true);
 voiceOutput.cancel();
 assert.equal(handsFree.isVoiceOutputSpeaking(), false);
-assert.ok(pendingRestart(), 'explicit TTS cancel must also restore wake listening through bounded restart');
+finishEchoCooldown();
+assert.equal(recognitions.length, 3, 'explicit TTS cancel must restore wake listening after cooldown');
+assert.equal(handsFree.isListening(), true);
 
 handsFree.destroy();
 voiceOutput.destroy();
