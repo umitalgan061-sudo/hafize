@@ -220,7 +220,7 @@ function fixture({ hostTrigger = null, hostBackdrop = null } = {}) {
 
 assert.match(loaderSource, /HafizeShortcutHelp/);
 assert.match(loaderSource, /\/shortcut-help\.js/);
-assert.match(swSource, /hafize-shell-v122/);
+assert.match(swSource, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/);
 assert.match(swSource, /'\/shortcut-help\.js'/);
 assert.match(swSource, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 for (const forbidden of ['fetch(', 'localStorage', 'sessionStorage', 'document.cookie', 'navigator.clipboard', 'eval(', 'innerHTML']) {
