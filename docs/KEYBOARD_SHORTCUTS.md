@@ -8,6 +8,7 @@ Hafize'nin sohbet kabuğu, fare veya dokunmatik kullanmadan temel konuşma kontr
 | --- | --- |
 | `Ctrl+K` / `⌘K` | Mesaj yazarına odaklanır ve imleci mevcut taslağın sonuna taşır. |
 | `/` | Yalnız düzenlenebilir bir alanda değilken mesaj yazarına odaklanır. |
+| `Ctrl+Shift+F` / `⌘⇧F` | Konuşma arama alanına odaklanır ve mevcut sorguyu seçer. |
 | `Esc` | Yalnız aktif bir yanıt üretiliyorsa görünür **Yanıtı durdur** kontrolünü tetikler. |
 
 ## Güvenlik ve kullanıcı kontrolü
@@ -37,6 +38,12 @@ Düz slash yalnız odak bir `input`, `textarea`, `select` veya `contenteditable`
 Yalnız `K` + platform modifier kombinasyonu kabul edilir. `Alt` veya `Shift` eklenmiş varyantlar Hafize tarafından ele alınmaz.
 
 Composer bulunamazsa veya disabled durumdaysa browser'ın varsayılan davranışı engellenmez.
+
+### `Ctrl/⌘+Shift+F`
+
+Yalnız `F` + platform modifier + `Shift` kombinasyonu konuşma aramasına ayrılır; `Alt` eklenmiş varyantlar kabul edilmez. Açık kullanıcı kısayolu olduğu için composer gibi düzenlenebilir bir alan odaktayken de arama alanına geçebilir.
+
+`#conversationSearchInput` bulunamazsa veya disabled durumdaysa event sahiplenilmez ve browser'ın varsayılan davranışı engellenmez. Alan uygunsa focus edilir ve mevcut sorgu seçilerek yeni aramanın doğrudan yazılabilmesi sağlanır.
 
 ### `Esc`
 
