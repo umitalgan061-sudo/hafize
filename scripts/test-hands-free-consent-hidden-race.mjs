@@ -14,9 +14,9 @@ assert.match(confirmBody, /!canReview\(documentRef, root, toggle\)/, 'confirm mu
 assert.ok(confirmBody.indexOf('!canReview') < confirmBody.indexOf('toggle.click?.();'), 'guard must precede handoff');
 assert.match(source, /function onVisibility\(\)[\s\S]*documentRef\.hidden[\s\S]*cancel\(\)/);
 
-// The helper protects both a hidden document and an explicitly insecure context.
+// The helper protects both a hidden document and requires explicit secure-context proof.
 assert.match(source, /documentRef\?\.hidden !== true/);
-assert.match(source, /root\?\.isSecureContext !== false/);
+assert.match(source, /root\?\.isSecureContext === true/);
 
 // Review expiry and visibility cancellation are independent defenses.
 assert.match(source, /root\.setTimeout\(expire, CONSENT_TIMEOUT_MS\)/);
