@@ -28,7 +28,7 @@ assert.equal(api.mount({ documentRef: { querySelector: () => null } }), null);
 assert.throws(() => api.createController({ documentRef: null }), /INVALID_IN_CHAT_FIND_DOCUMENT/);
 
 const source = fs.readFileSync(path.resolve('public/in-chat-find.js'), 'utf8');
-assert.match(source, /event\?\.shiftKey \? -1 : 1/);
+assert.match(source, /event\.shiftKey \? -1 : 1/);
 assert.match(source, /\(index \+ delta \+ matches\.length\) % matches\.length/);
 assert.match(source, /returnFocus\?\.focus/);
 assert.match(source, /removeEventListener/);
