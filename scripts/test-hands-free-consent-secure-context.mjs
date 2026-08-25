@@ -72,6 +72,7 @@ function buildHarness({ secure = true } = {}) {
 assert.equal(consent.canReview({ hidden: false }, { isSecureContext: true }, { disabled: false, getAttribute: () => 'false' }), true);
 assert.equal(consent.canReview({ hidden: true }, { isSecureContext: true }, { disabled: false, getAttribute: () => 'false' }), false);
 assert.equal(consent.canReview({ hidden: false }, { isSecureContext: false }, { disabled: false, getAttribute: () => 'false' }), false);
+assert.equal(consent.canReview({ hidden: false }, {}, { disabled: false, getAttribute: () => 'false' }), false);
 assert.equal(consent.canReview({ hidden: false }, { isSecureContext: true }, { disabled: true, getAttribute: () => 'false' }), false);
 
 const insecure = buildHarness({ secure: false });
