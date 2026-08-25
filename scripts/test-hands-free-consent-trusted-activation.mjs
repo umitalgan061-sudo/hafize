@@ -97,8 +97,12 @@ assert.equal(api.isTrustedActivation({ isTrusted: true }), true);
   const controller = api.installHandsFreeConsent(fixture.documentRef, fixture.root);
   const result = dispatch(fixture.toggle, 'click', { isTrusted: true });
 
-  assert.equal(result.prevented, true);
+  assert.equal(result.prevented, false, 'blocked consent installs no activation interceptor');
+  assert.equal(result.stopped, false);
+  assert.equal(controller.isBlocked(), true);
+  assert.equal(controller.getBlockReason(), 'insecure-context');
   assert.equal(controller.isPending(), false, 'insecure context cannot reach consent-ready state');
+  assert.equal(fixture.toggle.disabled, true);
   assert.equal(fixture.timers.size, 0);
   assert.equal(fixture.toggle.clickCount, 0);
 
