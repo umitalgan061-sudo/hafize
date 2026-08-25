@@ -20,11 +20,13 @@ class FakeNode {
     this.isContentEditable = false;
     this.focusCount = 0;
     this.clickCount = 0;
+    this.selectCount = 0;
     this.selection = null;
     this.classList = new FakeClassList(this);
   }
   focus() { this.focusCount += 1; }
   click() { this.clickCount += 1; }
+  select() { this.selectCount += 1; }
   setSelectionRange(start, end) { this.selection = [start, end]; }
   closest(selector) { return selector === '[contenteditable="true"]' && this.parentEditable ? {} : null; }
 }
@@ -34,10 +36,13 @@ class FakeDocument {
     this.listeners = new Map();
     this.input = new FakeNode('textarea');
     this.input.value = 'taslak';
+    this.searchInput = new FakeNode('input');
+    this.searchInput.value = 'önceki arama';
     this.send = new FakeNode('button');
   }
   querySelector(selector) {
     if (selector === '#messageInput') return this.input;
+    if (selector === '#conversationSearchInput') return this.searchInput;
     if (selector === '#sendBtn') return this.send;
     return null;
   }
@@ -68,6 +73,7 @@ function keyEvent(key, overrides = {}) {
 assert.deepEqual(api.SHORTCUTS, {
   focusComposer: 'mod+k',
   focusComposerSlash: '/',
+  focusConversationSearch: 'mod+shift+f',
   stopResponse: 'escape'
 });
 assert.equal(api.isEditableTarget(new FakeNode('input')), true);
@@ -88,6 +94,10 @@ assert.equal(api.isPlainSlash(keyEvent('/', { ctrlKey: true })), false);
 assert.equal(api.isModK(keyEvent('k', { ctrlKey: true })), true);
 assert.equal(api.isModK(keyEvent('K', { metaKey: true })), true);
 assert.equal(api.isModK(keyEvent('k', { ctrlKey: true, shiftKey: true })), false);
+assert.equal(api.isConversationSearchShortcut(keyEvent('f', { ctrlKey: true, shiftKey: true })), true);
+assert.equal(api.isConversationSearchShortcut(keyEvent('F', { metaKey: true, shiftKey: true })), true);
+assert.equal(api.isConversationSearchShortcut(keyEvent('f', { ctrlKey: true })), false);
+assert.equal(api.isConversationSearchShortcut(keyEvent('f', { ctrlKey: true, shiftKey: true, altKey: true })), false);
 assert.equal(api.isEscape(keyEvent('Escape')), true);
 assert.equal(api.isEscape(keyEvent('Escape', { altKey: true })), false);
 
@@ -108,6 +118,19 @@ const cmdK = keyEvent('K', { metaKey: true });
 assert.equal(controller.handleKeydown(cmdK), true);
 assert.equal(cmdK.prevented, 1);
 assert.equal(documentRef.input.focusCount, 2);
+
+const searchShortcut = keyEvent('f', { ctrlKey: true, shiftKey: true });
+assert.equal(controller.handleKeydown(searchShortcut), true);
+assert.equal(searchShortcut.prevented, 1);
+assert.equal(documentRef.searchInput.focusCount, 1);
+assert.equal(documentRef.searchInput.selectCount, 1, 'conversation search shortcut selects the current query for replacement');
+
+const searchShortcutFromComposer = keyEvent('F', { metaKey: true, shiftKey: true, target: documentRef.input });
+assert.equal(controller.handleKeydown(searchShortcutFromComposer), true,
+  'explicit conversation search shortcut may move focus out of the composer');
+assert.equal(searchShortcutFromComposer.prevented, 1);
+assert.equal(documentRef.searchInput.focusCount, 2);
+assert.equal(documentRef.searchInput.selectCount, 2);
 
 const plainSlash = keyEvent('/');
 assert.equal(controller.handleKeydown(plainSlash), true);
@@ -158,6 +181,12 @@ assert.equal(controller.handleKeydown(disabledFocus), false);
 assert.equal(disabledFocus.prevented, 0);
 documentRef.input.disabled = false;
 
+documentRef.searchInput.disabled = true;
+const disabledSearch = keyEvent('f', { ctrlKey: true, shiftKey: true });
+assert.equal(controller.handleKeydown(disabledSearch), false);
+assert.equal(disabledSearch.prevented, 0, 'disabled conversation search must preserve browser/default handling');
+documentRef.searchInput.disabled = false;
+
 controller.destroy();
 assert.equal(documentRef.listeners.has('keydown'), false);
 controller.destroy();
@@ -183,10 +212,11 @@ assert.equal(shortcutSource.includes("classList?.contains?.('streaming')"), true
 assert.equal(shortcutSource.includes('sendButton.click()'), true,
   'stop shortcut must reuse canonical visible stop control instead of aborting through a parallel runtime');
 assert.equal(shortcutSource.includes("documentRef.querySelector('#messageInput')"), true);
+assert.equal(shortcutSource.includes("documentRef.querySelector('#conversationSearchInput')"), true);
 assert.equal(loaderSource.includes("'/keyboard-shortcuts.js'"), true);
 assert.equal(loaderSource.includes('data-hafize-keyboard-shortcuts'), true);
 assert.equal(loaderSource.includes("'/message-copy.js'"), true, 'existing message actions loader must remain present');
-assert.equal(swSource.includes("`${CACHE_PREFIX}v20`"), true);
+assert.match(swSource, /const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/);
 assert.equal(swSource.includes("'/keyboard-shortcuts.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 
