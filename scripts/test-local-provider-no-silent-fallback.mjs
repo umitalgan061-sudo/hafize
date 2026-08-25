@@ -24,8 +24,8 @@ const runtime = createLocalProviderServerRuntime({
 });
 
 assert.equal(runtime.defaultProvider, 'nvidia');
-assert.equal(runtime.resolve('meta/llama'), 'nvidia');
-assert.equal(runtime.resolve('local:llama3'), 'local');
+assert.equal(runtime.resolve(null, { model: 'meta/llama' }), 'nvidia');
+assert.equal(runtime.resolve(null, { model: 'local:llama3' }), 'local');
 
 const nvidia = await runtime.complete({
   payload: { model: 'meta/llama', messages: [{ role: 'user', content: 'x' }] },
