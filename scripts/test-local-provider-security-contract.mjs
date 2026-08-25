@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../lib/local-ollama-provider.mjs', import.meta.url), 'utf8');
+const router = await readFile(new URL('../lib/model-provider-router.mjs', import.meta.url), 'utf8');
 const production = await readFile(new URL('../lib/model-provider-production-runtime.mjs', import.meta.url), 'utf8');
 const serverRuntime = await readFile(new URL('../lib/local-provider-server-runtime.mjs', import.meta.url), 'utf8');
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 
 for (const required of [
-  "['localhost', '127.0.0.1', '::1']",
+  "['localhost', '127.0.0.1', '::1', '[::1]']",
   "redirect: 'error'",
   "requireMediaType(response, 'application/json')",
   "requireMediaType(response, 'text/event-stream')",
@@ -32,8 +33,9 @@ for (const forbidden of [
   'Bearer '
 ]) assert.equal(source.includes(forbidden), false, `forbidden local-provider surface: ${forbidden}`);
 
-assert.match(production, /defaultProvider\s*=\s*'nvidia'/);
-assert.match(production, /isLocalProviderModel\(model\)/);
+assert.match(router, /defaultProvider:\s*'nvidia'/);
+assert.match(router, /startsWith\(LOCAL_MODEL_PREFIX\)/);
+assert.match(production, /defaultProvider:\s*runtime\.defaultProvider/);
 assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_ENABLED/);
 assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_BASE_URL/);
 assert.equal(registry.defaultAgent, 'general-orchestrator');
