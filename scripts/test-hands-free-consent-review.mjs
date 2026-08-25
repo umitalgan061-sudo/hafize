@@ -65,7 +65,7 @@ const controller = api.installHandsFreeConsent(documentRef, root);
 assert.ok(controller);
 assert.equal(controller.isPending(), false);
 
-toggle.dispatch('click', { preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } }, true);
+toggle.dispatch('click', { isTrusted: true, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } }, true);
 assert.equal(controller.isPending(), true, 'first activation only opens review');
 assert.equal(toggle.getAttribute('data-consent-pending'), 'true');
 assert.equal(toggle.getAttribute('aria-describedby'), api.REVIEW_ID);
@@ -87,7 +87,7 @@ assert.equal(timers.size, 0);
 
 assert.equal(controller.begin(), true);
 const beforeConfirmClicks = toggle.clickCount || 0;
-confirm.dispatch('click', { preventDefault() {} });
+confirm.dispatch('click', { isTrusted: true, preventDefault() {} });
 assert.equal(controller.isPending(), false);
 assert.equal(toggle.clickCount, beforeConfirmClicks + 1, 'confirm hands off exactly one click to existing hands-free runtime');
 
