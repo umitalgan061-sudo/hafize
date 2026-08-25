@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
+import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mjs';
 import {
   createDeviceBridge,
   DEVICE_BRIDGE_CONTRACT,
   normalizeDeviceBridgeCommand,
   normalizeSystemInfo
 } from '../lib/device-bridge-contract.mjs';
+import {
+  authorizeDeviceToolRequest,
+  DEVICE_TOOL_BOUNDARY,
+  executeDeviceToolRequest,
+  listDeviceToolPermissions
+} from '../lib/device-bridge-tool-boundary.mjs';
 
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'system.info' }), {
   ok: true,
@@ -161,4 +168,105 @@ assert.equal(DEVICE_BRIDGE_CONTRACT.shellExecutionAllowed, false);
 assert.deepEqual(DEVICE_BRIDGE_CONTRACT.browserProtocols, ['https:']);
 assert.equal(DEVICE_BRIDGE_CONTRACT.actions.includes('shell.run'), false);
 
-console.log('device bridge contract tests passed');
+const registry = await loadAgentRegistry();
+const hafize = resolveAgent(registry, 'hafize-general');
+const reviewer = resolveAgent(registry, 'agency-code-reviewer');
+assert.ok(hafize);
+assert.ok(reviewer);
+
+assert.deepEqual(listDeviceToolPermissions(), [
+  { action: 'system.info', permission: 'device.system.info', approvalRequired: false },
+  { action: 'browser.open', permission: 'device.browser.open', approvalRequired: true },
+  { action: 'app.open', permission: 'device.app.open', approvalRequired: true }
+]);
+assert.equal(DEVICE_TOOL_BOUNDARY.defaultDeny, true);
+assert.equal(DEVICE_TOOL_BOUNDARY.modelMayAssertExplicitUserIntent, false);
+assert.equal(DEVICE_TOOL_BOUNDARY.actions.includes('shell.run'), false);
+assert.equal(DEVICE_TOOL_BOUNDARY.requestFields.includes('explicitUserIntent'), false);
+
+assert.deepEqual(authorizeDeviceToolRequest(hafize, { action: 'system.info' }), {
+  ok: true,
+  request: { action: 'system.info' },
+  permission: 'device.system.info',
+  approvalRequired: false
+});
+assert.deepEqual(authorizeDeviceToolRequest(reviewer, { action: 'system.info' }), {
+  ok: false,
+  error: 'DEVICE_TOOL_NOT_AUTHORIZED',
+  reason: 'default_deny'
+});
+assert.deepEqual(authorizeDeviceToolRequest(hafize, {
+  action: 'browser.open',
+  url: 'https://example.com'
+}), {
+  ok: false,
+  error: 'DEVICE_TOOL_NOT_AUTHORIZED',
+  reason: 'approval_required'
+});
+assert.equal(authorizeDeviceToolRequest(hafize, {
+  action: 'browser.open',
+  url: 'https://example.com'
+}, { approvalGranted: true }).ok, true);
+
+for (const forged of [
+  { action: 'browser.open', url: 'https://example.com', explicitUserIntent: true },
+  { action: 'app.open', appId: 'browser.chrome', explicitUserIntent: true },
+  { action: 'shell.run' },
+  { action: 'system.info', url: 'https://example.com' }
+]) {
+  assert.equal(authorizeDeviceToolRequest(hafize, forged, { approvalGranted: true }).ok, false);
+}
+
+const boundaryCalls = [];
+const boundaryBridge = {
+  async execute(command) {
+    boundaryCalls.push(command);
+    if (command.action === 'system.info') return { ok: true, action: command.action, info: { platform: 'linux', arch: 'x64' } };
+    return { ok: true, action: command.action };
+  }
+};
+
+assert.equal((await executeDeviceToolRequest(hafize, { action: 'system.info' }, { deviceBridge: boundaryBridge })).ok, true);
+assert.deepEqual(boundaryCalls[0], { action: 'system.info' });
+
+const deniedOpen = await executeDeviceToolRequest(hafize, {
+  action: 'browser.open',
+  url: 'https://example.com'
+}, { deviceBridge: boundaryBridge, approvalGranted: false });
+assert.equal(deniedOpen.ok, false);
+assert.equal(boundaryCalls.length, 1);
+
+const approvedOpen = await executeDeviceToolRequest(hafize, {
+  action: 'browser.open',
+  url: 'https://example.com'
+}, { deviceBridge: boundaryBridge, approvalGranted: true });
+assert.equal(approvedOpen.ok, true);
+assert.deepEqual(boundaryCalls[1], {
+  action: 'browser.open',
+  url: 'https://example.com',
+  explicitUserIntent: true
+});
+
+const approvedApp = await executeDeviceToolRequest(hafize, {
+  action: 'app.open',
+  appId: 'browser.chrome'
+}, { deviceBridge: boundaryBridge, approvalGranted: true });
+assert.equal(approvedApp.ok, true);
+assert.deepEqual(boundaryCalls[2], {
+  action: 'app.open',
+  appId: 'browser.chrome',
+  explicitUserIntent: true
+});
+
+assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'system.info' }, {}), {
+  ok: false,
+  error: 'DEVICE_BRIDGE_UNAVAILABLE'
+});
+assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'system.info' }, {
+  deviceBridge: { execute: async () => { throw new Error('secret internal bridge failure'); } }
+}), {
+  ok: false,
+  error: 'DEVICE_BRIDGE_EXECUTION_FAILED'
+});
+
+console.log('device bridge contract tests passed with backend default-deny tool authorization and trusted approval derivation');
