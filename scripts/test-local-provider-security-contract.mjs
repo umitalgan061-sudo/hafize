@@ -38,7 +38,7 @@ assert.match(router, /startsWith\(LOCAL_MODEL_PREFIX\)/);
 assert.match(production, /defaultProvider:\s*runtime\.defaultProvider/);
 assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_ENABLED/);
 assert.match(serverRuntime, /HAFIZE_LOCAL_PROVIDER_BASE_URL/);
-assert.equal(registry.defaultAgent, 'general-orchestrator');
+assert.equal(registry.defaultAgent, 'minimal-engineer');
 assert.equal(registry.agents.length, 4);
 for (const agent of registry.agents) {
   assert.equal(Array.isArray(agent.tools?.allow), true);
