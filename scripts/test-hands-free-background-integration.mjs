@@ -24,9 +24,14 @@ class FakeTarget {
   }
 
   dispatch(type, event = {}) {
-    const entries = [...(this.listeners.get(type) || [])];
-    for (const entry of entries.filter((item) => item.capture)) entry.listener({ type, ...event });
-    for (const entry of entries.filter((item) => !item.capture)) entry.listener({ type, ...event });
+    return this.dispatchEvent({ type, ...event });
+  }
+
+  dispatchEvent(event) {
+    const entries = [...(this.listeners.get(event?.type) || [])];
+    for (const entry of entries.filter((item) => item.capture)) entry.listener(event);
+    for (const entry of entries.filter((item) => !item.capture)) entry.listener(event);
+    return true;
   }
 }
 
