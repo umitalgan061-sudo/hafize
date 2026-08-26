@@ -19,8 +19,15 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Yazma yetkisi veren hiçbir araç NVIDIA tool kataloğuna kayıtlı olmamalıdır.
+const registeredPermissions = listToolPermissions().map((entry) => entry.permission);
+assert.equal(registeredPermissions.some((permission) => permission.endsWith('.send')), false);
+assert.equal(registeredPermissions.some((permission) => permission.endsWith('.write')), false);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
