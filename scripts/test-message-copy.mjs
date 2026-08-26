@@ -273,7 +273,7 @@ assert.equal(copySource.includes("input.focus?.()"), true, 'quote must return fo
 assert.equal(copySource.includes('fetch('), false, 'message actions must not create a parallel network path');
 assert.equal(loaderSource.includes("loadShellEnhancement('HafizeMessageCopy', '/message-copy.js', 'data-hafize-message-copy')"), true, 'loader must use the fixed same-origin asset through the shared idempotent loader');
 assert.equal(loaderSource.includes('data-hafize-message-copy'), true, 'loader must be idempotent');
-assert.equal(swSource.includes("`${CACHE_PREFIX}v160`"), true);
+assert.equal(/const CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`;/.test(swSource), true, 'message-copy test must accept the current versioned shell cache');
 assert.equal(swSource.includes("'/message-copy.js'"), true);
 assert.equal(swSource.includes("pathname.startsWith('/api/')"), true, 'API requests must remain network-only');
 
