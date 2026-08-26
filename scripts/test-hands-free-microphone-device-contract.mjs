@@ -10,7 +10,7 @@ assert.match(source, /removeEventListener\?\.\('devicechange',\s*onMediaDeviceCh
 assert.match(source, /enumerateDevices\(\)/);
 assert.match(source, /device\?\.kind === 'audioinput'/);
 assert.match(source, /if \(!isHandsFreeEnabled\(toggle\)\) \{\s*deviceAvailability = 'inactive';\s*return false;/s);
-assert.match(source, /if \(!available && isHandsFreeEnabled\(toggle\)\) revoke\(MICROPHONE_DEVICE_REASON\)/);
+assert.match(source, /if \(!available && isHandsFreeEnabled\(toggle\)\) \{\s*const revoked = revoke\(MICROPHONE_DEVICE_REASON\);\s*if \(revoked\) announceRevocation\(\);\s*\}/s);
 assert.match(source, /deviceWatchGeneration/);
 assert.match(source, /destroyed \|\| generation !== deviceWatchGeneration/);
 
