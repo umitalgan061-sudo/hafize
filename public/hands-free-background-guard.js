@@ -85,17 +85,9 @@
     }
 
     function dispatchRevocation(reason) {
-      if (typeof documentRef?.dispatchEvent === 'function') {
-        documentRef.dispatchEvent(createRevokeEvent(root, reason));
-        return true;
-      }
-      // Minimal non-DOM harness compatibility only. Real browsers expose dispatchEvent,
-      // so production revocation never relies on synthesizing a user click.
-      if (typeof toggle?.click === 'function') {
-        toggle.click();
-        return true;
-      }
-      return false;
+      if (typeof documentRef?.dispatchEvent !== 'function') return false;
+      documentRef.dispatchEvent(createRevokeEvent(root, reason));
+      return true;
     }
 
     function revoke(reason) {
