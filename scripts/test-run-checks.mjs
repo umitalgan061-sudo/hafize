@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -67,4 +67,17 @@ const unknownOption = await runner(['--bilinmeyen']);
 assert.equal(unknownOption.code, 1);
 assert.match(unknownOption.output, /UNKNOWN_OPTION/);
 
-console.log(`run-checks OK: ${testFiles.length} test ve ${syntaxTargets.length} modül keşfediliyor, filtre/seçenek hataları exit 1`);
+// Keşfin eksiksiz olması tek başına yetmez: bir `lib/` modülü hiçbir test
+// tarafından import edilmiyorsa kapı onu yalnız syntax düzeyinde görür.
+// Bu invariant, davranışı doğrulanmayan yeni bir modülün sessizce eklenmesini
+// engeller.
+const libModules = await listFiles('lib', '.mjs');
+const testSources = await Promise.all(testFiles.map((file) => readFile(path.join(ROOT, file), 'utf8')));
+const importedByTests = testSources.join('\n');
+const untested = libModules.filter((module) => !importedByTests.includes(module.replace('lib/', '')));
+assert.deepEqual(untested, [], `testi olmayan lib modülleri: ${untested.join(', ')}`);
+
+console.log(
+  `run-checks OK: ${testFiles.length} test ve ${syntaxTargets.length} modül keşfediliyor, ` +
+    `${libModules.length} lib modülünün tamamı en az bir testten import ediliyor, filtre/seçenek hataları exit 1`
+);

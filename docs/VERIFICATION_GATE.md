@@ -64,6 +64,12 @@ node scripts/run-checks.mjs --list
 görünmek zorundadır. Bu test kapının kendi içinde çalıştığı için, kapsamı
 daraltan bir değişiklik kapıyı kırar.
 
+Aynı test ikinci bir invariant daha uygular: her `lib/*.mjs` modülü en az bir
+test tarafından import edilmek zorundadır. Keşfin eksiksiz olması tek başına
+yetmez; hiçbir testten import edilmeyen bir modül kapıda yalnız syntax düzeyinde
+görünür, davranışı doğrulanmaz. Bugün 63 modülün 63'ü bu koşulu sağlıyor, bu
+yüzden koşul bir hedef değil kilit olarak eklendi.
+
 `run-checks.mjs` adı `test-` ile başlamadığından test olarak keşfedilmez; bu da
 kapının kendini özyinelemeli çağırmasını önler ve ayrıca test edilir.
 
