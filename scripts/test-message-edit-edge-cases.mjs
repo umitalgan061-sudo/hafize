@@ -22,7 +22,10 @@ const assistant = node('message assistant');
 assistant.content = { textContent: 'assistant' };
 assistant.actions = { prepend() { throw new Error('assistant must not be decorated'); } };
 const documentRef = { querySelector() { return null; }, createElement() { return {}; } };
-const controller = api.createController({ documentRef, MutationObserverImpl: null, EventImpl: null });
+const storage = { getItem() { return '[]'; }, setItem() {} };
+const handoffStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+const guard = { sanitizeStoredValue() { return { value: [] }; }, normalizeConversations(value) { return value; } };
+const controller = api.createController({ documentRef, storage, handoffStorage, guard, MutationObserverImpl: null, EventImpl: null });
 assert.equal(controller.decorate(assistant), false, 'assistant messages must never get edit-to-draft control');
 
 assert.equal(api.editableText('\nmesaj\n'), '\nmesaj\n', 'visible whitespace is preserved for user editing');
