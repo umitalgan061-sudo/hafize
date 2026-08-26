@@ -16,10 +16,14 @@ class Target {
     const list = this.listeners.get(type) || [];
     this.listeners.set(type, list.filter((item) => item.fn !== fn || item.capture !== Boolean(capture)));
   }
+  dispatchEvent(event) {
+    const list = [...(this.listeners.get(event?.type) || [])];
+    for (const item of list.filter((entry) => entry.capture)) item.fn(event);
+    for (const item of list.filter((entry) => !entry.capture)) item.fn(event);
+    return true;
+  }
   fire(type, event = {}) {
-    const list = [...(this.listeners.get(type) || [])];
-    for (const item of list.filter((entry) => entry.capture)) item.fn({ type, ...event });
-    for (const item of list.filter((entry) => !entry.capture)) item.fn({ type, ...event });
+    return this.dispatchEvent({ type, ...event });
   }
 }
 
