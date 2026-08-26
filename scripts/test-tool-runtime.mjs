@@ -16,10 +16,14 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
+// Bu liste kasıtlı olarak sabittir: yeni bir araç kayda girdiğinde testin
+// kırılması, izin gerektiren bir yüzeyin sessizce büyümediğini garanti eder.
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -34,6 +38,23 @@ assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
   state: 'running'
 });
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
+  state: 'running'
+});
+// Bağlayıcı araçlarının kullanıcıya gösterilen etiketleri hesap, konu veya
+// tasarım adı gibi içerik sızdırmamalıdır.
+for (const connectorTool of ['canva_read', 'gmail_read']) {
+  for (const outcome of [{ ok: true }, { ok: false, error: 'GMAIL_READ_FAILED:http' }]) {
+    const activity = getPublicToolActivity(connectorTool, outcome);
+    assert.equal(typeof activity.label, 'string');
+    assert.equal(activity.label.includes(':'), false);
+  }
+}
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
 assert.equal(getPublicToolRunningActivity(null), null);
 const safeRunningActivity = JSON.stringify(getPublicToolRunningActivity('github_read_file'));
