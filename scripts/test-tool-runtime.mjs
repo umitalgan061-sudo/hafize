@@ -19,8 +19,26 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Her kayıtlı araç sızıntısız public etiketlere sahip olmalı; yeni bir araç
+// eklendiğinde eksik etiket burada görünür hale gelir.
+for (const { permission, functionName } of listToolPermissions()) {
+  assert.equal(typeof permission, 'string', `${functionName} permission`);
+  assert.ok(permission.length > 0, `${functionName} permission`);
+  for (const activity of [
+    getPublicToolRunningActivity(functionName),
+    getPublicToolActivity(functionName, { ok: true, value: {} }),
+    getPublicToolActivity(functionName, { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' })
+  ]) {
+    assert.ok(activity && typeof activity.label === 'string' && activity.label.length > 0, `${functionName} label`);
+    assert.ok(['running', 'success', 'failure'].includes(activity.state), `${functionName} state`);
+    assert.equal(JSON.stringify(activity).includes('PRIVATE_INTERNAL_DETAIL'), false, `${functionName} leak`);
+  }
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',

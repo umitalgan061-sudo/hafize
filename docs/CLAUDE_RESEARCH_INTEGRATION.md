@@ -73,6 +73,7 @@ Hafize'de voice, screen-share, device bridge, local provider, hands-free ve encr
 
 ## Uygulama sırası
 
+0. Check gate onarımı (tamamlandı — `docs/CHECK_GATE.md`). Sıradaki adımlara geçmeden önce doğrulama kapısının kırmızı hataları gizlemediği garanti altına alındı.
 1. Context compaction ve gözlemlenebilirlik.
 2. Strict skills manifest + registry + inline/fork execution contract.
 3. Sub-agent cancellation/concurrency/message lifecycle.
