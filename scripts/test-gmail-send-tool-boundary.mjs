@@ -46,6 +46,15 @@ assert.deepEqual(calls[1], ['send', {
 }]);
 
 await assert.rejects(() => boundary.execute({ ...args, approvalGranted: true }, { principal, approvalGranted: true }), /INVALID_GMAIL_SEND_FIELD/);
+// Bozuk backend context'i ham TypeError değil, sınıflandırılmış sınır hatası üretmelidir.
+for (const context of [null, 'principal', 42, []]) {
+  await assert.rejects(() => boundary.execute(args, context), /INVALID_GMAIL_SEND_TOOL:context/);
+}
+// Context hiç verilmezse onay yoktur; gönderme yapılmaz.
+calls.length = 0;
+await assert.rejects(() => boundary.execute(args), /GMAIL_SEND_APPROVAL_REQUIRED/);
+assert.equal(calls.length, 0);
+
 assert.throws(() => createGmailSendToolBoundary({}), /INVALID_GMAIL_SEND_TOOL/);
 assert.throws(() => createGmailSendToolBoundary({ sendClient, ownerResolver: {} }), /INVALID_GMAIL_SEND_TOOL/);
 

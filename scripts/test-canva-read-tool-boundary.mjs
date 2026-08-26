@@ -48,6 +48,15 @@ for (const args of [
 ]) {
   await assert.rejects(() => boundary.execute(args, { principal }), /INVALID_CANVA_READ_TOOL/);
 }
+// Bozuk backend context'i ham TypeError değil, sınıflandırılmış sınır hatası üretmelidir.
+for (const context of [null, 'principal', 42, []]) {
+  await assert.rejects(() => boundary.execute({ operation: 'user.get' }, context), /INVALID_CANVA_READ_TOOL:context/);
+}
+// Context hiç verilmezse owner çözümlenemez; okuma yine de yapılmaz.
+calls.length = 0;
+await assert.rejects(() => boundary.execute({ operation: 'user.get' }), /CONNECTOR_AUTH_REQUIRED|INVALID_CANVA_READ_TOOL/);
+assert.equal(calls.some(([name]) => name === 'read'), false);
+
 await assert.rejects(() => boundary.execute({ operation: 'user.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
 assert.throws(() => createCanvaReadToolBoundary({}), /INVALID_CANVA_READ_TOOL/);
 assert.throws(() => createCanvaReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_CANVA_READ_TOOL/);

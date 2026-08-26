@@ -44,6 +44,15 @@ for (const args of [
 ]) {
   await assert.rejects(() => boundary.execute(args, { principal }), /INVALID_GMAIL_READ_TOOL/);
 }
+// Bozuk backend context'i ham TypeError değil, sınıflandırılmış sınır hatası üretmelidir.
+for (const context of [null, 'principal', 42, []]) {
+  await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, context), /INVALID_GMAIL_READ_TOOL:context/);
+}
+// Context hiç verilmezse owner çözümlenemez; okuma yine de yapılmaz.
+calls.length = 0;
+await assert.rejects(() => boundary.execute({ operation: 'profile.get' }), /CONNECTOR_AUTH_REQUIRED|INVALID_GMAIL_READ_TOOL/);
+assert.equal(calls.some(([name]) => name === 'read'), false);
+
 await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
 assert.throws(() => createGmailReadToolBoundary({}), /INVALID_GMAIL_READ_TOOL/);
 assert.throws(() => createGmailReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_GMAIL_READ_TOOL/);

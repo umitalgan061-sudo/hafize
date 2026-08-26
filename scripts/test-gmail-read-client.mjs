@@ -54,6 +54,11 @@ for (const input of [
   await assert.rejects(() => client.read(input), /INVALID_GMAIL_READ/);
 }
 
+// Sözleşme dışı çağrı ham TypeError değil, sınıflandırılmış sınır hatası üretmelidir.
+for (const input of [null, 'profile.get', 42, []]) {
+  await assert.rejects(() => client.read(input), /INVALID_GMAIL_READ:(request|ownerId)/);
+}
+
 const noScope = createGmailReadClient({
   tokenStore: { load: async () => ({ accessToken, tokenType: 'Bearer', scopes: [], expiresAt: now + 300_000 }) },
   fetchImpl,

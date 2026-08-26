@@ -66,6 +66,11 @@ await assert.rejects(() => hugeClient.read({ ownerId: 'owner', operation: 'user.
 const httpClient = createCanvaReadClient({ tokenStore, now: () => future, fetchImpl: async () => ({ ok: false, status: 401, async json() { return {}; } }) });
 await assert.rejects(() => httpClient.read({ ownerId: 'owner', operation: 'user.get' }), /CANVA_READ_FAILED:http/);
 
+// Sözleşme dışı çağrı ham TypeError değil, sınıflandırılmış sınır hatası üretmelidir.
+for (const input of [null, 'user.get', 42, []]) {
+  await assert.rejects(() => client.read(input), /INVALID_CANVA_READ:(request|ownerId)/);
+}
+
 assert.throws(() => createCanvaReadClient({}), /INVALID_CANVA_READ:tokenStore/);
 assert.throws(() => createCanvaReadClient({ tokenStore, fetchImpl: null }), /INVALID_CANVA_READ:fetch/);
 console.log('canva read client tests passed');
