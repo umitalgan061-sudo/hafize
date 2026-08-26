@@ -16,11 +16,45 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
+const toolPermissions = listToolPermissions();
+assert.deepEqual(toolPermissions.slice(0, 3), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
   { permission: 'repo.read', functionName: 'github_read_file' }
 ]);
+
+// Katalog yeni salt-okunur connector araçlarıyla büyüyebilir; büyürken bozulmaması gereken
+// güvenlik değişmezleri burada doğrulanır. Registry'de deny veya approvalRequired olarak
+// işaretlenmiş hiçbir yetki modele araç olarak açılamaz.
+const guardedPermissions = new Set();
+for (const agent of registry.agents) {
+  for (const permission of agent.toolPolicy?.deny ?? []) guardedPermissions.add(permission);
+  for (const permission of agent.toolPolicy?.approvalRequired ?? []) guardedPermissions.add(permission);
+}
+assert.ok(guardedPermissions.size > 0);
+
+const seenPermissions = new Set();
+const seenFunctionNames = new Set();
+for (const entry of toolPermissions) {
+  assert.equal(typeof entry.permission, 'string');
+  assert.equal(typeof entry.functionName, 'string');
+  assert.equal(
+    guardedPermissions.has(entry.permission),
+    false,
+    `guarded permission exposed as tool: ${entry.permission}`
+  );
+  assert.equal(/\.(write|send|delete|merge|revoke)$|^secret\./.test(entry.permission), false, entry.permission);
+  assert.equal(seenPermissions.has(entry.permission), false, `duplicate permission: ${entry.permission}`);
+  assert.equal(seenFunctionNames.has(entry.functionName), false, `duplicate tool: ${entry.functionName}`);
+  seenPermissions.add(entry.permission);
+  seenFunctionNames.add(entry.functionName);
+}
+
+// Katalogdaki her araç, en az bir ajanın açıkça izin verdiği bir yetkiye karşılık gelmelidir.
+const allowedPermissions = new Set(registry.agents.flatMap((agent) => agent.toolPolicy?.allow ?? []));
+for (const entry of toolPermissions) {
+  assert.equal(allowedPermissions.has(entry.permission), true, `orphan tool permission: ${entry.permission}`);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
