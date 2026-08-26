@@ -17,6 +17,7 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
+import { deliverRequestFailure } from './lib/request-failure.mjs';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
@@ -688,12 +689,9 @@ const server = createServer(async (req, res) => {
     }
     sendJson(res, 405, { error: 'METHOD_NOT_ALLOWED' });
   } catch (error) {
-    if (error?.message === 'BODY_TOO_LARGE') sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
-    else if (error?.message === 'NVIDIA_NOT_CONFIGURED') sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' });
-    else if (error?.message === 'NVIDIA_CHAT_ERROR') sendJson(res, error.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: error.detail || '' });
-    else if (error?.message === 'INVALID_NVIDIA_RESPONSE') sendJson(res, error.status || 502, { error: 'INVALID_NVIDIA_RESPONSE' });
-    else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
-    else sendJson(res, 500, { error: 'INTERNAL_ERROR' });
+    // Yanıt akışı başlamışsa (SSE) başlık yazmak `ERR_HTTP_HEADERS_SENT`
+    // fırlatır; bu hata async işleyicide yakalanmadan kalıp süreci düşürürdü.
+    deliverRequestFailure(res, error, { sendJson });
   }
 });
 
