@@ -45,6 +45,13 @@ for (const args of [
   await assert.rejects(() => boundary.execute(args, { principal }), /INVALID_GMAIL_READ_TOOL/);
 }
 await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
+// Eksik veya bozuk çağrı context'i sözleşme hatası vermeli; ham TypeError sızdırmamalı.
+for (const context of [undefined, null, {}, 'principal', []]) {
+  await assert.rejects(
+    () => boundary.execute({ operation: 'profile.get' }, context),
+    (error) => error instanceof Error && !(error instanceof TypeError) && /CONNECTOR_AUTH_REQUIRED/.test(error.message)
+  );
+}
 assert.throws(() => createGmailReadToolBoundary({}), /INVALID_GMAIL_READ_TOOL/);
 assert.throws(() => createGmailReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_GMAIL_READ_TOOL/);
 console.log('gmail read tool boundary tests passed');
