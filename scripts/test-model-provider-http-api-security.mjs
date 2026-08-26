@@ -27,7 +27,9 @@ for (const prepared of [
   { payload: { model: 'x', messages: [{}], stream: true }, extra: true }
 ]) {
   const api = makeApi({ prepareChat: async () => prepared });
-  await assert.rejects(() => api.handle({ request: { body: {} }, method: 'POST', pathname: '/api/chat' }), /INVALID_MODEL_PROVIDER_CHAT_PREPARATION|MODEL_PROVIDER_HTTP_TOOLS_NOT_ALLOWED/);
+  const result = await api.handle({ request: { body: {} }, method: 'POST', pathname: '/api/chat' });
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, { error: 'CHAT_PREPARATION_FAILED' });
 }
 
 for (const headers of [
@@ -37,7 +39,9 @@ for (const headers of [
   { 'X-Test': 'ok\r\nInjected: yes' }
 ]) {
   const api = makeApi({ prepareChat: async () => ({ payload: { model: 'x', messages: [{}], stream: true }, headers }) });
-  await assert.rejects(() => api.handle({ request: { body: {} }, method: 'POST', pathname: '/api/chat' }), /INVALID_MODEL_PROVIDER_HTTP_HEADERS/);
+  const result = await api.handle({ request: { body: {} }, method: 'POST', pathname: '/api/chat' });
+  assert.equal(result.status, 500);
+  assert.deepEqual(result.body, { error: 'CHAT_PREPARATION_FAILED' });
 }
 
 const controller = new AbortController();
