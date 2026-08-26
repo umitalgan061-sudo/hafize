@@ -54,4 +54,10 @@ const unsafeReceipt = createGmailSendToolBoundary({
   sendClient: { async send() { return { messageId: '', token: 'x' }; } }
 });
 await assert.rejects(() => unsafeReceipt.execute(args, { principal, approvalGranted: true }), /INVALID_GMAIL_SEND_TOOL:receipt.messageId/);
+
+// null çağrı bağlamı onay kapısını atlamamalı; normalize hata kodu vermeli.
+for (const context of [null, 'x', []]) {
+  await assert.rejects(() => boundary.execute(args, context), /INVALID_GMAIL_SEND_TOOL:context/);
+}
+
 console.log('gmail send tool boundary tests passed');

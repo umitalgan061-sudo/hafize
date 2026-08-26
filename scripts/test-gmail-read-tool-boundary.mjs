@@ -47,4 +47,10 @@ for (const args of [
 await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
 assert.throws(() => createGmailReadToolBoundary({}), /INVALID_GMAIL_READ_TOOL/);
 assert.throws(() => createGmailReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_GMAIL_READ_TOOL/);
+
+// null çağrı bağlamı normalize hata kodu vermeli, ham TypeError değil.
+for (const context of [null, 'x', []]) {
+  await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, context), /INVALID_GMAIL_READ_TOOL:context/);
+}
+
 console.log('gmail read tool boundary tests passed');

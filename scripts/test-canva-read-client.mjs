@@ -68,4 +68,10 @@ await assert.rejects(() => httpClient.read({ ownerId: 'owner', operation: 'user.
 
 assert.throws(() => createCanvaReadClient({}), /INVALID_CANVA_READ:tokenStore/);
 assert.throws(() => createCanvaReadClient({ tokenStore, fetchImpl: null }), /INVALID_CANVA_READ:fetch/);
+
+// null istek gövdesi normalize hata kodu vermeli, ham TypeError değil.
+for (const request of [null, 'x', []]) {
+  await assert.rejects(() => httpClient.read(request), /INVALID_CANVA_READ:request/);
+}
+
 console.log('canva read client tests passed');

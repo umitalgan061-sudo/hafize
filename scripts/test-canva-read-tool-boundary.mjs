@@ -51,4 +51,10 @@ for (const args of [
 await assert.rejects(() => boundary.execute({ operation: 'user.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
 assert.throws(() => createCanvaReadToolBoundary({}), /INVALID_CANVA_READ_TOOL/);
 assert.throws(() => createCanvaReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_CANVA_READ_TOOL/);
+
+// null çağrı bağlamı normalize hata kodu vermeli, ham TypeError değil.
+for (const context of [null, 'x', []]) {
+  await assert.rejects(() => boundary.execute({ operation: 'user.get' }, context), /INVALID_CANVA_READ_TOOL:context/);
+}
+
 console.log('canva read tool boundary tests passed');

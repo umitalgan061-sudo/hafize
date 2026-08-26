@@ -47,5 +47,13 @@ for (const text of ['', '\0', 'x'.repeat(GMAIL_SEND_LIMITS.maxTextLength + 1)]) 
   assert.throws(() => normalizeGmailSendRequest({ ...validInput, text }, { approvalGranted: true }), /INVALID_GMAIL_SEND_TEXT/);
 }
 
+
+// Bozuk seçenek nesnesi onaylanmis sayilmamali; kapi kapali tarafa dusmeli.
+for (const options of [null, 'x', []]) {
+  assert.throws(() => normalizeGmailSendRequest(validInput, options), /GMAIL_SEND_APPROVAL_REQUIRED/);
+}
+assert.throws(() => normalizeGmailSendRequest(validInput, {}), /GMAIL_SEND_APPROVAL_REQUIRED/);
+assert.throws(() => normalizeGmailSendRequest(validInput, undefined), /GMAIL_SEND_APPROVAL_REQUIRED/);
+
 assert.deepEqual(GMAIL_SEND_LIMITS, { maxRecipients: 10, maxSubjectLength: 180, maxTextLength: 50_000 });
 console.log('gmail send contract tests passed');
