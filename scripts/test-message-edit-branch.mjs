@@ -130,7 +130,7 @@ assert.equal(built.toolsEnabled, true);
 assert.equal(guard.normalizeConversation(built)?.id, built.id);
 assert.equal(editApi.buildEditBranch(source, 3, { nowIso: '2026-08-19T00:30:00.000Z', makeId: () => 'x' }), null);
 
-const createdAt = Date.parse('2026-08-19T00:30:00.000Z');
+const createdAt = Date.now();
 assert.deepEqual(editApi.normalizeHandoff({ conversationId: 'conversation-x', text: 'taslak', createdAt }, { nowMs: createdAt + 1000 }), {
   conversationId: 'conversation-x', text: 'taslak', createdAt
 });
