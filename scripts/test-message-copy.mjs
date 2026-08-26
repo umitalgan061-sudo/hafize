@@ -271,7 +271,7 @@ assert.equal(copySource.includes("classList?.contains('streaming')"), true, 'res
 assert.equal(copySource.includes('MAX_COMPOSER_CHARS = 12_000'), true, 'composer actions must share the existing 12k message bound');
 assert.equal(copySource.includes("input.focus?.()"), true, 'quote must return focus to composer');
 assert.equal(copySource.includes('fetch('), false, 'message actions must not create a parallel network path');
-assert.equal(loaderSource.includes("script.src = '/message-copy.js'"), true, 'loader must use fixed same-origin asset path');
+assert.equal(loaderSource.includes("loadShellEnhancement('HafizeMessageCopy', '/message-copy.js', 'data-hafize-message-copy')"), true, 'loader must use the fixed same-origin asset through the shared idempotent loader');
 assert.equal(loaderSource.includes('data-hafize-message-copy'), true, 'loader must be idempotent');
 assert.equal(swSource.includes("`${CACHE_PREFIX}v160`"), true);
 assert.equal(swSource.includes("'/message-copy.js'"), true);
