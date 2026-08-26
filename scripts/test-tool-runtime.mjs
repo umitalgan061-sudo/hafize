@@ -19,8 +19,23 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Every catalog tool must carry a distinct permission and a safe running label,
+// so a newly registered tool cannot reach the model without a policy gate.
+const permissions = listToolPermissions();
+assert.equal(new Set(permissions.map((entry) => entry.permission)).size, permissions.length);
+assert.equal(new Set(permissions.map((entry) => entry.functionName)).size, permissions.length);
+for (const { functionName } of permissions) {
+  const running = getPublicToolRunningActivity(functionName);
+  assert.equal(running?.state, 'running');
+  assert.equal(typeof running.label === 'string' && running.label.length > 0, true);
+  assert.equal(getPublicToolActivity(functionName, { ok: true })?.state, 'success');
+  assert.equal(getPublicToolActivity(functionName, { ok: false })?.state, 'failure');
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -83,6 +98,38 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+// Connector tools stay hidden until the owner is actually authenticated for them.
+const connectorContext = {
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({ ok: true }) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({ ok: true }) }
+};
+assert.deepEqual(getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name), [
+  'runtime_status',
+  'canva_read',
+  'gmail_read'
+]);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false }).map((tool) => tool.function.name),
+  ['runtime_status', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, gmailReadAuthenticated: false }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read']
+);
+// A specialist without the connector permission never sees them, even when connected.
+assert.deepEqual(getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name), []);
+
+for (const name of ['canva_read', 'gmail_read']) {
+  const unauthenticated = await executeNvidiaToolCall(
+    hafize,
+    { id: 'call_connector', type: 'function', function: { name, arguments: '{}' } },
+    { traceId: '00000000-0000-4000-8000-000000000002', agent: hafize, registry }
+  );
+  assert.deepEqual(unauthenticated, { ok: false, error: 'TOOL_UNAVAILABLE' });
+}
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
