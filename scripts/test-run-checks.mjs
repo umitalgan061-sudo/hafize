@@ -62,6 +62,13 @@ const noMatch = await runner(['--filter=hafize-eslesmeyen-filtre']);
 assert.equal(noMatch.code, 1);
 assert.match(noMatch.output, /filtre hiçbir testle eşleşmedi/);
 
+// Yalnız registry doğrulayıcısıyla eşleşen bir filtre gerçek bir doğrulama
+// çalıştırır; "eşleşme yok" olarak raporlanmamalıdır.
+const registryOnly = await runner(['--filter=validate-agent-registry']);
+assert.equal(registryOnly.code, 0);
+assert.doesNotMatch(registryOnly.output, /filtre hiçbir testle eşleşmedi/);
+assert.match(registryOnly.output, /1 doğrulama çalıştırıldı/);
+
 // Bilinmeyen seçenek sessizce yok sayılmaz.
 const unknownOption = await runner(['--bilinmeyen']);
 assert.equal(unknownOption.code, 1);

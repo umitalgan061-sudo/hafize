@@ -106,10 +106,10 @@ if (options.list) {
 
 const failures = [];
 
-// Syntax kapısı her zaman tam çalışır: bir modül parse edilemiyorsa testleri
-// çalıştırmadan önce bilmek gerekir.
-// `node --check` yan etkisizdir, bu yüzden sınırlı paralellikle çalıştırılır.
-// Testler ise geçici dosya ve ortam değişkeni kullandığından sıralı kalır.
+// Syntax kapısı `--filter` verilse de her zaman tam çalışır: bir modül parse
+// edilemiyorsa bunu testlerden önce bilmek gerekir. `node --check` yan
+// etkisizdir, bu yüzden sınırlı paralellikle çalıştırılır; testler ise geçici
+// dosya ve ortam değişkeni kullandığından sıralı kalır.
 process.stdout.write(`syntax: ${syntaxTargets.length} dosya kontrol ediliyor... `);
 const syntaxResults = [];
 const queue = [...syntaxTargets];
@@ -150,7 +150,7 @@ for (const failure of failures) {
 const executed = tests.length + (runRegistryValidator ? 1 : 0);
 console.log(`\n${syntaxTargets.length} dosya syntax kontrolü, ${executed} doğrulama çalıştırıldı, ${failures.length} başarısız`);
 
-if (tests.length === 0 && options.filters.length > 0) {
+if (executed === 0 && options.filters.length > 0) {
   console.error(`filtre hiçbir testle eşleşmedi: ${options.filters.join(', ')}`);
   process.exit(1);
 }
