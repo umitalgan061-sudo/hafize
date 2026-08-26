@@ -177,7 +177,10 @@
         return false;
       }
       deviceAvailability = available ? 'available' : 'missing';
-      if (!available && isHandsFreeEnabled(toggle)) revoke(MICROPHONE_DEVICE_REASON);
+      if (!available && isHandsFreeEnabled(toggle)) {
+        const revoked = revoke(MICROPHONE_DEVICE_REASON);
+        if (revoked) announceRevocation();
+      }
       return available;
     }
 
