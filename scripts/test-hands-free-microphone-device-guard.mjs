@@ -196,7 +196,7 @@ assert.equal(hasAudioInput([{ kind: 'AUDIOINPUT' }]), false, 'device kind matchi
 
 {
   const harness = createHarness();
-  delete harness.root.navigator.mediaDevices.addEventListener;
+  harness.root.navigator.mediaDevices.addEventListener = undefined;
   const guard = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
   await flush();
   assert.equal(harness.mediaDevices.calls, 0, 'without devicechange event support no implicit inventory scan is attached');

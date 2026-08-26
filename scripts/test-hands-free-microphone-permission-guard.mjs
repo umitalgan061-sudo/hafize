@@ -114,7 +114,7 @@ assert.equal(normalizePermissionState(undefined), 'unknown');
   assert.equal(guard.getLastReason(), MICROPHONE_PERMISSION_REASON);
   assert.equal(harness.toggle.getAttribute(REVOKED_ATTR), MICROPHONE_PERMISSION_REASON);
   assert.equal(harness.toggle.getAttribute('aria-pressed'), 'false');
-  assert.equal(guard.hasPendingNotice(), true);
+  assert.equal(guard.hasPendingNotice(), false, 'visible permission revocation must consume the pending notice immediately');
 
   guard.destroy();
   assert.equal(harness.status.listenerCount('change'), 0, 'destroy must release PermissionStatus listener');
@@ -221,7 +221,7 @@ assert.equal(normalizePermissionState(undefined), 'unknown');
   await flush();
   harness.status.setState('denied');
   harness.documentRef.hidden = false;
-  assert.equal(guard.announce(), true);
+  assert.equal(guard.announce(), false, 'visible permission revocation notice is already announced synchronously');
   assert.equal(harness.toast.classList.contains('hidden'), false);
   assert.match(harness.toast.textContent, /mikrofon izni/i);
   guard.destroy();

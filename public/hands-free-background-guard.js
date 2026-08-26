@@ -116,7 +116,9 @@
     function revokeForPermissionIfNeeded() {
       if (destroyed || permissionState === 'unavailable' || permissionState === 'unknown') return false;
       if (permissionState === 'granted' || !isHandsFreeEnabled(toggle)) return false;
-      return revoke(MICROPHONE_PERMISSION_REASON);
+      const revoked = revoke(MICROPHONE_PERMISSION_REASON);
+      if (revoked) announceRevocation();
+      return revoked;
     }
 
     function onPermissionChange() {

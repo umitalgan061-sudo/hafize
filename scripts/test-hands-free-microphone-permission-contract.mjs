@@ -47,7 +47,7 @@ assert.equal(permissionSection.includes('announce('), false, 'permission watcher
 assert.equal(permissionSection.includes('SpeechRecognition'), false, 'watcher cannot instantiate its own recognizer');
 
 assert.match(contract, /yalnız mevcut yetki azaldığında aktif dinlemeyi sonlandırır/i);
-assert.match(contract, /izin daha sonra tekrar `granted` olsa bile runtime açılmaz/i);
+assert.match(contract, /İzin daha sonra tekrar `granted` olsa bile runtime açılmaz/);
 assert.match(contract, /Permissions API .* olmayan tarayıcılar/i);
 assert.match(contract, /SpeechRecognition terminal hata sınırı korunur/i);
 assert.match(contract, /network isteği yapmaz/i);

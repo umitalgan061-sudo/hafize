@@ -125,7 +125,7 @@ export function fixture({ articleCount = 1, canonical = [conversation()], marker
   list.append(row);
   const articles = [];
   for (let index = 0; index < articleCount; index += 1) {
-    const made = makeUserArticle(index ? `msg-user-extra-${index}` : 'msg-user-2', index ? `Ek soru ${index}` : 'Düzenlenecek soru');
+    const made = makeUserArticle(index ? `msg-user-extra/${index}` : 'msg-user-2', index ? `Ek soru ${index}` : 'Düzenlenecek soru');
     if (markerValue !== undefined && index === 0) made.article.dataset.hafizeEditReady = markerValue;
     messages.append(made.article);
     articles.push(made);

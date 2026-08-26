@@ -18,12 +18,16 @@ const { createMemoryClient, MEMORY_KINDS } = context.module.exports;
 assert.deepEqual([...MEMORY_KINDS], ['identity', 'preference', 'project', 'note']);
 
 const calls = [];
+const approvalToken = `mw1.payload.${'A'.repeat(43)}`;
 const fetchImpl = async (path, init = {}) => {
   calls.push({ path, init });
+  const payload = path === '/api/memory/approval/prepare'
+    ? { ok: true, approvalToken }
+    : { ok: true, authenticated: true, records: [] };
   return {
     ok: true,
     status: 200,
-    async json() { return { ok: true, authenticated: true, records: [] }; }
+    async json() { return payload; }
   };
 };
 const client = createMemoryClient({ fetchImpl });
@@ -44,10 +48,26 @@ assert.equal(searchUrl.searchParams.get('limit'), '10');
 assert.equal(searchCall.init.method, 'GET');
 
 await client.write({ kind: 'note', content: '  kullanıcı açıkça kaydetti  ' });
+const writePrepareCall = calls.at(-2);
+assert.equal(writePrepareCall.path, '/api/memory/approval/prepare');
+assert.equal(writePrepareCall.init.method, 'POST');
+assert.deepEqual(JSON.parse(writePrepareCall.init.body), {
+  command: {
+    kind: 'write',
+    body: {
+      kind: 'note',
+      content: 'kullanıcı açıkça kaydetti',
+      sourceType: 'user_note',
+      sensitivity: 'personal',
+      explicitUserIntent: true
+    }
+  }
+});
 const writeCall = calls.at(-1);
 assert.equal(writeCall.path, '/api/memory');
 assert.equal(writeCall.init.method, 'POST');
 assert.equal(writeCall.init.headers['Content-Type'], 'application/json');
+assert.equal(writeCall.init.headers['X-Hafize-Memory-Approval'], approvalToken);
 assert.deepEqual(JSON.parse(writeCall.init.body), {
   kind: 'note',
   content: 'kullanıcı açıkça kaydetti',
@@ -57,9 +77,20 @@ assert.deepEqual(JSON.parse(writeCall.init.body), {
 });
 
 await client.remove('memory_abcdefgh');
+const deletePrepareCall = calls.at(-2);
+assert.equal(deletePrepareCall.path, '/api/memory/approval/prepare');
+assert.equal(deletePrepareCall.init.method, 'POST');
+assert.deepEqual(JSON.parse(deletePrepareCall.init.body), {
+  command: {
+    kind: 'delete-one',
+    memoryId: 'memory_abcdefgh',
+    body: { exactMatch: true, explicitUserIntent: true }
+  }
+});
 const deleteCall = calls.at(-1);
 assert.equal(deleteCall.path, '/api/memory/memory_abcdefgh');
 assert.equal(deleteCall.init.method, 'DELETE');
+assert.equal(deleteCall.init.headers['X-Hafize-Memory-Approval'], approvalToken);
 assert.deepEqual(JSON.parse(deleteCall.init.body), {
   exactMatch: true,
   explicitUserIntent: true

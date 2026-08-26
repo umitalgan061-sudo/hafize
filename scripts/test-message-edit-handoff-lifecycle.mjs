@@ -17,7 +17,7 @@ function handoff(conversationId = 'conversation-source', text = 'Düzenlenecek s
   assert.equal(controller.mount(), true);
   assert.equal(f.composerInput.value, 'Düzenlenecek soru', 'valid handoff restored during owned mount');
   assert.equal(f.composerInput.focused, true);
-  assert.deepEqual(f.composerInput.selection, [18, 18]);
+  assert.deepEqual(f.composerInput.selection, [17, 17]);
   assert.equal(f.handoffStorage.getItem(api.DRAFT_HANDOFF_KEY), null, 'restored handoff is one-shot');
   controller.destroy();
 }

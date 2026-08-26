@@ -43,8 +43,8 @@ assert.equal(review.sameSnapshot(short, 'preference', 'Tenis oynamayı seviyorum
 assert.equal(review.sameSnapshot(null, 'note', 'x'), false);
 
 assert.equal(review.normalizeMemoryId('memory_abcdEF12'), 'memory_abcdEF12');
-assert.equal(review.normalizeMemoryId('memory_12345678-_.abc'), 'memory_12345678-_.abc');
-for (const invalid of ['memory_short', 'other_abcdefgh', 'memory_abc/defgh', '', null]) {
+assert.equal(review.normalizeMemoryId('memory_12345678-_abc'), 'memory_12345678-_abc');
+for (const invalid of ['memory_short', 'other_abcdefgh', 'memory_abc/defgh', 'memory_12345678-_.abc', '', null]) {
   assert.equal(review.normalizeMemoryId(invalid), null);
 }
 
