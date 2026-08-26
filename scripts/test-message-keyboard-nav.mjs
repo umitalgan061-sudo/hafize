@@ -104,7 +104,7 @@ function harness({ articles, hostStyle = null, observerThrows = false } = {}) {
     head,
     querySelector(selector) {
       if (selector === '#messages') return messages;
-      if (selector === `#${api.STYLE_ID}`) return style;
+      if (selector === `#${api.STYLE_ID}`) return style?.parent === head ? style : null;
       return null;
     },
     createElement(tag) {
