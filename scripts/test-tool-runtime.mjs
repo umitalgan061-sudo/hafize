@@ -16,11 +16,24 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
+const toolPermissions = listToolPermissions();
+assert.deepEqual(toolPermissions, [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Katalog invariant'ları: her araç tekil bir isim ve tekil bir izin taşır ve
+// hiçbir araç NVIDIA katalogunda yazma/silme yetkisiyle görünmez.
+assert.equal(new Set(toolPermissions.map((entry) => entry.functionName)).size, toolPermissions.length);
+assert.equal(new Set(toolPermissions.map((entry) => entry.permission)).size, toolPermissions.length);
+for (const { permission, functionName } of toolPermissions) {
+  assert.match(permission, /^[a-z][a-z0-9.]*$/);
+  assert.match(functionName, /^[a-z][a-z0-9_]*$/);
+  assert.equal(/\.(write|send|delete|admin)$/.test(permission), false, permission);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
