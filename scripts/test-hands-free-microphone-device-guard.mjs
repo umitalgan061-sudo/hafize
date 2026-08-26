@@ -128,7 +128,9 @@ assert.equal(hasAudioInput([{ kind: 'AUDIOINPUT' }]), false, 'device kind matchi
   assert.equal(guard.getMicrophoneDeviceAvailability(), 'missing');
   assert.equal(harness.toggle.getAttribute(REVOKED_ATTR), MICROPHONE_DEVICE_REASON);
   assert.equal(harness.toggle.getAttribute('aria-pressed'), 'false');
-  assert.equal(guard.hasPendingNotice(), true);
+  assert.equal(guard.hasPendingNotice(), false, 'visible device loss is announced immediately');
+  assert.equal(harness.toast.classList.contains('hidden'), false);
+  assert.match(harness.toast.textContent, /kullanılabilir mikrofon/i);
   guard.destroy();
 }
 
@@ -141,6 +143,8 @@ assert.equal(hasAudioInput([{ kind: 'AUDIOINPUT' }]), false, 'device kind matchi
   assert.equal(harness.revokeEvents.length, 1, 'devicechange that removes every microphone revokes the session');
   assert.equal(harness.revokeEvents[0].detail.reason, MICROPHONE_DEVICE_REASON);
   assert.equal(guard.getMicrophoneDeviceAvailability(), 'missing');
+  assert.equal(guard.hasPendingNotice(), false);
+  assert.equal(harness.toast.classList.contains('hidden'), false, 'visible devicechange surfaces the revocation notice');
   guard.destroy();
 }
 
@@ -232,8 +236,11 @@ assert.equal(hasAudioInput([{ kind: 'AUDIOINPUT' }]), false, 'device kind matchi
 
 {
   const harness = createHarness({ devices: [] });
+  harness.documentRef.hidden = true;
   const guard = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
   await flush();
+  assert.equal(guard.hasPendingNotice(), true, 'hidden device loss defers the visible notice');
+  assert.equal(harness.toast.classList.contains('hidden'), true);
   harness.documentRef.hidden = false;
   assert.equal(guard.announce(), true);
   assert.equal(harness.toast.classList.contains('hidden'), false);
