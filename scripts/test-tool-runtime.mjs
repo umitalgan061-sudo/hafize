@@ -16,11 +16,21 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
+const toolPermissions = listToolPermissions();
+assert.deepEqual(toolPermissions, [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Yazma yetkisi olan hiçbir araç model katalogunda kayıtlı olmamalıdır; yazma
+// işlemleri yalnız açık kullanıcı onaylı ayrı sınırlardan geçer.
+for (const { permission, functionName } of toolPermissions) {
+  assert.equal(/\.(write|send|delete)$/.test(permission), false, `write tool registered: ${permission}`);
+  assert.equal(/_(send|write|delete|create|update)$/.test(functionName), false, `write tool registered: ${functionName}`);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
