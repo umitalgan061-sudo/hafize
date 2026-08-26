@@ -13,7 +13,7 @@ assert.ok(feature.includes("'.message[data-message-id]'"));
 assert.ok(feature.includes('else article.tabIndex = -1'));
 assert.ok(feature.includes('if (messages.length && !activeFound) messages[0].tabIndex = 0'));
 assert.ok(feature.includes("article.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })"));
-assert.ok(feature.includes("container.addEventListener?.('keydown', onKeyDown)"));
-assert.ok(feature.includes("container.addEventListener?.('focusin', onFocusIn)"));
+assert.ok(feature.includes("container.addEventListener('keydown', onKeyDown)"));
+assert.ok(feature.includes("container.addEventListener('focusin', onFocusIn)"));
 
 console.log('message keyboard navigation integration tests passed');
