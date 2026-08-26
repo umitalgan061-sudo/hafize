@@ -29,10 +29,10 @@ assert.match(guardSource, /MAX_TOTAL_CONTENT_CHARS = 1_200_000/);
 
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 assert.equal(registry.agents.length, 4, 'selective four-agent roster must remain intact');
-assert.equal(registry.agents.filter((agent) => agent.role === 'selector').length, 2);
-assert.equal(registry.agents.filter((agent) => agent.role === 'specialist').length, 2);
+assert.equal(registry.agents.filter((agent) => agent.kind === 'selector').length, 2);
+assert.equal(registry.agents.filter((agent) => agent.kind === 'specialist').length, 2);
 for (const agent of registry.agents) {
-  assert.equal(agent.toolPolicy?.denyByDefault, true, `${agent.id} must remain backend default-deny`);
+  assert.equal(agent.toolPolicy?.default, 'deny', `${agent.id} must remain backend default-deny`);
 }
 
 console.log('message edit branch security tests passed');
