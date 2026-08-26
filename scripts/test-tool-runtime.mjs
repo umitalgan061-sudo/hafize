@@ -19,8 +19,22 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Kayıt defteri ile herkese açık etkinlik etiketleri arasında sessiz kayma olmasın:
+// yeni bir araç eklendiğinde etiketleri de eklenmek zorunda.
+for (const { functionName } of listToolPermissions()) {
+  assert.deepEqual(
+    getPublicToolRunningActivity(functionName)?.state,
+    'running',
+    `running etiketi eksik: ${functionName}`
+  );
+  assert.equal(typeof getPublicToolActivity(functionName, { ok: true })?.label, 'string');
+  assert.equal(typeof getPublicToolActivity(functionName, { ok: false })?.label, 'string');
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',

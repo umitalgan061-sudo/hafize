@@ -149,6 +149,30 @@ try {
     assert.equal(success.output.stderr, '');
     assert.equal(success.output.stdout.includes(successStorageKey), false);
     assert.equal(JSON.stringify(health.body).includes(successStorageKey), false);
+
+    // Bozuk istek gövdesi sunucu arızası gibi raporlanmamalı: `null`, dizi ve
+    // ilkel gövdeler geçerli JSON olduğu için işleyicilerde ham TypeError'a ve
+    // yanıltıcı bir 500'e yol açıyordu.
+    for (const body of ['null', '42', '"metin"', '[]', 'gecersiz-json']) {
+      const response = await fetch(`http://127.0.0.1:${successPort}/api/chat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body,
+        signal: AbortSignal.timeout(2_000)
+      });
+      assert.equal(response.status, 400, `gövde ${body} 400 döndürmeli`);
+      assert.deepEqual(await response.json(), { error: 'INVALID_JSON' }, `gövde ${body}`);
+    }
+
+    // Geçerli bir nesne gövdesi alan doğrulamasına ulaşmalı (500'e değil).
+    const domainError = await fetch(`http://127.0.0.1:${successPort}/api/chat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: [] }),
+      signal: AbortSignal.timeout(2_000)
+    });
+    assert.equal(domainError.status, 400);
+    assert.deepEqual(await domainError.json(), { error: 'INVALID_CHAT_REQUEST' });
   } finally {
     successExitCode = await stopChild(success.child);
   }

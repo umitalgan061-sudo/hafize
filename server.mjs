@@ -117,7 +117,16 @@ async function readJson(req) {
     chunks.push(chunk);
   }
   const text = Buffer.concat(chunks).toString('utf8');
-  return text ? JSON.parse(text) : {};
+  if (!text) return {};
+  const value = JSON.parse(text);
+  // `null`, dizi veya ilkel bir gövde geçerli JSON'dur ama istek gövdesi
+  // değildir. İşleyiciler `body.model` gibi alan erişimi yaptığı için bu
+  // durum ham TypeError'a ve yanıltıcı bir `500 INTERNAL_ERROR`'a yol
+  // açıyordu; SyntaxError olarak `400 INVALID_JSON`'a eşlenir.
+  if (!value || Array.isArray(value) || typeof value !== 'object') {
+    throw new SyntaxError('INVALID_JSON_BODY');
+  }
+  return value;
 }
 
 async function nvidiaFetch(pathname, init = {}) {
