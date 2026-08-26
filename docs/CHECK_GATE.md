@@ -57,6 +57,11 @@ Hiçbir hedefle eşleşmeyen filtre sessizce geçmez, hata verir.
 Böylece elle bakımlı listeye geri dönüş bir sonraki turda test hatası olarak
 görünür.
 
+`scripts/test-tool-input-hardening.mjs` ise bu turda bulunan hata sınıfını
+kilitler: model argümanlarıyla ulaşılabilen her connector giriş noktası
+(`gmail_read`, `canva_read`, `gmail_send`) ve NVIDIA tool dispatch katmanı
+düşmanca girdide ham `TypeError` değil doğrulanmış hata kodu üretmelidir.
+
 ## Bu turda düzeltilen gerçek hatalar
 
 - `lib/gmail-read-client.mjs` ve `lib/canva-read-client.mjs`: `read(null)`
