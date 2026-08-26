@@ -16,11 +16,19 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
+// Kayıtlı araç kataloğunun tamamı burada kilitlenir; yeni bir tool eklendiğinde bu
+// liste bilinçli olarak güncellenmediği sürece gate kırmızıya döner.
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+// Yazma yetkisi veren hiçbir araç NVIDIA tool kataloğuna kayıtlı olmamalıdır.
+for (const { permission } of listToolPermissions()) {
+  assert.equal(/\.(write|send|delete)$/.test(permission), false, `write-capable tool registered: ${permission}`);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
