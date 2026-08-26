@@ -1,0 +1,16 @@
+node_modules/
+npm-debug.log*
+*.log
+
+# Secret ve credential dosyaları hiçbir zaman commit edilmez.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+secrets/
+.hafize-tokens*
+.hafize-schedule*
+.hafize-memory*
