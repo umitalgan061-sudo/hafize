@@ -18,7 +18,7 @@ for (const phrase of [
 
 assert.equal(source.includes('requestSubmit('), false, 'edit-to-draft must never submit automatically');
 assert.equal(source.includes('fetch('), false, 'edit-to-draft must not create network path');
-assert.equal(source.includes('input.value = text'), true);
+assert.equal(source.includes('input.value = handoff.text'), true, 'restored edit handoff must populate the composer without submitting');
 assert.equal(source.includes("draft.trim() && draft !== text"), true, 'different unsent draft must be preserved');
 assert.equal(source.includes("classList?.contains('streaming')"), true, 'active generation must block edit');
 assert.equal(source.includes('text.length > MAX_COMPOSER_CHARS'), true);
