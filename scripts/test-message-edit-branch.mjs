@@ -21,10 +21,6 @@ function classList(names = []) {
   return { contains(name) { return set.has(name); } };
 }
 
-function buttonStub() {
-  return { dataset: {}, textContent: '', disabled: false };
-}
-
 function documentStub({ activeIndex = 0, draft = '', streaming = false } = {}) {
   const input = {
     value: draft,
@@ -37,9 +33,15 @@ function documentStub({ activeIndex = 0, draft = '', streaming = false } = {}) {
   const send = { classList: classList(streaming ? ['streaming'] : []) };
   const rows = [0, 1, 2].map((index) => ({ classList: classList(index === activeIndex ? ['active'] : []) }));
   const list = { querySelectorAll(selector) { return selector === '.conversation-row' ? rows : []; } };
-  const messages = { querySelectorAll() { return []; } };
+  const userMessages = [];
+  const messages = {
+    querySelectorAll(selector) { return selector === '.message.user' ? userMessages : []; }
+  };
   return {
     input,
+    setUserMessages(items) {
+      userMessages.splice(0, userMessages.length, ...(Array.isArray(items) ? items : []));
+    },
     querySelector(selector) {
       if (selector === '#messageInput') return input;
       if (selector === '#sendBtn') return send;
@@ -52,9 +54,42 @@ function documentStub({ activeIndex = 0, draft = '', streaming = false } = {}) {
       return [];
     },
     createElement() {
-      return { dataset: {}, className: '', textContent: '', disabled: false, setAttribute() {}, addEventListener() {} };
+      return {
+        dataset: {},
+        className: '',
+        textContent: '',
+        disabled: false,
+        parentNode: null,
+        setAttribute() {},
+        addEventListener(type, handler) { this.handler = handler; },
+        removeEventListener() {},
+        remove() { this.parentNode = null; }
+      };
     }
   };
+}
+
+function editableArticle(text = 'Bunu daha ayrıntılı anlat.') {
+  const content = { textContent: text };
+  const actions = {
+    button: null,
+    prepend(button) {
+      this.button = button;
+      button.parentNode = this;
+    },
+    contains(button) { return this.button === button; }
+  };
+  const article = {
+    dataset: { messageId: 'm-3' },
+    classList: classList(['message', 'user']),
+    querySelector(selector) {
+      if (selector === '.content') return content;
+      if (selector === '.message-copy-actions') return actions;
+      if (selector === '.message-edit-btn') return null;
+      return null;
+    }
+  };
+  return { article, content, actions };
 }
 
 const source = guard.normalizeConversation({
@@ -77,8 +112,8 @@ assert.equal(editApi.editableText('\u0000'), null);
 assert.equal(editApi.editableText('x'.repeat(editApi.MAX_COMPOSER_CHARS + 1)), null);
 assert.equal(editApi.editBranchTitle('A'.repeat(100), 80).length <= 80, true);
 assert.equal(editApi.findSource([source], 'm-3')?.index, 2);
-assert.equal(editApi.findSource([source], 'm-4'), null);
 assert.equal(editApi.findSource([source, source], 'm-3'), null, 'ambiguous message ids fail closed');
+assert.equal(editApi.findSource([source], 'm-4'), null);
 
 let sequence = 0;
 const built = editApi.buildEditBranch(source, 2, {
@@ -108,6 +143,8 @@ const storage = memoryStorage({
 });
 const handoffStorage = memoryStorage();
 const doc = documentStub();
+const editFixture = editableArticle();
+doc.setUserMessages([editFixture.article]);
 let reloads = 0;
 let uuid = 0;
 const cryptoRef = { randomUUID() { uuid += 1; return `00000000-0000-4000-8000-${String(uuid).padStart(12, '0')}`; } };
@@ -122,9 +159,11 @@ const controller = editApi.createController({
   now: () => new Date(createdAt),
   reload: () => { reloads += 1; }
 });
-const button = buttonStub();
-const article = { dataset: { messageId: 'm-3' } };
-const content = { textContent: 'Bunu daha ayrıntılı anlat.' };
+assert.equal(controller.mount(), true);
+const button = editFixture.actions.button;
+const article = editFixture.article;
+const content = editFixture.content;
+assert.ok(button);
 assert.equal(controller.editMessage(button, article, content), true);
 assert.equal(reloads, 1);
 assert.equal(button.dataset.state, 'success');
@@ -149,7 +188,7 @@ const restoreController = editApi.createController({
   modelState,
   MutationObserverImpl: null
 });
-assert.equal(restoreController.restoreHandoff(), true);
+assert.equal(restoreController.mount(), true);
 assert.equal(restoreDoc.input.value, content.textContent);
 assert.equal(restoreDoc.input.focused, true);
 assert.deepEqual(restoreDoc.input.selection, [content.textContent.length, content.textContent.length]);
@@ -157,8 +196,11 @@ assert.equal(handoffStorage.getItem(editApi.DRAFT_HANDOFF_KEY), null, 'handoff m
 
 const draftStorage = memoryStorage({ [editApi.STORAGE_KEY]: JSON.stringify([source]) });
 const draftHandoff = memoryStorage();
+const draftDoc = documentStub({ draft: 'mevcut taslak' });
+const draftFixture = editableArticle();
+draftDoc.setUserMessages([draftFixture.article]);
 const draftController = editApi.createController({
-  documentRef: documentStub({ draft: 'mevcut taslak' }),
+  documentRef: draftDoc,
   storage: draftStorage,
   handoffStorage: draftHandoff,
   guard,
@@ -168,33 +210,45 @@ const draftController = editApi.createController({
   now: () => new Date(createdAt),
   reload: () => { throw new Error('must not reload'); }
 });
-const draftButton = buttonStub();
-assert.equal(draftController.editMessage(draftButton, article, content), false);
+assert.equal(draftController.mount(), true);
+const draftButton = draftFixture.actions.button;
+assert.ok(draftButton);
+assert.equal(draftController.editMessage(draftButton, draftFixture.article, draftFixture.content), false);
 assert.equal(draftButton.textContent, 'Taslak korunuyor');
 assert.equal(guard.sanitizeStoredValue(draftStorage.dump(editApi.STORAGE_KEY)).value.length, 1);
 assert.equal(draftHandoff.getItem(editApi.DRAFT_HANDOFF_KEY), null);
 
+const streamDoc = documentStub({ streaming: true });
+const streamFixture = editableArticle();
+streamDoc.setUserMessages([streamFixture.article]);
 const streamController = editApi.createController({
-  documentRef: documentStub({ streaming: true }),
+  documentRef: streamDoc,
   storage: memoryStorage({ [editApi.STORAGE_KEY]: JSON.stringify([source]) }),
   handoffStorage: memoryStorage(),
   guard,
   modelState,
   MutationObserverImpl: null
 });
-const streamButton = buttonStub();
-assert.equal(streamController.editMessage(streamButton, article, content), false);
+assert.equal(streamController.mount(), true);
+const streamButton = streamFixture.actions.button;
+assert.ok(streamButton);
+assert.equal(streamController.editMessage(streamButton, streamFixture.article, streamFixture.content), false);
 assert.equal(streamButton.textContent, 'Yanıt sürüyor');
 
+const inactiveDoc = documentStub({ activeIndex: 1 });
+const inactiveFixture = editableArticle();
+inactiveDoc.setUserMessages([inactiveFixture.article]);
 const inactiveController = editApi.createController({
-  documentRef: documentStub({ activeIndex: 1 }),
+  documentRef: inactiveDoc,
   storage: memoryStorage({ [editApi.STORAGE_KEY]: JSON.stringify([source]) }),
   handoffStorage: memoryStorage(),
   guard,
   modelState,
   MutationObserverImpl: null
 });
-const inactiveButton = buttonStub();
-assert.equal(inactiveController.editMessage(inactiveButton, article, content), false, 'historical DOM mismatch must fail closed');
+assert.equal(inactiveController.mount(), true);
+const inactiveButton = inactiveFixture.actions.button;
+assert.ok(inactiveButton);
+assert.equal(inactiveController.editMessage(inactiveButton, inactiveFixture.article, inactiveFixture.content), false, 'historical DOM mismatch must fail closed');
 
 console.log('message edit branch tests passed');
