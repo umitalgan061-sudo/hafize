@@ -81,4 +81,7 @@ const httpFailure = createCanvaTokenRefresh({
 await assert.rejects(() => httpFailure.refresh({ ownerId: 'owner' }), /CANVA_TOKEN_REFRESH_FAILED:http/);
 for (const input of [{}, { ownerId: '../owner' }, { ownerId: '' }]) await assert.rejects(() => runtime.refresh(input), /INVALID_CANVA_TOKEN_REFRESH/);
 assert.throws(() => createCanvaTokenRefresh({ clientId: 'id', clientSecret: 'secret', tokenStore: { load() {} } }), /tokenStore/);
+for (const input of [null, undefined, [], 'owner', 7]) {
+  await assert.rejects(() => runtime.refresh(input), /INVALID_CANVA_TOKEN_REFRESH/);
+}
 console.log('canva token refresh tests passed');

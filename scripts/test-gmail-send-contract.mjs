@@ -48,4 +48,8 @@ for (const text of ['', '\0', 'x'.repeat(GMAIL_SEND_LIMITS.maxTextLength + 1)]) 
 }
 
 assert.deepEqual(GMAIL_SEND_LIMITS, { maxRecipients: 10, maxSubjectLength: 180, maxTextLength: 50_000 });
+for (const options of [null, undefined, [], 'approved']) {
+  assert.throws(() => normalizeGmailSendRequest(validInput, options), /GMAIL_SEND_APPROVAL_REQUIRED/);
+}
+assert.throws(() => normalizeGmailSendRequest(null, null), /INVALID_GMAIL_SEND_REQUEST/);
 console.log('gmail send contract tests passed');

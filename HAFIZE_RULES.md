@@ -10,6 +10,8 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 
 1. Önce bu dosyayı ve `README.md` dosyasını oku.
 2. Mevcut kodu incele; yapılmış işi yeniden yapma.
+2b. **Açık PR listesini kontrol et.** Aynı konuyu ele alan açık bir PR varsa yeni bir kopya PR açma; ya o PR'ı ilerlet ya da başka bir ana iyileştirme seç. Zamanlanmış turlar birbirinden habersiz çalıştığı için bu adım atlanırsa aynı özellik defalarca yeniden yazılır.
+2c. **`npm run check` kapısını turun başında çalıştır.** `main` kırmızıysa yeni özellik eklemeden önce kapıyı onarmak önceliklidir; kırık kapı sonraki tüm turların doğrulamasını geçersiz kılar.
 3. Her turda küçük, ölçülebilir, geri alınabilir ve test edilebilir tek bir ana iyileştirme seç; aynı ana iyileştirme içindeki ilişkili alt adımlarla tur bütçesi elverdiği sürece ilerlemeye devam et.
 4. Mevcut işlevleri gereksiz yere silme veya yeniden yazma.
 5. Değişikliği ayrı bir `hafize/auto-*` branch'inde yap.
