@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -32,6 +34,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -72,8 +82,43 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+const safeConnectorActivity = JSON.stringify(getPublicToolActivity('gmail_read', {
+  ok: true,
+  value: { messages: [{ from: 'owner@example.com', subject: 'fatura', snippet: 'kart numarası' }] }
+}));
+assert.equal(safeConnectorActivity.includes('owner@example.com'), false);
+assert.equal(safeConnectorActivity.includes('fatura'), false);
+assert.equal(safeConnectorActivity, JSON.stringify({ label: 'Gmail verisi okundu', state: 'success' }));
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: false,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: false,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  []
+);
 assert.deepEqual(
   getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
   ['github_read_file']
@@ -188,6 +233,21 @@ const safeExecutionError = await executeNvidiaToolCall(
 );
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
+
+const unauthenticatedGmail = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_8', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"threads.search"}' } },
+  { traceId, agent: hafize, registry, gmailReadAuthenticated: false, gmailReadTool: { execute: async () => ({}) } }
+);
+assert.deepEqual(unauthenticatedGmail, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const deniedCanva = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_9', type: 'function', function: { name: 'canva_read', arguments: '{"operation":"designs.list"}' } },
+  { traceId, agent: reviewer, registry, canvaReadAuthenticated: true, canvaReadTool: { execute: async () => ({}) } }
+);
+assert.equal(deniedCanva.ok, false);
+assert.equal(deniedCanva.error, 'TOOL_NOT_AUTHORIZED');
 
 const unknown = await executeNvidiaToolCall(
   hafize,
