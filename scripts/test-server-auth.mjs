@@ -42,4 +42,13 @@ assert.throws(
   /INVALID_SERVER_AUTH:subject/
 );
 
+// Kimlik doğrulama sınırı hiçbir girdi için fırlatmaz; tanımadığı girdiyi reddeder.
+const boundary = createBearerPrincipalAuthenticator({ token, subject: 'owner_opaque' });
+for (const input of [undefined, null, 'x', 42, [], { headers: null }, { headers: 'x' }]) {
+  const result = boundary.authenticate(input);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'AUTH_REQUIRED');
+  assert.equal(result.principal, undefined);
+}
+
 console.log('server auth tests passed');
