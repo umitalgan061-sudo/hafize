@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -32,6 +34,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -83,6 +93,27 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+const connectorContext = {
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async (args) => ({ kind: 'canva', ...args }) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async (args) => ({ kind: 'gmail', ...args }) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false }).map(
+    (tool) => tool.function.name
+  ),
+  ['runtime_status', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name),
+  []
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -188,6 +219,28 @@ const safeExecutionError = await executeNvidiaToolCall(
 );
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
+
+const unauthenticatedCanva = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_8', type: 'function', function: { name: 'canva_read', arguments: '{}' } },
+  { traceId, agent: hafize, registry, canvaReadAuthenticated: false }
+);
+assert.deepEqual(unauthenticatedCanva, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const unauthenticatedGmail = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_9', type: 'function', function: { name: 'gmail_read', arguments: '{}' } },
+  { traceId, agent: hafize, registry, gmailReadAuthenticated: false }
+);
+assert.deepEqual(unauthenticatedGmail, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const deniedGmail = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_10', type: 'function', function: { name: 'gmail_read', arguments: '{}' } },
+  { traceId, agent: reviewer, registry, ...connectorContext }
+);
+assert.equal(deniedGmail.ok, false);
+assert.equal(deniedGmail.error, 'TOOL_NOT_AUTHORIZED');
 
 const unknown = await executeNvidiaToolCall(
   hafize,

@@ -38,7 +38,7 @@ Hafize uyarlaması:
 - skill prompt'u secret veya credential alamaz;
 - project skill yalnız açıkça izin verilen proje kapsamından yüklenir.
 
-Bu katman sıradaki geliştirme turunun önceliğidir.
+Bu katman sıradaki geliştirme turunun önceliğidir. İlk adım `lib/skills-manifest.mjs` içinde yalnız doğrulama yapan (hiçbir şey çalıştırmayan) strict manifest sözleşmesidir: `allowedTools` çağıran ajanın permission kümesinin alt kümesi olmak zorundadır (`SKILL_TOOL_ESCALATION`), onay gerektiren ve hiçbir zaman verilmeyen permission'lar manifest üzerinden alınamaz, prompt credential taşıyamaz ve `projectScope` yalnız açıkça izin verilen listeden gelebilir. Bu adım, 500 satırlık tur bütçesine sığmadığı için bu turda değil sonraki turda uygulanır.
 
 ### 3. Sub-agent lifecycle
 
