@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -83,6 +85,61 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+// Bağlı olmayan connector araçları modele hiç görünmez.
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { canvaReadAuthenticated: false, canvaReadTool: { execute: async () => ({}) } })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { canvaReadAuthenticated: true }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+// Connector izni olmayan uzman ajan, connector bağlı olsa bile aracı görmez.
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, {
+    githubReadConfigured: true,
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['github_read_file']
+);
+
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolActivity('canva_read', { ok: true, value: { designId: 'DAF-private' } }), {
+  label: 'Canva verisi okundu',
+  state: 'success'
+});
+const safeGmailActivity = JSON.stringify(
+  getPublicToolActivity('gmail_read', {
+    ok: false,
+    error: 'GMAIL_SCOPE_DENIED',
+    value: { subject: 'private subject', from: 'someone@example.com', body: 'private body' }
+  })
+);
+assert.equal(safeGmailActivity.includes('private subject'), false);
+assert.equal(safeGmailActivity.includes('someone@example.com'), false);
+assert.equal(safeGmailActivity.includes('GMAIL_SCOPE_DENIED'), false);
+assert.equal(safeGmailActivity.includes('"state":"failure"'), true);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -188,6 +245,71 @@ const safeExecutionError = await executeNvidiaToolCall(
 );
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
+
+// Connector bağlı değilken çağrı fail-closed reddedilir.
+const unauthenticatedCanva = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_8', type: 'function', function: { name: 'canva_read', arguments: '{"resource":"designs"}' } },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    canvaReadAuthenticated: false,
+    canvaReadTool: { execute: async () => ({ designs: [] }) }
+  }
+);
+assert.deepEqual(unauthenticatedCanva, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+// Connector izni olmayan ajan, connector bağlı olsa da yetkisizdir.
+const deniedGmail = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_9', type: 'function', function: { name: 'gmail_read', arguments: '{"resource":"messages"}' } },
+  {
+    traceId,
+    agent: reviewer,
+    registry,
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({ messages: [] }) }
+  }
+);
+assert.equal(deniedGmail.ok, false);
+assert.equal(deniedGmail.error, 'TOOL_NOT_AUTHORIZED');
+
+// Yetkili ve bağlı durumda çağrı boundary'ye devredilir; iç hata detayı sızmaz.
+const gmailResult = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_10', type: 'function', function: { name: 'gmail_read', arguments: '{"resource":"messages"}' } },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async (args) => ({ resource: args.resource, messages: [] }) }
+  }
+);
+assert.deepEqual(gmailResult, { ok: true, value: { resource: 'messages', messages: [] } });
+
+const safeCanvaError = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_11', type: 'function', function: { name: 'canva_read', arguments: '{"resource":"designs"}' } },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    canvaReadAuthenticated: true,
+    canvaReadTool: {
+      execute: async () => {
+        const error = new Error('refresh token rotated: do not expose this internal detail');
+        error.code = 'CANVA_SCOPE_DENIED';
+        error.status = 403;
+        throw error;
+      }
+    }
+  }
+);
+assert.deepEqual(safeCanvaError, { ok: false, error: 'CANVA_SCOPE_DENIED', status: 403 });
+assert.equal(JSON.stringify(safeCanvaError).includes('internal detail'), false);
+assert.equal(JSON.stringify(safeCanvaError).includes('refresh token'), false);
 
 const unknown = await executeNvidiaToolCall(
   hafize,

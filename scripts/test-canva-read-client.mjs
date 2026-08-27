@@ -51,6 +51,11 @@ await assert.rejects(() => client.read({ ownerId: 'owner:1', operation: 'user.ge
 record = { ...record, expiresAt: future + 120_000 };
 
 for (const input of [
+  null,
+  undefined,
+  'user.get',
+  [{ ownerId: 'owner', operation: 'user.get' }],
+  { ownerId: 'owner', operation: 'user.get', ownerPrincipal: { role: 'admin' } },
   { ownerId: '../bad', operation: 'user.get' },
   { ownerId: 'owner', operation: 'design.delete' },
   { ownerId: 'owner', operation: 'design.list', params: { limit: 101 } },

@@ -29,5 +29,6 @@ Hafize'nin Canva Connect entegrasyonu varsayılan olarak salt-okunur ve backend 
 - Connector tamamen yapılandırılmamışsa normal Hafize sohbeti çalışabilir fakat Canva tool sunulmaz.
 - Yanlış veya eksik bearer auth Canva tool'u görünmez bırakır ve status isteğini reddeder.
 - Bilinmeyen tool alanları, write operasyonları, serbest URL ve model-supplied credential alanları reddedilir.
+- Read client'ın istek objesi strict doğrulanır: `null`, dizi, string veya `ownerId` / `operation` / `params` dışında alan taşıyan istek `INVALID_CANVA_READ:request` ile reddedilir. Daha önce `null` istek destructuring `TypeError`'ı üretiyordu; bu, fail-closed hata sözleşmesinin dışına çıkan bir sızıntı yüzeyiydi.
 
 Bu sözleşme `agents/registry.json`, `lib/canva-agent-runtime.mjs`, `lib/canva-read-tool-boundary.mjs`, `lib/canva-read-client.mjs` ve `lib/tool-runtime.mjs` tarafından birlikte uygulanır.

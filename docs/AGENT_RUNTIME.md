@@ -37,3 +37,5 @@ Bu ayrım sayesinde prompt içindeki metin hiçbir zaman yetki kaynağı olmaz; 
 - oluşturulan system mesajına secret veya bearer credential sızmaması.
 
 `npm run check` bu testleri mevcut syntax ve registry kontrolleriyle birlikte çalıştırır.
+Geçit `scripts/test-*.mjs` dosyalarını keşifle bulur; ayrıntı için bkz.
+[`docs/VERIFICATION_GATE.md`](./VERIFICATION_GATE.md).

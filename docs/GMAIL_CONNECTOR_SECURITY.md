@@ -27,6 +27,10 @@ Gönderme, silme, etiket değiştirme, mail modify ve serbest URL çağrısı bu
 
 Gelecekte e-posta gönderme veya mailbox değiştirme ayrı tool/permission sözleşmesi olmalıdır. `gmail.send` / `gmail.modify` OAuth scope'ları tek başına tool yetkisi vermez; external send/write için backend approval gate ve açık kullanıcı niyeti zorunludur.
 
+## İstek doğrulama
+
+Read client'ın istek objesi strict doğrulanır: `null`, dizi, string veya `ownerId` / `operation` / `params` dışında alan taşıyan istek `INVALID_GMAIL_READ:request` ile reddedilir. Daha önce `null` istek destructuring `TypeError`'ı üretiyordu; bu, fail-closed hata sözleşmesinin dışına çıkan bir sızıntı yüzeyiydi.
+
 ## Değişmeyen ilkeler
 
 - NVIDIA veya başka model sağlayıcısı tool yetkisini değiştiremez.
