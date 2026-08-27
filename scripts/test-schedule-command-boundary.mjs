@@ -208,4 +208,12 @@ assert.deepEqual(
   { ok: false, error: 'SCHEDULE_COMMAND_FAILED' }
 );
 
+// Nesne olmayan komut ham TypeError yerine sözleşmeli AUTH_REQUIRED döndürür;
+// authorization kapısı hatalı girdide de kapalı kalır.
+for (const malformed of [null, 'principal', 42, [{ principal: alice }]]) {
+  assert.deepEqual(await commands.create(malformed), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(await commands.list(malformed), { ok: false, error: 'AUTH_REQUIRED' });
+  assert.deepEqual(await commands.cancel(malformed), { ok: false, error: 'AUTH_REQUIRED' });
+}
+
 console.log('schedule command boundary tests passed');

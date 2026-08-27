@@ -96,4 +96,11 @@ assert.deepEqual(
   { ok: false, error: 'INVALID_SCHEDULE_AGENT_TASK' }
 );
 
+for (const malformed of [null, 'trace', 7, [{ traceId: 'trace-x' }]]) {
+  assert.deepEqual(
+    await executor.executeAgentTask(malformed),
+    { ok: false, error: 'INVALID_SCHEDULE_AGENT_TASK' }
+  );
+}
+
 console.log('scheduled agent executor tests passed');

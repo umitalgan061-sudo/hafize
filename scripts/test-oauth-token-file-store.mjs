@@ -44,4 +44,11 @@ await store.save({ ownerId: 'user', provider: 'google', tokenRecord: record });
 const wrongKeyStore = createOAuthTokenFileStore({ directory: root, key: Buffer.alloc(32, 8) });
 await assert.rejects(() => wrongKeyStore.load({ ownerId: 'user', provider: 'google' }), /OAUTH_TOKEN_DECRYPT_FAILED/);
 
+// Credential sınırı nesne olmayan girdide ham TypeError yerine sözleşme hatası verir.
+for (const malformed of [null, 'user', 12, [{ ownerId: 'user', provider: 'google' }]]) {
+  await assert.rejects(() => store.save(malformed), /INVALID_OAUTH_TOKEN_STORE:save/);
+  await assert.rejects(() => store.load(malformed), /INVALID_OAUTH_TOKEN_STORE:load/);
+  await assert.rejects(() => store.remove(malformed), /INVALID_OAUTH_TOKEN_STORE:remove/);
+}
+
 console.log('oauth token file store tests passed');
