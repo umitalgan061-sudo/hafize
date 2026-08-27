@@ -68,4 +68,11 @@ await assert.rejects(() => httpClient.read({ ownerId: 'owner', operation: 'user.
 
 assert.throws(() => createCanvaReadClient({}), /INVALID_CANVA_READ:tokenStore/);
 assert.throws(() => createCanvaReadClient({ tokenStore, fetchImpl: null }), /INVALID_CANVA_READ:fetch/);
+
+// Sözleşme dışı girdiler TypeError değil, INVALID_CANVA_READ üretir.
+const boundaryClient = createCanvaReadClient({ tokenStore, fetchImpl, now: () => now });
+for (const input of [null, 'x', 42, [], { ownerId: 'owner_opaque', operation: 'design.get', extra: 1 }]) {
+  await assert.rejects(() => boundaryClient.read(input), /INVALID_CANVA_READ/);
+}
+
 console.log('canva read client tests passed');

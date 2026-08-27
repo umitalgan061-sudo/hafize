@@ -107,4 +107,10 @@ assert.equal(malformedPath.status, 404);
 const unmatched = await api.handle({ method: 'GET', pathname: '/api/other', headers: {} });
 assert.equal(unmatched.matched, false);
 
+// İstek yolundaki sınır hiçbir girdi için fırlatmaz.
+for (const input of [undefined, null, 'x', 42, [], true]) {
+  const result = await api.handle(input);
+  assert.equal(result.matched, false, `handle(${JSON.stringify(input) ?? 'undefined'}) matched:false döndürmedi`);
+}
+
 console.log('schedule http api tests passed');

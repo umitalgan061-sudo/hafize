@@ -72,4 +72,10 @@ const echo = createGmailReadClient({
   now: () => now
 });
 await assert.rejects(() => echo.read({ ownerId: 'owner_opaque', operation: 'profile.get' }), /GMAIL_READ_FAILED:response/);
+
+// Sözleşme dışı girdiler TypeError değil, INVALID_GMAIL_READ üretir.
+for (const input of ['x', 42, [], { ownerId: 'owner_opaque', operation: 'profile.get', extra: 1 }]) {
+  await assert.rejects(() => client.read(input), /INVALID_GMAIL_READ/);
+}
+
 console.log('gmail read client tests passed');
