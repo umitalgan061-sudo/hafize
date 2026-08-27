@@ -35,6 +35,12 @@ Eski `npm run precheck` adı kaldırıldı: npm bu adı `check` öncesinde otoma
 
 `scripts/test-run-checks.mjs` keşif sözleşmesini doğrular: diskteki her kaynak dosyanın syntax hedeflerinde, her `test-*` / `validate-*` dosyasının çalıştırılacak listede bulunduğunu, filtrelemenin ve başarısızlık toplamanın doğru çalıştığını kontrol eder. Enjekte edilmiş bir runner kullandığı için alt süreç başlatmaz.
 
+## Kapsam doğrulaması
+
+Gate her testi çalıştırır, ama bir modülün testi hiç yazılmamışsa bunu tek başına göremez. `scripts/validate-check-coverage.mjs` bu boşluğu kapatır: `lib/` altındaki her modüle en az bir `scripts/test-*.mjs` dosyasından referans verilmiş olmalıdır. Bugün 63 modülün tamamı kapsamlıdır; doğrulayıcı bu durumun geriye düşmesini engeller ve testsiz yeni bir modül eklendiğinde gate'i kırar.
+
+Bilinen açık kapsam boşluğu: `public/app.js` hiçbir testten yüklenmiyor. Bu dosya sözleşme testleriyle değil yalnız dolaylı PWA cache testleriyle anılıyor; istemci sohbet kabuğu için ayrı bir doğrulama turu gerekir. Doğrulayıcı bugün yalnız `lib/` kapsamını zorunlu tutar; bu boşluk sahte bir istisna listesine gizlenmek yerine burada açıkça takip edilir.
+
 ## Geri alma
 
 Değişiklik tek dosya (`scripts/run-checks.mjs`) ve `package.json` script alanlarıyla sınırlıdır; commit geri alındığında eski elle bakımlı zincir geri döner.
