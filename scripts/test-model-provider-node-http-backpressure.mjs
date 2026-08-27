@@ -168,7 +168,7 @@ const timeoutRuntime = {
     };
   }
 };
-const timedOut = new FakeResponse({ backpressureAt: [0, 1] });
+const timedOut = new FakeResponse({ backpressureAt: [0] });
 const startedAt = Date.now();
 const timeoutResult = await createRoute(
   timeoutRuntime,
