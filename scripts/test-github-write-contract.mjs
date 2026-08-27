@@ -103,4 +103,8 @@ assert.throws(
   /INVALID_GITHUB_WRITE_REQUEST/
 );
 
+for (const options of [null, undefined, [], 'repo']) {
+  assert.throws(() => normalizeGitHubWriteRequest(null, options), /INVALID_GITHUB_WRITE_REQUEST/);
+}
+
 console.log('github write contract tests passed');
