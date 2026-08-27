@@ -73,6 +73,9 @@ Hafize'de voice, screen-share, device bridge, local provider, hands-free ve encr
 
 ## Uygulama sırası
 
+0. (Tamamlandı) Doğrulama kapısının keşif tabanlı hale getirilmesi. Sıradaki
+   sözleşme turları ancak çalışan bir kapı üzerinde ölçülebilir; bkz.
+   `docs/VERIFICATION_GATE.md`.
 1. Context compaction ve gözlemlenebilirlik.
 2. Strict skills manifest + registry + inline/fork execution contract.
 3. Sub-agent cancellation/concurrency/message lifecycle.
