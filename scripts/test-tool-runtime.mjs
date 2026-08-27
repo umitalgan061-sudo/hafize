@@ -19,8 +19,19 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Katalogdaki her araç kullanıcıya görünen running/success/failure etiketleri taşımalı;
+// etiketsiz bir araç UI'da sessiz kalır.
+for (const { functionName } of listToolPermissions()) {
+  assert.deepEqual(getPublicToolRunningActivity(functionName)?.state, 'running');
+  assert.equal(typeof getPublicToolRunningActivity(functionName).label, 'string');
+  assert.deepEqual(getPublicToolActivity(functionName, { ok: true }).state, 'success');
+  assert.deepEqual(getPublicToolActivity(functionName, { ok: false }).state, 'failure');
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -83,6 +94,28 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+// Connector araçları hafize-general policy'sinde izinli olsa da bağlantı doğrulanmadan
+// modele hiç görünmez ve çağrılamaz.
+assert.equal(hafizeTools.some((tool) => tool.function.name === 'canva_read'), false);
+assert.equal(hafizeTools.some((tool) => tool.function.name === 'gmail_read'), false);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+for (const connectorTool of ['canva_read', 'gmail_read']) {
+  const unauthenticated = await executeNvidiaToolCall(
+    hafize,
+    { id: 'call_connector', type: 'function', function: { name: connectorTool, arguments: '{}' } },
+    { traceId: '00000000-0000-4000-8000-000000000002', agent: hafize, registry }
+  );
+  assert.deepEqual(unauthenticated, { ok: false, error: 'TOOL_UNAVAILABLE' });
+}
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
