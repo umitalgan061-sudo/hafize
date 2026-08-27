@@ -170,14 +170,21 @@ const timeoutRuntime = {
 };
 const timedOut = new FakeResponse({ backpressureAt: [0] });
 const startedAt = Date.now();
-const timeoutResult = await createRoute(
-  timeoutRuntime,
-  (options) => createSseNodeWriter({ ...options, drainTimeoutMs: 100 })
-).handle({
-  request: {}, response: timedOut, method: 'POST', pathname: '/api/chat'
-});
+const timeoutLease = setInterval(() => {}, 1000);
+let timeoutResult;
+try {
+  timeoutResult = await createRoute(
+    timeoutRuntime,
+    (options) => createSseNodeWriter({ ...options, drainTimeoutMs: 100 })
+  ).handle({
+    request: {}, response: timedOut, method: 'POST', pathname: '/api/chat'
+  });
+} finally {
+  clearInterval(timeoutLease);
+}
 assert.equal(timeoutResult.interrupted, true);
 assert.equal(timeoutResult.aborted, false);
+assert.equal(timeoutResult.streamError, 'STREAM_INTERRUPTED');
 assert.ok(Date.now() - startedAt >= 70, 'route must honor injected bounded drain timeout');
 assert.deepEqual(timedOut.writes, ['data: blocked\n\n', 'data: {"error":"STREAM_INTERRUPTED"}\n\n']);
 assert.equal(timedOut.endCount, 1);
