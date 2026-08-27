@@ -54,4 +54,7 @@ await assert.rejects(() => badInput.exchange({ ownerId: 'owner', code: '12345678
 await assert.rejects(() => badInput.exchange({ ownerId: 'owner', code: '12345678', verifier: 'c'.repeat(43), redirectUri: 'http://hafize.example.test/oauth/google' }), /INVALID_GOOGLE_TOKEN_EXCHANGE/);
 const httpFailure = createGoogleTokenExchange({ clientId: 'id', tokenStore: { async save() {} }, fetchImpl: async () => ({ ok: false, async json() { return {}; } }) });
 await assert.rejects(() => httpFailure.exchange({ ownerId: 'owner', code: '12345678', verifier: 'd'.repeat(43), redirectUri: 'https://hafize.example.test/oauth/google' }), /GOOGLE_TOKEN_EXCHANGE_FAILED:http/);
+for (const input of [null, undefined, 'owner', ['owner'], 42]) {
+  await assert.rejects(() => badInput.exchange(input), /INVALID_GOOGLE_TOKEN_EXCHANGE/);
+}
 console.log('google token exchange tests passed');

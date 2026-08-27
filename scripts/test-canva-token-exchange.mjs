@@ -49,4 +49,9 @@ await assert.rejects(() => httpFailure.exchange({ ownerId: 'owner', code: 'autho
 assert.throws(() => createCanvaTokenExchange({ clientId: 'id', tokenStore: { save() {} } }), /clientSecret/);
 assert.throws(() => createCanvaTokenExchange({ clientId: 'id', clientSecret: 'secret' }), /tokenStore/);
 assert.throws(() => createCanvaTokenExchange({ clientId: 'id', clientSecret: 'secret', tokenStore: { save() {} }, fetchImpl: null }), /fetch/);
+// Sözleşme dışı istek gövdeleri de sanitize edilmiş hata döndürmeli; ham
+// TypeError iç yapı sızdırır.
+for (const input of [null, undefined, 'owner', ['owner'], 42]) {
+  await assert.rejects(() => exchange.exchange(input), /INVALID_CANVA_TOKEN_EXCHANGE/);
+}
 console.log('canva token exchange tests passed');

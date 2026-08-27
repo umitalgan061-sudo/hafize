@@ -49,6 +49,16 @@ for (const args of [
   await assert.rejects(() => boundary.execute(args, { principal }), /INVALID_CANVA_READ_TOOL/);
 }
 await assert.rejects(() => boundary.execute({ operation: 'user.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
+// Eksik veya bozuk çağrı bağlamı sahipsiz erişime değil, sözleşme hatasına
+// düşer: ham TypeError sızmaz ve read client hiç çağrılmaz.
+for (const context of [null, undefined, 'principal', ['principal'], {}]) {
+  calls.length = 0;
+  await assert.rejects(
+    () => boundary.execute({ operation: 'user.get' }, context),
+    (error) => error instanceof Error && !(error instanceof TypeError) && /^[A-Z_]+(:|$)/.test(error.message)
+  );
+  assert.equal(calls.some(([kind]) => kind === 'read'), false);
+}
 assert.throws(() => createCanvaReadToolBoundary({}), /INVALID_CANVA_READ_TOOL/);
 assert.throws(() => createCanvaReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_CANVA_READ_TOOL/);
 console.log('canva read tool boundary tests passed');
