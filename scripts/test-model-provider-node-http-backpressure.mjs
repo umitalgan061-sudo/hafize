@@ -96,7 +96,8 @@ assert.deepEqual(result, {
   kind: 'stream',
   status: 200,
   aborted: false,
-  interrupted: false
+  interrupted: false,
+  streamError: null
 });
 assert.deepEqual(response.writes, ['data: a\n\n', 'data: b\n\n', 'data: [DONE]\n\n']);
 assert.equal(response.endCount, 1);
