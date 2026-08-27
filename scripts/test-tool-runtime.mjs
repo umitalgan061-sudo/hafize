@@ -19,8 +19,76 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Connector tools stay invisible until the connector is authenticated and wired.
+for (const tool of ['canva_read', 'gmail_read']) {
+  assert.ok(getPublicToolRunningActivity(tool), `${tool} has no running activity label`);
+  assert.ok(getPublicToolActivity(tool, { ok: true }), `${tool} has no terminal activity label`);
+}
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: false,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: false,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
+for (const [name, context] of [
+  ['canva_read', { canvaReadAuthenticated: false, canvaReadTool: { execute: async () => ({}) } }],
+  ['canva_read', { canvaReadAuthenticated: true }],
+  ['gmail_read', { gmailReadAuthenticated: false, gmailReadTool: { execute: async () => ({}) } }],
+  ['gmail_read', { gmailReadAuthenticated: true }]
+]) {
+  const unavailable = await executeNvidiaToolCall(
+    hafize,
+    { id: 'call_connector', type: 'function', function: { name, arguments: '{}' } },
+    { traceId: '00000000-0000-4000-8000-000000000002', agent: hafize, registry, ...context }
+  );
+  assert.deepEqual(unavailable, { ok: false, error: 'TOOL_UNAVAILABLE' });
+}
+// An authenticated connector still needs the agent policy permission: the
+// reviewer specialist may read repositories but never the owner's mailbox.
+const connectorContext = {
+  traceId: '00000000-0000-4000-8000-000000000002',
+  registry,
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({ leaked: 'MAILBOX_CONTENT' }) }
+};
+assert.deepEqual(getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name), []);
+const deniedConnector = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_connector_denied', type: 'function', function: { name: 'gmail_read', arguments: '{}' } },
+  { ...connectorContext, agent: reviewer }
+);
+assert.equal(deniedConnector.ok, false);
+assert.equal(deniedConnector.error, 'TOOL_NOT_AUTHORIZED');
+assert.equal(JSON.stringify(deniedConnector).includes('MAILBOX_CONTENT'), false);
+// The primary agent is allowed, and the connector payload is returned intact.
+const allowedConnector = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_connector_allowed',
+    type: 'function',
+    function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'profile.get' }) }
+  },
+  { ...connectorContext, agent: hafize, gmailReadTool: { execute: async (args) => ({ echoed: args }) } }
+);
+assert.deepEqual(allowedConnector, { ok: true, value: { echoed: { operation: 'profile.get' } } });
+
+// Connector activity labels never carry mailbox or design payloads.
+const connectorActivity = JSON.stringify(
+  getPublicToolActivity('gmail_read', {
+    ok: true,
+    value: { messages: [{ id: 'abc', snippet: 'PRIVATE_MAIL_SNIPPET' }] }
+  })
+);
+assert.equal(connectorActivity.includes('PRIVATE_MAIL_SNIPPET'), false);
+assert.equal(connectorActivity.includes('abc'), false);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -196,4 +264,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, configured GitHub repo.read and authenticated Canva/Gmail connector reads are policy-gated');
