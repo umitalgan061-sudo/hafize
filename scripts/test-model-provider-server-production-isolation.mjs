@@ -20,11 +20,12 @@ assert.match(agentRunSource, /nvidiaFetch/);
 assert.doesNotMatch(agentRunSource, /MODEL_PROVIDER_NODE_SERVER_RUNTIME/);
 assert.doesNotMatch(agentRunSource, /localProviderConfigured|HAFIZE_LOCAL_PROVIDER/);
 
-const schedulerStart = server.indexOf('const SCHEDULED_AGENT_EXECUTOR');
+const schedulerStart = server.indexOf('const SCHEDULED_NVIDIA_COMPLETE');
 const schedulerEnd = server.indexOf('const SCHEDULE_EXECUTION_RUNTIME');
 const schedulerSource = server.slice(schedulerStart, schedulerEnd);
+assert.match(schedulerSource, /complete: nvidiaJsonCompletion/);
 assert.match(schedulerSource, /nvidiaConfigured: Boolean\(NVIDIA_API_KEY\)/);
-assert.match(schedulerSource, /nvidiaJsonCompletion/);
+assert.match(schedulerSource, /complete: SCHEDULED_NVIDIA_COMPLETE/);
 assert.doesNotMatch(schedulerSource, /MODEL_PROVIDER_NODE_SERVER_RUNTIME|local:/);
 
 const screenStart = server.indexOf('const SCREEN_ANALYSIS_SERVER_RUNTIME');
