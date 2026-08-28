@@ -25,7 +25,7 @@ const sessionIssuer = createRevocableCloudSessionAuth({
   subject,
   ttlMs: 120_000
 });
-const login = await sessionIssuer.login(password);
+const login = await sessionIssuer.login({ password });
 assert.equal(login.ok, true);
 const cookie = login.setCookie.split(';', 1)[0];
 
@@ -89,7 +89,7 @@ assert.deepEqual(
 );
 
 // A fresh session nonce is not collateral-damaged by the old fingerprint.
-const freshLogin = await sessionIssuer.login(password);
+const freshLogin = await sessionIssuer.login({ password });
 const freshCookie = freshLogin.setCookie.split(';', 1)[0];
 assert.notEqual(freshCookie, cookie);
 const fresh = secondPrivileged.authenticate({ headers: { cookie: freshCookie, origin } });
