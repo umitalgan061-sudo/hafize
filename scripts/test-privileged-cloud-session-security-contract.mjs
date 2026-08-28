@@ -58,6 +58,6 @@ assert.equal(registry.agents.length, 4);
 assert.equal(registry.policy.externalWritesRequireApproval, true);
 assert.equal(registry.policy.secretsNeverEnterAgentContext, true);
 assert.equal(registry.policy.sharedTraceIdRequired, true);
-for (const agent of registry.agents) assert.equal(agent.toolPolicy.denyByDefault, true);
+for (const agent of registry.agents) assert.equal(agent.toolPolicy.default, 'deny');
 
 console.log('privileged cloud session security contract tests passed');
