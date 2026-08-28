@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PERSONAL_MEMORY_APPROVAL_HTTP } from '../lib/personal-memory-http-api.mjs';
 import { createPersonalMemoryServerRuntime } from '../lib/personal-memory-server-runtime.mjs';
 import { PERSONAL_MEMORY_FILE_NAME } from '../lib/personal-memory-runtime.mjs';
 
@@ -15,14 +16,23 @@ const env = {
   HAFIZE_MEMORY_STORAGE_DIR: directory
 };
 
-function input(method, pathname, { body = {}, search = '', authorized = true } = {}) {
+function input(method, pathname, { body = {}, search = '', authorized = true, approvalToken = '' } = {}) {
+  const headers = authorized ? { authorization: `Bearer ${authToken}` } : {};
+  if (approvalToken) headers[PERSONAL_MEMORY_APPROVAL_HTTP.header] = approvalToken;
   return {
     request: { body },
     method,
     pathname,
     url: new URL(`http://localhost${pathname}${search}`),
-    headers: authorized ? { authorization: `Bearer ${authToken}` } : {}
+    headers
   };
+}
+
+async function approvedMutation(runtime, { command, method, pathname, body }) {
+  const prepared = await runtime.handle(input('POST', PERSONAL_MEMORY_APPROVAL_HTTP.path, { body: { command } }));
+  assert.equal(prepared.status, 200);
+  assert.deepEqual(prepared.body.command, command);
+  return runtime.handle(input(method, pathname, { body, approvalToken: prepared.body.approvalToken }));
 }
 
 try {
@@ -46,15 +56,19 @@ try {
   assert.equal(response.status, 401);
   assert.deepEqual(response.body, { error: 'AUTH_REQUIRED' });
 
-  response = await runtime.handle(input('POST', '/api/memory', {
-    body: {
-      kind: 'preference',
-      content: 'Tenis oynamayı seviyorum',
-      sourceType: 'user_statement',
-      sensitivity: 'personal',
-      explicitUserIntent: true
-    }
-  }));
+  const writeBody = {
+    kind: 'preference',
+    content: 'Tenis oynamayı seviyorum',
+    sourceType: 'user_statement',
+    sensitivity: 'personal',
+    explicitUserIntent: true
+  };
+  response = await approvedMutation(runtime, {
+    command: { kind: 'write', body: writeBody },
+    method: 'POST',
+    pathname: '/api/memory',
+    body: writeBody
+  });
   assert.equal(response.status, 200);
   assert.equal(response.body.record.content, 'Tenis oynamayı seviyorum');
   assert.equal('ownerId' in response.body.record, false);
@@ -72,9 +86,13 @@ try {
   assert.equal(encrypted.includes('memory-production-user'), false);
   assert.equal(encrypted.includes(authToken), false);
 
-  response = await runtime.handle(input('DELETE', `/api/memory/${memoryId}`, {
-    body: { exactMatch: true, explicitUserIntent: true }
-  }));
+  const deleteBody = { exactMatch: true, explicitUserIntent: true };
+  response = await approvedMutation(runtime, {
+    command: { kind: 'delete-one', memoryId, body: deleteBody },
+    method: 'DELETE',
+    pathname: `/api/memory/${memoryId}`,
+    body: deleteBody
+  });
   assert.equal(response.status, 200);
   assert.equal(response.body.deleted, 1);
 
