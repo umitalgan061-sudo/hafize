@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createPersonalMemoryControlRuntime } from '../lib/personal-memory-control-runtime.mjs';
-import { createPersonalMemoryHttpApi } from '../lib/personal-memory-http-api.mjs';
+import { createPersonalMemoryHttpApi, PERSONAL_MEMORY_APPROVAL_HTTP } from '../lib/personal-memory-http-api.mjs';
 
+const OWNER = `owner_${'a'.repeat(43)}`;
 const env = {
   HAFIZE_CONNECTOR_AUTH_TOKEN: 'x'.repeat(40),
   HAFIZE_CONNECTOR_AUTH_SUBJECT: 'user@example.com',
@@ -25,7 +26,7 @@ const runtime = await createPersonalMemoryControlRuntime({
     authOptions = options;
     return { authenticate({ headers }) { return headers?.authorization === 'Bearer ok' ? { ok: true, principal: { authenticated: true, subject: 'user@example.com' } } : { ok: false }; } };
   },
-  createOwnerResolver(options) { ownerOptions = options; return { resolve() { return { ownerId: 'owner_private' }; } }; },
+  createOwnerResolver(options) { ownerOptions = options; return { resolve() { return { ownerId: OWNER }; } }; },
   createMemoryRuntime(options) { memoryOptions = options; return memory; }
 });
 assert.equal(runtime.configured, true);
@@ -34,7 +35,7 @@ assert.equal(authOptions.token, env.HAFIZE_CONNECTOR_AUTH_TOKEN);
 assert.equal(authOptions.subject, env.HAFIZE_CONNECTOR_AUTH_SUBJECT);
 assert.deepEqual(ownerOptions.key, Buffer.alloc(32, 2));
 assert.equal(memoryOptions.env, env);
-assert.deepEqual(runtime.authenticate({ authorization: 'Bearer ok' }), { ownerId: 'owner_private', authMode: 'bearer' });
+assert.deepEqual(runtime.authenticate({ authorization: 'Bearer ok' }), { ownerId: OWNER, authMode: 'bearer' });
 assert.equal(runtime.authenticate({}), null);
 
 const disabled = await createPersonalMemoryControlRuntime({ env: {} });
@@ -53,41 +54,71 @@ for (const bad of [
 let nextBody = {};
 const api = createPersonalMemoryHttpApi({ runtime, readJson: async () => nextBody });
 const base = { headers: { authorization: 'Bearer ok' }, request: {}, url: new URL('http://localhost/api/memory?query=spor&kinds=preference&limit=3') };
+
+async function approvalHeaders(command, mutationBody) {
+  nextBody = { command };
+  const prepared = await api.handle({ ...base, method: 'POST', pathname: PERSONAL_MEMORY_APPROVAL_HTTP.path });
+  assert.equal(prepared.status, 200);
+  assert.deepEqual(prepared.body.command, command);
+  nextBody = mutationBody;
+  return { ...base.headers, [PERSONAL_MEMORY_APPROVAL_HTTP.header]: prepared.body.approvalToken };
+}
+
 let response = await api.handle({ ...base, method: 'GET', pathname: '/api/memory' });
 assert.equal(response.status, 200);
 assert.equal('ownerId' in response.body.records[0], false);
-assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', query: 'spor', kinds: ['preference'], limit: 3 });
+assert.deepEqual(calls.at(-1)[1], { ownerId: OWNER, query: 'spor', kinds: ['preference'], limit: 3 });
 
-nextBody = { explicitUserIntent: true };
-response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory/export' });
+const exportBody = { explicitUserIntent: true };
+response = await api.handle({
+  ...base,
+  headers: await approvalHeaders({ kind: 'export', body: exportBody }, exportBody),
+  method: 'POST',
+  pathname: '/api/memory/export'
+});
 assert.equal(response.status, 200);
 assert.equal('ownerId' in response.body.records[0], false);
-assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', explicitUserIntent: true });
+assert.deepEqual(calls.at(-1)[1], { ownerId: OWNER, explicitUserIntent: true });
 
-nextBody = { explicitUserIntent: true, confirmDeleteAll: true };
-response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory' });
+const deleteAllBody = { explicitUserIntent: true, confirmDeleteAll: true };
+response = await api.handle({
+  ...base,
+  headers: await approvalHeaders({ kind: 'delete-all', body: deleteAllBody }, deleteAllBody),
+  method: 'DELETE',
+  pathname: '/api/memory'
+});
 assert.equal(response.status, 200);
-assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', confirmOwnerId: 'owner_private', explicitUserIntent: true });
+assert.deepEqual(calls.at(-1)[1], { ownerId: OWNER, confirmOwnerId: OWNER, explicitUserIntent: true });
 
 nextBody = { explicitUserIntent: true };
 response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory' });
 assert.equal(response.status, 400);
 
-nextBody = { kind: 'preference', content: 'Tenisi severim', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true };
-response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory' });
+const writeBody = { kind: 'preference', content: 'Tenisi severim', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true };
+response = await api.handle({
+  ...base,
+  headers: await approvalHeaders({ kind: 'write', body: writeBody }, writeBody),
+  method: 'POST',
+  pathname: '/api/memory'
+});
 assert.equal(response.status, 200);
 assert.equal('ownerId' in response.body.record, false);
-assert.equal(calls.at(-1)[1].ownerId, 'owner_private');
+assert.equal(calls.at(-1)[1].ownerId, OWNER);
 
 nextBody = { kind: 'preference', content: 'sessiz yaz', sourceType: 'user_statement', sensitivity: 'personal' };
 response = await api.handle({ ...base, method: 'POST', pathname: '/api/memory' });
 assert.equal(response.status, 400);
 assert.equal(calls.at(-1)[0], 'write');
 
-nextBody = { exactMatch: true, explicitUserIntent: true };
-response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory/memory_12345678' });
+const deleteOneBody = { exactMatch: true, explicitUserIntent: true };
+response = await api.handle({
+  ...base,
+  headers: await approvalHeaders({ kind: 'delete-one', memoryId: 'memory_12345678', body: deleteOneBody }, deleteOneBody),
+  method: 'DELETE',
+  pathname: '/api/memory/memory_12345678'
+});
 assert.equal(response.status, 200);
-assert.deepEqual(calls.at(-1)[1], { ownerId: 'owner_private', memoryId: 'memory_12345678', exactMatch: true });
+assert.deepEqual(calls.at(-1)[1], { ownerId: OWNER, memoryId: 'memory_12345678', exactMatch: true });
 
 nextBody = { exactMatch: true };
 response = await api.handle({ ...base, method: 'DELETE', pathname: '/api/memory/memory_12345678' });
