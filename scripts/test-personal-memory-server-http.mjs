@@ -5,6 +5,7 @@ import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PERSONAL_MEMORY_APPROVAL_HTTP } from '../lib/personal-memory-http-api.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'hafize-memory-http-'));
@@ -24,9 +25,10 @@ async function reservePort() {
   return port;
 }
 
-async function request(port, pathname, { method = 'GET', body, authorized = true } = {}) {
+async function request(port, pathname, { method = 'GET', body, authorized = true, approvalToken = '' } = {}) {
   const headers = { Accept: 'application/json' };
   if (authorized) headers.Authorization = `Bearer ${authToken}`;
+  if (approvalToken) headers[PERSONAL_MEMORY_APPROVAL_HTTP.header] = approvalToken;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const response = await fetch(`http://127.0.0.1:${port}${pathname}`, {
     method,
@@ -101,15 +103,24 @@ try {
   let response = await request(port, '/api/memory?query=Tenis', { authorized: false });
   assert.equal(response.status, 401);
 
+  const writeBody = {
+    kind: 'preference',
+    content: 'Tenis oynamayı seviyorum',
+    sourceType: 'user_statement',
+    sensitivity: 'personal',
+    explicitUserIntent: true
+  };
+  const prepared = await request(port, PERSONAL_MEMORY_APPROVAL_HTTP.path, {
+    method: 'POST',
+    body: { command: { kind: 'write', body: writeBody } }
+  });
+  assert.equal(prepared.status, 200);
+  assert.deepEqual(prepared.body.command, { kind: 'write', body: writeBody });
+
   response = await request(port, '/api/memory', {
     method: 'POST',
-    body: {
-      kind: 'preference',
-      content: 'Tenis oynamayı seviyorum',
-      sourceType: 'user_statement',
-      sensitivity: 'personal',
-      explicitUserIntent: true
-    }
+    body: writeBody,
+    approvalToken: prepared.body.approvalToken
   });
   assert.equal(response.status, 200);
   assert.equal(response.body.record.content, 'Tenis oynamayı seviyorum');
