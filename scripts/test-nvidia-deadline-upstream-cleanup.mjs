@@ -21,6 +21,15 @@ function createRuntime(fetchImpl, { jsonTimeoutMs = 25, streamTimeoutMs = 1_000 
   });
 }
 
+async function withEventLoopLease(work) {
+  const lease = setInterval(() => {}, 1_000);
+  try {
+    return await work();
+  } finally {
+    clearInterval(lease);
+  }
+}
+
 function abortError(message = 'aborted') {
   const error = new Error(message);
   error.name = 'AbortError';
@@ -64,10 +73,10 @@ function pendingJsonResponse(signal, state) {
     return pendingJsonResponse(options.signal, state);
   }, { jsonTimeoutMs: 15 });
 
-  await assert.rejects(
+  await withEventLoopLease(() => assert.rejects(
     runtime.complete({ model: 'nvidia/test', messages: [] }),
     (error) => error?.code === 'NVIDIA_CHAT_TIMEOUT' && error?.status === 504
-  );
+  ));
   assert.equal(state.readCalls, 1);
   assert.equal(state.signal.aborted, true, 'deadline aborts the NVIDIA fetch signal');
   assert.equal(state.cancelCalls, 1, 'deadline read failure explicitly cancels the body reader');
@@ -99,10 +108,10 @@ function pendingJsonResponse(signal, state) {
     return pendingJsonResponse(options.signal, state);
   }, { jsonTimeoutMs: 15 });
 
-  await assert.rejects(
+  await withEventLoopLease(() => assert.rejects(
     runtime.listModels(),
     (error) => error?.code === 'NVIDIA_CHAT_TIMEOUT' && error?.status === 504
-  );
+  ));
   assert.equal(state.signal.aborted, true);
   assert.equal(state.cancelCalls, 1, 'model-list deadline closes active reader too');
   assert.equal(state.releaseCalls, 1);
@@ -143,10 +152,10 @@ function pendingJsonResponse(signal, state) {
 
   const stream = await runtime.stream({ model: 'nvidia/test', messages: [], stream: true });
   const startedAt = Date.now();
-  await assert.rejects(
+  await withEventLoopLease(() => assert.rejects(
     async () => { for await (const _chunk of stream) { /* pending until deadline */ } },
     (error) => error?.code === 'NVIDIA_STREAM_TIMEOUT' && error?.status === 504
-  );
+  ));
   assert.ok(Date.now() - startedAt >= 500, 'stream deadline is not an immediate synthetic failure');
   assert.equal(state.signal.aborted, true, 'stream deadline aborts NVIDIA request signal');
   assert.equal(state.nextCalls, 1);
