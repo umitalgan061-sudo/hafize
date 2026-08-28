@@ -9,7 +9,10 @@ ve `npm test` aynı koşucuyu çağırır.
    uygulama kabuğuna ait `public/*.js` dosyaları `node --check` ile taranır.
    Burada bir hata varsa testler koşturulmaz.
 2. **Doğrulayıcılar** — `scripts/validate-agent-registry.mjs` gibi test öneki
-   taşımayan betikler koşar.
+   taşımayan betikler koşar. Registry doğrulayıcısı, `agents/registry.json` ile
+   `lib/tool-runtime.mjs` içindeki araç kataloğunun ayrışmadığını denetler:
+   yasaklı izin uygulayan araç, aynı izni paylaşan iki araç ve hiçbir ajana
+   verilmemiş araç izni burada yakalanır.
 3. **Testler** — `scripts/test-*.mjs` kalıbındaki her betik alfabetik sırada
    koşar.
 
