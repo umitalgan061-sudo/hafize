@@ -84,7 +84,7 @@ function fixture({ existingStatus = null, online = true } = {}) {
   const timers = new Map();
   const setTimeoutImpl = (fn, ms) => { timerId += 1; timers.set(timerId, { fn, ms }); return timerId; };
   const clearTimeoutImpl = (id) => timers.delete(id);
-  return { documentRef, topbar, listeners, navigatorRef, timers, setTimeoutImpl, clearTimeoutImpl };
+  return { rootRef, documentRef, topbar, listeners, navigatorRef, timers, setTimeoutImpl, clearTimeoutImpl };
 }
 
 {
