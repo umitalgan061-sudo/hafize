@@ -1,5 +1,17 @@
 import assert from 'node:assert/strict';
-import { createPersonalMemoryHttpApi } from '../lib/personal-memory-http-api.mjs';
+import { createPersonalMemoryHttpApi, PERSONAL_MEMORY_APPROVAL_HTTP } from '../lib/personal-memory-http-api.mjs';
+
+const SESSION_OWNER = `owner_${'s'.repeat(43)}`;
+const SERVICE_OWNER = `owner_${'b'.repeat(43)}`;
+const APPROVAL = 'session-origin-approved';
+const MEMORY_ID = 'memory_12345678';
+const WRITE_BODY = Object.freeze({
+  kind: 'note',
+  content: 'new memory',
+  sourceType: 'user_note',
+  sensitivity: 'personal',
+  explicitUserIntent: true
+});
 
 function createHarness() {
   let readJsonCalls = 0;
@@ -11,8 +23,8 @@ function createHarness() {
   const runtime = {
     configured: true,
     authenticate(headers) {
-      if (headers?.cookie === 'session=ok') return { ownerId: 'owner-session', authMode: 'session' };
-      if (headers?.authorization === 'Bearer service') return { ownerId: 'owner-service', authMode: 'bearer' };
+      if (headers?.cookie === 'session=ok') return { ownerId: SESSION_OWNER, authMode: 'session' };
+      if (headers?.authorization === 'Bearer service') return { ownerId: SERVICE_OWNER, authMode: 'bearer' };
       return null;
     },
     authorizeMutation({ headers, ownership }) {
@@ -22,17 +34,24 @@ function createHarness() {
         ? { ok: true }
         : { ok: false, error: 'ORIGIN_REQUIRED' };
     },
+    approval: {
+      prepare(command) { return { approvalToken: APPROVAL, expiresAt: '2027-01-01T00:00:00.000Z', command }; },
+      consume(command, { approvalToken }) {
+        assert.equal(approvalToken, APPROVAL);
+        return command;
+      }
+    },
     memory: {
       read({ ownerId }) {
-        return { ok: true, records: [{ ownerId, id: 'mem-1', text: 'test' }] };
+        return { ok: true, records: [{ ownerId, id: MEMORY_ID, text: 'test' }] };
       },
       async write(input) {
         writes.push(input);
-        return { ok: true, record: { ...input, id: 'mem-2' } };
+        return { ok: true, record: { ...input, id: MEMORY_ID } };
       },
       async remove(input) {
         removals.push(input);
-        return { ok: true, removed: true };
+        return { ok: true, deleted: 1 };
       },
       exportOwner(input) {
         exports.push(input);
@@ -63,7 +82,7 @@ function createHarness() {
   };
 }
 
-const url = new URL('https://hafize.example/api/memory');
+const url = new URL('https://hafize.example/api/memory?query=test');
 
 {
   const h = createHarness();
@@ -81,7 +100,7 @@ const url = new URL('https://hafize.example/api/memory');
 for (const origin of [undefined, 'https://evil.example']) {
   const h = createHarness();
   const response = await h.api.handle({
-    request: { body: { text: 'new memory', explicitUserIntent: true } },
+    request: { body: WRITE_BODY },
     method: 'POST',
     pathname: '/api/memory',
     url,
@@ -96,35 +115,39 @@ for (const origin of [undefined, 'https://evil.example']) {
 {
   const h = createHarness();
   const response = await h.api.handle({
-    request: { body: { text: 'new memory', explicitUserIntent: true } },
+    request: { body: WRITE_BODY },
     method: 'POST',
     pathname: '/api/memory',
     url,
-    headers: { cookie: 'session=ok', origin: 'https://hafize.example' }
+    headers: {
+      cookie: 'session=ok',
+      origin: 'https://hafize.example',
+      [PERSONAL_MEMORY_APPROVAL_HTTP.header]: APPROVAL
+    }
   });
   assert.equal(response.status, 200);
   assert.equal(h.readJsonCalls, 1);
   assert.equal(h.writes.length, 1);
-  assert.equal(h.writes[0].ownerId, 'owner-session');
+  assert.equal(h.writes[0].ownerId, SESSION_OWNER);
 }
 
 {
   const h = createHarness();
   const response = await h.api.handle({
-    request: { body: { text: 'server memory', explicitUserIntent: true } },
+    request: { body: { ...WRITE_BODY, content: 'server memory' } },
     method: 'POST',
     pathname: '/api/memory',
     url,
-    headers: { authorization: 'Bearer service' }
+    headers: { authorization: 'Bearer service', [PERSONAL_MEMORY_APPROVAL_HTTP.header]: APPROVAL }
   });
-  assert.equal(response.status, 200, 'server bearer flow must remain compatible without browser Origin');
-  assert.equal(h.writes[0].ownerId, 'owner-service');
+  assert.equal(response.status, 200, 'server bearer flow remains Origin-independent but still requires approval');
+  assert.equal(h.writes[0].ownerId, SERVICE_OWNER);
 }
 
 for (const scenario of [
   { method: 'POST', pathname: '/api/memory/export', body: { explicitUserIntent: true }, list: 'exports' },
-  { method: 'DELETE', pathname: '/api/memory', body: { explicitUserIntent: true }, list: 'deletes' },
-  { method: 'DELETE', pathname: '/api/memory/mem-1', body: { exactMatch: true, explicitUserIntent: true }, list: 'removals' }
+  { method: 'DELETE', pathname: '/api/memory', body: { explicitUserIntent: true, confirmDeleteAll: true }, list: 'deletes' },
+  { method: 'DELETE', pathname: `/api/memory/${MEMORY_ID}`, body: { exactMatch: true, explicitUserIntent: true }, list: 'removals' }
 ]) {
   const h = createHarness();
   const denied = await h.api.handle({
