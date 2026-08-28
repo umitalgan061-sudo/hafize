@@ -14,7 +14,7 @@ function localRuntimeFactory(options) {
     async complete({ payload, signal, toolsRequired }) {
       if (payload.model.startsWith('local:')) {
         if (toolsRequired) { const e = new Error('LOCAL_PROVIDER_TOOLS_UNSUPPORTED'); e.code = e.message; e.status = 400; throw e; }
-        return { provider: 'local', result: { choices: [{ message: { role: 'assistant', content: 'local-ok' } }] };
+        return { provider: 'local', result: { choices: [{ message: { role: 'assistant', content: 'local-ok' } }] } };
       }
       return { provider: 'nvidia', result: await options.nvidiaComplete(payload, signal) };
     },
