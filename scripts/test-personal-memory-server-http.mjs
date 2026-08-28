@@ -68,7 +68,8 @@ const output = { stdout: '', stderr: '' };
 const secretValues = [
   authToken,
   Buffer.alloc(32, 81).toString('base64'),
-  Buffer.alloc(32, 82).toString('base64')
+  Buffer.alloc(32, 82).toString('base64'),
+  Buffer.alloc(32, 84).toString('base64')
 ];
 const child = spawn(process.execPath, ['server.mjs'], {
   cwd: ROOT,
@@ -84,6 +85,8 @@ const child = spawn(process.execPath, ['server.mjs'], {
     HAFIZE_CONNECTOR_OWNER_KEY_B64: secretValues[1],
     HAFIZE_MEMORY_KEY_B64: secretValues[2],
     HAFIZE_MEMORY_STORAGE_DIR: join(directory, 'memory'),
+    HAFIZE_OAUTH_TOKEN_KEY_B64: secretValues[3],
+    HAFIZE_OAUTH_TOKEN_STORAGE_DIR: join(directory, 'oauth'),
     HAFIZE_SCHEDULE_STORAGE_FILE: join(directory, 'schedule.enc'),
     HAFIZE_SCHEDULE_STORAGE_KEY_BASE64: Buffer.alloc(32, 83).toString('base64'),
     HAFIZE_SCHEDULE_LEASE_PROVIDER: ''
