@@ -15,7 +15,7 @@ const env = {
   HAFIZE_CLOUD_SESSION_SUBJECT: subject,
   HAFIZE_CLOUD_SESSION_ORIGIN: origin,
   HAFIZE_CLOUD_SESSION_TTL_MS: '120000',
-  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'server-bearer-token',
+  HAFIZE_GITHUB_WRITE_AUTH_TOKEN: 'server-bearer-token-1234567890123456',
   HAFIZE_GITHUB_WRITE_AUTH_SUBJECT: 'service:github-write'
 };
 
@@ -39,12 +39,12 @@ assert.equal(auth.modes.bearer, true);
 assert.equal(auth.modes.cloudSession, true);
 
 // Server-to-server bearer remains origin-independent and takes precedence over a bad cookie.
-const bearer = auth.authenticate({ headers: { authorization: 'Bearer server-bearer-token' } });
+const bearer = auth.authenticate({ headers: { authorization: 'Bearer server-bearer-token-1234567890123456' } });
 assert.equal(bearer.ok, true);
 assert.equal(bearer.principal.subject, 'service:github-write');
 const bearerWithForeignOrigin = auth.authenticate({
   headers: {
-    authorization: 'Bearer server-bearer-token',
+    authorization: 'Bearer server-bearer-token-1234567890123456',
     origin: 'https://evil.example',
     cookie
   }
