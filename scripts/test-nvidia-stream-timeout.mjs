@@ -171,8 +171,8 @@ assert.throws(
     runtime.stream({ model: 'nvidia/test', messages: [] }),
     (error) => error?.code === 'NVIDIA_CHAT_ERROR' && error?.status === 503
   );
-  await new Promise((resolve) => setTimeout(resolve, 1100));
-  assert.equal(observedSignal.aborted, false, 'HTTP failure must dispose the deadline timer');
+  assert.equal(observedSignal.aborted, true, 'HTTP failure aborts the request signal for cleanup');
+  assert.equal(observedSignal.reason?.code, 'NVIDIA_CHAT_ERROR');
 }
 
 {
@@ -190,8 +190,8 @@ assert.throws(
     runtime.stream({ model: 'nvidia/test', messages: [] }),
     (error) => error?.code === 'INVALID_NVIDIA_RESPONSE_TYPE'
   );
-  await new Promise((resolve) => setTimeout(resolve, 1100));
-  assert.equal(observedSignal.aborted, false, 'media-type failure must dispose the deadline timer');
+  assert.equal(observedSignal.aborted, true, 'media-type failure aborts the request signal for cleanup');
+  assert.equal(observedSignal.reason?.code, 'INVALID_NVIDIA_RESPONSE_TYPE');
 }
 
 process.stdout.write('NVIDIA stream timeout tests passed\n');
