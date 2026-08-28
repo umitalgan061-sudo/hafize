@@ -14,7 +14,7 @@ function localRuntimeFactory(options) {
     async complete({ payload, signal, toolsRequired }) {
       if (payload.model.startsWith('local:')) {
         if (toolsRequired) { const e = new Error('LOCAL_PROVIDER_TOOLS_UNSUPPORTED'); e.code = e.message; e.status = 400; throw e; }
-        return { provider: 'local', result: { choices: [{ message: { role: 'assistant', content: 'local-ok' } }] } };
+        return { provider: 'local', result: { choices: [{ message: { role: 'assistant', content: 'local-ok' } }] };
       }
       return { provider: 'nvidia', result: await options.nvidiaComplete(payload, signal) };
     },
@@ -31,7 +31,12 @@ function boundaryFactory({ runtime }) {
 }
 const fetchImpl = async (url) => {
   assert.match(String(url), /integrate\.api\.nvidia\.com/);
-  return { ok: true, status: 200, async json() { return { data: [{ id: 'nvidia/a' }] }; } };
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (name) => String(name).toLowerCase() === 'content-type' ? 'application/json' : null },
+    async json() { return { data: [{ id: 'nvidia/a' }] }; }
+  };
 };
 const runtime = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'secret', HAFIZE_LOCAL_PROVIDER_ENABLED: 'true' }, fetchImpl,
