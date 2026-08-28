@@ -51,6 +51,9 @@ await assert.rejects(() => client.read({ ownerId: 'owner:1', operation: 'user.ge
 record = { ...record, expiresAt: future + 120_000 };
 
 for (const input of [
+  null,
+  42,
+  [],
   { ownerId: '../bad', operation: 'user.get' },
   { ownerId: 'owner', operation: 'design.delete' },
   { ownerId: 'owner', operation: 'design.list', params: { limit: 101 } },
@@ -67,5 +70,7 @@ const httpClient = createCanvaReadClient({ tokenStore, now: () => future, fetchI
 await assert.rejects(() => httpClient.read({ ownerId: 'owner', operation: 'user.get' }), /CANVA_READ_FAILED:http/);
 
 assert.throws(() => createCanvaReadClient({}), /INVALID_CANVA_READ:tokenStore/);
+assert.throws(() => createCanvaReadClient(null), /INVALID_CANVA_READ:options/);
+assert.throws(() => createCanvaReadClient('token'), /INVALID_CANVA_READ:options/);
 assert.throws(() => createCanvaReadClient({ tokenStore, fetchImpl: null }), /INVALID_CANVA_READ:fetch/);
 console.log('canva read client tests passed');

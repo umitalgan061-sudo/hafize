@@ -43,6 +43,8 @@ assert.equal(calls[1][1], 'https://gmail.googleapis.com/gmail/v1/users/me/profil
 
 for (const input of [
   null,
+  42,
+  [],
   {},
   { ownerId: '../escape', operation: 'profile.get' },
   { ownerId: 'owner_opaque', operation: 'message.delete' },
@@ -72,4 +74,6 @@ const echo = createGmailReadClient({
   now: () => now
 });
 await assert.rejects(() => echo.read({ ownerId: 'owner_opaque', operation: 'profile.get' }), /GMAIL_READ_FAILED:response/);
+assert.throws(() => createGmailReadClient(null), /INVALID_GMAIL_READ:options/);
+assert.throws(() => createGmailReadClient('token'), /INVALID_GMAIL_READ:options/);
 console.log('gmail read client tests passed');
