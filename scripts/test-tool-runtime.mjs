@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -72,6 +74,25 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+// Katalogdaki her araç, iç detay sızdırmayan running/success/failure etiketleri taşımalıdır.
+// Yeni bir araç etiketsiz kaydedilirse bu döngü kırmızıya döner.
+for (const { functionName } of listToolPermissions()) {
+  const running = getPublicToolRunningActivity(functionName);
+  assert.equal(running?.state, 'running', `${functionName} running etiketi eksik`);
+  assert.equal(typeof running.label, 'string');
+  assert.ok(running.label.length > 0);
+
+  const success = getPublicToolActivity(functionName, { ok: true, value: { token: 'super-secret-token' } });
+  assert.equal(success?.state, 'success', `${functionName} success etiketi eksik`);
+  assert.deepEqual(Object.keys(success).sort(), ['label', 'state']);
+
+  const failure = getPublicToolActivity(functionName, { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' });
+  assert.equal(failure?.state, 'failure', `${functionName} failure etiketi eksik`);
+  assert.deepEqual(Object.keys(failure).sort(), ['label', 'state']);
+  assert.equal(JSON.stringify([running, success, failure]).includes('PRIVATE_INTERNAL_DETAIL'), false);
+  assert.equal(JSON.stringify([running, success, failure]).includes('super-secret-token'), false);
+}
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
 assert.deepEqual(
@@ -83,6 +104,35 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+// Connector araçları yalnızca kimliği doğrulanmış bağlantı + çalıştırılabilir boundary varken sunulur.
+const canvaContext = {
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({ operation: 'user.get' }) }
+};
+const gmailContext = {
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({ operation: 'profile.get' }) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...canvaContext, ...gmailContext }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { canvaReadAuthenticated: false, canvaReadTool: canvaContext.canvaReadTool })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { gmailReadAuthenticated: true }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
+// Bağlantı izni olmayan uzman ajan, bağlantı doğrulanmış olsa bile connector araçlarını görmez.
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, { ...canvaContext, ...gmailContext, githubReadConfigured: true })
+    .map((tool) => tool.function.name),
+  ['github_read_file']
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -189,6 +239,86 @@ const safeExecutionError = await executeNvidiaToolCall(
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
 
+const canvaCall = {
+  id: 'call_canva',
+  type: 'function',
+  function: { name: 'canva_read', arguments: JSON.stringify({ operation: 'user.get' }) }
+};
+const gmailCall = {
+  id: 'call_gmail',
+  type: 'function',
+  function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'profile.get' }) }
+};
+
+const canvaResult = await executeNvidiaToolCall(hafize, canvaCall, {
+  traceId,
+  agent: hafize,
+  registry,
+  ...canvaContext
+});
+assert.deepEqual(canvaResult, { ok: true, value: { operation: 'user.get' } });
+
+const gmailResult = await executeNvidiaToolCall(hafize, gmailCall, {
+  traceId,
+  agent: hafize,
+  registry,
+  ...gmailContext
+});
+assert.deepEqual(gmailResult, { ok: true, value: { operation: 'profile.get' } });
+
+// Bağlantı doğrulanmamışsa araç hiç çalıştırılmaz.
+let canvaExecuted = false;
+const unauthenticatedCanva = await executeNvidiaToolCall(hafize, canvaCall, {
+  traceId,
+  agent: hafize,
+  registry,
+  canvaReadAuthenticated: false,
+  canvaReadTool: {
+    execute: async () => {
+      canvaExecuted = true;
+      return {};
+    }
+  }
+});
+assert.deepEqual(unauthenticatedCanva, { ok: false, error: 'TOOL_UNAVAILABLE' });
+assert.equal(canvaExecuted, false);
+
+// İzin verilmemiş ajan, bağlantı hazır olsa bile connector aracını çalıştıramaz.
+let gmailExecuted = false;
+const deniedGmail = await executeNvidiaToolCall(reviewer, gmailCall, {
+  traceId,
+  agent: reviewer,
+  registry,
+  gmailReadAuthenticated: true,
+  gmailReadTool: {
+    execute: async () => {
+      gmailExecuted = true;
+      return {};
+    }
+  }
+});
+assert.equal(deniedGmail.ok, false);
+assert.equal(deniedGmail.error, 'TOOL_NOT_AUTHORIZED');
+assert.equal(gmailExecuted, false);
+
+// Boundary hatası iç detay değil, yalnızca kod olarak dışarı verilir.
+const canvaBoundaryError = await executeNvidiaToolCall(hafize, canvaCall, {
+  traceId,
+  agent: hafize,
+  registry,
+  canvaReadAuthenticated: true,
+  canvaReadTool: {
+    execute: async () => {
+      const error = new Error('canva refresh token leaked-detail');
+      error.code = 'INVALID_CANVA_READ_TOOL';
+      error.status = 400;
+      throw error;
+    }
+  }
+});
+assert.deepEqual(canvaBoundaryError, { ok: false, error: 'INVALID_CANVA_READ_TOOL', status: 400 });
+assert.equal(JSON.stringify(canvaBoundaryError).includes('leaked-detail'), false);
+
 const unknown = await executeNvidiaToolCall(
   hafize,
   { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
@@ -196,4 +326,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: full catalog permissions, safe state-based activity for every tool, runtime status, delegation, configured GitHub repo.read, and authenticated Canva/Gmail read are policy-gated');
