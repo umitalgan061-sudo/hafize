@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -34,8 +36,32 @@ assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
   state: 'running'
 });
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
+  state: 'running'
+});
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
 assert.equal(getPublicToolRunningActivity(null), null);
+
+// Her kayıtlı aracın üç durumu için de sızdırmayan bir etiketi olmalıdır; yeni
+// bir araç eklenip etiketi unutulursa bu kontrol sessizce geçmez.
+for (const { functionName } of listToolPermissions()) {
+  const running = getPublicToolRunningActivity(functionName);
+  assert.equal(running?.state, 'running', `${functionName} running etiketi eksik`);
+  assert.equal(typeof running.label, 'string');
+  assert.ok(running.label.length > 0, `${functionName} running etiketi boş`);
+  for (const [result, state] of [[{ ok: true }, 'success'], [{ ok: false }, 'failure']]) {
+    const activity = getPublicToolActivity(functionName, result);
+    assert.equal(activity?.state, state, `${functionName} ${state} etiketi eksik`);
+    assert.equal(typeof activity.label, 'string');
+    assert.ok(activity.label.length > 0, `${functionName} ${state} etiketi boş`);
+    assert.deepEqual(Object.keys(activity).sort(), ['label', 'state']);
+  }
+}
 const safeRunningActivity = JSON.stringify(getPublicToolRunningActivity('github_read_file'));
 assert.equal(safeRunningActivity.includes('repository'), false);
 assert.equal(safeRunningActivity.includes('path'), false);

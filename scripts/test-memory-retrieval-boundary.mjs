@@ -56,4 +56,14 @@ assert.deepEqual(
   { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' }
 );
 
+// Sınır hiçbir girdide fırlatmaz; nesne olmayan girdide de { ok: false } döner.
+for (const input of [null, [], 'user-1', 42]) {
+  assert.deepEqual(
+    normalizeMemoryRetrieval(input),
+    { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:input' },
+    `nesne olmayan girdi kodsuz hata üretmemeli: ${JSON.stringify(input)}`
+  );
+}
+assert.deepEqual(normalizeMemoryRetrieval(), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' });
+
 console.log('memory retrieval boundary tests passed');
