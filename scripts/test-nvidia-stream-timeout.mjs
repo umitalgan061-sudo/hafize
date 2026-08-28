@@ -105,11 +105,16 @@ assert.throws(
   assert.equal(first.done, false);
   assert.equal(first.value.toString('utf8'), 'data: {"partial":true}\n\n');
   const started = Date.now();
-  await assert.rejects(iterator.next(), (error) => {
-    assert.equal(error?.code, 'NVIDIA_STREAM_TIMEOUT');
-    assert.equal(error?.status, 504);
-    return true;
-  });
+  const eventLoopLease = setInterval(() => {}, 1_000);
+  try {
+    await assert.rejects(iterator.next(), (error) => {
+      assert.equal(error?.code, 'NVIDIA_STREAM_TIMEOUT');
+      assert.equal(error?.status, 504);
+      return true;
+    });
+  } finally {
+    clearInterval(eventLoopLease);
+  }
   const elapsed = Date.now() - started;
   assert.ok(elapsed >= 700 && elapsed < 2500, `timeout elapsed ${elapsed}ms`);
   assert.equal(requestSignal.aborted, true);
