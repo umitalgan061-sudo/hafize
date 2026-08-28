@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -32,6 +34,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -72,6 +82,23 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+assert.deepEqual(getPublicToolActivity('canva_read', { ok: true, value: { designId: 'DAF-private' } }), {
+  label: 'Canva verisi okundu',
+  state: 'success'
+});
+const safeGmailActivity = JSON.stringify(
+  getPublicToolActivity('gmail_read', {
+    ok: false,
+    error: 'GMAIL_SCOPE_DENIED',
+    value: { subject: 'Banka şifresi', from: 'gizli@example.com', accessToken: 'super-secret-token' }
+  })
+);
+assert.equal(safeGmailActivity.includes('Gmail verisi okunamadı'), true);
+assert.equal(safeGmailActivity.includes('GMAIL_SCOPE_DENIED'), false);
+assert.equal(safeGmailActivity.includes('gizli@example.com'), false);
+assert.equal(safeGmailActivity.includes('Banka'), false);
+assert.equal(safeGmailActivity.includes('super-secret-token'), false);
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
 assert.deepEqual(
@@ -83,6 +110,32 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+const connectedContext = {
+  githubReadConfigured: true,
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({ designs: [] }) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({ messages: [] }) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectedContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectedContext, canvaReadAuthenticated: false }).map(
+    (tool) => tool.function.name
+  ),
+  ['runtime_status', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectedContext, gmailReadTool: null }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, connectedContext).map((tool) => tool.function.name),
+  ['github_read_file']
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -189,6 +242,59 @@ const safeExecutionError = await executeNvidiaToolCall(
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
 
+const canvaResult = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_8',
+    type: 'function',
+    function: { name: 'canva_read', arguments: JSON.stringify({ resource: 'designs', limit: 2 }) }
+  },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    ...connectedContext,
+    canvaReadTool: { execute: async (args) => ({ resource: args.resource, designs: [] }) }
+  }
+);
+assert.deepEqual(canvaResult, { ok: true, value: { resource: 'designs', designs: [] } });
+
+const unauthenticatedCanva = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_9', type: 'function', function: { name: 'canva_read', arguments: '{}' } },
+  { traceId, agent: hafize, registry, ...connectedContext, canvaReadAuthenticated: false }
+);
+assert.deepEqual(unauthenticatedCanva, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const deniedGmail = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_10', type: 'function', function: { name: 'gmail_read', arguments: '{}' } },
+  { traceId, agent: reviewer, registry, ...connectedContext }
+);
+assert.equal(deniedGmail.ok, false);
+assert.equal(deniedGmail.error, 'TOOL_NOT_AUTHORIZED');
+
+const safeGmailError = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_11', type: 'function', function: { name: 'gmail_read', arguments: '{}' } },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    ...connectedContext,
+    gmailReadTool: {
+      execute: async () => {
+        const error = new Error('refresh_token=leaked-secret');
+        error.code = 'GMAIL_SCOPE_DENIED';
+        error.status = 403;
+        throw error;
+      }
+    }
+  }
+);
+assert.deepEqual(safeGmailError, { ok: false, error: 'GMAIL_SCOPE_DENIED', status: 403 });
+assert.equal(JSON.stringify(safeGmailError).includes('leaked-secret'), false);
+
 const unknown = await executeNvidiaToolCall(
   hafize,
   { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
@@ -196,4 +302,6 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log(
+  'Tool runtime OK: full tool catalog, safe state-based running/terminal activity, and policy + availability gating for runtime status, delegation, GitHub repo.read, Canva read and Gmail read'
+);
