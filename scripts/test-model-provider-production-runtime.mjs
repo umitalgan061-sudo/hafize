@@ -119,12 +119,17 @@ assert.deepEqual(await disabled.complete({ model: 'nvidia/model-a', messages: []
 const timeoutRuntime = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' }, fetchImpl: abortingFetch, jsonTimeoutMs: 1, ...options
 });
-assert.deepEqual(await timeoutRuntime.complete({ model: 'x', messages: [] }), {
-  ok: false, status: 504, error: 'NVIDIA_CHAT_TIMEOUT'
-});
-assert.deepEqual(await timeoutRuntime.listModels(), {
-  ok: false, status: 504, error: 'NVIDIA_CHAT_TIMEOUT'
-});
+const timeoutLease = setInterval(() => {}, 1000);
+try {
+  assert.deepEqual(await timeoutRuntime.complete({ model: 'x', messages: [] }), {
+    ok: false, status: 504, error: 'NVIDIA_CHAT_TIMEOUT'
+  });
+  assert.deepEqual(await timeoutRuntime.listModels(), {
+    ok: false, status: 504, error: 'NVIDIA_CHAT_TIMEOUT'
+  });
+} finally {
+  clearInterval(timeoutLease);
+}
 assert.throws(() => createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'key' }, fetchImpl, jsonTimeoutMs: 0, ...options
 }), /INVALID_NVIDIA_JSON_TIMEOUT/);
