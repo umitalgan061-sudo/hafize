@@ -142,10 +142,18 @@ assert.equal(orchestratorDelegation.status, 'completed');
 assert.equal(reviewerDelegation.status, 'completed');
 assert.equal(delegateTool.status, 'completed');
 
-const exhausted = await rootDelegator.delegate(
+const sequential = await rootDelegator.delegate(
   { agentId: reviewer.id, task: 'Ek görev.' },
   { depth: 0 }
 );
-assert.deepEqual(exhausted, { ok: false, error: 'DELEGATION_FANOUT_EXCEEDED' });
+assert.deepEqual(sequential, {
+  ok: true,
+  value: {
+    agentId: reviewer.id,
+    agentName: reviewer.name,
+    content: 'Reviewer sonucu.'
+  }
+});
+assert.equal(rootDelegator.lifecycleSnapshot().active, 0);
 
 console.log('nested delegation tests passed');

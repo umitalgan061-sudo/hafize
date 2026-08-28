@@ -7,7 +7,7 @@ const target = {
   async add(input) {
     addCalls += 1;
     await new Promise((resolve) => setTimeout(resolve, 5));
-    const entry = { ...input, scheduleId: `schedule_${entries.length + 1}` };
+    const entry = { ...input, scheduleId: `schedule_${entries.length + 1}`, status: 'scheduled' };
     entries.push(entry);
     return { ...entry };
   },

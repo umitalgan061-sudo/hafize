@@ -83,9 +83,12 @@ const smallLocal = await api.handle({
   method: 'POST',
   pathname: '/api/chat'
 });
-assert.equal(smallLocal.kind, 'stream');
-assert.equal(smallLocal.provider, 'local');
-assert.equal(streamCalls, 2);
-assert.equal(summaries, 1);
+assert.equal(smallLocal.kind, 'json');
+assert.equal(smallLocal.status, 500);
+assert.deepEqual(smallLocal.body, { error: 'CHAT_PREPARATION_FAILED' });
+assert.deepEqual(smallLocal.headers, { 'Cache-Control': 'no-store' });
+assert.equal(streamCalls, 1, 'base NVIDIA compactor must not pass local chat to provider.stream');
+assert.equal(summaries, 1, 'base NVIDIA compactor must not summarize local chat');
+assert.equal(JSON.stringify(smallLocal).includes('qwen3'), false);
 
 console.log('model provider local context HTTP tests passed');

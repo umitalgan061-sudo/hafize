@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { installHandsFreeBackgroundGuard, REVOCATION_NOTICE } = require('../public/hands-free-background-guard.js');
+const {
+  HANDS_FREE_REVOKE_EVENT,
+  installHandsFreeBackgroundGuard,
+  REVOCATION_NOTICE
+} = require('../public/hands-free-background-guard.js');
 
 class Target {
   constructor() { this.listeners = new Map(); }
@@ -15,9 +19,13 @@ class Target {
     const list = this.listeners.get(type) || [];
     this.listeners.set(type, list.filter((item) => item.fn !== fn || item.capture !== Boolean(capture)));
   }
-  fire(type) {
-    for (const item of [...(this.listeners.get(type) || [])]) item.fn({ type });
+  dispatchEvent(event) {
+    const list = [...(this.listeners.get(event?.type) || [])];
+    for (const item of list.filter((entry) => entry.capture)) item.fn(event);
+    for (const item of list.filter((entry) => !entry.capture)) item.fn(event);
+    return true;
   }
+  fire(type) { return this.dispatchEvent({ type }); }
   listenerCount(type) { return (this.listeners.get(type) || []).length; }
 }
 
@@ -33,7 +41,7 @@ function createHarness() {
     hasAttribute: (name) => attrs.has(name),
     click() {
       clicks += 1;
-      attrs.set('aria-pressed', attrs.get('aria-pressed') === 'true' ? 'false' : 'true');
+      throw new Error('SYNTHETIC_CONSENT_CLICK_FORBIDDEN');
     }
   };
   const hiddenClasses = new Set(['hidden']);
@@ -46,6 +54,7 @@ function createHarness() {
   };
   documentRef.hidden = false;
   documentRef.querySelector = (selector) => ({ '#handsFreeToggle': toggle, '#toast': toast })[selector] || null;
+  documentRef.addEventListener(HANDS_FREE_REVOKE_EVENT, () => toggle.setAttribute('aria-pressed', 'false'));
   return { documentRef, root, toggle, toast, attrs, get clicks() { return clicks; } };
 }
 
@@ -56,19 +65,19 @@ function createHarness() {
   assert.equal(h.root.listenerCount('focus'), 1);
 
   h.root.fire('blur');
-  assert.equal(h.clicks, 1, 'window blur must revoke the active hands-free session');
+  assert.equal(h.clicks, 0, 'window blur must revoke without synthesizing a consent click');
   assert.equal(h.attrs.get('aria-pressed'), 'false');
   assert.equal(controller.getLastReason(), 'window-blur');
   assert.equal(controller.hasPendingNotice(), true);
 
   h.root.fire('focus');
-  assert.equal(h.clicks, 1, 'focus must never re-enable hands-free');
+  assert.equal(h.clicks, 0, 'focus must never re-enable hands-free');
   assert.equal(controller.hasPendingNotice(), false);
   assert.equal(h.toast.textContent, REVOCATION_NOTICE);
   assert.equal(h.toast.classList.contains('hidden'), false);
 
   h.root.fire('focus');
-  assert.equal(h.clicks, 1, 'repeated focus must remain a no-op after the one-shot notice');
+  assert.equal(h.clicks, 0, 'repeated focus must remain a no-op after the one-shot notice');
 
   controller.destroy();
   assert.equal(h.root.listenerCount('blur'), 0);

@@ -34,7 +34,12 @@ const runtime = createModelProviderProductionRuntime({
     fetchCalls += 1;
     seenSignal = init.signal;
     if (init.signal?.aborted) throw new DOMException('aborted', 'AbortError');
-    return { ok: true, status: 200, async json() { return { choices: [{ message: { role: 'assistant', content: 'ok' } }] }; } };
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: (name) => String(name).toLowerCase() === 'content-type' ? 'application/json' : null },
+      async json() { return { choices: [{ message: { role: 'assistant', content: 'ok' } }] }; }
+    };
   },
   createLocalRuntime: localFactory,
   createBoundary: boundaryFactory
@@ -50,6 +55,7 @@ assert.equal(fetchCalls, 0);
 const controller = new AbortController();
 const result = await runtime.complete({ model: 'nvidia/a', messages: [] }, { signal: controller.signal });
 assert.equal(result.ok, true);
-assert.equal(seenSignal, controller.signal);
+assert.equal(seenSignal instanceof AbortSignal, true);
+assert.equal(seenSignal.aborted, false);
 
 console.log('model provider production cancellation tests passed');

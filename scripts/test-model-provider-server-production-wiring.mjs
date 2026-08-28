@@ -30,8 +30,8 @@ assert.match(server, /nvidiaFetch\('\/chat\/completions'/);
 
 // Scheduler and screen analysis deliberately remain NVIDIA-backed.
 assert.match(server, /const SCREEN_ANALYSIS_SERVER_RUNTIME = createScreenAnalysisServerRuntime\(\{[\s\S]*complete: nvidiaJsonCompletion/);
-assert.match(server, /const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor\(\{[\s\S]*nvidiaConfigured: Boolean\(NVIDIA_API_KEY\)/);
-assert.match(server, /return await nvidiaJsonCompletion\(payload, controller\.signal\)/);
+assert.match(server, /const SCHEDULED_NVIDIA_COMPLETE = createScheduledNvidiaCompletion\(\{[\s\S]*complete: nvidiaJsonCompletion,[\s\S]*timeoutMs: SCHEDULE_RUN_TIMEOUT_MS[\s\S]*\}\)/);
+assert.match(server, /const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor\(\{[\s\S]*nvidiaConfigured: Boolean\(NVIDIA_API_KEY\)[\s\S]*complete: SCHEDULED_NVIDIA_COMPLETE[\s\S]*\}\)/);
 
 // The local provider is configured only by the server-side runtime/env contract.
 assert.doesNotMatch(server, /HAFIZE_LOCAL_PROVIDER_(?:ENABLED|BASE_URL).*public\//);

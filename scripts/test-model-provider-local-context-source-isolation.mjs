@@ -6,10 +6,10 @@ const http = await readFile(new URL('../lib/model-provider-http-api.mjs', import
 
 assert.match(source, /LOCAL_MODEL_PREFIX = 'local:'/);
 assert.match(source, /LOCAL_CONTEXT_COMPACTION_UNAVAILABLE/);
-assert.match(source, /estimateMessageTokens\(messages\) <= thresholdTokens/);
-assert.match(source, /rejectUnsupportedLocalCompaction\(model, conversation, compactor\.thresholdTokens\)/);
+assert.match(source, /estimateMessageTokens\(messages\) <= compactor\.thresholdTokens/);
+assert.match(source, /rejectUnsupportedLocalCompaction\(model, conversation, compactor\)/);
 
-const guardIndex = source.indexOf('rejectUnsupportedLocalCompaction(model, conversation, compactor.thresholdTokens)');
+const guardIndex = source.indexOf('rejectUnsupportedLocalCompaction(model, conversation, compactor)');
 const compactIndex = source.indexOf('compactor.prepare(conversation, { model, signal })');
 assert.ok(guardIndex >= 0 && compactIndex > guardIndex, 'local guard must execute before compactor.prepare');
 

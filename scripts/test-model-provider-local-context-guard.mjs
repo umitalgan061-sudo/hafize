@@ -28,13 +28,18 @@ const compactor = createContextCompactor({
 });
 const preparer = createModelProviderChatPreparer({ registry, contextCompactor: compactor });
 
-const smallLocal = await preparer.prepare({
-  model: 'local:qwen3',
-  messages: [{ role: 'user', content: 'Kısa yerel konuşma' }]
-});
-assert.equal(smallLocal.payload.model, 'local:qwen3');
-assert.equal(smallLocal.headers['X-Hafize-Context-Compacted'], '0');
-assert.equal(summarizeCalls.length, 0);
+await assert.rejects(
+  () => preparer.prepare({
+    model: 'local:qwen3',
+    messages: [{ role: 'user', content: 'Kısa yerel konuşma' }]
+  }),
+  (error) => {
+    assert.equal(error.code, 'LOCAL_PROVIDER_TOOLS_UNSUPPORTED');
+    assert.equal(error.status, 400);
+    return true;
+  }
+);
+assert.equal(summarizeCalls.length, 0, 'base NVIDIA compactor must not accept a local model');
 
 const longHistory = [];
 for (let index = 0; index < 12; index += 1) {

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const {
+  HANDS_FREE_REVOKE_EVENT,
   REVOKED_ATTR,
   isHandsFreeEnabled,
   installHandsFreeBackgroundGuard
@@ -27,9 +28,14 @@ class FakeTarget {
   }
 
   dispatch(type) {
-    const entries = [...(this.listeners.get(type) || [])];
-    for (const entry of entries.filter((item) => item.capture)) entry.listener({ type });
-    for (const entry of entries.filter((item) => !item.capture)) entry.listener({ type });
+    this.dispatchEvent({ type });
+  }
+
+  dispatchEvent(event) {
+    const entries = [...(this.listeners.get(event?.type) || [])];
+    for (const entry of entries.filter((item) => item.capture)) entry.listener(event);
+    for (const entry of entries.filter((item) => !item.capture)) entry.listener(event);
+    return true;
   }
 
   listenerCount(type) {
@@ -37,7 +43,7 @@ class FakeTarget {
   }
 }
 
-function createHarness({ enabled = false, hidden = false, baselineRevoked } = {}) {
+function createHarness({ enabled = false, hidden = false, baselineRevoked, runtimeListener = true } = {}) {
   const documentRef = new FakeTarget();
   const root = new FakeTarget();
   const attrs = new Map();
@@ -60,12 +66,17 @@ function createHarness({ enabled = false, hidden = false, baselineRevoked } = {}
     },
     click() {
       clickCount += 1;
-      attrs.set('aria-pressed', attrs.get('aria-pressed') === 'true' ? 'false' : 'true');
+      throw new Error('SYNTHETIC_CONSENT_CLICK_FORBIDDEN');
     }
   };
 
   documentRef.hidden = hidden;
   documentRef.querySelector = (selector) => selector === '#handsFreeToggle' ? toggle : null;
+  if (runtimeListener) {
+    documentRef.addEventListener(HANDS_FREE_REVOKE_EVENT, () => {
+      toggle.setAttribute('aria-pressed', 'false');
+    });
+  }
 
   return {
     documentRef,
@@ -87,7 +98,7 @@ function createHarness({ enabled = false, hidden = false, baselineRevoked } = {}
 
   harness.documentRef.hidden = true;
   harness.documentRef.dispatch('visibilitychange');
-  assert.equal(harness.clickCount, 1, 'hidden document must revoke via the canonical toggle');
+  assert.equal(harness.clickCount, 0, 'hidden document must revoke without synthetic consent clicks');
   assert.equal(isHandsFreeEnabled(harness.toggle), false);
   assert.equal(controller.isRevoked(), true);
   assert.equal(controller.getLastReason(), 'hidden');
@@ -95,7 +106,7 @@ function createHarness({ enabled = false, hidden = false, baselineRevoked } = {}
 
   harness.documentRef.hidden = false;
   harness.documentRef.dispatch('visibilitychange');
-  assert.equal(harness.clickCount, 1, 'returning visible must never auto-enable hands-free');
+  assert.equal(harness.clickCount, 0, 'returning visible must never auto-enable hands-free');
   assert.equal(isHandsFreeEnabled(harness.toggle), false);
 
   controller.destroy();
@@ -107,30 +118,21 @@ function createHarness({ enabled = false, hidden = false, baselineRevoked } = {}
   assert.equal(controller.getLastReason(), '');
 }
 
-{
+for (const reason of ['pagehide', 'freeze']) {
   const harness = createHarness({ enabled: true });
   const controller = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
-  harness.root.dispatch('pagehide');
-  assert.equal(harness.clickCount, 1);
+  if (reason === 'pagehide') harness.root.dispatch('pagehide');
+  else harness.documentRef.dispatch('freeze');
+  assert.equal(harness.clickCount, 0);
   assert.equal(isHandsFreeEnabled(harness.toggle), false);
-  assert.equal(controller.getLastReason(), 'pagehide');
-  controller.destroy();
-}
-
-{
-  const harness = createHarness({ enabled: true });
-  const controller = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
-  harness.documentRef.dispatch('freeze');
-  assert.equal(harness.clickCount, 1);
-  assert.equal(isHandsFreeEnabled(harness.toggle), false);
-  assert.equal(controller.getLastReason(), 'freeze');
+  assert.equal(controller.getLastReason(), reason);
   controller.destroy();
 }
 
 {
   const harness = createHarness({ enabled: true, hidden: true });
   const controller = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
-  assert.equal(harness.clickCount, 1, 'already-hidden installation must fail closed');
+  assert.equal(harness.clickCount, 0, 'already-hidden installation must fail closed without a click');
   assert.equal(isHandsFreeEnabled(harness.toggle), false);
   assert.equal(controller.getLastReason(), 'hidden-at-install');
   controller.destroy();
@@ -177,13 +179,24 @@ function createHarness({ enabled = false, hidden = false, baselineRevoked } = {}
 }
 
 {
-  const harness = createHarness({ enabled: true });
-  harness.toggle.click = () => {};
+  const harness = createHarness({ enabled: true, runtimeListener: false });
   const controller = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
   harness.root.dispatch('pagehide');
   assert.equal(controller.getLastReason(), 'revocation-failed');
   assert.equal(harness.toggle.getAttribute(REVOKED_ATTR), 'revocation-failed');
-  assert.equal(isHandsFreeEnabled(harness.toggle), true, 'guard must report rather than fake a disabled state');
+  assert.equal(isHandsFreeEnabled(harness.toggle), true, 'missing runtime listener must not fake a disabled state');
+  assert.equal(harness.clickCount, 0, 'missing runtime listener must not synthesize a toggle click');
+  controller.destroy();
+}
+
+{
+  const harness = createHarness({ enabled: true });
+  harness.documentRef.dispatchEvent = undefined;
+  const controller = installHandsFreeBackgroundGuard(harness.documentRef, harness.root);
+  harness.root.dispatch('pagehide');
+  assert.equal(controller.getLastReason(), 'revocation-failed');
+  assert.equal(isHandsFreeEnabled(harness.toggle), true);
+  assert.equal(harness.clickCount, 0, 'missing event transport must fail closed without user-interaction synthesis');
   controller.destroy();
 }
 

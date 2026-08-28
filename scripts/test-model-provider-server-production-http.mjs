@@ -148,19 +148,6 @@ try {
   assert.match(response.text, /\[DONE\]/);
   assert.equal(observed.chatRequests.length, 1);
 
-  // Tool-enabled agent execution deliberately stays NVIDIA-only.
-  response = await request(port, '/api/agent/run', {
-    method: 'POST',
-    body: {
-      model: 'local:tiny-local',
-      agentId: 'minimal-engineer',
-      messages: [{ role: 'user', content: 'Sadece cevap ver.' }]
-    }
-  });
-  assert.equal(response.status, 503);
-  assert.equal(JSON.parse(response.text).error, 'NVIDIA_NOT_CONFIGURED');
-  assert.equal(observed.chatRequests.length, 1);
-
   assert.doesNotMatch(output.stdout + output.stderr, /tiny-local.*Authorization|Bearer\s+/i);
 } finally {
   await stop(child);

@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { REVOCATION_NOTICE, installHandsFreeBackgroundGuard } = require('../public/hands-free-background-guard.js');
+const {
+  HANDS_FREE_REVOKE_EVENT,
+  REVOCATION_NOTICE,
+  installHandsFreeBackgroundGuard
+} = require('../public/hands-free-background-guard.js');
 
 class Target {
   constructor() { this.listeners = new Map(); }
@@ -15,10 +19,14 @@ class Target {
     const list = this.listeners.get(type) || [];
     this.listeners.set(type, list.filter((item) => item.fn !== fn || item.capture !== Boolean(capture)));
   }
+  dispatchEvent(event) {
+    const list = [...(this.listeners.get(event?.type) || [])];
+    for (const item of list.filter((entry) => entry.capture)) item.fn(event);
+    for (const item of list.filter((entry) => !entry.capture)) item.fn(event);
+    return true;
+  }
   fire(type) {
-    const list = [...(this.listeners.get(type) || [])];
-    for (const item of list.filter((entry) => entry.capture)) item.fn({ type });
-    for (const item of list.filter((entry) => !entry.capture)) item.fn({ type });
+    return this.dispatchEvent({ type });
   }
 }
 
@@ -31,7 +39,7 @@ function harness() {
     setAttribute: (name, value) => attrs.set(name, String(value)),
     removeAttribute: (name) => attrs.delete(name),
     hasAttribute: (name) => attrs.has(name),
-    click() { attrs.set('aria-pressed', attrs.get('aria-pressed') === 'true' ? 'false' : 'true'); }
+    click() { throw new Error('SYNTHETIC_CONSENT_CLICK_FORBIDDEN'); }
   };
   const hiddenClasses = new Set(['hidden']);
   const toast = {
@@ -43,6 +51,7 @@ function harness() {
   };
   documentRef.hidden = false;
   documentRef.querySelector = (selector) => ({ '#handsFreeToggle': toggle, '#toast': toast })[selector] || null;
+  documentRef.addEventListener(HANDS_FREE_REVOKE_EVENT, () => toggle.setAttribute('aria-pressed', 'false'));
   return { documentRef, root, toggle, toast };
 }
 

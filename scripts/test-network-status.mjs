@@ -84,7 +84,7 @@ function fixture({ existingStatus = null, online = true } = {}) {
   const timers = new Map();
   const setTimeoutImpl = (fn, ms) => { timerId += 1; timers.set(timerId, { fn, ms }); return timerId; };
   const clearTimeoutImpl = (id) => timers.delete(id);
-  return { documentRef, topbar, listeners, navigatorRef, timers, setTimeoutImpl, clearTimeoutImpl };
+  return { rootRef, documentRef, topbar, listeners, navigatorRef, timers, setTimeoutImpl, clearTimeoutImpl };
 }
 
 {
@@ -193,7 +193,8 @@ function fixture({ existingStatus = null, online = true } = {}) {
 
 assert.match(loaderSource, /HafizeNetworkStatus/);
 assert.match(loaderSource, /\/network-status\.js/);
-assert.match(swSource, /hafize-shell-v121/);
+assert.match(swSource, /CACHE_PREFIX = 'hafize-shell-'/);
+assert.match(swSource, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(swSource, /'\/network-status\.js'/);
 assert.match(swSource, /pathname\.startsWith\('\/api\/'\).*network-only/s);
 

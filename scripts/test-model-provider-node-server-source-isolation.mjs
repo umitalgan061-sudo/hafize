@@ -21,7 +21,9 @@ assert.doesNotMatch(runtime, /localStorage|sessionStorage|indexedDB/i);
 assert.doesNotMatch(runtime, /NVIDIA_API_KEY|Authorization\s*:/);
 assert.doesNotMatch(runtime, /repo\.write_branch|repo\.merge|external\.send|external\.write/);
 
-assert.doesNotMatch(server, /model-provider-node-server-runtime/);
+assert.match(server, /createModelProviderNodeServerRuntime/);
+assert.match(server, /MODEL_PROVIDER_NODE_SERVER_RUNTIME\.handle/);
+assert.doesNotMatch(server, /createLocalOllamaProvider|createLocalProviderServerRuntime|local-ollama-provider|local-provider-server-runtime/);
 assert.doesNotMatch(tools, /local_provider|ollama|model_provider/i);
 assert.doesNotMatch(registry, /local_provider|ollama|model_provider/i);
 

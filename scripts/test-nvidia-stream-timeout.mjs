@@ -105,11 +105,16 @@ assert.throws(
   assert.equal(first.done, false);
   assert.equal(first.value.toString('utf8'), 'data: {"partial":true}\n\n');
   const started = Date.now();
-  await assert.rejects(iterator.next(), (error) => {
-    assert.equal(error?.code, 'NVIDIA_STREAM_TIMEOUT');
-    assert.equal(error?.status, 504);
-    return true;
-  });
+  const eventLoopLease = setInterval(() => {}, 1_000);
+  try {
+    await assert.rejects(iterator.next(), (error) => {
+      assert.equal(error?.code, 'NVIDIA_STREAM_TIMEOUT');
+      assert.equal(error?.status, 504);
+      return true;
+    });
+  } finally {
+    clearInterval(eventLoopLease);
+  }
   const elapsed = Date.now() - started;
   assert.ok(elapsed >= 700 && elapsed < 2500, `timeout elapsed ${elapsed}ms`);
   assert.equal(requestSignal.aborted, true);
@@ -166,8 +171,8 @@ assert.throws(
     runtime.stream({ model: 'nvidia/test', messages: [] }),
     (error) => error?.code === 'NVIDIA_CHAT_ERROR' && error?.status === 503
   );
-  await new Promise((resolve) => setTimeout(resolve, 1100));
-  assert.equal(observedSignal.aborted, false, 'HTTP failure must dispose the deadline timer');
+  assert.equal(observedSignal.aborted, true, 'HTTP failure aborts the request signal for cleanup');
+  assert.equal(observedSignal.reason?.code, 'NVIDIA_CHAT_ERROR');
 }
 
 {
@@ -185,8 +190,8 @@ assert.throws(
     runtime.stream({ model: 'nvidia/test', messages: [] }),
     (error) => error?.code === 'INVALID_NVIDIA_RESPONSE_TYPE'
   );
-  await new Promise((resolve) => setTimeout(resolve, 1100));
-  assert.equal(observedSignal.aborted, false, 'media-type failure must dispose the deadline timer');
+  assert.equal(observedSignal.aborted, true, 'media-type failure aborts the request signal for cleanup');
+  assert.equal(observedSignal.reason?.code, 'INVALID_NVIDIA_RESPONSE_TYPE');
 }
 
 process.stdout.write('NVIDIA stream timeout tests passed\n');

@@ -31,7 +31,12 @@ function boundaryFactory({ runtime }) {
 }
 const fetchImpl = async (url) => {
   assert.match(String(url), /integrate\.api\.nvidia\.com/);
-  return { ok: true, status: 200, async json() { return { data: [{ id: 'nvidia/a' }] }; } };
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (name) => String(name).toLowerCase() === 'content-type' ? 'application/json' : null },
+    async json() { return { data: [{ id: 'nvidia/a' }] }; }
+  };
 };
 const runtime = createModelProviderProductionRuntime({
   env: { NVIDIA_API_KEY: 'secret', HAFIZE_LOCAL_PROVIDER_ENABLED: 'true' }, fetchImpl,

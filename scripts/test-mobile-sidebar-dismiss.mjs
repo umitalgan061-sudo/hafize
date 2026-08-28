@@ -50,8 +50,8 @@ function harness({ hostBackdrop = null, hostStyle = null, toggleExpanded = null 
     querySelector(selector) {
       if (selector === '#sidebar') return sidebar;
       if (selector === '#sidebarToggle') return toggle;
-      if (selector === '#sidebarBackdrop') return backdrop;
-      if (selector === '#hafize-mobile-sidebar-dismiss-style') return style;
+      if (selector === '#sidebarBackdrop') return backdrop?.parent === body ? backdrop : null;
+      if (selector === '#hafize-mobile-sidebar-dismiss-style') return style?.parent === head ? style : null;
       return null;
     },
     addEventListener(k, fn) { docListeners.set(k, fn); },
