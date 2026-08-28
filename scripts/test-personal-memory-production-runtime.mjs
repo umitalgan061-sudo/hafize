@@ -94,7 +94,7 @@ try {
     body: deleteBody
   });
   assert.equal(response.status, 200);
-  assert.equal(response.body.deleted, 1);
+  assert.deepEqual(response.body, { ok: true });
 
   response = await runtime.handle(input('GET', '/api/memory', { search: '?query=Tenis' }));
   assert.equal(response.status, 200);
