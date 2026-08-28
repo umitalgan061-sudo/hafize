@@ -19,8 +19,19 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Every catalog tool must expose running/success/failure labels, otherwise a
+// newly added tool would run without any user-visible activity signal.
+for (const { functionName } of listToolPermissions()) {
+  assert.deepEqual(getPublicToolRunningActivity(functionName)?.state, 'running');
+  assert.equal(typeof getPublicToolRunningActivity(functionName)?.label, 'string');
+  assert.deepEqual(getPublicToolActivity(functionName, { ok: true })?.state, 'success');
+  assert.deepEqual(getPublicToolActivity(functionName, { ok: false })?.state, 'failure');
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -196,4 +207,119 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+const connectorCalls = [];
+const connectorContext = {
+  traceId,
+  agent: hafize,
+  registry,
+  canvaReadAuthenticated: true,
+  canvaReadTool: {
+    execute: async (args) => {
+      connectorCalls.push(['canva', args]);
+      return { ok: true, designId: 'DAF_1' };
+    }
+  },
+  gmailReadAuthenticated: true,
+  gmailReadTool: {
+    execute: async (args) => {
+      connectorCalls.push(['gmail', args]);
+      return { emailAddress: 'owner@example.com' };
+    }
+  }
+};
+
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+// Connector tools stay hidden while the owner has not connected the account,
+// and while the backend has not wired an executable read boundary.
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false, gmailReadAuthenticated: false })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadTool: null, gmailReadTool: {} })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+// A specialist without connector permissions never sees connector tools even
+// when the owner has connected both accounts.
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, { ...connectorContext, githubReadConfigured: true })
+    .map((tool) => tool.function.name),
+  ['github_read_file']
+);
+
+const gmailRead = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_8',
+    type: 'function',
+    function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'profile.get' }) }
+  },
+  connectorContext
+);
+assert.equal(gmailRead.ok, true);
+assert.deepEqual(gmailRead.value, { emailAddress: 'owner@example.com' });
+assert.deepEqual(connectorCalls.at(-1), ['gmail', { operation: 'profile.get' }]);
+
+const canvaRead = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_9',
+    type: 'function',
+    function: { name: 'canva_read', arguments: JSON.stringify({ operation: 'design.get', params: { designId: 'DAF_1' } }) }
+  },
+  connectorContext
+);
+assert.equal(canvaRead.ok, true);
+assert.deepEqual(connectorCalls.at(-1), ['canva', { operation: 'design.get', params: { designId: 'DAF_1' } }]);
+
+const unconnectedGmail = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_10', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"profile.get"}' } },
+  { ...connectorContext, gmailReadAuthenticated: false }
+);
+assert.deepEqual(unconnectedGmail, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const deniedCanva = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_11', type: 'function', function: { name: 'canva_read', arguments: '{"operation":"user.get"}' } },
+  { ...connectorContext, agent: reviewer }
+);
+assert.equal(deniedCanva.ok, false);
+assert.equal(deniedCanva.error, 'TOOL_NOT_AUTHORIZED');
+
+// Boundary rejections surface as typed codes; raw connector detail never leaks.
+const rejectedGmail = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_12', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"message.send"}' } },
+  {
+    ...connectorContext,
+    gmailReadTool: {
+      execute: async () => {
+        const error = new Error('owner@example.com refresh_token=should-never-leak');
+        error.code = 'INVALID_GMAIL_READ_TOOL';
+        throw error;
+      }
+    }
+  }
+);
+assert.deepEqual(rejectedGmail, { ok: false, error: 'INVALID_GMAIL_READ_TOOL' });
+assert.equal(JSON.stringify(rejectedGmail).includes('should-never-leak'), false);
+
+const safeConnectorActivity = JSON.stringify(
+  getPublicToolActivity('gmail_read', {
+    ok: false,
+    error: 'INVALID_GMAIL_READ_TOOL',
+    value: { emailAddress: 'owner@example.com', accessToken: 'super-secret-token' }
+  })
+);
+assert.equal(safeConnectorActivity.includes('owner@example.com'), false);
+assert.equal(safeConnectorActivity.includes('super-secret-token'), false);
+assert.equal(safeConnectorActivity.includes('INVALID_GMAIL_READ_TOOL'), false);
+assert.equal(safeConnectorActivity.includes('"state":"failure"'), true);
+
+console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, configured GitHub repo.read, and connected Canva/Gmail read tools are policy-gated');
