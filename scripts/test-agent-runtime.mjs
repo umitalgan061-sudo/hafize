@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  AGENT_PERMISSION_POLICY,
   authorizeAgentTool,
   buildAgentSystemMessage,
   createTraceId,
@@ -71,7 +72,15 @@ try {
     'INVALID_AGENT_REGISTRY:toolPolicy:hafize-general:allow.duplicate:runtime.status'
   );
 
-  for (const permission of ['external.write', 'external.send', 'repo.merge', 'repo.write_branch']) {
+  // Döngüler dışa açılan politikaya bağlanır: böylece export ile requireToolPolicy
+  // içindeki kümeler ayrışamaz. Boş bir export döngüleri sessizce devre dışı
+  // bırakacağı için önce dolu ve donmuş oldukları doğrulanır.
+  assert.ok(Object.isFrozen(AGENT_PERMISSION_POLICY));
+  assert.ok(AGENT_PERMISSION_POLICY.approvalOnly.length >= 4);
+  assert.ok(AGENT_PERMISSION_POLICY.never.length >= 2);
+  assert.deepEqual([...AGENT_PERMISSION_POLICY.never].sort(), ['repo.delete', 'secret.read']);
+
+  for (const permission of AGENT_PERMISSION_POLICY.approvalOnly) {
     await expectRegistryFailure(
       `approval-only-${permission.replace('.', '-')}`,
       (fixture) => { fixture.agents[0].toolPolicy.allow.push(permission); },
@@ -79,7 +88,7 @@ try {
     );
   }
 
-  for (const permission of ['secret.read', 'repo.delete']) {
+  for (const permission of AGENT_PERMISSION_POLICY.never) {
     await expectRegistryFailure(
       `forbidden-${permission.replace('.', '-')}`,
       (fixture) => { fixture.agents[0].toolPolicy.approvalRequired.push(permission); },
