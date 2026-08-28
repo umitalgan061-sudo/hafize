@@ -56,4 +56,25 @@ assert.deepEqual(
   { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' }
 );
 
+// Sözleşme her girdide sonuç nesnesi döner; hiçbir çağrı ham hata fırlatmaz.
+for (const input of [null, [], 'x', 42, true]) {
+  assert.deepEqual(
+    normalizeMemoryRetrieval(input),
+    { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:input' },
+    `girdi reddedilmedi: ${JSON.stringify(input)}`
+  );
+}
+assert.deepEqual(
+  normalizeMemoryRetrieval(),
+  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' }
+);
+assert.deepEqual(
+  normalizeMemoryRetrieval({ ownerId: 'user-1' }),
+  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:records' }
+);
+assert.deepEqual(
+  normalizeMemoryRetrieval({ ownerId: 'user-1', records: [null] }),
+  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:record' }
+);
+
 console.log('memory retrieval boundary tests passed');
