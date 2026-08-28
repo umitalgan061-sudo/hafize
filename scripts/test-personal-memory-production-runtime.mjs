@@ -72,13 +72,13 @@ try {
   assert.equal(response.status, 200);
   assert.equal(response.body.record.content, 'Tenis oynamayı seviyorum');
   assert.equal('ownerId' in response.body.record, false);
-  const memoryId = response.body.record.id;
+  const memoryId = response.body.record.memoryId;
   assert.match(memoryId, /^memory_/);
 
   response = await runtime.handle(input('GET', '/api/memory', { search: '?query=Tenis&limit=5' }));
   assert.equal(response.status, 200);
   assert.equal(response.body.records.length, 1);
-  assert.equal(response.body.records[0].id, memoryId);
+  assert.equal(response.body.records[0].memoryId, memoryId);
   assert.equal('ownerId' in response.body.records[0], false);
 
   const encrypted = await readFile(join(directory, PERSONAL_MEMORY_FILE_NAME), 'utf8');
