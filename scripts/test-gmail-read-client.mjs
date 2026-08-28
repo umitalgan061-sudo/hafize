@@ -49,7 +49,10 @@ for (const input of [
   { ownerId: 'owner_opaque', operation: 'message.list', params: { maxResults: 501 } },
   { ownerId: 'owner_opaque', operation: 'message.list', params: { url: 'https://evil.example' } },
   { ownerId: 'owner_opaque', operation: 'message.get', params: { messageId: '../bad' } },
-  { ownerId: 'owner_opaque', operation: 'message.get', params: { messageId: 'abc', format: 'raw' } }
+  { ownerId: 'owner_opaque', operation: 'message.get', params: { messageId: 'abc', format: 'raw' } },
+  'profile.get',
+  [{ ownerId: 'owner_opaque', operation: 'profile.get' }],
+  { ownerId: 'owner_opaque', operation: 'profile.get', accessToken: 'injected-token' }
 ]) {
   await assert.rejects(() => client.read(input), /INVALID_GMAIL_READ/);
 }

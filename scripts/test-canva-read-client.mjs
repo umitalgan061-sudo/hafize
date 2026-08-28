@@ -56,7 +56,11 @@ for (const input of [
   { ownerId: 'owner', operation: 'design.list', params: { limit: 101 } },
   { ownerId: 'owner', operation: 'design.list', params: { ownership: 'all' } },
   { ownerId: 'owner', operation: 'design.list', params: { extra: true } },
-  { ownerId: 'owner', operation: 'design.get', params: { designId: '../secret' } }
+  { ownerId: 'owner', operation: 'design.get', params: { designId: '../secret' } },
+  null,
+  'user.get',
+  [{ ownerId: 'owner', operation: 'user.get' }],
+  { ownerId: 'owner', operation: 'user.get', accessToken: 'injected-token' }
 ]) await assert.rejects(() => client.read(input), /INVALID_CANVA_READ/);
 
 const echoClient = createCanvaReadClient({ tokenStore, now: () => future, fetchImpl: async () => ({ ok: true, async json() { return { leaked: accessToken }; } }) });
