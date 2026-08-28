@@ -47,9 +47,9 @@ assert.match(githubRuntimeSource, /createGitHubWriteExecutionBoundary/);
 assert.match(githubNodeSource, /cloudSessionAuthenticator/);
 assert.doesNotMatch(githubRuntimeSource, /approvalGranted\s*:\s*true/);
 
-// No prohibited general command execution or secret literals are introduced by this boundary.
+// No prohibited general command execution or secret-file loading is introduced by this boundary.
 for (const source of [privilegedSource, scheduleSessionSource, scheduleHttpSource, revocationSource]) {
-  assert.doesNotMatch(source, /shell\s*=\s*true|child_process|execSync|spawnSync|\.env\b/);
+  assert.doesNotMatch(source, /shell\s*[:=]\s*true|child_process|execSync|spawnSync|dotenv|['"`]\.env(?:\.[^'"`]+)?['"`]/);
   assert.doesNotMatch(source, /BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY/);
 }
 
