@@ -45,6 +45,9 @@ for (const args of [
   await assert.rejects(() => boundary.execute(args, { principal }), /INVALID_GMAIL_READ_TOOL/);
 }
 await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
+for (const context of [null, [], 'principal']) {
+  await assert.rejects(() => boundary.execute({ operation: 'profile.get' }, context), /INVALID_GMAIL_READ_TOOL:context/);
+}
 assert.throws(() => createGmailReadToolBoundary({}), /INVALID_GMAIL_READ_TOOL/);
 assert.throws(() => createGmailReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_GMAIL_READ_TOOL/);
 console.log('gmail read tool boundary tests passed');

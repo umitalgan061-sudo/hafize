@@ -49,6 +49,9 @@ for (const args of [
   await assert.rejects(() => boundary.execute(args, { principal }), /INVALID_CANVA_READ_TOOL/);
 }
 await assert.rejects(() => boundary.execute({ operation: 'user.get' }, { principal: { authenticated: false, subject: 'x' } }), /CONNECTOR_AUTH_REQUIRED/);
+for (const context of [null, [], 'principal']) {
+  await assert.rejects(() => boundary.execute({ operation: 'user.get' }, context), /INVALID_CANVA_READ_TOOL:context/);
+}
 assert.throws(() => createCanvaReadToolBoundary({}), /INVALID_CANVA_READ_TOOL/);
 assert.throws(() => createCanvaReadToolBoundary({ readClient, ownerResolver: {} }), /INVALID_CANVA_READ_TOOL/);
 console.log('canva read tool boundary tests passed');
