@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -83,6 +85,34 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { canvaReadAuthenticated: true, canvaReadTool: { execute() {} } })
+    .map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { gmailReadAuthenticated: true, gmailReadTool: { execute() {} } })
+    .map((tool) => tool.function.name),
+  ['runtime_status', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { canvaReadAuthenticated: false, canvaReadTool: { execute() {} } })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, { gmailReadAuthenticated: true, gmailReadTool: { execute() {} } }),
+  []
+);
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolActivity('gmail_read', { ok: false, error: 'GMAIL_TOKEN_EXPIRED' }), {
+  label: 'Gmail verisi okunamadı',
+  state: 'failure'
+});
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
