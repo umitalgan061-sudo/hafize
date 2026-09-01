@@ -19,8 +19,16 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+// Yazma yetkisi olan araçlar merkezi NVIDIA tool catalog'una kayıtlı olmamalıdır;
+// gmail_send yalnızca sunucu tarafı açık onay sınırından çağrılabilir.
+const registeredToolNames = listToolPermissions().map((entry) => entry.functionName);
+for (const writeTool of ['gmail_send', 'github_write_file', 'canva_write']) {
+  assert.equal(registeredToolNames.includes(writeTool), false);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -32,6 +40,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -72,6 +88,23 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+// Connector araç aktiviteleri de yalnızca sabit etiket + durum döndürmeli;
+// Gmail/Canva içeriği veya token'ı istemciye sızmamalıdır.
+const gmailActivity = JSON.stringify(getPublicToolActivity('gmail_read', {
+  ok: true,
+  value: {
+    messages: [{ from: 'private@example.com', subject: 'Gizli konu', snippet: 'gizli içerik' }],
+    accessToken: 'must-not-leak'
+  }
+}));
+assert.equal(gmailActivity, JSON.stringify({ label: 'Gmail verisi okundu', state: 'success' }));
+const canvaActivity = JSON.stringify(getPublicToolActivity('canva_read', {
+  ok: false,
+  error: 'CANVA_NOT_AUTHENTICATED',
+  value: { designId: 'DAF_private', refreshToken: 'must-not-leak' }
+}));
+assert.equal(canvaActivity, JSON.stringify({ label: 'Canva verisi okunamadı', state: 'failure' }));
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
 assert.deepEqual(
@@ -83,6 +116,26 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+// Connector araçları yalnızca kimlik doğrulanmış VE bağlı bir istemci varken açılır.
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: false,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: null
+  }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
