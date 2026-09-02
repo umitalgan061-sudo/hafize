@@ -16,11 +16,28 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
+const toolPermissions = listToolPermissions();
+assert.deepEqual(toolPermissions, [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Katalogdaki her araç, kullanıcıya gösterilen üç durum etiketini de tanımlamak
+// zorundadır; yeni bir araç etiketsiz kaydedilirse bu kontrol kırılır.
+for (const { functionName } of toolPermissions) {
+  const running = getPublicToolRunningActivity(functionName);
+  const success = getPublicToolActivity(functionName, { ok: true });
+  const failure = getPublicToolActivity(functionName, { ok: false, error: 'INTERNAL' });
+  for (const [state, activity] of [['running', running], ['success', success], ['failure', failure]]) {
+    assert.equal(activity?.state, state, `${functionName} için ${state} etiketi eksik`);
+    assert.equal(typeof activity.label, 'string');
+    assert.ok(activity.label.trim().length > 0, `${functionName} için ${state} etiketi boş`);
+  }
+  assert.equal(JSON.stringify(failure).includes('INTERNAL'), false);
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -74,6 +91,28 @@ assert.equal(safeActivity.includes('"state":"failure"'), true);
 
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
+
+// Connector araçları hem bağlantı durumuna hem de ajan tool policy'sine bağlıdır.
+const connectorContext = {
+  githubReadConfigured: true,
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({}) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({}) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name),
+  ['github_read_file']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false, gmailReadAuthenticated: false })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
 assert.deepEqual(
   getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
   ['github_read_file']
