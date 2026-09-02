@@ -96,4 +96,9 @@ assert.deepEqual(
   { ok: false, error: 'INVALID_SCHEDULE_AGENT_TASK' }
 );
 
+// Eksik veya nesne olmayan istek tipli hata döndürür, ham TypeError atmaz.
+for (const request of [undefined, null, [], 'trace-x']) {
+  assert.deepEqual(await executor.executeAgentTask(request), { ok: false, error: 'INVALID_SCHEDULE_AGENT_TASK' });
+}
+
 console.log('scheduled agent executor tests passed');

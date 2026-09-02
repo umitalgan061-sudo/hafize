@@ -208,4 +208,11 @@ assert.deepEqual(
   { ok: false, error: 'SCHEDULE_COMMAND_FAILED' }
 );
 
+// Eksik veya nesne olmayan istek AUTH_REQUIRED ile fail-closed döner, ham TypeError atmaz.
+for (const request of [undefined, null, [], 'alice']) {
+  for (const command of ['create', 'list', 'cancel']) {
+    assert.deepEqual(await commands[command](request), { ok: false, error: 'AUTH_REQUIRED' });
+  }
+}
+
 console.log('schedule command boundary tests passed');
