@@ -34,6 +34,16 @@ async function requestHealth(port) {
   return { status: response.status, body: await response.json() };
 }
 
+async function postJsonBody(port, pathname, rawBody) {
+  const response = await fetch(`http://127.0.0.1:${port}${pathname}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', Accept: 'application/json' },
+    body: rawBody,
+    signal: AbortSignal.timeout(2_000)
+  });
+  return { status: response.status, body: await response.json() };
+}
+
 async function waitForHealth(child, port, output) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (child.exitCode != null) {
@@ -146,9 +156,26 @@ try {
     assert.equal(health.body.scheduleLeaseConfigured, false);
     assert.equal(Number.isInteger(health.body.agents), true);
     assert.equal(health.body.agents > 0, true);
-    assert.equal(success.output.stderr, '');
     assert.equal(success.output.stdout.includes(successStorageKey), false);
     assert.equal(JSON.stringify(health.body).includes(successStorageKey), false);
+
+    // Düz nesne olmayan JSON gövdesi handler'da ham TypeError'a dönüşmemeli:
+    // 500 INTERNAL_ERROR değil, 400 INVALID_JSON beklenir.
+    for (const pathname of ['/api/chat', '/api/agent/run']) {
+      for (const rawBody of ['null', '[1,2]', '"metin"', '123', 'true']) {
+        const rejected = await postJsonBody(successPort, pathname, rawBody);
+        assert.equal(rejected.status, 400, `${pathname} ${rawBody} 400 dönmeli`);
+        assert.deepEqual(rejected.body, { error: 'INVALID_JSON' });
+      }
+      const malformed = await postJsonBody(successPort, pathname, '{');
+      assert.equal(malformed.status, 400);
+      assert.deepEqual(malformed.body, { error: 'INVALID_JSON' });
+      // Geçerli nesne gövdesi kendi doğrulama hatasını üretmeli.
+      const invalidRequest = await postJsonBody(successPort, pathname, '{"model":"m"}');
+      assert.equal(invalidRequest.status, 400);
+      assert.equal(invalidRequest.body.error, 'INVALID_CHAT_REQUEST');
+    }
+    assert.equal(success.output.stderr, '');
   } finally {
     successExitCode = await stopChild(success.child);
   }

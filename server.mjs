@@ -117,7 +117,12 @@ async function readJson(req) {
     chunks.push(chunk);
   }
   const text = Buffer.concat(chunks).toString('utf8');
-  return text ? JSON.parse(text) : {};
+  if (!text) return {};
+  const body = JSON.parse(text);
+  // `null`, dizi veya skaler gövde handler'larda ham TypeError'a dönüşüp 500
+  // üretmesin: JSON gövdesi her zaman düz nesne olmalı ve aksi 400 dönmeli.
+  if (!body || Array.isArray(body) || typeof body !== 'object') throw new SyntaxError('INVALID_JSON');
+  return body;
 }
 
 async function nvidiaFetch(pathname, init = {}) {
