@@ -73,8 +73,8 @@ Hafize'de voice, screen-share, device bridge, local provider, hands-free ve encr
 
 ## Uygulama sırası
 
-1. Context compaction ve gözlemlenebilirlik.
-2. Strict skills manifest + registry + inline/fork execution contract.
+1. Context compaction ve gözlemlenebilirlik. *(Tamamlandı; doğrulama kapısı `docs/CHECK_GATE.md` ile keşif tabanlı hâle getirildi.)*
+2. Strict skills manifest + registry + inline/fork execution contract. **← sıradaki ana iyileştirme**
 3. Sub-agent cancellation/concurrency/message lifecycle.
 4. Memory consolidation ve retrieval kalite ölçümleri.
 5. Calendar/reminder read-first connector; write işlemleri explicit approval ile.

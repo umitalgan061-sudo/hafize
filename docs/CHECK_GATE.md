@@ -28,6 +28,12 @@ Dosyayı `scripts/test-<konu>.mjs` adıyla oluşturmak yeterlidir; başka hiçbi
 
 Dış bağımlılık isteyen testler ortam değişkeni yokken atlanmalıdır — `scripts/test-redis-schedule-lease-live.mjs` bunun örneğidir: `HAFIZE_TEST_REDIS_URL` tanımlı değilse bilgi mesajı yazıp `0` ile çıkar. Kapı ağ erişimi, secret veya canlı servis gerektirmez.
 
+## Bilinen takip işi
+
+Karanlıkta kalan testler kapıya alınınca ortaya çıkan hata sınıfı — giriş nesnesini `= {}` varsayılanıyla destructure eden ve `null` girişte sözleşme hatası yerine ham `TypeError` üreten fonksiyonlar — model ve HTTP tarafından erişilebilen sınırlarda giderildi: Gmail/Canva read, Gmail send, schedule command boundary, schedule worker ve scheduled agent executor.
+
+Aynı kalıp yalnızca dâhilî çağrılanlarda (OAuth token store, Redis lease adapter, task ledger, model provider router gibi) hâlâ duruyor. Bunlar çağrı tarafından her zaman nesne aldığı için canlı hata üretmiyor; tur bütçesi gereği ayrı bir tura bırakıldı.
+
 ## Geri alma
 
 Kapı davranışı tek dosyada toplandığı için `scripts/run-checks.mjs` ve `package.json` içindeki `check` satırı geri alındığında eski davranışa dönülür.
