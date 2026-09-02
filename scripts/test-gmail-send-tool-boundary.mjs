@@ -49,6 +49,16 @@ await assert.rejects(() => boundary.execute({ ...args, approvalGranted: true }, 
 assert.throws(() => createGmailSendToolBoundary({}), /INVALID_GMAIL_SEND_TOOL/);
 assert.throws(() => createGmailSendToolBoundary({ sendClient, ownerResolver: {} }), /INVALID_GMAIL_SEND_TOOL/);
 
+// Eksik, null veya nesne olmayan context onay sayılmaz; gönderim fail-closed reddedilir.
+const callsBeforeContextProbe = calls.length;
+for (const context of [undefined, null, [], 'approved', { principal, approvalGranted: 'true' }]) {
+  await assert.rejects(
+    () => boundary.execute(args, context),
+    (error) => error instanceof Error && !(error instanceof TypeError) && /GMAIL_SEND_APPROVAL_REQUIRED/.test(error.message)
+  );
+}
+assert.equal(calls.length, callsBeforeContextProbe);
+
 const unsafeReceipt = createGmailSendToolBoundary({
   ownerResolver,
   sendClient: { async send() { return { messageId: '', token: 'x' }; } }

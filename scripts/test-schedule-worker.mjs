@@ -274,4 +274,22 @@ assert.equal(leaseBusyStore.read(leaseBusyTask.scheduleId).attempts, 1);
 assert.equal(leaseEnvelope.snapshot.entries[0].status, 'completed');
 assert.equal(leaseEnvelope.snapshot.entries[0].attempts, 1);
 
+// Eksik veya nesne olmayan seçenek maxBatch limitine düşer, ham TypeError atmaz.
+const claimLimits = [];
+const optionWorker = createScheduleWorker({
+  store: {
+    async claimDue({ limit }) { claimLimits.push(limit); return []; },
+    async complete() {},
+    async fail() {}
+  },
+  registry,
+  now,
+  maxBatch: 3,
+  executeAgentTask: async () => ({ ok: true })
+});
+for (const options of [undefined, null, [], 'all', { limit: 'all' }, { limit: 99 }, { limit: 1 }]) {
+  assert.deepEqual(await optionWorker.runDue(options), { claimed: 0, results: [] });
+}
+assert.deepEqual(claimLimits, [3, 3, 3, 3, 3, 3, 1]);
+
 console.log('schedule worker tests passed');
