@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -34,8 +36,34 @@ assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
   state: 'running'
 });
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
+  state: 'running'
+});
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
 assert.equal(getPublicToolRunningActivity(null), null);
+
+// Her kayıtlı aracın güvenli public etiketi olmalı; aksi halde yeni bir araç
+// istemciye ham fonksiyon adı veya iç hata detayı sızdırabilir.
+for (const { functionName } of listToolPermissions()) {
+  const running = getPublicToolRunningActivity(functionName);
+  const success = getPublicToolActivity(functionName, { ok: true });
+  const failure = getPublicToolActivity(functionName, { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' });
+  for (const activity of [running, success, failure]) {
+    assert.ok(activity, `public activity missing for ${functionName}`);
+    assert.equal(typeof activity.label, 'string');
+    assert.ok(activity.label.length > 0);
+    assert.equal(activity.label.includes(functionName), false);
+  }
+  assert.equal(running.state, 'running');
+  assert.equal(success.state, 'success');
+  assert.equal(failure.state, 'failure');
+  assert.equal(JSON.stringify(failure).includes('PRIVATE_INTERNAL_DETAIL'), false);
+}
 const safeRunningActivity = JSON.stringify(getPublicToolRunningActivity('github_read_file'));
 assert.equal(safeRunningActivity.includes('repository'), false);
 assert.equal(safeRunningActivity.includes('path'), false);
