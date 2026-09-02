@@ -112,6 +112,79 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
 .message.assistant { justify-self: start; padding: 6px 2px; }
 .message .meta { margin-bottom: 5px; color: var(--muted); font-size: 11px; }
 .message .content { overflow-wrap: anywhere; white-space: pre-wrap; }
+/* Assistant content is rendered markdown, so real block elements handle spacing. */
+.message.assistant .content { white-space: normal; }
+.message.assistant .content > :first-child { margin-top: 0; }
+.message.assistant .content > :last-child { margin-bottom: 0; }
+.message.assistant .content p { margin: 0 0 12px; }
+.message.assistant .content h1,
+.message.assistant .content h2,
+.message.assistant .content h3,
+.message.assistant .content h4,
+.message.assistant .content h5,
+.message.assistant .content h6 { margin: 20px 0 8px; font-family: Georgia, serif; font-weight: 600; line-height: 1.3; }
+.message.assistant .content h1 { font-size: 25px; }
+.message.assistant .content h2 { font-size: 21px; }
+.message.assistant .content h3 { font-size: 18px; }
+.message.assistant .content h4,
+.message.assistant .content h5,
+.message.assistant .content h6 { font-size: 16px; }
+.message.assistant .content ul,
+.message.assistant .content ol { margin: 0 0 12px; padding-left: 24px; }
+.message.assistant .content li { margin-bottom: 5px; }
+.message.assistant .content blockquote {
+  margin: 0 0 12px;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.message.assistant .content hr { margin: 18px 0; border: 0; border-top: 1px solid var(--line); }
+.message.assistant .content a { color: var(--accent-strong); text-underline-offset: 2px; }
+.message .content :not(pre) > code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em;
+}
+
+.code-block {
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+.code-block figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.code-copy {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 9px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 11px;
+  cursor: pointer;
+}
+.code-copy:hover { background: var(--panel); }
+.code-block pre { margin: 0; padding: 12px; overflow-x: auto; }
+.code-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre;
+}
 .tool-activities { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
 .tool-activities[hidden] { display: none; }
 .tool-activity { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; background: #edf2ef; color: #486256; font-size: 11px; line-height: 1.2; }

@@ -32,7 +32,7 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v15');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
 assert.deepEqual(policy.SHELL_ASSETS, [
@@ -45,6 +45,7 @@ assert.deepEqual(policy.SHELL_ASSETS, [
   '/screen-share.css',
   '/hands-free.css',
   '/app.js',
+  '/markdown.js',
   '/voice-input.js',
   '/voice-output.js',
   '/screen-share.js',
@@ -148,7 +149,8 @@ assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), true);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v15'), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

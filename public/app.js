@@ -109,6 +109,17 @@
     return message.id;
   }
 
+  // Only assistant output is rendered as markdown. What the user typed is shown
+  // back verbatim, so their own asterisks and backticks are never reinterpreted.
+  function renderMessageContent(node, role, content) {
+    const markdown = window.HafizeMarkdown;
+    if (role === 'assistant' && markdown?.renderMarkdown) {
+      markdown.renderMarkdown(document, node, content);
+      return;
+    }
+    node.textContent = content || '…';
+  }
+
   function updateMessage(id, content, { persist = false } = {}) {
     const conversation = getActiveConversation();
     const message = conversation?.messages.find((item) => item.id === id);
@@ -116,7 +127,7 @@
     message.content = content;
     conversation.updatedAt = new Date().toISOString();
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
-    if (node) node.textContent = content || '…';
+    if (node) renderMessageContent(node, message.role, content);
     if (persist) saveConversations();
   }
 
@@ -242,7 +253,7 @@
 
       const content = document.createElement('div');
       content.className = 'content';
-      content.textContent = message.content || '…';
+      renderMessageContent(content, message.role, message.content);
 
       article.append(meta);
       if (message.role === 'assistant') {
@@ -574,8 +585,26 @@
     button.addEventListener('click', () => submitMessage(button.dataset.prompt || ''));
   });
 
+  // Delegated so it keeps working across the re-renders that streaming causes.
+  ui.messages.addEventListener('click', async (event) => {
+    const button = event.target.closest?.('.code-copy');
+    if (!button) return;
+    try {
+      await navigator.clipboard.writeText(button.dataset.code || '');
+      button.textContent = 'Kopyalandı';
+      showToast('Kod panoya kopyalandı.');
+    } catch {
+      button.textContent = 'Kopyalanamadı';
+      showToast('Kod kopyalanamadı. Tarayıcı pano izni vermemiş olabilir.');
+    }
+    window.setTimeout(() => { button.textContent = 'Kopyala'; }, 2000);
+  });
+
   document.querySelector('#attachBtn').addEventListener('click', () => showToast('Dosya ekleme sonraki küçük geliştirme turunda etkinleştirilecek.'));
-  document.querySelector('#micBtn').addEventListener('click', () => showToast('Sesli giriş sonraki küçük geliştirme turunda etkinleştirilecek.'));
+  // #micBtn is owned by voice-input.js, which installs the real recogniser and
+  // drives aria-pressed (ui-shell.js mirrors that onto the sidebar voice card).
+  // A placeholder handler here fires alongside it and tells the user the
+  // feature is unavailable while it is in fact running.
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
