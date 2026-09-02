@@ -31,3 +31,17 @@ Hafize'nin Canva Connect entegrasyonu varsayılan olarak salt-okunur ve backend 
 - Bilinmeyen tool alanları, write operasyonları, serbest URL ve model-supplied credential alanları reddedilir.
 
 Bu sözleşme `agents/registry.json`, `lib/canva-agent-runtime.mjs`, `lib/canva-read-tool-boundary.mjs`, `lib/canva-read-client.mjs` ve `lib/tool-runtime.mjs` tarafından birlikte uygulanır.
+
+## Girdi sözleşmesi: nesne olmayan istek ve context
+
+Read client (`read`), token exchange/refresh ve tool boundary (`execute`)
+girdileri `null`, dizi, sayı veya string ise ham `TypeError` yerine sözleşmeli
+`INVALID_CANVA_*` hatası üretilir. `function f({ a } = {})` biçimindeki
+varsayılan yalnız `undefined` için çalıştığı ve `null` destructuring sırasında
+patladığı için bu ayrım açıkça kodlanmıştır: çağıranın hata sınıflandırması
+sözleşme hatasını "geçersiz istek" olarak tanır ve iç uygulama detayı
+mesaja sızmaz.
+
+Geçersiz execution context, eksik context ile aynı biçimde ele alınır; owner
+çözümlemesine ve alt istemciye hiç ulaşılmaz. Regresyon kapsamı:
+`scripts/test-boundary-input-hardening.mjs`.

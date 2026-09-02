@@ -33,3 +33,16 @@ Gelecekte e-posta gönderme veya mailbox değiştirme ayrı tool/permission söz
 - Secret değerleri model/ajan bağlamına girmez.
 - `.env` veya credential dosyaları repo kapsamına alınmaz.
 - `/api/chat` connector request context'i taşımaz; connector tool çalıştırma yolu `/api/agent/run` ile sınırlıdır.
+
+## Girdi sözleşmesi: nesne olmayan istek ve context
+
+Gmail read client (`read`) ile read/send tool boundary'lerinin (`execute`)
+girdileri `null`, dizi, sayı veya string ise ham `TypeError` yerine sözleşmeli
+`INVALID_GMAIL_*` hatası üretilir. `function f({ a } = {})` varsayılanı yalnız
+`undefined` için çalıştığından `null` girdi eskiden destructuring sırasında
+sözleşme dışı bir hata fırlatıyordu.
+
+Gönderme yolunda geçersiz execution context ayrıca approval'ı asla "verilmiş"
+saymaz: context reddedilir, `approvalGranted` varsayılanı `false` kalır ve
+istek send client'a ulaşmaz. Regresyon kapsamı:
+`scripts/test-boundary-input-hardening.mjs`.
