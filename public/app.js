@@ -14,6 +14,7 @@
     messageInput: document.querySelector('#messageInput'),
     messages: document.querySelector('#messages'),
     welcome: document.querySelector('#welcome'),
+    setupNotice: document.querySelector('#setupNotice'),
     installBtn: document.querySelector('#installBtn'),
     toast: document.querySelector('#toast'),
     modelSelect: document.querySelector('#modelSelect'),
@@ -296,6 +297,22 @@
     ui.messageInput.style.height = `${Math.min(ui.messageInput.scrollHeight, 180)}px`;
   }
 
+  // The model list stays empty when the server has no NVIDIA key. Without this
+  // the UI only says "waiting for connection", which does not tell an operator
+  // that a key is missing or where to put it.
+  async function refreshSetupNotice() {
+    if (!ui.setupNotice) return;
+    try {
+      const response = await fetch('/api/health', { headers: { Accept: 'application/json' } });
+      if (!response.ok) throw new Error('HEALTH_FAILED');
+      const payload = await response.json();
+      ui.setupNotice.hidden = payload?.nvidiaConfigured === true;
+    } catch {
+      // A failed health check is not proof of a missing key, so stay quiet.
+      ui.setupNotice.hidden = true;
+    }
+  }
+
   async function loadModels() {
     ui.modelSelect.replaceChildren(new Option('NVIDIA modelleri yükleniyor…', ''));
     try {
@@ -467,7 +484,9 @@
     const clean = text.trim();
     if (!clean || isStreaming) return;
     if (!ui.modelSelect.value) {
-      showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
+      showToast(ui.setupNotice && !ui.setupNotice.hidden
+        ? 'Sunucuda NVIDIA_API_KEY tanımlı değil. Kurulum için docs/KURULUM.md.'
+        : 'Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
       return;
     }
     if (!getConversationAgentId()) {
@@ -491,7 +510,13 @@
         ? 'Bir NVIDIA modeli seçilmedi.'
         : error?.message === 'AGENT_REQUIRED'
           ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+          // NVIDIA serves the model list without auth, so a bad key produces a
+          // full dropdown and fails only here. Say what is actually wrong.
+          : error?.message === 'NVIDIA_AUTH_FAILED'
+            ? 'NVIDIA anahtarı reddedildi. Sunucudaki NVIDIA_API_KEY geçersiz veya süresi dolmuş — kurulum için docs/KURULUM.md.'
+            : error?.message === 'NVIDIA_NOT_CONFIGURED'
+              ? 'Sunucuda NVIDIA_API_KEY tanımlı değil. Kurulum için docs/KURULUM.md.'
+              : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
       const conversation = getActiveConversation();
       const last = conversation?.messages.at(-1);
       if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
@@ -571,6 +596,7 @@
 
   if (!activeConversationId) createConversation();
   else render();
+  refreshSetupNotice();
   loadModels();
   loadAgents();
 })();

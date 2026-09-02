@@ -25,6 +25,7 @@ import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
+import { buildSetupStatus, formatFatalSetupError, formatSetupStatus } from './lib/setup-status.mjs';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -53,6 +54,15 @@ const GITHUB_READ_FILE = createGitHubReadFile({
 });
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
+
+// Checked before the runtime factories below, which otherwise abort with a raw
+// destructuring stack trace when a variable group is only half configured.
+const SETUP_STATUS = buildSetupStatus({ env: process.env });
+if (SETUP_STATUS.fatal.length) {
+  console.error(formatFatalSetupError(SETUP_STATUS));
+  process.exit(1);
+}
+
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
 
@@ -120,6 +130,10 @@ async function readJson(req) {
   return text ? JSON.parse(text) : {};
 }
 
+function isNvidiaAuthFailure(status) {
+  return status === 401 || status === 403;
+}
+
 async function nvidiaFetch(pathname, init = {}) {
   if (!NVIDIA_API_KEY) {
     const error = new Error('NVIDIA_NOT_CONFIGURED');
@@ -144,7 +158,10 @@ async function nvidiaJsonCompletion(payload, signal) {
   });
   const text = await upstream.text();
   if (!upstream.ok) {
-    const error = new Error('NVIDIA_CHAT_ERROR');
+    // NVIDIA serves /models without auth, so an invalid key first shows up here
+    // rather than as an empty model list. Name it so the client can say the key
+    // is wrong instead of reporting a generic upstream failure.
+    const error = new Error(isNvidiaAuthFailure(upstream.status) ? 'NVIDIA_AUTH_FAILED' : 'NVIDIA_CHAT_ERROR');
     error.status = upstream.status || 502;
     error.detail = text.slice(0, 1200);
     throw error;
@@ -486,8 +503,9 @@ async function handleAgentRun(req, res) {
     }
     if (!upstream.ok || !upstream.body) {
       await upstream.text();
-      runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
-      res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
+      const failure = isNvidiaAuthFailure(upstream.status) ? 'NVIDIA_AUTH_FAILED' : 'NVIDIA_CHAT_ERROR';
+      runLedger.finish({ ok: false, detail: failure });
+      res.write(`data: ${JSON.stringify({ error: failure })}\n\n`);
       res.end();
       return;
     }
@@ -568,7 +586,10 @@ async function handleChat(req, res) {
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text();
-    sendJson(res, upstream.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: detail.slice(0, 1200) });
+    sendJson(res, upstream.status || 502, {
+      error: isNvidiaAuthFailure(upstream.status) ? 'NVIDIA_AUTH_FAILED' : 'NVIDIA_CHAT_ERROR',
+      detail: detail.slice(0, 1200)
+    });
     return;
   }
 
@@ -690,6 +711,7 @@ const server = createServer(async (req, res) => {
   } catch (error) {
     if (error?.message === 'BODY_TOO_LARGE') sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
     else if (error?.message === 'NVIDIA_NOT_CONFIGURED') sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' });
+    else if (error?.message === 'NVIDIA_AUTH_FAILED') sendJson(res, error.status || 401, { error: 'NVIDIA_AUTH_FAILED', detail: error.detail || '' });
     else if (error?.message === 'NVIDIA_CHAT_ERROR') sendJson(res, error.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: error.detail || '' });
     else if (error?.message === 'INVALID_NVIDIA_RESPONSE') sendJson(res, error.status || 502, { error: 'INVALID_NVIDIA_RESPONSE' });
     else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
@@ -735,4 +757,5 @@ process.once('SIGTERM', () => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
+  console.log(formatSetupStatus(SETUP_STATUS));
 });

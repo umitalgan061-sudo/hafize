@@ -1,0 +1,19 @@
+# Secrets — asla commit edilmez.
+# `.env.example` bilinçli olarak izinlidir; içinde yalnızca boş alanlar vardır.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*credentials*.json
+*token*.json
+
+# Hafize çalışma zamanı verileri (şifreli token, bellek ve zamanlanmış görev deposu)
+data/
+storage/
+*.hafize-store
+
+# Bağımlılıklar ve araç çıktıları
+node_modules/
+npm-debug.log*
+.DS_Store
