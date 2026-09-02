@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -32,6 +34,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -72,6 +82,33 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+const safeConnectorActivity = JSON.stringify([
+  getPublicToolActivity('canva_read', {
+    ok: true,
+    value: { designId: 'DAF-private-design', title: 'Gizli sunum', accessToken: 'canva-access-token' }
+  }),
+  getPublicToolActivity('gmail_read', {
+    ok: false,
+    error: 'GMAIL_SCOPE_NOT_ALLOWED',
+    value: { messageId: 'msg-private', subject: 'Banka şifresi', refreshToken: 'gmail-refresh-token' }
+  })
+]);
+assert.equal(safeConnectorActivity.includes('DAF-private-design'), false);
+assert.equal(safeConnectorActivity.includes('Gizli sunum'), false);
+assert.equal(safeConnectorActivity.includes('canva-access-token'), false);
+assert.equal(safeConnectorActivity.includes('msg-private'), false);
+assert.equal(safeConnectorActivity.includes('Banka şifresi'), false);
+assert.equal(safeConnectorActivity.includes('gmail-refresh-token'), false);
+assert.equal(safeConnectorActivity.includes('GMAIL_SCOPE_NOT_ALLOWED'), false);
+assert.deepEqual(getPublicToolActivity('canva_read', { ok: true }), {
+  label: 'Canva verisi okundu',
+  state: 'success'
+});
+assert.deepEqual(getPublicToolActivity('gmail_read', { ok: false }), {
+  label: 'Gmail verisi okunamadı',
+  state: 'failure'
+});
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
 assert.deepEqual(
@@ -83,6 +120,35 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+const connectorContext = {
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({}) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({}) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false }).map(
+    (tool) => tool.function.name
+  ),
+  ['runtime_status', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, gmailReadTool: null }).map(
+    (tool) => tool.function.name
+  ),
+  ['runtime_status', 'canva_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, { ...connectorContext, githubReadConfigured: true }).map(
+    (tool) => tool.function.name
+  ),
+  ['github_read_file']
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -189,6 +255,55 @@ const safeExecutionError = await executeNvidiaToolCall(
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
 
+const unauthenticatedGmail = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_8',
+    type: 'function',
+    function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'profile' }) }
+  },
+  { traceId, agent: hafize, registry, gmailReadAuthenticated: false, gmailReadTool: { execute: async () => ({}) } }
+);
+assert.deepEqual(unauthenticatedGmail, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const unauthorizedCanva = await executeNvidiaToolCall(
+  reviewer,
+  {
+    id: 'call_9',
+    type: 'function',
+    function: { name: 'canva_read', arguments: JSON.stringify({ operation: 'profile' }) }
+  },
+  { traceId, agent: reviewer, registry, ...connectorContext }
+);
+assert.equal(unauthorizedCanva.ok, false);
+assert.equal(unauthorizedCanva.error, 'TOOL_NOT_AUTHORIZED');
+
+const safeConnectorError = await executeNvidiaToolCall(
+  hafize,
+  {
+    id: 'call_10',
+    type: 'function',
+    function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'profile' }) }
+  },
+  {
+    traceId,
+    agent: hafize,
+    registry,
+    gmailReadAuthenticated: true,
+    gmailReadTool: {
+      execute: async () => {
+        const error = new Error('refresh_token=gmail-refresh-token expired for user@example.com');
+        error.code = 'GMAIL_OPERATION_NOT_ALLOWED';
+        error.status = 403;
+        throw error;
+      }
+    }
+  }
+);
+assert.deepEqual(safeConnectorError, { ok: false, error: 'GMAIL_OPERATION_NOT_ALLOWED', status: 403 });
+assert.equal(JSON.stringify(safeConnectorError).includes('gmail-refresh-token'), false);
+assert.equal(JSON.stringify(safeConnectorError).includes('user@example.com'), false);
+
 const unknown = await executeNvidiaToolCall(
   hafize,
   { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
@@ -196,4 +311,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, configured GitHub repo.read and authenticated Canva/Gmail connector reads are policy-gated');
