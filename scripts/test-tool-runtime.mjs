@@ -16,11 +16,24 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
+const toolPermissions = listToolPermissions();
+assert.deepEqual(toolPermissions, [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Yazma yetkisi olan hiçbir araç NVIDIA tool katalog'una kayıtlı olmamalıdır;
+// gmail_send yalnız ayrı onay sözleşmesi üzerinden çalışır.
+const registeredFunctionNames = toolPermissions.map((entry) => entry.functionName);
+assert.equal(registeredFunctionNames.includes('gmail_send'), false);
+assert.equal(
+  toolPermissions.every((entry) => entry.permission.endsWith('.read') || entry.permission === 'runtime.status' || entry.permission === 'agent.delegate'),
+  true
+);
+assert.equal(new Set(registeredFunctionNames).size, registeredFunctionNames.length);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -83,6 +96,47 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+// Connector araçları yalnız gerçekten bağlı ve çalıştırılabilir olduklarında modele görünür.
+const connectorContext = {
+  githubReadConfigured: false,
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({}) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({}) }
+};
+assert.deepEqual(getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name), [
+  'runtime_status',
+  'canva_read',
+  'gmail_read'
+]);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false, gmailReadAuthenticated: false })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { canvaReadAuthenticated: true, gmailReadAuthenticated: true })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+// Bağlı olsa bile connector.* izni olmayan ajan bu araçları göremez.
+assert.deepEqual(getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name), []);
+
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolActivity('gmail_read', { ok: true, value: { subject: 'gizli konu' } }), {
+  label: 'Gmail verisi okundu',
+  state: 'success'
+});
+const safeGmailActivity = JSON.stringify(getPublicToolActivity('gmail_read', {
+  ok: true,
+  value: { subject: 'gizli konu', from: 'kisi@example.com' }
+}));
+assert.equal(safeGmailActivity.includes('gizli konu'), false);
+assert.equal(safeGmailActivity.includes('example.com'), false);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
