@@ -19,8 +19,28 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+
+// Katalog sözleşmesi: her aracın benzersiz bir izni ve kullanıcıya
+// gösterilebilir running/success/failure etiketi bulunmalıdır.
+const permissions = listToolPermissions();
+assert.equal(new Set(permissions.map((item) => item.permission)).size, permissions.length);
+assert.equal(new Set(permissions.map((item) => item.functionName)).size, permissions.length);
+for (const { functionName } of permissions) {
+  const running = getPublicToolRunningActivity(functionName);
+  assert.equal(running?.state, 'running', `${functionName} running etiketi yok`);
+  assert.equal(typeof running.label, 'string');
+  assert.ok(running.label.length > 0);
+  for (const [result, state] of [[{ ok: true }, 'success'], [{ ok: false }, 'failure']]) {
+    const activity = getPublicToolActivity(functionName, result);
+    assert.equal(activity?.state, state, `${functionName} ${state} etiketi yok`);
+    assert.ok(typeof activity.label === 'string' && activity.label.length > 0);
+    assert.deepEqual(Object.keys(activity).sort(), ['label', 'state']);
+  }
+}
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -72,6 +92,34 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+// Connector araçlarının kullanıcıya görünen etiketleri hiçbir bağlantı
+// içeriğini (tasarım kimliği, e-posta konusu/adresi, token) taşımaz.
+const connectorLeakSamples = [
+  ['canva_read', {
+    ok: true,
+    value: { design: { id: 'DAF-private-design', title: 'Gizli sunum' }, accessToken: 'canva-secret-token' }
+  }],
+  ['gmail_read', {
+    ok: false,
+    error: 'GMAIL_SCOPE_DENIED',
+    value: { messages: [{ id: 'm-private', subject: 'Gizli konu', from: 'kisi@example.com' }], accessToken: 'gmail-secret-token' }
+  }]
+];
+for (const [functionName, result] of connectorLeakSamples) {
+  const serialized = JSON.stringify(getPublicToolActivity(functionName, result));
+  for (const secret of ['DAF-private-design', 'Gizli sunum', 'canva-secret-token', 'm-private', 'Gizli konu', 'kisi@example.com', 'gmail-secret-token', 'GMAIL_SCOPE_DENIED']) {
+    assert.equal(serialized.includes(secret), false, `${functionName} etiketi ${secret} sızdırıyor`);
+  }
+}
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
+  state: 'running'
+});
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
 assert.deepEqual(
@@ -83,6 +131,24 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, {
+    canvaReadAuthenticated: true,
+    canvaReadTool: { execute: async () => ({}) },
+    gmailReadAuthenticated: true,
+    gmailReadTool: { execute: async () => ({}) }
+  }),
+  []
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
