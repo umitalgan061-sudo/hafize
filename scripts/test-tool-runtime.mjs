@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -32,6 +34,14 @@ assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), {
 });
 assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
   state: 'running'
 });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
@@ -72,8 +82,38 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+const connectorActivity = JSON.stringify(getPublicToolActivity('gmail_read', {
+  ok: true,
+  value: { messages: [{ id: 'private-message-id' }], emailAddress: 'owner@example.com' }
+}));
+assert.equal(connectorActivity.includes('private-message-id'), false);
+assert.equal(connectorActivity.includes('owner@example.com'), false);
+assert.equal(connectorActivity.includes('"state":"success"'), true);
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
+
+// Bağlı olmayan konnektör araçları modele hiç gösterilmez; bağlıyken bile
+// izinsiz ajana açılmaz.
+const connectorContext = {
+  githubReadConfigured: true,
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({}) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({}) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name),
+  ['github_read_file']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, gmailReadAuthenticated: false }).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read']
+);
 assert.deepEqual(
   getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
   ['github_read_file']
@@ -195,5 +235,20 @@ const unknown = await executeNvidiaToolCall(
   { traceId, agent: hafize, registry, nvidiaConfigured: true, approvalGranted: false }
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
+
+const deniedConnector = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_8', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"profile.get"}' } },
+  { traceId, agent: reviewer, registry, ...connectorContext }
+);
+assert.equal(deniedConnector.ok, false);
+assert.equal(deniedConnector.error, 'TOOL_NOT_AUTHORIZED');
+
+const unavailableConnector = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_9', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"profile.get"}' } },
+  { traceId, agent: hafize, registry, githubReadConfigured: true }
+);
+assert.deepEqual(unavailableConnector, { ok: false, error: 'TOOL_UNAVAILABLE' });
 
 console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
