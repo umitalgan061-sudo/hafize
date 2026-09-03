@@ -19,8 +19,15 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
+assert.equal(
+  listToolPermissions().some(({ functionName }) => functionName === 'gmail_send'),
+  false,
+  'gmail_send must stay out of the model-callable catalog'
+);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
   label: 'Runtime durumu kontrol ediliyor',
@@ -72,6 +79,30 @@ assert.equal(safeActivity.includes('super-secret-token'), false);
 assert.equal(safeActivity.includes('GITHUB_REPO_NOT_ALLOWED'), false);
 assert.equal(safeActivity.includes('"state":"failure"'), true);
 
+for (const [functionName, running, success, failure] of [
+  ['canva_read', 'Canva verisi okunuyor', 'Canva verisi okundu', 'Canva verisi okunamadı'],
+  ['gmail_read', 'Gmail verisi okunuyor', 'Gmail verisi okundu', 'Gmail verisi okunamadı']
+]) {
+  assert.deepEqual(getPublicToolRunningActivity(functionName), { label: running, state: 'running' });
+  assert.deepEqual(getPublicToolActivity(functionName, { ok: true, value: { subject: 'private subject' } }), {
+    label: success,
+    state: 'success'
+  });
+  assert.deepEqual(getPublicToolActivity(functionName, { ok: false, error: 'CONNECTOR_REAUTH_REQUIRED' }), {
+    label: failure,
+    state: 'failure'
+  });
+  const connectorActivity = JSON.stringify(
+    getPublicToolActivity(functionName, {
+      ok: true,
+      value: { subject: 'private subject', accessToken: 'super-secret-token', from: 'owner@example.com' }
+    })
+  );
+  assert.equal(connectorActivity.includes('private subject'), false);
+  assert.equal(connectorActivity.includes('super-secret-token'), false);
+  assert.equal(connectorActivity.includes('owner@example.com'), false);
+}
+
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status']);
 assert.deepEqual(
@@ -83,6 +114,28 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+const connectorContext = {
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({ designs: [] }) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({ messages: [] }) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false, gmailReadAuthenticated: false })
+    .map((tool) => tool.function.name),
+  ['runtime_status'],
+  'connector tools stay hidden until the owner is authenticated'
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(reviewer, { ...connectorContext, githubReadConfigured: true }).map((tool) => tool.function.name),
+  ['github_read_file'],
+  'connector tools follow agent permissions, not connector availability'
+);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -189,6 +242,35 @@ const safeExecutionError = await executeNvidiaToolCall(
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
 
+const gmailReadResult = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_8', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"message.list"}' } },
+  { traceId, agent: hafize, registry, ...connectorContext }
+);
+assert.deepEqual(gmailReadResult, { ok: true, value: { messages: [] } });
+
+const unauthenticatedGmail = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_9', type: 'function', function: { name: 'gmail_read', arguments: '{"operation":"message.list"}' } },
+  { traceId, agent: hafize, registry, ...connectorContext, gmailReadAuthenticated: false }
+);
+assert.deepEqual(unauthenticatedGmail, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+const deniedCanva = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_10', type: 'function', function: { name: 'canva_read', arguments: '{"operation":"user.get"}' } },
+  { traceId, agent: reviewer, registry, ...connectorContext }
+);
+assert.equal(deniedCanva.ok, false);
+assert.equal(deniedCanva.error, 'TOOL_NOT_AUTHORIZED');
+
+const gmailSend = await executeNvidiaToolCall(
+  hafize,
+  { id: 'call_11', type: 'function', function: { name: 'gmail_send', arguments: '{}' } },
+  { traceId, agent: hafize, registry, ...connectorContext, approvalGranted: true }
+);
+assert.deepEqual(gmailSend, { ok: false, error: 'UNKNOWN_TOOL' });
+
 const unknown = await executeNvidiaToolCall(
   hafize,
   { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
@@ -196,4 +278,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, configured GitHub repo.read, and authenticated Canva/Gmail read tools are policy-gated');
