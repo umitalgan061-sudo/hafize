@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -196,4 +198,75 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, and configured GitHub repo.read are policy-gated');
+// Connector read tools are offered only when the owner is authenticated and the
+// backend boundary is wired; permission alone must never expose them.
+const connectorTools = [
+  {
+    functionName: 'canva_read',
+    contextKey: 'canvaReadAuthenticated',
+    toolKey: 'canvaReadTool',
+    runningLabel: 'Canva verisi okunuyor',
+    successLabel: 'Canva verisi okundu',
+    failureLabel: 'Canva verisi okunamadı'
+  },
+  {
+    functionName: 'gmail_read',
+    contextKey: 'gmailReadAuthenticated',
+    toolKey: 'gmailReadTool',
+    runningLabel: 'Gmail verisi okunuyor',
+    successLabel: 'Gmail verisi okundu',
+    failureLabel: 'Gmail verisi okunamadı'
+  }
+];
+
+for (const connector of connectorTools) {
+  assert.deepEqual(getPublicToolRunningActivity(connector.functionName), {
+    label: connector.runningLabel,
+    state: 'running'
+  });
+  assert.deepEqual(getPublicToolActivity(connector.functionName, { ok: true, value: { secret: 'never-leak' } }), {
+    label: connector.successLabel,
+    state: 'success'
+  });
+  assert.deepEqual(getPublicToolActivity(connector.functionName, { ok: false, error: 'PRIVATE_CONNECTOR_DETAIL' }), {
+    label: connector.failureLabel,
+    state: 'failure'
+  });
+
+  const authenticated = {
+    traceId,
+    agent: hafize,
+    registry,
+    [connector.contextKey]: true,
+    [connector.toolKey]: { execute: async () => ({ ok: true, source: connector.functionName }) }
+  };
+  const unauthenticated = { ...authenticated, [connector.contextKey]: false };
+  const unwired = { ...authenticated, [connector.toolKey]: null };
+
+  assert.equal(
+    getAllowedNvidiaTools(hafize, authenticated).some((tool) => tool.function.name === connector.functionName),
+    true
+  );
+  assert.deepEqual(getAllowedNvidiaTools(hafize, unauthenticated).map((tool) => tool.function.name), [
+    'runtime_status'
+  ]);
+  assert.deepEqual(getAllowedNvidiaTools(hafize, unwired).map((tool) => tool.function.name), ['runtime_status']);
+  assert.deepEqual(getAllowedNvidiaTools(reviewer, authenticated).map((tool) => tool.function.name), []);
+
+  const call = { id: 'call_connector', type: 'function', function: { name: connector.functionName, arguments: '{}' } };
+  const allowed = await executeNvidiaToolCall(hafize, call, authenticated);
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.value.source, connector.functionName);
+
+  assert.deepEqual(await executeNvidiaToolCall(hafize, call, unauthenticated), {
+    ok: false,
+    error: 'TOOL_UNAVAILABLE'
+  });
+  assert.deepEqual(await executeNvidiaToolCall(hafize, call, unwired), { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+  const denied = await executeNvidiaToolCall(reviewer, call, { ...authenticated, agent: reviewer });
+  assert.equal(denied.ok, false);
+  assert.equal(denied.error, 'TOOL_NOT_AUTHORIZED');
+}
+
+console.log('Tool runtime OK: safe state-based running/terminal activity, runtime status, delegation, configured GitHub repo.read and authenticated Canva/Gmail connector reads are policy-gated');
