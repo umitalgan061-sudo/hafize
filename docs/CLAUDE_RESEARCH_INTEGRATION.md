@@ -38,7 +38,7 @@ Hafize uyarlaması:
 - skill prompt'u secret veya credential alamaz;
 - project skill yalnız açıkça izin verilen proje kapsamından yüklenir.
 
-Bu katman sıradaki geliştirme turunun önceliğidir.
+Sözleşme katmanı `lib/skill-manifest.mjs` ve `lib/skill-registry.mjs` ile uygulandı; ayrıntı `docs/SKILLS_REGISTRY_CONTRACT.md` içinde. Sıradaki adım skill yükleyicisi ve HTTP yüzeyidir.
 
 ### 3. Sub-agent lifecycle
 
