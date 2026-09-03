@@ -60,18 +60,9 @@ for (const source of [undefined, 'system', 'BUILTIN', '']) {
 }
 
 // Skill kendi araç yetkisini yükseltemez.
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, allowedTools: ['external.write'] }, { source: 'user', agent }),
-  /SKILL_TOOL_ESCALATION_FORBIDDEN/
-);
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, allowedTools: ['external.send'] }, { source: 'user', agent }),
-  /SKILL_TOOL_ESCALATION_FORBIDDEN/
-);
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, allowedTools: ['connector.gmail.read'] }, { source: 'user', agent: readerAgent }),
-  /SKILL_TOOL_ESCALATION_FORBIDDEN/
-);
+assert.throws(() => normalizeSkillManifest({ ...manifest, allowedTools: ['external.write'] }, { source: 'user', agent }), /SKILL_TOOL_ESCALATION_FORBIDDEN/);
+assert.throws(() => normalizeSkillManifest({ ...manifest, allowedTools: ['external.send'] }, { source: 'user', agent }), /SKILL_TOOL_ESCALATION_FORBIDDEN/);
+assert.throws(() => normalizeSkillManifest({ ...manifest, allowedTools: ['connector.gmail.read'] }, { source: 'user', agent: readerAgent }), /SKILL_TOOL_ESCALATION_FORBIDDEN/);
 for (const permission of ['secret.read', 'repo.delete', 'repo.merge']) {
   assert.throws(() => normalizeSkillManifest({ ...manifest, allowedTools: [permission] }, { source: 'user', agent }), /SKILL_PERMISSION_FORBIDDEN/);
 }
@@ -93,14 +84,8 @@ assert.throws(() => normalizeSkillManifest(manifest, { source: 'user', projectSc
 
 // Fork execution yalnız delegasyon yetkisi olan ajanda ve proje dışı kaynakta açılır.
 assert.equal(normalizeSkillManifest({ ...manifest, execution: 'fork' }, { source: 'user', agent }).execution, 'fork');
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, execution: 'fork', allowedTools: ['runtime.status'] }, { source: 'user', agent: readerAgent }),
-  /SKILL_FORK_NOT_AUTHORIZED/
-);
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, execution: 'fork', allowedTools: [] }, { source: 'project', projectScope: 'a/b', allowedProjectScopes: ['a/b'], agent }),
-  /SKILL_FORK_SOURCE_FORBIDDEN/
-);
+assert.throws(() => normalizeSkillManifest({ ...manifest, execution: 'fork', allowedTools: ['runtime.status'] }, { source: 'user', agent: readerAgent }), /SKILL_FORK_NOT_AUTHORIZED/);
+assert.throws(() => normalizeSkillManifest({ ...manifest, execution: 'fork', allowedTools: [] }, { source: 'project', projectScope: 'a/b', allowedProjectScopes: ['a/b'], agent }), /SKILL_FORK_SOURCE_FORBIDDEN/);
 assert.throws(() => normalizeSkillManifest({ ...manifest, execution: 'worktree' }, { source: 'user', agent }), /INVALID_SKILL_EXECUTION/);
 
 // Skill metni secret/credential taşıyamaz.
@@ -125,17 +110,11 @@ for (const prompt of ['', 'x'.repeat(SKILL_LIMITS.maxPromptLength + 1), 'satır\
   assert.throws(() => normalizeSkillManifest({ ...manifest, prompt }, { source: 'user', agent }), /INVALID_SKILL_PROMPT/);
 }
 assert.throws(() => normalizeSkillManifest({ ...manifest, triggers: 'özet' }, { source: 'user', agent }), /INVALID_SKILL_TRIGGERS/);
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, triggers: Array.from({ length: SKILL_LIMITS.maxTriggers + 1 }, (_, i) => `t${i}`) }, { source: 'user', agent }),
-  /INVALID_SKILL_TRIGGERS/
-);
+assert.throws(() => normalizeSkillManifest({ ...manifest, triggers: Array.from({ length: SKILL_LIMITS.maxTriggers + 1 }, (_, i) => `t${i}`) }, { source: 'user', agent }), /INVALID_SKILL_TRIGGERS/);
 assert.throws(() => normalizeSkillManifest({ ...manifest, triggers: ['Özet', 'özet'] }, { source: 'user', agent }), /INVALID_SKILL_TRIGGER/);
 assert.throws(() => normalizeSkillManifest({ ...manifest, arguments: [{ name: 'gun', type: 'object', description: 'x' }] }, { source: 'user', agent }), /INVALID_SKILL_ARGUMENT_TYPE/);
 assert.throws(() => normalizeSkillManifest({ ...manifest, arguments: [{ name: 'gun', type: 'string', description: 'x', extra: 1 }] }, { source: 'user', agent }), /INVALID_SKILL_ARGUMENT_FIELD/);
-assert.throws(
-  () => normalizeSkillManifest({ ...manifest, arguments: [{ name: 'gun', type: 'string', description: 'x' }, { name: 'gun', type: 'string', description: 'y' }] }, { source: 'user', agent }),
-  /INVALID_SKILL_ARGUMENT/
-);
+assert.throws(() => normalizeSkillManifest({ ...manifest, arguments: [{ name: 'gun', type: 'string', description: 'x' }, { name: 'gun', type: 'string', description: 'y' }] }, { source: 'user', agent }), /INVALID_SKILL_ARGUMENT/);
 assert.throws(() => normalizeSkillManifest({ ...manifest, model: 'BAD MODEL' }, { source: 'user', agent }), /INVALID_SKILL_MODEL/);
 for (const input of [null, [], 'skill']) {
   assert.throws(() => normalizeSkillManifest(input, { source: 'user', agent }), /INVALID_SKILL_MANIFEST/);

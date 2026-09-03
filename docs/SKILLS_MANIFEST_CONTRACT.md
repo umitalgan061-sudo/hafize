@@ -36,6 +36,17 @@ Güven değeri, aynı isimli skill'lerin çakışmasında hangi kaydın kazanaca
 
 Dönen kayıt tamamen dondurulmuştur (`Object.freeze`, iç diziler dâhil) ve şu alanları taşır: `name`, `description`, `source`, `projectScope`, `trust`, `triggers`, `allowedTools`, `arguments`, `model`, `execution`, `prompt`.
 
+## Registry çözümlemesi
+
+`lib/skills-registry.mjs` doğrulanmış kayıtları deterministik bir registry'ye çevirir:
+
+- her kayıt `{ source, projectScope?, manifest }` biçimindedir ve manifest sözleşmesinden geçer;
+- aynı isim iki kaynakta varsa **daha güvenilir kaynak kazanır**; gölgelenen kayıt yüklenmez ve `shadowed` listesinde raporlanır;
+- aynı güven düzeyindeki isim çakışması sessizce çözülmez → `SKILL_NAME_CONFLICT`;
+- `match(query)` kullanıcı metnindeki tetikleyicilere göre adayları güven sırasıyla döndürür;
+- `listPublic()` modele yalnız `name`, `description`, `source` ve `execution` sunar; `prompt` ve `allowedTools` model bağlamına girmez;
+- en fazla 64 skill yüklenir.
+
 ## Test
 
-`node scripts/test-skills-manifest.mjs` — `npm run check` gate'ine bağlıdır.
+`node scripts/test-skills-manifest.mjs` ve `node scripts/test-skills-registry.mjs` — ikisi de `npm run check` gate'ine bağlıdır.
