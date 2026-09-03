@@ -20,26 +20,22 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 
 ## Tekrar eden tur ve PR yığılmasını önleme
 
-Otomatik turlar birbirini görmediğinde aynı iş defalarca farklı branch'lerde
-yeniden yazılır ve inceleme kuyruğu şişer. Bu nedenle her tur başında:
+Turlar birbirini görmediğinde aynı iş farklı branch'lerde tekrar yazılır ve
+inceleme kuyruğu şişer. Bu nedenle her tur başında:
 
 1. Açık PR listesi okunur (`hafize/auto-*` ve `claude/*` head'leri dâhil).
-2. Planlanan ana iyileştirme için **zaten açık bir PR varsa yeni PR açılmaz.**
-   Bunun yerine sırayla:
-   - o PR yerel olarak fetch edilip doğrulama kapısı çalıştırılır;
-   - kapı geçiyorsa PR açıklamasına "doğrulandı, merge edilebilir" notu
-     düşülür ve tur, o PR'ın head'i üzerine stacked yeni bir ana iyileştirmeyle
-     devam eder;
-   - kapı geçmiyorsa düzeltme aynı PR'ın branch'ine eklenir.
-3. Açık PR sayısı yüksekken tur, yeni özellik yerine mevcut PR'ları
-   doğrulamayı ve merge sırası önerisini önceliklendirebilir.
-4. `main` üzerinde doğrulama kapısı kırmızıysa bu, sıradaki her yeni özellikten
-   önce gelir; onarım tek ve küçük bir PR'da toplanır.
-5. Turun sonunda `docs/SELF_DEVELOPMENT_STATE.md` güncellenir: `main` kapı
-   durumu, doğrulanmış açık PR'lar, önerilen merge sırası ve sıradaki iş.
+2. Planlanan iyileştirme için **zaten açık bir PR varsa yeni PR açılmaz:** o PR
+   fetch edilip doğrulama kapısı çalıştırılır; kapı geçiyorsa PR'a "doğrulandı"
+   notu düşülüp tur o head üzerine stacked devam eder, geçmiyorsa düzeltme aynı
+   branch'e eklenir.
+3. Açık PR sayısı yüksekken tur, yeni özellik yerine mevcut PR'ları doğrulamayı
+   ve merge sırası önerisini önceliklendirebilir.
+4. `main` kapısı kırmızıysa onarım her yeni özellikten önce gelir ve tek küçük
+   bir PR'da toplanır.
+5. Tur sonunda `docs/SELF_DEVELOPMENT_STATE.md` güncellenir: kapı durumu,
+   doğrulanmış PR'lar, önerilen merge sırası ve sıradaki iş.
 
-Bu kurallar merge yetkisini ajana vermez; `main` üzerine merge kararı yine
-kullanıcıya aittir.
+Bu bölüm merge yetkisini ajana vermez; `main` merge kararı kullanıcınındır.
 
 ## Tur değişiklik bütçesi — 500 satır
 
