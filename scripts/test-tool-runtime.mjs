@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -83,6 +85,52 @@ assert.deepEqual(
   ['github_read_file']
 );
 assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }), []);
+
+const connectorContext = {
+  canvaReadAuthenticated: true,
+  canvaReadTool: { execute: async () => ({ designs: [] }) },
+  gmailReadAuthenticated: true,
+  gmailReadTool: { execute: async () => ({ threads: [] }) }
+};
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, connectorContext).map((tool) => tool.function.name),
+  ['runtime_status', 'canva_read', 'gmail_read']
+);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { ...connectorContext, canvaReadAuthenticated: false, gmailReadAuthenticated: false })
+    .map((tool) => tool.function.name),
+  ['runtime_status']
+);
+assert.deepEqual(getAllowedNvidiaTools(reviewer, connectorContext).map((tool) => tool.function.name), []);
+
+for (const name of ['canva_read', 'gmail_read']) {
+  assert.equal(getPublicToolRunningActivity(name)?.state, 'running');
+  assert.equal(getPublicToolActivity(name, { ok: true })?.state, 'success');
+  const connectorFailure = JSON.stringify(getPublicToolActivity(name, {
+    ok: false,
+    error: 'CONNECTOR_NOT_AUTHENTICATED',
+    value: { ownerId: 'owner-1', accessToken: 'super-secret-token' }
+  }));
+  assert.equal(connectorFailure.includes('super-secret-token'), false);
+  assert.equal(connectorFailure.includes('owner-1'), false);
+  assert.equal(connectorFailure.includes('CONNECTOR_NOT_AUTHENTICATED'), false);
+  assert.equal(connectorFailure.includes('"state":"failure"'), true);
+
+  const unauthenticated = await executeNvidiaToolCall(
+    hafize,
+    { id: `call_${name}_unauth`, type: 'function', function: { name, arguments: '{}' } },
+    { traceId: '00000000-0000-4000-8000-00000000000f', agent: hafize, registry }
+  );
+  assert.deepEqual(unauthenticated, { ok: false, error: 'TOOL_UNAVAILABLE' });
+
+  const unauthorized = await executeNvidiaToolCall(
+    reviewer,
+    { id: `call_${name}_denied`, type: 'function', function: { name, arguments: '{}' } },
+    { traceId: '00000000-0000-4000-8000-00000000000f', agent: reviewer, registry, ...connectorContext }
+  );
+  assert.equal(unauthorized.ok, false);
+  assert.equal(unauthorized.error, 'TOOL_NOT_AUTHORIZED');
+}
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
