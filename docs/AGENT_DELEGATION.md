@@ -31,3 +31,33 @@ Ana run ile uzman çağrısı aynı `trace_id` değerini kullanır. Ledger'da uz
 Bu ilk delegasyon sürümünde uzman çağrısına parent ajanın tool listesi aktarılmaz ve uzman çağrısına herhangi bir NVIDIA tool tanımı verilmez. Böylece parent tool permission'larının alt ajana miras kalması mümkün değildir.
 
 Sonraki genişletme, uzmanlara yalnızca kendi registry allowlist'lerinden türetilmiş tool setlerini ayrı bir execution context içinde açabilir; parent tool setini kopyalamak yasaktır.
+
+## İptal ve zaman aşımı
+
+`runDelegatedAgent` iki opsiyonel parametre alır:
+
+- `signal`: dış `AbortSignal`. Server, istemci bağlantısını kapattığında kullandığı
+  `controller.signal` değerini geçirir.
+- `timeoutMs`: tur için duvar saati sınırı. Kabul aralığı 1.000–600.000 ms; aralık
+  dışındaki veya tamsayı olmayan değerler `INVALID_DELEGATED_TIMEOUT` ile reddedilir.
+  `AbortSignal` olmayan bir `signal` ise `INVALID_DELEGATED_SIGNAL` döndürür.
+
+İki kaynak tek bir iç sinyalde birleştirilir ve iç içe delegasyonlara devredilir:
+parent iptal edildiğinde alt ajan turları da iptal olur. Sinyal `complete(payload, signal)`
+ikinci argümanı olarak model katmanına iletilir; hiçbiri verilmezse davranış değişmez.
+
+İptal noktaları ve sonuçları:
+
+| Durum | Sonuç |
+| --- | --- |
+| Tur başlamadan iptal | `DELEGATED_RUN_ABORTED`, model hiç çağrılmaz |
+| Model çağrısı sırasında iptal | `DELEGATED_RUN_ABORTED`, ham `AbortError` sızmaz |
+| Araç turunda iptal | `DELEGATED_RUN_ABORTED`, kalan araçlar başlatılmaz, ikinci model çağrısı yapılmaz |
+| `timeoutMs` doldu | `DELEGATED_RUN_TIMEOUT` |
+| İptal yokken upstream hatası | Hata yutulmaz, çağırana yükselir |
+
+Ledger tarafında iptal edilen turda yarım araç kaydı bırakılmaz: bir araç yalnızca
+başlatılacaksa `recordToolStart` çağrılır, başlatılmış her araç `recordToolFinish`
+ile kapanır. Zamanlayıcı her koşulda `finally` içinde temizlenir.
+
+Test: `scripts/test-delegated-run-cancellation.mjs`.

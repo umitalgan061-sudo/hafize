@@ -356,7 +356,8 @@ async function handleAgentRun(req, res) {
         maxTokens: boundedMaxTokens(body),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         githubReadFile: GITHUB_READ_FILE,
-        complete: (payload) => nvidiaJsonCompletion(payload, controller.signal)
+        signal: controller.signal,
+        complete: (payload, signal) => nvidiaJsonCompletion(payload, signal ?? controller.signal)
       });
     }
   });
