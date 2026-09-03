@@ -19,7 +19,9 @@ assert.ok(engineer);
 assert.deepEqual(listToolPermissions(), [
   { permission: 'runtime.status', functionName: 'runtime_status' },
   { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' }
+  { permission: 'repo.read', functionName: 'github_read_file' },
+  { permission: 'connector.canva.read', functionName: 'canva_read' },
+  { permission: 'connector.gmail.read', functionName: 'gmail_read' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), {
@@ -34,12 +36,35 @@ assert.deepEqual(getPublicToolRunningActivity('github_read_file'), {
   label: 'GitHub dosyası okunuyor',
   state: 'running'
 });
+assert.deepEqual(getPublicToolRunningActivity('canva_read'), {
+  label: 'Canva verisi okunuyor',
+  state: 'running'
+});
+assert.deepEqual(getPublicToolRunningActivity('gmail_read'), {
+  label: 'Gmail verisi okunuyor',
+  state: 'running'
+});
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
 assert.equal(getPublicToolRunningActivity(null), null);
 const safeRunningActivity = JSON.stringify(getPublicToolRunningActivity('github_read_file'));
 assert.equal(safeRunningActivity.includes('repository'), false);
 assert.equal(safeRunningActivity.includes('path'), false);
 assert.equal(safeRunningActivity.includes('token'), false);
+
+// Kataloğa yeni bir araç eklendiğinde public aktivite etiketleri de eklenmiş olmalı;
+// aksi halde arayüz o araç için sessizce etiketsiz kalır.
+for (const { functionName } of listToolPermissions()) {
+  const running = getPublicToolRunningActivity(functionName);
+  assert.ok(running?.label, `${functionName} için running etiketi eksik`);
+  assert.equal(running.state, 'running');
+  const success = getPublicToolActivity(functionName, { ok: true });
+  assert.ok(success?.label, `${functionName} için success etiketi eksik`);
+  assert.equal(success.state, 'success');
+  const failure = getPublicToolActivity(functionName, { ok: false, error: 'INTERNAL' });
+  assert.ok(failure?.label, `${functionName} için failure etiketi eksik`);
+  assert.equal(failure.state, 'failure');
+  assert.deepEqual(Object.keys(failure).sort(), ['label', 'state']);
+}
 
 assert.deepEqual(getPublicToolActivity('runtime_status', { ok: true }), {
   label: 'Runtime durumu kontrol edildi',
