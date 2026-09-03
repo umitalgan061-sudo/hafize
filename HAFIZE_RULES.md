@@ -8,8 +8,8 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 
 ## Her geliştirme turunda zorunlu akış
 
-1. Önce bu dosyayı ve `README.md` dosyasını oku.
-2. Mevcut kodu incele; yapılmış işi yeniden yapma.
+1. Önce bu dosyayı, `README.md` ve `docs/SELF_DEVELOPMENT_STATE.md` dosyasını oku.
+2. Mevcut kodu **ve açık Pull Request'leri** incele; yapılmış işi yeniden yapma.
 3. Her turda küçük, ölçülebilir, geri alınabilir ve test edilebilir tek bir ana iyileştirme seç; aynı ana iyileştirme içindeki ilişkili alt adımlarla tur bütçesi elverdiği sürece ilerlemeye devam et.
 4. Mevcut işlevleri gereksiz yere silme veya yeniden yazma.
 5. Değişikliği ayrı bir `hafize/auto-*` branch'inde yap.
@@ -17,6 +17,25 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 7. Sonucu Pull Request olarak hazırla.
 8. Self-development değişikliklerini doğrudan `main` üzerine merge etme.
 9. Test başarısızsa bunu saklama; PR açıklamasında açıkça belirt.
+
+## Tekrar eden tur ve PR yığılmasını önleme
+
+Turlar birbirini görmediğinde aynı iş farklı branch'lerde tekrar yazılır ve
+inceleme kuyruğu şişer. Bu nedenle her tur başında:
+
+1. Açık PR listesi okunur (`hafize/auto-*` ve `claude/*` head'leri dâhil).
+2. Planlanan iyileştirme için **zaten açık bir PR varsa yeni PR açılmaz:** o PR
+   fetch edilip doğrulama kapısı çalıştırılır; kapı geçiyorsa PR'a "doğrulandı"
+   notu düşülüp tur o head üzerine stacked devam eder, geçmiyorsa düzeltme aynı
+   branch'e eklenir.
+3. Açık PR sayısı yüksekken tur, yeni özellik yerine mevcut PR'ları doğrulamayı
+   ve merge sırası önerisini önceliklendirebilir.
+4. `main` kapısı kırmızıysa onarım her yeni özellikten önce gelir ve tek küçük
+   bir PR'da toplanır.
+5. Tur sonunda `docs/SELF_DEVELOPMENT_STATE.md` güncellenir: kapı durumu,
+   doğrulanmış PR'lar, önerilen merge sırası ve sıradaki iş.
+
+Bu bölüm merge yetkisini ajana vermez; `main` merge kararı kullanıcınındır.
 
 ## Tur değişiklik bütçesi — 500 satır
 
