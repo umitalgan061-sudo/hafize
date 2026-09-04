@@ -46,6 +46,11 @@ assert.deepEqual(calls[1], ['send', {
 }]);
 
 await assert.rejects(() => boundary.execute({ ...args, approvalGranted: true }, { principal, approvalGranted: true }), /INVALID_GMAIL_SEND_FIELD/);
+for (const context of [null, 'principal', ['principal']]) {
+  await assert.rejects(() => boundary.execute(args, context), /INVALID_GMAIL_SEND_TOOL:context/);
+}
+await assert.rejects(() => boundary.execute(args, { principal, approvalGranted: 'yes' }), /GMAIL_SEND_APPROVAL_REQUIRED/);
+await assert.rejects(() => boundary.execute(args, { principal }), /GMAIL_SEND_APPROVAL_REQUIRED/);
 assert.throws(() => createGmailSendToolBoundary({}), /INVALID_GMAIL_SEND_TOOL/);
 assert.throws(() => createGmailSendToolBoundary({ sendClient, ownerResolver: {} }), /INVALID_GMAIL_SEND_TOOL/);
 
