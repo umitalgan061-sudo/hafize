@@ -38,7 +38,7 @@ Hafize uyarlaması:
 - skill prompt'u secret veya credential alamaz;
 - project skill yalnız açıkça izin verilen proje kapsamından yüklenir.
 
-Bu katman sıradaki geliştirme turunun önceliğidir.
+İlk uygulama `lib/skill-manifest.mjs` ve `lib/skill-registry.mjs` ile başlatıldı; sözleşme `docs/SKILLS_REGISTRY_CONTRACT.md` içinde tutulur. Sıradaki alt adım server wiring ve `skill.invoke` aracının agent policy arkasında sunulmasıdır.
 
 ### 3. Sub-agent lifecycle
 
