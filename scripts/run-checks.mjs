@@ -17,16 +17,16 @@ const SYNTAX_TIMEOUT_MS = 30_000;
 const MAX_FAILURE_OUTPUT_LINES = 40;
 
 function parseArgs(argv) {
-  const options = { filter: null, list: false };
+  const options = { filters: [], list: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--list') options.list = true;
-    else if (arg === '--filter') options.filter = argv[++index] ?? null;
-    else if (arg.startsWith('--filter=')) options.filter = arg.slice('--filter='.length);
-    else if (!arg.startsWith('-')) options.filter = arg;
+    else if (arg === '--filter') options.filters.push(argv[++index] ?? '');
+    else if (arg.startsWith('--filter=')) options.filters.push(arg.slice('--filter='.length));
+    else if (!arg.startsWith('-')) options.filters.push(arg);
     else throw new Error(`UNKNOWN_CHECK_OPTION:${arg}`);
   }
-  if (options.filter !== null && !options.filter.trim()) options.filter = null;
+  options.filters = options.filters.flatMap((value) => String(value).split(',')).map((value) => value.trim()).filter(Boolean);
   return options;
 }
 
@@ -92,8 +92,8 @@ try {
   const testFiles = (await collectFiles({ dir: 'scripts', extensions: ['.mjs'] }))
     .filter((file) => path.basename(file).startsWith('test-'))
     .map((file) => path.basename(file));
-  const suites = [...PRELUDE_SUITES, ...testFiles]
-    .filter((suite) => !options.filter || suite.includes(options.filter));
+  const matchesFilter = (suite) => !options.filters.length || options.filters.some((filter) => suite.includes(filter));
+  const suites = [...PRELUDE_SUITES, ...testFiles].filter(matchesFilter);
 
   if (options.list) {
     console.log(suites.join('\n'));
@@ -101,7 +101,6 @@ try {
   }
 
   const failures = [];
-
   console.log(`syntax: ${syntaxFiles.length} dosya kontrol ediliyor`);
   const syntaxResults = await runPool(
     syntaxFiles,
@@ -134,7 +133,6 @@ try {
     }
     process.exit(1);
   }
-
   console.log(`\nTüm kontroller tamam: ${syntaxFiles.length} syntax, ${suites.length} test paketi`);
 } catch (error) {
   console.error(error?.message || 'CHECK_RUNNER_FAILED');
