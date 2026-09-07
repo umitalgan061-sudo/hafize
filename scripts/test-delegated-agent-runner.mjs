@@ -45,7 +45,11 @@ const result = await runDelegatedAgent({
       assert.equal(payload.tools.some((tool) => tool.function.name === 'runtime_status'), false);
       assert.equal(payload.tools.some((tool) => tool.function.name === 'agent_delegate'), false);
       return {
+        id: 'resp-1',
+        model: 'mock-model',
+        usage: { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 },
         choices: [{
+          finish_reason: 'tool_calls',
           message: {
             role: 'assistant',
             content: null,
@@ -68,7 +72,11 @@ const result = await runDelegatedAgent({
     assert.equal(payload.tool_choice, 'none');
     assert.equal(payload.messages.at(-1).role, 'tool');
     assert.match(payload.messages.at(-1).content, /# Hafize/);
-    return { choices: [{ message: { role: 'assistant', content: 'İnceleme tamamlandı.' } }] };
+    return {
+      id: 'resp-2',
+      model: 'mock-model',
+      choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'İnceleme tamamlandı.' } }]
+    };
   }
 });
 
@@ -77,6 +85,29 @@ const toolEntry = ledger.snapshot().entries.find((entry) => entry.action === 'to
 assert.equal(toolEntry.agentId, reviewer.id);
 assert.equal(toolEntry.parentTaskId, delegation.taskId);
 assert.equal(toolEntry.status, 'completed');
+
+const invalidFirst = await runDelegatedAgent({
+  agent: reviewer,
+  task: 'Hatalı model cevabını doğrula.',
+  traceId: 'trace-3',
+  parentTaskId: 'task_parent',
+  registry,
+  runLedger: createAgentRunLedger({ traceId: 'trace-3', agentId: primary.id }),
+  model: 'mock-model',
+  complete: async () => ({
+    choices: [{
+      finish_reason: 'tool_calls',
+      message: {
+        role: 'assistant',
+        tool_calls: [{
+          id: 'oversized',
+          function: { name: 'github_read_file', arguments: 'x'.repeat(16_385) }
+        }]
+      }
+    }]
+  })
+});
+assert.deepEqual(invalidFirst, { ok: false, error: 'INVALID_NVIDIA_RESPONSE' });
 
 const noToolsPayloads = [];
 const noTools = await runDelegatedAgent({
@@ -90,7 +121,9 @@ const noTools = await runDelegatedAgent({
   githubReadConfigured: false,
   complete: async (payload) => {
     noToolsPayloads.push(payload);
-    return { choices: [{ message: { role: 'assistant', content: 'toolsuz' } }] };
+    return {
+      choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: 'toolsuz' } }]
+    };
   }
 });
 
