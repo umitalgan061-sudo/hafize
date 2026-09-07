@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 
 const ROOT = path.resolve(process.cwd());
@@ -38,6 +39,11 @@ assert.equal(invalid.stderr.includes('UNKNOWN_CHECK_OPTION'), true);
 
 const noMatch = await exec(['--filter', 'this-suite-does-not-exist']);
 assert.equal(noMatch.code, 0);
-assert.equal(noMatch.stdout.includes('test: 0 paket'), true);
+assert.equal(noMatch.stdout.includes('check: 0 paket'), true);
+
+const runnerSource = await readFile(RUNNER, 'utf8');
+assert.match(runnerSource, /MAX_CAPTURE_BYTES\s*=\s*64\s*\*\s*1024/);
+assert.match(runnerSource, /startsWith\('validate-'\)/);
+assert.match(runnerSource, /OUTPUT_TRUNCATED/);
 
 console.log('check runner tests passed');
