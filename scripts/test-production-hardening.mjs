@@ -61,6 +61,12 @@ try {
     body: '{}'
   });
   assert.equal(connectorAgentRun.status, 200, 'scoped connector bearer must reach the agent runtime');
+  for (const path of ['/api/connectors/canva/status', '/api/connectors/gmail/status']) {
+    const connectorStatus = await fetch(`http://127.0.0.1:${port}${path}`, {
+      headers: { authorization: `Bearer ${connectorToken}` }
+    });
+    assert.equal(connectorStatus.status, 200, `scoped connector bearer must reach ${path}`);
+  }
 
   const login = await fetch(`http://127.0.0.1:${port}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: secret }) });
   assert.equal(login.status, 200);
