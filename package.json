@@ -5,7 +5,7 @@
   "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, Claude-benzeri frontend başlangıcı.",
   "scripts": {
     "start": "node --import ./lib/production-guard.mjs server.mjs",
-    "precheck": "node scripts/run-checks.mjs --filter=voice- && node scripts/run-checks.mjs --filter=ui-shell && node scripts/run-checks.mjs --filter=sidebar-accessibility",
+    "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs"
   },
