@@ -24,15 +24,17 @@ const api = createScheduleHttpApi({
   }
 });
 
+const requestId = 'req-schedule-1';
 const unauthorized = await api.handle({
   request: { body: { agentId: 'hafize-general' } },
   method: 'POST',
   pathname: '/api/schedules',
-  headers: {}
+  headers: { 'x-hafize-request-id': requestId }
 });
 assert.equal(unauthorized.status, 401);
-assert.equal(unauthorized.body.error, 'AUTH_REQUIRED');
+assert.deepEqual(unauthorized.body, { error: 'AUTH_REQUIRED', status: 401, message: '', requestId });
 assert.equal(unauthorized.headers['WWW-Authenticate'], 'Bearer');
+assert.equal(unauthorized.headers['X-Hafize-Request-Id'], requestId);
 assert.equal(bodyReads, 0, 'unauthorized request body must not be read');
 
 const created = await api.handle({
@@ -46,7 +48,7 @@ const created = await api.handle({
   },
   method: 'POST',
   pathname: '/api/schedules',
-  headers: { authorization: `Bearer ${token}` }
+  headers: { authorization: `Bearer ${token}`, 'x-hafize-request-id': requestId }
 });
 assert.equal(created.status, 201);
 assert.equal(created.body.ok, true);
@@ -68,17 +70,18 @@ const invalidAgent = await api.handle({
   request: { body: { agentId: 'missing', task: 'x', runAt: '2026-08-12T13:00:00.000Z' } },
   method: 'POST',
   pathname: '/api/schedules',
-  headers: { authorization: `Bearer ${token}` }
+  headers: { authorization: `Bearer ${token}`, 'x-hafize-request-id': requestId }
 });
 assert.equal(invalidAgent.status, 400);
-assert.equal(invalidAgent.body.error, 'INVALID_AGENT');
+assert.deepEqual(invalidAgent.body, { error: 'INVALID_AGENT', status: 400, message: '', requestId });
 
 const wrongMethod = await api.handle({
   method: 'PUT',
   pathname: '/api/schedules',
-  headers: { authorization: `Bearer ${token}` }
+  headers: { authorization: `Bearer ${token}`, 'x-hafize-request-id': requestId }
 });
 assert.equal(wrongMethod.status, 405);
+assert.deepEqual(wrongMethod.body, { error: 'INVALID_SCHEDULE_COMMAND', status: 405, message: '', requestId });
 assert.equal(wrongMethod.headers.Allow, 'GET, POST');
 
 const cancelled = await api.handle({
@@ -92,10 +95,10 @@ assert.equal(cancelled.body.schedule.status, 'cancelled');
 const repeatedCancel = await api.handle({
   method: 'DELETE',
   pathname: `/api/schedules/${created.body.schedule.scheduleId}`,
-  headers: { authorization: `Bearer ${token}` }
+  headers: { authorization: `Bearer ${token}`, 'x-hafize-request-id': requestId }
 });
 assert.equal(repeatedCancel.status, 409);
-assert.equal(repeatedCancel.body.error, 'SCHEDULE_NOT_CANCELLABLE');
+assert.deepEqual(repeatedCancel.body, { error: 'SCHEDULE_NOT_CANCELLABLE', status: 409, message: '', requestId });
 
 const malformedPath = await api.handle({
   method: 'DELETE',
@@ -103,6 +106,8 @@ const malformedPath = await api.handle({
   headers: { authorization: `Bearer ${token}` }
 });
 assert.equal(malformedPath.status, 404);
+assert.equal(malformedPath.body.error, 'SCHEDULE_NOT_FOUND');
+assert.equal(malformedPath.body.status, 404);
 
 const unmatched = await api.handle({ method: 'GET', pathname: '/api/other', headers: {} });
 assert.equal(unmatched.matched, false);
