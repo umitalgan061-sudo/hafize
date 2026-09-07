@@ -33,4 +33,12 @@ assert.equal(lifecycle.get('child-1').state, 'cancelled');
 assert.equal(lifecycle.get('child-2').state, 'completed');
 assert.equal(lifecycle.liveCount(), 0);
 assert.throws(() => lifecycle.sendMessage('child-2', 'late'), /AGENT_RUN_NOT_ACCEPTING_MESSAGES/);
-assert.equal(lifecycle.sendMessage('missing', 'x'), undefined);
+assert.throws(() => lifecycle.sendMessage('missing', 'x'), /AGENT_RUN_NOT_ACCEPTING_MESSAGES/);
+
+assert.throws(() => createAgentLifecycle({ maxConcurrent: 0 }), /INVALID_AGENT_CONCURRENCY_LIMIT/);
+assert.throws(() => createAgentLifecycle({ maxConcurrent: 9 }), /INVALID_AGENT_CONCURRENCY_LIMIT/);
+assert.throws(() => createAgentLifecycle({ inboxLimit: 0 }), /INVALID_AGENT_INBOX_LIMIT/);
+assert.throws(() => lifecycle.start({ runId: 'child-2', execute: async () => null }), /AGENT_RUN_ALREADY_EXISTS/);
+assert.throws(() => lifecycle.start({ runId: 'bad', execute: null }), /INVALID_AGENT_EXECUTOR/);
+
+console.log('agent lifecycle tests passed');
