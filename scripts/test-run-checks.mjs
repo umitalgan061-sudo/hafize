@@ -1,6 +1,4 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
@@ -28,12 +26,18 @@ assert.equal(filtered.code, 0);
 assert.equal(filtered.stdout.includes('test-memory-consolidation.mjs'), true);
 assert.equal(filtered.stdout.includes('test-calendar-contract.mjs'), false);
 
+const multiFiltered = await exec(['--filter=voice-input,ui-shell']);
+assert.equal(multiFiltered.code, 0);
+assert.equal(multiFiltered.stdout.includes('test-voice-input.mjs'), true);
+assert.equal(multiFiltered.stdout.includes('test-ui-shell.mjs'), true);
+assert.equal(multiFiltered.stdout.includes('test-calendar-contract.mjs'), false);
+
 const invalid = await exec(['--unknown']);
 assert.equal(invalid.code, 1);
 assert.equal(invalid.stderr.includes('UNKNOWN_CHECK_OPTION'), true);
 
-const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'hafize-check-runner-'));
-await writeFile(path.join(tempRoot, 'broken.mjs'), 'export = ;\n', 'utf8');
-assert.equal((await exec(['--filter', 'this-suite-does-not-exist'])).code, 0);
+const noMatch = await exec(['--filter', 'this-suite-does-not-exist']);
+assert.equal(noMatch.code, 0);
+assert.equal(noMatch.stdout.includes('test: 0 paket'), true);
 
 console.log('check runner tests passed');
