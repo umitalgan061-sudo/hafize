@@ -11,10 +11,10 @@ const SYNTAX_TARGETS = [
   { dir: 'scripts', extensions: ['.mjs'] },
   { dir: 'public', extensions: ['.js'] }
 ];
-const PRELUDE_SUITES = ['validate-agent-registry.mjs'];
 const SUITE_TIMEOUT_MS = 120_000;
 const SYNTAX_TIMEOUT_MS = 30_000;
 const MAX_FAILURE_OUTPUT_LINES = 40;
+const MAX_CAPTURE_BYTES = 64 * 1024;
 
 function parseArgs(argv) {
   const options = { filters: [], list: false };
@@ -26,7 +26,10 @@ function parseArgs(argv) {
     else if (!arg.startsWith('-')) options.filters.push(arg);
     else throw new Error(`UNKNOWN_CHECK_OPTION:${arg}`);
   }
-  options.filters = options.filters.flatMap((value) => String(value).split(',')).map((value) => value.trim()).filter(Boolean);
+  options.filters = options.filters
+    .flatMap((value) => String(value).split(','))
+    .map((value) => value.trim())
+    .filter(Boolean);
   return options;
 }
 
@@ -44,22 +47,41 @@ function run(command, args, { timeoutMs }) {
     const started = Date.now();
     const child = spawn(command, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
+    let capturedBytes = 0;
+    let outputTruncated = false;
     let timedOut = false;
+    const append = (chunk) => {
+      if (capturedBytes >= MAX_CAPTURE_BYTES) {
+        outputTruncated = true;
+        return;
+      }
+      const remaining = MAX_CAPTURE_BYTES - capturedBytes;
+      const text = chunk.toString('utf8');
+      const encoded = Buffer.from(text, 'utf8');
+      const slice = encoded.length > remaining ? encoded.subarray(0, remaining) : encoded;
+      output += slice.toString('utf8');
+      capturedBytes += slice.length;
+      if (slice.length < encoded.length) outputTruncated = true;
+    };
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill('SIGKILL');
     }, timeoutMs);
-    child.stdout.on('data', (chunk) => { output += chunk; });
-    child.stderr.on('data', (chunk) => { output += chunk; });
+    child.stdout.on('data', append);
+    child.stderr.on('data', append);
     child.on('error', (error) => {
       clearTimeout(timer);
-      resolve({ ok: false, output: `${output}\n${error.message}`, durationMs: Date.now() - started });
+      resolve({
+        ok: false,
+        output: `${output}${outputTruncated ? '\nOUTPUT_TRUNCATED' : ''}\n${error.message}`,
+        durationMs: Date.now() - started
+      });
     });
     child.on('close', (code) => {
       clearTimeout(timer);
       resolve({
         ok: !timedOut && code === 0,
-        output: timedOut ? `${output}\nTIMEOUT: ${timeoutMs} ms` : output,
+        output: `${output}${outputTruncated ? '\nOUTPUT_TRUNCATED' : ''}${timedOut ? `\nTIMEOUT: ${timeoutMs} ms` : ''}`,
         durationMs: Date.now() - started
       });
     });
@@ -89,11 +111,15 @@ try {
   const options = parseArgs(process.argv.slice(2));
   const concurrency = Math.max(1, Math.min(4, os.cpus()?.length ?? 1));
   const syntaxFiles = (await Promise.all(SYNTAX_TARGETS.map(collectFiles))).flat();
-  const testFiles = (await collectFiles({ dir: 'scripts', extensions: ['.mjs'] }))
+  const scriptFiles = await collectFiles({ dir: 'scripts', extensions: ['.mjs'] });
+  const validateSuites = scriptFiles
+    .filter((file) => path.basename(file).startsWith('validate-'))
+    .map((file) => path.basename(file));
+  const testSuites = scriptFiles
     .filter((file) => path.basename(file).startsWith('test-'))
     .map((file) => path.basename(file));
   const matchesFilter = (suite) => !options.filters.length || options.filters.some((filter) => suite.includes(filter));
-  const suites = [...PRELUDE_SUITES, ...testFiles].filter(matchesFilter);
+  const suites = [...validateSuites, ...testSuites].filter(matchesFilter);
 
   if (options.list) {
     console.log(suites.join('\n'));
@@ -112,7 +138,7 @@ try {
   });
   console.log(failures.length ? `syntax: ${failures.length} dosya başarısız` : `syntax: ${syntaxFiles.length} dosya tamam`);
 
-  console.log(`test: ${suites.length} paket çalıştırılıyor (eşzamanlılık ${concurrency})`);
+  console.log(`check: ${suites.length} paket çalıştırılıyor (eşzamanlılık ${concurrency})`);
   const suiteResults = await runPool(
     suites,
     (suite) => run(process.execPath, [path.join('scripts', suite)], { timeoutMs: SUITE_TIMEOUT_MS }),
@@ -133,7 +159,7 @@ try {
     }
     process.exit(1);
   }
-  console.log(`\nTüm kontroller tamam: ${syntaxFiles.length} syntax, ${suites.length} test paketi`);
+  console.log(`\nTüm kontroller tamam: ${syntaxFiles.length} syntax, ${suites.length} doğrulama/test paketi`);
 } catch (error) {
   console.error(error?.message || 'CHECK_RUNNER_FAILED');
   process.exit(1);
