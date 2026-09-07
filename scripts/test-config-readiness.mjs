@@ -4,17 +4,27 @@ import { evaluateConfigReadiness } from '../lib/config-readiness.mjs';
 const ready = evaluateConfigReadiness({ NODE_ENV: 'production', HOST: '127.0.0.1', HAFIZE_AUTH_TOKEN: 'x'.repeat(64), HAFIZE_COOKIE_SECURE: 'true' });
 assert.equal(ready.state, 'ready');
 assert.equal(ready.production, true);
+assert.equal(ready.publicRuntime, false);
 assert.equal(ready.authRequired, true);
 assert.equal(ready.findings.length, 0);
 
 const blocked = evaluateConfigReadiness({ NODE_ENV: 'production', HOST: '0.0.0.0', HAFIZE_AUTH_TOKEN: 'short' });
 assert.equal(blocked.state, 'blocked');
+assert.equal(blocked.publicRuntime, true);
+assert.equal(blocked.authRequired, true);
 assert.equal(blocked.findings[0].code, 'AUTH_SECRET_MISSING');
 
-const explicitAuth = evaluateConfigReadiness({ NODE_ENV: 'development', HOST: '127.0.0.1', HAFIZE_AUTH_REQUIRED: 'true' });
-assert.equal(explicitAuth.authRequired, true);
-assert.equal(explicitAuth.state, 'blocked');
-assert.equal(explicitAuth.findings[0].code, 'AUTH_SECRET_MISSING');
+const publicDevelopment = evaluateConfigReadiness({ NODE_ENV: 'development', HOST: '0.0.0.0' });
+assert.equal(publicDevelopment.production, false);
+assert.equal(publicDevelopment.publicRuntime, true);
+assert.equal(publicDevelopment.authRequired, true);
+assert.equal(publicDevelopment.state, 'blocked');
+assert.equal(publicDevelopment.findings[0].code, 'AUTH_SECRET_MISSING');
+
+const explicitLocalAuth = evaluateConfigReadiness({ NODE_ENV: 'development', HOST: '127.0.0.1', HAFIZE_AUTH_REQUIRED: 'true' });
+assert.equal(explicitLocalAuth.authRequired, true);
+assert.equal(explicitLocalAuth.state, 'blocked');
+assert.equal(explicitLocalAuth.findings[0].code, 'AUTH_SECRET_MISSING');
 
 const degraded = evaluateConfigReadiness({ NODE_ENV: 'production', HOST: '127.0.0.1', HAFIZE_AUTH_TOKEN: 'x'.repeat(64), HAFIZE_TRUST_PROXY: 'true' });
 assert.equal(degraded.state, 'degraded');
