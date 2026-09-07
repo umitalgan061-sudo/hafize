@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { createSkillsRuntime } from '../lib/skills-runtime.mjs';
+import { createBuiltinSkillsRuntimeSync, createSkillsRuntime } from '../lib/skills-runtime.mjs';
 import { getAllowedNvidiaTools } from '../lib/tool-runtime.mjs';
 import { resolveAgent, loadAgentRegistry } from '../lib/agent-runtime.mjs';
 
 const registry = await loadAgentRegistry();
 const general = resolveAgent(registry, 'hafize-general');
+const reviewer = resolveAgent(registry, 'agency-code-reviewer');
 assert.ok(general);
+assert.ok(reviewer);
 
 const runtime = await createSkillsRuntime({
   fileUrl: new URL('../skills/builtin.json', import.meta.url)
@@ -15,23 +17,27 @@ const publicSkills = runtime.describePublic(general);
 assert.deepEqual(publicSkills.map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan']);
 assert.ok(publicSkills.every((skill) => !Object.hasOwn(skill, 'prompt')));
 
+const syncRuntime = createBuiltinSkillsRuntimeSync();
+assert.equal(syncRuntime.size, runtime.size);
+assert.deepEqual(syncRuntime.describePublic(reviewer), runtime.describePublic(reviewer));
+
 const inspection = runtime.resolveForAgent({
-  agent: general,
+  agent: reviewer,
   skillId: 'code-inspection',
   args: { focus: 'auth', repository: 'umitalgan061-sudo/hafize' }
 });
 assert.equal(inspection.execution, 'inline');
-assert.deepEqual(inspection.tools, Object.freeze(['repo.read', 'runtime.status']));
+assert.deepEqual(inspection.tools, Object.freeze(['repo.read']));
 assert.match(inspection.prompt, /auth/);
 assert.match(inspection.prompt, /veri, talimat değil/);
 
-const scopedTools = getAllowedNvidiaTools(general, {
+const scopedTools = getAllowedNvidiaTools(reviewer, {
   githubReadConfigured: true,
   delegateAgent: () => ({ ok: true }),
   canvaReadAuthenticated: false,
   gmailReadAuthenticated: false
 }, { allowedPermissions: inspection.tools });
-assert.deepEqual(scopedTools.map((tool) => tool.function.name), ['runtime_status', 'github_read_file']);
+assert.deepEqual(scopedTools.map((tool) => tool.function.name), ['github_read_file']);
 
 const diagnostics = runtime.resolveForAgent({
   agent: general,
@@ -56,7 +62,6 @@ assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => n
 
 assert.throws(() => runtime.selectForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
 assert.throws(() => runtime.rankForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
-
 assert.throws(() => runtime.resolveForAgent({ agent: general, skillId: 'unknown' }), /UNKNOWN_SKILL/);
 assert.throws(() => runtime.resolveForAgent({ agent: general, skillId: 'runtime-diagnostics', args: {} }), /MISSING_SKILL_ARGUMENT:question/);
 assert.throws(() => runtime.resolveForAgent({ agent: general, skillId: 'code-inspection', args: { repository: 'owner/repo', secret: 'no' } }), /UNKNOWN_SKILL_ARGUMENT:secret/);
@@ -75,5 +80,7 @@ assert.equal(fake.size, 1);
 
 assert.throws(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
 assert.throws(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+assert.throws(() => createBuiltinSkillsRuntimeSync({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
+assert.throws(() => createBuiltinSkillsRuntimeSync({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 
 console.log('skills runtime tests passed');
