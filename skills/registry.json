@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "id": "plan",
+      "name": "Plan",
+      "description": "Bir isteği kısa, doğrulanabilir adımlara böler.",
+      "triggers": ["/plan"],
+      "allowedPermissions": [],
+      "prompt": "Aşağıdaki istek için kısa, sıralı ve doğrulanabilir bir plan üret. Gereksiz araç veya yetki isteme.\n\n$ARGUMENTS",
+      "execution": "inline",
+      "arguments": [],
+      "userInvocable": true
+    },
+    {
+      "id": "review",
+      "name": "Review",
+      "description": "İsteği salt-okunur Code Reviewer uzmanına yönlendirir.",
+      "triggers": ["/review"],
+      "allowedPermissions": ["agent.delegate"],
+      "prompt": "Aşağıdaki kapsamı doğruluk, güvenlik ve test boşlukları açısından incele. Bulguları önem derecesiyle raporla.\n\n$ARGUMENTS",
+      "execution": "fork",
+      "forkAgentId": "agency-code-reviewer",
+      "arguments": [],
+      "userInvocable": true
+    }
+  ]
+}
