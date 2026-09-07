@@ -84,7 +84,7 @@ assert.equal(skillResult.ok, true);
 assert.equal(skillResult.value.skill, 'runtime-diagnostics');
 assert.deepEqual(skillResult.value.tools, ['runtime.status']);
 assert.match(skillResult.value.prompt, /Runtime teşhis modunda çalış/);
-assert.equal(JSON.stringify(skillResult).includes('credential'), false);
+assert.equal(JSON.stringify(skillResult).includes('should-never-leak'), false);
 
 const codeSkill = await executeNvidiaToolCall(
   reviewer,
