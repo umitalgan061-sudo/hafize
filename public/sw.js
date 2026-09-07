@@ -26,9 +26,10 @@ async function navigateWithOfflineFallback(request) {
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CURRENT_CACHE).then((cache) => cache.addAll(SHELL_ASSETS))
+    caches.open(CURRENT_CACHE)
+      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
