@@ -21,5 +21,8 @@ assert.deepEqual(missingReleaseGates(partial), ['pwa']);
 assert.throws(() => createReleaseManifest({ version: '1', commit: 'abc', readiness: { ready: false } }), /RELEASE_READINESS_BLOCKED/);
 assert.throws(() => createReleaseManifest({ version: '', commit: 'abc', readiness }), /INVALID_RELEASE_VERSION/);
 assert.equal(createReleaseManifest({ version: '1', commit: 'abc', readiness, checks: [{ name: 'security', pass: false }] }).releaseable, false);
+assert.equal(createReleaseManifest({ version: '1', commit: 'abc', readiness }).releaseable, false);
+assert.equal(createReleaseManifest({ version: '1', commit: 'abc', readiness, checks: [] }).releaseable, false);
+assert.equal(createReleaseManifest({ version: '1', commit: 'abc', readiness, checks: [{ name: '', pass: true }, { pass: true }] }).releaseable, false);
 
 console.log('release manifest tests passed');
