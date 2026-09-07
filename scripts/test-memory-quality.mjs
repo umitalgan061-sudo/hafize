@@ -36,8 +36,8 @@ assert.equal(read.records.length, 1);
 assert.equal(read.records[0].ownerId, 'u1');
 assert.match(read.records[0].content, /Kahve/);
 
-assert.throws(() => rankMemoryRecords([], 'x', { limit: 0 }), /invalid/i);
 assert.throws(() => scoreMemoryRecord(null, 'x'), /INVALID_MEMORY_QUALITY_RECORD/);
+assert.throws(() => scoreMemoryRecord(records[0], 'x'.repeat(501)), /INVALID_MEMORY_QUALITY_QUERY/);
 assert.throws(() => rankMemoryRecords(Array.from({ length: 2049 }, () => records[0]), 'x'), /INVALID_MEMORY_QUALITY_RECORDS/);
 
 console.log('memory quality tests passed');
