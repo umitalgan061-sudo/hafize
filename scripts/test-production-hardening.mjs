@@ -4,6 +4,7 @@ import { createRateLimiter } from '../lib/rate-limit.mjs';
 import { createSessionAuth } from '../lib/session-auth.mjs';
 
 const secret = 's'.repeat(64);
+const connectorToken = 'c'.repeat(64);
 const auth = createSessionAuth({ secret, subject: 'test-user', ttlSeconds: 300 });
 assert.equal(auth.verifyCredential(secret), true);
 assert.equal(auth.verifyCredential(`${secret}x`), false);
@@ -16,21 +17,31 @@ assert.match(auth.sessionCookieHeader(value), /HttpOnly/);
 assert.match(auth.sessionCookieHeader(value), /SameSite=Strict/);
 
 const limiter = createRateLimiter({ windowMs: 60_000, max: 2, maxConcurrent: 1 });
-const first = limiter.check('user');
+const first = limiter.check('user', 1_000);
 assert.equal(first.ok, true);
-assert.equal(limiter.check('user').concurrent, true);
+assert.equal(limiter.check('user', 1_001).concurrent, true);
+assert.equal(limiter.check('user', 61_000).concurrent, true, 'live request must survive quota-window rotation');
 first.release();
-const second = limiter.check('user');
+const second = limiter.check('user', 61_001);
 assert.equal(second.ok, true);
 second.release();
-assert.equal(limiter.check('user').ok, false);
+assert.equal(limiter.check('user', 61_002).ok, false);
 
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;
 const port = 43100 + Math.floor(Math.random() * 500);
 const child = spawn(process.execPath, ['--import', new URL('../lib/production-guard.mjs', import.meta.url).pathname, '--input-type=module', '-e', inlineServer], {
   cwd: root.pathname.replace(/\/$/, ''),
-  env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), NODE_ENV: 'production', HAFIZE_AUTH_REQUIRED: 'true', HAFIZE_AUTH_TOKEN: secret },
+  env: {
+    ...process.env,
+    HOST: '127.0.0.1',
+    PORT: String(port),
+    NODE_ENV: 'production',
+    HAFIZE_AUTH_REQUIRED: 'true',
+    HAFIZE_AUTH_TOKEN: secret,
+    HAFIZE_CONNECTOR_AUTH_TOKEN: connectorToken,
+    HAFIZE_CONNECTOR_AUTH_SUBJECT: 'connector-client'
+  },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 try {
@@ -40,6 +51,17 @@ try {
     if (!ready) await new Promise((resolve) => setTimeout(resolve, 50));
   }
   assert.equal(ready, true, 'production guard must reject protected requests before login');
+  const connectorRejectedOutsideAgentRun = await fetch(`http://127.0.0.1:${port}/api/models`, {
+    headers: { authorization: `Bearer ${connectorToken}` }
+  });
+  assert.equal(connectorRejectedOutsideAgentRun.status, 401, 'connector bearer must not become a general session credential');
+  const connectorAgentRun = await fetch(`http://127.0.0.1:${port}/api/agent/run`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${connectorToken}`, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  assert.equal(connectorAgentRun.status, 200, 'scoped connector bearer must reach the agent runtime');
+
   const login = await fetch(`http://127.0.0.1:${port}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: secret }) });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie');
