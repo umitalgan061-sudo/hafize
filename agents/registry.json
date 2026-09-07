@@ -22,7 +22,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.status", "connector.canva.read", "connector.gmail.read"],
+        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.status", "skill.invoke", "connector.canva.read", "connector.gmail.read"],
         "approvalRequired": ["external.write", "external.send", "repo.merge"]
       },
       "outputContract": ["answer", "delegations", "warnings"]
@@ -32,7 +32,6 @@
       "name": "Orchestrator",
       "kind": "specialist",
       "description": "Karmaşık işleri alt görevlere ayıran, ajanları koordine eden ve sonuçları sentezleyen üretim odaklı orkestratör.",
-      "derivedFrom": "msitarzewski/agency-agents: engineering-multi-agent-systems-architect",
       "mission": [
         "İşi küçük ve doğrulanabilir alt görevlere ayır.",
         "Her alt göreve açık giriş, çıkış ve sorumluluk sınırı tanımla.",
@@ -48,7 +47,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["agent.delegate", "agent.read_result", "task.read", "task.update_ledger", "trace.write"],
+        "allow": ["agent.delegate", "agent.read_result", "task.read", "task.update_ledger", "trace.write", "skill.invoke"],
         "deny": ["secret.read", "repo.delete", "repo.merge", "external.send", "external.write"]
       },
       "outputContract": ["plan", "delegations", "taskLedger", "result", "risks", "confidence"]
@@ -58,7 +57,6 @@
       "name": "Minimal Engineer",
       "kind": "specialist",
       "description": "Kod değişikliklerinde en küçük doğru diff'i hedefleyen, kapsam kaymasını engelleyen uygulama ajanı.",
-      "derivedFrom": "msitarzewski/agency-agents: engineering-minimal-change-engineer",
       "mission": [
         "İstenen davranışı sağlayan en küçük değişikliği yap.",
         "İlgisiz refactor, temizlik veya geleceğe dönük soyutlama ekleme.",
@@ -73,7 +71,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["repo.read", "test.run", "trace.write"],
+        "allow": ["repo.read", "test.run", "trace.write", "skill.invoke"],
         "approvalRequired": ["repo.write_branch"],
         "deny": ["secret.read", "repo.delete", "repo.merge", "external.send"]
       },
@@ -98,7 +96,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["repo.read", "pr.read", "test.read_result", "trace.write"],
+        "allow": ["repo.read", "pr.read", "test.read_result", "trace.write", "skill.invoke"],
         "approvalRequired": ["pr.comment"],
         "deny": ["repo.write_branch", "repo.delete", "repo.merge", "secret.read", "external.send"]
       },
