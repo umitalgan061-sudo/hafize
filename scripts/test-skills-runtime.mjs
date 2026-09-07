@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { fileURLToPath } from 'node:url';
 import { createSkillsRuntime } from '../lib/skills-runtime.mjs';
 import { getAllowedNvidiaTools } from '../lib/tool-runtime.mjs';
 import { resolveAgent, loadAgentRegistry } from '../lib/agent-runtime.mjs';
@@ -49,6 +48,14 @@ const delegation = runtime.resolveForAgent({
 });
 assert.deepEqual(delegation.tools, ['agent.delegate']);
 assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: true }) }, { allowedPermissions: delegation.tools }).map((tool) => tool.function.name), ['agent_delegate']);
+
+assert.equal(runtime.selectForAgent(general, 'kod incele').name, 'code-inspection');
+assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?').name, 'runtime-diagnostics');
+assert.equal(runtime.selectForAgent(general, 'bilinmeyen iş', { minScore: 0.3 }), null);
+assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => name), ['code-inspection', 'delegation-plan', 'runtime-diagnostics']);
+
+assert.throws(() => runtime.selectForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
+assert.throws(() => runtime.rankForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
 
 assert.throws(() => runtime.resolveForAgent({ agent: general, skillId: 'unknown' }), /UNKNOWN_SKILL/);
 assert.throws(() => runtime.resolveForAgent({ agent: general, skillId: 'runtime-diagnostics', args: {} }), /MISSING_SKILL_ARGUMENT:question/);
