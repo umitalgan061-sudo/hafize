@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
+
+const lifecycle = createAgentLifecycle({ maxConcurrent: 2, inboxLimit: 2 });
+const parent = new AbortController();
+let resolveFirst;
+const first = lifecycle.start({
+  runId: 'child-1',
+  parentSignal: parent.signal,
+  execute: async ({ signal }) => {
+    assert.equal(signal.aborted, false);
+    await new Promise((resolve) => { resolveFirst = resolve; });
+    return 'done';
+  }
+});
+assert.equal(first.snapshot().state, 'running');
+assert.equal(lifecycle.liveCount(), 1);
+assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');
+assert.equal(lifecycle.sendMessage('child-1', 'again').content, 'again');
+assert.throws(() => lifecycle.sendMessage('child-1', 'overflow'), /AGENT_INBOX_FULL/);
+
+const second = lifecycle.start({ runId: 'child-2', execute: async () => 'second' });
+assert.equal(lifecycle.liveCount(), 2);
+await assert.rejects(Promise.resolve().then(() => lifecycle.start({ runId: 'child-3', execute: async () => 'nope' })), /AGENT_CONCURRENCY_EXCEEDED/);
+
+parent.abort();
+assert.equal(lifecycle.get('child-1').state, 'cancelled');
+assert.equal(lifecycle.get('child-1').error, 'PARENT_ABORTED');
+resolveFirst();
+await first.promise;
+await second.promise;
+assert.equal(lifecycle.get('child-1').state, 'cancelled');
+assert.equal(lifecycle.get('child-2').state, 'completed');
+assert.equal(lifecycle.liveCount(), 0);
+assert.throws(() => lifecycle.sendMessage('child-2', 'late'), /AGENT_RUN_NOT_ACCEPTING_MESSAGES/);
+assert.equal(lifecycle.sendMessage('missing', 'x'), undefined);
