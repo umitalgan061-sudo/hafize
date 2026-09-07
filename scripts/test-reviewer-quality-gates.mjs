@@ -10,7 +10,7 @@ assert.deepEqual(checkCredentialHygiene([{ path: 'lib/a.mjs', content: 'const va
 const secretFindings = checkCredentialHygiene([{ path: 'config.js', content: 'api_key = "sk-abcdefghijklmnopqrstuvwxyz"' }]);
 assert.equal(secretFindings.length, 1);
 assert.equal(secretFindings[0].severity, 'blocker');
-assert.throws(() => checkCredentialHygiene([{ path: '.env', content: '' }]), /nothing/i);
+assert.equal(checkCredentialHygiene([{ path: '.env', content: '' }])[0].code, 'CREDENTIAL_FILE');
 
 const evidenceMissing = checkEvidenceContract({ claims: ['a'], evidence: [] });
 assert.equal(evidenceMissing[0].code, 'MISSING_EVIDENCE');
@@ -39,6 +39,7 @@ const fail = evaluateQualityGates({
 assert.equal(fail.pass, false);
 assert.ok(fail.blockerCount >= 2);
 assert.ok(fail.findings.some((item) => item.code === 'CREDENTIAL_FILE'));
+assert.ok(fail.findings.some((item) => item.code === 'SECRET_MATERIAL'));
 assert.ok(fail.findings.some((item) => item.code === 'MISSING_EVIDENCE'));
 
 console.log('reviewer quality gate tests passed');
