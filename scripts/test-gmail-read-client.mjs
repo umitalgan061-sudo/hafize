@@ -72,4 +72,10 @@ const echo = createGmailReadClient({
   now: () => now
 });
 await assert.rejects(() => echo.read({ ownerId: 'owner_opaque', operation: 'profile.get' }), /GMAIL_READ_FAILED:response/);
-console.log('gmail read client tests passed');
+const credential = createGmailReadClient({
+  tokenStore,
+  fetchImpl: async () => ({ ok: true, async json() { return { note: 'clientSecret=should-not-cross-boundary' }; } }),
+  now: () => now
+});
+await assert.rejects(() => credential.read({ ownerId: 'owner_opaque', operation: 'profile.get' }), /GMAIL_READ_FAILED:response/);
+console.log('gmail read client tests passed: token echo and plaintext credential egress are blocked');
