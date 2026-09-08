@@ -61,6 +61,8 @@ for (const input of [
 
 const echoClient = createCanvaReadClient({ tokenStore, now: () => future, fetchImpl: async () => ({ ok: true, async json() { return { leaked: accessToken }; } }) });
 await assert.rejects(() => echoClient.read({ ownerId: 'owner', operation: 'user.get' }), /CANVA_READ_FAILED:response/);
+const credentialClient = createCanvaReadClient({ tokenStore, now: () => future, fetchImpl: async () => ({ ok: true, async json() { return { note: 'clientSecret=should-not-cross-boundary' }; } }) });
+await assert.rejects(() => credentialClient.read({ ownerId: 'owner', operation: 'user.get' }), /CANVA_READ_FAILED:response/);
 const hugeClient = createCanvaReadClient({ tokenStore, now: () => future, maxJsonBytes: 1024, fetchImpl: async () => ({ ok: true, async json() { return { data: 'x'.repeat(1200) }; } }) });
 await assert.rejects(() => hugeClient.read({ ownerId: 'owner', operation: 'user.get' }), /CANVA_READ_FAILED:response/);
 const httpClient = createCanvaReadClient({ tokenStore, now: () => future, fetchImpl: async () => ({ ok: false, status: 401, async json() { return {}; } }) });
@@ -68,4 +70,4 @@ await assert.rejects(() => httpClient.read({ ownerId: 'owner', operation: 'user.
 
 assert.throws(() => createCanvaReadClient({}), /INVALID_CANVA_READ:tokenStore/);
 assert.throws(() => createCanvaReadClient({ tokenStore, fetchImpl: null }), /INVALID_CANVA_READ:fetch/);
-console.log('canva read client tests passed');
+console.log('canva read client tests passed: token echo and plaintext credential egress are blocked');

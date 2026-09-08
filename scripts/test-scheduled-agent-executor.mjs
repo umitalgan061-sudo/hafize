@@ -42,6 +42,32 @@ assert.equal(success.taskLedger.traceId, 'trace-scheduled-1');
 assert.equal(success.taskLedger.entries[0].action, 'schedule.run');
 assert.equal(success.taskLedger.entries[0].status, 'completed');
 
+const credentialTask = await executor.executeAgentTask({
+  traceId: 'trace-scheduled-credential-1',
+  agent: registry.agents[0],
+  task: 'NVIDIA_API_KEY=should-not-enter-the-model'
+});
+assert.deepEqual(credentialTask, { ok: false, error: 'SCHEDULE_AGENT_TASK_CREDENTIAL_BLOCKED' });
+assert.equal(seen.length, 1, 'credential-bearing tasks must fail before worker execution');
+
+const credentialOutput = createScheduledAgentExecutor({
+  registry,
+  model: 'mock/model',
+  complete: async () => ({ choices: [] }),
+  async runAgentTask() {
+    return { ok: true, content: 'authorization: Bearer abcdefghijk' };
+  }
+});
+const blockedOutput = await credentialOutput.executeAgentTask({
+  traceId: 'trace-scheduled-credential-2',
+  agent: registry.agents[0],
+  task: 'Normal task'
+});
+assert.equal(blockedOutput.ok, false);
+assert.equal(blockedOutput.error, 'SCHEDULE_AGENT_RESULT_CREDENTIAL_BLOCKED');
+assert.equal(blockedOutput.taskLedger.entries[0].status, 'failed');
+assert.equal(JSON.stringify(blockedOutput).includes('abcdefghijk'), false);
+
 const failed = createScheduledAgentExecutor({
   registry,
   model: 'mock/model',
@@ -96,4 +122,4 @@ assert.deepEqual(
   { ok: false, error: 'INVALID_SCHEDULE_AGENT_TASK' }
 );
 
-console.log('scheduled agent executor tests passed');
+console.log('scheduled agent executor tests passed: credential ingress and result egress are fail-closed');

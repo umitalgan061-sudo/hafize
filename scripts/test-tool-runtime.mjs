@@ -71,6 +71,31 @@ assert.equal(result.value.githubReadConfigured, true);
 assert.ok(Array.isArray(result.value.availableAgents));
 assert.equal(JSON.stringify(result).includes('NVIDIA_API_KEY'), false);
 
+const credentialBearingToolResult = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_credential_1', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
+  { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => ({ content: 'Authorization: Bearer abcdefghijk' }), approvalGranted: false }
+);
+assert.deepEqual(credentialBearingToolResult, { ok: false, error: 'TOOL_RESULT_CREDENTIAL_BLOCKED' });
+
+const credentialFieldToolResult = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_credential_2', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
+  { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => ({ content: 'normal', access_token: 'opaque-secret' }), approvalGranted: false }
+);
+assert.deepEqual(credentialFieldToolResult, { ok: false, error: 'TOOL_RESULT_CREDENTIAL_FIELD_BLOCKED' });
+
+const accessorsToolResult = await executeNvidiaToolCall(
+  reviewer,
+  { id: 'call_credential_3', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
+  { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => {
+    const value = {};
+    Object.defineProperty(value, 'content', { enumerable: true, get() { return 'hidden'; } });
+    return value;
+  }, approvalGranted: false }
+);
+assert.deepEqual(accessorsToolResult, { ok: false, error: 'TOOL_RESULT_ACCESSOR_BLOCKED' });
+
 const skillResult = await executeNvidiaToolCall(
   hafize,
   {
@@ -164,4 +189,4 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
-console.log('Tool runtime OK: skill invocation, safe state-based activity, delegation, and configured GitHub repo.read are policy-gated');
+console.log('Tool runtime OK: authorization, safe activity, credential-safe egress, delegation and configured GitHub repo.read are policy-gated');

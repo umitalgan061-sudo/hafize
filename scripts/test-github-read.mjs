@@ -45,6 +45,48 @@ assert.match(calls[0].url, /\/repos\/umitalgan061-sudo\/hafize\/contents\/README
 assert.equal(calls[0].init.headers.Authorization, `Bearer ${token}`);
 assert.equal(JSON.stringify(result).includes(token), false);
 
+const credentialContent = createGitHubReadFile({
+  token,
+  allowedRepositories: ['umitalgan061-sudo/hafize'],
+  fetchImpl: async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return {
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from('NVIDIA_API_KEY=should-never-leak\n').toString('base64'),
+        size: 34
+      };
+    }
+  })
+});
+await assert.rejects(
+  () => credentialContent({ repository: 'umitalgan061-sudo/hafize', path: 'README.md' }),
+  (error) => error?.code === 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' && error?.status === 403
+);
+
+const oauthCredentialContent = createGitHubReadFile({
+  token,
+  allowedRepositories: ['umitalgan061-sudo/hafize'],
+  fetchImpl: async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return {
+        type: 'file',
+        encoding: 'base64',
+        content: Buffer.from('authorization: Bearer abcdefghijk\n').toString('base64'),
+        size: 34
+      };
+    }
+  })
+});
+await assert.rejects(
+  () => oauthCredentialContent({ repository: 'umitalgan061-sudo/hafize', path: 'README.md' }),
+  (error) => error?.code === 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' && error?.status === 403
+);
+
 await assert.rejects(
   () => githubReadFile({ repository: 'other/repo', path: 'README.md' }),
   (error) => error?.code === 'GITHUB_REPO_NOT_ALLOWED' && error?.status === 403
@@ -82,4 +124,4 @@ await assert.rejects(
   (error) => error?.code === 'GITHUB_NOT_CONFIGURED' && error?.status === 503
 );
 
-console.log('GitHub read OK: allowlist, strict arguments, path guard and secret boundary enforced');
+console.log('GitHub read OK: allowlist, strict arguments, path guard and credential-safe content egress enforced');
