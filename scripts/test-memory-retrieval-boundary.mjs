@@ -1,59 +1,32 @@
 import assert from 'node:assert/strict';
-import {
-  MEMORY_RETRIEVAL_LIMIT,
-  normalizeMemoryRetrieval
-} from '../lib/memory-retrieval-boundary.mjs';
+import { MEMORY_RETRIEVAL_LIMIT, normalizeMemoryRetrieval } from '../lib/memory-retrieval-boundary.mjs';
 
 assert.equal(MEMORY_RETRIEVAL_LIMIT, 5);
+const record = { memoryId: 'memory_abcdefgh1234', ownerId: 'user-1', kind: 'project', content: 'Hafize projesi üzerinde çalışıyor.', sourceType: 'user_statement', sourceRef: 'conversation-1:message-2' };
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: ' user-1 ', records: [record] }), { ok: true, records: [{ memoryId: 'memory_abcdefgh1234', kind: 'project', content: 'Hafize projesi üzerinde çalışıyor.', sourceType: 'user_statement', sourceRef: 'conversation-1:message-2' }] });
+assert.equal('ownerId' in normalizeMemoryRetrieval({ ownerId: 'user-1', records: [record] }).records[0], false);
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-2', records: [record] }), { ok: false, error: 'MEMORY_RETRIEVAL_SCOPE_MISMATCH' });
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, memoryId: 'all' }] }), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:memoryId' });
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, kind: 'other' }] }), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:kind' });
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, sourceType: 'assistant_guess' }] }), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:sourceType' });
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: Array.from({ length: 6 }, () => record) }), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:records' });
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [] }), { ok: true, records: [] });
+assert.deepEqual(normalizeMemoryRetrieval({ ownerId: '', records: [] }), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' });
 
-const record = {
-  memoryId: 'memory_abcdefgh1234',
-  ownerId: 'user-1',
-  kind: 'project',
-  content: 'Hafize projesi üzerinde çalışıyor.',
-  sourceType: 'user_statement',
-  sourceRef: 'conversation-1:message-2'
-};
-const normalized = normalizeMemoryRetrieval({ ownerId: ' user-1 ', records: [record] });
-assert.deepEqual(normalized, {
-  ok: true,
-  records: [{
-    memoryId: 'memory_abcdefgh1234',
-    kind: 'project',
-    content: 'Hafize projesi üzerinde çalışıyor.',
-    sourceType: 'user_statement',
-    sourceRef: 'conversation-1:message-2'
-  }]
-});
-assert.equal('ownerId' in normalized.records[0], false);
-
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: 'user-2', records: [record] }),
-  { ok: false, error: 'MEMORY_RETRIEVAL_SCOPE_MISMATCH' }
-);
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, memoryId: 'all' }] }),
-  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:memoryId' }
-);
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, kind: 'other' }] }),
-  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:kind' }
-);
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, sourceType: 'assistant_guess' }] }),
-  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:sourceType' }
-);
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: 'user-1', records: Array.from({ length: 6 }, () => record) }),
-  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:records' }
-);
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: 'user-1', records: [] }),
-  { ok: true, records: [] }
-);
-assert.deepEqual(
-  normalizeMemoryRetrieval({ ownerId: '', records: [] }),
-  { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:ownerId' }
-);
-
-console.log('memory retrieval boundary tests passed');
+const credentialExamples = [
+  'password: hunter22',
+  'Authorization: Bearer abcdefghijklmnop',
+  'github_pat_1234567890abcdefghijABCDEFGHIJ',
+  'ghp_1234567890abcdefghijklmnopqrstuvwx',
+  'nvapi-1234567890abcdefghijklmnopqrstuv',
+  'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
+  '-----BEGIN PRIVATE KEY-----\nlegacy-private-material'
+];
+for (const content of credentialExamples) {
+  assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, content }] }), { ok: false, error: 'MEMORY_RETRIEVAL_CREDENTIAL_BLOCKED' });
+}
+for (const sourceRef of ['import:access_token=abcdef123456', 'Authorization: Bearer abcdefghijklmnop', 'github_pat_1234567890abcdefghijABCDEFGHIJ', 'ya29.A0ARrdaM_exampleGoogleOauthToken123456789']) {
+  assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, sourceRef }] }), { ok: false, error: 'MEMORY_RETRIEVAL_CREDENTIAL_BLOCKED' });
+}
+assert.equal(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, content: 'GitHub PAT güvenliği hakkında bilgi.' }] }).ok, true);
+console.log('memory retrieval credential-boundary tests passed');
