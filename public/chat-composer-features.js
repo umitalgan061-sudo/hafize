@@ -55,8 +55,14 @@
       remove.setAttribute('aria-label', `${file.name} ekini kaldır`);
       remove.textContent = '×';
       remove.addEventListener('click', () => {
+        const at = ui.messageInput.value.lastIndexOf(file.block);
+        if (at >= 0) {
+          ui.messageInput.value = `${ui.messageInput.value.slice(0, at)}${ui.messageInput.value.slice(at + file.block.length)}`;
+          ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
         files.splice(index, 1);
         renderAttachmentStrip();
+        ui.messageInput.focus();
       });
       chip.append(remove);
       strip.append(chip);
@@ -91,8 +97,9 @@
         announce(`${file.name} boş olduğu için eklenmedi.`);
         return;
       }
-      files.push({ name: file.name, size: file.size, lastModified: file.lastModified });
-      ui.messageInput.value = `${ui.messageInput.value}${composeAttachment(file, text)}`.slice(0, ui.messageInput.maxLength || 12000);
+      const block = composeAttachment(file, text);
+      files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block });
+      ui.messageInput.value = `${ui.messageInput.value}${block}`.slice(0, ui.messageInput.maxLength || 12000);
       ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
       renderAttachmentStrip();
       ui.messageInput.focus();
@@ -100,6 +107,11 @@
     } catch {
       announce(`${file.name} okunamadı.`);
     }
+  }
+
+  function clearAttachments() {
+    ui.composer._hafizeAttachments = [];
+    renderAttachmentStrip();
   }
 
   function openPicker() {
@@ -152,10 +164,12 @@
     if (!content) return;
     const actions = document.createElement('div');
     actions.className = 'message-actions';
+
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'message-action';
     copy.textContent = 'Kopyala';
+    copy.setAttribute('aria-label', 'Hafize yanıtını kopyala');
     copy.title = 'Hafize yanıtını panoya kopyala';
     copy.addEventListener('click', async () => {
       if (await copyText(content.textContent?.trim() || '')) {
@@ -163,10 +177,12 @@
         window.setTimeout(() => { copy.textContent = 'Kopyala'; }, 1400);
       } else announce('Yanıt panoya kopyalanamadı.');
     });
+
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'message-action';
     retry.textContent = 'Yeniden dene';
+    retry.setAttribute('aria-label', 'Bu kullanıcı isteğini yeniden gönder');
     retry.title = 'Bu mesajın kullanıcı isteğini tekrar gönder';
     retry.addEventListener('click', () => {
       if (ui.messageInput.disabled) return announce('Yanıt sürerken yeniden denenemez.');
@@ -177,6 +193,7 @@
       ui.messageInput.focus();
       ui.composer.requestSubmit();
     });
+
     actions.append(copy, retry);
     article.append(actions);
   }
@@ -205,17 +222,11 @@
     event.preventDefault();
     for (const file of pastedFiles.slice(0, MAX_ATTACHMENTS)) await addFile(file);
   });
-
-  ui.messages.addEventListener('click', (event) => {
-    const action = event.target?.closest?.('.message-action');
-    if (!action) return;
-  });
+  ui.composer.addEventListener('submit', clearAttachments, true);
 
   const observer = new MutationObserver(() => {
     for (const article of ui.messages.querySelectorAll('.message.assistant')) enhanceArticle(article);
   });
   observer.observe(ui.messages, { childList: true });
   for (const article of ui.messages.querySelectorAll('.message.assistant')) enhanceArticle(article);
-
-  Object.freeze({ acceptedFile, composeAttachment, copyText, enhanceArticle });
 })();
