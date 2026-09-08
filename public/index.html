@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="/screen-share.css" />
   <link rel="stylesheet" href="/hands-free.css" />
   <link rel="stylesheet" href="/workspace-navigation.css" />
+  <link rel="stylesheet" href="/chat-composer-features.css" />
 </head>
 <body>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
@@ -74,7 +75,7 @@
           <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Bugün neye ihtiyacın var?" aria-label="Mesaj"></textarea>
           <div class="composer-row">
             <div class="composer-tools">
-              <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle">＋</button>
+              <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle" title="Metin veya kod dosyası ekle">＋</button>
               <button id="screenShareBtn" class="icon-btn" type="button" aria-label="Ekran görüntüsü paylaş" aria-pressed="false">▣</button>
               <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" disabled>⌘ Araçlar</button>
               <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false">◉</button>
@@ -116,6 +117,7 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/auth.js" defer></script>
   <script src="/app.js" defer></script>
+  <script src="/chat-composer-features.js" defer></script>
   <script src="/voice-input.js" defer></script>
   <script src="/voice-output.js" defer></script>
   <script src="/hands-free.js" defer></script>
