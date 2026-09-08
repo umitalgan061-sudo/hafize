@@ -51,7 +51,12 @@ const bodyTooLarge = new FakeResponse();
 assert.equal(deliverRequestFailure(bodyTooLarge, new Error('BODY_TOO_LARGE')), 'json');
 assert.equal(bodyTooLarge.statusCode, 413);
 assert.match(bodyTooLarge.writes[0], /BODY_TOO_LARGE/);
-assert.equal(bodyTooLarge.headers.get('Cache-Control'), 'no-store');
+assert.equal(bodyTooLarge.headers.get('Cache-Control'), undefined, 'cache policy belongs to writeHead');
+assert.equal(bodyTooLarge.writeHeadCalls[0].headers['Cache-Control'], 'no-store');
+assert.equal(bodyTooLarge.headers.get('X-Content-Type-Options'), 'nosniff');
+assert.equal(bodyTooLarge.headers.get('X-Frame-Options'), 'DENY');
+assert.equal(bodyTooLarge.headers.get('Referrer-Policy'), 'no-referrer');
+assert.equal(bodyTooLarge.headers.get('Permissions-Policy'), 'camera=(), geolocation=()');
 
 const invalidJson = new FakeResponse();
 assert.equal(deliverRequestFailure(invalidJson, new SyntaxError('Unexpected token secret')), 'json');
@@ -83,6 +88,7 @@ assert.equal(stream.writes.length, 2);
 assert.match(stream.writes[0], /STREAM_INTERRUPTED/);
 assert.match(stream.writes[1], /DONE/);
 assert.equal(stream.writableEnded, true);
+assert.equal(stream.writeHeadCalls.length, 0, 'stream failure must never call writeHead again');
 
 const streamProvider = new FakeResponse({ headersSent: true });
 assert.equal(deliverRequestFailure(streamProvider, new Error('NVIDIA_CHAT_ERROR')), 'stream');
@@ -98,4 +104,4 @@ writeFailing.write = () => { throw new Error('EPIPE'); };
 writeFailing.end = () => { throw new Error('EPIPE'); };
 assert.equal(deliverRequestFailure(writeFailing, new Error('boom')), 'stream');
 
-console.log('request failure boundary OK: closed/aborted/json/stream paths, safe status handling, bounded public errors and write-failure containment');
+console.log('request failure boundary OK: closed/aborted/json/stream paths, safe status handling, security headers, public error redaction and write-failure containment');
