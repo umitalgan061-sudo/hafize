@@ -1,0 +1,18 @@
+.history-export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 7px;
+}
+.history-export-label { color: var(--muted); font-size: 10px; }
+.history-export-actions { display: flex; gap: 3px; }
+.history-export-btn {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--muted);
+  padding: 4px 6px;
+  font-size: 10px;
+}
+.history-export-btn:hover { background: #fff; color: var(--ink); }
