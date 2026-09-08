@@ -5,6 +5,7 @@ Bu belge web/PWA ekran paylaşımının güvenlik ve veri yaşam döngüsü sın
 ## Kullanıcı kontrolü
 
 - Ekran seçici yalnız kullanıcı `Ekran` düğmesine bastığında açılır.
+- Düşük seviye `captureScreenFrame()` çağrısı da `explicitUserIntent: true` olmadan fail-closed reddedilir; yalnız UI event zincirine güvenilmez.
 - Arka planda, sayfa açılışında veya model talimatıyla otomatik capture yapılmaz.
 - Tarayıcının kendi `getDisplayMedia` seçim ekranı atlanmaz.
 - Audio capture kapalıdır.
@@ -26,15 +27,9 @@ Bu belge web/PWA ekran paylaşımının güvenlik ve veri yaşam döngüsü sın
 - Gelecekte vision analizi açılırsa ayrı açık gönderme eylemi ve server-side metadata doğrulaması gerekir.
 - Vision isteği mevcut backend default-deny tool/permission sözleşmesini bypass edemez.
 
-## Backend metadata sınırı
+## Metadata sınırı
 
-`normalizeScreenCaptureMetadata()` gelecekteki server sınırı için yalnız şu alanları kabul eder:
-
-- `explicitUserIntent`
-- `mimeType`
-- `byteLength`
-- `width`
-- `height`
+`lib/screen-capture-contract.mjs` gelecekteki server sınırı için yalnız şu çağrı alanlarını kabul eder: `explicitUserIntent`, `mimeType`, `byteLength`, `width`, `height`. Doğrulama sonrasında `explicitUserIntent` saklanan metadata'dan çıkarılır; bu alan yalnız çağrı anındaki kullanıcı niyetini kanıtlayan gate'tir.
 
 URL, pencere başlığı, dosya yolu, owner dışı metadata, credential veya key/value serbest alanları kabul edilmez.
 
