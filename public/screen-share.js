@@ -53,7 +53,8 @@
     });
   }
 
-  async function captureScreenFrame({ mediaDevices, document }) {
+  async function captureScreenFrame({ mediaDevices, document, explicitUserIntent = false }) {
+    if (explicitUserIntent !== true) throw new Error('SCREEN_CAPTURE_REQUIRES_EXPLICIT_USER_INTENT');
     if (typeof mediaDevices?.getDisplayMedia !== 'function') throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
     if (!document?.createElement) throw new Error('SCREEN_CAPTURE_UNSUPPORTED');
 
@@ -83,11 +84,21 @@
       const blob = await canvasToBlob(canvas);
       video.srcObject = null;
 
-      return Object.freeze({ blob, width: size.width, height: size.height, mimeType: blob.type });
+      return Object.freeze({
+        blob,
+        width: size.width,
+        height: size.height,
+        mimeType: blob.type,
+        metadata: Object.freeze({
+          explicitUserIntent: true,
+          mimeType: blob.type,
+          byteLength: blob.size,
+          width: size.width,
+          height: size.height
+        })
+      });
     } catch (error) {
-      if (error?.name === 'NotAllowedError' || error?.name === 'AbortError') {
-        throw new Error('SCREEN_CAPTURE_CANCELLED');
-      }
+      if (error?.name === 'NotAllowedError' || error?.name === 'AbortError') throw new Error('SCREEN_CAPTURE_CANCELLED');
       throw error;
     } finally {
       stopStream(stream);
@@ -121,7 +132,7 @@
       button.disabled = true;
       status.textContent = 'Paylaşılacak pencere veya ekranı sen seçiyorsun…';
       try {
-        const capture = await captureScreenFrame({ mediaDevices: root.navigator?.mediaDevices, document });
+        const capture = await captureScreenFrame({ mediaDevices: root.navigator?.mediaDevices, document, explicitUserIntent: true });
         clearCapture();
         currentCapture = capture;
         objectUrl = root.URL?.createObjectURL?.(capture.blob) || '';
@@ -129,9 +140,7 @@
         panel.hidden = false;
         button.setAttribute('aria-pressed', 'true');
         status.textContent = `${capture.width}×${capture.height} ekran görüntüsü yalnız bu sekmede hazır; Hafize'ye gönderilmedi.`;
-        root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-ready', {
-          detail: { width: capture.width, height: capture.height, mimeType: capture.mimeType }
-        }));
+        root.dispatchEvent?.(new root.CustomEvent('hafize:screen-capture-ready', { detail: { ...capture.metadata } }));
       } catch (error) {
         if (error?.message === 'SCREEN_CAPTURE_CANCELLED') status.textContent = 'Ekran paylaşımı iptal edildi.';
         else if (error?.message === 'SCREEN_CAPTURE_UNSUPPORTED') status.textContent = 'Bu tarayıcı ekran paylaşımını desteklemiyor.';
@@ -145,11 +154,7 @@
     removeButton.addEventListener('click', clearCapture);
     root.addEventListener?.('pagehide', clearCapture, { once: true });
 
-    return Object.freeze({
-      clearCapture,
-      requestCapture,
-      getCapture: () => currentCapture
-    });
+    return Object.freeze({ clearCapture, requestCapture, getCapture: () => currentCapture });
   }
 
   return Object.freeze({ boundedSize, captureScreenFrame, mountScreenShare, stopStream });
