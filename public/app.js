@@ -22,6 +22,7 @@
   };
 
   let installPrompt = null;
+  let persistenceWarningShown = false;
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
@@ -42,7 +43,17 @@
   }
 
   function saveConversations() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.slice(0, 30)));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.slice(0, 30)));
+      persistenceWarningShown = false;
+      return true;
+    } catch {
+      if (!persistenceWarningShown) {
+        persistenceWarningShown = true;
+        showToast('Yerel sohbet geçmişi bu cihazda kalıcı olarak kaydedilemedi.');
+      }
+      return false;
+    }
   }
 
   function getActiveConversation() {
