@@ -10,7 +10,7 @@ Guard; `request.received`, `auth.allowed`, `auth.denied`, `csrf.denied` ve `rate
 
 ## Gizlilik sınırı
 
-Event metadata anahtarları credential çağrışımlı alanları filtreler. Gerekirse principal ilişkilendirmesi için yalnız tek yönlü kısa fingerprint kullanılabilir; ham subject veya credential loglanmaz. Gözlemlenebilirlik katmanı model çağrısı yapmaz ve uygulama yetkisi genişletmez.
+Event metadata anahtarları credential çağrışımlı alanları filtreler. Route değerleri ayrıca query ve fragment bölümünden arındırılır; böylece logger doğrudan çağrılsa bile `?token=...` veya `#...` gibi URL ekleri gözlemlenebilirlik kaydına taşınmaz. Gerekirse principal ilişkilendirmesi için yalnız tek yönlü kısa fingerprint kullanılabilir; ham subject veya credential loglanmaz. Gözlemlenebilirlik katmanı model çağrısı yapmaz ve uygulama yetkisi genişletmez.
 
 ## Geri alma
 
