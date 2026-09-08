@@ -52,6 +52,11 @@ assert.throws(
   (error) => error instanceof ToolExecutionResultPolicyError && error.code === 'TOOL_RESULT_COMPLEXITY_BLOCKED'
 );
 
+assert.throws(
+  () => assertSafeToolExecutionValue('x'.repeat(256 * 1024 + 1)),
+  (error) => error instanceof ToolExecutionResultPolicyError && error.code === 'TOOL_RESULT_COMPLEXITY_BLOCKED'
+);
+
 const cyclic = { nested: {} };
 cyclic.nested.parent = cyclic;
 assert.doesNotThrow(() => assertSafeToolExecutionValue(cyclic));
