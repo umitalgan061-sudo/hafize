@@ -1,0 +1,64 @@
+.attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 2px 4px 8px;
+}
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.attachment-remove {
+  border: 0;
+  border-radius: 7px;
+  padding: 1px 5px;
+  background: transparent;
+  color: var(--muted);
+}
+.attachment-remove:hover { background: var(--card); color: var(--ink); }
+.composer.drag-active {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(95,127,112,.13), var(--shadow);
+}
+.composer.drag-active::before {
+  content: 'Dosyayı bırak';
+  position: absolute;
+  inset: 5px;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+  border: 1px dashed var(--accent-strong);
+  border-radius: 15px;
+  background: rgba(255,253,250,.94);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 650;
+  pointer-events: none;
+}
+.message-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+}
+.message-action {
+  border: 0;
+  border-radius: 7px;
+  padding: 4px 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+}
+.message-action:hover { background: var(--panel); color: var(--ink); }
+@media (max-width: 560px) {
+  .attachment-chip { font-size: 10px; }
+  .message-actions { margin-top: 5px; }
+}
