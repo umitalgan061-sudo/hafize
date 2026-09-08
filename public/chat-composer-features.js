@@ -97,9 +97,16 @@
         announce(`${file.name} boş olduğu için eklenmedi.`);
         return;
       }
-      const block = composeAttachment(file, text);
-      files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block });
-      ui.messageInput.value = `${ui.messageInput.value}${block}`.slice(0, ui.messageInput.maxLength || 12000);
+      const fullBlock = composeAttachment(file, text);
+      const before = ui.messageInput.value;
+      const nextValue = `${before}${fullBlock}`.slice(0, ui.messageInput.maxLength || 12000);
+      const appendedBlock = nextValue.slice(before.length);
+      if (!appendedBlock) {
+        announce('Mesaj alanı dolu. Dosya eklenebilmesi için biraz metin silmelisin.');
+        return;
+      }
+      files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: appendedBlock });
+      ui.messageInput.value = nextValue;
       ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
       renderAttachmentStrip();
       ui.messageInput.focus();
