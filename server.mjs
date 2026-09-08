@@ -26,6 +26,7 @@ import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
+import { deliverRequestFailure } from './lib/request-failure.mjs';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -394,7 +395,7 @@ async function handleAgentRun(req, res) {
     first = normalizeRootCompletion(await nvidiaJsonCompletion(firstPayload, controller.signal));
   } catch (error) {
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
-    sendJson(res, error?.message === 'NVIDIA_CHAT_ERROR' ? error.status || 502 : 502, { error: error?.message === 'NVIDIA_CHAT_ERROR' ? 'NVIDIA_CHAT_ERROR' : 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
+    deliverRequestFailure(res, error);
     return;
   }
 
@@ -495,17 +496,15 @@ async function handleAgentRun(req, res) {
       });
     } catch (error) {
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
-      if (error?.name !== 'AbortError') {
-        res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
-      }
-      res.end();
+      deliverRequestFailure(res, error);
       return;
     }
     if (!upstream.ok || !upstream.body) {
       await upstream.text();
+      const error = new Error('NVIDIA_CHAT_ERROR');
+      error.status = upstream.status || 502;
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
-      res.write(`data: ${JSON.stringify({ error: 'NVIDIA_CHAT_ERROR' })}\n\n`);
-      res.end();
+      deliverRequestFailure(res, error);
       return;
     }
 
@@ -514,15 +513,13 @@ async function handleAgentRun(req, res) {
       for await (const chunk of upstream.body) res.write(chunk);
     } catch (error) {
       streamInterrupted = true;
-      if (error?.name !== 'AbortError') {
-        res.write(`data: ${JSON.stringify({ error: 'STREAM_INTERRUPTED' })}\n\n`);
-      }
+      deliverRequestFailure(res, error);
     } finally {
       runLedger.finish({
         ok: !streamInterrupted && !anyToolFailed,
         detail: streamInterrupted ? 'stream_interrupted' : anyToolFailed ? 'tool_failed' : null
       });
-      res.end();
+      try { if (!res.destroyed && !res.writableEnded) res.end(); } catch {}
     }
     return;
   }
@@ -532,7 +529,7 @@ async function handleAgentRun(req, res) {
     second = normalizeRootCompletion(await nvidiaJsonCompletion(secondPayload, controller.signal));
   } catch (error) {
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
-    sendJson(res, error?.message === 'NVIDIA_CHAT_ERROR' ? error.status || 502 : 502, { error: error?.message === 'NVIDIA_CHAT_ERROR' ? 'NVIDIA_CHAT_ERROR' : 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
+    deliverRequestFailure(res, error);
     return;
   }
 
@@ -577,37 +574,47 @@ async function handleChat(req, res) {
   if (typeof body.temperature === 'number') payload.temperature = Math.min(Math.max(body.temperature, 0), 2);
   if (typeof body.top_p === 'number') payload.top_p = Math.min(Math.max(body.top_p, 0), 1);
 
-  const upstream = await nvidiaFetch('/chat/completions', {
-    method: 'POST',
-    signal: controller.signal,
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify(payload)
-  });
-
-  if (!upstream.ok || !upstream.body) {
-    const detail = await upstream.text();
-    sendJson(res, upstream.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: detail.slice(0, 1200) });
+  let upstream;
+  try {
+    upstream = await nvidiaFetch('/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    deliverRequestFailure(res, error);
     return;
   }
 
-  setSecurityHeaders(res);
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive'
-  });
+  if (!upstream.ok || !upstream.body) {
+    const detail = await upstream.text();
+    const error = new Error('NVIDIA_CHAT_ERROR');
+    error.status = upstream.status || 502;
+    error.detail = detail.slice(0, 1200);
+    deliverRequestFailure(res, error);
+    return;
+  }
+
+  startSse(res);
 
   try {
     for await (const chunk of upstream.body) res.write(chunk);
   } catch (error) {
-    if (error?.name !== 'AbortError') res.write(`data: ${JSON.stringify({ error: 'STREAM_INTERRUPTED' })}\n\n`);
+    deliverRequestFailure(res, error);
   } finally {
-    res.end();
+    try { if (!res.destroyed && !res.writableEnded) res.end(); } catch {}
   }
 }
 
 async function serveStatic(pathname, res) {
-  const decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+  } catch {
+    sendJson(res, 400, { error: 'INVALID_PATH' });
+    return;
+  }
   const filePath = resolve(PUBLIC_DIR, `.${decoded}`);
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${sep}`)) {
     sendJson(res, 400, { error: 'INVALID_PATH' });
@@ -706,12 +713,7 @@ const server = createServer(async (req, res) => {
     }
     sendJson(res, 405, { error: 'METHOD_NOT_ALLOWED' });
   } catch (error) {
-    if (error?.message === 'BODY_TOO_LARGE') sendJson(res, 413, { error: 'BODY_TOO_LARGE' });
-    else if (error?.message === 'NVIDIA_NOT_CONFIGURED') sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' });
-    else if (error?.message === 'NVIDIA_CHAT_ERROR') sendJson(res, error.status || 502, { error: 'NVIDIA_CHAT_ERROR', detail: error.detail || '' });
-    else if (error?.message === 'INVALID_NVIDIA_RESPONSE') sendJson(res, error.status || 502, { error: 'INVALID_NVIDIA_RESPONSE' });
-    else if (error instanceof SyntaxError) sendJson(res, 400, { error: 'INVALID_JSON' });
-    else sendJson(res, 500, { error: 'INTERNAL_ERROR' });
+    deliverRequestFailure(res, error);
   }
 });
 
