@@ -7,6 +7,10 @@ assert.equal(response.finishReason, 'stop');
 assert.equal(response.usage.total_tokens, 14);
 assert.equal(response.model, 'test-model');
 assert.equal(isTerminalModelResponse(response), true);
+assert.equal(normalizeModelResponse({ content: null }).content, '');
+assert.throws(() => normalizeModelResponse({ content: { text: 'bad' } }), /INVALID_MODEL_CONTENT/);
+assert.throws(() => normalizeModelResponse({ content: ['bad'] }), /INVALID_MODEL_CONTENT/);
+assert.throws(() => normalizeModelResponse({ finishReason: 42 }), /INVALID_MODEL_FINISH_REASON/);
 
 const toolResponse = normalizeModelResponse({ finishReason: 'tool_calls', toolCalls: [{ id: 'call-1', function: { name: 'runtime_status', arguments: '{}' } }] });
 assert.equal(toolResponse.toolCalls.length, 1);
@@ -36,6 +40,7 @@ assert.equal(providerResponse.responseId, 'resp-provider-1');
 assert.equal(providerResponse.usage.total_tokens, 28);
 
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'user', content: 'bad' } }] }), /INVALID_MODEL_RESPONSE/);
+assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', content: { malformed: true } } }] }), /INVALID_MODEL_CONTENT/);
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: [{ id: 'x', function: { name: 'x', arguments: 'x'.repeat(MODEL_RESPONSE_CONTRACT.maxToolArgumentLength + 1) } }] } }] }), /INVALID_MODEL_TOOL_CALL/);
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: Array.from({ length: MODEL_RESPONSE_CONTRACT.maxToolCalls + 1 }, () => ({ id: 'x', function: { name: 'x', arguments: '{}' } })) } }] }), /INVALID_MODEL_TOOL_CALLS/);
 
