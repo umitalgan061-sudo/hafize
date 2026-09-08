@@ -25,6 +25,7 @@ import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
+import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -158,6 +159,17 @@ async function nvidiaJsonCompletion(payload, signal) {
   }
 }
 
+function normalizeRootCompletion(response) {
+  try {
+    return normalizeNvidiaChatCompletion(response);
+  } catch (error) {
+    const normalized = new Error('INVALID_NVIDIA_RESPONSE');
+    normalized.code = error?.message || 'INVALID_NVIDIA_RESPONSE';
+    normalized.status = 502;
+    throw normalized;
+  }
+}
+
 function boundedMaxTokens(body) {
   return Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048;
 }
@@ -180,8 +192,8 @@ const CONTEXT_COMPACTOR = createContextCompactor({
       stream: false,
       max_tokens: 1200
     }, signal);
-    const content = response?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) throw new Error('INVALID_CONTEXT_SUMMARY');
+    const content = normalizeNvidiaChatCompletion(response).content;
+    if (!content.trim()) throw new Error('INVALID_CONTEXT_SUMMARY');
     return content;
   }
 });
@@ -377,26 +389,35 @@ async function handleAgentRun(req, res) {
     firstPayload.tool_choice = 'auto';
   }
 
-  const first = await nvidiaJsonCompletion(firstPayload, controller.signal);
-  const assistant = first?.choices?.[0]?.message;
-  if (!assistant || assistant.role !== 'assistant') {
+  let first;
+  try {
+    first = normalizeRootCompletion(await nvidiaJsonCompletion(firstPayload, controller.signal));
+  } catch (error) {
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
+    sendJson(res, error?.message === 'NVIDIA_CHAT_ERROR' ? error.status || 502 : 502, { error: error?.message === 'NVIDIA_CHAT_ERROR' ? 'NVIDIA_CHAT_ERROR' : 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
     return;
   }
 
-  const toolCalls = Array.isArray(assistant.tool_calls) ? assistant.tool_calls.slice(0, 4) : [];
+  const assistant = {
+    role: 'assistant',
+    content: first.content,
+    tool_calls: first.toolCalls.map((call) => ({
+      id: call.id,
+      type: 'function',
+      function: { name: call.name, arguments: call.arguments }
+    }))
+  };
+  const toolCalls = assistant.tool_calls;
   if (!toolCalls.length) {
     runLedger.finish({ ok: true });
-    const content = typeof assistant.content === 'string' ? assistant.content : '';
     if (streamResponse) {
-      sendSseContent(res, content);
+      sendSseContent(res, first.content);
       return;
     }
     sendJson(res, 200, {
       traceId,
       agent: { id: agent.id, name: agent.name },
-      content,
+      content: first.content,
       tools: [],
       context: contextMeta,
       taskLedger: runLedger.snapshot()
@@ -454,11 +475,7 @@ async function handleAgentRun(req, res) {
     model,
     messages: [
       ...conversation,
-      {
-        role: 'assistant',
-        content: typeof assistant.content === 'string' ? assistant.content : null,
-        tool_calls: normalizedCalls
-      },
+      assistant,
       ...toolMessages
     ],
     stream: streamResponse,
@@ -510,11 +527,12 @@ async function handleAgentRun(req, res) {
     return;
   }
 
-  const second = await nvidiaJsonCompletion(secondPayload, controller.signal);
-  const finalMessage = second?.choices?.[0]?.message;
-  if (!finalMessage || finalMessage.role !== 'assistant') {
+  let second;
+  try {
+    second = normalizeRootCompletion(await nvidiaJsonCompletion(secondPayload, controller.signal));
+  } catch (error) {
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
-    sendJson(res, 502, { error: 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
+    sendJson(res, error?.message === 'NVIDIA_CHAT_ERROR' ? error.status || 502 : 502, { error: error?.message === 'NVIDIA_CHAT_ERROR' ? 'NVIDIA_CHAT_ERROR' : 'INVALID_NVIDIA_RESPONSE', taskLedger: runLedger.snapshot() });
     return;
   }
 
@@ -522,7 +540,7 @@ async function handleAgentRun(req, res) {
   sendJson(res, 200, {
     traceId,
     agent: { id: agent.id, name: agent.name },
-    content: typeof finalMessage.content === 'string' ? finalMessage.content : '',
+    content: second.content,
     tools: toolSummary,
     context: contextMeta,
     taskLedger: runLedger.snapshot()
