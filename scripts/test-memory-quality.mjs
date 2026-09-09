@@ -15,11 +15,17 @@ assert.equal(ranked[0].memoryId, 'memory_alpha12345'); assert.equal(ranked.lengt
 const quality = measureRetrievalQuality({ expectedIds: ['memory_alpha12345'], ranked, minScore: 0.2 });
 assert.equal(quality.topHit, 1); assert.equal(quality.precisionAtK, 0.5); assert.equal(quality.recallAtK, 1); assert.equal(quality.thresholdPass, true);
 const store = createPersonalMemoryStore({ now: () => new Date(now), createId: (() => { let index = 0; return () => `stable${String(++index).padStart(8, '0')}`; })() });
-assert.equal(store.write({ ownerId: 'u1', kind: 'preference', content: 'Kahve sütlü ve şekersiz.', sourceType: 'conversation' }).ok, true);
-assert.equal(store.write({ ownerId: 'u1', kind: 'decision', content: 'PR küçük tutulacak.', sourceType: 'conversation' }).ok, true);
-assert.equal(store.write({ ownerId: 'u2', kind: 'preference', content: 'Kahve başka kullanıcıya ait.', sourceType: 'conversation' }).ok, true);
+// Writes go through the personal memory contract: declared kind/sourceType, personal
+// sensitivity and explicit user intent are all required.
+const write = (ownerId, kind, content) => store.write({ ownerId, kind, content, sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true });
+assert.equal(write('u1', 'preference', 'Kahve sütlü ve şekersiz.').ok, true);
+assert.equal(write('u1', 'project', 'PR küçük tutulacak.').ok, true);
+assert.equal(write('u2', 'preference', 'Kahve başka kullanıcıya ait.').ok, true);
 const read = store.read({ ownerId: 'u1', query: 'kahve', limit: 5 });
-assert.equal(read.ok, true); assert.equal(read.records.length, 1); assert.equal(read.records[0].ownerId, 'u1'); assert.match(read.records[0].content, /Kahve/);
+// Retrieval is owner-scoped and keeps only records that actually match the query.
+assert.equal(read.ok, true); assert.equal(read.records.length, 1);
+assert.equal(read.records[0].ownerId, 'u1');
+assert.match(read.records[0].content, /Kahve/);
 assert.throws(() => scoreMemoryRecord(null, 'x'), /INVALID_MEMORY_QUALITY_RECORD/);
 assert.throws(() => scoreMemoryRecord(records[0], 'x'.repeat(501)), /INVALID_MEMORY_QUALITY_QUERY/);
 assert.throws(() => rankMemoryRecords(Array.from({ length: 2049 }, () => records[0]), 'x'), /INVALID_MEMORY_QUALITY_RECORDS/);

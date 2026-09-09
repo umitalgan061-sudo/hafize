@@ -152,7 +152,9 @@
   document.addEventListener('keydown', (event) => {
     const target = event.target;
     if (!event.ctrlKey && !event.metaKey) return;
-    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
+    // Requires the documented mod+shift+f: without the shift check this would also swallow
+    // the browser's own ctrl/cmd+f.
+    if (event.altKey || event.shiftKey !== SHORTCUT.shift || event.key.toLocaleLowerCase() !== SHORTCUT.key) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();
