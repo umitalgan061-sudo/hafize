@@ -44,7 +44,17 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+// Live timer table: a cleared timer disappears, so assertions can talk about
+// what is still pending instead of how many were ever scheduled.
+const timers = new Map();
+let timerSequence = 0;
+const pendingDelays = () => [...timers.values()].map((timer) => timer.delayMs);
+function fireTimer(delayMs) {
+  const entry = [...timers.entries()].find(([, timer]) => timer.delayMs === delayMs);
+  assert.ok(entry, `no pending timer scheduled for ${delayMs} ms`);
+  timers.delete(entry[0]);
+  entry[1].run();
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +62,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, delayMs) { timers.set(++timerSequence, { run: fn, delayMs }); return timerSequence; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -79,11 +89,18 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+// Enabling arms the session limit; the wake-phrase handoff adds its own fallback
+// until voice input actually takes over.
+assert.deepEqual(pendingDelays(), [api.SESSION_LIMIT_MS, api.HANDOFF_TIMEOUT_MS]);
 
+// A visibility event must not restart wake listening while the handoff is pending.
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+assert.deepEqual(pendingDelays(), [api.SESSION_LIMIT_MS, api.HANDOFF_TIMEOUT_MS]);
+
+fireTimer(api.HANDOFF_TIMEOUT_MS);
+assert.equal(controller.isListening(), false);
+assert.deepEqual(pendingDelays(), [api.SESSION_LIMIT_MS, api.RESTART_DELAY_MS]);
+fireTimer(api.RESTART_DELAY_MS);
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -95,6 +112,8 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
+// Disabling releases every pending timer and leaves nothing persisted.
+assert.deepEqual(pendingDelays(), []);
 assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
