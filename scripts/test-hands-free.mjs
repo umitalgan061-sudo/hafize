@@ -44,7 +44,21 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+// Zamanlayıcılar bekleyen küme olarak modellenir: clearTimeout gerçekten
+// kaldırır, böylece iptal edilmiş zamanlayıcı sayımı bozmaz.
+const timers = new Map();
+let timerSequence = 0;
+// Oturum sınırı zamanlayıcısı (saatler) dışındaki bekleyen kısa zamanlayıcıları
+// kurulma sırasına göre çalıştırır; çalışırken kurulan yenileri de kapsar.
+function runPendingTimers(maxDelay = 60_000) {
+  for (let round = 0; round < 20; round += 1) {
+    const next = [...timers.entries()].find(([, timer]) => timer.delay <= maxDelay);
+    if (!next) return round;
+    timers.delete(next[0]);
+    next[1].fn();
+  }
+  throw new Error('TIMER_LOOP_DID_NOT_SETTLE');
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +66,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, delay) { const id = ++timerSequence; timers.set(id, { fn, delay: Number(delay) || 0 }); return id; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -64,7 +78,9 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Eller serbest durumu kalıcı değildir: mikrofon oturumu her seferinde açık
+// kullanıcı hareketiyle başlar, sayfa yüklenince kendiliğinden açılmaz.
+assert.equal(storage.size, 0, 'eller serbest durumu kalıcı depolamaya yazılmamalı');
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +93,11 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Görünürlük dönüşü dinlemeyi doğrudan değil, uyandırma sonrası bekleme ve
+// yeniden başlatma zamanlayıcıları üzerinden sürdürür.
+assert.ok(timers.size >= 1, 'görünürlük dönüşünde bekleyen zamanlayıcı olmalı');
+assert.ok(runPendingTimers() >= 1);
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +109,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

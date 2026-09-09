@@ -32,7 +32,7 @@ assert.equal(pass.pass, true);
 assert.equal(pass.blockerCount, 0);
 
 const fail = evaluateQualityGates({
-  files: [{ path: 'private.pem', content: 'BEGIN PRIVATE KEY' }],
+  files: [{ path: 'private.pem', content: '-----BEGIN RSA PRIVATE KEY-----' }],
   result: { claims: ['a'], evidence: [] },
   ui: {}
 });
