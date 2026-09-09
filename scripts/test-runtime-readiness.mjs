@@ -4,8 +4,11 @@ import { evaluateRuntimeReadiness, normalizeReadinessReport, updateReadinessComp
 const report = normalizeReadinessReport({ auth: { status: 'ready' }, pwa: { status: 'ready' }, skills: { status: 'ready' }, memory: { status: 'ready' }, schedule: { status: 'warning', detail: 'retry backlog' }, connectors: { status: 'ready' }, model: { status: 'ready' } });
 assert.equal(Object.keys(report).length, RUNTIME_READINESS_COMPONENTS.length);
 assert.equal(report.schedule.status, 'warning');
-assert.equal(evaluateRuntimeReadiness(report).ready, false);
+// Per docs/RUNTIME_READINESS.md a warning marks the runtime degraded but still
+// ready; only blockers and unknown components clear `ready`.
+assert.equal(evaluateRuntimeReadiness(report).ready, true);
 assert.equal(evaluateRuntimeReadiness(report).degraded, true);
+assert.deepEqual(evaluateRuntimeReadiness(report).warnings, ['schedule']);
 
 const blocked = updateReadinessComponent(report, 'auth', 'blocked', 'secret missing', '2026-09-07T12:00:00Z');
 const evaluated = evaluateRuntimeReadiness(blocked);

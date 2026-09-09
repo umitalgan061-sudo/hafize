@@ -25,7 +25,12 @@ first.release();
 const second = limiter.check('user', 61_001);
 assert.equal(second.ok, true);
 second.release();
-assert.equal(limiter.check('user', 61_002).ok, false);
+// Rejected requests do not consume quota, so the rotated window still allows
+// `max` accepted requests before it is exhausted.
+const third = limiter.check('user', 61_002);
+assert.equal(third.ok, true);
+third.release();
+assert.equal(limiter.check('user', 61_003).ok, false, 'quota is exhausted after max accepted requests');
 
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;
