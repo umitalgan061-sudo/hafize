@@ -140,7 +140,7 @@ assert.equal(reviewerTools.some((tool) => tool.function.name === 'agent_delegate
 
 const toolSuccess = await executeNvidiaToolCall(
   primary,
-  { function: { name: 'agent_delegate', arguments: JSON.stringify({ agentId: reviewer.id, task: 'Kontrol et.' }) } },
+  { id: 'call-1', function: { name: 'agent_delegate', arguments: JSON.stringify({ agentId: reviewer.id, task: 'Kontrol et.' }) } },
   { delegateAgent: async () => ({ ok: true, value: { agentId: reviewer.id, content: 'ok' } }) }
 );
 assert.equal(toolSuccess.ok, true);
@@ -150,6 +150,7 @@ let structuredToolArgs = null;
 const structuredToolSuccess = await executeNvidiaToolCall(
   primary,
   {
+    id: 'call-3',
     function: {
       name: 'agent_delegate',
       arguments: JSON.stringify({
@@ -175,7 +176,7 @@ assert.deepEqual(structuredToolArgs.evidenceRequired, ['Dosya yolunu belirt']);
 
 const toolFailure = await executeNvidiaToolCall(
   primary,
-  { function: { name: 'agent_delegate', arguments: JSON.stringify({ agentId: reviewer.id, task: 'Kontrol et.' }) } },
+  { id: 'call-2', function: { name: 'agent_delegate', arguments: JSON.stringify({ agentId: reviewer.id, task: 'Kontrol et.' }) } },
   { delegateAgent: async () => ({ ok: false, error: 'DELEGATION_DEPTH_EXCEEDED' }) }
 );
 assert.deepEqual(toolFailure, { ok: false, error: 'DELEGATION_DEPTH_EXCEEDED' });

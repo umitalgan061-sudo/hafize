@@ -105,7 +105,7 @@ const skillResult = await executeNvidiaToolCall(
   hafize,
   {
     id: 'call_skill_1',
-    type: 'function',
+    type: 'function',    id: 'call-1',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'runtime-diagnostics', args: { question: 'Runtime hazır mı?' } }) }
   },
   { traceId, agent: hafize, registry, approvalGranted: false }
@@ -120,7 +120,7 @@ const codeSkill = await executeNvidiaToolCall(
   reviewer,
   {
     id: 'call_skill_2',
-    type: 'function',
+    type: 'function',    id: 'call-2',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'code-inspection', args: { focus: 'tool runtime' } }) }
   },
   { traceId, agent: reviewer, registry, githubReadConfigured: true, approvalGranted: false }
@@ -132,7 +132,7 @@ const invalidSkillArgs = await executeNvidiaToolCall(
   hafize,
   {
     id: 'call_skill_3',
-    type: 'function',
+    type: 'function',    id: 'call-3',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'runtime-diagnostics', args: { question: 'x', token: 'secret' } }) }
   },
   { traceId, agent: hafize, registry, approvalGranted: false }
