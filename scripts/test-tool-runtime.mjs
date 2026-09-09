@@ -194,4 +194,22 @@ const unknown = await executeNvidiaToolCall(
 );
 assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
 
+// Boundary rejections reach the caller with their own code, not a generic failure.
+assert.deepEqual(
+  await executeNvidiaToolCall(
+    hafize,
+    { id: 'call_8', type: 'function', function: { name: 'runtime_status', arguments: '{' } },
+    { traceId, agent: hafize, registry, nvidiaConfigured: true }
+  ),
+  { ok: false, error: 'INVALID_TOOL_ARGUMENTS' }
+);
+assert.deepEqual(
+  await executeNvidiaToolCall(
+    hafize,
+    { type: 'function', function: { name: 'runtime_status', arguments: '{}' } },
+    { traceId, agent: hafize, registry, nvidiaConfigured: true }
+  ),
+  { ok: false, error: 'INVALID_TOOL_CALL_ID' }
+);
+
 console.log('Tool runtime OK: authorization, safe activity, credential-safe egress, delegation and configured GitHub repo.read are policy-gated');
