@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -32,29 +33,35 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+// The shell revision moves whenever an asset is added, so only its shape and monotonicity
+// are contracted here; feature suites must not restate the literal revision at all.
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
+const currentRevision = Number(policy.CURRENT_CACHE.slice(`${policy.CACHE_PREFIX}v`.length));
+assert.ok(currentRevision >= 14, 'shell cache revision must never move backwards');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// The shell list grows with every UI feature, so it is contracted by invariants instead of
+// a literal snapshot: the core shell is always present, entries are unique same-origin
+// paths, and nothing is precached that is not actually shipped in public/.
+for (const required of [
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
   '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
-]);
+]) assert.ok(policy.SHELL_ASSETS.includes(required), `${required} must stay in the precached shell`);
+assert.equal(policy.SHELL_ASSETS.length, new Set(policy.SHELL_ASSETS).size, 'shell assets must be unique');
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
+for (const asset of policy.SHELL_ASSETS) {
+  assert.match(asset, /^\/[a-z0-9._/-]*$/i, `${asset} must be a same-origin absolute path`);
+  if (asset === '/') continue;
+  assert.ok(existsSync(join(ROOT, 'public', asset.slice(1))), `${asset} is precached but missing from public/`);
+}
 
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
@@ -145,10 +152,11 @@ assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+for (let revision = 1; revision < currentRevision; revision += 1) {
+  assert.equal(policy.shouldDeleteCache(`hafize-shell-v${revision}`), true, `stale shell cache v${revision} must be evicted`);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
+assert.equal(policy.shouldDeleteCache(`hafize-shell-v${currentRevision + 1}`), true);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

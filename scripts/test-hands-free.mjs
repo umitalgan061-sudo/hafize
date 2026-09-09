@@ -52,10 +52,23 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  // Delays are recorded so the assertions can name which timer they fire: the session
+  // limit, the voice handoff fallback and the recognition restart all coexist.
+  setTimeout(fn, delay) { timers.push({ fn, delay }); return timers.length; },
+  clearTimeout(handle) { if (Number.isInteger(handle) && timers[handle - 1]) timers[handle - 1].cleared = true; },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
+
+function pendingTimers(delay) {
+  return timers.filter((timer) => !timer.cleared && (delay === undefined || timer.delay === delay));
+}
+
+function fireTimer(delay) {
+  const timer = pendingTimers(delay)[0];
+  assert.ok(timer, `expected a pending timer with delay ${delay}`);
+  timer.cleared = true;
+  timer.fn();
+}
 
 const controller = api.installHandsFree(documentRef, root);
 assert.equal(controller.isSupported, true);
@@ -64,7 +77,9 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free controller state must never reach the storage surface
+// (docs/HANDS_FREE_MICROPHONE_DEVICE_CONTRACT.md), so enabling persists nothing.
+assert.equal(storage.size, 0, 'hands-free state must not be persisted client-side');
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +92,18 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+// Enabling arms the 30 minute session limit; the wake phrase adds the handoff fallback.
+assert.equal(pendingTimers(api.SESSION_LIMIT_MS).length, 1);
+assert.equal(pendingTimers(api.HANDOFF_TIMEOUT_MS).length, 1);
 
+// While the handoff to voice input is pending, nothing may restart wake-word listening.
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+assert.equal(pendingTimers(api.RESTART_DELAY_MS).length, 0, 'restart must wait for the handoff to settle');
+
+// The handoff fallback releases the wait and schedules the restart instead.
+fireTimer(api.HANDOFF_TIMEOUT_MS);
+assert.equal(pendingTimers(api.RESTART_DELAY_MS).length, 1);
+fireTimer(api.RESTART_DELAY_MS);
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +115,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0, 'disabling must not leave any persisted trace either');
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
