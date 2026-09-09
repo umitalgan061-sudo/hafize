@@ -292,7 +292,10 @@ async function handleModels(res) {
   const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
   const text = await upstream.text();
   if (!upstream.ok) {
-    sendJson(res, upstream.status, { error: 'NVIDIA_MODELS_ERROR', detail: text.slice(0, 1000) });
+    // Upstream error bodies can echo request content, so only the stable code is
+    // public; a non-error upstream status is not accepted as a failure status.
+    const status = Number.isInteger(upstream.status) && upstream.status >= 400 && upstream.status <= 599 ? upstream.status : 502;
+    sendJson(res, status, { error: 'NVIDIA_MODELS_ERROR' });
     return;
   }
 
