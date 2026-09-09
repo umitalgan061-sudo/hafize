@@ -139,7 +139,7 @@
   }
 
   function deleteConversation(id) {
-    if (isStreaming) return showToast('Yanıt sürerken sohbet silinemez.');
+    if (isStreaming) return showToast('Yanıt sürerken sohbet silinemez; önce yanıtı durdur (Esc).');
     conversations = conversations.filter((item) => item.id !== id);
     if (activeConversationId === id) activeConversationId = conversations[0]?.id ?? null;
     saveConversations();
@@ -147,7 +147,7 @@
   }
 
   function clearHistory() {
-    if (isStreaming) return showToast('Yanıt sürerken geçmiş temizlenemez.');
+    if (isStreaming) return showToast('Yanıt sürerken geçmiş temizlenemez; önce yanıtı durdur (Esc).');
     if (!conversations.length) return;
     if (!globalThis.confirm('Tüm yerel sohbet geçmişi silinsin mi?')) return;
     conversations = [];
@@ -273,7 +273,7 @@
       open.textContent = conversation.title;
       open.title = conversation.title;
       open.addEventListener('click', () => {
-        if (isStreaming) return showToast('Yanıt sürerken sohbet değiştirilemez.');
+        if (isStreaming) return showToast('Yanıt sürerken sohbet değiştirilemez; önce yanıtı durdur (Esc).');
         activeConversationId = conversation.id;
         render();
         if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
@@ -594,7 +594,7 @@
 
   ui.sidebarToggle.addEventListener('click', () => ui.sidebar.classList.toggle('open'));
   ui.newChatBtn.addEventListener('click', () => {
-    if (isStreaming) return showToast('Yanıt sürerken yeni sohbet açılamaz.');
+    if (isStreaming) return showToast('Yanıt sürerken yeni sohbet açılamaz; önce yanıtı durdur (Esc).');
     createConversation();
   });
   ui.clearHistoryBtn.addEventListener('click', clearHistory);

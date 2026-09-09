@@ -66,6 +66,15 @@ assert.match(style, /\.stop-btn \{/);
 assert.match(style, /\.stop-btn\[hidden\], \.send-btn\[hidden\] \{ display: none; \}/);
 assert.match(style, /min-height: 40px/, 'stop must stay a comfortable touch target on mobile');
 
+// Actions that stay blocked during a stream now point at the way out.
+for (const blocked of [/sohbet silinemez; önce yanıtı durdur \(Esc\)/, /geçmiş temizlenemez; önce yanıtı durdur \(Esc\)/, /sohbet değiştirilemez; önce yanıtı durdur \(Esc\)/, /yeni sohbet açılamaz; önce yanıtı durdur \(Esc\)/]) assert.match(app, blocked);
+
+// The premium theme restyles the send button, so the stop button needs its own token
+// there too — otherwise it renders off-theme in light and dark alike.
+const premium = await readFile(new URL('../public/premium.css', import.meta.url), 'utf8');
+assert.match(premium, /\.stop-btn \{[^}]*var\(--premium-stop\)/);
+assert.equal((premium.match(/--premium-stop:/g) || []).length, 2, 'stop colour must be defined for both themes');
+
 assertShellCacheSourceAtLeast(serviceWorkerPolicy, 19);
 
 console.log('chat stop generation contract passed: abortable stream, preserved partial answer, keyboard and touch affordances');
