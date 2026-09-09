@@ -35,7 +35,16 @@ assert.equal(await successDelegator.delegate({ agentId: 'specialist', task: 'x' 
 assert.throws(() => successLifecycle.start({ runId: 'delegation-2', execute: async () => null }), /AGENT_RUN_ALREADY_EXISTS/);
 const limited = createAgentLifecycle({ maxConcurrent: 1 });
 let hold;
-const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
+// A fresh ledger: the shared one already holds maxParallelAgents delegations, and the
+// fan-out cap is checked before the lifecycle is ever consulted.
+const limitedEntries = [];
+let limitedSequence = 0;
+const limitedLedger = {
+  snapshot() { return { entries: limitedEntries.slice() }; },
+  recordDelegationStart(agentId, { parentTaskId }) { const taskId = `limited-${++limitedSequence}`; limitedEntries.push({ action: 'agent.delegate', taskId, agentId, parentTaskId }); return { taskId }; },
+  recordDelegationFinish(taskId, result) { limitedEntries.push({ action: 'agent.delegate.finish', taskId, ...result }); }
+};
+const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger: limitedLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
 const firstRun = limitedDelegator.delegate({ agentId: 'specialist', task: 'hold' });
 await new Promise((resolve) => setTimeout(resolve, 0));
 const rejected = await limitedDelegator.delegate({ agentId: 'specialist', task: 'reject' });

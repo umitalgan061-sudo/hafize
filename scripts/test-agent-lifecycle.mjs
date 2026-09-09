@@ -14,6 +14,10 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// start() queues the executor instead of calling it inline, so give it a turn to run
+// before the parent is aborted; otherwise it would observe an already-aborted signal.
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(typeof resolveFirst, 'function', 'executor must have started by the next turn');
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');
