@@ -22,6 +22,9 @@ assert.throws(() => lifecycle.sendMessage('child-1', 'overflow'), /AGENT_INBOX_F
 const second = lifecycle.start({ runId: 'child-2', execute: async () => 'second' });
 assert.equal(lifecycle.liveCount(), 2);
 assert.throws(() => lifecycle.start({ runId: 'child-3', execute: async () => 'nope' }), /AGENT_CONCURRENCY_EXCEEDED/);
+// start() deliberately defers the executor to a microtask so it never runs user
+// code re-entrantly, so yield once before driving the running executor.
+await Promise.resolve();
 parent.abort();
 assert.equal(lifecycle.get('child-1').state, 'cancelled');
 assert.equal(lifecycle.get('child-1').error, 'PARENT_ABORTED');
