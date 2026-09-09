@@ -8,7 +8,11 @@ for (const value of [
   'nvapi-1234567890abcdefghijklmnopqrstuv',
   'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
   'token=ya29.A0ARrdaM_exampleGoogleOauthToken123456789~',
-  '-----BEGIN PRIVATE KEY-----'
+  '-----BEGIN PRIVATE KEY-----',
+  // Vendor-prefixed environment variable assignments are the common leak shape.
+  'NVIDIA_API_KEY=should-never-leak',
+  'HAFIZE_AUTH_TOKEN = 0123456789abcdef',
+  'GOOGLE_CLIENT_SECRET: "abcdef123456"'
 ]) assert.equal(containsPlaintextCredential(value), true);
 
 for (const value of [
