@@ -14,7 +14,16 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The worker gets a projecting wrapper, not the raw executor, so internal
+// result metadata cannot reach the worker contract.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
+assert.deepEqual(
+  await createScheduleExecutionRuntime({
+    executor: { configured: true, async executeAgentTask() { return { ok: true, content: 'internal', taskLedger: {} }; } }
+  }).executeAgentTask({ scheduleId: 'schedule_projection' }),
+  { ok: true }
+);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
 
