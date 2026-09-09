@@ -72,7 +72,8 @@ const removed = await concurrentRestart.remove({ ownerId: 'owner-a', memoryId: f
 assert.equal(removed.ok, true);
 const afterDelete = createPersonalMemoryPersistence({ adapter, key, storeOptions });
 await afterDelete.open();
-assert.equal(afterDelete.read({ ownerId: 'owner-a', query: 'tenis' }).records.length, 0);
+// read() ranks every record the owner still has, so absence is asserted by id.
+assert.equal(afterDelete.read({ ownerId: 'owner-a', query: 'tenis' }).records.some((record) => record.memoryId === first.record.memoryId), false);
 assert.throws(() => createPersonalMemoryPersistence({ adapter, key: Buffer.alloc(31) }), /INVALID_MEMORY_PERSISTENCE:key/);
 assert.throws(() => createPersonalMemoryPersistence({ adapter: {}, key }), /INVALID_MEMORY_PERSISTENCE:adapter/);
 console.log('personal memory encryption and persistence tests passed');

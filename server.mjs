@@ -26,7 +26,7 @@ import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
-import { deliverRequestFailure } from './lib/request-failure.mjs';
+import { deliverRequestFailure, REQUEST_FAILURE_CONTRACT } from './lib/request-failure.mjs';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -148,7 +148,7 @@ async function nvidiaJsonCompletion(payload, signal) {
   if (!upstream.ok) {
     const error = new Error('NVIDIA_CHAT_ERROR');
     error.status = upstream.status || 502;
-    error.detail = text.slice(0, 1200);
+    error.detail = text.slice(0, REQUEST_FAILURE_CONTRACT.maxNvidiaDetail);
     throw error;
   }
   try {
@@ -591,7 +591,7 @@ async function handleChat(req, res) {
     const detail = await upstream.text();
     const error = new Error('NVIDIA_CHAT_ERROR');
     error.status = upstream.status || 502;
-    error.detail = detail.slice(0, 1200);
+    error.detail = detail.slice(0, REQUEST_FAILURE_CONTRACT.maxNvidiaDetail);
     deliverRequestFailure(res, error);
     return;
   }
