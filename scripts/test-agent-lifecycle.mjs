@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
 
+// Executors are dispatched on a later microtask, so a run body only begins
+// after the event loop is flushed at least once.
+const flush = () => new Promise((resolve) => { setImmediate(resolve); });
+
 const lifecycle = createAgentLifecycle({ maxConcurrent: 2, inboxLimit: 2 });
 const parent = new AbortController();
 let resolveFirst;
@@ -14,6 +18,8 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+await flush();
+assert.equal(typeof resolveFirst, 'function');
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');
