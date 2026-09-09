@@ -66,6 +66,13 @@ assert.match(style, /\.stop-btn \{/);
 assert.match(style, /\.stop-btn\[hidden\], \.send-btn\[hidden\] \{ display: none; \}/);
 assert.match(style, /min-height: 40px/, 'stop must stay a comfortable touch target on mobile');
 
+// Tool badges left mid-flight by a stop are settled instead of spinning forever; the
+// client aborted the request and can no longer learn how that call ended.
+assert.match(app, /function settleRunningToolActivities\(messageId\)/);
+assert.match(app, /settleRunningToolActivities\(assistantId\);/);
+assert.match(app, /\(durduruldu\)`\.slice\(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH\), state: 'failure'/);
+assert.ok(app.indexOf('settleRunningToolActivities(assistantId);') < app.indexOf('content ? `${content}${STOP_NOTICE}`'), 'badges settle before the stopped text is persisted');
+
 // Actions that stay blocked during a stream now point at the way out.
 for (const blocked of [/sohbet silinemez; önce yanıtı durdur \(Esc\)/, /geçmiş temizlenemez; önce yanıtı durdur \(Esc\)/, /sohbet değiştirilemez; önce yanıtı durdur \(Esc\)/, /yeni sohbet açılamaz; önce yanıtı durdur \(Esc\)/]) assert.match(app, blocked);
 

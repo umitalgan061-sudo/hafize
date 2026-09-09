@@ -10,4 +10,6 @@ O ana kadar gelen metin korunur ve sohbete `(Yanıt durduruldu.)` notuyla kalıc
 
 Durdurma, composer üzerinde `hafize:stream-stopped` olayını yayınlar. Sesli yanıt modülü bu olayı dinler: durdurulan bir yanıt akış bittiğinde sesli okunmaz ve o an konuşan ses kesilir. Susturma yalnız o yanıt içindir; sonraki yanıt normal biçimde okunur.
 
+Araç modunda durdurulan bir yanıtta hâlâ "çalışıyor" görünen araç rozetleri asılı kalmaz: istek iptal edildiği için sonuçları artık öğrenilemez ve rozetler `(durduruldu)` notuyla kapatılır.
+
 Durdurma idempotenttir: iptal edilmiş bir akış için ikinci tıklama veya ikinci `Esc` hiçbir şey yapmaz. Akış durduğunda composer, ajan seçimi ve araç modu tekrar etkinleşir.

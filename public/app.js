@@ -253,6 +253,20 @@
     if (container) renderToolActivities(container, message.toolActivities);
   }
 
+  // A stopped answer must not keep advertising a tool call as still running: the client
+  // aborted the request and can no longer learn how that call ended.
+  function settleRunningToolActivities(messageId) {
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((item) => item.id === messageId);
+    const activities = getMessageToolActivities(message);
+    if (!activities.some((activity) => activity.state === 'running')) return;
+    message.toolActivities = activities.map((activity) => (activity.state === 'running'
+      ? { label: `${activity.label} (durduruldu)`.slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH), state: 'failure' }
+      : activity));
+    const container = ui.messages.querySelector(`[data-message-id="${CSS.escape(messageId)}"] .tool-activities`);
+    if (container) renderToolActivities(container, message.toolActivities);
+  }
+
   function renderConversationList() {
     ui.conversationList.replaceChildren();
     if (!conversations.length) {
@@ -497,6 +511,7 @@
     }
 
     if (stopped) {
+      settleRunningToolActivities(assistantId);
       updateMessage(assistantId, content ? `${content}${STOP_NOTICE}` : STOPPED_EMPTY_MESSAGE, { persist: true });
       return;
     }
