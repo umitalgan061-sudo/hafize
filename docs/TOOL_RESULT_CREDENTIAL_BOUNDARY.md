@@ -10,7 +10,7 @@ Hafize tool çağrıları yalnız yetkili araçların çalıştırılmasına de�
 - `access_token`, `refreshToken`, `apiKey`, `clientSecret`, `authorization`, `password` veya `secret` gibi credential alanları dolu string değer taşımamalıdır.
 - Getter/setter accessor'ları olan object'ler okunmadan reddedilir.
 - Sıradan object veya `null` prototype dışındaki custom prototype'lar reddedilir.
-- Aşırı derin veya çok büyük object graph'ları sınırlı düğüm/derinlik bütçesi nedeniyle reddedilir.
+- Aşırı derin veya çok büyük object graph'ları sınırlı düğüm/derinlik bütçesi nedeniyle reddedilir. Düğüm bütçesi incelenen her değeri sayar; yalnız object'leri değil. Böylece binlerce primitive alan taşıyan geniş bir sonuç da sınıra takılır.
 
 Engellenen başarılı tool sonucu credential değerini, ham exception mesajını veya payload'ı kullanıcıya/model context'ine taşımaz. Sabit bir public error code döner.
 

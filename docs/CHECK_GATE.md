@@ -8,4 +8,6 @@ Her child-process stdout/stderr akışı en fazla 64 KiB tutulur. Daha büyük �
 
 Yeni bir doğrulama veya test dosyası eklendiğinde `package.json` içine ayrıca yol eklemek gerekmez. `--list` keşfedilen paketleri, `--filter=a,b` ise eşleşen odak paketleri listeler/çalıştırır. Filtre geliştirici döngüsü içindir; PR öncesi filtresiz tam kapı kullanılır.
 
+Kapı yeşil kalmalıdır: keşif tabanlı runner eklendiğinde uzun süredir çalıştırılmayan paketler ortaya çıktı ve tur başına birikti. Yeni bir test sözleşmeyi doğrulamalı, sürüm numarası gibi her turda değişen değerleri sabitlememelidir; service worker cache sürümü, shell asset listesi veya bir başka artan sayaç doğrudan eşitlenmez, biçimi ve değişmezleri doğrulanır.
+
 Runner hata çıktısını bounded biçimde raporlar ve keşif/çalıştırma hatasında fail-closed şekilde sıfır olmayan çıkış kodu verir. Secret veya credential değeri kendi çıktısına ekleyen testler repo sözleşmesine aykırıdır.

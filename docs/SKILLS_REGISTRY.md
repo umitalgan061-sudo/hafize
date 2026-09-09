@@ -14,7 +14,7 @@ Bu katman `docs/CLAUDE_RESEARCH_INTEGRATION.md` uygulama sırasındaki 2. madded
 | `triggers` | hayır | en fazla 12, tekrarsız, küçük harfe normalize edilir |
 | `allowedTools` | evet | 1–16 tekrarsız permission adı |
 | `arguments` | hayır | en fazla 8, `{ name, required?, description? }` |
-| `model` | hayır | sağlayıcı-bağımsız model kimliği |
+| `model` | hayır | sağlayıcı-bağımsız model kimliği; alan yoksa veya boş string ise model override yok sayılır |
 | `execution` | hayır | `inline` (varsayılan) veya `fork` |
 | `prompt` | evet | en fazla 20.000 karakter |
 
@@ -36,7 +36,8 @@ Bilinmeyen üst alan, bilinmeyen argüman alanı veya tekrarlı ad doğrudan red
   yüksek öncelikli bir adı gölgeleyemez (`SKILL_SOURCE_CONFLICT:<name>`). `project` skill yalnız
   `createSkillsRegistry({ allowedProjects })` ile izin verilen kimlikten yüklenir.
 - `listForAgent(agent)` yalnız ajanın çalıştırabileceği skill'leri döndürür; onay gerektirenler
-  `requiresApproval: true` ile işaretlenir.
+  `requiresApproval: true` ile işaretlenir. Bir manifest ajanın sahip olmadığı tek bir araç
+  isterse skill o ajana hiç görünmez; bu yüzden `allowedTools` en dar gerçek ihtiyaçla tutulur.
 
 ## Test ve sonraki adım
 
