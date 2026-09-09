@@ -4,16 +4,21 @@ import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
 const lifecycle = createAgentLifecycle({ maxConcurrent: 2, inboxLimit: 2 });
 const parent = new AbortController();
 let resolveFirst;
+let markFirstStarted;
+// start() yürütmeyi mikrotaska erteler; resolveFirst'e dokunmadan önce
+// executor'ın gerçekten başladığını beklemek gerekir.
+const firstStarted = new Promise((resolve) => { markFirstStarted = resolve; });
 let executedAfterParentAbort = false;
 const first = lifecycle.start({
   runId: 'child-1',
   parentSignal: parent.signal,
   execute: async ({ signal }) => {
     assert.equal(signal.aborted, false);
-    await new Promise((resolve) => { resolveFirst = resolve; });
+    await new Promise((resolve) => { resolveFirst = resolve; markFirstStarted(); });
     return 'done';
   }
 });
+await firstStarted;
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');
