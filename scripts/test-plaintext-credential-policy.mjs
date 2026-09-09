@@ -25,4 +25,17 @@ for (const [name, value, expected] of [
   ['name', 'password', false]
 ]) assert.equal(isPlaintextCredentialField(name, value), expected);
 
+// Sağlayıcı önekli anahtar adları (NVIDIA_API_KEY=...) da atamalı credential'dır.
+for (const value of [
+  'NVIDIA_API_KEY=should-not-enter-the-model',
+  'GITHUB_TOKEN=abcdefghijkl',
+  'google-client-secret: 9f8a7b6c5d4e'
+]) assert.equal(containsPlaintextCredential(value), true, value);
+
+// Çıplak "token" sözcüğü sıradan metni engellememelidir.
+for (const value of [
+  'token: sonraki adımda ne yapmalıyım',
+  'Bu görevde token sayısını azalt.'
+]) assert.equal(containsPlaintextCredential(value), false, value);
+
 console.log('plaintext credential policy tests passed');
