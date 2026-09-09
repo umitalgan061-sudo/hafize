@@ -64,7 +64,10 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free listening is never restored from storage: the microphone stays
+// behind an explicit per-session gesture.
+assert.equal(storage.size, 0);
+assert.equal('STORAGE_KEY' in api, false);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +80,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
+// Waking Hafize hands the microphone to voice input and arms a fallback timer,
+// alongside the session limit timer armed when hands-free was enabled.
+assert.equal(timers.length, 2);
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+assert.equal(timers.length, 2, 'a visible document must not reschedule anything');
+timers[1]();
+assert.equal(timers.length, 3, 'an expired handoff schedules the listening restart');
+timers[2]();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +99,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
