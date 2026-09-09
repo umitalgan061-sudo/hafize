@@ -151,8 +151,12 @@
 
   document.addEventListener('keydown', (event) => {
     const target = event.target;
-    if (!event.ctrlKey && !event.metaKey) return;
-    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
+    // Kısayol mod+shift+F'tir: `SHORTCUT.shift` sabitini okumak shift durumunu
+    // hiç kontrol etmiyor, kısayol tarayıcının kendi Ctrl+F aramasını
+    // kaçırıyordu. Karar gerçek event modifier'larına bakar.
+    const hasModifier = event.ctrlKey || event.metaKey;
+    if (!hasModifier || event.altKey || event.shiftKey !== SHORTCUT.shift) return;
+    if (event.key.toLocaleLowerCase() !== SHORTCUT.key) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();
