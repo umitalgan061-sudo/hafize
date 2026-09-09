@@ -12,6 +12,7 @@
   'use strict';
 
   const STORAGE_KEY = 'hafize.voiceOutput.v1';
+  const STREAM_STOPPED_EVENT = 'hafize:stream-stopped';
   const MAX_SPEECH_LENGTH = 2400;
   const MAX_CHUNK_LENGTH = 240;
 
@@ -86,6 +87,7 @@
     let enabled = supported && readStoredEnabled(root?.localStorage);
     let speaking = false;
     let thinking = false;
+    let stoppedByUser = false;
     let queue = [];
 
     function render() {
@@ -175,17 +177,26 @@
       const responseJustFinished = thinking;
       thinking = false;
       render();
-      if (responseJustFinished) speak(latestAssistantText());
+      if (!responseJustFinished) return;
+      // Stopping the answer means "enough" — reading the truncated text aloud right
+      // after would be the opposite of what the user just asked for.
+      if (stoppedByUser) {
+        stoppedByUser = false;
+        return;
+      }
+      speak(latestAssistantText());
     }
 
     function handleToggle() { setEnabled(!enabled); }
-    function handleSubmit() { cancelSpeech(); }
+    function handleSubmit() { stoppedByUser = false; cancelSpeech(); }
+    function handleStreamStopped() { stoppedByUser = true; cancelSpeech(); }
     function handleVisibility() {
       if (documentRef.hidden) cancelSpeech();
     }
 
     toggle.addEventListener?.('click', handleToggle);
     composer?.addEventListener?.('submit', handleSubmit, true);
+    composer?.addEventListener?.(STREAM_STOPPED_EVENT, handleStreamStopped);
     documentRef.addEventListener?.('visibilitychange', handleVisibility);
 
     const Observer = root?.MutationObserver;
@@ -216,10 +227,11 @@
         streamObserver?.disconnect?.();
         toggle.removeEventListener?.('click', handleToggle);
         composer?.removeEventListener?.('submit', handleSubmit, true);
+        composer?.removeEventListener?.(STREAM_STOPPED_EVENT, handleStreamStopped);
         documentRef.removeEventListener?.('visibilitychange', handleVisibility);
       }
     });
   }
 
-  return Object.freeze({ STORAGE_KEY, normalizeSpeechText, splitSpeechText, installVoiceOutput });
+  return Object.freeze({ STORAGE_KEY, STREAM_STOPPED_EVENT, normalizeSpeechText, splitSpeechText, installVoiceOutput });
 });

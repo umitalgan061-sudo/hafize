@@ -7,6 +7,7 @@
   const STOP_NOTICE = '\n\n(Yanıt durduruldu.)';
   const STOPPED_EMPTY_MESSAGE = 'Yanıt durduruldu.';
   const SCROLL_FOLLOW_THRESHOLD_PX = 120;
+  const STREAM_STOPPED_EVENT = 'hafize:stream-stopped';
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -66,6 +67,9 @@
     if (!isStreaming || !streamController || streamController.signal.aborted) return false;
     streamController.abort();
     if (ui.stopBtn) ui.stopBtn.disabled = true;
+    // Other composer modules (voice output today) need to know the answer was cut on
+    // purpose, not that it simply finished.
+    ui.composer.dispatchEvent(new CustomEvent(STREAM_STOPPED_EVENT, { bubbles: true }));
     return true;
   }
 

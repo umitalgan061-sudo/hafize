@@ -8,4 +8,6 @@ O ana kadar gelen metin korunur ve sohbete `(Yanıt durduruldu.)` notuyla kalıc
 
 `Esc` tuşu durdurma düğmesinin klavye karşılığıdır. Metin alanlarında (`input`, `textarea`, `select`) `Esc` kendi davranışını korur — geçmiş araması kendini temizler — ve mobil menü `Esc` ile kapanmaya devam eder.
 
+Durdurma, composer üzerinde `hafize:stream-stopped` olayını yayınlar. Sesli yanıt modülü bu olayı dinler: durdurulan bir yanıt akış bittiğinde sesli okunmaz ve o an konuşan ses kesilir. Susturma yalnız o yanıt içindir; sonraki yanıt normal biçimde okunur.
+
 Durdurma idempotenttir: iptal edilmiş bir akış için ikinci tıklama veya ikinci `Esc` hiçbir şey yapmaz. Akış durduğunda composer, ajan seçimi ve araç modu tekrar etkinleşir.
