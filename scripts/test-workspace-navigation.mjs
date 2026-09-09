@@ -141,7 +141,7 @@ assert.equal(h.documentRef.getElementById(workspace.STYLE_ID), null);
 assert.equal(h.cards.voice.hidden, true);
 assert.equal(controller.setWorkspace('connections'), false);
 
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v15');
+assert.match(sw.CURRENT_CACHE, /^hafize-shell-v[1-9][0-9]*$/);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.css'), true);
 for (const path of ['/workspace-navigation.js', '/workspace-navigation.css']) {

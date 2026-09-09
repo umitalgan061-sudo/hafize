@@ -4,7 +4,9 @@ const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
 const origin = 'https://hafize.example';
 
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+// Assert the versioned-cache contract, not one literal version: the shell cache
+// name is bumped whenever assets change, so pinning it here only creates churn.
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v[1-9][0-9]*$/);
 for (const asset of ['/screen-share.css', '/screen-share.js', '/hands-free.css', '/hands-free.js']) {
   assert.ok(policy.SHELL_ASSETS.includes(asset));
   assert.equal(policy.classifyRequest({

@@ -38,7 +38,7 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v[1-9][0-9]*`/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 

@@ -32,29 +32,40 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+// The shell cache version is bumped on every asset change, so pin the naming
+// contract instead of one literal version: `<prefix>v<n>` with n >= 1.
+const currentCacheVersion = Number(policy.CURRENT_CACHE.slice(`${policy.CACHE_PREFIX}v`.length));
+assert.equal(policy.CURRENT_CACHE, `${policy.CACHE_PREFIX}v${currentCacheVersion}`);
+assert.ok(Number.isInteger(currentCacheVersion) && currentCacheVersion >= 1);
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// The precache list grows with every shipped UI surface, so assert the rules it
+// must obey rather than one frozen snapshot of its contents.
+for (const asset of [
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+  '/manifest.webmanifest'
+]) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} must stay in the precached shell`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell assets must be unique');
+for (const asset of policy.SHELL_ASSETS) {
+  assert.equal(typeof asset, 'string');
+  assert.ok(asset.startsWith('/'), `${asset} must be a same-origin absolute path`);
+  assert.equal(asset.includes('..'), false, `${asset} must not traverse outside public/`);
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
+// A precached path that does not exist makes service worker install reject and
+// leaves the app without an offline shell, so every entry must resolve.
+for (const asset of policy.SHELL_ASSETS) {
+  const relative = asset === '/' ? 'index.html' : asset.slice(1);
+  await readFile(join(ROOT, 'public', relative));
+}
 
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
@@ -144,11 +155,12 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+// Every superseded shell cache is evictable and only the current one survives,
+// whatever version the shell has reached.
+for (let version = 1; version < currentCacheVersion; version += 1) {
+  assert.equal(policy.shouldDeleteCache(`${policy.CACHE_PREFIX}v${version}`), true);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
