@@ -112,6 +112,10 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
 .agent-hint { color: var(--muted); font-size: 11px; }
 .send-btn { border: 0; border-radius: 11px; padding: 10px 15px; background: var(--accent); color: #fff; font-weight: 650; }
 .send-btn:hover { background: var(--accent-strong); }
+.stop-btn { border: 0; border-radius: 11px; padding: 10px 15px; background: #7c2f2f; color: #fff; font-weight: 650; min-width: 44px; min-height: 40px; }
+.stop-btn:hover { background: #933a3a; }
+.stop-btn:disabled { opacity: .6; }
+.stop-btn[hidden], .send-btn[hidden] { display: none; }
 .toast { position: fixed; right: 18px; bottom: 18px; z-index: 50; max-width: 420px; padding: 11px 14px; border-radius: 11px; background: #2f473c; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
 .hidden { display: none !important; }
 

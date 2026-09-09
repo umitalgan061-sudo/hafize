@@ -115,6 +115,25 @@ assert.equal(controller.speak('Gizli sekmede okunmamalı.'), false);
 documentTarget.dispatch('visibilitychange');
 assert.equal(card.classList.contains('speaking'), false);
 
+// A user who stops the answer asked for silence, so the truncated text must not be
+// read out when the stream ends — but the stop only silences that one answer.
+documentTarget.hidden = false;
+assert.equal(voiceOutput.STREAM_STOPPED_EVENT, 'hafize:stream-stopped');
+const spokenBeforeStop = spoken.length;
+input.disabled = true;
+root.observers.get(input).callback();
+composer.listeners.get(voiceOutput.STREAM_STOPPED_EVENT)({ type: voiceOutput.STREAM_STOPPED_EVENT });
+assert.equal(card.classList.contains('speaking'), false, 'durdurma aktif konuşmayı da kesmeli');
+input.disabled = false;
+root.observers.get(input).callback();
+assert.equal(spoken.length, spokenBeforeStop, 'durdurulan yanıt sesli okunmamalı');
+
+input.disabled = true;
+root.observers.get(input).callback();
+input.disabled = false;
+root.observers.get(input).callback();
+assert.equal(spoken.length, spokenBeforeStop + 1, 'durdurma yalnızca o yanıtı susturmalı');
+
 toggle.click();
 assert.equal(controller.isEnabled(), false);
 assert.equal(storageValues.get(voiceOutput.STORAGE_KEY), 'false');

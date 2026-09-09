@@ -7,6 +7,8 @@
   --premium-line: rgba(70, 61, 52, .13);
   --premium-orange: #d9774f;
   --premium-orange-strong: #c85e36;
+  --premium-stop: #8a4038;
+  --premium-stop-strong: #6f322c;
   --premium-shadow: 0 18px 55px rgba(75, 62, 49, .10);
   --premium-orb: radial-gradient(circle at 35% 28%, #fff7e8 0 8%, #f6ad78 19%, #d96b42 42%, #9f4935 70%, #5d2f2c 100%);
 }
@@ -20,6 +22,8 @@ html[data-theme="dark"] {
   --premium-line: rgba(255, 255, 255, .10);
   --premium-orange: #dd7a52;
   --premium-orange-strong: #ee8d64;
+  --premium-stop: #a45348;
+  --premium-stop-strong: #b96256;
   --premium-shadow: 0 24px 70px rgba(0, 0, 0, .28);
   --premium-orb: radial-gradient(circle at 34% 26%, #fff1d5 0 7%, #f08b58 19%, #ae593c 42%, #593b3b 72%, #221f24 100%);
 }
@@ -105,6 +109,8 @@ html[data-theme="light"] .theme-sun, html[data-theme="dark"] .theme-moon { backg
 .composer-model select { max-width: 210px; border: 1px solid var(--premium-line); border-radius: 999px; background: transparent; color: var(--premium-text); padding: 8px 28px 8px 12px; }
 .send-btn { min-width: 44px; min-height: 42px; padding: 8px 13px; border-radius: 13px; background: var(--premium-orange); color: white; }
 .send-btn:hover { background: var(--premium-orange-strong); }
+.stop-btn { min-width: 44px; min-height: 42px; padding: 8px 13px; border-radius: 13px; background: var(--premium-stop); color: white; }
+.stop-btn:hover { background: var(--premium-stop-strong); }
 .agent-hint { position: absolute; left: 50%; bottom: -28px; transform: translateX(-50%); white-space: nowrap; color: var(--premium-muted); }
 
 .utility-rail { grid-column: 2; grid-row: 2; padding-top: 38px; display: grid; align-content: start; gap: 15px; }

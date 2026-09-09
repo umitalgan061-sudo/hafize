@@ -85,7 +85,8 @@
             <div class="composer-actions">
               <label class="model-wrap composer-model" for="modelSelect"><span>Model</span><select id="modelSelect" aria-label="NVIDIA modeli"><option value="">NVIDIA modelleri yükleniyor…</option></select></label>
               <span class="agent-hint">Yapay zekâ hata yapabilir. Önemli bilgileri kontrol et.</span>
-              <button class="send-btn" type="submit" aria-label="Gönder">↑</button>
+              <button id="sendBtn" class="send-btn" type="submit" aria-label="Gönder">↑</button>
+              <button id="stopBtn" class="stop-btn" type="button" aria-label="Yanıtı durdur" title="Yanıtı durdur (Esc)" hidden disabled>■</button>
             </div>
           </div>
           <div id="screenSharePreview" class="utility-card" hidden>
