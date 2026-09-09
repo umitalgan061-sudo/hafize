@@ -14,8 +14,16 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// Worker'a dönen sonuç projekte edilir: executor'ın kendi fonksiyonu doğrudan
+// sunulmaz. Bilinmeyen şekilli sonuçlar olduğu gibi geçer, bilinen iç metadata
+// alanları worker sözleşmesine sızmaz.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
+const projected = createScheduleExecutionRuntime({
+  executor: { configured: true, async executeAgentTask() { return { ok: true, content: 'model çıktısı', taskLedger: [] }; } }
+});
+assert.deepEqual(await projected.executeAgentTask({ scheduleId: 'schedule_projected' }), { ok: true });
 assert.equal(calls.length, 1);
 
 let guardInput = null;

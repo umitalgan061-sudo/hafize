@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -32,28 +34,31 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v[1-9]\d*$/);
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
-  '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+
+// Shell listesi tek kaynaktır. Sabit bir kopya tutmak yerine gerçek
+// değişmezleri doğrularız: index.html'in yüklediği her yerel varlık cache'te
+// olmalı, listedeki her yol public/ altında gerçekten bulunmalı ve liste her
+// değiştiğinde CURRENT_CACHE sürümü artmalıdır — aksi halde kurulu client'lar
+// eski shell'i saklamaya devam eder.
+const indexHtml = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+const referenced = [...indexHtml.matchAll(/(?:src|href)="(\/[^"?#]*)"/g)].map((match) => match[1]);
+assert.deepEqual(
+  [...policy.SHELL_ASSETS].sort(),
+  [...new Set([...referenced, '/', '/index.html', '/offline.html', '/sw-policy.js'])].sort(),
+  'shell cache listesi index.html varlıkları + offline kabuğu ile birebir eşleşmeli'
+);
+for (const asset of policy.SHELL_ASSETS) {
+  if (asset === '/') continue;
+  assert.ok(existsSync(join(ROOT, 'public', asset.slice(1))), `${asset} public/ altında yok`);
+}
+assert.equal(
+  `${policy.CURRENT_CACHE}:${createHash('sha256').update(policy.SHELL_ASSETS.join('\n')).digest('hex').slice(0, 16)}`,
+  'hafize-shell-v19:63c6c370e4b25cdc',
+  'shell varlık listesi değiştiyse CURRENT_CACHE sürümünü artır ve bu satırdaki beklenen değeri güncelle'
+);
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -144,11 +149,11 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+const currentVersion = Number(policy.CURRENT_CACHE.slice(`${policy.CACHE_PREFIX}v`.length));
+for (let version = 1; version < currentVersion; version += 1) {
+  assert.equal(policy.shouldDeleteCache(`${policy.CACHE_PREFIX}v${version}`), true, `v${version} temizlenmeli`);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

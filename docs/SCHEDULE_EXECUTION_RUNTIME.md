@@ -6,7 +6,7 @@ Bu katman, schedule worker'ın kullandığı agent executor ile opsiyonel distri
 
 `createScheduleExecutionRuntime({ executor, lease })` iki moddan birini seçer:
 
-- `lease == null`: mevcut `executor.executeAgentTask` fonksiyonu değiştirilmeden kullanılır ve `leaseGuarded: false` döner.
+- `lease == null`: mevcut `executor.executeAgentTask` çağrısı worker sözleşmesine projekte eden ince bir sarmalayıcıyla sunulur ve `leaseGuarded: false` döner. Sarmalayıcı, tanınan executor sonuçlarında yalnız `ok`/`error`/`retryAt` alanlarını geçirir; `content`, `taskLedger`, `leaseStatus` gibi iç metadata worker'a çıkmaz.
 - `lease` verilmişse: executor `createScheduleLeaseGuardedExecutor` ile sarılır ve `leaseGuarded: true` döner.
 
 Bu nedenle tek-instance kurulumlarda lease provider zorunlu değildir; distributed deployment'a geçildiğinde aynı worker sözleşmesi korunabilir.
