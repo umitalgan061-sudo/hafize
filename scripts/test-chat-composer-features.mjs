@@ -38,7 +38,8 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+// The version is bumped by every shell change; only its shape is pinned here.
+assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 
