@@ -14,7 +14,10 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime wraps the executor so internal result metadata is projected away
+// before a worker sees it; unrecognised shapes are passed through untouched.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
 
@@ -39,10 +42,7 @@ assert.equal(Object.isFrozen(guarded), true);
 assert.equal(guardInput.lease, lease);
 assert.equal(guardInput.executeAgentTask, executor.executeAgentTask);
 assert.equal(guardInput.renewIntervalMs, 1234);
-assert.deepEqual(
-  await guarded.executeAgentTask({ scheduleId: 'schedule_2' }),
-  { ok: true, guarded: true, scheduleId: 'schedule_2' }
-);
+assert.deepEqual(await guarded.executeAgentTask({ scheduleId: 'schedule_2' }), { ok: true, guarded: true, scheduleId: 'schedule_2' });
 
 const unconfigured = createScheduleExecutionRuntime({
   executor: { configured: false, executeAgentTask: async () => ({ ok: false }) }

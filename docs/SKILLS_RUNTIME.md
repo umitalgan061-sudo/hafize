@@ -7,3 +7,5 @@ Builtin skill'ler `skills/builtin.json` içinden yüklenir ve her kayıt `source
 Bir skill seçildiğinde `resolveForAgent()` yalnız ajanın zaten sahip olabileceği yetkilerle kesişen araçları döndürür. `getAllowedNvidiaTools(..., { allowedPermissions })` bu ikinci sınırı tool catalog tarafında uygular; böylece skill adı veya prompt'u tek başına yeni bir yetki oluşturmaz.
 
 Skill prompt'u system mesajı değildir. Skill argümanları manifest şemasına göre doğrulanır ve credential benzeri değerler reddedilir. Bu tur server endpoint'ine otomatik trigger eklemez; açık `skillId` tüketimi bir sonraki wiring adımında yapılabilir.
+
+Builtin `code-inspection` skill'i yalnız `repo.read` ister. Bir skill, manifestindeki araçlardan herhangi biri ajan policy'sinde yasaksa o ajan için hem listelenmez hem de çözümlenemez; bu yüzden builtin manifestler gerçekten ihtiyaç duydukları en dar araç kümesini ilan eder. Ana asistan (`hafize-general`) repo okumasını doğrudan yapmaz, uzman ajana delege eder.

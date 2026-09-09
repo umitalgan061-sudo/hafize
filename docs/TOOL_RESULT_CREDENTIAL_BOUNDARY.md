@@ -31,3 +31,7 @@ Yeni credential biçimleri `lib/plaintext-credential-policy.mjs` içindeki ortak
 - `scripts/test-github-read.mjs` izinli repo içeriğinde credential egress'ini test eder.
 
 Bu dosya workflow veya secret yapılandırması değiştirmez.
+
+## Karmaşıklık bütçesi
+
+Node bütçesi (2.000) incelenen her değeri sayar; yalnız iç içe nesneleri değil. Böylece binlerce skaler alan taşıyan geniş bir sonuç da derin bir sonuç kadar sınırlıdır ve `TOOL_RESULT_COMPLEXITY_BLOCKED` ile durdurulur.

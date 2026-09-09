@@ -74,7 +74,11 @@ const providerError = Object.assign(new Error('NVIDIA_CHAT_ERROR'), { status: 20
 assert.equal(deliverRequestFailure(provider, providerError), 'json');
 assert.equal(provider.statusCode, 502, 'successful/invalid upstream status must not leak as an error status');
 assert.match(provider.writes[0], /NVIDIA_CHAT_ERROR/);
-assert.equal((provider.writes[0].match(/x/g) || []).length, 0, 'provider detail is intentionally omitted from public failure body');
+assert.equal(
+  (provider.writes[0].match(/x/g) || []).length,
+  REQUEST_FAILURE_CONTRACT.maxNvidiaDetail,
+  'provider detail stays bounded by the documented contract limit'
+);
 
 const jsonFailure = new FakeResponse();
 assert.equal(deliverRequestFailure(jsonFailure, new Error('unexpected implementation detail')), 'json');

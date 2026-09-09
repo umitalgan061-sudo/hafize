@@ -32,28 +32,24 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.match(policy.CURRENT_CACHE, new RegExp(`^${policy.CACHE_PREFIX}v\\d+$`));
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// The shell grows with every offline-capable feature, so assert the invariants
+// instead of a snapshot: the core shell stays cached, entries stay unique and
+// stay same-origin root-relative paths.
+for (const asset of [
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+  '/manifest.webmanifest'
+]) assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} must stay in the app shell`);
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell assets must be unique');
+for (const asset of policy.SHELL_ASSETS) assert.match(asset, /^\/[a-zA-Z0-9._/-]*$/, `${asset} must be a root-relative path`);
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -148,7 +144,7 @@ assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

@@ -5,3 +5,5 @@ Personal memory store artık owner-scope doğrulamasından sonra deterministic b
 Bu katman embedding veya dış model çağrısı yapmaz. Amaç mevcut salt-okunur memory retrieval davranışını ölçülebilir kılmak ve aynı veri + aynı zaman girdisinde aynı sıralamayı üretmektir.
 
 `measureRetrievalQuality()` küçük bir kabul testi yüzeyi sağlar: precision@k, recall@k, top-hit ve minimum puan eşiğini raporlar. Owner ayrımı ranking'den önce yapılır; başka kullanıcıya ait kayıtlar hiçbir kalite skorlamasına girmez.
+
+Sorgulu okuma yalnız sorguyla eşleşen kayıtları döndürür: recency tek başına ilgisiz bir anıyı bağlama sokamaz. Ranking sırası korunur; eşleşmeyen kayıtlar (lexical ve kind sinyali sıfır olanlar) sonuç listesinden düşer.

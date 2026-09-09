@@ -7,6 +7,8 @@ for (const value of [
   'ghp_1234567890abcdefghijklmnopqrstuvwx',
   'nvapi-1234567890abcdefghijklmnopqrstuv',
   'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
+  'NVIDIA_API_KEY=should-never-leak',
+  'HAFIZE_AUTH_TOKEN: super-secret-value',
   'token=ya29.A0ARrdaM_exampleGoogleOauthToken123456789~',
   '-----BEGIN PRIVATE KEY-----'
 ]) assert.equal(containsPlaintextCredential(value), true);

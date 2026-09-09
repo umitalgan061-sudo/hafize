@@ -25,7 +25,12 @@ first.release();
 const second = limiter.check('user', 61_001);
 assert.equal(second.ok, true);
 second.release();
-assert.equal(limiter.check('user', 61_002).ok, false);
+const third = limiter.check('user', 61_002);
+assert.equal(third.ok, true, 'a concurrency rejection must not consume request quota');
+third.release();
+const exhausted = limiter.check('user', 61_003);
+assert.equal(exhausted.ok, false, 'accepted requests still exhaust the per-window quota');
+assert.ok(exhausted.retryAfterSeconds >= 1);
 
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;

@@ -44,7 +44,8 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+const timers = new Map();
+let timerSequence = 0;
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,10 +53,21 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, delay) { timerSequence += 1; timers.set(timerSequence, { fn, delay }); return timerSequence; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
+
+function pendingTimer(delay) {
+  return [...timers.entries()].find(([, timer]) => timer.delay === delay) || null;
+}
+
+function runTimer(delay) {
+  const entry = pendingTimer(delay);
+  assert.ok(entry, `expected a pending timer with a ${delay}ms delay`);
+  timers.delete(entry[0]);
+  entry[1].fn();
+}
 
 const controller = api.installHandsFree(documentRef, root);
 assert.equal(controller.isSupported, true);
@@ -64,7 +76,7 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+assert.equal(storage.size, 0, 'hands-free consent is session-scoped and must not be persisted');
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +89,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+assert.equal(controller.isHandoffWaiting(), true);
+assert.equal(pendingTimer(api.RESTART_DELAY_MS), null, 'wake listening must not restart while the voice handoff is pending');
+assert.ok(pendingTimer(api.SESSION_LIMIT_MS), 'enabling hands-free arms the session expiry timer');
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Voice input never reports back, so the handoff fallback re-opens wake listening.
+runTimer(api.HANDOFF_TIMEOUT_MS);
+assert.equal(controller.isHandoffWaiting(), false);
+runTimer(api.RESTART_DELAY_MS);
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +108,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0, 'disabling hands-free must not write persistent state either');
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
