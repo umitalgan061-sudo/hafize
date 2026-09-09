@@ -14,6 +14,8 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// Executors start on a later tick, so wait for the body to run before using its resolver.
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');

@@ -33,9 +33,17 @@ const succeeded = await successDelegator.delegate({ agentId: 'specialist', task:
 assert.equal(succeeded.ok, true); assert.equal(succeeded.value.content, 'verified'); assert.equal(successLifecycle.get('delegation-2').state, 'completed');
 assert.equal(await successDelegator.delegate({ agentId: 'specialist', task: 'x' }).then((result) => result.ok), true);
 assert.throws(() => successLifecycle.start({ runId: 'delegation-2', execute: async () => null }), /AGENT_RUN_ALREADY_EXISTS/);
+// Fan-out is budgeted per task ledger, so the concurrency limit needs a fresh one.
+const limitedEntries = [];
+let limitedSequence = 0;
+const limitedLedger = {
+  snapshot() { return { entries: limitedEntries.slice() }; },
+  recordDelegationStart(agentId, { parentTaskId }) { const taskId = `limited-${++limitedSequence}`; limitedEntries.push({ action: 'agent.delegate', taskId, agentId, parentTaskId }); return { taskId }; },
+  recordDelegationFinish(taskId, result) { limitedEntries.push({ action: 'agent.delegate.finish', taskId, ...result }); }
+};
 const limited = createAgentLifecycle({ maxConcurrent: 1 });
 let hold;
-const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
+const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger: limitedLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
 const firstRun = limitedDelegator.delegate({ agentId: 'specialist', task: 'hold' });
 await new Promise((resolve) => setTimeout(resolve, 0));
 const rejected = await limitedDelegator.delegate({ agentId: 'specialist', task: 'reject' });
