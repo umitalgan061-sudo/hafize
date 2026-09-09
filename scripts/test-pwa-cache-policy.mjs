@@ -32,7 +32,7 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v19');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
 assert.deepEqual(policy.SHELL_ASSETS, [
@@ -44,16 +44,33 @@ assert.deepEqual(policy.SHELL_ASSETS, [
   '/voice-output.css',
   '/screen-share.css',
   '/hands-free.css',
+  '/workspace-navigation.css',
+  '/chat-composer-features.css',
+  '/chat-history-search.css',
+  '/chat-history-export.css',
   '/app.js',
+  '/model-preference.js',
+  '/chat-composer-features.js',
+  '/chat-history-search.js',
+  '/chat-history-export.js',
   '/voice-input.js',
   '/voice-output.js',
   '/screen-share.js',
   '/hands-free.js',
+  '/hands-free-background-guard.js',
+  '/workspace-navigation.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
 ]);
+// Shell listesindeki her script `index.html` tarafından da yüklenmelidir;
+// aksi halde offline kabuk, sayfanın gerçekten çalıştırdığı dosyadan sapar.
+const indexHtml = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+for (const asset of policy.SHELL_ASSETS) {
+  if (!asset.endsWith('.js') || asset === '/sw-policy.js') continue;
+  assert.ok(indexHtml.includes(`src="${asset}"`), `${asset} index.html tarafından yüklenmiyor`);
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -145,10 +162,9 @@ assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), true);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v18'), true);
+assert.equal(policy.shouldDeleteCache('hafize-shell-v19'), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
