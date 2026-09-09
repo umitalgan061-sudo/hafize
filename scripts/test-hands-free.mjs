@@ -44,7 +44,14 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+const timers = new Map();
+let timerSeq = 0;
+function runLatestTimer() {
+  const key = [...timers.keys()].pop();
+  const fn = timers.get(key);
+  timers.delete(key);
+  fn();
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +59,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn) { timerSeq += 1; timers.set(timerSeq, fn); return timerSeq; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -77,11 +84,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Uyandırma ifadesinden sonra dinleme mikrofona devredilir ve hemen yeniden
+// başlamaz: önce handoff zaman aşımı, ardından restart gecikmesi çalışır.
+// 30 dakikalık oturum sınırı zamanlayıcısı bu sırada beklemede kalır.
+assert.equal(timers.size, 2);
+runLatestTimer();
+assert.equal(recognitions.length, 1);
+assert.equal(controller.isListening(), false);
+runLatestTimer();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
