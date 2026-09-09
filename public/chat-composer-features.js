@@ -179,7 +179,9 @@
     copy.setAttribute('aria-label', 'Hafize yanıtını kopyala');
     copy.title = 'Hafize yanıtını panoya kopyala';
     copy.addEventListener('click', async () => {
-      if (await copyText(content.textContent?.trim() || '')) {
+      // A formatted answer is a node tree, so its textContent loses the block
+      // breaks; app.js keeps the original text on the node for copying.
+      if (await copyText((content.dataset?.raw ?? content.textContent ?? '').trim())) {
         copy.textContent = 'Kopyalandı';
         window.setTimeout(() => { copy.textContent = 'Kopyala'; }, 1400);
       } else announce('Yanıt panoya kopyalanamadı.');
