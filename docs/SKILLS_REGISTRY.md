@@ -38,9 +38,21 @@ Bilinmeyen üst alan, bilinmeyen argüman alanı veya tekrarlı ad doğrudan red
 - `listForAgent(agent)` yalnız ajanın çalıştırabileceği skill'leri döndürür; onay gerektirenler
   `requiresApproval: true` ile işaretlenir.
 
+## Builtin katalog erişilebilirliği
+
+`skills/builtin.json` tool runtime import edilirken senkron yüklenir; geçersiz bir manifest
+(örneğin `model: ""` gibi pattern'e uymayan bir alan) yalnız skill'i değil tüm sunucu
+başlangıcını düşürür. Ayrıca skill yetkilendirmesi hep-ya-hiç olduğu için, hiçbir ajanın
+tüm `allowedTools` değerlerine sahip olmadığı bir builtin skill hiçbir yerde görünmez.
+
+`scripts/test-builtin-skill-reachability.mjs` her iki durumu da kapıda yakalar: katalog iki
+yükleyiciyle de açılır, her builtin skill en az bir registry ajanı tarafından görülüp
+çözülebilir olmalıdır ve çözülen her permission `listToolPermissions()` içinde bulunmalıdır.
+
 ## Test ve sonraki adım
 
-`node scripts/test-skills-manifest.mjs` ve `node scripts/test-skills-registry.mjs` (ikisi de
+`node scripts/test-skills-manifest.mjs`, `node scripts/test-skills-registry.mjs` ve
+`node scripts/test-builtin-skill-reachability.mjs` (hepsi de
 `npm run check` kapısındadır). Registry henüz HTTP yüzeyine bağlı değildir; sıradaki tur
 doğrulanmış skill'leri `server.mjs` tool listesine ve `fork` yürütmesini mevcut delegation
 runner'ına bağlar.
