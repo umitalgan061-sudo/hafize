@@ -14,6 +14,8 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// start() defers execute() to a microtask on purpose, so let it begin before driving it.
+await new Promise((resolve) => setImmediate(resolve));
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');
