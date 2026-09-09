@@ -44,6 +44,11 @@ class Recognition {
 }
 
 const storage = new Map();
+function takeTimer(delayMs) {
+  const index = timers.findLastIndex((timer) => timer.delayMs === delayMs);
+  assert.ok(index >= 0, `expected a timer scheduled for ${delayMs}ms`);
+  return timers.splice(index, 1).at(0).fn;
+}
 const timers = [];
 const root = {
   SpeechRecognition: Recognition,
@@ -52,7 +57,7 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
+  setTimeout(fn, delayMs) { timers.push({ fn, delayMs }); return timers.length; },
   clearTimeout() {},
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
@@ -64,7 +69,8 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free listening must never persist: a reload may not auto-resume the microphone.
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +83,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
+// Timers are identified by their delay: enabling arms the session limit, the wake
+// phrase arms the handoff timeout, and only becoming visible again arms a restart.
+// Timers are identified by their delay: enabling arms the session limit and the wake
+// phrase arms the handoff timeout, which keeps wake-word listening paused until it ends.
+assert.ok(takeTimer(api.SESSION_LIMIT_MS));
+takeTimer(api.HANDOFF_TIMEOUT_MS)();
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+takeTimer(api.RESTART_DELAY_MS)();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +102,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

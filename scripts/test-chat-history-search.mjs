@@ -11,7 +11,8 @@ assert.match(index, /chat-history-search\.js/);
 assert.match(search, /hafize\.conversations\.v1/);
 assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
-assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
+// The modifier check may be written positively or negatively; only the guard matters.
+assert.match(search, /event\.ctrlKey[\s\S]{0,24}event\.metaKey/);
 assert.match(search, /event\.altKey/);
 assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
 assert.match(search, /event\.key === 'Escape'/);

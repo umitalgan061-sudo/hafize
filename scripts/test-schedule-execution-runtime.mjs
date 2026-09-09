@@ -14,7 +14,12 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime wraps the executor so worker-facing results stay on contract.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.deepEqual(
+  await createScheduleExecutionRuntime({ executor: { configured: true, executeAgentTask: async () => ({ ok: true, content: 'internal', leaseStatus: 'held' }) } }).executeAgentTask({ scheduleId: 'schedule_projected' }),
+  { ok: true }
+);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
 
