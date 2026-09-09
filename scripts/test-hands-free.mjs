@@ -64,7 +64,10 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free enablement is deliberately not persisted: per
+// docs/HANDS_FREE_MICROPHONE_DEVICE_CONTRACT.md there is no automatic
+// re-enablement, the user must re-consent through the visible control.
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +80,18 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
+// clearTimeout is a no-op in this harness, so `timers` is a cumulative log:
+// enabling armed the session limit timer and the wake phrase armed the handoff
+// fallback. While the handoff is pending nothing may restart recognition, so
+// visibility alone schedules nothing.
+assert.equal(timers.length, 2);
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+assert.equal(timers.length, 2);
+
+// Firing the handoff fallback ends the wait and schedules the restart.
+timers.pop()();
+assert.equal(timers.length, 2);
+timers.pop()();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +103,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

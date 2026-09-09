@@ -14,7 +14,11 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime deliberately wraps the executor so results are projected onto the
+// worker contract, so it is not the same function reference.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
+// An unrecognized result shape is passed through untouched rather than mangled.
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
 

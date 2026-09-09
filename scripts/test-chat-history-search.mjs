@@ -11,8 +11,9 @@ assert.match(index, /chat-history-search\.js/);
 assert.match(search, /hafize\.conversations\.v1/);
 assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
-assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
-assert.match(search, /event\.altKey/);
+// mod+shift+f must require every documented modifier, and no more.
+assert.match(search, /!event\.ctrlKey && !event\.metaKey/);
+assert.match(search, /event\.altKey \|\| event\.shiftKey !== SHORTCUT\.shift/);
 assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
 assert.match(search, /event\.key === 'Escape'/);
 assert.match(search, /\.messages/);

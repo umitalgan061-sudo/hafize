@@ -152,7 +152,10 @@
   document.addEventListener('keydown', (event) => {
     const target = event.target;
     if (!event.ctrlKey && !event.metaKey) return;
-    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
+    // `!SHORTCUT.shift` was a constant, so the handler fired on plain mod+f and
+    // preventDefault()ed the browser's own find. Require the documented modifier.
+    if (event.altKey || event.shiftKey !== SHORTCUT.shift) return;
+    if (event.key.toLocaleLowerCase() !== SHORTCUT.key) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();
