@@ -4,6 +4,8 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
+  const STOP_NOTICE = '\n\n(Yanıt durduruldu.)';
+  const STOPPED_EMPTY_MESSAGE = 'Yanıt durduruldu.';
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -18,7 +20,9 @@
     toast: document.querySelector('#toast'),
     modelSelect: document.querySelector('#modelSelect'),
     agentSelect: document.querySelector('#agentSelect'),
-    toolModeBtn: document.querySelector('#toolModeBtn')
+    toolModeBtn: document.querySelector('#toolModeBtn'),
+    sendBtn: document.querySelector('#sendBtn'),
+    stopBtn: document.querySelector('#stopBtn')
   };
 
   let installPrompt = null;
@@ -26,8 +30,34 @@
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
+  let streamController = null;
   let availableAgents = [];
   let defaultAgentId = '';
+
+  function isAbortError(error) {
+    return error?.name === 'AbortError' || error?.message === 'STREAM_STOPPED';
+  }
+
+  // The composer is the only place that owns the running request, so stopping is a
+  // local UI action: it aborts the fetch, keeps whatever text already arrived and
+  // never asks the backend to undo work it may already have finished.
+  function stopStreaming() {
+    if (!isStreaming || !streamController || streamController.signal.aborted) return false;
+    streamController.abort();
+    if (ui.stopBtn) ui.stopBtn.disabled = true;
+    return true;
+  }
+
+  function setComposerBusy(streaming) {
+    ui.messageInput.disabled = streaming;
+    ui.agentSelect.disabled = streaming;
+    ui.toolModeBtn.disabled = streaming;
+    if (ui.sendBtn) ui.sendBtn.hidden = streaming;
+    if (ui.stopBtn) {
+      ui.stopBtn.hidden = !streaming;
+      ui.stopBtn.disabled = !streaming;
+    }
+  }
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -390,7 +420,7 @@
       .map(({ role, content }) => ({ role, content }));
   }
 
-  async function consumeAssistantStream(response, assistantId, emptyMessage) {
+  async function consumeAssistantStream(response, assistantId, emptyMessage, signal) {
     if (!response.ok || !response.body) {
       let detail = response.statusText;
       try {
@@ -406,35 +436,47 @@
     const decoder = new TextDecoder();
     let buffer = '';
     let content = '';
+    let stopped = false;
 
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() || '';
-      for (const block of blocks) {
-        const parsed = parseSseBlock(block);
-        if (!parsed) continue;
-        if (parsed.type === 'hafize-tool-activity') {
-          appendToolActivity(assistantId, parsed.payload);
-          continue;
+    try {
+      while (true) {
+        if (signal?.aborted) throw new Error('STREAM_STOPPED');
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          const parsed = parseSseBlock(block);
+          if (!parsed) continue;
+          if (parsed.type === 'hafize-tool-activity') {
+            appendToolActivity(assistantId, parsed.payload);
+            continue;
+          }
+          if (parsed.type !== 'message') continue;
+          const event = parsed.payload;
+          if (event.error) throw new Error(event.error);
+          const delta = event.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string' && delta) {
+            content += delta;
+            updateMessage(assistantId, content);
+          }
         }
-        if (parsed.type !== 'message') continue;
-        const event = parsed.payload;
-        if (event.error) throw new Error(event.error);
-        const delta = event.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
-          content += delta;
-          updateMessage(assistantId, content);
-        }
+        if (done) break;
       }
-      if (done) break;
+    } catch (error) {
+      if (!signal?.aborted && !isAbortError(error)) throw error;
+      stopped = true;
+      await reader.cancel().catch(() => {});
     }
 
+    if (stopped) {
+      updateMessage(assistantId, content ? `${content}${STOP_NOTICE}` : STOPPED_EMPTY_MESSAGE, { persist: true });
+      return;
+    }
     updateMessage(assistantId, content || emptyMessage, { persist: true });
   }
 
-  async function streamAssistantReply() {
+  async function streamAssistantReply(signal) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -447,12 +489,13 @@
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal
     });
-    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.', signal);
   }
 
-  async function runAssistantWithTools() {
+  async function runAssistantWithTools(signal) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -465,12 +508,14 @@
     const response = await fetch('/api/agent/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal
     });
     await consumeAssistantStream(
       response,
       assistantId,
-      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
+      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
+      signal
     );
   }
 
@@ -490,26 +535,30 @@
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;
-    ui.messageInput.disabled = true;
-    ui.agentSelect.disabled = true;
-    ui.toolModeBtn.disabled = true;
+    streamController = new AbortController();
+    setComposerBusy(true);
 
     try {
-      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
-      else await streamAssistantReply();
+      const { signal } = streamController;
+      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools(signal);
+      else await streamAssistantReply(signal);
     } catch (error) {
-      const message = error?.message === 'MODEL_REQUIRED'
-        ? 'Bir NVIDIA modeli seçilmedi.'
-        : error?.message === 'AGENT_REQUIRED'
-          ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+      const stoppedByUser = isAbortError(error) || streamController?.signal.aborted === true;
+      const message = stoppedByUser
+        ? STOPPED_EMPTY_MESSAGE
+        : error?.message === 'MODEL_REQUIRED'
+          ? 'Bir NVIDIA modeli seçilmedi.'
+          : error?.message === 'AGENT_REQUIRED'
+            ? 'Bir Hafize ajanı seçilmedi.'
+            : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
       const conversation = getActiveConversation();
       const last = conversation?.messages.at(-1);
       if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
-      else addMessage('assistant', message);
+      else if (!stoppedByUser) addMessage('assistant', message);
     } finally {
+      streamController = null;
       isStreaming = false;
-      ui.messageInput.disabled = false;
+      setComposerBusy(false);
       syncAgentSelect();
       syncToolMode();
       ui.messageInput.focus();
@@ -554,6 +603,17 @@
   ui.composer.addEventListener('submit', (event) => {
     event.preventDefault();
     submitMessage(ui.messageInput.value);
+  });
+  ui.stopBtn?.addEventListener('click', () => {
+    if (stopStreaming()) showToast('Yanıt durduruldu; gelen kısım sohbette kaldı.');
+  });
+  // Escape is the keyboard equivalent of the stop button, but text fields keep their
+  // own Escape behaviour (search clears itself) and the sidebar still closes on it.
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !isStreaming) return;
+    const tag = event.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (stopStreaming()) showToast('Yanıt durduruldu; gelen kısım sohbette kaldı.');
   });
 
   document.querySelectorAll('[data-prompt]').forEach((button) => {
