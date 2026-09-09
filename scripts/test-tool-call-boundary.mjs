@@ -13,7 +13,25 @@ assert.throws(() => normalizeToolCall({ id: 'x', function: { name: 'x', argument
 assert.deepEqual(parseToolArguments('{}'), {});
 assert.deepEqual(parseToolArguments('{"a":1}'), { a: 1 });
 assert.throws(() => parseToolArguments('[]'), /INVALID_TOOL_ARGUMENTS/);
-assert.throws(() => parseToolArguments('{'), /Unexpected|JSON/);
+// Malformed provider JSON stays inside the boundary as a stable code instead of
+// leaking the parser message.
+assert.throws(() => parseToolArguments('{'), (error) => {
+  assert.equal(error.code, 'INVALID_TOOL_ARGUMENTS');
+  assert.doesNotMatch(error.message, /Unexpected|JSON/);
+  return true;
+});
+// Every boundary rejection carries `code`, so sanitizeToolError keeps it.
+for (const [call, code] of [
+  [null, 'INVALID_TOOL_CALL'],
+  [{ id: '', function: { name: 'x', arguments: '{}' } }, 'INVALID_TOOL_CALL_ID'],
+  [{ id: 'x', function: { name: '', arguments: '{}' } }, 'INVALID_TOOL_NAME'],
+  [{ id: 'x', function: { name: 'x', arguments: null } }, 'INVALID_TOOL_ARGUMENTS']
+]) {
+  assert.throws(() => normalizeToolCall(call), (error) => {
+    assert.equal(sanitizeToolError(error).code, code);
+    return true;
+  });
+}
 
 const sanitized = sanitizeToolError({ code: 'UPSTREAM_FAILURE', message: 'Authorization: Bearer secret-value', status: 502 });
 assert.equal(sanitized.code, 'UPSTREAM_FAILURE');

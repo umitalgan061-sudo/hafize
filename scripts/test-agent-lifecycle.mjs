@@ -14,6 +14,11 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// Executors are invoked on a later microtask, so yield once before relying on
+// state the executor body sets up.
+const tick = () => new Promise((resolve) => { setTimeout(resolve, 0); });
+await tick();
+assert.equal(typeof resolveFirst, 'function');
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');

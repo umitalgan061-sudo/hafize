@@ -6,13 +6,20 @@ const registry = { policy: { maxDelegationDepth: 2, maxParallelAgents: 3 }, agen
   { id: 'parent', name: 'Parent', kind: 'primary', toolPolicy: { default: 'deny', allow: ['agent.delegate'], approvalRequired: [] } },
   { id: 'specialist', name: 'Specialist', kind: 'specialist', toolPolicy: { default: 'deny', allow: ['repo.read'], approvalRequired: [] } }
 ] };
-let sequence = 0;
-const ledgerEntries = [];
-const runLedger = {
-  snapshot() { return { entries: ledgerEntries.slice() }; },
-  recordDelegationStart(agentId, { parentTaskId }) { const taskId = `delegation-${++sequence}`; ledgerEntries.push({ action: 'agent.delegate', taskId, agentId, parentTaskId }); return { taskId }; },
-  recordDelegationFinish(taskId, result) { ledgerEntries.push({ action: 'agent.delegate.finish', taskId, ...result }); }
-};
+// The fan-out budget is counted per ledger, so every independent parent run
+// needs its own ledger instance.
+function createLedger() {
+  let sequence = 0;
+  const entries = [];
+  return {
+    entries,
+    snapshot() { return { entries: entries.slice() }; },
+    recordDelegationStart(agentId, { parentTaskId }) { const taskId = `delegation-${++sequence}`; entries.push({ action: 'agent.delegate', taskId, agentId, parentTaskId }); return { taskId }; },
+    recordDelegationFinish(taskId, result) { entries.push({ action: 'agent.delegate.finish', taskId, ...result }); }
+  };
+}
+const runLedger = createLedger();
+const ledgerEntries = runLedger.entries;
 const lifecycle = createAgentLifecycle({ maxConcurrent: 2 });
 const parentAbort = new AbortController();
 let release; let capturedSignal;
@@ -33,9 +40,15 @@ const succeeded = await successDelegator.delegate({ agentId: 'specialist', task:
 assert.equal(succeeded.ok, true); assert.equal(succeeded.value.content, 'verified'); assert.equal(successLifecycle.get('delegation-2').state, 'completed');
 assert.equal(await successDelegator.delegate({ agentId: 'specialist', task: 'x' }).then((result) => result.ok), true);
 assert.throws(() => successLifecycle.start({ runId: 'delegation-2', execute: async () => null }), /AGENT_RUN_ALREADY_EXISTS/);
+// The shared ledger has now spent its fan-out budget (maxParallelAgents: 3).
+assert.deepEqual(
+  await successDelegator.delegate({ agentId: 'specialist', task: 'over budget' }),
+  { ok: false, error: 'DELEGATION_FANOUT_EXCEEDED' }
+);
+
 const limited = createAgentLifecycle({ maxConcurrent: 1 });
 let hold;
-const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
+const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger: createLedger(), lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
 const firstRun = limitedDelegator.delegate({ agentId: 'specialist', task: 'hold' });
 await new Promise((resolve) => setTimeout(resolve, 0));
 const rejected = await limitedDelegator.delegate({ agentId: 'specialist', task: 'reject' });
