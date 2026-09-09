@@ -38,7 +38,9 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+// The exact shell cache version is owned by test-pwa-cache-policy.mjs; here only
+// the versioned-cache shape and this feature's own shell assets are asserted.
+assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 

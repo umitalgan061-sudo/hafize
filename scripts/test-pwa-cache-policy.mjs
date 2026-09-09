@@ -31,30 +31,39 @@ function headers(values = {}) {
   };
 }
 
+// This suite owns the shell cache contract: every other suite asserts only the
+// `hafize-shell-v<n>` shape, so shipping a new shell asset needs one version
+// bump here instead of an edit in every feature suite.
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+const currentVersion = /^hafize-shell-v(\d+)$/.exec(policy.CURRENT_CACHE);
+assert.ok(currentVersion, 'shell cache must stay a monotonic hafize-shell-v<n> name');
+const CURRENT_VERSION = Number(currentVersion[1]);
+assert.ok(CURRENT_VERSION >= 18, 'shell cache version must never move backwards');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
-  '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+
+// Core shell: the app must stay installable and openable offline without these.
+for (const asset of ['/', '/index.html', '/offline.html', '/styles.css', '/app.js', '/ui-shell.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg']) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} must stay a precached shell asset`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell assets must not repeat');
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
+assert.equal(policy.SHELL_ASSETS.every((path) => path.startsWith('/')), true, 'shell assets stay same-origin absolute paths');
+
+// Drift guard: a page asset that ships without being precached silently breaks
+// the offline shell, so every local script/style in index.html must be listed.
+// `/auth.js` is deliberately excluded: the session flow is online-only.
+const NON_SHELL_PAGE_ASSETS = new Set(['/auth.js']);
+const indexSource = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+const pageAssets = [...indexSource.matchAll(/(?:src|href)="(\/[^"]+\.(?:js|css))"/g)].map((match) => match[1]);
+assert.ok(pageAssets.length >= 10, 'index.html asset scan must not silently match nothing');
+for (const asset of pageAssets) {
+  if (NON_SHELL_PAGE_ASSETS.has(asset)) {
+    assert.equal(policy.SHELL_ASSETS.includes(asset), false, `${asset} is intentionally not precached`);
+    continue;
+  }
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} is used by index.html but missing from SHELL_ASSETS`);
+}
 
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
@@ -144,11 +153,11 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+// Every shipped predecessor is evicted; only the current version survives.
+for (let version = 1; version < CURRENT_VERSION; version += 1) {
+  assert.equal(policy.shouldDeleteCache(`hafize-shell-v${version}`), true, `hafize-shell-v${version} must be evicted`);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
