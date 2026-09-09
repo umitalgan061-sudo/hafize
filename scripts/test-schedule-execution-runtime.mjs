@@ -14,7 +14,13 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime wraps the executor so every result leaves through the projected
+// worker contract instead of carrying internal metadata outward.
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
+const projectedRuntime = createScheduleExecutionRuntime({
+  executor: { configured: true, async executeAgentTask() { return { ok: true, content: 'internal detail', leaseStatus: 'held' }; } }
+});
+assert.deepEqual(await projectedRuntime.executeAgentTask({ scheduleId: 'schedule_0' }), { ok: true });
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
 
