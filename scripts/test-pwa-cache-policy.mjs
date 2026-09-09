@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -32,28 +32,29 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+// Kabuk sürümü her shell asset değişikliğinde artar; testler sürüm sayısını
+// değil sözleşmeyi (prefix + artan sürüm) doğrular.
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v[1-9]\d*$/);
+assert.equal(policy.CURRENT_CACHE.startsWith(policy.CACHE_PREFIX), true);
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
-  '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+// Kabuk listesi yeni özelliklerle büyür; bu yüzden sabit bir liste yerine
+// kabuk sözleşmesi doğrulanır: çekirdek varlıklar her zaman önbelleklenir,
+// listelenen her yol gerçekten `public/` altında vardır (aksi halde service
+// worker install sırasında `cache.addAll` tümden başarısız olur) ve hiçbir
+// API yolu kabuk olarak önbelleklenmez.
+for (const required of ['/', '/index.html', '/offline.html', '/styles.css', '/app.js', '/sw-policy.js', '/manifest.webmanifest']) {
+  assert.equal(policy.SHELL_ASSETS.includes(required), true, `${required} çekirdek kabuk varlığı olmalı`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'kabuk varlıkları tekrarsız olmalı');
+for (const asset of policy.SHELL_ASSETS) {
+  assert.equal(asset.startsWith('/'), true, `${asset} kök-göreli olmalı`);
+  assert.equal(asset.includes('?'), false, `${asset} sorgu dizesi içermemeli`);
+  const relative = asset === '/' ? 'index.html' : asset.slice(1);
+  await access(join(ROOT, 'public', relative)).catch(() => {
+    assert.fail(`kabuk varlığı public/ altında yok: ${asset}`);
+  });
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -148,7 +149,7 @@ assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
