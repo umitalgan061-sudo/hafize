@@ -18,6 +18,12 @@ const manifest = normalizeSkillManifest(base);
 assert.equal(manifest.name, 'repo-triage');
 assert.equal(manifest.execution, 'inline');
 assert.equal(manifest.model, '');
+// An explicitly empty model means "use the runtime default", exactly like omitting the field.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '   ' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: null }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: ' nvidia/llama-3.3-70b ' }).model, 'nvidia/llama-3.3-70b');
+assert.throws(() => normalizeSkillManifest({ ...base, model: 5 }), /INVALID_SKILL_MODEL/);
 assert.deepEqual([...manifest.triggers], ['repo triage', 'issue triage']);
 assert.deepEqual(manifest.arguments.map((item) => item.required), [true, false]);
 assert.equal(Object.isFrozen(manifest), true);
