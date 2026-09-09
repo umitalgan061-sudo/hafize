@@ -14,9 +14,17 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime hands the worker a projecting wrapper rather than the raw executor, so
+// internal metadata (content, taskLedger, lease bookkeeping) never reaches the worker.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
+
+const projecting = createScheduleExecutionRuntime({
+  executor: { configured: true, async executeAgentTask() { return { ok: true, content: 'gizli özet', taskLedger: { entries: [] } }; } }
+});
+assert.deepEqual(await projecting.executeAgentTask({ scheduleId: 'schedule_projected' }), { ok: true });
 
 let guardInput = null;
 const lease = { name: 'distributed-lease' };
@@ -37,6 +45,7 @@ assert.equal(guarded.configured, true);
 assert.equal(guarded.leaseGuarded, true);
 assert.equal(Object.isFrozen(guarded), true);
 assert.equal(guardInput.lease, lease);
+// The guard wraps the raw executor; the projection is applied to the guard's own output.
 assert.equal(guardInput.executeAgentTask, executor.executeAgentTask);
 assert.equal(guardInput.renewIntervalMs, 1234);
 assert.deepEqual(

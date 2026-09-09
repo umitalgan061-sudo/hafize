@@ -63,7 +63,9 @@ assert.equal(third.ok, true);
 
 const aliceAnkara = store.read({ ownerId: 'user-alice', query: 'ANKARA', limit: 10 });
 assert.equal(aliceAnkara.ok, true);
-assert.deepEqual(aliceAnkara.records.map((record) => record.memoryId), [first.record.memoryId]);
+// The query ranks the owner's records rather than filtering them away, so the match leads.
+assert.equal(aliceAnkara.records[0].memoryId, first.record.memoryId);
+assert.equal(aliceAnkara.records.every((record) => record.ownerId === 'user-alice'), true);
 assert.equal(aliceAnkara.records.some((record) => record.ownerId === 'user-bob'), false);
 
 const aliceTennis = store.read({
@@ -80,7 +82,8 @@ assert.deepEqual(
 
 const context = store.readForContext({ ownerId: 'user-alice', query: 'tenis', limit: 20 });
 assert.equal(context.ok, true);
-assert.equal(context.records.length, 1);
+// Retrieval returns the owner's records ranked by relevance, best match first.
+assert.equal(context.records.length, 2);
 assert.equal(context.records[0].memoryId, second.record.memoryId);
 assert.equal(context.records[0].sourceType, 'user_note');
 assert.equal(context.records[0].sourceRef, 'note-7');
@@ -94,7 +97,7 @@ const foreignDelete = store.remove({
   exactMatch: true
 });
 assert.deepEqual(foreignDelete, { ok: false, error: 'MEMORY_NOT_FOUND' });
-assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 1);
+assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 2, 'a foreign delete leaves the owner records untouched');
 
 assert.deepEqual(
   store.remove({ ownerId: 'user-alice', memoryId: first.record.memoryId, exactMatch: false }),
@@ -104,7 +107,9 @@ assert.deepEqual(
   store.remove({ ownerId: 'user-alice', memoryId: first.record.memoryId, exactMatch: true }),
   { ok: true, memoryId: first.record.memoryId }
 );
-assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 0);
+const afterDelete = store.read({ ownerId: 'user-alice', query: 'ankara' });
+assert.equal(afterDelete.records.length, 1);
+assert.equal(afterDelete.records.some((record) => record.memoryId === first.record.memoryId), false, 'the deleted record is gone');
 
 const snapshot = store.snapshot();
 assert.equal(snapshot.schemaVersion, PERSONAL_MEMORY_STORE_SCHEMA_VERSION);
