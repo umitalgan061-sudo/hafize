@@ -52,10 +52,24 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, delay) { timers.push({ fn, delay, id: timers.length + 1 }); return timers.length; },
+  clearTimeout(id) {
+    const index = timers.findIndex((timer) => timer.id === id);
+    if (index >= 0) timers.splice(index, 1);
+  },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
+
+function pendingDelays() {
+  return timers.map((timer) => timer.delay).sort((a, b) => a - b);
+}
+
+function fireTimer(delay) {
+  const index = timers.findIndex((timer) => timer.delay === delay);
+  assert.ok(index >= 0, `no pending timer scheduled at ${delay}ms`);
+  const [timer] = timers.splice(index, 1);
+  timer.fn();
+}
 
 const controller = api.installHandsFree(documentRef, root);
 assert.equal(controller.isSupported, true);
@@ -64,7 +78,9 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free is a per-session opt-in: enabling it never writes a persisted flag that
+// could resume microphone listening on the next load without a fresh user gesture.
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,13 +93,15 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+// Enabling arms the session expiry; the wake phrase adds the voice-input handoff fallback.
+assert.deepEqual(pendingDelays(), [api.HANDOFF_TIMEOUT_MS, api.SESSION_LIMIT_MS]);
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// When voice input never takes over, the fallback returns to wake-phrase listening.
+fireTimer(api.HANDOFF_TIMEOUT_MS);
+fireTimer(api.RESTART_DELAY_MS);
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
+assert.deepEqual(pendingDelays(), [api.SESSION_LIMIT_MS]);
 
 documentRef.hidden = true;
 docListeners.get('visibilitychange')?.();
@@ -93,7 +111,20 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
+// Disabling clears the session expiry so a stale timer cannot fire on a closed session.
+assert.deepEqual(pendingDelays(), []);
+
+// The 30-minute session limit stops listening on its own, without a user gesture.
+toggle.fire('click');
+assert.equal(controller.isEnabled(), true);
+const sessionRecognition = recognitions.at(-1);
+assert.equal(controller.isListening(), true);
+fireTimer(api.SESSION_LIMIT_MS);
+assert.equal(controller.isEnabled(), false);
+assert.equal(controller.isListening(), false);
+assert.equal(sessionRecognition.aborted, true);
+assert.deepEqual(pendingDelays(), []);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

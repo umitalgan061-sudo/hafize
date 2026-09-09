@@ -32,29 +32,41 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+// The shell cache version is bumped whenever shell assets change, so assert its
+// shape and prefix instead of pinning a number that goes stale on every bump.
+const cacheVersionMatch = /^hafize-shell-v(\d+)$/.exec(policy.CURRENT_CACHE);
+assert.ok(cacheVersionMatch, `unexpected cache name: ${policy.CURRENT_CACHE}`);
+const currentCacheVersion = Number(cacheVersionMatch[1]);
+assert.ok(currentCacheVersion >= 14);
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// Feature work keeps adding shell assets, so the invariants are asserted instead of a
+// frozen list: the core shell is always precached, entries are unique, no API path is
+// precached, and every precached path exists on disk (a missing one breaks install()).
+for (const required of [
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
   '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
-]);
+]) {
+  assert.ok(policy.SHELL_ASSETS.includes(required), `${required} must stay precached`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length);
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
+assert.equal(policy.SHELL_ASSETS.every((path) => path.startsWith('/')), true);
+for (const asset of policy.SHELL_ASSETS) {
+  if (asset === '/') continue;
+  await assert.doesNotReject(
+    readFile(join(ROOT, 'public', asset.slice(1))),
+    `${asset} is precached but missing from public/`
+  );
+}
 
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
@@ -145,10 +157,10 @@ assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+for (let version = 1; version < currentCacheVersion; version += 1) {
+  assert.equal(policy.shouldDeleteCache(`hafize-shell-v${version}`), true);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

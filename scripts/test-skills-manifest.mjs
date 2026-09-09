@@ -45,6 +45,12 @@ for (const [patch, pattern] of [
 }
 assert.throws(() => normalizeSkillManifest(null), /INVALID_SKILL_MANIFEST/);
 
+// An explicitly empty optional model means "no override", not an invalid manifest.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '  ' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: null }).model, '');
+assert.throws(() => normalizeSkillManifest({ ...base, model: 7 }), /INVALID_SKILL_MODEL/);
+
 // Approval-gated tools are only allowed in isolated fork execution.
 for (const tool of SKILL_MANIFEST_LIMITS.approvalOnlyTools) {
   assert.throws(
