@@ -45,6 +45,13 @@ for (const [patch, pattern] of [
 }
 assert.throws(() => normalizeSkillManifest(null), /INVALID_SKILL_MANIFEST/);
 
+// JSON manifests cannot express `undefined`, so blank/null model means "no override".
+for (const blank of ['', '   ', null]) {
+  assert.equal(normalizeSkillManifest({ ...base, model: blank }).model, '');
+}
+assert.equal(normalizeSkillManifest({ ...base, model: ' nvidia/llama-3.1-8b ' }).model, 'nvidia/llama-3.1-8b');
+assert.throws(() => normalizeSkillManifest({ ...base, model: 42 }), /INVALID_SKILL_MODEL/);
+
 // Approval-gated tools are only allowed in isolated fork execution.
 for (const tool of SKILL_MANIFEST_LIMITS.approvalOnlyTools) {
   assert.throws(

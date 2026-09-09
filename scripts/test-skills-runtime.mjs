@@ -13,8 +13,10 @@ const runtime = await createSkillsRuntime({
   fileUrl: new URL('../skills/builtin.json', import.meta.url)
 });
 assert.equal(runtime.size, 3);
+// Görünürlük ajan tool policy'sine bağlıdır: genel ajanın repo.read yetkisi yoktur.
 const publicSkills = runtime.describePublic(general);
-assert.deepEqual(publicSkills.map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(publicSkills.map((skill) => skill.name), ['runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(runtime.describePublic(reviewer).map((skill) => skill.name), ['code-inspection']);
 assert.ok(publicSkills.every((skill) => !Object.hasOwn(skill, 'prompt')));
 
 const syncRuntime = createBuiltinSkillsRuntimeSync();
@@ -55,10 +57,17 @@ const delegation = runtime.resolveForAgent({
 assert.deepEqual(delegation.tools, ['agent.delegate']);
 assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: true }) }, { allowedPermissions: delegation.tools }).map((tool) => tool.function.name), ['agent_delegate']);
 
-assert.equal(runtime.selectForAgent(general, 'kod incele').name, 'code-inspection');
-assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?').name, 'runtime-diagnostics');
+assert.equal(runtime.selectForAgent(reviewer, 'kod incele').name, 'code-inspection');
+assert.equal(runtime.selectForAgent(general, 'runtime teşhis').name, 'runtime-diagnostics');
+assert.equal(runtime.selectForAgent(general, 'runtime kontrol').name, 'runtime-diagnostics');
 assert.equal(runtime.selectForAgent(general, 'bilinmeyen iş', { minScore: 0.3 }), null);
-assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => name), ['code-inspection', 'delegation-plan', 'runtime-diagnostics']);
+assert.deepEqual(runtime.rankForAgent(reviewer, 'kod incele').map(({ name }) => name), ['code-inspection']);
+assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => name), ['delegation-plan', 'runtime-diagnostics']);
+// Skill adı yetki üretmez: yetkisiz ajan çözümlemesi escalation ile reddedilir.
+assert.throws(
+  () => runtime.resolveForAgent({ agent: general, skillId: 'code-inspection', args: { focus: 'auth' } }),
+  /SKILL_TOOL_ESCALATION:repo.read/
+);
 
 assert.throws(() => runtime.selectForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
 assert.throws(() => runtime.rankForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
@@ -78,8 +87,13 @@ const fake = await createSkillsRuntime({
 assert.equal(loaded, true);
 assert.equal(fake.size, 1);
 
-assert.throws(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
-assert.throws(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+// createSkillsRuntime asenkrondur: hata senkron fırlatılmaz, promise reddedilir.
+await assert.rejects(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
+await assert.rejects(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+await assert.rejects(
+  () => createSkillsRuntime({ readFileImpl: async () => 'not json' }),
+  /SKILL_CATALOG_UNREADABLE/
+);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 
