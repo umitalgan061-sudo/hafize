@@ -6,7 +6,7 @@ const executor = {
   configured: true,
   async executeAgentTask(input) {
     calls.push(input);
-    return { ok: true, source: 'base' };
+    return { ok: true, content: 'private model output', leaseStatus: 'completed' };
   }
 };
 
@@ -14,11 +14,14 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
-assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
+// The runtime hands the worker a projected result: internal metadata never crosses the
+// boundary, only the { ok, error, retryAt } worker contract.
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
+assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true });
 assert.equal(calls.length, 1);
 
 let guardInput = null;
+const guardedTasks = [];
 const lease = { name: 'distributed-lease' };
 const guarded = createScheduleExecutionRuntime({
   executor,
@@ -28,7 +31,8 @@ const guarded = createScheduleExecutionRuntime({
     guardInput = input;
     return {
       async executeAgentTask(task) {
-        return { ok: true, guarded: true, scheduleId: task.scheduleId };
+        guardedTasks.push(task);
+        return { ok: true, content: 'guarded model output' };
       }
     };
   }
@@ -39,10 +43,8 @@ assert.equal(Object.isFrozen(guarded), true);
 assert.equal(guardInput.lease, lease);
 assert.equal(guardInput.executeAgentTask, executor.executeAgentTask);
 assert.equal(guardInput.renewIntervalMs, 1234);
-assert.deepEqual(
-  await guarded.executeAgentTask({ scheduleId: 'schedule_2' }),
-  { ok: true, guarded: true, scheduleId: 'schedule_2' }
-);
+assert.deepEqual(await guarded.executeAgentTask({ scheduleId: 'schedule_2' }), { ok: true });
+assert.deepEqual(guardedTasks, [{ scheduleId: 'schedule_2' }]);
 
 const unconfigured = createScheduleExecutionRuntime({
   executor: { configured: false, executeAgentTask: async () => ({ ok: false }) }
