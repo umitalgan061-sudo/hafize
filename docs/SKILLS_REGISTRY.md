@@ -53,6 +53,6 @@ yükleyiciyle de açılır, her builtin skill en az bir registry ajanı tarafın
 
 `node scripts/test-skills-manifest.mjs`, `node scripts/test-skills-registry.mjs` ve
 `node scripts/test-builtin-skill-reachability.mjs` (hepsi de
-`npm run check` kapısındadır). Registry henüz HTTP yüzeyine bağlı değildir; sıradaki tur
-doğrulanmış skill'leri `server.mjs` tool listesine ve `fork` yürütmesini mevcut delegation
+`npm run check` kapısındadır). Registry `lib/tool-runtime.mjs` içindeki `skill_invoke` aracı
+üzerinden HTTP yüzeyine bağlıdır; sıradaki tur `fork` yürütmesini mevcut delegation
 runner'ına bağlar.
