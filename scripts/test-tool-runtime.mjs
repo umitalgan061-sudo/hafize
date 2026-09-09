@@ -45,8 +45,14 @@ assert.deepEqual(
 );
 assert.equal(getPublicToolActivity('repo_delete', { ok: true }), null);
 
+// agent_delegate is only offered when the caller actually wired a delegation runtime.
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
-assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['agent_delegate', 'skill_invoke']);
+assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status', 'skill_invoke']);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { githubReadConfigured: true, delegateAgent: async () => ({ ok: true, value: {} }) })
+    .map((tool) => tool.function.name),
+  ['runtime_status', 'agent_delegate', 'skill_invoke']
+);
 assert.deepEqual(
   getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
   ['github_read_file', 'skill_invoke']

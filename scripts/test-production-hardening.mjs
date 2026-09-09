@@ -22,10 +22,17 @@ assert.equal(first.ok, true);
 assert.equal(limiter.check('user', 1_001).concurrent, true);
 assert.equal(limiter.check('user', 61_000).concurrent, true, 'live request must survive quota-window rotation');
 first.release();
+// Rejected checks never consume quota, so the rotated window still allows `max` requests.
 const second = limiter.check('user', 61_001);
 assert.equal(second.ok, true);
 second.release();
-assert.equal(limiter.check('user', 61_002).ok, false);
+const third = limiter.check('user', 61_002);
+assert.equal(third.ok, true);
+third.release();
+const exhausted = limiter.check('user', 61_003);
+assert.equal(exhausted.ok, false);
+assert.equal(exhausted.concurrent, undefined, 'quota rejection must not be reported as a concurrency rejection');
+assert.ok(exhausted.retryAfterSeconds >= 1);
 
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;

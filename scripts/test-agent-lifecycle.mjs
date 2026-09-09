@@ -14,6 +14,11 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// start() registers the run synchronously but defers the executor by a microtask so a
+// pre-registration cancel still wins; let that microtask run before driving the executor.
+const flush = () => new Promise((resolve) => { setImmediate(resolve); });
+await flush();
+assert.equal(typeof resolveFirst, 'function', 'executor must have started');
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');

@@ -13,8 +13,11 @@ const runtime = await createSkillsRuntime({
   fileUrl: new URL('../skills/builtin.json', import.meta.url)
 });
 assert.equal(runtime.size, 3);
+// Least privilege: the primary agent only sees skills its own tool policy can run, so
+// repo-reading work stays with the specialists it delegates to.
 const publicSkills = runtime.describePublic(general);
-assert.deepEqual(publicSkills.map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(publicSkills.map((skill) => skill.name), ['runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(runtime.describePublic(reviewer).map((skill) => skill.name), ['code-inspection']);
 assert.ok(publicSkills.every((skill) => !Object.hasOwn(skill, 'prompt')));
 
 const syncRuntime = createBuiltinSkillsRuntimeSync();
@@ -55,10 +58,13 @@ const delegation = runtime.resolveForAgent({
 assert.deepEqual(delegation.tools, ['agent.delegate']);
 assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: true }) }, { allowedPermissions: delegation.tools }).map((tool) => tool.function.name), ['agent_delegate']);
 
-assert.equal(runtime.selectForAgent(general, 'kod incele').name, 'code-inspection');
-assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?').name, 'runtime-diagnostics');
+assert.equal(runtime.selectForAgent(reviewer, 'kod incele').name, 'code-inspection');
+assert.equal(runtime.selectForAgent(general, 'runtime kontrol').name, 'runtime-diagnostics');
 assert.equal(runtime.selectForAgent(general, 'bilinmeyen iş', { minScore: 0.3 }), null);
-assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => name), ['code-inspection', 'delegation-plan', 'runtime-diagnostics']);
+// Selection never surfaces a skill the agent cannot run, whatever the query matches.
+assert.equal(runtime.selectForAgent(general, 'kod incele', { minScore: 0.3 }), null);
+assert.equal(runtime.rankForAgent(general, 'kod incele').some(({ name }) => name === 'code-inspection'), false);
+assert.deepEqual(runtime.rankForAgent(reviewer, 'kod incele').map(({ name }) => name), ['code-inspection']);
 
 assert.throws(() => runtime.selectForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
 assert.throws(() => runtime.rankForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
@@ -78,8 +84,9 @@ const fake = await createSkillsRuntime({
 assert.equal(loaded, true);
 assert.equal(fake.size, 1);
 
-assert.throws(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
-assert.throws(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+// createSkillsRuntime is async: its guards surface as rejections, not synchronous throws.
+await assert.rejects(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
+await assert.rejects(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 
