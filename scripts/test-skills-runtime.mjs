@@ -9,12 +9,24 @@ const reviewer = resolveAgent(registry, 'agency-code-reviewer');
 assert.ok(general);
 assert.ok(reviewer);
 
+// Synthetic agent that holds every builtin skill permission at once, so skill
+// ranking can be asserted without widening a real registry tool policy.
+const analyst = Object.freeze({
+  id: 'test-analyst',
+  kind: 'specialist',
+  toolPolicy: Object.freeze({ default: 'deny', allow: Object.freeze(['repo.read', 'runtime.status', 'agent.delegate']), approvalRequired: Object.freeze([]) })
+});
+
 const runtime = await createSkillsRuntime({
   fileUrl: new URL('../skills/builtin.json', import.meta.url)
 });
 assert.equal(runtime.size, 3);
+// hafize-general intentionally has no repo.read permission, so the GitHub
+// reading skill must stay invisible to it (docs/GITHUB_READ_TOOL.md).
 const publicSkills = runtime.describePublic(general);
-assert.deepEqual(publicSkills.map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(publicSkills.map((skill) => skill.name), ['runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(runtime.describePublic(reviewer).map((skill) => skill.name), ['code-inspection']);
+assert.deepEqual(runtime.describePublic(analyst).map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan']);
 assert.ok(publicSkills.every((skill) => !Object.hasOwn(skill, 'prompt')));
 
 const syncRuntime = createBuiltinSkillsRuntimeSync();
@@ -55,10 +67,15 @@ const delegation = runtime.resolveForAgent({
 assert.deepEqual(delegation.tools, ['agent.delegate']);
 assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: true }) }, { allowedPermissions: delegation.tools }).map((tool) => tool.function.name), ['agent_delegate']);
 
-assert.equal(runtime.selectForAgent(general, 'kod incele').name, 'code-inspection');
-assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?').name, 'runtime-diagnostics');
+assert.equal(runtime.selectForAgent(analyst, 'kod incele').name, 'code-inspection');
+assert.equal(runtime.selectForAgent(general, 'kod incele', { minScore: 0.3 }), null);
+assert.equal(runtime.selectForAgent(general, 'runtime kontrol').name, 'runtime-diagnostics');
+assert.equal(runtime.selectForAgent(general, 'hafize durum').name, 'runtime-diagnostics');
+// Selection is trigger/keyword based: an unmatched free-form question stays
+// unrouted instead of guessing a skill.
+assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?'), null);
 assert.equal(runtime.selectForAgent(general, 'bilinmeyen iş', { minScore: 0.3 }), null);
-assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => name), ['code-inspection', 'delegation-plan', 'runtime-diagnostics']);
+assert.deepEqual(runtime.rankForAgent(analyst, 'kod incele').map(({ name }) => name), ['code-inspection', 'delegation-plan', 'runtime-diagnostics']);
 
 assert.throws(() => runtime.selectForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
 assert.throws(() => runtime.rankForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
@@ -78,8 +95,10 @@ const fake = await createSkillsRuntime({
 assert.equal(loaded, true);
 assert.equal(fake.size, 1);
 
-assert.throws(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
-assert.throws(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+// The async factory validates its dependencies through a rejected promise.
+await assert.rejects(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
+await assert.rejects(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+await assert.rejects(() => createSkillsRuntime({ readFileImpl: async () => 'not json' }), /SKILL_CATALOG_UNREADABLE/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 
