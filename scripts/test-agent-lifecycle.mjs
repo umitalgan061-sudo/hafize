@@ -14,6 +14,9 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// start() defers the executor to a microtask, so the run body (and the resolver
+// it publishes) only exists after the queue drains.
+await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');

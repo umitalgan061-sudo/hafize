@@ -150,6 +150,7 @@ let structuredToolArgs = null;
 const structuredToolSuccess = await executeNvidiaToolCall(
   primary,
   {
+    id: 'call-2',
     function: {
       name: 'agent_delegate',
       arguments: JSON.stringify({
