@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createScheduleExecutionRuntime, projectWorkerResult } from '../lib/schedule-execution-runtime.mjs';
 
-assert.deepEqual(projectWorkerResult({ ok: true, content: 'private model output', taskLedger: { traceId: 'trace-1' }, leaseStatus: 'completed', deduplicated: false }), { ok: true });
+assert.deepEqual(projectWorkerResult({ ok: true, content: 'private model output', taskLedger: { traceId: 'trace-00000001' }, leaseStatus: 'completed', deduplicated: false }), { ok: true });
 assert.deepEqual(projectWorkerResult({ ok: false, error: 'SCHEDULE_LEASE_BUSY', retryAt: '2026-09-08T12:00:00.000Z', taskLedger: { traceId: 'trace-2' } }), { ok: false, error: 'SCHEDULE_LEASE_BUSY', retryAt: '2026-09-08T12:00:00.000Z' });
 const unexpected = { ok: true, content: 'x', unexpected: 'keep for fail-closed worker validation' };
 assert.equal(projectWorkerResult(unexpected), unexpected);

@@ -24,12 +24,12 @@ const success = createScheduleLeaseGuardedExecutor({
   }),
   async executeAgentTask(input) {
     executed += 1;
-    assert.equal(input.traceId, 'trace-1');
+    assert.equal(input.traceId, 'trace-00000001');
     return { ok: true, content: 'done' };
   },
   renewIntervalMs: 100
 });
-const successResult = await success.executeAgentTask({ scheduleId: 'schedule_1', traceId: 'trace-1' });
+const successResult = await success.executeAgentTask({ scheduleId: 'schedule_1', traceId: 'trace-00000001' });
 assert.equal(successResult.ok, true);
 assert.equal(successResult.content, 'done');
 assert.equal(successResult.leaseStatus, 'completed');

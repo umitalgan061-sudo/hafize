@@ -33,7 +33,7 @@ assert.deepEqual(persistence.snapshot(), { entries: [] });
 
 const first = await persistence.add({
   ownerId: 'user-1',
-  traceId: 'trace-1',
+  traceId: 'trace-00000001',
   agentId: 'hafize-general',
   task: 'Sabah özetini hazırla.',
   runAt: '2026-08-12T12:00:00.000Z',
@@ -49,7 +49,7 @@ assert.equal(persistence.read(first.scheduleId).task, 'Sabah özetini hazırla.'
 
 const restarted = createTaskSchedulePersistence({ adapter, storeOptions: { now } });
 await Promise.all([restarted.open(), restarted.open()]);
-assert.equal(restarted.read(first.scheduleId).traceId, 'trace-1');
+assert.equal(restarted.read(first.scheduleId).traceId, 'trace-00000001');
 const second = await restarted.add({
   ownerId: 'user-1',
   traceId: 'trace-2',
