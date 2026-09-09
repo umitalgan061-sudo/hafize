@@ -13,7 +13,11 @@ assert.throws(() => normalizeToolCall({ id: 'x', function: { name: 'x', argument
 assert.deepEqual(parseToolArguments('{}'), {});
 assert.deepEqual(parseToolArguments('{"a":1}'), { a: 1 });
 assert.throws(() => parseToolArguments('[]'), /INVALID_TOOL_ARGUMENTS/);
-assert.throws(() => parseToolArguments('{'), /Unexpected|JSON/);
+// Bozuk JSON ham parser mesajı yerine kararlı sözleşme kodu ile reddedilir;
+// aksi hâlde argüman metninin bir parçası hata mesajına sızabiliyordu.
+assert.throws(() => parseToolArguments('{'), /INVALID_TOOL_ARGUMENTS/);
+assert.equal(sanitizeToolError(catchError(() => parseToolArguments('{'))).code, 'INVALID_TOOL_ARGUMENTS');
+function catchError(run) { try { run(); return null; } catch (error) { return error; } }
 
 const sanitized = sanitizeToolError({ code: 'UPSTREAM_FAILURE', message: 'Authorization: Bearer secret-value', status: 502 });
 assert.equal(sanitized.code, 'UPSTREAM_FAILURE');
