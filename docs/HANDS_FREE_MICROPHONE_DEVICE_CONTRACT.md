@@ -16,6 +16,7 @@ Bu katman mevcut permission watcher'ın yerine geçmez. Permission watcher yetki
 - Cihaz adı, `deviceId`, `groupId` veya label okunmaz, saklanmaz, loglanmaz ve network'e gönderilmez.
 - `devicechange` yalnız eller serbest gerçekten aktifken yeni inventory kontrolü başlatabilir.
 - Eller serbest kapalıyken install veya devicechange olayı cihaz envanteri probe etmez.
+- Eller serbest tercihi kalıcı olarak saklanmaz. Sayfa yeniden yüklendiğinde oturum kapalı başlar; sürekli dinleme her oturumda açık kullanıcı etkileşimi ister.
 - Enumeration başarısızlığı “mikrofon yok” şeklinde yorumlanmaz. Durum `unavailable` olur ve mevcut SpeechRecognition/permission güvenlik yolları devam eder.
 - Kullanılabilir mikrofon kalmadığı doğrulanırsa oturum `microphone-device-unavailable` nedeni ile disable-only revoke kanalından kapatılır.
 - Mikrofon daha sonra geri gelse bile otomatik yeniden etkinleştirme yoktur. Kullanıcının görünür Eller serbest kontrolünden yeniden onay vermesi gerekir.

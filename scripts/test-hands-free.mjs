@@ -64,7 +64,9 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Always-on listening is never remembered across loads: enabling it requires an
+// explicit gesture in every session, so nothing is written to local storage.
+assert.deepEqual([...storage.keys()], []);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -93,7 +95,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

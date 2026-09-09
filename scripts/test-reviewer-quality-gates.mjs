@@ -32,7 +32,9 @@ assert.equal(pass.pass, true);
 assert.equal(pass.blockerCount, 0);
 
 const fail = evaluateQualityGates({
-  files: [{ path: 'private.pem', content: 'BEGIN PRIVATE KEY' }],
+  // PEM header as it actually appears in a key file; the gate matches the same
+  // shape as lib/plaintext-credential-policy.mjs.
+  files: [{ path: 'private.pem', content: '-----BEGIN PRIVATE KEY-----\nMIIE...\n' }],
   result: { claims: ['a'], evidence: [] },
   ui: {}
 });

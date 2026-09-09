@@ -11,8 +11,10 @@ assert.match(index, /chat-history-search\.js/);
 assert.match(search, /hafize\.conversations\.v1/);
 assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
-assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
+assert.match(search, /!event\.ctrlKey && !event\.metaKey/);
 assert.match(search, /event\.altKey/);
+// The chord is mod+shift+f, so the browser's own ctrl/cmd+f stays untouched.
+assert.match(search, /event\.shiftKey !== SHORTCUT\.shift/);
 assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
 assert.match(search, /event\.key === 'Escape'/);
 assert.match(search, /\.messages/);
