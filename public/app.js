@@ -6,6 +6,7 @@
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const STOP_NOTICE = '\n\n(Yanıt durduruldu.)';
   const STOPPED_EMPTY_MESSAGE = 'Yanıt durduruldu.';
+  const SCROLL_FOLLOW_THRESHOLD_PX = 120;
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -31,8 +32,28 @@
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
   let streamController = null;
+  let followStream = true;
+  let scrollFrame = 0;
   let availableAgents = [];
   let defaultAgentId = '';
+
+  function isNearBottom() {
+    const distance = document.body.scrollHeight - (window.scrollY + window.innerHeight);
+    return distance <= SCROLL_FOLLOW_THRESHOLD_PX;
+  }
+
+  // Growing text may not scroll the page by itself, so the stream is followed
+  // explicitly — but only while the reader is still at the bottom. Scrolling up to
+  // re-read something must not be undone by the next delta. The jump is instant on
+  // purpose: a smooth animation lands short of a bottom that is still growing, and
+  // the scroll events it emits would read as "the user scrolled away".
+  function scrollToLatest() {
+    if (scrollFrame) cancelAnimationFrame(scrollFrame);
+    scrollFrame = requestAnimationFrame(() => {
+      scrollFrame = 0;
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'auto' });
+    });
+  }
 
   function isAbortError(error) {
     return error?.name === 'AbortError' || error?.message === 'STREAM_STOPPED';
@@ -157,6 +178,7 @@
     conversation.updatedAt = new Date().toISOString();
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
     if (node) node.textContent = content || '…';
+    if (node && followStream) scrollToLatest();
     if (persist) saveConversations();
   }
 
@@ -297,7 +319,8 @@
       ui.messages.append(article);
     }
 
-    requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
+    followStream = true;
+    scrollToLatest();
   }
 
   function syncAgentSelect() {
@@ -604,6 +627,9 @@
     event.preventDefault();
     submitMessage(ui.messageInput.value);
   });
+  window.addEventListener('scroll', () => {
+    followStream = isNearBottom();
+  }, { passive: true });
   ui.stopBtn?.addEventListener('click', () => {
     if (stopStreaming()) showToast('Yanıt durduruldu; gelen kısım sohbette kaldı.');
   });
