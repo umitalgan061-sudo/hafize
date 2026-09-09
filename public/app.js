@@ -174,6 +174,33 @@
     return message.id;
   }
 
+  // Only assistant output is formatted. What the user typed stays verbatim text,
+  // and the renderer builds nodes with textContent — no markup is ever parsed
+  // out of a message, streaming or settled.
+  function renderContent(node, role, content) {
+    const markdown = globalThis.HafizeChatMarkdown;
+    // Copy/export surfaces need the answer as written, not the flattened text of
+    // the rendered tree, so the source stays on the node.
+    if (node.dataset) node.dataset.raw = content ?? '';
+    if (role !== 'assistant' || !markdown) {
+      node.textContent = content || '…';
+      return;
+    }
+    markdown.renderMarkdown(node, content, { document });
+  }
+
+  function copyCodeBlock(button) {
+    const code = button.closest('.md-code')?.querySelector('pre')?.textContent ?? '';
+    if (!code) return;
+    const done = () => {
+      button.textContent = 'Kopyalandı';
+      globalThis.setTimeout(() => { button.textContent = 'Kopyala'; }, 1500);
+    };
+    const copy = navigator.clipboard?.writeText?.(code);
+    if (copy?.then) copy.then(done, () => showToast('Kod kopyalanamadı.'));
+    else showToast('Bu tarayıcıda kopyalama kullanılamıyor.');
+  }
+
   function updateMessage(id, content, { persist = false } = {}) {
     const conversation = getActiveConversation();
     const message = conversation?.messages.find((item) => item.id === id);
@@ -181,7 +208,7 @@
     message.content = content;
     conversation.updatedAt = new Date().toISOString();
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
-    if (node) node.textContent = content || '…';
+    if (node) renderContent(node, message.role, content);
     if (node && followStream) scrollToLatest();
     if (persist) saveConversations();
   }
@@ -322,7 +349,7 @@
 
       const content = document.createElement('div');
       content.className = 'content';
-      content.textContent = message.content || '…';
+      renderContent(content, message.role, message.content);
 
       article.append(meta);
       if (message.role === 'assistant') {
@@ -649,6 +676,12 @@
   window.addEventListener('scroll', () => {
     followStream = isNearBottom();
   }, { passive: true });
+  // Code-block copy buttons are re-created on every render, so the handler is
+  // delegated to the message list instead of bound per button.
+  ui.messages.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('.md-code-copy');
+    if (button) copyCodeBlock(button);
+  });
   ui.stopBtn?.addEventListener('click', () => {
     if (stopStreaming()) showToast('Yanıt durduruldu; gelen kısım sohbette kaldı.');
   });
