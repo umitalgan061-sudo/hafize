@@ -24,16 +24,16 @@ assert.equal(getAllowedNvidiaTools(agent, { gmailReadAuthenticated: true }).some
 assert.equal(getAllowedNvidiaTools({ ...agent, toolPolicy: { default: 'deny', allow: [] } }, context).length, 0);
 
 const result = await executeNvidiaToolCall(agent, {
-  function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'message.get', params: { messageId: 'm1' } }) }
+  id: 'call_gmail_read_1', type: 'function', function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'message.get', params: { messageId: 'm1' } }) }
 }, { ...context, approvalGranted: false });
 assert.deepEqual(result, { ok: true, value: { messages: [{ id: 'm1' }] } });
 assert.deepEqual(calls[0], { operation: 'message.get', params: { messageId: 'm1' } });
 
 assert.deepEqual(await executeNvidiaToolCall(agent, {
-  function: { name: 'gmail_read', arguments: '{}' }
+  id: 'call_gmail_read_2', type: 'function', function: { name: 'gmail_read', arguments: '{}' }
 }, { gmailReadTool, gmailReadAuthenticated: false }), { ok: false, error: 'TOOL_UNAVAILABLE' });
 assert.deepEqual(await executeNvidiaToolCall(agent, {
-  function: { name: 'gmail_read', arguments: '[]' }
+  id: 'call_gmail_read_3', type: 'function', function: { name: 'gmail_read', arguments: '[]' }
 }, context), { ok: false, error: 'INVALID_TOOL_ARGUMENTS' });
 assert.equal(listToolPermissions().some((item) => item.permission === 'connector.gmail.read' && item.functionName === 'gmail_read'), true);
 console.log('gmail agent tool runtime tests passed');
