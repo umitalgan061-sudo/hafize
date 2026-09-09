@@ -34,6 +34,7 @@ for (const [patch, pattern] of [
   [{ arguments: [{ name: 'repo', extra: 1 }] }, /INVALID_SKILL_ARGUMENT_FIELD/],
   [{ arguments: [{ name: 'Repo' }] }, /INVALID_SKILL_ARGUMENTS/],
   [{ model: 'nvidia/model key' }, /INVALID_SKILL_MODEL/],
+  [{ model: 42 }, /INVALID_SKILL_MODEL/],
   [{ prompt: '' }, /INVALID_SKILL_PROMPT/],
   [{ execution: 'bypass' }, /INVALID_SKILL_EXECUTION/],
   [{ allowedTools: ['secret.read'] }, /FORBIDDEN_SKILL_TOOL:secret.read/],
@@ -44,6 +45,11 @@ for (const [patch, pattern] of [
   assert.throws(() => normalizeSkillManifest({ ...base, ...patch }), pattern);
 }
 assert.throws(() => normalizeSkillManifest(null), /INVALID_SKILL_MANIFEST/);
+
+// `model` is optional: blank strings mean "no override" and stay equivalent to omitting it.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '   ' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: ' nvidia/llama-3.1 ' }).model, 'nvidia/llama-3.1');
 
 // Approval-gated tools are only allowed in isolated fork execution.
 for (const tool of SKILL_MANIFEST_LIMITS.approvalOnlyTools) {
