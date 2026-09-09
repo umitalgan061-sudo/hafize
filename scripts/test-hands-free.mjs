@@ -52,8 +52,11 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  // Timers are recorded with their delay so the assertions can name which timer they
+  // mean — session limit, handoff fallback or listening restart — instead of relying
+  // on how many happen to be outstanding.
+  setTimeout(fn, delayMs) { timers.push({ fn, delayMs, cleared: false }); return timers.length; },
+  clearTimeout(id) { if (timers[id - 1]) timers[id - 1].cleared = true; },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -77,11 +80,22 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+assert.equal(controller.isHandoffWaiting(), true);
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Enabling arms the session limit; the wake phrase hands off to voice input and arms
+// the fallback that reopens listening if that handoff never reports back.
+const pending = () => timers.filter((timer) => !timer.cleared);
+assert.deepEqual(pending().map((timer) => timer.delayMs), [api.SESSION_LIMIT_MS, api.HANDOFF_TIMEOUT_MS]);
+
+const handoffFallback = pending().at(-1);
+handoffFallback.fn();
+handoffFallback.cleared = true;
+assert.equal(controller.isHandoffWaiting(), false);
+assert.deepEqual(pending().map((timer) => timer.delayMs), [api.SESSION_LIMIT_MS, api.RESTART_DELAY_MS]);
+
+const restart = pending().at(-1);
+restart.fn();
+restart.cleared = true;
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
