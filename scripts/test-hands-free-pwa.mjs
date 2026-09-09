@@ -4,7 +4,8 @@ const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
 const origin = 'https://hafize.example';
 
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.match(policy.CURRENT_CACHE, /^hafize-shell-v\d+$/);
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 for (const asset of ['/screen-share.css', '/screen-share.js', '/hands-free.css', '/hands-free.js']) {
   assert.ok(policy.SHELL_ASSETS.includes(asset));
   assert.equal(policy.classifyRequest({
