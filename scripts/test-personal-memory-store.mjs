@@ -181,4 +181,23 @@ assert.deepEqual(badClock.write({
   sensitivity: 'personal', explicitUserIntent: true
 }), { ok: false, error: 'INVALID_MEMORY_STORE:now' });
 
+// A query returns lexical matches only: recency must not pull an unrelated
+// personal record into a search result or into model context.
+const searchOwner = 'user-search';
+for (const [kind, content] of [['preference', 'Kahvemi sütlü içerim.'], ['note', 'Toplantı notu: sprint planı.']]) {
+  assert.equal(store.write({
+    ownerId: searchOwner,
+    kind,
+    content,
+    sourceType: 'user_statement',
+    sensitivity: 'personal',
+    explicitUserIntent: true
+  }).ok, true);
+}
+const coffee = store.read({ ownerId: searchOwner, query: 'kahve' });
+assert.equal(coffee.ok, true);
+assert.deepEqual(coffee.records.map((record) => record.content), ['Kahvemi sütlü içerim.']);
+assert.equal(store.read({ ownerId: searchOwner, query: 'bulunmayan-terim' }).records.length, 0);
+assert.deepEqual(store.read({ ownerId: searchOwner }), { ok: false, error: 'INVALID_MEMORY_COMMAND:query' }, 'a read always carries a query');
+
 console.log('personal memory store tests passed');
