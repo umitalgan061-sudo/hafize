@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertCssIncludes } from './source-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
@@ -51,11 +52,11 @@ assert.ok(js.includes("key==='b'"));
 assert.ok(js.includes("key==='k'"));
 assert.ok(js.includes("key==='x'"));
 
-assert.ok(css.includes('.message-workspace-panel'));
-assert.ok(css.includes('.message-workspace-actions'));
-assert.ok(css.includes('.message-workspace-result'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
-assert.ok(css.includes('forced-colors:active'));
+assertCssIncludes(css, '.message-workspace-panel');
+assertCssIncludes(css, '.message-workspace-actions');
+assertCssIncludes(css, '.message-workspace-result');
+assertCssIncludes(css, 'prefers-reduced-motion:reduce');
+assertCssIncludes(css, 'forced-colors:active');
 
 assert.ok(policy.includes('MAX_RECORDS = 240'));
 assert.ok(policy.includes('MAX_NOTE = 600'));

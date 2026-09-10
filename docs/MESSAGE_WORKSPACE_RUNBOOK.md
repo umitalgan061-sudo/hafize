@@ -14,7 +14,7 @@ Yeni test dosyalarının `scripts/` altında olduğunu doğrula.
 
 ## Yerel testler
 
-Önce syntax kontrolü çalıştırılır.
+Önce syntax kontrolü ve hızlı kapı için `npm run precheck` çalıştırılır.
 
 Ardından policy testi çalıştırılır.
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertCssIncludes } from './source-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = await readFile(path.join(root, 'public/message-workspace.js'), 'utf8');
@@ -61,9 +62,9 @@ assert.ok(source.includes('selectVisibleRecords()'));
 assert.ok(source.includes('clearSelection()'));
 assert.ok(source.includes('saveState()'));
 
-assert.ok(css.includes(':focus-visible'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+assertCssIncludes(css, ':focus-visible');
+assertCssIncludes(css, '@media (max-width:560px)');
+assertCssIncludes(css, '@media (prefers-reduced-motion:reduce)');
+assertCssIncludes(css, '@media (forced-colors:active)');
 
 console.log('message workspace keyboard tests passed');

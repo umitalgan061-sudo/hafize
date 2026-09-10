@@ -35,3 +35,17 @@ export function classDeclared(source, selector) {
 export function assertClassDeclared(source, selector, label = selector) {
   assert.ok(classDeclared(source, selector), label);
 }
+
+/**
+ * True when `css` contains `snippet`, ignoring formatting whitespace, so a
+ * stylesheet reformat (`max-width:560px` vs `max-width: 560px`) is not a
+ * contract change.
+ */
+export function cssIncludes(css, snippet) {
+  const squeeze = (value) => String(value).replace(/\s+/g, '');
+  return squeeze(css).includes(squeeze(snippet));
+}
+
+export function assertCssIncludes(css, snippet, label = snippet) {
+  assert.ok(cssIncludes(css, snippet), label);
+}
