@@ -11,7 +11,10 @@ const sw = read('public/sw-policy.js');
 
 assert.match(html, /settings-workspace\.css/);
 assert.match(html, /settings-workspace\.js/);
-assert.match(html, /id="settingsWorkspace"|settingsWorkspace/);
+// Panel statik markup'ta değil, `settings-workspace.js` tarafından `.main`
+// içine dinamik olarak kurulur; kimlik JS modülünün sözleşmesidir.
+assert.match(settings, /const WORKSPACE_ID = 'settingsWorkspace';/);
+assert.match(html, /class="main"|class="[^"]*\bmain\b[^"]*"/);
 assert.match(settings, /hafize\.theme\.v1/);
 assert.match(settings, /hafize\.reduced-motion\.v1/);
 assert.match(settings, /hafize\.conversations\.v1/);
@@ -25,6 +28,7 @@ assert.match(css, /data-reduced-motion/);
 assert.match(css, /@media \(max-width: 680px\)/);
 assert.match(sw, /\/settings-workspace\.css/);
 assert.match(sw, /\/settings-workspace\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v19`/);
+// Kesin shell cache sürümü sabitlenmez; sözleşme sürümlü bir ad olmasıdır.
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 
 console.log('settings workspace source-contract checks passed');

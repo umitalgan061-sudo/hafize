@@ -15,9 +15,11 @@ assert.match(app, /function beginMessageEdit\(id\)/);
 assert.match(app, /function cancelMessageEdit\(\)/);
 assert.match(app, /function replaceEditedTurn\(id, content\)/);
 assert.match(app, /messages = target\.conversation\.messages\.slice\(0, target\.index\)/);
+// Yön tek taraflıdır: olayı `chat-composer-features.js` yayınlar (aşağıda
+// ayrıca doğrulanır), `app.js` yalnız dinler. app.js'in de yayınlaması
+// düzenleme akışını kendi kendine tetikleyen bir döngü anlamına gelirdi.
 assert.match(app, /window\.addEventListener\('hafize:edit-message'/);
-assert.match(app, /new CustomEvent\('hafize:edit-message'/);
-assert.match(app, /detail: \{ messageId \}/);
+assert.doesNotMatch(app, /dispatchEvent\(new CustomEvent\('hafize:edit-message'/);
 assert.match(app, /if \(editingMessageId\) \{/);
 assert.match(app, /replaceEditedTurn\(editingMessageId, clean\)/);
 assert.match(app, /event\.key === 'Escape' && editingMessageId/);
@@ -34,7 +36,8 @@ assert.match(features, /aria-label', 'Kullanıcı mesajını düzenle'/);
 assert.match(features, /title = 'Bu mesajı düzenle ve yeniden gönder'/);
 assert.match(features, /window\.dispatchEvent\(new CustomEvent\('hafize:edit-message'/);
 assert.match(features, /className = 'message-actions'/);
-assert.match(features, /messageId \}\}/);
+// Olay yükü biçimlendirmeden bağımsız doğrulanır.
+assert.match(features, /detail: \{ messageId \}/);
 assert.doesNotMatch(features, /assistant.*Düzenle/);
 
 assert.match(css, /\.composer-editing\s*\{/);

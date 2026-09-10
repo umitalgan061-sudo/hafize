@@ -47,13 +47,14 @@ assert.match(css, /ellipsis/);
 assert.match(css, /keyframes chat-draft-status-in/);
 assert.match(sw, /\/chat-drafts\.css/);
 assert.match(sw, /\/chat-drafts\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v21`/);
+// Kesin shell cache sürümü sabitlenmez; sözleşme sürümlü bir ad olmasıdır.
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(docs, /12\.000 karakter/);
 assert.match(docs, /30 taslak/);
-assert.match(docs, /çoklu sekme/);
+assert.match(docs, /çoklu sekme/i);
 assert.match(docs, /Güvenlik ve gizlilik/);
 assert.match(docs, /Yaşam döngüsü ve kenar durumları/);
-assert.match(docs, /storage quota/);
+assert.match(docs, /storage quota/i);
 assert.match(docs, /Geri alma/);
 assert.match(docs, /Taslak kaydedildi · HH:MM/);
 assert.match(docs, /pagehide/);

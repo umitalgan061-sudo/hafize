@@ -151,8 +151,11 @@
 
   document.addEventListener('keydown', (event) => {
     const target = event.target;
-    if (!event.ctrlKey && !event.metaKey) return;
-    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    // `SHORTCUT.shift` sabit `true` olduğu için `!SHORTCUT.shift` her zaman
+    // false'tu; kısayol shift olmadan da tetikleniyor ve tarayıcının kendi
+    // Ctrl+F aramasını ele geçiriyordu. Karşılaştırma olayın shift'i ile yapılır.
+    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || event.shiftKey !== SHORTCUT.shift) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();

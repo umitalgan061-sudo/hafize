@@ -38,7 +38,8 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+// Kesin shell cache sürümü sabitlenmez; sözleşme sürümlü bir ad olmasıdır.
+assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 
