@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShellCacheAtLeast } from './lib/sw-cache.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -25,6 +26,6 @@ assert.match(css, /data-reduced-motion/);
 assert.match(css, /@media \(max-width: 680px\)/);
 assert.match(sw, /\/settings-workspace\.css/);
 assert.match(sw, /\/settings-workspace\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v19`/);
+assertShellCacheAtLeast(19, 'settings workspace');
 
 console.log('settings workspace source-contract checks passed');

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { assertShellCacheAtLeast } from './lib/sw-cache.mjs';
 
 const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
@@ -32,28 +33,22 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assertShellCacheAtLeast(14, 'PWA cache policy');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
-  '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+// The shell list grows with every UI feature, so assert the invariant instead
+// of a snapshot: the base shell is present and everything index.html loads is
+// cached, so an installed PWA never boots with a missing stylesheet or module.
+for (const asset of ['/', '/index.html', '/offline.html', '/styles.css', '/app.js', '/ui-shell.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg']) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `shell cache must include ${asset}`);
+}
+const indexHtml = await readFile(join(ROOT, 'public/index.html'), 'utf8');
+const referenced = [...indexHtml.matchAll(/(?:src|href)="(\/[^"]+\.(?:css|js))"/g)].map((match) => match[1]);
+assert.ok(referenced.length > 0);
+for (const asset of new Set(referenced)) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `index.html loads ${asset} but the shell cache does not list it`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell cache must not repeat an asset');
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -148,7 +143,8 @@ assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+// Any older shell cache is evicted; only the current one survives.
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

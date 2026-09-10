@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShellCacheAtLeast } from './lib/sw-cache.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -47,7 +48,7 @@ assert.match(css, /ellipsis/);
 assert.match(css, /keyframes chat-draft-status-in/);
 assert.match(sw, /\/chat-drafts\.css/);
 assert.match(sw, /\/chat-drafts\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v21`/);
+assertShellCacheAtLeast(21, 'chat drafts');
 assert.match(docs, /12\.000 karakter/);
 assert.match(docs, /30 taslak/);
 assert.match(docs, /çoklu sekme/);
