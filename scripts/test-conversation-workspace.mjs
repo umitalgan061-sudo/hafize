@@ -24,6 +24,15 @@ function check(name, condition) {
 function includes(text, fragment, name = fragment) {
   check(name, text.includes(fragment));
 }
+// Attributes may be written as markup or applied with setAttribute(); the
+// accessibility contract is about the resulting attribute, not the syntax.
+function hasAttribute(text, fragment, name = fragment) {
+  const parsed = /^([a-z-]+)="(.*)"$/s.exec(fragment);
+  assert.ok(parsed, `attribute fragment must be name="value": ${fragment}`);
+  const [, attribute, value] = parsed;
+  const applied = `setAttribute('${attribute}', '${value}')`;
+  check(name, text.includes(fragment) || text.includes(applied));
+}
 function excludes(text, fragment, name = `must exclude ${fragment}`) {
   check(name, !text.includes(fragment));
 }
@@ -231,7 +240,7 @@ for (const fragment of [
   'aria-label="Etikete göre filtrele"',
   'aria-valuemin="0"',
   'aria-valuemax="100"'
-]) includes(source, fragment, `accessibility contract ${fragment}`);
+]) hasAttribute(source, fragment, `accessibility contract ${fragment}`);
 
 for (const fragment of [
   '.conversation-workspace {',
@@ -252,7 +261,7 @@ const summary = {
   sourceBytes: Buffer.byteLength(source),
   cssBytes: Buffer.byteLength(css),
   testBytes: fs.statSync(new URL(import.meta.url)).size,
-  shellVersion: 'v22'
+  shellVersion: `v${currentShellCacheVersion(sw)}`
 };
 
 console.log(`conversation-workspace contract: ${summary.checks} checks passed`);

@@ -50,6 +50,7 @@ const root = {
   navigator: { language: 'tr-TR' },
   localStorage: {
     setItem(key, value) { storage.set(key, value); },
+    getItem(key) { return storage.has(key) ? storage.get(key) : null; },
     removeItem(key) { storage.delete(key); }
   },
   setTimeout(fn) { timers.push(fn); return timers.length; },
@@ -64,7 +65,10 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Continuous listening is never persisted: after a reload the user has to
+// re-enable it from the visible control (docs/HANDS_FREE_MICROPHONE_DEVICE_CONTRACT.md).
+assert.equal(storage.size, 0, 'hands-free state must not be written to storage');
+assert.equal(api.STORAGE_KEY, undefined, 'hands-free must not expose a persistence key');
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +81,16 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+// The wake phrase hands off to voice input; wake-word listening is paused
+// while the handoff fallback is armed.
+assert.equal(controller.isHandoffWaiting(), true);
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Voice input never starts, so the fallback returns to wake-word listening
+// instead of leaving the session stuck.
+timers.pop()();
+assert.equal(controller.isHandoffWaiting(), false);
+assert.equal(controller.isEnabled(), true);
+timers.pop()();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +102,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
