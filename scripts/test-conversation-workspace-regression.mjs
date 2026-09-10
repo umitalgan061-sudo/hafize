@@ -10,6 +10,8 @@ const drafts = fs.readFileSync(path.join(root, 'public', 'chat-drafts.js'), 'utf
 const historyManagement = fs.readFileSync(path.join(root, 'public', 'chat-history-management.js'), 'utf8');
 const historySearch = fs.readFileSync(path.join(root, 'public', 'chat-history-search.js'), 'utf8');
 const historyExport = fs.readFileSync(path.join(root, 'public', 'chat-history-export.js'), 'utf8');
+const settingsWorkspace = fs.readFileSync(path.join(root, 'public', 'settings-workspace.js'), 'utf8');
+const uiShell = fs.readFileSync(path.join(root, 'public', 'ui-shell.js'), 'utf8');
 
 function has(text, fragment, label = fragment) {
   assert.ok(text.includes(fragment), label);
@@ -91,7 +93,10 @@ for (const selector of coexistenceSelectors) {
   if (selector.startsWith('.conversation-workspace') || selector === '.workspace-row-check') {
     has(workspace, selector, `workspace owns ${selector}`);
   } else {
-    has(historyManagement + historySearch + historyExport, selector, `existing module still mentions ${selector}`);
+    // Mevcut modüller sınıfları sabit olarak tutar ('history-manage'), her
+    // kullanımda seçici biçiminde yazmaz; sahiplik sınıf adıyla doğrulanır.
+    const className = selector.slice(1);
+    has(historyManagement + historySearch + historyExport, className, `existing module still owns ${className}`);
   }
 }
 
@@ -103,7 +108,10 @@ const storageKeys = [
   'hafize.reduced-motion.v1'
 ];
 for (const key of storageKeys) {
-  const consumers = [workspace, drafts, historyManagement, historySearch, historyExport].filter((text) => text.includes(key));
+  // Tema ve hareket tercihleri ayarlar/kabuk katmanına aittir; anahtarın en az
+  // bir sahibi olmalı ama sahibi bu dosyalardan biri olmak zorunda değil.
+  const consumers = [workspace, drafts, historyManagement, historySearch, historyExport, settingsWorkspace, uiShell]
+    .filter((text) => text.includes(key));
   assert.ok(consumers.length >= 1, `storage key is referenced somewhere: ${key}`);
 }
 
@@ -149,13 +157,14 @@ const actionFragments = [
 for (const fragment of actionFragments) has(workspace, fragment, `workspace action exists: ${fragment}`);
 
 const accessibilityFragments = [
-  'aria-label="Sohbet çalışma alanı yönetimi"',
-  'aria-live="polite"',
-  'aria-label="Sohbet çalışma alanında ara"',
-  'aria-label="Sohbet filtresi"',
-  'aria-label="Sohbet sıralaması"',
-  'aria-label="Etikete göre filtrele"',
-  'aria-label="Sohbeti yönetim seçimine ekle"'
+  // Panel DOM API ile kurulur; erişilebilirlik sözleşmesi setAttribute ile yazılır.
+  "setAttribute('aria-label', 'Sohbet çalışma alanı yönetimi')",
+  "setAttribute('aria-live', 'polite')",
+  "setAttribute('aria-label', 'Sohbet çalışma alanında ara')",
+  "setAttribute('aria-label', 'Sohbet filtresi')",
+  "setAttribute('aria-label', 'Sohbet sıralaması')",
+  "setAttribute('aria-label', 'Etikete göre filtrele')",
+  "setAttribute('aria-label', 'Sohbeti yönetim seçimine ekle')"
 ];
 for (const fragment of accessibilityFragments) has(workspace, fragment, `accessibility retained: ${fragment}`);
 
@@ -182,7 +191,8 @@ const existingBehaviorFragments = [
   [drafts, 'visibilitychange', 'draft visibility lifecycle retained'],
   [historyManagement, 'bindDeleteGuard', 'history deletion confirmation retained'],
   [historyManagement, 'openRename', 'history rename retained'],
-  [historySearch, 'focusConversationSearch', 'history search shortcut boundary retained'],
+  [historySearch, "event.key.toLocaleLowerCase() !== SHORTCUT.key", 'history search shortcut boundary retained'],
+  [historySearch, 'searchUi.input.select()', 'history search focuses and selects its own input'],
   [historyExport, 'buildMarkdown', 'history markdown export retained'],
   [historyExport, 'buildJson', 'history JSON export retained']
 ];

@@ -21,10 +21,10 @@
   }
 
   function tag(value) {
-    // Yalnız metin etiket olabilir: nesne/dizi girdileri "[object Object]"
+    // Yalnız metin etiket olabilir: sayı/nesne/dizi girdileri "[object Object]"
     // gibi anlamsız etiketlere dönüşmemeli. Etiket işaretinden sonra kalan
     // boşluk da temizlenir: "### proje" -> "proje".
-    if (typeof value !== 'string' && typeof value !== 'number') return '';
+    if (typeof value !== 'string') return '';
     return text(text(value).replace(/^#+/, '')).slice(0, MAX_TAG);
   }
 
@@ -41,24 +41,34 @@
     return Number.isFinite(date.getTime()) ? date.toISOString() : fallback;
   }
 
+  // Prototype zincirinden gelen alanlar veri sayılmaz: kötü biçimli bir JSON
+  // yedeği `__proto__` üzerinden saved/feedback enjekte edemez.
+  function own(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+  }
+
   function normalizeRecord(value) {
     if (!value || typeof value !== 'object') return null;
-    const conversationId = typeof value.conversationId === 'string' ? value.conversationId.trim().slice(0, 120) : '';
-    const messageId = typeof value.messageId === 'string' ? value.messageId.trim().slice(0, 120) : '';
+    const rawConversationId = own(value, 'conversationId');
+    const rawMessageId = own(value, 'messageId');
+    const conversationId = typeof rawConversationId === 'string' ? rawConversationId.trim().slice(0, 120) : '';
+    const messageId = typeof rawMessageId === 'string' ? rawMessageId.trim().slice(0, 120) : '';
     if (!conversationId || !messageId) return null;
-    const tags = Array.isArray(value.tags)
-      ? [...new Set(value.tags.map(tag).filter(Boolean))].slice(0, MAX_TAGS)
+    const rawTags = own(value, 'tags');
+    const tags = Array.isArray(rawTags)
+      ? [...new Set(rawTags.map(tag).filter(Boolean))].slice(0, MAX_TAGS)
       : [];
+    const rawId = own(value, 'id');
     return Object.freeze({
-      id: typeof value.id === 'string' && value.id ? value.id.slice(0, 120) : `${conversationId}:${messageId}`,
+      id: typeof rawId === 'string' && rawId ? rawId.slice(0, 120) : `${conversationId}:${messageId}`,
       conversationId,
       messageId,
-      saved: value.saved === true,
-      feedback: feedback(value.feedback),
-      note: note(value.note),
+      saved: own(value, 'saved') === true,
+      feedback: feedback(own(value, 'feedback')),
+      note: note(own(value, 'note')),
       tags,
-      createdAt: iso(value.createdAt),
-      updatedAt: iso(value.updatedAt)
+      createdAt: iso(own(value, 'createdAt')),
+      updatedAt: iso(own(value, 'updatedAt'))
     });
   }
 

@@ -70,7 +70,9 @@ const ariaContracts = [
 for (const token of ariaContracts) assert.ok(source.includes(token), `missing accessibility contract: ${token}`);
 
 assert.equal((source.match(/localStorage/g) || []).length >= 4, true);
-assert.equal((source.match(/CustomEvent/g) || []).length >= 2, true);
+// Aynı sekmedeki değişiklik CustomEvent ile yayınlanır ve aynı kanaldan dinlenir.
+assert.ok(source.includes('dispatchEvent(new CustomEvent(STORAGE_EVENT'));
+assert.ok(source.includes("addEventListener(STORAGE_EVENT"));
 assert.equal((source.match(/MutationObserver/g) || []).length >= 1, true);
 assert.equal((source.match(/setTimeout/g) || []).length >= 2, true);
 assert.equal((source.match(/setInterval/g) || []).length >= 1, true);
@@ -87,7 +89,7 @@ for (const token of boundedCalls) assert.ok(source.includes(token), `missing bou
 assert.ok(source.includes('record.saved || record.feedback || record.note || record.tags.length'));
 assert.ok(source.includes('pruneEmptyRecord'));
 assert.ok(source.includes('runtime.records = runtime.records.filter'));
-assert.ok(source.includes('runtime.state.selected = runtime.state.selected.filter'));
+assert.ok(source.includes('runtime.state.selected=runtime.state.selected.filter'));
 assert.ok(source.includes('new Set(runtime.state.selected)'));
 
 assert.ok(source.includes('new Blob'));

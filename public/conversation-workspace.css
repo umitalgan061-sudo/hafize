@@ -42,6 +42,9 @@
   color: var(--muted);
   font-size: 10px;
   line-height: 1.35;
+  /* Uzun etiket veya sohbet başlığı taşan tek parça metin üretebilir;
+     dar ekranda satır sonu her yerde verilebilir. */
+  overflow-wrap: anywhere;
 }
 
 .conversation-workspace-actions,

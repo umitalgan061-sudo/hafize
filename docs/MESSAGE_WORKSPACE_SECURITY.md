@@ -68,13 +68,15 @@ Authorization başlığı yoktur.
 
 Bearer token yoktur.
 
-Cookie değeri okunmaz.
+Cookie değeri okunmaz; kaynakta `document.cookie` erişimi bulunmaz.
 
 Environment değişkeni okunmaz.
 
 Secret veya API anahtarı depolayan özel alan yoktur.
 
 ## Storage sınırı
+
+Katman yalnız tarayıcının `localStorage` API'sini kullanır. IndexedDB, `sessionStorage`, cookie, cache storage veya sunucu tarafı bir kalıcılık yüzeyi kullanılmaz; bu yüzden veriler cihazdan çıkmaz ve başka bir origin tarafından okunamaz.
 
 Tek ana storage anahtarı `hafize.message-workspace.v1`'dir.
 
