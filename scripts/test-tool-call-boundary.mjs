@@ -13,7 +13,10 @@ assert.throws(() => normalizeToolCall({ id: 'x', function: { name: 'x', argument
 assert.deepEqual(parseToolArguments('{}'), {});
 assert.deepEqual(parseToolArguments('{"a":1}'), { a: 1 });
 assert.throws(() => parseToolArguments('[]'), /INVALID_TOOL_ARGUMENTS/);
-assert.throws(() => parseToolArguments('{'), /Unexpected|JSON/);
+// Bozuk JSON parser detayını değil stabil sözleşme kodunu döndürür.
+assert.throws(() => parseToolArguments('{bozuk'), /INVALID_TOOL_ARGUMENTS/);
+assert.equal(sanitizeToolError(Object.assign(new Error('x'), { code: 'INVALID_TOOL_ARGUMENTS' })).code, 'INVALID_TOOL_ARGUMENTS');
+assert.throws(() => parseToolArguments('{'), /INVALID_TOOL_ARGUMENTS/);
 
 const sanitized = sanitizeToolError({ code: 'UPSTREAM_FAILURE', message: 'Authorization: Bearer secret-value', status: 502 });
 assert.equal(sanitized.code, 'UPSTREAM_FAILURE');

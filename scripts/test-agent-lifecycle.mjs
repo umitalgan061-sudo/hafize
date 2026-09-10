@@ -14,6 +14,8 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// execute() bir microtask sonra çalışır; start() senkron kalır.
+await Promise.resolve();
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');

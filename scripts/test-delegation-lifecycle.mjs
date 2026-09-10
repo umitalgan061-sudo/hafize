@@ -8,11 +8,16 @@ const registry = { policy: { maxDelegationDepth: 2, maxParallelAgents: 3 }, agen
 ] };
 let sequence = 0;
 const ledgerEntries = [];
-const runLedger = {
-  snapshot() { return { entries: ledgerEntries.slice() }; },
-  recordDelegationStart(agentId, { parentTaskId }) { const taskId = `delegation-${++sequence}`; ledgerEntries.push({ action: 'agent.delegate', taskId, agentId, parentTaskId }); return { taskId }; },
-  recordDelegationFinish(taskId, result) { ledgerEntries.push({ action: 'agent.delegate.finish', taskId, ...result }); }
-};
+// Fan-out bütçesi ledger başınadır (docs/NESTED_DELEGATION.md); bu yüzden her
+// senaryo kendi ledger'ını kullanır, aksi hâlde limit senaryolar arasında sızar.
+function createLedgerDouble(entries) {
+  return {
+    snapshot() { return { entries: entries.slice() }; },
+    recordDelegationStart(agentId, { parentTaskId }) { const taskId = `delegation-${++sequence}`; entries.push({ action: 'agent.delegate', taskId, agentId, parentTaskId }); return { taskId }; },
+    recordDelegationFinish(taskId, result) { entries.push({ action: 'agent.delegate.finish', taskId, ...result }); }
+  };
+}
+const runLedger = createLedgerDouble(ledgerEntries);
 const lifecycle = createAgentLifecycle({ maxConcurrent: 2 });
 const parentAbort = new AbortController();
 let release; let capturedSignal;
@@ -35,7 +40,8 @@ assert.equal(await successDelegator.delegate({ agentId: 'specialist', task: 'x' 
 assert.throws(() => successLifecycle.start({ runId: 'delegation-2', execute: async () => null }), /AGENT_RUN_ALREADY_EXISTS/);
 const limited = createAgentLifecycle({ maxConcurrent: 1 });
 let hold;
-const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
+const limitedLedger = createLedgerDouble([]);
+const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger: limitedLedger, lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
 const firstRun = limitedDelegator.delegate({ agentId: 'specialist', task: 'hold' });
 await new Promise((resolve) => setTimeout(resolve, 0));
 const rejected = await limitedDelegator.delegate({ agentId: 'specialist', task: 'reject' });
