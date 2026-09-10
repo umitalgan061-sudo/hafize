@@ -213,6 +213,7 @@
       if (!readConversations(storage).length) return announce('Silinecek yerel sohbet geçmişi yok.');
       if (!rootRef?.confirm?.('Tüm yerel sohbet geçmişi silinsin mi? Bu işlem geri alınamaz.')) return;
       try { storage?.removeItem?.(STORAGE_KEY); } catch { return announce('Yerel geçmiş silinemedi.'); }
+      if (typeof rootRef?.location?.reload === 'function') return rootRef.location.reload();
       refreshStats();
       documentRef.querySelector('#conversationList')?.replaceChildren?.();
       announce('Yerel sohbet geçmişi silindi.');
