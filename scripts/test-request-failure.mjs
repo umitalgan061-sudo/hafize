@@ -74,7 +74,9 @@ const providerError = Object.assign(new Error('NVIDIA_CHAT_ERROR'), { status: 20
 assert.equal(deliverRequestFailure(provider, providerError), 'json');
 assert.equal(provider.statusCode, 502, 'successful/invalid upstream status must not leak as an error status');
 assert.match(provider.writes[0], /NVIDIA_CHAT_ERROR/);
-assert.equal((provider.writes[0].match(/x/g) || []).length, 0, 'provider detail is intentionally omitted from public failure body');
+// docs/REQUEST_FAILURE_BOUNDARY.md: JSON yolunda provider detayı 1200 karakterle
+// sınırlı olarak taşınır; stream yolunda yalnız stabil hata kodu gönderilir.
+assert.equal((provider.writes[0].match(/x/g) || []).length, 1200, 'provider detail must stay bounded');
 
 const jsonFailure = new FakeResponse();
 assert.equal(deliverRequestFailure(jsonFailure, new Error('unexpected implementation detail')), 'json');
