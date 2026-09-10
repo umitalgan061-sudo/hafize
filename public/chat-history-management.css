@@ -1,0 +1,35 @@
+.history-manage { display:flex; align-items:center; gap:4px; margin-left:auto; }
+.history-manage-btn { border:1px solid var(--line); border-radius:7px; background:transparent; color:var(--muted); padding:3px 5px; font:inherit; font-size:11px; cursor:pointer; }
+.history-manage-btn:hover, .history-manage-btn:focus-visible { background:var(--soft); color:var(--ink); outline:2px solid currentColor; outline-offset:1px; }
+.history-manage-btn[aria-pressed="true"] { color:var(--ink); background:var(--soft); }
+.history-manage-btn.primary { border-color:var(--ink); }
+.history-manage { flex-shrink:0; }
+.conversation-row { position:relative; display:flex; align-items:center; }
+.conversation-row.pinned { order:-1; }
+.conversation-row.pinned .conversation-title::before { content:'◆ '; font-size:8px; vertical-align:1px; }
+.conversation-row.pinned .history-manage-btn[aria-pressed="true"] { font-weight:700; }
+.conversation-open { min-width:0; flex:1; }
+.conversation-title { min-width:0; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.conversation-row:focus-within { background:var(--soft); }
+.history-rename { display:grid; gap:7px; padding:7px; border-top:1px solid var(--line); flex-basis:100%; }
+.history-rename input { width:100%; min-width:0; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); padding:7px 8px; font:inherit; box-sizing:border-box; }
+.history-rename input:focus-visible { outline:2px solid currentColor; outline-offset:1px; }
+.history-rename-actions { display:flex; gap:5px; justify-content:flex-end; }
+.history-rename-actions button { border:1px solid var(--line); border-radius:7px; background:var(--card); color:var(--ink); padding:4px 7px; font:inherit; font-size:11px; cursor:pointer; }
+.history-rename-actions .primary { background:var(--ink); color:var(--card); }
+.history-rename-actions button:hover, .history-rename-actions button:focus-visible { outline:2px solid currentColor; outline-offset:1px; }
+@media (max-width:680px) {
+  .history-manage { gap:5px; }
+  .history-manage-btn { min-width:30px; min-height:30px; }
+  .conversation-row { flex-wrap:wrap; align-items:center; }
+  .conversation-open { min-width:0; }
+  .conversation-delete { min-width:30px; min-height:30px; }
+  .history-rename { margin-top:2px; }
+  .history-rename-actions button { min-height:32px; }
+}
+@media (min-width:681px) {
+  .conversation-row:hover .history-manage-btn { color:var(--ink); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .history-manage-btn, .conversation-open { scroll-behavior:auto; }
+}
