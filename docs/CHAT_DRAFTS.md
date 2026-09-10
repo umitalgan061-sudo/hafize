@@ -44,8 +44,32 @@ Taslaklar sadece yerel depolamada tutulur. Yeni network yüzeyi, OAuth scope, se
 
 `chat-drafts.js` ve `chat-drafts.css` service worker shell listesine eklenir. Cache sürümü `v21` yapılır; böylece yeni varlıklar önceki shell cache'inde unutulmaz.
 
+## Yaşam döngüsü ve kenar durumları
+
+| Durum | Beklenen davranış |
+|---|---|
+| Kullanıcı yazıyor | 250 ms debounce sonrasında aktif konuşma için taslak yazılır. |
+| Kullanıcı başka sohbete geçiyor | Eski konuşmanın bekleyen kaydı flush edilir; yeni konuşmanın taslağı okunur. |
+| Kullanıcı gönderiyor | Gönderim olayında taslak temizlenir; normal mesaj geçmişi ayrı akışta saklanır. |
+| Kullanıcı sohbeti siliyor | `hafize.conversations.v1` değişikliği gözlemlenir; taslak sonraki cleanup'ta kaldırılır. |
+| Sekme arka plana gidiyor | Bekleyen debounce doğrudan flush edilir. |
+| Storage quota / private mode reddi | Taslak özelliği uygulamanın ana sohbet akışını durdurmaz; status alanı hatayı bildirir. |
+| Bozuk depolama JSON'u | Store boş nesne kabul edilir; modül exception fırlatmadan çalışmaya devam eder. |
+| 12.000 karakter üstü değer | Composer ve draft katmanı aynı 12.000 karakter sınırında keser. |
+| 30'dan fazla kayıt | En fazla son 30 geçerli draft korunur. |
+
 ## Bakım notları
 
 Modül bilinçli olarak `app.js`'in conversation state'ine yeni bir kopya oluşturmaz. Aktif konuşmayı DOM'daki mevcut kimlik üzerinden gözlemler ve yerel draft store'u bağımsız tutar. `MutationObserver` yalnız geçmiş listesi yeniden çizildiğinde restore/cleanup akışını tetikler.
 
 Bu yaklaşım mevcut sohbet render, agent seçimi, tool mode ve streaming koduna müdahaleyi azaltır. Taslak özelliği geri alınırsa `chat-drafts.js`, `chat-drafts.css`, index.html'deki iki referans, service-worker shell kayıtları ve test/doküman dosyası kaldırılabilir; mevcut conversation verisi değişmeden kalır.
+
+## Test yaklaşımı
+
+`script/test-chat-drafts.mjs` kaynak-sözleşme kontrolleri yapar. Kontroller; yerel depolama anahtarı, boyut sınırı, debounce, aktif konuşma tespiti, gönderim temizliği, lifecycle flush noktaları, stale cleanup, responsive status UI ve PWA shell kaydını doğrular.
+
+Node/npm runtime'ı olmayan çalışma ortamlarında test dosyası yine de gözden geçirilebilir; çalıştırılamayan komut sonucu PR açıklamasında açıkça belirtilmelidir.
+
+## Geri alma
+
+Değişiklik tek özellik alanında tutulduğu için squash-revert ile geri alınabilir. Kullanıcının `hafize.conversations.v1` geçmişi ve mevcut sohbet davranışı bu özelliğin geri alınmasından sonra çalışmaya devam eder; yalnız `hafize.chat-drafts.v1` verisi etkisiz kalır.
