@@ -9,3 +9,14 @@ Her child-process stdout/stderr akışı en fazla 64 KiB tutulur. Daha büyük �
 Yeni bir doğrulama veya test dosyası eklendiğinde `package.json` içine ayrıca yol eklemek gerekmez. `--list` keşfedilen paketleri, `--filter=a,b` ise eşleşen odak paketleri listeler/çalıştırır. Filtre geliştirici döngüsü içindir; PR öncesi filtresiz tam kapı kullanılır.
 
 Runner hata çıktısını bounded biçimde raporlar ve keşif/çalıştırma hatasında fail-closed şekilde sıfır olmayan çıkış kodu verir. Secret veya credential değeri kendi çıktısına ekleyen testler repo sözleşmesine aykırıdır.
+
+## Kırılgan iddia yasağı
+
+Kapı sinyalinin değerini koruyan iki kural:
+
+- Bir testte sürüm numarası, asset listesi veya kaynak kodu metni sabit olarak yazılmaz. PWA shell cache sürümü her yeni özellikte artar; testler sürümü `CACHE_PREFIX` ile birlikte biçim olarak doğrular, `SHELL_ASSETS` için ise değişmez kuralları (tekil same-origin yol, `public/` içinde gerçekten var olma, çekirdek shell'in bulunması) kontrol eder.
+- Bir güvenlik veya onay sınırı ile test beklentisi çeliştiğinde sıkı olan taraf korunur; test fixture'ı güncellenir, sınır gevşetilmez.
+
+## Kapı durumu
+
+Kapı yeşil tutulur. Kırmızı bir kapı ile yeni özellik turu açılmaz; önce başarısız paketler giderilir.
