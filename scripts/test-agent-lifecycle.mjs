@@ -22,6 +22,9 @@ assert.throws(() => lifecycle.sendMessage('child-1', 'overflow'), /AGENT_INBOX_F
 const second = lifecycle.start({ runId: 'child-2', execute: async () => 'second' });
 assert.equal(lifecycle.liveCount(), 2);
 assert.throws(() => lifecycle.start({ runId: 'child-3', execute: async () => 'nope' }), /AGENT_CONCURRENCY_EXCEEDED/);
+// start() çalıştırmayı bir sonraki tick'e alır; `resolveFirst` ancak execute
+// gövdesi girdikten sonra atanır, bu yüzden iptalden önce bir tur beklenir.
+await new Promise((resolve) => setTimeout(resolve, 0));
 parent.abort();
 assert.equal(lifecycle.get('child-1').state, 'cancelled');
 assert.equal(lifecycle.get('child-1').error, 'PARENT_ABORTED');

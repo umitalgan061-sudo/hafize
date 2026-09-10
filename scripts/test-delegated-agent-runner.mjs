@@ -25,13 +25,13 @@ const primary = {
 };
 const registry = { agents: [primary, reviewer] };
 
-const ledger = createAgentRunLedger({ traceId: 'trace-1', agentId: primary.id });
+const ledger = createAgentRunLedger({ traceId: 'trace-run-1', agentId: primary.id });
 const delegation = ledger.recordDelegationStart(reviewer.id);
 const payloads = [];
 const result = await runDelegatedAgent({
   agent: reviewer,
   task: 'README dosyasını incele.',
-  traceId: 'trace-1',
+  traceId: 'trace-run-1',
   parentTaskId: delegation.taskId,
   registry,
   runLedger: ledger,
@@ -89,10 +89,10 @@ assert.equal(toolEntry.status, 'completed');
 const invalidFirst = await runDelegatedAgent({
   agent: reviewer,
   task: 'Hatalı model cevabını doğrula.',
-  traceId: 'trace-3',
+  traceId: 'trace-run-3',
   parentTaskId: 'task_parent',
   registry,
-  runLedger: createAgentRunLedger({ traceId: 'trace-3', agentId: primary.id }),
+  runLedger: createAgentRunLedger({ traceId: 'trace-run-3', agentId: primary.id }),
   model: 'mock-model',
   complete: async () => ({
     choices: [{
@@ -113,10 +113,10 @@ const noToolsPayloads = [];
 const noTools = await runDelegatedAgent({
   agent: reviewer,
   task: 'Kısa incele.',
-  traceId: 'trace-2',
+  traceId: 'trace-run-2',
   parentTaskId: 'task_parent',
   registry,
-  runLedger: createAgentRunLedger({ traceId: 'trace-2', agentId: primary.id }),
+  runLedger: createAgentRunLedger({ traceId: 'trace-run-2', agentId: primary.id }),
   model: 'mock-model',
   githubReadConfigured: false,
   complete: async (payload) => {

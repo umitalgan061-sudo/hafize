@@ -15,6 +15,7 @@
   'use strict';
 
   const DEFAULT_WAKE_PHRASE = 'hafize';
+  const STORAGE_KEY = 'hafize.handsFree.v1';
   const RESTART_DELAY_MS = 350;
   const HANDOFF_TIMEOUT_MS = 1500;
   const POST_OUTPUT_COOLDOWN_MS = 1800;
@@ -175,6 +176,21 @@
 
     const Recognition = getRecognitionConstructor(root);
     let enabled = false;
+
+    // Bu anahtar bir tercih değil, canlı dinleme işaretidir: mikrofon yalnız
+    // açık kullanıcı hareketiyle başlar, hiçbir zaman kayıttan geri açılmaz.
+    // Dinleme kapandığında ve kurulum sırasında işaret silinir; böylece diğer
+    // yüzeyler mikrofonun açık kaldığını yanlış okuyamaz.
+    function markEnabled(next) {
+      enabled = next;
+      try {
+        const storage = root?.localStorage;
+        if (!storage) return;
+        if (next) storage.setItem(STORAGE_KEY, 'on');
+        else storage.removeItem(STORAGE_KEY);
+      } catch { /* storage kotası veya erişim reddi dinlemeyi etkilemez */ }
+    }
+    markEnabled(false);
     let listening = false;
     let recognition = null;
     let restartTimer = null;
@@ -289,7 +305,7 @@
     }
 
     function disableForRecognitionError(code) {
-      enabled = false;
+      markEnabled(false);
       clearSessionTimer();
       clearHandoff();
       clearCooldown();
@@ -324,7 +340,7 @@
     function expireSession() {
       sessionTimer = null;
       if (destroyed || !enabled) return;
-      enabled = false;
+      markEnabled(false);
       clearHandoff();
       clearCooldown();
       stopRecognition({ abort: true });
@@ -451,7 +467,7 @@
       if (destroyed) return;
       const requested = Boolean(next) && Boolean(Recognition);
       if (enabled === requested) return;
-      enabled = requested;
+      markEnabled(requested);
       clearHandoff();
       clearCooldown();
       clearSessionTimer();
@@ -593,7 +609,7 @@
       destroy() {
         if (destroyed) return;
         destroyed = true;
-        enabled = false;
+        markEnabled(false);
         voiceInputListening = false;
         voiceOutputSpeaking = false;
         resetRecognitionRecovery();
@@ -617,6 +633,7 @@
 
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
+    STORAGE_KEY,
     HANDOFF_TIMEOUT_MS,
     HANDS_FREE_REVOKE_EVENT,
     NETWORK_RETRY_DELAYS_MS,

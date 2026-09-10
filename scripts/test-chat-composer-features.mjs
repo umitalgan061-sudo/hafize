@@ -38,7 +38,9 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+// Sürüm numarası tek yerde (scripts/test-pwa-cache-policy.mjs) doğrulanır;
+// burada yalnız bu özelliğin varlıklarının shell cache'inde olması aranır.
+assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 
