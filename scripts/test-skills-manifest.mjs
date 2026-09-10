@@ -23,6 +23,13 @@ assert.deepEqual(manifest.arguments.map((item) => item.required), [true, false])
 assert.equal(Object.isFrozen(manifest), true);
 assert.throws(() => { manifest.allowedTools.push('secret.read'); });
 
+// `model` isteğe bağlıdır: boş dize ve boşluk, alan hiç verilmemiş gibi ele alınır.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '   ' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: null }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: 'nvidia/llama-3.1-8b' }).model, 'nvidia/llama-3.1-8b');
+assert.throws(() => normalizeSkillManifest({ ...base, model: 42 }), /INVALID_SKILL_MODEL/);
+
 // Strict manifest: unknown fields, malformed values and credential material are rejected.
 for (const [patch, pattern] of [
   [{ source: 'builtin' }, /INVALID_SKILL_FIELD/],
