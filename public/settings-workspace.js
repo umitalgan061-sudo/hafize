@@ -219,8 +219,10 @@
     }
 
     function onInstall() {
-      documentRef.querySelector('#installBtn')?.click?.();
-      if (documentRef.querySelector('#installBtn')?.hidden !== false) announce('Kurulum bu tarayıcıda şu anda kullanılamıyor.');
+      const installControl = documentRef.querySelector('#installBtn');
+      const available = installControl?.hidden === false;
+      installControl?.click?.();
+      if (!available) announce('Kurulum bu tarayıcıda şu anda kullanılamıyor.');
     }
 
     themeSelect.addEventListener('change', onThemeChange);
