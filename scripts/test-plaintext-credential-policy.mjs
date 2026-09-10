@@ -17,6 +17,21 @@ for (const value of [
   'notya29.A0ARrdaM_exampleGoogleOauthToken123456789'
 ]) assert.equal(containsPlaintextCredential(value), false);
 
+// Env-var biçimli atamalar da yakalanmalı; ancak sözcüğün içine gömülü
+// benzer kelimeler yanlış pozitif üretmemeli.
+for (const value of [
+  'NVIDIA_API_KEY=should-not-enter-the-model',
+  'HAFIZE_AUTH_TOKEN=abcdefghijkl',
+  'MY_CLIENT_SECRET=abcdefghij',
+  'export GOOGLE_ACCESS_TOKEN=abcdefghij'
+]) assert.equal(containsPlaintextCredential(value), true, value);
+for (const value of [
+  'monkey=bananas',
+  'discretion=important',
+  'secretariat=1',
+  'Toplantı saatini 14:00 olarak ayarla'
+]) assert.equal(containsPlaintextCredential(value), false, value);
+
 for (const [name, value, expected] of [
   ['api_key', 'abcdef123456', true],
   ['accessToken', 'token-value', true],
