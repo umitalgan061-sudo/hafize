@@ -228,7 +228,6 @@
     refreshBtn.addEventListener('click', refreshStats);
     clearBtn.addEventListener('click', onClear);
     installBtn.addEventListener('click', onInstall);
-    section._settingsCleanup = () => {};
     refreshStats();
     documentRef.documentElement.dataset.reducedMotion = String(readReducedMotion(storage));
     return section;
@@ -241,27 +240,56 @@
     ensureStyle(documentRef);
     const rail = documentRef.querySelector('.utility-rail');
     const primary = documentRef.querySelector('.primary-column');
-    if (!rail || !primary) return null;
+    const main = documentRef.querySelector('.main');
+    if (!rail || !primary || !main) return null;
     const storage = rootRef?.localStorage;
     const view = createView(documentRef, storage, rootRef);
     rail.prepend(view);
-    const settingsButton = Array.from(documentRef.querySelectorAll('.nav-item'))[3];
+    const navButtons = Array.from(documentRef.querySelectorAll('.nav-item'));
+    const settingsButton = navButtons[3];
     settingsButton?.removeAttribute?.('disabled');
 
-    function onWorkspace(event) {
-      const workspace = event?.detail?.workspace;
-      const active = workspace === 'settings';
-      view.hidden = !active;
-      if (active) view.focus();
+    function setSettingsNavigation(active) {
+      navButtons.forEach((button, index) => {
+        const isActive = active ? index === 3 : button.classList.contains('active');
+        button.classList.toggle('active', isActive);
+        if (isActive) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      });
     }
 
-    rootRef?.addEventListener?.(WORKSPACE_EVENT, onWorkspace);
-    const originalDispatch = rootRef?.dispatchEvent?.bind(rootRef);
-    if (originalDispatch) {
-      rootRef.addEventListener?.('hafize:workspace-settings-request', () => onWorkspace({ detail: { workspace: 'settings' } }));
+    function showSettings() {
+      view.hidden = false;
+      primary.hidden = true;
+      main.setAttribute('data-workspace', 'settings');
+      const intro = documentRef.querySelector('#workspaceNavigationIntro');
+      if (intro) intro.hidden = true;
+      for (const node of Array.from(rail.children || [])) {
+        if (node !== view && node !== intro) node.hidden = true;
+      }
+      rail.setAttribute('aria-label', 'Hafize ayarlar çalışma alanı');
+      setSettingsNavigation(true);
+      view.focus();
     }
+
+    function restoreNavigation(event) {
+      if (event?.detail?.workspace === 'settings') showSettings();
+      else view.hidden = true;
+      if (event?.detail?.workspace !== 'settings') setSettingsNavigation(false);
+    }
+
+    const onSettingsClick = (event) => {
+      event.preventDefault();
+      showSettings();
+      const sidebar = documentRef.querySelector('#sidebar');
+      const toggle = documentRef.querySelector('#sidebarToggle');
+      if (sidebar?.classList?.contains('open') && typeof toggle?.click === 'function') toggle.click();
+    };
+
+    settingsButton?.addEventListener('click', onSettingsClick);
+    rootRef?.addEventListener?.(WORKSPACE_EVENT, restoreNavigation);
     view.hidden = true;
-    return Object.freeze({ view, refresh: () => view.querySelector('.settings-stat') && view.querySelector('button')?.click?.() });
+    return Object.freeze({ view, showSettings, refresh: () => formatCount(storage) });
   }
 
   return Object.freeze({ THEME_KEY, REDUCED_MOTION_KEY, STORAGE_KEY, readTheme, readReducedMotion, readConversations, formatCount, mount });
