@@ -2,6 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'hafize.chat-drafts.v1';
+  const CONVERSATION_KEY = 'hafize.conversations.v1';
   const CONVERSATION_LIST = '#conversationList';
   const COMPOSER = '#composer';
   const INPUT = '#messageInput';
@@ -17,6 +18,7 @@
 
   let saveTimer = 0;
   let lastConversationId = '';
+  let lastPersistedDraft = '';
 
   function readStore() {
     try {
@@ -27,16 +29,40 @@
     }
   }
 
+  function readConversationIds() {
+    try {
+      const value = JSON.parse(localStorage.getItem(CONVERSATION_KEY) || '[]');
+      return Array.isArray(value)
+        ? new Set(value.map((item) => typeof item?.id === 'string' ? item.id : '').filter(Boolean))
+        : new Set();
+    } catch {
+      return new Set();
+    }
+  }
+
+  function sanitizeStore(value) {
+    const ids = readConversationIds();
+    const entries = Object.entries(value)
+      .filter(([id, draft]) => ids.has(id) && typeof draft === 'string' && draft.length > 0)
+      .map(([id, draft]) => [id, draft.slice(0, MAX_DRAFT_LENGTH)])
+      .slice(-MAX_DRAFTS);
+    return Object.fromEntries(entries);
+  }
+
   function writeStore(value) {
     try {
-      const entries = Object.entries(value)
-        .filter(([, draft]) => typeof draft === 'string' && draft.length > 0)
-        .slice(-MAX_DRAFTS);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitizeStore(value)));
       return true;
     } catch {
       return false;
     }
+  }
+
+  function cleanupStaleDrafts() {
+    const store = readStore();
+    const clean = sanitizeStore(store);
+    if (JSON.stringify(store) === JSON.stringify(clean)) return false;
+    return writeStore(clean);
   }
 
   function activeConversationId() {
@@ -62,6 +88,13 @@
     node.hidden = !text;
   }
 
+  function flushPending() {
+    if (!saveTimer) return false;
+    window.clearTimeout(saveTimer);
+    saveTimer = 0;
+    return saveDraft({ silent: true });
+  }
+
   function saveDraft({ silent = false } = {}) {
     const id = activeConversationId();
     if (!id) return false;
@@ -70,6 +103,7 @@
     if (text.trim()) store[id] = text;
     else delete store[id];
     const ok = writeStore(store);
+    if (ok) lastPersistedDraft = text;
     if (!silent && ok) announce(text.trim() ? 'Taslak kaydedildi' : 'Taslak temizlendi');
     if (!ok && !silent) announce('Taslak bu cihazda kaydedilemedi');
     lastConversationId = id;
@@ -82,17 +116,19 @@
     if (!Object.prototype.hasOwnProperty.call(store, id)) return true;
     delete store[id];
     const ok = writeStore(store);
-    if (ok) announce('Taslak gönderim için temizlendi');
+    if (ok) lastPersistedDraft = '';
     return ok;
   }
 
   function restoreDraft() {
     const id = activeConversationId();
     if (!id || id === lastConversationId) return;
+    flushPending();
     const draft = readStore()[id];
     if (typeof draft !== 'string') {
-      if (!input.value) input.value = '';
+      input.value = '';
       announce('');
+      lastPersistedDraft = '';
       lastConversationId = id;
       return;
     }
@@ -101,12 +137,16 @@
       input.dispatchEvent(new Event('input', { bubbles: true }));
       announce('Taslak geri yüklendi');
     }
+    lastPersistedDraft = draft;
     lastConversationId = id;
   }
 
   function scheduleSave() {
     window.clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => saveDraft(), SAVE_DELAY);
+    saveTimer = window.setTimeout(() => {
+      saveTimer = 0;
+      saveDraft();
+    }, SAVE_DELAY);
   }
 
   function onInput() {
@@ -115,16 +155,13 @@
   }
 
   function onSubmit() {
-    window.clearTimeout(saveTimer);
-    const id = activeConversationId();
-    if (!id) return;
-    const store = readStore();
-    delete store[id];
-    writeStore(store);
+    flushPending();
+    clearDraft();
     announce('');
   }
 
   function sync() {
+    cleanupStaleDrafts();
     restoreDraft();
   }
 
@@ -132,8 +169,16 @@
   composer.addEventListener('submit', onSubmit, true);
   new MutationObserver(sync).observe(list, { childList: true, subtree: true });
   window.addEventListener('storage', (event) => {
-    if (event.key === STORAGE_KEY || event.key === 'hafize.conversations.v1') sync();
+    if (event.key === STORAGE_KEY || event.key === CONVERSATION_KEY) sync();
+  });
+  window.addEventListener('pagehide', flushPending, { capture: true });
+  window.addEventListener('beforeunload', flushPending, { capture: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPending();
   });
 
+  cleanupStaleDrafts();
   sync();
+
+  Object.freeze({ saveDraft, clearDraft, restoreDraft, cleanupStaleDrafts, getLastPersistedDraft: () => lastPersistedDraft });
 })();
