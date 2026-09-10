@@ -63,7 +63,8 @@ assert.equal(third.ok, true);
 
 const aliceAnkara = store.read({ ownerId: 'user-alice', query: 'ANKARA', limit: 10 });
 assert.equal(aliceAnkara.ok, true);
-assert.deepEqual(aliceAnkara.records.map((record) => record.memoryId), [first.record.memoryId]);
+// read() owner kapsamı içinde sıralar, filtrelemez; ilgili kayıt başa gelir.
+assert.equal(aliceAnkara.records[0].memoryId, first.record.memoryId);
 assert.equal(aliceAnkara.records.some((record) => record.ownerId === 'user-bob'), false);
 
 const aliceTennis = store.read({
@@ -80,7 +81,8 @@ assert.deepEqual(
 
 const context = store.readForContext({ ownerId: 'user-alice', query: 'tenis', limit: 20 });
 assert.equal(context.ok, true);
-assert.equal(context.records.length, 1);
+// Owner'ın iki kaydı da bağlama girer; ilgili olan başa sıralanır.
+assert.equal(context.records.length, 2);
 assert.equal(context.records[0].memoryId, second.record.memoryId);
 assert.equal(context.records[0].sourceType, 'user_note');
 assert.equal(context.records[0].sourceRef, 'note-7');
@@ -94,7 +96,7 @@ const foreignDelete = store.remove({
   exactMatch: true
 });
 assert.deepEqual(foreignDelete, { ok: false, error: 'MEMORY_NOT_FOUND' });
-assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 1);
+assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 2, 'alice kayıtları başka owner silmesinden etkilenmez');
 
 assert.deepEqual(
   store.remove({ ownerId: 'user-alice', memoryId: first.record.memoryId, exactMatch: false }),
@@ -104,7 +106,9 @@ assert.deepEqual(
   store.remove({ ownerId: 'user-alice', memoryId: first.record.memoryId, exactMatch: true }),
   { ok: true, memoryId: first.record.memoryId }
 );
-assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 0);
+// Silinen kayıt gider; alice'in kalan tek kaydı sıralamada kalır.
+assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 1);
+assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records[0].memoryId, second.record.memoryId);
 
 const snapshot = store.snapshot();
 assert.equal(snapshot.schemaVersion, PERSONAL_MEMORY_STORE_SCHEMA_VERSION);

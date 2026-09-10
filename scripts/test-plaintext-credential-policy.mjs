@@ -8,7 +8,9 @@ for (const value of [
   'nvapi-1234567890abcdefghijklmnopqrstuv',
   'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
   'token=ya29.A0ARrdaM_exampleGoogleOauthToken123456789~',
-  '-----BEGIN PRIVATE KEY-----'
+  '-----BEGIN PRIVATE KEY-----',
+  'NVIDIA_API_KEY=should-never-leak',
+  'GITHUB_ACCESS_TOKEN: abcdef123456'
 ]) assert.equal(containsPlaintextCredential(value), true);
 
 for (const value of [
@@ -22,7 +24,9 @@ for (const [name, value, expected] of [
   ['accessToken', 'token-value', true],
   ['secret', 'x', true],
   ['token_count', '42', false],
-  ['name', 'password', false]
+  ['name', 'password', false],
+  ['nvidiaApiKey', 'x', true],
+  ['github_client_secret', 'x', true]
 ]) assert.equal(isPlaintextCredentialField(name, value), expected);
 
 console.log('plaintext credential policy tests passed');
