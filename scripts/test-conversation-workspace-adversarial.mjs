@@ -14,7 +14,9 @@ function mustNot(fragment, label = `forbidden ${fragment}`) {
 }
 
 const securityAssertions = [
-  ['localStorage.getItem(STORAGE_KEY)', 'history read uses local storage'],
+  // Reads go through the injected storage handle, which defaults to localStorage.
+  ['storage.getItem(STORAGE_KEY)', 'history read uses local storage'],
+  ['storage = localStorage', 'the default storage handle is localStorage'],
   ['localStorage.setItem(STORAGE_KEY', 'history write uses local storage'],
   ['localStorage.setItem(WORKSPACE_KEY', 'workspace state stays local'],
   ['JSON.parse(text)', 'import parses JSON explicitly'],
@@ -37,7 +39,7 @@ const securityAssertions = [
   ['new MutationObserver', 'sidebar mutations are observed'],
   ['String(value ?? \'\')', 'tag/title conversion is explicit'],
   ["replace(/\\s+/g, ' ').trim()", 'whitespace is normalized'],
-  ['replace(/^#+/', '')', 'tag marker input is normalized'],
+  ["replace(/^#+/, '')", 'tag marker input is normalized'],
   ['slice(0, MAX_TAG)', 'tag length is bounded'],
   ['slice(0, MAX_TITLE)', 'title length is bounded'],
   ['slice(0, MAX_IMPORTED_MESSAGE_LENGTH)', 'message length is bounded'],
@@ -53,7 +55,9 @@ const securityAssertions = [
   ['JSON.parse(JSON.stringify(value))', 'clone fallback is bounded to serializable data'],
   ['Object.freeze({', 'exported workspace API is immutable'],
   ['Object.freeze({\n        STORAGE_KEY', 'constant view is immutable'],
-  ['MAX_CONVERSATIONS: 30', 'public constants report conversation cap']
+  // The cap is declared once and exposed by reference, not restated inline.
+  ['const MAX_CONVERSATIONS = 30;', 'conversation cap is declared'],
+  ['        MAX_CONVERSATIONS,', 'public constants report conversation cap']
 ];
 
 for (const [fragment, label] of securityAssertions) must(fragment, label);
