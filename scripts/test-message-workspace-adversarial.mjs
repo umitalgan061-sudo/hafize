@@ -104,7 +104,9 @@ assert.ok(source.includes('textContent'));
 assert.ok(source.includes('createElement'));
 assert.ok(source.includes('setAttribute'));
 assert.ok(source.includes('localStorage.setItem'));
-assert.ok(source.includes('localStorage.getItem'));
+// Okuma yolu enjekte edilebilir bir `storage` parametresi kullanır; varsayılanı localStorage'dır.
+assert.ok(source.includes('storage.getItem'));
+assert.ok(source.includes('storage = localStorage'));
 assert.ok(source.includes('window.addEventListener'));
 assert.ok(source.includes('storage'));
 assert.ok(source.includes('CustomEvent'));

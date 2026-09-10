@@ -70,7 +70,8 @@
   }
 
   function cleanTag(value) {
-    return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+/, '').slice(0, MAX_TAG);
+    // `#` işaretleri sıyrıldıktan sonra kalan boşluk da temizlenir; aksi hâlde '# proje' -> ' proje' olur.
+    return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+/, '').trim().slice(0, MAX_TAG);
   }
 
   function readConversations(storage = localStorage) {

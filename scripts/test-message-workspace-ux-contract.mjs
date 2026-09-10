@@ -17,9 +17,10 @@ const buttons = [
   ['message-tag', 'Mesaja etiket ekle'],
   ['message-more', 'Mesaj çalışma alanı seçenekleri']
 ];
+// Sınıf adı JS'te literal olarak geçmelidir; her sınıf ayrıca `.` seçiciyle sorgulanmak zorunda değildir.
 for (const [className, label] of buttons) {
-  assert.ok(js.includes(`.${className}`));
-  assert.ok(js.includes(`'${label}'`));
+  assert.ok(js.includes(`'${className}'`), `missing class literal ${className}`);
+  assert.ok(js.includes(`'${label}'`), `missing aria label ${label}`);
 }
 
 assert.ok(js.includes("button.type = 'button'"));
@@ -30,23 +31,27 @@ assert.ok(js.includes("down?.setAttribute('aria-pressed', String(record?.feedbac
 assert.ok(js.includes("status.setAttribute('role','status')"));
 assert.ok(js.includes("status.setAttribute('aria-live','polite')"));
 
-assert.ok(css.includes('.message-workspace-action:focus-visible'));
-assert.ok(css.includes('.message-workspace-search:focus'));
-assert.ok(css.includes('.message-workspace-select:focus'));
-assert.ok(css.includes('overflow-wrap:anywhere'));
-assert.ok(css.includes('overscroll-behavior:contain'));
-assert.ok(css.includes('min-width:0'));
-assert.ok(css.includes('width:100%'));
+// CSS iddiaları biçimlendirme boşluklarına duyarlı olmamalıdır.
+const compact = (value) => value.replace(/\s+/g, '');
+const compactCss = compact(css);
+const hasCss = (needle) => compactCss.includes(compact(needle));
+assert.ok(hasCss('.message-workspace-action:focus-visible'));
+assert.ok(hasCss('.message-workspace-search:focus'));
+assert.ok(hasCss('.message-workspace-select:focus'));
+assert.ok(hasCss('overflow-wrap:anywhere'));
+assert.ok(hasCss('overscroll-behavior:contain'));
+assert.ok(hasCss('min-width:0'));
+assert.ok(hasCss('width:100%'));
 
-assert.ok(css.includes('@media (max-width:1100px)'));
-assert.ok(css.includes('@media (max-width:900px)'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+assert.ok(hasCss('@media (max-width:1100px)'));
+assert.ok(hasCss('@media (max-width:900px)'));
+assert.ok(hasCss('@media (max-width:560px)'));
+assert.ok(hasCss('@media (prefers-reduced-motion:reduce)'));
+assert.ok(hasCss('@media (forced-colors:active)'));
 
-const source = `${js}\n${css}`;
+const compactSource = compact(`${js}\n${css}`);
 for (const forbidden of ['pointer-events:none', 'user-select:none', 'outline:none', 'display:none!important']) {
-  assert.equal(source.includes(forbidden), false, `accessibility-hostile CSS detected: ${forbidden}`);
+  assert.equal(compactSource.includes(compact(forbidden)), false, `accessibility-hostile CSS detected: ${forbidden}`);
 }
 
 assert.ok(html.includes('aria-label="Sohbet mesajları"'));

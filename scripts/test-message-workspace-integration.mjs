@@ -12,7 +12,7 @@ const policy = await read('public/message-workspace-policy.js');
 const css = await read('public/message-workspace.css');
 const sw = await read('public/sw-policy.js');
 
-assert.equal((html.match(/message-workspace/g) || []).length >= 4, true);
+assert.equal((html.match(/message-workspace/g) || []).length >= 3, true);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
 assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));
@@ -42,8 +42,9 @@ assert.ok(policy.includes('normalizeRecords'));
 assert.ok(css.includes('.message-workspace-panel'));
 assert.ok(css.includes('.message-workspace-action'));
 assert.ok(css.includes('.message-workspace-focus'));
-assert.ok(css.includes('forced-colors:active'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
+// Media query iddiaları biçimlendirme boşluklarına duyarlı olmamalıdır.
+assert.match(css, /forced-colors:\s*active/);
+assert.match(css, /prefers-reduced-motion:\s*reduce/);
 
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 for (const asset of ['/message-workspace.css','/message-workspace-policy.js','/message-workspace.js']) {

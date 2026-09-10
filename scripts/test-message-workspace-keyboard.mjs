@@ -61,9 +61,12 @@ assert.ok(source.includes('selectVisibleRecords()'));
 assert.ok(source.includes('clearSelection()'));
 assert.ok(source.includes('saveState()'));
 
-assert.ok(css.includes(':focus-visible'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+// CSS iddiaları biçimlendirme boşluklarına duyarlı olmamalıdır.
+const compactCss = css.replace(/\s+/g, '');
+const hasCss = (needle) => compactCss.includes(needle.replace(/\s+/g, ''));
+assert.ok(hasCss(':focus-visible'));
+assert.ok(hasCss('@media (max-width:560px)'));
+assert.ok(hasCss('@media (prefers-reduced-motion:reduce)'));
+assert.ok(hasCss('@media (forced-colors:active)'));
 
 console.log('message workspace keyboard tests passed');

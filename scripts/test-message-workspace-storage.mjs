@@ -53,12 +53,13 @@ const good = new MemoryStorage({
 const records = JSON.parse(good.getItem('hafize.message-workspace.v1'));
 assert.equal(Array.isArray(records), true);
 const normalized = policy.normalizeRecords(records);
-assert.equal(normalized.length, 3);
+// r-1 + ilk 'duplicate' kalır; null, ikinci 'duplicate' ve messageId'siz kayıt elenir.
+assert.equal(normalized.length, 2);
 assert.equal(new Set(normalized.map(item => item.id)).size, normalized.length);
 
 const state = policy.normalizeState(JSON.parse(good.getItem('hafize.message-workspace.v1.state')));
 assert.deepEqual(state, {
-  query: 'hafi̇ze',
+  query: 'hafize', // tr-TR locale: 'İ' -> 'i' (birleşik nokta üretmez)
   filter: 'assistant',
   sort: 'feedback',
   selected: ['r-1', 'r-2']

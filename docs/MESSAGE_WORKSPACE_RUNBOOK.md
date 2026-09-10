@@ -28,6 +28,8 @@ Keyboard testi çalıştırılır.
 
 Regression testi çalıştırılır.
 
+Hızlı geri bildirim için önce `npm run precheck` çalıştırılır.
+
 Tam `npm run check` son adımdır.
 
 Testlerden biri başarısızsa başarısız sonuç PR açıklamasına yazılır.
