@@ -4,7 +4,8 @@ import { evaluateRuntimeReadiness, normalizeReadinessReport, updateReadinessComp
 const report = normalizeReadinessReport({ auth: { status: 'ready' }, pwa: { status: 'ready' }, skills: { status: 'ready' }, memory: { status: 'ready' }, schedule: { status: 'warning', detail: 'retry backlog' }, connectors: { status: 'ready' }, model: { status: 'ready' } });
 assert.equal(Object.keys(report).length, RUNTIME_READINESS_COMPONENTS.length);
 assert.equal(report.schedule.status, 'warning');
-assert.equal(evaluateRuntimeReadiness(report).ready, false);
+// `ready` yalnız blocker/unknown yokluğuna bakar; warning ayrı `degraded` bayrağıyla raporlanır.
+assert.equal(evaluateRuntimeReadiness(report).ready, true);
 assert.equal(evaluateRuntimeReadiness(report).degraded, true);
 
 const blocked = updateReadinessComponent(report, 'auth', 'blocked', 'secret missing', '2026-09-07T12:00:00Z');

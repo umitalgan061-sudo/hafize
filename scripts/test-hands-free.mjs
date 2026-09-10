@@ -64,7 +64,9 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Eller serbest dinleme mahremiyet gereği kalıcılaştırılmaz: modülün storage yüzeyi yoktur,
+// oturum her yeniden yüklemede kullanıcı tarafından yeniden açılmalıdır.
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +79,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
+// Uyandırma sonrası oturum sınırı ve handoff zamanlayıcıları beklemede kalır.
+assert.ok(timers.length > 0);
+// Bekleyen handoff sürerken görünürlük değişimi yeniden başlatma planlamaz.
 docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+assert.equal(controller.isListening(), false);
+// Handoff fallback süresi dolunca dinleme yeniden planlanır ve sonra başlar.
+timers.pop()();
+timers.pop()();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +98,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
