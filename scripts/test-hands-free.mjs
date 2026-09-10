@@ -44,7 +44,20 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+// Hands-free schedules several independent timers (session limit, handoff fallback,
+// restart backoff, output cooldown). Track them by delay and honour clearTimeout so
+// assertions can name the timer they mean instead of counting every pending one.
+const timers = new Map();
+let timerSeq = 0;
+function pendingTimers(ms) {
+  return [...timers.entries()].filter(([, timer]) => timer.ms === ms);
+}
+function runTimer(ms) {
+  const entry = pendingTimers(ms)[0];
+  assert.ok(entry, `expected a pending ${ms}ms timer`);
+  timers.delete(entry[0]);
+  entry[1].fn();
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +65,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, ms) { timerSeq += 1; timers.set(timerSeq, { fn, ms }); return timerSeq; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -64,7 +77,8 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free is session-scoped by design (30 min limit, explicit gesture); it never persists an "on" flag.
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -77,11 +91,15 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+// The wake phrase hands off to the visible mic button: no restart backoff while the
+// handoff fallback is still pending, and the 30 minute session limit keeps running.
+assert.equal(pendingTimers(api.RESTART_DELAY_MS).length, 0);
+assert.equal(pendingTimers(api.HANDOFF_TIMEOUT_MS).length, 1);
+assert.equal(pendingTimers(api.SESSION_LIMIT_MS).length, 1);
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Voice input never started, so the fallback re-arms wake-phrase listening.
+runTimer(api.HANDOFF_TIMEOUT_MS);
+runTimer(api.RESTART_DELAY_MS);
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +111,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {
