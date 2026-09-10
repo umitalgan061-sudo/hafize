@@ -68,13 +68,17 @@ Authorization başlığı yoktur.
 
 Bearer token yoktur.
 
-Cookie değeri okunmaz.
+Cookie değeri okunmaz; kaynakta `document.cookie` erişimi bulunmaz.
 
 Environment değişkeni okunmaz.
 
 Secret veya API anahtarı depolayan özel alan yoktur.
 
 ## Storage sınırı
+
+Tüm metadata yalnız tarayıcının `localStorage` alanında tutulur; IndexedDB, sunucu kopyası veya uzak yedek yoktur.
+
+Okuma yolu enjekte edilebilir bir storage handle'ı kullanır ve varsayılanı `localStorage`'dır; bu yalnız testin bellek içi storage vermesini sağlar, yeni bir kalıcılık yüzeyi açmaz.
 
 Tek ana storage anahtarı `hafize.message-workspace.v1`'dir.
 

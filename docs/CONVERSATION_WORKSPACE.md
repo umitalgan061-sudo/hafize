@@ -156,6 +156,8 @@ Offline durumda daha önce yüklenmiş sohbet yönetim yüzeyi açılabilir. Mod
 
 ## Çoklu sekme
 
+Bu bölüm cross-tab davranışını tanımlar.
+
 Tarayıcının yerleşik `storage` olayı başka sekmede yapılan history veya workspace state değişikliklerini takip eder. Aynı sekmedeki toplu mutation sonrasında ayrıca `hafize:conversation-workspace-changed` CustomEvent yayınlanır.
 
 CustomEvent, global uygulama event oturumuna veri taşıyan yeni bir backend protokolü değildir. Payload kısa bir `reason` metni ile sınırlıdır.

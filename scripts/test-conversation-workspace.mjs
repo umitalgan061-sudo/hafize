@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readShellCacheVersion } from './check-support.mjs';
+
+const shellVersion = readShellCacheVersion();
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
@@ -172,7 +175,7 @@ check('workspace script loads after chat drafts', index.indexOf('/chat-drafts.js
 check('workspace remains before voice modules', index.indexOf('/conversation-workspace.js') < index.indexOf('/voice-input.js'));
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
 check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
-check('service worker bumped to v22', sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v22`'));
+check('service worker cache version is explicit', sw.includes(`CURRENT_CACHE = \`\${CACHE_PREFIX}${shellVersion}\``));
 check('rules advertise 3000 line budget', rules.includes('Tur değişiklik bütçesi — 3000 satır'));
 check('rules define 3000 max diff', rules.includes('en fazla 3000 değişen satır'));
 
@@ -222,14 +225,16 @@ assert.match(source, /function\s+pruneMissingSelection/);
 assert.match(source, /function\s+refresh/);
 assert.match(source, /function\s+expose/);
 
+// The panel is built with DOM APIs, so the accessibility contract lives in
+// setAttribute calls rather than HTML attribute strings.
 for (const fragment of [
-  'role="status"',
-  'aria-label="Sohbet çalışma alanı yönetimi"',
-  'aria-label="Sohbet filtresi"',
-  'aria-label="Sohbet sıralaması"',
-  'aria-label="Etikete göre filtrele"',
-  'aria-valuemin="0"',
-  'aria-valuemax="100"'
+  "setAttribute('role', 'status')",
+  "setAttribute('aria-label', 'Sohbet çalışma alanı yönetimi')",
+  "setAttribute('aria-label', 'Sohbet filtresi')",
+  "setAttribute('aria-label', 'Sohbet sıralaması')",
+  "setAttribute('aria-label', 'Etikete göre filtrele')",
+  "setAttribute('aria-valuemin', '0')",
+  "setAttribute('aria-valuemax', '100')"
 ]) includes(source, fragment, `accessibility contract ${fragment}`);
 
 for (const fragment of [
@@ -251,7 +256,7 @@ const summary = {
   sourceBytes: Buffer.byteLength(source),
   cssBytes: Buffer.byteLength(css),
   testBytes: fs.statSync(new URL(import.meta.url)).size,
-  shellVersion: 'v22'
+  shellVersion
 };
 
 console.log(`conversation-workspace contract: ${summary.checks} checks passed`);

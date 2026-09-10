@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { previousShellCacheNames, readShellCacheName } from './check-support.mjs';
 
 const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
@@ -32,29 +33,45 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.equal(policy.CURRENT_CACHE, readShellCacheName());
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// The shell list grows with every UI module, so assert the invariants instead of
+// a snapshot: the core shell is always present, entries stay root-relative
+// static paths, and nothing dynamic or credential-bearing is precached.
+for (const core of [
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
   '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
-]);
-assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
+]) {
+  assert.ok(policy.SHELL_ASSETS.includes(core), `core shell asset missing: ${core}`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell assets must be unique');
+for (const asset of policy.SHELL_ASSETS) {
+  assert.match(asset, /^\/[\w./-]*$/, `shell asset must be a root-relative static path: ${asset}`);
+  assert.equal(asset.includes('..'), false, `shell asset must not traverse: ${asset}`);
+  assert.equal(asset.startsWith('/api/'), false, `API responses must never be precached: ${asset}`);
+}
+
+// Everything the shell HTML loads must survive offline. `/auth.js` is the one
+// deliberate exception: the session flow always has to come from the network.
+const NEVER_PRECACHED = new Set(['/auth.js']);
+const shellHtml = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+const referenced = new Set([...shellHtml.matchAll(/(?:href|src)="(\/[^"?#]+)"/g)].map((match) => match[1]));
+for (const asset of referenced) {
+  if (NEVER_PRECACHED.has(asset)) {
+    assert.equal(policy.SHELL_ASSETS.includes(asset), false, `${asset} must stay network-only`);
+    continue;
+  }
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `index.html asset missing from shell cache: ${asset}`);
+}
 
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
@@ -145,10 +162,10 @@ assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+for (const stale of previousShellCacheNames(4)) {
+  assert.equal(policy.shouldDeleteCache(stale), true);
+}
+assert.equal(policy.shouldDeleteCache(readShellCacheName()), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

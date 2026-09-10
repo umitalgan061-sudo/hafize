@@ -42,6 +42,9 @@
   color: var(--muted);
   font-size: 10px;
   line-height: 1.35;
+  /* Status text can carry long titles or tag names; break them instead of
+     widening the sidebar on narrow screens. */
+  overflow-wrap: anywhere;
 }
 
 .conversation-workspace-actions,

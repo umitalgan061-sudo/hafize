@@ -21,7 +21,7 @@
   }
 
   function tag(value) {
-    return text(value).replace(/^#+/, '').slice(0, MAX_TAG);
+    return text(text(value).replace(/^#+/, '')).slice(0, MAX_TAG).trim();
   }
 
   function note(value) {
@@ -37,29 +37,40 @@
     return Number.isFinite(date.getTime()) ? date.toISOString() : fallback;
   }
 
+  function ownValue(value, key) {
+    return Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+  }
+
   function normalizeRecord(value) {
     if (!value || typeof value !== 'object') return null;
-    const conversationId = typeof value.conversationId === 'string' ? value.conversationId.trim().slice(0, 120) : '';
-    const messageId = typeof value.messageId === 'string' ? value.messageId.trim().slice(0, 120) : '';
+    const rawConversationId = ownValue(value, 'conversationId');
+    const rawMessageId = ownValue(value, 'messageId');
+    const rawId = ownValue(value, 'id');
+    const rawTags = ownValue(value, 'tags');
+    const conversationId = typeof rawConversationId === 'string' ? rawConversationId.trim().slice(0, 120) : '';
+    const messageId = typeof rawMessageId === 'string' ? rawMessageId.trim().slice(0, 120) : '';
     if (!conversationId || !messageId) return null;
-    const tags = Array.isArray(value.tags)
-      ? [...new Set(value.tags.map(tag).filter(Boolean))].slice(0, MAX_TAGS)
+    const tags = Array.isArray(rawTags)
+      ? [...new Set(rawTags.filter((item) => typeof item === 'string').map(tag).filter(Boolean))].slice(0, MAX_TAGS)
       : [];
     return Object.freeze({
-      id: typeof value.id === 'string' && value.id ? value.id.slice(0, 120) : `${conversationId}:${messageId}`,
+      id: typeof rawId === 'string' && rawId ? rawId.slice(0, 120) : `${conversationId}:${messageId}`,
       conversationId,
       messageId,
-      saved: value.saved === true,
-      feedback: feedback(value.feedback),
-      note: note(value.note),
+      saved: ownValue(value, 'saved') === true,
+      feedback: feedback(ownValue(value, 'feedback')),
+      note: note(ownValue(value, 'note')),
       tags,
-      createdAt: iso(value.createdAt),
-      updatedAt: iso(value.updatedAt)
+      createdAt: iso(ownValue(value, 'createdAt')),
+      updatedAt: iso(ownValue(value, 'updatedAt'))
     });
   }
 
   function normalizeRecords(value) {
     if (!Array.isArray(value)) return [];
+    // Ids are unique per record: the first entry for an id wins and later
+    // collisions are dropped, so a corrupted store can never produce two
+    // records that the panel would treat as the same selection.
     const seen = new Set();
     const records = [];
     for (const item of value) {

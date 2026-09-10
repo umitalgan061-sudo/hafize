@@ -12,7 +12,8 @@ const policy = await read('public/message-workspace-policy.js');
 const css = await read('public/message-workspace.css');
 const sw = await read('public/sw-policy.js');
 
-assert.equal((html.match(/message-workspace/g) || []).length >= 4, true);
+// The shell only ships the three assets; the panel itself is built at runtime.
+assert.equal((html.match(/message-workspace/g) || []).length >= 3, true);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
 assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));

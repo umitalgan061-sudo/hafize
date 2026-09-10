@@ -22,15 +22,21 @@ const responsiveContracts = [
 ];
 for (const [fragment, label] of responsiveContracts) assert.ok(css.includes(fragment), label);
 
-const accessibilityContracts = [
+// Motion and contrast guards live in the stylesheet; ARIA wiring lives in the
+// module that builds the DOM.
+const styleAccessibilityContracts = [
   ['@media (forced-colors: active)', 'forced color mode exists'],
   ["html[data-reduced-motion='true']", 'application reduced-motion flag exists'],
-  ['@media (prefers-reduced-motion: reduce)', 'system reduced-motion mode exists'],
+  ['@media (prefers-reduced-motion: reduce)', 'system reduced-motion mode exists']
+];
+for (const [fragment, label] of styleAccessibilityContracts) assert.ok(css.includes(fragment), label);
+
+const accessibilityContracts = [
   ['aria-valuemin', 'progressbar minimum is explicit'],
   ['aria-valuemax', 'progressbar maximum is explicit'],
   ['aria-valuenow', 'progressbar current value is explicit'],
-  ['role="status"', 'live status exists'],
-  ['aria-label="Sohbet çalışma alanı yönetimi"', 'workspace has named region']
+  ["setAttribute('role', 'status')", 'live status exists'],
+  ["setAttribute('aria-label', 'Sohbet çalışma alanı yönetimi')", 'workspace has named region']
 ];
 for (const [fragment, label] of accessibilityContracts) assert.ok(workspace.includes(fragment), label);
 
@@ -46,7 +52,8 @@ for (const [fragment, label] of shortcutVisualContracts) assert.ok(keyboardCss.i
 const shortcutBehaviorContracts = [
   ["event.isComposing", 'IME composition is respected'],
   ["event.altKey", 'Alt combinations are excluded'],
-  ["event.key === 'Escape'", 'Escape is explicitly handled'],
+  ["escape: { key: 'Escape', shift: false }", 'Escape is an explicit shortcut'],
+  ['function matchesEscape', 'Escape has a dedicated matcher'],
   ['isTextEditingTarget(event.target)', 'editing fields own normal text entry'],
   ['event.target !== ui.search', 'workspace search is the controlled input'],
   ['event.preventDefault()', 'shortcut browser defaults are prevented'],

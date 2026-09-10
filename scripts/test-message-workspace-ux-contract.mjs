@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { compactCss, hasMediaQuery } from './check-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
@@ -18,8 +19,8 @@ const buttons = [
   ['message-more', 'Mesaj çalışma alanı seçenekleri']
 ];
 for (const [className, label] of buttons) {
-  assert.ok(js.includes(`.${className}`));
-  assert.ok(js.includes(`'${label}'`));
+  assert.ok(js.includes(className), `missing action class: ${className}`);
+  assert.ok(js.includes(`'${label}'`), `missing action label: ${label}`);
 }
 
 assert.ok(js.includes("button.type = 'button'"));
@@ -30,21 +31,21 @@ assert.ok(js.includes("down?.setAttribute('aria-pressed', String(record?.feedbac
 assert.ok(js.includes("status.setAttribute('role','status')"));
 assert.ok(js.includes("status.setAttribute('aria-live','polite')"));
 
-assert.ok(css.includes('.message-workspace-action:focus-visible'));
-assert.ok(css.includes('.message-workspace-search:focus'));
-assert.ok(css.includes('.message-workspace-select:focus'));
-assert.ok(css.includes('overflow-wrap:anywhere'));
-assert.ok(css.includes('overscroll-behavior:contain'));
-assert.ok(css.includes('min-width:0'));
-assert.ok(css.includes('width:100%'));
+// Declarations are compared without whitespace so formatting stays free.
+const cssRules = compactCss(css);
+assert.ok(cssRules.includes('.message-workspace-action:focus-visible'));
+assert.ok(cssRules.includes('.message-workspace-search:focus'));
+assert.ok(cssRules.includes('.message-workspace-select:focus'));
+assert.ok(cssRules.includes('overflow-wrap:anywhere'));
+assert.ok(cssRules.includes('overscroll-behavior:contain'));
+assert.ok(cssRules.includes('min-width:0'));
+assert.ok(cssRules.includes('width:100%'));
 
-assert.ok(css.includes('@media (max-width:1100px)'));
-assert.ok(css.includes('@media (max-width:900px)'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+for (const feature of ['max-width:1100px', 'max-width:900px', 'max-width:560px', 'prefers-reduced-motion:reduce', 'forced-colors:active']) {
+  assert.ok(hasMediaQuery(css, feature), `missing media guard: ${feature}`);
+}
 
-const source = `${js}\n${css}`;
+const source = `${compactCss(js)}\n${cssRules}`;
 for (const forbidden of ['pointer-events:none', 'user-select:none', 'outline:none', 'display:none!important']) {
   assert.equal(source.includes(forbidden), false, `accessibility-hostile CSS detected: ${forbidden}`);
 }

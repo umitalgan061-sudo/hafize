@@ -104,7 +104,9 @@ assert.ok(source.includes('textContent'));
 assert.ok(source.includes('createElement'));
 assert.ok(source.includes('setAttribute'));
 assert.ok(source.includes('localStorage.setItem'));
-assert.ok(source.includes('localStorage.getItem'));
+// Reads go through an injectable storage handle whose default is localStorage.
+assert.ok(source.includes('storage = localStorage'));
+assert.ok(source.includes('storage.getItem(STORAGE_KEY)'));
 assert.ok(source.includes('window.addEventListener'));
 assert.ok(source.includes('storage'));
 assert.ok(source.includes('CustomEvent'));

@@ -10,6 +10,8 @@ const drafts = fs.readFileSync(path.join(root, 'public', 'chat-drafts.js'), 'utf
 const historyManagement = fs.readFileSync(path.join(root, 'public', 'chat-history-management.js'), 'utf8');
 const historySearch = fs.readFileSync(path.join(root, 'public', 'chat-history-search.js'), 'utf8');
 const historyExport = fs.readFileSync(path.join(root, 'public', 'chat-history-export.js'), 'utf8');
+const settings = fs.readFileSync(path.join(root, 'public', 'settings-workspace.js'), 'utf8');
+const shell = fs.readFileSync(path.join(root, 'public', 'ui-shell.js'), 'utf8');
 
 function has(text, fragment, label = fragment) {
   assert.ok(text.includes(fragment), label);
@@ -88,10 +90,13 @@ const coexistenceSelectors = [
   '.conversation-workspace'
 ];
 for (const selector of coexistenceSelectors) {
+  // Modules reference their classes either as a selector or as a class-name
+  // constant, so ownership is checked on the bare class name.
+  const className = selector.replace(/^\./, '');
   if (selector.startsWith('.conversation-workspace') || selector === '.workspace-row-check') {
-    has(workspace, selector, `workspace owns ${selector}`);
+    has(workspace, className, `workspace owns ${selector}`);
   } else {
-    has(historyManagement + historySearch + historyExport, selector, `existing module still mentions ${selector}`);
+    has(historyManagement + historySearch + historyExport, className, `existing module still mentions ${selector}`);
   }
 }
 
@@ -103,7 +108,9 @@ const storageKeys = [
   'hafize.reduced-motion.v1'
 ];
 for (const key of storageKeys) {
-  const consumers = [workspace, drafts, historyManagement, historySearch, historyExport].filter((text) => text.includes(key));
+  // Theme and motion preferences are owned by the shell/settings modules.
+  const consumers = [workspace, drafts, historyManagement, historySearch, historyExport, settings, shell]
+    .filter((text) => text.includes(key));
   assert.ok(consumers.length >= 1, `storage key is referenced somewhere: ${key}`);
 }
 
@@ -148,14 +155,16 @@ const actionFragments = [
 ];
 for (const fragment of actionFragments) has(workspace, fragment, `workspace action exists: ${fragment}`);
 
+// The workspace builds its DOM with setAttribute, so the retained
+// accessibility contract is asserted in that form.
 const accessibilityFragments = [
-  'aria-label="Sohbet çalışma alanı yönetimi"',
-  'aria-live="polite"',
-  'aria-label="Sohbet çalışma alanında ara"',
-  'aria-label="Sohbet filtresi"',
-  'aria-label="Sohbet sıralaması"',
-  'aria-label="Etikete göre filtrele"',
-  'aria-label="Sohbeti yönetim seçimine ekle"'
+  "setAttribute('aria-label', 'Sohbet çalışma alanı yönetimi')",
+  "setAttribute('aria-live', 'polite')",
+  "setAttribute('aria-label', 'Sohbet çalışma alanında ara')",
+  "setAttribute('aria-label', 'Sohbet filtresi')",
+  "setAttribute('aria-label', 'Sohbet sıralaması')",
+  "setAttribute('aria-label', 'Etikete göre filtrele')",
+  "setAttribute('aria-label', 'Sohbeti yönetim seçimine ekle')"
 ];
 for (const fragment of accessibilityFragments) has(workspace, fragment, `accessibility retained: ${fragment}`);
 
@@ -182,7 +191,8 @@ const existingBehaviorFragments = [
   [drafts, 'visibilitychange', 'draft visibility lifecycle retained'],
   [historyManagement, 'bindDeleteGuard', 'history deletion confirmation retained'],
   [historyManagement, 'openRename', 'history rename retained'],
-  [historySearch, 'focusConversationSearch', 'history search shortcut boundary retained'],
+  [historySearch, "['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)", 'history search shortcut still yields to other fields'],
+  [historySearch, 'searchUi.input.focus()', 'history search shortcut still focuses its own input'],
   [historyExport, 'buildMarkdown', 'history markdown export retained'],
   [historyExport, 'buildJson', 'history JSON export retained']
 ];

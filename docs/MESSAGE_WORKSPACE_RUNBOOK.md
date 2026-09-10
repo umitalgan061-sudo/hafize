@@ -14,6 +14,8 @@ Yeni test dosyalarının `scripts/` altında olduğunu doğrula.
 
 ## Yerel testler
 
+Hızlı geçit için `npm run precheck` çalıştırılır; bu komut syntax kontrolünü ve çekirdek UI paketlerini kapsar.
+
 Önce syntax kontrolü çalıştırılır.
 
 Ardından policy testi çalıştırılır.

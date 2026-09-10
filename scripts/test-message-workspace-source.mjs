@@ -54,8 +54,10 @@ assert.ok(js.includes("key==='x'"));
 assert.ok(css.includes('.message-workspace-panel'));
 assert.ok(css.includes('.message-workspace-actions'));
 assert.ok(css.includes('.message-workspace-result'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
-assert.ok(css.includes('forced-colors:active'));
+// Media feature spacing is a formatting choice; the contract is that both guards exist.
+const cssCompact = css.replace(/\s+/g, '');
+assert.ok(cssCompact.includes('prefers-reduced-motion:reduce'));
+assert.ok(cssCompact.includes('forced-colors:active'));
 
 assert.ok(policy.includes('MAX_RECORDS = 240'));
 assert.ok(policy.includes('MAX_NOTE = 600'));
