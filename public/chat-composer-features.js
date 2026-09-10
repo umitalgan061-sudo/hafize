@@ -205,6 +205,30 @@
     article.append(actions);
   }
 
+  function enhanceUserArticle(article) {
+    if (!article || !article.classList.contains('user') || article.querySelector('.message-actions')) return;
+    const content = article.querySelector('.content');
+    const messageId = article.dataset.messageId;
+    if (!content || !messageId) return;
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'message-action';
+    edit.textContent = 'Düzenle';
+    edit.setAttribute('aria-label', 'Kullanıcı mesajını düzenle');
+    edit.title = 'Bu mesajı düzenle ve yeniden gönder';
+    edit.addEventListener('click', () => {
+      window.dispatchEvent(new CustomEvent('hafize:edit-message', {
+        detail: { messageId }
+      }));
+    });
+
+    actions.append(edit);
+    article.append(actions);
+  }
+
   ui.attachBtn.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -233,7 +257,9 @@
 
   const observer = new MutationObserver(() => {
     for (const article of ui.messages.querySelectorAll('.message.assistant')) enhanceArticle(article);
+    for (const article of ui.messages.querySelectorAll('.message.user')) enhanceUserArticle(article);
   });
   observer.observe(ui.messages, { childList: true });
   for (const article of ui.messages.querySelectorAll('.message.assistant')) enhanceArticle(article);
+  for (const article of ui.messages.querySelectorAll('.message.user')) enhanceUserArticle(article);
 })();
