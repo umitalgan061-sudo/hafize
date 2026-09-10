@@ -30,6 +30,8 @@ Anahtarlar yalnız mevcut konuşma kimlikleriyle eşleştirilir. Değerler strin
 
 Composer altında küçük bir status alanı bulunur. `role="status"` ve `aria-live="polite"` kullanıldığı için taslağın geri yüklenmesi gibi önemli ama düşük öncelikli durumlar yardımcı teknolojilere duyurulabilir. Alan boşken görsel olarak gizlenir.
 
+Yazarken status alanı `Taslak kaydediliyor…` gösterir; başarılı debounce kaydında saat bilgisiyle `Taslak kaydedildi · HH:MM` durumuna geçer. Bu, kullanıcının metnin ne zaman cihazda kalıcılaştığını anlamasına yardımcı olur.
+
 Taslak geri yüklenirken kullanıcı metin alanına zaten yeni bir metin yazdıysa mevcut değer ezilmez. Böylece çok hızlı konuşma değişimlerinde kullanıcı yazısı korunur.
 
 ## Çoklu sekme
@@ -66,7 +68,9 @@ Bu yaklaşım mevcut sohbet render, agent seçimi, tool mode ve streaming koduna
 
 ## Test yaklaşımı
 
-`script/test-chat-drafts.mjs` kaynak-sözleşme kontrolleri yapar. Kontroller; yerel depolama anahtarı, boyut sınırı, debounce, aktif konuşma tespiti, gönderim temizliği, lifecycle flush noktaları, stale cleanup, responsive status UI ve PWA shell kaydını doğrular.
+`script/test-chat-drafts.mjs` kaynak-sözleşme kontrolleri yapar. Kontroller; yerel depolama anahtarı, boyut sınırı, debounce, aktif konuşma tespiti, gönderim temizliği, lifecycle flush noktaları, stale cleanup, status UI ve PWA shell kaydını doğrular.
+
+Kaynak-sözleşme testi ayrıca 12.000 karakter ve 30 taslak sınırlarının kodla birlikte kalmasını, `storage` senkronizasyonunu ve erişilebilir status semantiğini kontrol eder.
 
 Node/npm runtime'ı olmayan çalışma ortamlarında test dosyası yine de gözden geçirilebilir; çalıştırılamayan komut sonucu PR açıklamasında açıkça belirtilmelidir.
 
