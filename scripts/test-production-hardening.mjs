@@ -25,7 +25,13 @@ first.release();
 const second = limiter.check('user', 61_001);
 assert.equal(second.ok, true);
 second.release();
-assert.equal(limiter.check('user', 61_002).ok, false);
+// Reddedilen istek kota tüketmez: yeni pencerede yalnız 61_001'de kabul edilen
+// istek sayıldığı için bir istek hakkı daha kalır.
+const third = limiter.check('user', 61_002);
+assert.equal(third.ok, true);
+third.release();
+// Pencere kotası (max: 2) burada dolar.
+assert.equal(limiter.check('user', 61_003).ok, false);
 
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;
