@@ -64,7 +64,9 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free listening is session-only: nothing is persisted, so a reload can
+// never resume the microphone without a fresh user gesture.
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
@@ -73,15 +75,20 @@ assert.match(indicator.textContent, /Hafize/);
 
 recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'merhaba dünya' }]] });
 assert.equal(mic.clicked || 0, 0);
+
+// The wake phrase stops listening and hands off to the visible microphone
+// button; the message itself is never auto-sent.
 recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }]] });
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+assert.equal(indicator.attrs['data-handoff-waiting'], 'true');
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Voice input reporting that it stopped ends the handoff and re-arms the wake
+// phrase listener through the restart timer.
+docListeners.get('hafize:voice-input-state')?.({ detail: { source: 'voice-input', listening: false } });
+assert.equal(indicator.attrs['data-handoff-waiting'], 'false');
+timers.at(-1)();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +100,7 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

@@ -11,7 +11,9 @@ const sw = read('public/sw-policy.js');
 
 assert.match(html, /settings-workspace\.css/);
 assert.match(html, /settings-workspace\.js/);
-assert.match(html, /id="settingsWorkspace"|settingsWorkspace/);
+// The panel is injected by the module, so the id contract lives in the script.
+assert.match(settings, /WORKSPACE_ID = 'settingsWorkspace'/);
+assert.match(settings, /section\.id = WORKSPACE_ID/);
 assert.match(settings, /hafize\.theme\.v1/);
 assert.match(settings, /hafize\.reduced-motion\.v1/);
 assert.match(settings, /hafize\.conversations\.v1/);
