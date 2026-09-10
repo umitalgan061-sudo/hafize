@@ -8,7 +8,7 @@ Bir saldırganın mesaj içine HTML, JavaScript, URL, token adı veya çok uzun 
 
 Bir başka sekmenin aynı origin üzerinde storage olayları üretebileceği varsayılır.
 
-Local storage içeriğinin kullanıcı tarafından geliştirici araçlarıyla değiştirilebileceği varsayılır.
+Tarayıcı `localStorage` içeriğinin kullanıcı tarafından geliştirici araçlarıyla değiştirilebileceği varsayılır.
 
 Bu nedenle storage içeriği hiçbir zaman yetki kanıtı olarak kullanılmaz.
 
@@ -68,7 +68,7 @@ Authorization başlığı yoktur.
 
 Bearer token yoktur.
 
-Cookie değeri okunmaz.
+`document.cookie` değeri okunmaz.
 
 Environment değişkeni okunmaz.
 

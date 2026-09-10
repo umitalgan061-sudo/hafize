@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertCssIncludes } from './source-contract.mjs';
+import { assertClassDeclared } from './source-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
@@ -18,8 +20,8 @@ const buttons = [
   ['message-more', 'Mesaj çalışma alanı seçenekleri']
 ];
 for (const [className, label] of buttons) {
-  assert.ok(js.includes(`.${className}`));
-  assert.ok(js.includes(`'${label}'`));
+  assertClassDeclared(js, `.${className}`, `action class ${className}`);
+  assert.ok(js.includes(`'${label}'`), `action label ${label}`);
 }
 
 assert.ok(js.includes("button.type = 'button'"));
@@ -30,19 +32,19 @@ assert.ok(js.includes("down?.setAttribute('aria-pressed', String(record?.feedbac
 assert.ok(js.includes("status.setAttribute('role','status')"));
 assert.ok(js.includes("status.setAttribute('aria-live','polite')"));
 
-assert.ok(css.includes('.message-workspace-action:focus-visible'));
-assert.ok(css.includes('.message-workspace-search:focus'));
-assert.ok(css.includes('.message-workspace-select:focus'));
-assert.ok(css.includes('overflow-wrap:anywhere'));
-assert.ok(css.includes('overscroll-behavior:contain'));
-assert.ok(css.includes('min-width:0'));
-assert.ok(css.includes('width:100%'));
+assertCssIncludes(css, '.message-workspace-action:focus-visible');
+assertCssIncludes(css, '.message-workspace-search:focus');
+assertCssIncludes(css, '.message-workspace-select:focus');
+assertCssIncludes(css, 'overflow-wrap:anywhere');
+assertCssIncludes(css, 'overscroll-behavior:contain');
+assertCssIncludes(css, 'min-width:0');
+assertCssIncludes(css, 'width:100%');
 
-assert.ok(css.includes('@media (max-width:1100px)'));
-assert.ok(css.includes('@media (max-width:900px)'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+assertCssIncludes(css, '@media (max-width:1100px)');
+assertCssIncludes(css, '@media (max-width:900px)');
+assertCssIncludes(css, '@media (max-width:560px)');
+assertCssIncludes(css, '@media (prefers-reduced-motion:reduce)');
+assertCssIncludes(css, '@media (forced-colors:active)');
 
 const source = `${js}\n${css}`;
 for (const forbidden of ['pointer-events:none', 'user-select:none', 'outline:none', 'display:none!important']) {
