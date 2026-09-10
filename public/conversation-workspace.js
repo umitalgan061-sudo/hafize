@@ -70,7 +70,9 @@
   }
 
   function cleanTag(value) {
-    // Etiket işareti atıldıktan sonra kalan baştaki boşluk da temizlenir.
+    // Yalnız metin/sayı etiket olabilir; nesne girdileri elenir. Etiket
+    // işareti atıldıktan sonra kalan baştaki boşluk da temizlenir.
+    if (typeof value !== 'string' && typeof value !== 'number') return '';
     return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+/, '').trim().slice(0, MAX_TAG);
   }
 

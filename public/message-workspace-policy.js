@@ -21,8 +21,10 @@
   }
 
   function tag(value) {
-    // Etiket işaretleri atıldıktan sonra kalan boşluk da temizlenir:
-    // "### proje" -> "proje".
+    // Yalnız metin etiket olabilir: nesne/dizi girdileri "[object Object]"
+    // gibi anlamsız etiketlere dönüşmemeli. Etiket işaretinden sonra kalan
+    // boşluk da temizlenir: "### proje" -> "proje".
+    if (typeof value !== 'string' && typeof value !== 'number') return '';
     return text(text(value).replace(/^#+/, '')).slice(0, MAX_TAG);
   }
 

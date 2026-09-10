@@ -18,8 +18,12 @@ const buttons = [
   ['message-more', 'Mesaj çalışma alanı seçenekleri']
 ];
 for (const [className, label] of buttons) {
-  assert.ok(js.includes(`.${className}`));
-  assert.ok(js.includes(`'${label}'`));
+  assert.ok(js.includes(`'${className}'`), `${className} sınıfı bir düğmeye atanmalı`);
+  assert.ok(js.includes(`'${label}'`), `${label} erişilebilir etiketi bulunmalı`);
+}
+// Durum yansıtan düğmeler sınıflarıyla sorgulanır; menü düğmesinin durumu yoktur.
+for (const className of ['message-save', 'message-feedback-up', 'message-feedback-down']) {
+  assert.ok(js.includes(`querySelector('.${className}')`), `${className} durum güncellemesi için sorgulanmalı`);
 }
 
 assert.ok(js.includes("button.type = 'button'"));
@@ -30,19 +34,23 @@ assert.ok(js.includes("down?.setAttribute('aria-pressed', String(record?.feedbac
 assert.ok(js.includes("status.setAttribute('role','status')"));
 assert.ok(js.includes("status.setAttribute('aria-live','polite')"));
 
-assert.ok(css.includes('.message-workspace-action:focus-visible'));
-assert.ok(css.includes('.message-workspace-search:focus'));
-assert.ok(css.includes('.message-workspace-select:focus'));
-assert.ok(css.includes('overflow-wrap:anywhere'));
-assert.ok(css.includes('overscroll-behavior:contain'));
-assert.ok(css.includes('min-width:0'));
-assert.ok(css.includes('width:100%'));
+// CSS biçimlendirilmiş yazılır; sözleşme kontrolleri boşluğa duyarsızdır.
+const cssCompact = css.replace(/\s+/g, '');
+const hasCss = (fragment) => cssCompact.includes(fragment.replace(/\s+/g, ''));
 
-assert.ok(css.includes('@media (max-width:1100px)'));
-assert.ok(css.includes('@media (max-width:900px)'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+assert.ok(hasCss('.message-workspace-action:focus-visible'));
+assert.ok(hasCss('.message-workspace-search:focus'));
+assert.ok(hasCss('.message-workspace-select:focus'));
+assert.ok(hasCss('overflow-wrap:anywhere'));
+assert.ok(hasCss('overscroll-behavior:contain'));
+assert.ok(hasCss('min-width:0'));
+assert.ok(hasCss('width:100%'));
+
+assert.ok(hasCss('@media (max-width:1100px)'));
+assert.ok(hasCss('@media (max-width:900px)'));
+assert.match(css, /@media \(max-width:\s*560px\)/);
+assert.ok(hasCss('@media (prefers-reduced-motion:reduce)'));
+assert.ok(hasCss('@media (forced-colors:active)'));
 
 const source = `${js}\n${css}`;
 for (const forbidden of ['pointer-events:none', 'user-select:none', 'outline:none', 'display:none!important']) {

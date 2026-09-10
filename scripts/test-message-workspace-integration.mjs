@@ -13,7 +13,9 @@ const policy = await read('public/message-workspace-policy.js');
 const css = await read('public/message-workspace.css');
 const sw = await read('public/sw-policy.js');
 
-assert.equal((html.match(/message-workspace/g) || []).length >= 4, true);
+// index.html üç referans taşır: stil, policy modülü ve workspace modülü.
+// Panel DOM'u modül tarafından üretildiği için statik bir mount düğümü yoktur.
+assert.equal((html.match(/message-workspace/g) || []).length >= 3, true);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
 assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));
@@ -40,11 +42,15 @@ assert.ok(policy.includes('Object.freeze'));
 assert.ok(policy.includes('normalizeRecord'));
 assert.ok(policy.includes('normalizeRecords'));
 
-assert.ok(css.includes('.message-workspace-panel'));
-assert.ok(css.includes('.message-workspace-action'));
-assert.ok(css.includes('.message-workspace-focus'));
-assert.ok(css.includes('forced-colors:active'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
+// CSS biçimlendirilmiş yazılır; sözleşme kontrolleri boşluğa duyarsızdır.
+const cssCompact = css.replace(/\s+/g, '');
+const hasCss = (fragment) => cssCompact.includes(fragment.replace(/\s+/g, ''));
+
+assert.ok(hasCss('.message-workspace-panel'));
+assert.ok(hasCss('.message-workspace-action'));
+assert.ok(hasCss('.message-workspace-focus'));
+assert.match(css, /@media \(forced-colors:\s*active\)/);
+assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)/);
 
 assertShellCacheAtLeast(23, 'message workspace');
 for (const asset of ['/message-workspace.css','/message-workspace-policy.js','/message-workspace.js']) {

@@ -61,9 +61,13 @@ assert.ok(source.includes('selectVisibleRecords()'));
 assert.ok(source.includes('clearSelection()'));
 assert.ok(source.includes('saveState()'));
 
-assert.ok(css.includes(':focus-visible'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+// CSS biçimlendirilmiş yazılır; sözleşme kontrolleri boşluğa duyarsızdır.
+const cssCompact = css.replace(/\s+/g, '');
+const hasCss = (fragment) => cssCompact.includes(fragment.replace(/\s+/g, ''));
+
+assert.ok(hasCss(':focus-visible'));
+assert.match(css, /@media \(max-width:\s*560px\)/);
+assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)/);
+assert.match(css, /@media \(forced-colors:\s*active\)/);
 
 console.log('message workspace keyboard tests passed');
