@@ -25,6 +25,7 @@ Kullanıcının açıkça saklamak istediği kimlik, tercih, proje ve not bilgis
 - Write/read/delete işlemleri önce mevcut command contract'tan geçirilir.
 - Retrieval, herhangi bir skorlamadan önce `ownerId` ile filtrelenir; farklı kullanıcının kaydı aday kümeye giremez.
 - İlk retrieval yöntemi deterministik lexical eşleşmedir. Embedding, vector index veya reranker varmış gibi davranılmaz.
+- `query` verildiğinde sonuç yalnız sıralanmaz, filtrelenir: lexical veya kind sinyali üretmeyen kayıt sonuca girmez. Böylece alakasız bir kayıt model context'ine taşınmaz. Sonuç limiti bu filtreden sonra uygulanır.
 - `readForContext()` en fazla retrieval boundary limitini kullanır ve kayıtları #67'deki ikinci owner/provenance kontrolünden geçirir.
 - Ajan-facing context sonucunda `ownerId`, sensitivity ve store timestamp alanları taşınmaz; provenance korunur.
 - Exact-delete yabancı owner veya bulunmayan kayıt için aynı `MEMORY_NOT_FOUND` sonucunu verir.
