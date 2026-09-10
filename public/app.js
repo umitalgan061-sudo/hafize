@@ -28,6 +28,7 @@
   let isStreaming = false;
   let availableAgents = [];
   let defaultAgentId = '';
+  let editingMessageId = null;
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -97,6 +98,7 @@
     if (!globalThis.confirm('Tüm yerel sohbet geçmişi silinsin mi?')) return;
     conversations = [];
     activeConversationId = null;
+    editingMessageId = null;
     saveConversations();
     render();
   }
@@ -128,6 +130,84 @@
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
     if (node) node.textContent = content || '…';
     if (persist) saveConversations();
+  }
+
+  function getEditableMessage(id) {
+    const conversation = getActiveConversation();
+    if (!conversation || typeof id !== 'string') return null;
+    const index = conversation.messages.findIndex((item) => item?.id === id && item?.role === 'user');
+    if (index < 0) return null;
+    return { conversation, index, message: conversation.messages[index] };
+  }
+
+  function updateEditingIndicator() {
+    let indicator = ui.composer.querySelector('.composer-editing');
+    if (!editingMessageId) {
+      indicator?.remove();
+      return;
+    }
+    const target = getEditableMessage(editingMessageId);
+    if (!target) {
+      editingMessageId = null;
+      indicator?.remove();
+      return;
+    }
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.className = 'composer-editing';
+      indicator.setAttribute('role', 'status');
+      ui.composer.insertBefore(indicator, ui.composer.querySelector('.composer-row'));
+    }
+    indicator.replaceChildren();
+    const text = document.createElement('span');
+    text.textContent = 'Mesaj düzenleniyor';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'message-action';
+    cancel.textContent = 'Vazgeç';
+    cancel.setAttribute('aria-label', 'Mesaj düzenlemeyi iptal et');
+    cancel.addEventListener('click', cancelMessageEdit);
+    indicator.append(text, cancel);
+  }
+
+  function beginMessageEdit(id) {
+    if (isStreaming) return showToast('Yanıt sürerken mesaj düzenlenemez.');
+    const target = getEditableMessage(id);
+    if (!target) return showToast('Düzenlenecek kullanıcı mesajı bulunamadı.');
+    editingMessageId = id;
+    ui.messageInput.value = target.message.content || '';
+    ui.messageInput.focus();
+    ui.messageInput.select();
+    autoResizeComposer();
+    updateEditingIndicator();
+    showToast('Mesajını düzenleyip gönder; bu noktadan sonraki yanıtlar yeniden oluşturulacak.');
+  }
+
+  function cancelMessageEdit() {
+    if (!editingMessageId) return;
+    editingMessageId = null;
+    ui.messageInput.value = '';
+    ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    updateEditingIndicator();
+    ui.messageInput.focus();
+  }
+
+  function replaceEditedTurn(id, content) {
+    const target = getEditableMessage(id);
+    if (!target) return null;
+    target.conversation.messages = target.conversation.messages.slice(0, target.index);
+    const message = { id: uid(), role: 'user', content, at: new Date().toISOString() };
+    target.conversation.messages.push(message);
+    target.conversation.updatedAt = new Date().toISOString();
+    if (target.conversation.title === 'Yeni sohbet') {
+      target.conversation.title = content.trim().replace(/\s+/g, ' ').slice(0, 48) || 'Yeni sohbet';
+    }
+    conversations.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    saveConversations();
+    editingMessageId = null;
+    updateEditingIndicator();
+    render();
+    return message.id;
   }
 
   function normalizeToolActivity(value) {
@@ -218,6 +298,7 @@
       open.title = conversation.title;
       open.addEventListener('click', () => {
         if (isStreaming) return showToast('Yanıt sürerken sohbet değiştirilemez.');
+        if (editingMessageId) cancelMessageEdit();
         activeConversationId = conversation.id;
         render();
         if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
@@ -293,6 +374,7 @@
     renderMessages();
     syncAgentSelect();
     syncToolMode();
+    updateEditingIndicator();
   }
 
   function showToast(text) {
@@ -486,7 +568,11 @@
       return;
     }
 
-    addMessage('user', clean);
+    if (editingMessageId) {
+      if (!replaceEditedTurn(editingMessageId, clean)) return;
+    } else {
+      addMessage('user', clean);
+    }
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;
@@ -515,6 +601,8 @@
       ui.messageInput.focus();
     }
   }
+
+  window.addEventListener('hafize:edit-message', (event) => beginMessageEdit(event.detail?.messageId));
 
   ui.sidebarToggle.addEventListener('click', () => ui.sidebar.classList.toggle('open'));
   ui.newChatBtn.addEventListener('click', () => {
@@ -549,6 +637,10 @@
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
       ui.composer.requestSubmit();
+    }
+    if (event.key === 'Escape' && editingMessageId) {
+      event.preventDefault();
+      cancelMessageEdit();
     }
   });
   ui.composer.addEventListener('submit', (event) => {
