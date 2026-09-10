@@ -32,7 +32,7 @@ assert.equal(pass.pass, true);
 assert.equal(pass.blockerCount, 0);
 
 const fail = evaluateQualityGates({
-  files: [{ path: 'private.pem', content: 'BEGIN PRIVATE KEY' }],
+  files: [{ path: 'private.pem', content: '-----BEGIN PRIVATE KEY-----\nMIIB\n-----END PRIVATE KEY-----' }],
   result: { claims: ['a'], evidence: [] },
   ui: {}
 });
@@ -41,5 +41,13 @@ assert.ok(fail.blockerCount >= 2);
 assert.ok(fail.findings.some((item) => item.code === 'CREDENTIAL_FILE'));
 assert.ok(fail.findings.some((item) => item.code === 'SECRET_MATERIAL'));
 assert.ok(fail.findings.some((item) => item.code === 'MISSING_EVIDENCE'));
+
+// Prose that only names a key format is not secret material.
+const prose = evaluateQualityGates({
+  files: [{ path: 'docs/keys.md', content: 'Bir PEM dosyası BEGIN PRIVATE KEY satırıyla başlar.' }],
+  result: { claims: [], evidence: [] },
+  ui: { responsive: true, keyboard: true, focusVisible: true, contrast: true, emptyStates: true, loadingStates: true, errorStates: true }
+});
+assert.equal(prose.findings.some((item) => item.code === 'SECRET_MATERIAL'), false);
 
 console.log('reviewer quality gate tests passed');

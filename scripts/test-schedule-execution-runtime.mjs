@@ -14,9 +14,17 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime wraps the executor: a result made only of known worker/internal
+// keys is projected down to the worker contract, and anything it does not
+// recognise is passed through untouched.
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
-assert.equal(calls.length, 1);
+assert.deepEqual(calls, [{ scheduleId: 'schedule_1' }]);
+assert.deepEqual(
+  await createScheduleExecutionRuntime({ executor: { configured: true, async executeAgentTask() { return { ok: true, content: 'internal', taskLedger: [] }; } } })
+    .executeAgentTask({ scheduleId: 'schedule_projected' }),
+  { ok: true }
+);
 
 let guardInput = null;
 const lease = { name: 'distributed-lease' };
@@ -39,9 +47,11 @@ assert.equal(Object.isFrozen(guarded), true);
 assert.equal(guardInput.lease, lease);
 assert.equal(guardInput.executeAgentTask, executor.executeAgentTask);
 assert.equal(guardInput.renewIntervalMs, 1234);
+assert.deepEqual(await guarded.executeAgentTask({ scheduleId: 'schedule_2' }), { ok: true, guarded: true, scheduleId: 'schedule_2' });
 assert.deepEqual(
-  await guarded.executeAgentTask({ scheduleId: 'schedule_2' }),
-  { ok: true, guarded: true, scheduleId: 'schedule_2' }
+  await createScheduleExecutionRuntime({ executor: { configured: true, async executeAgentTask() { return { ok: false, error: 'SCHEDULE_EXECUTION_FAILED', retryAt: 42, content: 'internal' }; } } })
+    .executeAgentTask({ scheduleId: 'schedule_3' }),
+  { ok: false, error: 'SCHEDULE_EXECUTION_FAILED', retryAt: 42 }
 );
 
 const unconfigured = createScheduleExecutionRuntime({

@@ -15,9 +15,10 @@ assert.equal(ranked[0].memoryId, 'memory_alpha12345'); assert.equal(ranked.lengt
 const quality = measureRetrievalQuality({ expectedIds: ['memory_alpha12345'], ranked, minScore: 0.2 });
 assert.equal(quality.topHit, 1); assert.equal(quality.precisionAtK, 0.5); assert.equal(quality.recallAtK, 1); assert.equal(quality.thresholdPass, true);
 const store = createPersonalMemoryStore({ now: () => new Date(now), createId: (() => { let index = 0; return () => `stable${String(++index).padStart(8, '0')}`; })() });
-assert.equal(store.write({ ownerId: 'u1', kind: 'preference', content: 'Kahve sütlü ve şekersiz.', sourceType: 'conversation' }).ok, true);
-assert.equal(store.write({ ownerId: 'u1', kind: 'decision', content: 'PR küçük tutulacak.', sourceType: 'conversation' }).ok, true);
-assert.equal(store.write({ ownerId: 'u2', kind: 'preference', content: 'Kahve başka kullanıcıya ait.', sourceType: 'conversation' }).ok, true);
+// Memory writes go through the consent contract: allowed kind, allowed source and explicit user intent.
+assert.equal(store.write({ ownerId: 'u1', kind: 'preference', content: 'Kahve sütlü ve şekersiz.', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true }).ok, true);
+assert.equal(store.write({ ownerId: 'u1', kind: 'note', content: 'PR küçük tutulacak.', sourceType: 'user_note', sensitivity: 'personal', explicitUserIntent: true }).ok, true);
+assert.equal(store.write({ ownerId: 'u2', kind: 'preference', content: 'Kahve başka kullanıcıya ait.', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true }).ok, true);
 const read = store.read({ ownerId: 'u1', query: 'kahve', limit: 5 });
 assert.equal(read.ok, true); assert.equal(read.records.length, 1); assert.equal(read.records[0].ownerId, 'u1'); assert.match(read.records[0].content, /Kahve/);
 assert.throws(() => scoreMemoryRecord(null, 'x'), /INVALID_MEMORY_QUALITY_RECORD/);
