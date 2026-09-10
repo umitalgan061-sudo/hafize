@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -11,7 +12,9 @@ const sw = read('public/sw-policy.js');
 
 assert.match(html, /settings-workspace\.css/);
 assert.match(html, /settings-workspace\.js/);
-assert.match(html, /id="settingsWorkspace"|settingsWorkspace/);
+// Panel index.html'de statik değildir; modül kendi mount düğümünü üretir.
+assert.match(settings, /const WORKSPACE_ID = 'settingsWorkspace'/);
+assert.match(settings, /section\.id = WORKSPACE_ID/);
 assert.match(settings, /hafize\.theme\.v1/);
 assert.match(settings, /hafize\.reduced-motion\.v1/);
 assert.match(settings, /hafize\.conversations\.v1/);
@@ -25,6 +28,6 @@ assert.match(css, /data-reduced-motion/);
 assert.match(css, /@media \(max-width: 680px\)/);
 assert.match(sw, /\/settings-workspace\.css/);
 assert.match(sw, /\/settings-workspace\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v19`/);
+assertShellCacheAtLeast(19, 'settings workspace');
 
 console.log('settings workspace source-contract checks passed');

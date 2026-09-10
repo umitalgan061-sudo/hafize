@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { shellCacheVersion } from './shell-cache-contract.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
@@ -172,7 +173,7 @@ check('workspace script loads after chat drafts', index.indexOf('/chat-drafts.js
 check('workspace remains before voice modules', index.indexOf('/conversation-workspace.js') < index.indexOf('/voice-input.js'));
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
 check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
-check('service worker bumped to v22', sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v22`'));
+check('service worker at least v22', shellCacheVersion() >= 22);
 check('rules advertise 3000 line budget', rules.includes('Tur değişiklik bütçesi — 3000 satır'));
 check('rules define 3000 max diff', rules.includes('en fazla 3000 değişen satır'));
 

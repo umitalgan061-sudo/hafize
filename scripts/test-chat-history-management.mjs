@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -41,10 +42,10 @@ assert.match(css, /\.conversation-row:focus-within/);
 assert.match(css, /flex-wrap:wrap/);
 assert.match(sw, /\/chat-history-management\.css/);
 assert.match(sw, /\/chat-history-management\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v20`/);
+assertShellCacheAtLeast(20, 'chat history management');
 assert.match(docs, /pinned: true/);
 assert.match(docs, /80 karakter/);
-assert.match(docs, /silme koruması/);
+assert.match(docs, /silme koruması/i);
 assert.match(docs, /MutationObserver/);
 assert.match(docs, /PWA/);
 assert.match(docs, /Bakım notları/);
