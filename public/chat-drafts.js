@@ -19,6 +19,7 @@
   let saveTimer = 0;
   let lastConversationId = '';
   let lastPersistedDraft = '';
+  let lastSavedAt = '';
 
   function readStore() {
     try {
@@ -40,11 +41,16 @@
     }
   }
 
+  function normalizeDraft(value) {
+    if (typeof value !== 'string') return '';
+    return value.slice(0, MAX_DRAFT_LENGTH);
+  }
+
   function sanitizeStore(value) {
     const ids = readConversationIds();
     const entries = Object.entries(value)
-      .filter(([id, draft]) => ids.has(id) && typeof draft === 'string' && draft.length > 0)
-      .map(([id, draft]) => [id, draft.slice(0, MAX_DRAFT_LENGTH)])
+      .filter(([id, draft]) => ids.has(id) && normalizeDraft(draft).length > 0)
+      .map(([id, draft]) => [id, normalizeDraft(draft)])
       .slice(-MAX_DRAFTS);
     return Object.fromEntries(entries);
   }
@@ -70,6 +76,15 @@
     return row?.querySelector('.conversation-open')?.dataset?.conversationId || '';
   }
 
+  function getDraft(id = activeConversationId()) {
+    if (!id) return '';
+    return normalizeDraft(readStore()[id]);
+  }
+
+  function hasDraft(id = activeConversationId()) {
+    return Boolean(getDraft(id).trim());
+  }
+
   function statusNode() {
     let node = document.getElementById(STATUS_ID);
     if (node) return node;
@@ -88,6 +103,13 @@
     node.hidden = !text;
   }
 
+  function savedLabel() {
+    if (!lastSavedAt) return 'Taslak kaydedildi';
+    return `Taslak kaydedildi · ${new Intl.DateTimeFormat('tr-TR', {
+      hour: '2-digit', minute: '2-digit'
+    }).format(new Date(lastSavedAt))}`;
+  }
+
   function flushPending() {
     if (!saveTimer) return false;
     window.clearTimeout(saveTimer);
@@ -98,13 +120,16 @@
   function saveDraft({ silent = false } = {}) {
     const id = activeConversationId();
     if (!id) return false;
-    const text = input.value.slice(0, MAX_DRAFT_LENGTH);
+    const text = normalizeDraft(input.value);
     const store = readStore();
     if (text.trim()) store[id] = text;
     else delete store[id];
     const ok = writeStore(store);
-    if (ok) lastPersistedDraft = text;
-    if (!silent && ok) announce(text.trim() ? 'Taslak kaydedildi' : 'Taslak temizlendi');
+    if (ok) {
+      lastPersistedDraft = text;
+      lastSavedAt = new Date().toISOString();
+    }
+    if (!silent && ok) announce(text.trim() ? savedLabel() : 'Taslak temizlendi');
     if (!ok && !silent) announce('Taslak bu cihazda kaydedilemedi');
     lastConversationId = id;
     return ok;
@@ -124,20 +149,22 @@
     const id = activeConversationId();
     if (!id || id === lastConversationId) return;
     flushPending();
-    const draft = readStore()[id];
-    if (typeof draft !== 'string') {
+    const draft = getDraft(id);
+    if (!draft) {
       input.value = '';
       announce('');
       lastPersistedDraft = '';
+      lastSavedAt = '';
       lastConversationId = id;
       return;
     }
     if (!input.value) {
-      input.value = draft.slice(0, MAX_DRAFT_LENGTH);
+      input.value = draft;
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      announce('Taslak geri yüklendi');
+      announce(`Taslak geri yüklendi · ${draft.length} karakter`);
     }
     lastPersistedDraft = draft;
+    lastSavedAt = '';
     lastConversationId = id;
   }
 
@@ -151,7 +178,8 @@
 
   function onInput() {
     scheduleSave();
-    if (!input.value.trim()) announce('');
+    if (!input.value.trim()) return announce('');
+    announce('Taslak kaydediliyor…');
   }
 
   function onSubmit() {
@@ -180,5 +208,13 @@
   cleanupStaleDrafts();
   sync();
 
-  Object.freeze({ saveDraft, clearDraft, restoreDraft, cleanupStaleDrafts, getLastPersistedDraft: () => lastPersistedDraft });
+  Object.freeze({
+    saveDraft,
+    clearDraft,
+    restoreDraft,
+    cleanupStaleDrafts,
+    getDraft,
+    hasDraft,
+    getLastPersistedDraft: () => lastPersistedDraft
+  });
 })();
