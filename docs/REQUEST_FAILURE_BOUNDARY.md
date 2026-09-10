@@ -13,7 +13,7 @@ Hafize HTTP handlers can fail before a response starts, after SSE headers are co
 
 The boundary preserves `BODY_TOO_LARGE` (413), `NVIDIA_NOT_CONFIGURED` (503), `NVIDIA_CHAT_ERROR` (validated 4xx/5xx status), `INVALID_NVIDIA_RESPONSE` (502), `INVALID_JSON` (400), and otherwise `INTERNAL_ERROR` (500). Unknown implementation details are never exposed. Upstream provider detail is not returned after a stream has started.
 
-Invalid or successful upstream statuses are not accepted as public failure status codes; the fallback is 502. Provider diagnostic text is bounded to 1200 characters in the contract, while streamed failures intentionally use only the stable public error code.
+Invalid or successful upstream statuses are not accepted as public failure status codes; the fallback is 502. Provider diagnostic text never reaches the public failure body — neither JSON nor streamed frames carry it; the contract's 1200-character bound applies only to the detail captured server-side for diagnostics.
 
 ## Integration rule
 
