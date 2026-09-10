@@ -24,15 +24,18 @@ assert.equal(getAllowedNvidiaTools(agent, { gmailReadAuthenticated: true }).some
 assert.equal(getAllowedNvidiaTools({ ...agent, toolPolicy: { default: 'deny', allow: [] } }, context).length, 0);
 
 const result = await executeNvidiaToolCall(agent, {
+  id: 'call_x',
   function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'message.get', params: { messageId: 'm1' } }) }
 }, { ...context, approvalGranted: false });
 assert.deepEqual(result, { ok: true, value: { messages: [{ id: 'm1' }] } });
 assert.deepEqual(calls[0], { operation: 'message.get', params: { messageId: 'm1' } });
 
 assert.deepEqual(await executeNvidiaToolCall(agent, {
+  id: 'call_x',
   function: { name: 'gmail_read', arguments: '{}' }
 }, { gmailReadTool, gmailReadAuthenticated: false }), { ok: false, error: 'TOOL_UNAVAILABLE' });
 assert.deepEqual(await executeNvidiaToolCall(agent, {
+  id: 'call_x',
   function: { name: 'gmail_read', arguments: '[]' }
 }, context), { ok: false, error: 'INVALID_TOOL_ARGUMENTS' });
 assert.equal(listToolPermissions().some((item) => item.permission === 'connector.gmail.read' && item.functionName === 'gmail_read'), true);

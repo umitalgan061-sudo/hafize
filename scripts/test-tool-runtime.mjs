@@ -45,8 +45,14 @@ assert.deepEqual(
 );
 assert.equal(getPublicToolActivity('repo_delete', { ok: true }), null);
 
+// Without a delegation executor in the context the delegate tool is not offered;
+// the primary agent has no repo.read grant, so GitHub reads stay out of its set.
 const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
-assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['agent_delegate', 'skill_invoke']);
+assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status', 'skill_invoke']);
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { githubReadConfigured: true, delegateAgent: async () => ({ ok: true }) }).map((tool) => tool.function.name),
+  ['runtime_status', 'agent_delegate', 'skill_invoke']
+);
 assert.deepEqual(
   getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
   ['github_read_file', 'skill_invoke']

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { hasMediaQuery, readShellCacheVersion } from './check-support.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
@@ -43,10 +44,10 @@ assert.ok(policy.includes('normalizeRecords'));
 assert.ok(css.includes('.message-workspace-panel'));
 assert.ok(css.includes('.message-workspace-action'));
 assert.ok(css.includes('.message-workspace-focus'));
-assert.ok(css.includes('forced-colors:active'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
+assert.ok(hasMediaQuery(css, 'forced-colors:active'));
+assert.ok(hasMediaQuery(css, 'prefers-reduced-motion:reduce'));
 
-assert.ok(sw.includes("CURRENT_CACHE = `${CACHE_PREFIX}v23`"));
+assert.ok(sw.includes(`CURRENT_CACHE = \`\${CACHE_PREFIX}${readShellCacheVersion(sw)}\``));
 for (const asset of ['/message-workspace.css','/message-workspace-policy.js','/message-workspace.js']) {
   assert.equal((sw.match(new RegExp(asset.replace('.', '\\.'), 'g')) || []).length, 1);
 }
