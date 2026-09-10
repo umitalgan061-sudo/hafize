@@ -1,0 +1,63 @@
+.settings-workspace {
+  display: grid;
+  gap: 14px;
+  max-width: 860px;
+  width: min(100%, 860px);
+  margin: 0 auto;
+}
+.settings-panel {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 10px 32px rgba(32, 28, 20, .06);
+  padding: 18px;
+}
+.settings-panel h2 { margin: 0 0 5px; font-size: 16px; }
+.settings-panel p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.settings-row:first-of-type { margin-top: 14px; }
+.settings-copy { min-width: 0; }
+.settings-label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+.settings-control { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.settings-control select, .settings-control button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  padding: 8px 10px;
+  font: inherit;
+}
+.settings-control button { cursor: pointer; }
+.settings-control button:hover { background: var(--soft); }
+.settings-switch { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; }
+.settings-switch input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: currentColor; }
+.settings-danger { color: #a53d36 !important; }
+.settings-stat { font-size: 12px; color: var(--muted); }
+.settings-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.settings-kbd {
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 1px 5px;
+  background: var(--soft);
+  font-size: 10px;
+  white-space: nowrap;
+}
+@media (max-width: 680px) {
+  .settings-row { align-items: flex-start; flex-direction: column; }
+  .settings-control { justify-content: flex-start; width: 100%; }
+  .settings-control select, .settings-control button { width: 100%; }
+}
+html[data-reduced-motion="true"] *, html[data-reduced-motion="true"] *::before, html[data-reduced-motion="true"] *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+  scroll-behavior: auto !important;
+}
