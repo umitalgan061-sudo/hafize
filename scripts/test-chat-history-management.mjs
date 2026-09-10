@@ -8,6 +8,7 @@ const html = read('public/index.html');
 const js = read('public/chat-history-management.js');
 const css = read('public/chat-history-management.css');
 const sw = read('public/sw-policy.js');
+const docs = read('docs/CHAT_HISTORY_MANAGEMENT.md');
 
 assert.match(html, /chat-history-management\.css/);
 assert.match(html, /chat-history-management\.js/);
@@ -20,11 +21,20 @@ assert.match(js, /Sohbet adını değiştir/);
 assert.match(js, /Sohbet adı boş olamaz/);
 assert.match(js, /MutationObserver/);
 assert.match(js, /storage/);
+assert.match(js, /DELETE_BOUND/);
+assert.match(js, /stopImmediatePropagation/);
 assert.match(css, /\.conversation-row\.pinned/);
 assert.match(css, /\.history-rename/);
+assert.match(css, /focus-visible/);
 assert.match(css, /max-width:680px/);
 assert.match(sw, /\/chat-history-management\.css/);
 assert.match(sw, /\/chat-history-management\.js/);
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v20`/);
+assert.match(docs, /pinned: true/);
+assert.match(docs, /80 karakter/);
+assert.match(docs, /silme koruması/);
+assert.match(docs, /MutationObserver/);
+assert.match(docs, /PWA/);
+assert.match(docs, /Geri alma/);
 
 console.log('chat history management source-contract checks passed');
