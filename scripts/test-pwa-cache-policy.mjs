@@ -32,28 +32,30 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+const versionMatch = /^hafize-shell-v([1-9]\d*)$/.exec(policy.CURRENT_CACHE);
+assert.ok(versionMatch, 'shell cache adı hafize-shell-v<N> biçiminde olmalıdır');
+const currentVersion = Number(versionMatch[1]);
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
-  '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+// Shell varlık listesi tek kaynaktır (`public/sw-policy.js`). Listeyi burada
+// sabit bir kopyayla karşılaştırmak, her yeni dosyada dört ayrı testin
+// güncellenmesini gerektiriyordu; onun yerine listeyi değişmezlerle bağlıyoruz.
+const indexSource = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+const referencedAssets = [...indexSource.matchAll(/(?:src|href)="(\/[^"?#]*)"/g)].map((match) => match[1]);
+assert.ok(referencedAssets.length > 0, 'index.html yerel varlık referansı içermelidir');
+for (const asset of referencedAssets) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} offline kabuk listesinde olmalıdır`);
+}
+for (const asset of policy.SHELL_ASSETS) {
+  if (asset === '/') continue;
+  await assert.doesNotReject(
+    () => readFile(join(ROOT, 'public', asset.slice(1))),
+    `${asset} public/ altında bulunmalıdır`
+  );
+}
+for (const required of ['/', '/index.html', '/offline.html', '/sw-policy.js', '/manifest.webmanifest']) {
+  assert.ok(policy.SHELL_ASSETS.includes(required), `${required} offline kabuk için zorunludur`);
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -144,11 +146,11 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+for (let version = 1; version < currentVersion; version += 1) {
+  assert.equal(policy.shouldDeleteCache(`hafize-shell-v${version}`), true, `eski sürüm v${version} temizlenmelidir`);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
+assert.equal(policy.shouldDeleteCache(`hafize-shell-v${currentVersion + 1}`), true);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

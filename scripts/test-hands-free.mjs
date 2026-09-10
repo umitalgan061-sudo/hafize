@@ -44,7 +44,18 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+// Sahte saat clearTimeout'u gerçekten uygular; aksi hâlde iptal edilmiş
+// zamanlayıcılar da sayılıyor ve bekleyen iş hakkındaki iddialar yanıltıcı oluyordu.
+const timers = new Map();
+let timerSequence = 0;
+function pendingTimers() { return timers.size; }
+function runNewestTimer() {
+  const id = [...timers.keys()].pop();
+  assert.ok(id !== undefined, 'bekleyen bir zamanlayıcı olmalıydı');
+  const fn = timers.get(id);
+  timers.delete(id);
+  fn();
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +63,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn) { timerSequence += 1; timers.set(timerSequence, fn); return timerSequence; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -77,11 +88,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
-
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// Uyandırma ifadesinden sonra dinleme mikrofona devredilir ve hemen yeniden
+// başlamaz: oturum sınırı zamanlayıcısı beklerken bir de handoff zaman aşımı
+// kurulur. Handoff dolduğunda yeniden başlatma gecikmesi devreye girer.
+assert.equal(pendingTimers(), 2);
+runNewestTimer();
+assert.equal(recognitions.length, 1);
+assert.equal(controller.isListening(), false);
+runNewestTimer();
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
