@@ -44,16 +44,27 @@ Desteklenen işlemler:
 
 Workspace yalnızca `localStorage` kullanır. Import/export için backend endpoint'i veya uzak dosya yükleme çağrısı eklenmez. Import sırasında id çakışması mevcut kaydın üzerine yazmak yerine yeni import id'si üretir.
 
+## Mesaj çalışma alanı
+
+Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları uzun vadeli kişisel işaretlere dönüştürür. Kullanıcı veya Hafize mesajı kaydedilebilir; asistan yanıtına olumlu/olumsuz geri bildirim, kısa not ve etiket eklenebilir.
+
+Panel sağdaki yardımcı araçlar bölümünde açılır. Kayıtlı mesajlar mesaj metni, not ve etiket üzerinde aranabilir; kaydedilen, geri bildirimli, notlu, kullanıcı, Hafize ve etiketli görünümler arasında filtrelenebilir. Son güncellenen, eski, etkileşimli ve notlu sıralamalar mevcuttur.
+
+Seçili mesaj kayıtları JSON olarak dışa aktarılabilir. Export yerel Blob üzerinden yapılır; backend'e yeni endpoint eklenmez ve sohbet geçmişi ayrı storage anahtarında tutulduğu için `app.js`'nin sohbet kaydetmesi metadata'yı ezmez.
+
+Veri anahtarı `hafize.message-workspace.v1`, görünüm durumu ise aynı anahtarın `.state` uzantısıdır. Kayıtlar 240, seçim ve export 100, not 600, etiket 24 karakter ve 8 adetle sınırlandırılır.
+
 Kısayollar:
 
 ```text
-Ctrl / ⌘ + Shift + A   Görünen sohbetleri seç
-Ctrl / ⌘ + Shift + X   Seçimi temizle
-Ctrl / ⌘ + Shift + U   Workspace aramasına geç
-Esc                    Workspace aramasını temizle
+Ctrl / ⌘ + Shift + B   Mesaj çalışma alanı aramasına geç
+Ctrl / ⌘ + Shift + K   Görünen mesaj kayıtlarını seç
+Ctrl / ⌘ + Shift + X   Mesaj seçimini temizle
 ```
 
-Ayrıntılı sözleşme için `docs/CONVERSATION_WORKSPACE.md`, operasyon için `docs/CONVERSATION_WORKSPACE_RUNBOOK.md`, güvenlik incelemesi için `docs/CONVERSATION_WORKSPACE_SECURITY.md` kullanılmalıdır.
+Metadata katmanı `/api/` çağırmaz; `fetch`, `XMLHttpRequest`, `WebSocket`, cookie veya Authorization erişimi yoktur. Yeni asset'ler PWA shell cache'ine eklenmiştir.
+
+Ayrıntılı sözleşme için `docs/MESSAGE_WORKSPACE.md`, güvenlik için `docs/MESSAGE_WORKSPACE_SECURITY.md`, operasyon için `docs/MESSAGE_WORKSPACE_RUNBOOK.md` kullanılmalıdır.
 
 ## Test
 
@@ -69,6 +80,19 @@ node scripts/test-conversation-workspace.mjs
 node scripts/test-conversation-workspace-adversarial.mjs
 node scripts/test-conversation-workspace-data-compat.mjs
 node scripts/test-conversation-workspace-keyboard.mjs
+```
+
+Mesaj Workspace özel kontrolleri:
+
+```bash
+node scripts/test-message-workspace-policy.mjs
+node scripts/test-message-workspace-source.mjs
+node scripts/test-message-workspace-adversarial.mjs
+node scripts/test-message-workspace-compatibility.mjs
+node scripts/test-message-workspace-keyboard.mjs
+node scripts/test-message-workspace-runtime.mjs
+node scripts/test-message-workspace-export.mjs
+node scripts/test-message-workspace-regression.mjs
 ```
 
 Production hardening için ayrıca:
