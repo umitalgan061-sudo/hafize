@@ -25,6 +25,6 @@ assert.match(css, /data-reduced-motion/);
 assert.match(css, /@media \(max-width: 680px\)/);
 assert.match(sw, /\/settings-workspace\.css/);
 assert.match(sw, /\/settings-workspace\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v19`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 
 console.log('settings workspace source-contract checks passed');

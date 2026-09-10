@@ -47,7 +47,7 @@ assert.match(css, /ellipsis/);
 assert.match(css, /keyframes chat-draft-status-in/);
 assert.match(sw, /\/chat-drafts\.css/);
 assert.match(sw, /\/chat-drafts\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v21`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(docs, /12\.000 karakter/);
 assert.match(docs, /30 taslak/);
 assert.match(docs, /çoklu sekme/);

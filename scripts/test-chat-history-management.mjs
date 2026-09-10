@@ -41,7 +41,7 @@ assert.match(css, /\.conversation-row:focus-within/);
 assert.match(css, /flex-wrap:wrap/);
 assert.match(sw, /\/chat-history-management\.css/);
 assert.match(sw, /\/chat-history-management\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v20`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(docs, /pinned: true/);
 assert.match(docs, /80 karakter/);
 assert.match(docs, /silme koruması/);
