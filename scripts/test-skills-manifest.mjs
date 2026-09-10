@@ -18,6 +18,8 @@ const manifest = normalizeSkillManifest(base);
 assert.equal(manifest.name, 'repo-triage');
 assert.equal(manifest.execution, 'inline');
 assert.equal(manifest.model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: ' nvidia/llama-3.1-8b ' }).model, 'nvidia/llama-3.1-8b');
 assert.deepEqual([...manifest.triggers], ['repo triage', 'issue triage']);
 assert.deepEqual(manifest.arguments.map((item) => item.required), [true, false]);
 assert.equal(Object.isFrozen(manifest), true);
@@ -34,6 +36,7 @@ for (const [patch, pattern] of [
   [{ arguments: [{ name: 'repo', extra: 1 }] }, /INVALID_SKILL_ARGUMENT_FIELD/],
   [{ arguments: [{ name: 'Repo' }] }, /INVALID_SKILL_ARGUMENTS/],
   [{ model: 'nvidia/model key' }, /INVALID_SKILL_MODEL/],
+  [{ model: 42 }, /INVALID_SKILL_MODEL/],
   [{ prompt: '' }, /INVALID_SKILL_PROMPT/],
   [{ execution: 'bypass' }, /INVALID_SKILL_EXECUTION/],
   [{ allowedTools: ['secret.read'] }, /FORBIDDEN_SKILL_TOOL:secret.read/],

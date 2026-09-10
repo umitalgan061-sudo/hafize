@@ -3,7 +3,7 @@
     "name": "code-inspection",
     "description": "İzin verilen GitHub dosyalarını okuyarak kodun davranışını ve risklerini inceleyen salt-okunur yardımcı skill.",
     "triggers": ["kod incele", "kodu incele", "code review", "inspect code"],
-    "allowedTools": ["repo.read", "runtime.status"],
+    "allowedTools": ["repo.read"],
     "arguments": [
       { "name": "focus", "required": false, "description": "Özellikle incelenecek davranış veya risk alanı." },
       { "name": "repository", "required": false, "description": "İzin verilen owner/repo kapsamı." }
