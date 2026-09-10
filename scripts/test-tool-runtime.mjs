@@ -45,8 +45,13 @@ assert.deepEqual(
 );
 assert.equal(getPublicToolActivity('repo_delete', { ok: true }), null);
 
-const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
-assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['agent_delegate', 'skill_invoke']);
+const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true, delegateAgent: async () => ({ ok: true, value: {} }) });
+assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status', 'agent_delegate', 'skill_invoke']);
+// agent_delegate is only offered when a delegation runtime is actually wired in.
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  ['runtime_status', 'skill_invoke']
+);
 assert.deepEqual(
   getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
   ['github_read_file', 'skill_invoke']
@@ -101,7 +106,6 @@ const skillResult = await executeNvidiaToolCall(
   {
     id: 'call_skill_1',
     type: 'function',
-    id: 'call-skill-1',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'runtime-diagnostics', args: { question: 'Runtime hazır mı?' } }) }
   },
   { traceId, agent: hafize, registry, approvalGranted: false }
@@ -117,7 +121,6 @@ const codeSkill = await executeNvidiaToolCall(
   {
     id: 'call_skill_2',
     type: 'function',
-    id: 'call-skill-2',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'code-inspection', args: { focus: 'tool runtime' } }) }
   },
   { traceId, agent: reviewer, registry, githubReadConfigured: true, approvalGranted: false }
@@ -130,7 +133,6 @@ const invalidSkillArgs = await executeNvidiaToolCall(
   {
     id: 'call_skill_3',
     type: 'function',
-    id: 'call-skill-3',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'runtime-diagnostics', args: { question: 'x', token: 'secret' } }) }
   },
   { traceId, agent: hafize, registry, approvalGranted: false }
