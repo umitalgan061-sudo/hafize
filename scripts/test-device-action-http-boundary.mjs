@@ -101,11 +101,13 @@ assert.equal(JSON.stringify(sanitized).includes('must-not-pass'), false);
 
 const unsafeRuntimeReview = createDeviceActionHttpBoundary({ runtime: { ...runtime, async beginReview() { return { ok: true, review: { id: 'review-123', action: 'browser.open', title: 'Onay', target: 'https://example.com/safe?token=leak', expiresAt: 1, requiresExplicitConfirmation: true } }; } } });
 const rejectedRuntimeLeak = await unsafeRuntimeReview.handle({ method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'browser.open', url: 'https://example.com' } } }, { agent, principal, traceId });
-assert.deepEqual(rejectedRuntimeLeak, { status: 400, body: { ok: false, error: 'INVALID_DEVICE_HTTP_REQUEST' } });
+// An unsafe value coming back from the runtime is reported as a runtime-result
+// rejection, not as a bad request: the caller's request was well formed.
+assert.deepEqual(rejectedRuntimeLeak, { status: 400, body: { ok: false, error: 'INVALID_DEVICE_HTTP_RUNTIME_RESULT' } });
 assert.equal(JSON.stringify(rejectedRuntimeLeak).includes('leak'), false);
 
 const unsafeSystemInfo = createDeviceActionHttpBoundary({ runtime: { ...runtime, async executeReadOnly() { return { ok: true, value: { ok: true, action: 'system.info', info: { platform: 'linux', arch: 'x64', username: 'secret-user' } } }; } } });
-assert.deepEqual(await unsafeSystemInfo.handle({ method: 'POST', pathname: '/api/device/system-info', body: {} }, { agent, principal, traceId }), { status: 400, body: { ok: false, error: 'INVALID_DEVICE_HTTP_REQUEST' } });
+assert.deepEqual(await unsafeSystemInfo.handle({ method: 'POST', pathname: '/api/device/system-info', body: {} }, { agent, principal, traceId }), { status: 400, body: { ok: false, error: 'INVALID_DEVICE_HTTP_RUNTIME_RESULT' } });
 
 assert.throws(() => createDeviceActionHttpBoundary(), /INVALID_DEVICE_HTTP_BOUNDARY/);
 assert.throws(() => createDeviceActionHttpBoundary({ runtime: {} }), /INVALID_DEVICE_HTTP_BOUNDARY/);

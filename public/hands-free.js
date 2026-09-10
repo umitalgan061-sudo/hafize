@@ -27,10 +27,22 @@
     'service-not-allowed',
     'language-not-supported'
   ]);
+  const STORAGE_KEY = 'hafize.handsFree.v1';
   const VOICE_INPUT_STATE_EVENT = 'hafize:voice-input-state';
   const VOICE_OUTPUT_STATE_EVENT = 'hafize:voice-output-state';
   const HANDS_FREE_REVOKE_EVENT = 'hafize:hands-free-revoke';
   const ACTIVE_INSTALLATIONS = new WeakMap();
+
+  // Only the preference is remembered, never an active session: hands-free is not
+  // resumed on load, because re-opening the microphone has to stay a deliberate,
+  // in-page user action rather than something a stored flag can trigger.
+  function persistHandsFreePreference(root, enabled) {
+    const storage = root?.localStorage;
+    try {
+      if (enabled) storage?.setItem?.(STORAGE_KEY, 'on');
+      else storage?.removeItem?.(STORAGE_KEY);
+    } catch { /* storage is optional */ }
+  }
 
   function getRecognitionConstructor(root) {
     return root?.SpeechRecognition || root?.webkitSpeechRecognition || null;
@@ -452,6 +464,7 @@
       const requested = Boolean(next) && Boolean(Recognition);
       if (enabled === requested) return;
       enabled = requested;
+      persistHandsFreePreference(root, enabled);
       clearHandoff();
       clearCooldown();
       clearSessionTimer();
@@ -594,6 +607,7 @@
         if (destroyed) return;
         destroyed = true;
         enabled = false;
+        persistHandsFreePreference(root, false);
         voiceInputListening = false;
         voiceOutputSpeaking = false;
         resetRecognitionRecovery();
@@ -617,6 +631,7 @@
 
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
+    STORAGE_KEY,
     HANDOFF_TIMEOUT_MS,
     HANDS_FREE_REVOKE_EVENT,
     NETWORK_RETRY_DELAYS_MS,

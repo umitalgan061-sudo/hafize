@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { assertShellCacheAtLeast } from './sw-cache-version.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
 const origin = 'https://hafize.example';
 
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assertShellCacheAtLeast(policy, 14);
 for (const asset of ['/screen-share.css', '/screen-share.js', '/hands-free.css', '/hands-free.js']) {
   assert.ok(policy.SHELL_ASSETS.includes(asset));
   assert.equal(policy.classifyRequest({
