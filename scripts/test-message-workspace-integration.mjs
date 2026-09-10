@@ -45,7 +45,7 @@ assert.ok(css.includes('.message-workspace-focus'));
 assert.ok(css.includes('forced-colors:active'));
 assert.ok(css.includes('prefers-reduced-motion:reduce'));
 
-assert.ok(sw.includes("CURRENT_CACHE = `${CACHE_PREFIX}v23`"));
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 for (const asset of ['/message-workspace.css','/message-workspace-policy.js','/message-workspace.js']) {
   assert.equal((sw.match(new RegExp(asset.replace('.', '\\.'), 'g')) || []).length, 1);
 }

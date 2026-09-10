@@ -13,6 +13,8 @@ assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
 assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
 assert.match(search, /event\.altKey/);
+// Kısayol mod+shift+f'tir; shift olmadan tarayıcının kendi arama kısayolu ele geçirilmez.
+assert.match(search, /event\.shiftKey !== SHORTCUT\.shift/);
 assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
 assert.match(search, /event\.key === 'Escape'/);
 assert.match(search, /\.messages/);
