@@ -12,7 +12,8 @@ const sw = read('public/sw-policy.js');
 
 assert.match(html, /settings-workspace\.css/);
 assert.match(html, /settings-workspace\.js/);
-assert.match(html, /id="settingsWorkspace"|settingsWorkspace/);
+// The settings panel is created by the module; index.html carries the assets.
+assert.match(settings, /const WORKSPACE_ID = 'settingsWorkspace'/);
 assert.match(settings, /hafize\.theme\.v1/);
 assert.match(settings, /hafize\.reduced-motion\.v1/);
 assert.match(settings, /hafize\.conversations\.v1/);

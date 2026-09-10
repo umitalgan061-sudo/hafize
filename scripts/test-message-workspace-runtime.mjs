@@ -70,7 +70,12 @@ const ariaContracts = [
 for (const token of ariaContracts) assert.ok(source.includes(token), `missing accessibility contract: ${token}`);
 
 assert.equal((source.match(/localStorage/g) || []).length >= 4, true);
-assert.equal((source.match(/CustomEvent/g) || []).length >= 2, true);
+// One same-tab change event is dispatched and observed, and cross-tab updates
+// arrive through the storage event.
+assert.equal((source.match(/CustomEvent/g) || []).length >= 1, true);
+assert.match(source, /window\.dispatchEvent\(new CustomEvent\(STORAGE_EVENT/);
+assert.match(source, /window\.addEventListener\(STORAGE_EVENT/);
+assert.match(source, /window\.addEventListener\('storage'/);
 assert.equal((source.match(/MutationObserver/g) || []).length >= 1, true);
 assert.equal((source.match(/setTimeout/g) || []).length >= 2, true);
 assert.equal((source.match(/setInterval/g) || []).length >= 1, true);
@@ -87,7 +92,7 @@ for (const token of boundedCalls) assert.ok(source.includes(token), `missing bou
 assert.ok(source.includes('record.saved || record.feedback || record.note || record.tags.length'));
 assert.ok(source.includes('pruneEmptyRecord'));
 assert.ok(source.includes('runtime.records = runtime.records.filter'));
-assert.ok(source.includes('runtime.state.selected = runtime.state.selected.filter'));
+assert.match(source, /runtime\.state\.selected\s*=\s*runtime\.state\.selected\.filter/);
 assert.ok(source.includes('new Set(runtime.state.selected)'));
 
 assert.ok(source.includes('new Blob'));

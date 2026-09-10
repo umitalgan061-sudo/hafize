@@ -7,6 +7,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const js = await read('public/message-workspace.js');
 const css = await read('public/message-workspace.css');
+// Compare against a whitespace-normalized copy so formatting choices in the
+// stylesheet do not decide whether the contract holds.
+const cssCompact = css.replace(/\s*([:{;,])\s*/g, '$1');
 const html = await read('public/index.html');
 
 const buttons = [
@@ -18,7 +21,8 @@ const buttons = [
   ['message-more', 'Mesaj çalışma alanı seçenekleri']
 ];
 for (const [className, label] of buttons) {
-  assert.ok(js.includes(`.${className}`));
+  // Buttons get their class from actionButton(symbol, label, className).
+  assert.ok(js.includes(`'${className}'`), `missing action class ${className}`);
   assert.ok(js.includes(`'${label}'`));
 }
 
@@ -30,19 +34,19 @@ assert.ok(js.includes("down?.setAttribute('aria-pressed', String(record?.feedbac
 assert.ok(js.includes("status.setAttribute('role','status')"));
 assert.ok(js.includes("status.setAttribute('aria-live','polite')"));
 
-assert.ok(css.includes('.message-workspace-action:focus-visible'));
-assert.ok(css.includes('.message-workspace-search:focus'));
-assert.ok(css.includes('.message-workspace-select:focus'));
-assert.ok(css.includes('overflow-wrap:anywhere'));
-assert.ok(css.includes('overscroll-behavior:contain'));
-assert.ok(css.includes('min-width:0'));
-assert.ok(css.includes('width:100%'));
+assert.ok(cssCompact.includes('.message-workspace-action:focus-visible'));
+assert.ok(cssCompact.includes('.message-workspace-search:focus'));
+assert.ok(cssCompact.includes('.message-workspace-select:focus'));
+assert.ok(cssCompact.includes('overflow-wrap:anywhere'));
+assert.ok(cssCompact.includes('overscroll-behavior:contain'));
+assert.ok(cssCompact.includes('min-width:0'));
+assert.ok(cssCompact.includes('width:100%'));
 
-assert.ok(css.includes('@media (max-width:1100px)'));
-assert.ok(css.includes('@media (max-width:900px)'));
-assert.ok(css.includes('@media (max-width:560px)'));
-assert.ok(css.includes('@media (prefers-reduced-motion:reduce)'));
-assert.ok(css.includes('@media (forced-colors:active)'));
+assert.ok(cssCompact.includes('@media (max-width:1100px)'));
+assert.ok(cssCompact.includes('@media (max-width:900px)'));
+assert.ok(cssCompact.includes('@media (max-width:560px)'));
+assert.ok(cssCompact.includes('@media (prefers-reduced-motion:reduce)'));
+assert.ok(cssCompact.includes('@media (forced-colors:active)'));
 
 const source = `${js}\n${css}`;
 for (const forbidden of ['pointer-events:none', 'user-select:none', 'outline:none', 'display:none!important']) {
