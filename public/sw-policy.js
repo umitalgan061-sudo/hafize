@@ -32,6 +32,7 @@
     '/chat-history-management.js',
     '/chat-drafts.js',
     '/conversation-workspace.js',
+    '/conversation-workspace-keyboard.js',
     '/voice-input.js',
     '/voice-output.js',
     '/screen-share.js',
