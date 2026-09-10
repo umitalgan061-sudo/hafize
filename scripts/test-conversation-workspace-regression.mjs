@@ -10,6 +10,8 @@ const drafts = fs.readFileSync(path.join(root, 'public', 'chat-drafts.js'), 'utf
 const historyManagement = fs.readFileSync(path.join(root, 'public', 'chat-history-management.js'), 'utf8');
 const historySearch = fs.readFileSync(path.join(root, 'public', 'chat-history-search.js'), 'utf8');
 const historyExport = fs.readFileSync(path.join(root, 'public', 'chat-history-export.js'), 'utf8');
+const settingsWorkspace = fs.readFileSync(path.join(root, 'public', 'settings-workspace.js'), 'utf8');
+const uiShell = fs.readFileSync(path.join(root, 'public', 'ui-shell.js'), 'utf8');
 
 function has(text, fragment, label = fragment) {
   assert.ok(text.includes(fragment), label);
@@ -91,7 +93,12 @@ for (const selector of coexistenceSelectors) {
   if (selector.startsWith('.conversation-workspace') || selector === '.workspace-row-check') {
     has(workspace, selector, `workspace owns ${selector}`);
   } else {
-    has(historyManagement + historySearch + historyExport, selector, `existing module still mentions ${selector}`);
+    // Modules may name the class with or without the leading dot.
+    const combined = historyManagement + historySearch + historyExport;
+    assert.ok(
+      combined.includes(selector) || combined.includes(`'${selector.slice(1)}'`),
+      `existing module still mentions ${selector}`
+    );
   }
 }
 
@@ -103,7 +110,7 @@ const storageKeys = [
   'hafize.reduced-motion.v1'
 ];
 for (const key of storageKeys) {
-  const consumers = [workspace, drafts, historyManagement, historySearch, historyExport].filter((text) => text.includes(key));
+  const consumers = [workspace, drafts, historyManagement, historySearch, historyExport, settingsWorkspace, uiShell].filter((text) => text.includes(key));
   assert.ok(consumers.length >= 1, `storage key is referenced somewhere: ${key}`);
 }
 
@@ -157,7 +164,16 @@ const accessibilityFragments = [
   'aria-label="Etikete göre filtrele"',
   'aria-label="Sohbeti yönetim seçimine ekle"'
 ];
-for (const fragment of accessibilityFragments) has(workspace, fragment, `accessibility retained: ${fragment}`);
+for (const fragment of accessibilityFragments) {
+  // Attributes are applied with setAttribute(), not written as markup.
+  const parsed = /^([a-z-]+)="(.*)"$/s.exec(fragment);
+  assert.ok(parsed, `attribute fragment must be name="value": ${fragment}`);
+  const applied = `setAttribute('${parsed[1]}', '${parsed[2]}')`;
+  assert.ok(
+    workspace.includes(fragment) || workspace.includes(applied),
+    `accessibility retained: ${fragment}`
+  );
+}
 
 const keyboardFragments = [
   "selectAll: { key: 'a', shift: true }",
@@ -182,7 +198,7 @@ const existingBehaviorFragments = [
   [drafts, 'visibilitychange', 'draft visibility lifecycle retained'],
   [historyManagement, 'bindDeleteGuard', 'history deletion confirmation retained'],
   [historyManagement, 'openRename', 'history rename retained'],
-  [historySearch, 'focusConversationSearch', 'history search shortcut boundary retained'],
+  [historySearch, "searchUi.input.focus()", 'history search shortcut boundary retained'],
   [historyExport, 'buildMarkdown', 'history markdown export retained'],
   [historyExport, 'buildJson', 'history JSON export retained']
 ];

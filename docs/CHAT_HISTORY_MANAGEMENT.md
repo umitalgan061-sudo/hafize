@@ -58,7 +58,7 @@ Yeni JS ve CSS dosyaları shell varlıklarına eklenir ve service worker cache s
 
 ## Test yaklaşımı
 
-`script/test-chat-history-management.mjs` kaynak-sözleşme kontrolleri yapar. Kontroller; HTML bağlantılarını, yerel depolama anahtarını, sabitleme/yeniden adlandırma/silme guard sözleşmelerini, responsive CSS seçicilerini ve service-worker cache kayıtlarını doğrular.
+`scripts/test-chat-history-management.mjs` kaynak-sözleşme kontrolleri yapar. Kontroller; HTML bağlantılarını, yerel depolama anahtarını, sabitleme/yeniden adlandırma/silme guard sözleşmelerini, responsive CSS seçicilerini ve service-worker cache kayıtlarını doğrular.
 
 Node/npm runtime'ı olmayan çalışma ortamlarında bu testler dosya içeriği üzerinden gözden geçirilebilir; çalıştırılamayan komut sonucu PR açıklamasında açıkça belirtilmelidir.
 

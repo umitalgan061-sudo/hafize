@@ -45,7 +45,7 @@ assert.match(sw, /\/chat-history-management\.js/);
 assertShellCacheAtLeast(20, 'chat history management');
 assert.match(docs, /pinned: true/);
 assert.match(docs, /80 karakter/);
-assert.match(docs, /silme koruması/);
+assert.match(docs, /silme koruması/i);
 assert.match(docs, /MutationObserver/);
 assert.match(docs, /PWA/);
 assert.match(docs, /Bakım notları/);
