@@ -7,6 +7,7 @@
   const MANAGE_CLASS = 'history-manage';
   const MANAGE_BUTTON = 'history-manage-btn';
   const RENAME_CLASS = 'history-rename';
+  const DELETE_BOUND = 'data-history-delete-bound';
   const MAX_TITLE_LENGTH = 80;
 
   const ui = {
@@ -89,6 +90,19 @@
     row.querySelector(`.${RENAME_CLASS}`)?.remove();
   }
 
+  function bindDeleteGuard(row, conversation) {
+    const remove = row.querySelector('.conversation-delete');
+    if (!remove || remove.dataset[DELETE_BOUND] === 'true') return;
+    remove.dataset[DELETE_BOUND] = 'true';
+    remove.addEventListener('click', (event) => {
+      const current = findConversation(conversation.id) || conversation;
+      const title = current.title || 'Yeni sohbet';
+      if (window.confirm(`"${title}" sohbeti silinsin mi? Bu işlem geri alınamaz.`)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+  }
+
   function openRename(row, conversation) {
     closeRename(row);
     const form = document.createElement('div');
@@ -138,6 +152,7 @@
     open.dataset.conversationId = conversation.id;
     row.classList.toggle('pinned', conversation.pinned === true);
     applyTitle(row, conversation);
+    bindDeleteGuard(row, conversation);
     row.querySelector(`.${MANAGE_CLASS}`)?.remove();
 
     const manage = document.createElement('div');
