@@ -15,7 +15,7 @@
   {
     "name": "runtime-diagnostics",
     "description": "Hafize runtime yapılandırmasını ve kullanılabilir ajan yüzeyini salt-okunur olarak teşhis eder.",
-    "triggers": ["runtime kontrol", "sistem kontrol", "hafize durum", "diagnostics"],
+    "triggers": ["runtime kontrol", "sistem kontrol", "hafize durum", "diagnostics", "hangi servisler hazır", "servis durumu"],
     "allowedTools": ["runtime.status"],
     "arguments": [
       { "name": "question", "required": true, "description": "Teşhis edilmesi istenen runtime sorusu." }

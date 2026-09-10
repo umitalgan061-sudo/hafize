@@ -22,8 +22,10 @@ Bilinmeyen üst alan, bilinmeyen argüman alanı veya tekrarlı ad doğrudan red
 
 ## Güvenlik sınırları
 
-- Skill kendi yetkisini yükseltemez: `allowedTools` içindeki her araç ajan policy'sinde de
-  izinli olmalıdır, aksi hâlde `SKILL_TOOL_ESCALATION:<tool>`.
+- Skill kendi yetkisini yükseltemez: çözümlenen `tools`, manifest `allowedTools` listesi ile
+  ajan policy'sinin kesişimidir. Ajanın kullanamadığı araç sessizce düşürülür ve prompt yalnız
+  gerçekten verilen araçları duyurur. Hiçbir araç verilemiyorsa skill yalnızca yetki yükseltmeye
+  çalışıyor demektir ve `SKILL_TOOL_ESCALATION:<tool>` ile reddedilir.
 - `secret.read` ve `repo.delete` hiçbir manifestte yer alamaz (`FORBIDDEN_SKILL_TOOL:<tool>`).
 - Onay gerektiren araçlar (`external.write`, `external.send`, `repo.merge`,
   `repo.write_branch`) yalnız `execution: "fork"` ile tanımlanabilir; yan etkili skill her
@@ -35,8 +37,8 @@ Bilinmeyen üst alan, bilinmeyen argüman alanı veya tekrarlı ad doğrudan red
 - Kaynak önceliği `builtin` (3) > `user` (2) > `project` (1); düşük öncelikli kaynak eşit veya
   yüksek öncelikli bir adı gölgeleyemez (`SKILL_SOURCE_CONFLICT:<name>`). `project` skill yalnız
   `createSkillsRegistry({ allowedProjects })` ile izin verilen kimlikten yüklenir.
-- `listForAgent(agent)` yalnız ajanın çalıştırabileceği skill'leri döndürür; onay gerektirenler
-  `requiresApproval: true` ile işaretlenir.
+- `listForAgent(agent)` yalnız ajanın en az bir aracını kullanabildiği skill'leri döndürür;
+  onay gerektirenler `requiresApproval: true` ile işaretlenir.
 
 ## Test ve sonraki adım
 
