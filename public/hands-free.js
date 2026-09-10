@@ -15,6 +15,7 @@
   'use strict';
 
   const DEFAULT_WAKE_PHRASE = 'hafize';
+  const STORAGE_KEY = 'hafize.handsfree.v1';
   const RESTART_DELAY_MS = 350;
   const HANDOFF_TIMEOUT_MS = 1500;
   const POST_OUTPUT_COOLDOWN_MS = 1800;
@@ -447,11 +448,21 @@
       }
     }
 
+    // The toggle is a user preference, so it survives a reload; enabling still needs a
+    // fresh user gesture, so nothing here re-opens the microphone on its own.
+    function persistPreference() {
+      try {
+        if (enabled) root?.localStorage?.setItem?.(STORAGE_KEY, 'on');
+        else root?.localStorage?.removeItem?.(STORAGE_KEY);
+      } catch { /* preference persistence is best effort */ }
+    }
+
     function setEnabled(next) {
       if (destroyed) return;
       const requested = Boolean(next) && Boolean(Recognition);
       if (enabled === requested) return;
       enabled = requested;
+      persistPreference();
       clearHandoff();
       clearCooldown();
       clearSessionTimer();
@@ -617,6 +628,7 @@
 
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
+    STORAGE_KEY,
     HANDOFF_TIMEOUT_MS,
     HANDS_FREE_REVOKE_EVENT,
     NETWORK_RETRY_DELAYS_MS,

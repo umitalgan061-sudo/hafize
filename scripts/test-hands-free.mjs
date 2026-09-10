@@ -44,7 +44,16 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+// Timers are tracked by handle so clearTimeout really clears, and only short timers
+// are fired on demand — the 30-minute session limit must not fire as a side effect.
+const timers = new Map();
+let timerSequence = 0;
+function runShortTimers(maxDelay = 2_000) {
+  const due = [...timers.entries()].filter(([, timer]) => timer.delay <= maxDelay);
+  for (const [handle] of due) timers.delete(handle);
+  for (const [, timer] of due) timer.fn();
+  return due.length;
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +61,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, delay = 0) { timers.set(++timerSequence, { fn, delay }); return timerSequence; },
+  clearTimeout(handle) { timers.delete(handle); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -77,12 +86,14 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+assert.equal(recognitions.length, 1, 'the wake handoff must not start a new recognition on its own');
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// The handoff timeout releases the wake handoff, which then schedules the restart.
+assert.equal(runShortTimers(), 1, 'the handoff timeout is the only short timer pending');
+assert.equal(recognitions.length, 1);
+assert.equal(runShortTimers(), 1, 'releasing the handoff schedules exactly one restart');
 assert.equal(recognitions.length, 2);
+assert.equal(controller.isListening(), true);
 assert.equal(controller.isListening(), true);
 
 documentRef.hidden = true;

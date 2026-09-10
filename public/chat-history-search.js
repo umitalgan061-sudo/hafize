@@ -151,8 +151,9 @@
 
   document.addEventListener('keydown', (event) => {
     const target = event.target;
-    if (!event.ctrlKey && !event.metaKey) return;
-    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (event.altKey || event.key.toLocaleLowerCase('tr-TR') !== SHORTCUT.key) return;
+    if (SHORTCUT.shift !== event.shiftKey) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();

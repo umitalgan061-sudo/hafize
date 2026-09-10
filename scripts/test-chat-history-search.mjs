@@ -13,7 +13,9 @@ assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
 assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
 assert.match(search, /event\.altKey/);
-assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
+assert.match(search, /event\.key\.toLocaleLowerCase\('tr-TR'\) !== SHORTCUT\.key/);
+// mod+shift+f means Shift is part of the chord, not a constant that is always true.
+assert.match(search, /SHORTCUT\.shift !== event\.shiftKey/);
 assert.match(search, /event\.key === 'Escape'/);
 assert.match(search, /\.messages/);
 assert.match(style, /\.history-search/);
