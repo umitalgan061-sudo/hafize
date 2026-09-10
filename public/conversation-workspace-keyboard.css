@@ -1,0 +1,63 @@
+.conversation-workspace-shortcuts {
+  display: grid;
+  gap: 5px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.workspace-shortcuts-title {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.workspace-shortcuts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+}
+
+.workspace-shortcut-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.workspace-shortcut-item kbd {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 4px;
+  background: var(--card);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+@media (max-width: 460px) {
+  .workspace-shortcuts-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shortcuts-list kbd {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .workspace-shortcuts {
+    border-color: CanvasText;
+  }
+
+  .workspace-shortcut-item kbd {
+    border-color: CanvasText;
+  }
+}
