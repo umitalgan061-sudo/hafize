@@ -55,15 +55,16 @@
     return writeHistory(history);
   }
 
-  function rowId(row) {
-    const button = row?.querySelector?.('.conversation-open');
-    return button?.dataset?.conversationId || '';
+  function getRowId(row) {
+    return row?.querySelector?.('.conversation-open')?.dataset?.conversationId || '';
   }
 
-  function ensureOpenButtonId(row, id) {
-    const button = row.querySelector('.conversation-open');
-    if (button && id) button.dataset.conversationId = id;
-    return button;
+  function assignMissingIds(rows, history) {
+    rows.forEach((row, index) => {
+      if (getRowId(row)) return;
+      const candidate = history[index];
+      if (candidate?.id) row.querySelector('.conversation-open')?.setAttribute('data-conversation-id', candidate.id);
+    });
   }
 
   function applyTitle(row, conversation) {
@@ -110,7 +111,7 @@
     const commit = () => {
       const nextTitle = input.value.trim().replace(/\s+/g, ' ').slice(0, MAX_TITLE_LENGTH);
       if (!nextTitle) return announce('Sohbet adı boş olamaz.');
-      if (!mutateConversation(conversation.id, (item) => { item.title = nextTitle; item.updatedAt = new Date().toISOString(); })) return;
+      if (!mutateConversation(conversation.id, (item) => { item.title = nextTitle; })) return;
       applyTitle(row, { ...conversation, title: nextTitle });
       closeRename(row);
       announce('Sohbet adı güncellendi.');
@@ -132,9 +133,9 @@
 
   function decorateRow(row, conversation) {
     if (!row || !conversation?.id) return;
-    const open = ensureOpenButtonId(row, conversation.id);
+    const open = row.querySelector('.conversation-open');
     if (!open) return;
-
+    open.dataset.conversationId = conversation.id;
     row.classList.toggle('pinned', conversation.pinned === true);
     applyTitle(row, conversation);
     row.querySelector(`.${MANAGE_CLASS}`)?.remove();
@@ -154,7 +155,8 @@
     pin.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const nextPinned = !Boolean(findConversation(conversation.id)?.pinned);
+      const current = findConversation(conversation.id);
+      const nextPinned = !Boolean(current?.pinned);
       if (!mutateConversation(conversation.id, (item) => { item.pinned = nextPinned; })) return;
       sync();
       announce(nextPinned ? 'Sohbet sabitlendi.' : 'Sohbet sabitlemesi kaldırıldı.');
@@ -180,10 +182,11 @@
   function sync() {
     const history = readHistory();
     if (!history.length) return;
+    const rows = Array.from(ui.list.querySelectorAll(ROW_SELECTOR));
+    assignMissingIds(rows, history);
     const byId = new Map(history.map((conversation) => [conversation.id, conversation]));
-    for (const row of ui.list.querySelectorAll(ROW_SELECTOR)) {
-      const id = rowId(row);
-      const conversation = byId.get(id);
+    for (const row of rows) {
+      const conversation = byId.get(getRowId(row));
       if (conversation) decorateRow(row, conversation);
     }
     sortPinnedRows();
