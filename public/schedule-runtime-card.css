@@ -1,0 +1,35 @@
+.schedule-runtime-card[hidden] { display: none !important; }
+
+.schedule-runtime-state {
+  margin: 0 0 12px;
+  color: var(--premium-text, var(--ink));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.schedule-runtime-state[data-state="offline"],
+.schedule-runtime-state[data-state="unknown"] { color: var(--premium-muted, var(--muted)); }
+
+.schedule-runtime-signals { display: grid; gap: 10px; margin: 0 0 12px; padding: 0; list-style: none; }
+
+.schedule-runtime-signal {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 2px 8px;
+  align-items: baseline;
+}
+
+.schedule-runtime-dot {
+  grid-row: span 2;
+  color: var(--premium-muted, var(--muted));
+  font-size: 11px;
+  line-height: 1.6;
+}
+.schedule-runtime-signal.ready .schedule-runtime-dot { color: var(--premium-orange-strong, var(--accent-strong)); }
+
+.schedule-runtime-label { color: var(--premium-text, var(--ink)); font-size: 13px; font-weight: 650; }
+.schedule-runtime-detail { color: var(--premium-muted, var(--muted)); font-size: 12px; line-height: 1.5; }
+.schedule-runtime-card[aria-busy="true"] .schedule-runtime-signals { opacity: .55; }
+
+@media (forced-colors: active) {
+  .schedule-runtime-signal.ready .schedule-runtime-dot { color: Highlight; }
+}

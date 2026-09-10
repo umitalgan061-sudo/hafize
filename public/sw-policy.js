@@ -7,7 +7,7 @@
   'use strict';
 
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v19`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v20`;
   const SHELL_ASSETS = Object.freeze([
     '/',
     '/index.html',
@@ -21,6 +21,7 @@
     '/chat-composer-features.css',
     '/chat-history-search.css',
     '/chat-history-export.css',
+    '/schedule-runtime-card.css',
     '/auth.js',
     '/app.js',
     '/chat-composer-features.js',
@@ -32,6 +33,7 @@
     '/hands-free.js',
     '/hands-free-background-guard.js',
     '/workspace-navigation.js',
+    '/schedule-runtime-card.js',
     '/ui-shell.js',
     '/sw-policy.js',
     '/manifest.webmanifest',
