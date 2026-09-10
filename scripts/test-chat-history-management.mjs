@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+const html = read('public/index.html');
+const js = read('public/chat-history-management.js');
+const css = read('public/chat-history-management.css');
+const sw = read('public/sw-policy.js');
+
+assert.match(html, /chat-history-management\.css/);
+assert.match(html, /chat-history-management\.js/);
+assert.match(js, /hafize\.conversations\.v1/);
+assert.match(js, /pinned === true/);
+assert.match(js, /MAX_TITLE_LENGTH = 80/);
+assert.match(js, /replace\(\/\\s\+\/g, ' '\)/);
+assert.match(js, /Sohbeti sabitle/);
+assert.match(js, /Sohbet adını değiştir/);
+assert.match(js, /Sohbet adı boş olamaz/);
+assert.match(js, /MutationObserver/);
+assert.match(js, /storage/);
+assert.match(css, /\.conversation-row\.pinned/);
+assert.match(css, /\.history-rename/);
+assert.match(css, /max-width:680px/);
+assert.match(sw, /\/chat-history-management\.css/);
+assert.match(sw, /\/chat-history-management\.js/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v20`/);
+
+console.log('chat history management source-contract checks passed');
