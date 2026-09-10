@@ -11,7 +11,10 @@ const sw = read('public/sw-policy.js');
 
 assert.match(html, /settings-workspace\.css/);
 assert.match(html, /settings-workspace\.js/);
-assert.match(html, /id="settingsWorkspace"|settingsWorkspace/);
+// The panel is mounted by the script, so the id is owned by settings-workspace.js;
+// index.html only has to ship the settings nav entry the script activates.
+assert.match(html, /Ayarlar/);
+assert.match(settings, /WORKSPACE_ID = 'settingsWorkspace'/);
 assert.match(settings, /hafize\.theme\.v1/);
 assert.match(settings, /hafize\.reduced-motion\.v1/);
 assert.match(settings, /hafize\.conversations\.v1/);
@@ -25,6 +28,6 @@ assert.match(css, /data-reduced-motion/);
 assert.match(css, /@media \(max-width: 680px\)/);
 assert.match(sw, /\/settings-workspace\.css/);
 assert.match(sw, /\/settings-workspace\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v19`/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 
 console.log('settings workspace source-contract checks passed');

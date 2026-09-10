@@ -101,6 +101,7 @@ const invalidFirst = await runDelegatedAgent({
         role: 'assistant',
         tool_calls: [{
           id: 'oversized',
+          id: 'call-oversized-1',
           function: { name: 'github_read_file', arguments: 'x'.repeat(16_385) }
         }]
       }

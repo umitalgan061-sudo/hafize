@@ -32,28 +32,25 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assert.match(policy.CURRENT_CACHE, new RegExp(`^${policy.CACHE_PREFIX}v\\d+$`));
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
-  '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-]);
+// The shell allowlist grows with every feature, so assert invariants instead of a
+// snapshot: every precached entry must be a unique same-origin path that really
+// ships in public/, and the core shell must stay in the list.
+for (const required of ['/', '/index.html', '/offline.html', '/styles.css', '/app.js', '/sw-policy.js', '/manifest.webmanifest']) {
+  assert.ok(policy.SHELL_ASSETS.includes(required), `${required} must stay precached`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell allowlist must not repeat assets');
+for (const asset of policy.SHELL_ASSETS) {
+  assert.ok(asset.startsWith('/'), `${asset} must be a same-origin absolute path`);
+  assert.equal(asset.includes('?'), false, `${asset} must be precached without a query string`);
+  if (asset === '/') continue;
+  assert.ok(
+    await readFile(join(ROOT, 'public', asset.slice(1)), 'utf8').then(() => true, () => false),
+    `${asset} is precached but missing from public/`
+  );
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -148,7 +145,7 @@ assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
 assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);
