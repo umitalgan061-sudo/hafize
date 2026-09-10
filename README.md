@@ -24,11 +24,51 @@ Uygulama oturumları imzalı, HttpOnly ve SameSite=Strict cookie kullanır. Stat
 
 NVIDIA anahtarı server-side tutulur. GitHub okuma erişimi allowlist ile sınırlandırılır. Scheduled task API'si kullanıcı oturumundan ayrı olarak `HAFIZE_SCHEDULE_AUTH_TOKEN` ile korunur; böylece dış worker/cron çağrıları web oturum cookie'sine ihtiyaç duymaz.
 
+## Sohbet çalışma alanı
+
+Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetmek için kullanılır. Mevcut tekli sabitleme/adlandırma/dışa aktarma yüzeylerinin yerine geçmez; onları tamamlar.
+
+Desteklenen işlemler:
+
+- başlık, etiket, mesaj ve ajan kimliğine göre yerel arama,
+- aktif/arşivlenmiş/sabitlenmiş/etiketli filtreleri,
+- güncelleme, oluşturulma ve başlığa göre sıralama,
+- görünür sohbetleri topluca seçme ve seçim temizleme,
+- arşivleme ve arşivden çıkarma,
+- sabitleme ve sabitlemeyi kaldırma,
+- seçilen sohbetleri kopyalama,
+- seçilen sohbetlere kullanıcı girişiyle etiket ekleme,
+- seçilen sohbetleri JSON olarak dışa aktarma,
+- JSON yedeklerini bounded normalization ile içe aktarma,
+- yerel history için 30 kayıtlık quota görünümü.
+
+Workspace yalnızca `localStorage` kullanır. Import/export için backend endpoint'i veya uzak dosya yükleme çağrısı eklenmez. Import sırasında id çakışması mevcut kaydın üzerine yazmak yerine yeni import id'si üretir.
+
+Kısayollar:
+
+```text
+Ctrl / ⌘ + Shift + A   Görünen sohbetleri seç
+Ctrl / ⌘ + Shift + X   Seçimi temizle
+Ctrl / ⌘ + Shift + U   Workspace aramasına geç
+Esc                    Workspace aramasını temizle
+```
+
+Ayrıntılı sözleşme için `docs/CONVERSATION_WORKSPACE.md`, operasyon için `docs/CONVERSATION_WORKSPACE_RUNBOOK.md`, güvenlik incelemesi için `docs/CONVERSATION_WORKSPACE_SECURITY.md` kullanılmalıdır.
+
 ## Test
 
 ```bash
 npm run precheck
 npm run check
+```
+
+Conversation Workspace özel kontrolleri:
+
+```bash
+node scripts/test-conversation-workspace.mjs
+node scripts/test-conversation-workspace-adversarial.mjs
+node scripts/test-conversation-workspace-data-compat.mjs
+node scripts/test-conversation-workspace-keyboard.mjs
 ```
 
 Production hardening için ayrıca:
