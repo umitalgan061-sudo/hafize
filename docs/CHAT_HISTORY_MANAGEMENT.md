@@ -72,6 +72,14 @@ Yerel depolama başka bir sekmede değişirse `storage` olayı ile görünüm ye
 
 Arayüz yalnızca kullanıcıya ait yerel geçmişi düzenler. Dış servislerdeki konuşmalara, backend memory kayıtlarına veya connector verilerine yazma yapmaz.
 
+## Kenar durumları
+
+Geçmiş boşsa yönetim script'i hiçbir satır üretmez ve mevcut `Henüz sohbet yok.` görünümüne dokunmaz. Bozuk JSON veya beklenmeyen localStorage değeri boş geçmiş gibi ele alınır.
+
+Bir konuşma aynı başlığa sahip başka bir konuşmayla çakışsa bile kimlik ataması başlık yerine `data-conversation-id` üzerinden sürdürülür. İlk eşleme yalnızca uygulamanın render ettiği sıra ile mevcut yerel geçmişin sırasını birleştirir.
+
+Başlık değiştirme başarısız olursa satırdaki eski başlık ve sabitleme durumu korunur. Kullanıcının iptal ettiği silme onayı, alttaki mevcut silme handler'ının çalışmasını engeller.
+
 ## Geri alma
 
 Bu özellik tek bir PR olarak squash-revert edilebilir. Geri alma sonrasında mevcut sohbet geçmişindeki ek `pinned` alanı zararsız bir bilinmeyen alan olarak kalabilir; eski `app.js` bu alanı okumadığı için sohbetlerin temel işlemleri etkilenmez.
