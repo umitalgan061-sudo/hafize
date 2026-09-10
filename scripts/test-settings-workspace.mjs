@@ -17,6 +17,7 @@ assert.match(settings, /hafize\.reduced-motion\.v1/);
 assert.match(settings, /hafize\.conversations\.v1/);
 assert.match(settings, /hafize:workspace-changed/);
 assert.match(settings, /removeItem\?\.\(STORAGE_KEY\)/);
+assert.match(settings, /location\?\.reload/);
 assert.match(settings, /themeSelect\.addEventListener/);
 assert.match(settings, /motionSwitch\.input\.addEventListener/);
 assert.match(settings, /Uygulamayı yükle/);
