@@ -23,6 +23,13 @@ function check(name, condition) {
 function includes(text, fragment, name = fragment) {
   check(name, text.includes(fragment));
 }
+// Nitelikler DOM API'siyle atanır; iddia hem HTML hem setAttribute biçimini kabul eder.
+function includesAttribute(text, fragment, name = fragment) {
+  const match = /^([a-z-]+)="(.*)"$/.exec(fragment);
+  if (!match) return includes(text, fragment, name);
+  const [, attribute, value] = match;
+  check(name, text.includes(fragment) || text.includes(`'${attribute}', '${value}'`));
+}
 function excludes(text, fragment, name = `must exclude ${fragment}`) {
   check(name, !text.includes(fragment));
 }
@@ -230,7 +237,7 @@ for (const fragment of [
   'aria-label="Etikete göre filtrele"',
   'aria-valuemin="0"',
   'aria-valuemax="100"'
-]) includes(source, fragment, `accessibility contract ${fragment}`);
+]) includesAttribute(source, fragment, `accessibility contract ${fragment}`);
 
 for (const fragment of [
   '.conversation-workspace {',

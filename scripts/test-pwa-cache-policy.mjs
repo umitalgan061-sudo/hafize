@@ -52,6 +52,19 @@ for (const asset of REQUIRED_SHELL_ASSETS) {
   assert.ok(policy.SHELL_ASSETS.includes(asset), `shell cache missing ${asset}`);
 }
 assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell cache has duplicate entries');
+
+// index.html'in yüklediği her yerel asset precache listesinde olmalıdır; aksi hâlde
+// uygulama kabuğu çevrimdışıyken eksik stil/script ile açılır.
+// `/auth.js` bilinçli olarak dışarıdadır: oturum akışı zaten ağ gerektirir ve
+// stale bir auth istemcisi servis edilmesi istenmez.
+const PRECACHE_EXEMPT = new Set(['/auth.js']);
+const shellHtml = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+const referencedAssets = [...new Set([...shellHtml.matchAll(/(?:src|href)="(\/[^"]+)"/g)].map((match) => match[1]))];
+assert.ok(referencedAssets.length > 0, 'index.html referenced no local assets');
+for (const asset of referencedAssets) {
+  if (PRECACHE_EXEMPT.has(asset)) continue;
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `index.html asset is not precached: ${asset}`);
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {

@@ -42,6 +42,8 @@
   color: var(--muted);
   font-size: 10px;
   line-height: 1.35;
+  /* Uzun etiket/başlık metinleri dar sidebar'da yatay taşma yapmadan kırılır. */
+  overflow-wrap: anywhere;
 }
 
 .conversation-workspace-actions,

@@ -14,7 +14,9 @@ function mustNot(fragment, label = `forbidden ${fragment}`) {
 }
 
 const securityAssertions = [
-  ['localStorage.getItem(STORAGE_KEY)', 'history read uses local storage'],
+  // Okuma yolu enjekte edilebilir `storage` parametresini kullanır; varsayılanı localStorage'dır.
+  ['storage.getItem(STORAGE_KEY)', 'history read uses local storage'],
+  ['storage = localStorage', 'history read defaults to local storage'],
   ['localStorage.setItem(STORAGE_KEY', 'history write uses local storage'],
   ['localStorage.setItem(WORKSPACE_KEY', 'workspace state stays local'],
   ['JSON.parse(text)', 'import parses JSON explicitly'],
@@ -53,7 +55,8 @@ const securityAssertions = [
   ['JSON.parse(JSON.stringify(value))', 'clone fallback is bounded to serializable data'],
   ['Object.freeze({', 'exported workspace API is immutable'],
   ['Object.freeze({\n        STORAGE_KEY', 'constant view is immutable'],
-  ['MAX_CONVERSATIONS: 30', 'public constants report conversation cap']
+  // Sabitler shorthand olarak dışa verilir; sayısal değer aşağıdaki regex sözleşmesiyle doğrulanır.
+  ['        MAX_CONVERSATIONS,', 'public constants report conversation cap']
 ];
 
 for (const [fragment, label] of securityAssertions) must(fragment, label);
