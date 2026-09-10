@@ -49,6 +49,14 @@ Model veya ajan device watcher üzerinden mikrofon yetkisi kazanamaz. Bu gözlem
 9. Mikrofon geri geldiğinde auto-resume olmaz.
 10. Mevcut permission watcher, background/focus revoke ve SpeechRecognition terminal-error fallback davranışları korunur.
 
+## Eller serbest tercihi (yerel)
+
+Eller serbest anahtarı açıldığında `hafize.hands-free.v1` anahtarına `on` yazılır, kapatıldığında anahtar silinir. Tercih yalnız cihazdaki `localStorage`'ta tutulur; sunucuya gönderilmez ve başka bir cihaza taşınmaz.
+
+Tercih bir sonraki açılışta mikrofonu **kendiliğinden başlatmaz**. Dinleme her zaman kullanıcının anahtar dokunuşuyla başlar; tercih yalnızca anahtarın başlık (`title`) ipucunu "önceki oturumda açıktı" biçiminde değiştirir. Böylece kullanıcı alışkanlığı korunurken sessiz mikrofon açılması engellenir.
+
+`localStorage` erişimi private mode veya site verisi kapalıyken hata verebilir; okuma ve yazma try/catch içindedir ve hata durumunda eller serbest tercihsiz çalışmaya devam eder. Tercih verisi yalnız `on` sabitini taşır; kullanıcı içeriği, cihaz kimliği veya izin durumu saklanmaz.
+
 ## Geri alma
 
 Bu değişiklik mevcut `public/hands-free-background-guard.js` içindeki device watcher bölümü ile ona ait test/sözleşme dosyalarından oluşur. Permission watcher ve background/focus revocation katmanları bağımsız kalır; device watcher tek başına revert edilebilir.

@@ -15,6 +15,8 @@
   'use strict';
 
   const DEFAULT_WAKE_PHRASE = 'hafize';
+  const STORAGE_KEY = 'hafize.hands-free.v1';
+  const STORAGE_VALUE = 'on';
   const RESTART_DELAY_MS = 350;
   const HANDOFF_TIMEOUT_MS = 1500;
   const POST_OUTPUT_COOLDOWN_MS = 1800;
@@ -116,11 +118,36 @@
     else element.classList?.remove?.(name);
   }
 
+  // Eller serbest tercihi yalnız cihazda tutulur. Tercih bir sonraki açılışta
+  // mikrofonu kendiliğinden başlatmaz; yalnızca düğmenin ipucunu değiştirir.
+  function readHandsFreePreference(root) {
+    try {
+      const storage = root?.localStorage;
+      if (typeof storage?.getItem !== 'function') return false;
+      return storage.getItem(STORAGE_KEY) === STORAGE_VALUE;
+    } catch {
+      return false;
+    }
+  }
+
+  function writeHandsFreePreference(root, enabled) {
+    try {
+      const storage = root?.localStorage;
+      if (!storage) return false;
+      if (enabled) storage.setItem?.(STORAGE_KEY, STORAGE_VALUE);
+      else storage.removeItem?.(STORAGE_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function snapshotHostState(toggle, indicator, toast) {
     return Object.freeze({
       toggle: Object.freeze({
         disabled: Boolean(toggle.disabled),
         textContent: toggle.textContent,
+        title: typeof toggle.title === 'string' ? toggle.title : '',
         ariaPressed: readAttribute(toggle, 'aria-pressed')
       }),
       indicator: Object.freeze({
@@ -145,6 +172,7 @@
   function restoreHostState(toggle, indicator, toast, snapshot) {
     toggle.disabled = snapshot.toggle.disabled;
     toggle.textContent = snapshot.toggle.textContent;
+    if (typeof toggle.title === 'string') toggle.title = snapshot.toggle.title;
     restoreAttribute(toggle, 'aria-pressed', snapshot.toggle.ariaPressed);
     indicator.hidden = snapshot.indicator.hidden;
     indicator.textContent = snapshot.indicator.textContent;
@@ -174,6 +202,9 @@
     ACTIVE_INSTALLATIONS.set(toggle, owner);
 
     const Recognition = getRecognitionConstructor(root);
+    // Önceki oturumda eller serbest açık bırakılmışsa bu yalnız bir ipucudur;
+    // mikrofon her açılışta kullanıcı hareketiyle başlar.
+    const preferred = readHandsFreePreference(root);
     let enabled = false;
     let listening = false;
     let recognition = null;
@@ -203,6 +234,13 @@
       toggle.setAttribute?.('aria-pressed', String(enabled));
       toggle.disabled = !Recognition;
       toggle.textContent = enabled ? 'Eller serbest açık' : 'Eller serbest kapalı';
+      if (typeof toggle.title === 'string') {
+        toggle.title = enabled
+          ? 'Eller serbest açık. Mikrofon “Hafize” uyandırma ifadesini dinliyor.'
+          : preferred
+            ? 'Eller serbest önceki oturumda açıktı. Mikrofon güvenlik için otomatik başlatılmaz; açmak için dokun.'
+            : 'Eller serbest kapalı. Açmak için dokun.';
+      }
       indicator.hidden = !enabled;
       indicator.textContent = enabled
         ? (voiceInputListening
@@ -452,6 +490,7 @@
       const requested = Boolean(next) && Boolean(Recognition);
       if (enabled === requested) return;
       enabled = requested;
+      writeHandsFreePreference(root, enabled);
       clearHandoff();
       clearCooldown();
       clearSessionTimer();
@@ -588,6 +627,7 @@
       getNetworkErrorStreak: () => networkErrorStreak,
       getRestartDelayMs: () => restartDelayMs,
       getLastRecognitionError: () => lastRecognitionError,
+      isPreferred: () => readHandsFreePreference(root),
       enable: () => setEnabled(true),
       disable: () => setEnabled(false),
       destroy() {
@@ -617,6 +657,8 @@
 
   return Object.freeze({
     DEFAULT_WAKE_PHRASE,
+    STORAGE_KEY,
+    STORAGE_VALUE,
     HANDOFF_TIMEOUT_MS,
     HANDS_FREE_REVOKE_EVENT,
     NETWORK_RETRY_DELAYS_MS,

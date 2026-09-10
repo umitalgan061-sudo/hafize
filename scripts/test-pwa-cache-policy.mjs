@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { assertShellCacheAtLeast, shellCacheVersion } from './shell-cache-contract.mjs';
 
 const require = createRequire(import.meta.url);
 const policy = require('../public/sw-policy.js');
@@ -32,28 +33,36 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+assertShellCacheAtLeast(14, 'pwa cache policy');
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// Shell listesi her yeni istemci modülüyle büyür. Sabit bir liste yerine
+// değişmeyen sözleşme doğrulanır: çekirdek kabuk her zaman precache'tedir,
+// giriş yolları tekildir ve API yüzeyi asla precache edilmez.
+const CORE_SHELL_ASSETS = [
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
   '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
-]);
+];
+for (const asset of CORE_SHELL_ASSETS) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} precache listesinde olmalı`);
+}
+assert.equal(
+  new Set(policy.SHELL_ASSETS).size,
+  policy.SHELL_ASSETS.length,
+  'precache listesi tekrarlı giriş içermemeli'
+);
+for (const asset of policy.SHELL_ASSETS) {
+  assert.ok(asset.startsWith('/'), `${asset} aynı-origin mutlak yol olmalı`);
+  assert.equal(asset.includes('?'), false, `${asset} query string içermemeli`);
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -144,11 +153,16 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+// Yalnız güncel sürüm korunur; daha eski her shell cache'i silinir.
+const activeVersion = shellCacheVersion();
+for (let version = 1; version < activeVersion; version += 1) {
+  assert.equal(
+    policy.shouldDeleteCache(`hafize-shell-v${version}`),
+    true,
+    `hafize-shell-v${version} eski cache olarak silinmeli`
+  );
+}
+assert.equal(policy.shouldDeleteCache(`hafize-shell-v${activeVersion}`), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

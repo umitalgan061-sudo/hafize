@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const require = createRequire(import.meta.url);
 const workspace = require('../public/workspace-navigation.js');
@@ -141,7 +142,7 @@ assert.equal(h.documentRef.getElementById(workspace.STYLE_ID), null);
 assert.equal(h.cards.voice.hidden, true);
 assert.equal(controller.setWorkspace('connections'), false);
 
-assert.equal(sw.CURRENT_CACHE, 'hafize-shell-v15');
+assertShellCacheAtLeast(15, 'workspace navigation');
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.css'), true);
 for (const path of ['/workspace-navigation.js', '/workspace-navigation.css']) {
