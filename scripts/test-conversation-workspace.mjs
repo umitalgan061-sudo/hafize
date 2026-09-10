@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { assertAttributeDeclared } from './source-contract.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -230,7 +231,7 @@ for (const fragment of [
   'aria-label="Etikete göre filtrele"',
   'aria-valuemin="0"',
   'aria-valuemax="100"'
-]) includes(source, fragment, `accessibility contract ${fragment}`);
+]) assertAttributeDeclared(source, fragment, `accessibility contract ${fragment}`);
 
 for (const fragment of [
   '.conversation-workspace {',
