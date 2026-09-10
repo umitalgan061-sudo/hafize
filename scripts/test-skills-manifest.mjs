@@ -45,6 +45,15 @@ for (const [patch, pattern] of [
 }
 assert.throws(() => normalizeSkillManifest(null), /INVALID_SKILL_MANIFEST/);
 
+// Boş model alanı override yokluğu demektir; sayısal/nesne değerler yine reddedilir.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '   ' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: null }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: 'nvidia/llama-3.1-70b' }).model, 'nvidia/llama-3.1-70b');
+for (const bad of [0, 1, {}, [], true]) {
+  assert.throws(() => normalizeSkillManifest({ ...base, model: bad }), /INVALID_SKILL_MODEL/);
+}
+
 // Approval-gated tools are only allowed in isolated fork execution.
 for (const tool of SKILL_MANIFEST_LIMITS.approvalOnlyTools) {
   assert.throws(

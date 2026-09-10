@@ -14,7 +14,8 @@ function mustNot(fragment, label = `forbidden ${fragment}`) {
 }
 
 const securityAssertions = [
-  ['localStorage.getItem(STORAGE_KEY)', 'history read uses local storage'],
+  ['function readConversations(storage = localStorage)', 'history read defaults to local storage'],
+  ['storage.getItem(STORAGE_KEY)', 'history read stays on the storage boundary'],
   ['localStorage.setItem(STORAGE_KEY', 'history write uses local storage'],
   ['localStorage.setItem(WORKSPACE_KEY', 'workspace state stays local'],
   ['JSON.parse(text)', 'import parses JSON explicitly'],
@@ -37,7 +38,7 @@ const securityAssertions = [
   ['new MutationObserver', 'sidebar mutations are observed'],
   ['String(value ?? \'\')', 'tag/title conversion is explicit'],
   ["replace(/\\s+/g, ' ').trim()", 'whitespace is normalized'],
-  ['replace(/^#+/', '')', 'tag marker input is normalized'],
+  ["replace(/^#+/, '')", 'tag marker input is normalized'],
   ['slice(0, MAX_TAG)', 'tag length is bounded'],
   ['slice(0, MAX_TITLE)', 'title length is bounded'],
   ['slice(0, MAX_IMPORTED_MESSAGE_LENGTH)', 'message length is bounded'],
@@ -52,8 +53,7 @@ const securityAssertions = [
   ['structuredClone(value)', 'native structured clone is preferred'],
   ['JSON.parse(JSON.stringify(value))', 'clone fallback is bounded to serializable data'],
   ['Object.freeze({', 'exported workspace API is immutable'],
-  ['Object.freeze({\n        STORAGE_KEY', 'constant view is immutable'],
-  ['MAX_CONVERSATIONS: 30', 'public constants report conversation cap']
+  ['Object.freeze({\n        STORAGE_KEY', 'constant view is immutable']
 ];
 
 for (const [fragment, label] of securityAssertions) must(fragment, label);
@@ -95,7 +95,8 @@ const modelChecks = [
   [/function\s+writeConversations\s*\(/, 'persistence boundary exists'],
   [/function\s+importBackup\s*\(/, 'import boundary exists'],
   [/function\s+downloadSelected\s*\(/, 'export boundary exists'],
-  [/function\s+onDelete\s*\(/, 'destructive boundary exists']
+  [/function\s+onDelete\s*\(/, 'destructive boundary exists'],
+  [/constants:\s*Object\.freeze\(\{[\s\S]*?MAX_CONVERSATIONS[\s\S]*?\}\)/, 'public constants report conversation cap']
 ];
 for (const [pattern, label] of modelChecks) assert.match(source, pattern, label);
 
