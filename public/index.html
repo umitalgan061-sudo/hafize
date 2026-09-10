@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="/chat-composer-features.css" />
   <link rel="stylesheet" href="/chat-history-search.css" />
   <link rel="stylesheet" href="/chat-history-export.css" />
+  <link rel="stylesheet" href="/schedule-runtime-card.css" />
 </head>
 <body>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
@@ -97,6 +98,12 @@
       </div>
 
       <aside class="utility-rail" aria-label="Hafize yardımcı araçları">
+        <section class="utility-card schedule-runtime-card" id="scheduleRuntimeCard" aria-labelledby="scheduleRuntimeTitle" hidden>
+          <div class="utility-head"><span class="mini-icon">◷</span><span id="scheduleRuntimeTitle">Görev motoru</span></div>
+          <p id="scheduleRuntimeState" class="schedule-runtime-state" role="status" data-state="unknown">Görev motoru durumu henüz alınmadı.</p>
+          <ul id="scheduleRuntimeSignals" class="schedule-runtime-signals"></ul>
+          <button id="scheduleRuntimeRefresh" class="mini-btn" type="button">Durumu yenile</button>
+        </section>
         <section class="utility-card calendar-card">
           <div class="utility-head"><span class="mini-icon">▣</span><span>Takvim</span></div>
           <div class="calendar-head"><button id="calendarPrev" class="calendar-nav" type="button" aria-label="Önceki ay">‹</button><strong id="calendarMonth"></strong><button id="calendarNext" class="calendar-nav" type="button" aria-label="Sonraki ay">›</button></div>
@@ -128,6 +135,7 @@
   <script src="/hands-free-background-guard.js" defer></script>
   <script src="/screen-share.js" defer></script>
   <script src="/workspace-navigation.js" defer></script>
+  <script src="/schedule-runtime-card.js" defer></script>
   <script src="/ui-shell.js" defer></script>
 </body>
 </html>
