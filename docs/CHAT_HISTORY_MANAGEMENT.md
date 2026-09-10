@@ -62,6 +62,16 @@ Yeni JS ve CSS dosyaları shell varlıklarına eklenir ve service worker cache s
 
 Node/npm runtime'ı olmayan çalışma ortamlarında bu testler dosya içeriği üzerinden gözden geçirilebilir; çalıştırılamayan komut sonucu PR açıklamasında açıkça belirtilmelidir.
 
+## Bakım notları
+
+Bu katman `app.js` içindeki sohbet depolama formatını tek başına değiştirmez. Yeni bir conversation alanı eklenirse burada yalnızca gerektiği kadar okuma/yazma yapılmalıdır.
+
+`MutationObserver` nedeniyle yönetim düğmeleri her sohbet render'ında yeniden bağlanabilir. Tekrarlı listener'ları önlemek için silme guard'ı satır üzerinde işaretlenir; pin ve rename düğmeleri ise her render'da kontrollü olarak yeniden oluşturulur.
+
+Yerel depolama başka bir sekmede değişirse `storage` olayı ile görünüm yeniden senkronize edilir. Aynı sekmede yapılan güncellemeler işlem sonrası `sync()` çağrısıyla hemen uygulanır.
+
+Arayüz yalnızca kullanıcıya ait yerel geçmişi düzenler. Dış servislerdeki konuşmalara, backend memory kayıtlarına veya connector verilerine yazma yapmaz.
+
 ## Geri alma
 
 Bu özellik tek bir PR olarak squash-revert edilebilir. Geri alma sonrasında mevcut sohbet geçmişindeki ek `pinned` alanı zararsız bir bilinmeyen alan olarak kalabilir; eski `app.js` bu alanı okumadığı için sohbetlerin temel işlemleri etkilenmez.
