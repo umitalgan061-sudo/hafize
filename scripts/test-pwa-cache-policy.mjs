@@ -65,6 +65,17 @@ for (const asset of policy.SHELL_ASSETS) {
 }
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
+// Kabuk eksiksiz olmalı: index.html'in referans verdiği her yerel stil ve
+// script precache listesinde bulunmalı, aksi hâlde çevrimdışı kabuk bozulur.
+const indexHtml = await readFile(join(ROOT, 'public', 'index.html'), 'utf8');
+const referencedAssets = [...new Set(
+  [...indexHtml.matchAll(/(?:href|src)="(\/[^"]+\.(?:css|js))"/g)].map((match) => match[1])
+)];
+assert.ok(referencedAssets.length > 10, 'index.html yerel asset referansları okunamadı');
+for (const asset of referencedAssets) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} index.html'de kullanılıyor ama precache edilmiyor`);
+}
+
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
     policy.classifyRequest(request(asset), ORIGIN),

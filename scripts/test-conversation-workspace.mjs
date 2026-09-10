@@ -223,14 +223,18 @@ assert.match(source, /function\s+pruneMissingSelection/);
 assert.match(source, /function\s+refresh/);
 assert.match(source, /function\s+expose/);
 
+// Panel DOM API ile kurulur; erişilebilirlik sözleşmesi setAttribute
+// çağrıları üzerinden doğrulanır.
 for (const fragment of [
-  'role="status"',
-  'aria-label="Sohbet çalışma alanı yönetimi"',
-  'aria-label="Sohbet filtresi"',
-  'aria-label="Sohbet sıralaması"',
-  'aria-label="Etikete göre filtrele"',
-  'aria-valuemin="0"',
-  'aria-valuemax="100"'
+  "setAttribute('role', 'status')",
+  "setAttribute('aria-live', 'polite')",
+  "setAttribute('aria-label', 'Sohbet çalışma alanı yönetimi')",
+  "setAttribute('aria-label', 'Sohbet filtresi')",
+  "setAttribute('aria-label', 'Sohbet sıralaması')",
+  "setAttribute('aria-label', 'Etikete göre filtrele')",
+  "setAttribute('role', 'progressbar')",
+  "setAttribute('aria-valuemin', '0')",
+  "setAttribute('aria-valuemax', '100')"
 ]) includes(source, fragment, `accessibility contract ${fragment}`);
 
 for (const fragment of [

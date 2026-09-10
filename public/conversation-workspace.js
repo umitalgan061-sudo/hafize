@@ -70,7 +70,8 @@
   }
 
   function cleanTag(value) {
-    return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+/, '').slice(0, MAX_TAG);
+    // Etiket işareti atıldıktan sonra kalan baştaki boşluk da temizlenir.
+    return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+/, '').trim().slice(0, MAX_TAG);
   }
 
   function readConversations(storage = localStorage) {

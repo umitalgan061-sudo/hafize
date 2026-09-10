@@ -21,7 +21,9 @@
   }
 
   function tag(value) {
-    return text(value).replace(/^#+/, '').slice(0, MAX_TAG);
+    // Etiket işaretleri atıldıktan sonra kalan boşluk da temizlenir:
+    // "### proje" -> "proje".
+    return text(text(value).replace(/^#+/, '')).slice(0, MAX_TAG);
   }
 
   function note(value) {
