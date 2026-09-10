@@ -25,7 +25,15 @@ first.release();
 const second = limiter.check('user', 61_001);
 assert.equal(second.ok, true);
 second.release();
-assert.equal(limiter.check('user', 61_002).ok, false);
+// The rotated window carries its own quota: max=2 fit, the next one is refused
+// with a retry hint rather than a concurrency signal.
+const third = limiter.check('user', 61_002);
+assert.equal(third.ok, true);
+third.release();
+const fourth = limiter.check('user', 61_003);
+assert.equal(fourth.ok, false);
+assert.equal(fourth.concurrent, undefined);
+assert.ok(fourth.retryAfterSeconds >= 1);
 
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;
