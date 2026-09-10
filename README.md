@@ -73,6 +73,10 @@ npm run precheck
 npm run check
 ```
 
+`npm run check` çalıştırılmadan önce npm otomatik olarak `precheck`'i çalıştırır; precheck kırmızıysa tam kapı hiç başlamaz. Kapı iki aşamalıdır: önce tüm `.mjs`/`.js` dosyalarında syntax kontrolü, sonra `scripts/` altındaki `validate-*` ve `test-*` paketleri.
+
+PWA kabuk sürümü sözleşmesi `scripts/shell-cache-contract.mjs` üzerinden paylaşılır. Yeni bir istemci modülü eklendiğinde `public/sw-policy.js` içindeki `CURRENT_CACHE` bir artırılır ve asset precache listesine eklenir; testler sabit sürüm yerine "en az vN" kuralını doğrular. `index.html`'in referans verdiği her yerel stil/script'in precache edildiği ayrıca `scripts/test-pwa-cache-policy.mjs` tarafından kontrol edilir.
+
 Conversation Workspace özel kontrolleri:
 
 ```bash
@@ -100,6 +104,10 @@ Production hardening için ayrıca:
 ```bash
 node scripts/test-production-hardening.mjs
 ```
+
+## Eller serbest tercihi
+
+Eller serbest anahtarının açık/kapalı tercihi `hafize.hands-free.v1` anahtarıyla yalnız cihazda saklanır. Tercih bir sonraki açılışta mikrofonu kendiliğinden başlatmaz; yalnızca anahtarın ipucu metnini değiştirir. Dinleme her zaman kullanıcı dokunuşuyla başlar.
 
 ## Güvenlik
 
