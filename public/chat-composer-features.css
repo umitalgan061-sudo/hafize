@@ -58,7 +58,25 @@
   font-size: 10px;
 }
 .message-action:hover { background: var(--panel); color: var(--ink); }
+.composer-editing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 4px 7px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+}
+.composer-editing .message-action { margin-left: auto; }
 @media (max-width: 560px) {
   .attachment-chip { font-size: 10px; }
   .message-actions { margin-top: 5px; }
+  .composer-editing { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-editing { transition: none; }
 }
