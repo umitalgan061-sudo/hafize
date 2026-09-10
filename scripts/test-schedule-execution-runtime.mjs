@@ -14,7 +14,11 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime always wraps the executor so worker-facing results carry only
+// the worker contract keys (see docs/SCHEDULE_EXECUTION_RUNTIME.md).
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
+// Results carrying unknown keys pass through untouched for the worker's own
+// fail-closed validation; only known internal metadata is projected away.
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
 
