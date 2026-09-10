@@ -54,8 +54,8 @@ assert.ok(js.includes("key==='x'"));
 assert.ok(css.includes('.message-workspace-panel'));
 assert.ok(css.includes('.message-workspace-actions'));
 assert.ok(css.includes('.message-workspace-result'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
-assert.ok(css.includes('forced-colors:active'));
+assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)/);
+assert.match(css, /@media \(forced-colors:\s*active\)/);
 
 assert.ok(policy.includes('MAX_RECORDS = 240'));
 assert.ok(policy.includes('MAX_NOTE = 600'));

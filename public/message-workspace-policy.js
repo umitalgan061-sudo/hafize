@@ -21,7 +21,12 @@
   }
 
   function tag(value) {
-    return text(value).replace(/^#+/, '').slice(0, MAX_TAG);
+    // Only strings are tags: numbers or objects coming from a corrupted import
+    // are dropped instead of being stringified into a label.
+    if (typeof value !== 'string') return '';
+    // Strip a leading hash marker with the space that usually follows it, and
+    // trim again after slicing so a cut never leaves a trailing space.
+    return text(value).replace(/^#+\s*/, '').slice(0, MAX_TAG).trim();
   }
 
   function note(value) {
@@ -37,24 +42,32 @@
     return Number.isFinite(date.getTime()) ? date.toISOString() : fallback;
   }
 
+  function own(value, key) {
+    // Inherited properties never carry user state: a poisoned prototype must
+    // not be able to mark a record saved or give it feedback.
+    return Object.prototype.hasOwnProperty.call(value, key) ? value[key] : undefined;
+  }
+
   function normalizeRecord(value) {
     if (!value || typeof value !== 'object') return null;
-    const conversationId = typeof value.conversationId === 'string' ? value.conversationId.trim().slice(0, 120) : '';
-    const messageId = typeof value.messageId === 'string' ? value.messageId.trim().slice(0, 120) : '';
+    const conversationId = typeof own(value, 'conversationId') === 'string' ? value.conversationId.trim().slice(0, 120) : '';
+    const messageId = typeof own(value, 'messageId') === 'string' ? value.messageId.trim().slice(0, 120) : '';
     if (!conversationId || !messageId) return null;
-    const tags = Array.isArray(value.tags)
-      ? [...new Set(value.tags.map(tag).filter(Boolean))].slice(0, MAX_TAGS)
+    const rawTags = own(value, 'tags');
+    const tags = Array.isArray(rawTags)
+      ? [...new Set(rawTags.map(tag).filter(Boolean))].slice(0, MAX_TAGS)
       : [];
+    const rawId = own(value, 'id');
     return Object.freeze({
-      id: typeof value.id === 'string' && value.id ? value.id.slice(0, 120) : `${conversationId}:${messageId}`,
+      id: typeof rawId === 'string' && rawId ? rawId.slice(0, 120) : `${conversationId}:${messageId}`,
       conversationId,
       messageId,
-      saved: value.saved === true,
-      feedback: feedback(value.feedback),
-      note: note(value.note),
+      saved: own(value, 'saved') === true,
+      feedback: feedback(own(value, 'feedback')),
+      note: note(own(value, 'note')),
       tags,
-      createdAt: iso(value.createdAt),
-      updatedAt: iso(value.updatedAt)
+      createdAt: iso(own(value, 'createdAt')),
+      updatedAt: iso(own(value, 'updatedAt'))
     });
   }
 
@@ -64,6 +77,8 @@
     const records = [];
     for (const item of value) {
       const record = normalizeRecord(item);
+      // The record id is the identity: a repeated id is a duplicate of a record
+      // already loaded, so the first one wins and the rest are dropped.
       if (!record || seen.has(record.id)) continue;
       seen.add(record.id);
       if (!record.saved && !record.feedback && !record.note && !record.tags.length) continue;
