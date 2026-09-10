@@ -14,6 +14,8 @@ const first = lifecycle.start({
     return 'done';
   }
 });
+// start() defers the executor to a microtask; let it actually begin running.
+await Promise.resolve();
 assert.equal(first.snapshot().state, 'running');
 assert.equal(lifecycle.liveCount(), 1);
 assert.equal(lifecycle.sendMessage('child-1', 'hello').content, 'hello');
@@ -38,6 +40,12 @@ alreadyAborted.abort();
 lifecycle.start({ runId: 'pre-cancelled', parentSignal: alreadyAborted.signal, execute: async () => { executedAfterParentAbort = true; } });
 assert.equal(executedAfterParentAbort, false);
 assert.equal(lifecycle.get('pre-cancelled').state, 'cancelled');
+let cancelledBeforeStart = false;
+const preCancelled = lifecycle.start({ runId: 'child-cancel', execute: async () => { cancelledBeforeStart = true; } });
+preCancelled.cancel('AGENT_CANCELLED');
+await preCancelled.promise;
+assert.equal(cancelledBeforeStart, false, 'a run cancelled before its executor starts must not execute');
+assert.equal(lifecycle.get('child-cancel').state, 'cancelled');
 assert.throws(() => createAgentLifecycle({ maxConcurrent: 0 }), /INVALID_AGENT_CONCURRENCY_LIMIT/);
 assert.throws(() => createAgentLifecycle({ maxConcurrent: 9 }), /INVALID_AGENT_CONCURRENCY_LIMIT/);
 assert.throws(() => createAgentLifecycle({ inboxLimit: 0 }), /INVALID_AGENT_INBOX_LIMIT/);
