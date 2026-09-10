@@ -37,7 +37,7 @@ const securityAssertions = [
   ['new MutationObserver', 'sidebar mutations are observed'],
   ['String(value ?? \'\')', 'tag/title conversion is explicit'],
   ["replace(/\\s+/g, ' ').trim()", 'whitespace is normalized'],
-  ['replace(/^#+/', '')', 'tag marker input is normalized'],
+  ["replace(/^#+/, '')", 'tag marker input is normalized'],
   ['slice(0, MAX_TAG)', 'tag length is bounded'],
   ['slice(0, MAX_TITLE)', 'title length is bounded'],
   ['slice(0, MAX_IMPORTED_MESSAGE_LENGTH)', 'message length is bounded'],
