@@ -45,6 +45,12 @@ for (const [patch, pattern] of [
 }
 assert.throws(() => normalizeSkillManifest(null), /INVALID_SKILL_MANIFEST/);
 
+// An explicitly empty model means "no override" and must not be rejected; skills/builtin.json ships it.
+for (const empty of ['', '   ']) {
+  assert.equal(normalizeSkillManifest({ ...base, model: empty }).model, '', `empty model ${JSON.stringify(empty)} means no override`);
+}
+assert.equal(normalizeSkillManifest({ ...base, model: 'nvidia/llama-3.1-8b' }).model, 'nvidia/llama-3.1-8b');
+
 // Approval-gated tools are only allowed in isolated fork execution.
 for (const tool of SKILL_MANIFEST_LIMITS.approvalOnlyTools) {
   assert.throws(
