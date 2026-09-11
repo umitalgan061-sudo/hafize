@@ -8,13 +8,21 @@ for (const value of [
   'nvapi-1234567890abcdefghijklmnopqrstuv',
   'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
   'token=ya29.A0ARrdaM_exampleGoogleOauthToken123456789~',
-  '-----BEGIN PRIVATE KEY-----'
+  '-----BEGIN PRIVATE KEY-----',
+  // Environment style names: the credential name is preceded by an underscore,
+  // which a plain word boundary does not separate.
+  'NVIDIA_API_KEY=should-never-leak',
+  'HAFIZE_AUTH_TOKEN=abcdef123456',
+  'X_AUTHORIZATION: Bearer abcdefghijklmnop',
+  'env_nvapi-1234567890abcdefghijklmnopqrstuv'
 ]) assert.equal(containsPlaintextCredential(value), true);
 
 for (const value of [
   'GitHub PAT güvenliği hakkında konuşalım.',
   'OAuth access tokenlarını secret manager içinde tut.',
-  'notya29.A0ARrdaM_exampleGoogleOauthToken123456789'
+  'notya29.A0ARrdaM_exampleGoogleOauthToken123456789',
+  'mysecret=abcdefgh',
+  'tokenizer: bearer öğrenme oranı'
 ]) assert.equal(containsPlaintextCredential(value), false);
 
 for (const [name, value, expected] of [
