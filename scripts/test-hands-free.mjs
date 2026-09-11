@@ -44,7 +44,21 @@ class Recognition {
 }
 
 const storage = new Map();
-const timers = [];
+// Timers are tracked with their delay so each assertion can name the timer it
+// means (session limit, wake-phrase handoff, restart backoff) instead of
+// counting anonymous callbacks.
+const timers = new Map();
+let nextTimerId = 0;
+const pendingDelays = () => [...timers.values()].map((timer) => timer.delay);
+function runTimer(delay) {
+  for (const [id, timer] of timers) {
+    if (timer.delay !== delay) continue;
+    timers.delete(id);
+    timer.fn();
+    return true;
+  }
+  return false;
+}
 const root = {
   SpeechRecognition: Recognition,
   navigator: { language: 'tr-TR' },
@@ -52,8 +66,8 @@ const root = {
     setItem(key, value) { storage.set(key, value); },
     removeItem(key) { storage.delete(key); }
   },
-  setTimeout(fn) { timers.push(fn); return timers.length; },
-  clearTimeout() {},
+  setTimeout(fn, delay) { nextTimerId += 1; timers.set(nextTimerId, { fn, delay }); return nextTimerId; },
+  clearTimeout(id) { timers.delete(id); },
   MutationObserver: class { constructor(fn) { this.fn = fn; } observe() {} disconnect() {} }
 };
 
@@ -64,12 +78,17 @@ assert.equal(indicator.hidden, true);
 
 toggle.fire('click');
 assert.equal(controller.isEnabled(), true);
-assert.equal(storage.get(api.STORAGE_KEY), 'on');
+// Hands-free state is intentionally not persisted: a reload must never resume
+// an always-listening microphone without a fresh user gesture.
+assert.equal(api.STORAGE_KEY, undefined);
+assert.equal(storage.size, 0);
 assert.equal(recognitions.length, 1);
 assert.equal(recognitions[0].continuous, true);
 assert.equal(controller.isListening(), true);
 assert.equal(indicator.hidden, false);
 assert.match(indicator.textContent, /Hafize/);
+// Enabling arms the 30 minute session limit.
+assert.deepEqual(pendingDelays(), [api.SESSION_LIMIT_MS]);
 
 recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'merhaba dünya' }]] });
 assert.equal(mic.clicked || 0, 0);
@@ -77,11 +96,12 @@ recognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize' }
 assert.equal(recognitions[0].stopped, true);
 assert.equal(mic.clicked, 1);
 assert.equal(controller.isListening(), false);
-assert.equal(timers.length, 0);
+// The wake phrase hands off to the existing mic button and waits, bounded.
+assert.ok(pendingDelays().includes(api.HANDOFF_TIMEOUT_MS));
 
-docListeners.get('visibilitychange')?.();
-assert.equal(timers.length, 1);
-timers.shift()();
+// When voice input never starts, the fallback resumes wake-phrase listening.
+assert.equal(runTimer(api.HANDOFF_TIMEOUT_MS), true, 'handoff fallback is armed');
+assert.equal(runTimer(api.RESTART_DELAY_MS), true, 'listening restarts after the handoff fallback');
 assert.equal(recognitions.length, 2);
 assert.equal(controller.isListening(), true);
 
@@ -93,7 +113,9 @@ assert.equal(controller.isListening(), false);
 documentRef.hidden = false;
 toggle.fire('click');
 assert.equal(controller.isEnabled(), false);
-assert.equal(storage.has(api.STORAGE_KEY), false);
+assert.equal(storage.size, 0);
+// Disabling releases every armed timer.
+assert.deepEqual(pendingDelays(), []);
 
 const unsupportedToggle = element();
 const unsupportedDoc = {

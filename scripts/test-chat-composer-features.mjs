@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { readShellCacheVersion } from './check-support.mjs';
 
 const composer = await readFile(new URL('../public/chat-composer-features.js', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -38,7 +39,8 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+// The shipped cache version moves with every shell change; assert the shape.
+assert.match(serviceWorkerPolicy, new RegExp(`CURRENT_CACHE = \`\\$\\{CACHE_PREFIX\\}${readShellCacheVersion(serviceWorkerPolicy)}\``));
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 

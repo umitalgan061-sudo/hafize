@@ -46,6 +46,7 @@ Model veya ajan device watcher üzerinden mikrofon yetkisi kazanamaz. Bu gözlem
 6. Stale Promise sonucu daha yeni sonucu ezemez.
 7. Destroy sonrası geç sonuç yan etki üretemez.
 8. Device label/ID/group bilgisi source, controller state, storage, log veya network yüzeyine çıkmaz.
+9. Eller serbest modun açık/kapalı durumu kalıcı depolanmaz; sayfa yenilendiğinde mikrofon kendiliğinden yeniden açılmaz ve yeni bir kullanıcı hareketi gerekir.
 9. Mikrofon geri geldiğinde auto-resume olmaz.
 10. Mevcut permission watcher, background/focus revoke ve SpeechRecognition terminal-error fallback davranışları korunur.
 

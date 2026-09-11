@@ -11,7 +11,8 @@ assert.match(index, /chat-history-search\.js/);
 assert.match(search, /hafize\.conversations\.v1/);
 assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
-assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
+// The guard is written as an early return on the negated modifiers.
+assert.match(search, /!event\.ctrlKey && !event\.metaKey/);
 assert.match(search, /event\.altKey/);
 assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
 assert.match(search, /event\.key === 'Escape'/);
