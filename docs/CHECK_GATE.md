@@ -23,6 +23,7 @@ Runner hata çıktısını bounded biçimde raporlar ve keşif/çalıştırma ha
 İki doğrulama paketi kapının tekrar çürümesini engeller:
 
 - `validate-check-gate-hygiene.mjs`: hiçbir suite yayınlanan shell cache sürümünü literal olarak sabitlemez. Bu sabitleme daha önce rutin bir cache bump'ında altı paketi kırmıştı. Eski sürümler stale-cache örneği olarak kullanılabilir; yalnız güncel sürüm sabitlenemez.
+- `validate-module-load.mjs`: `lib/*.mjs` modülleri (process seviyesindeki `production-guard.mjs` hariç) yapılandırma, ağ veya storage olmadan import edilebilir. Import anında durum kuran modüller vardır; böyle bir modül import sırasında hata verirse tek bir özellik bozulmaz, `npm start` ilk istekten önce ölür.
 - `validate-builtin-skills.mjs`: `skills/builtin.json` manifest sözleşmesinden geçer, her skill'in aracı runtime tool kataloğunda gerçekten uygulanmıştır ve her skill en az bir ajan politikası tarafından çalıştırılabilir. Geçersiz bir katalog girdisi tek bir özelliği bozmakla kalmaz; `lib/tool-runtime.mjs` builtin runtime'ı import anında kurduğu için sunucu hiç başlamaz.
 
 Stale literal yerine davranış iddia edilmesi tercih edilir: bir kaynak-sözleşme testi, modülün gerçekten kullandığı biçimi (örneğin `setAttribute` çağrısı veya enjekte edilebilir storage handle'ı) kontrol etmelidir.

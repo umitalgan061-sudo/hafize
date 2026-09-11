@@ -73,6 +73,16 @@ npm run precheck
 npm run check
 ```
 
+`npm run check` tam kapıdır; `precheck` npm'in ön-script kuralı nedeniyle otomatik olarak önce çalışır, bu yüzden precheck kırmızıysa tam kapı hiç başlamaz.
+
+Runtime bütünlüğü kontrolleri (ayrıntı için `docs/CHECK_GATE.md`):
+
+```bash
+node scripts/validate-module-load.mjs
+node scripts/validate-builtin-skills.mjs
+node scripts/validate-check-gate-hygiene.mjs
+```
+
 Conversation Workspace özel kontrolleri:
 
 ```bash
