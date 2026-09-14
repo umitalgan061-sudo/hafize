@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const index = fs.readFileSync(path.join(process.cwd(), 'public/index.html'), 'utf8');
+const sw = fs.readFileSync(path.join(process.cwd(), 'public/sw-policy.js'), 'utf8');
+assert.match(index, /prompt-library-smart-fill\.css/);
+assert.match(index, /prompt-library-smart-fill\.js/);
+assert.match(index, /prompt-library-command-palette\.css/);
+assert.match(index, /prompt-library-command-palette\.js/);
+assert.match(sw, /prompt-library-smart-fill\.css/);
+assert.match(sw, /prompt-library-smart-fill\.js/);
+assert.match(sw, /prompt-library-command-palette\.css/);
+assert.match(sw, /prompt-library-command-palette\.js/);
+console.log('prompt smart-fill PWA wiring: ok');
