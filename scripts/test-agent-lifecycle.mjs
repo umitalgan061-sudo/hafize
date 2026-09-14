@@ -4,13 +4,15 @@ import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
 const lifecycle = createAgentLifecycle({ maxConcurrent: 2, inboxLimit: 2 });
 const parent = new AbortController();
 let resolveFirst;
+// The executor runs on a later microtask, so the gate is created before start().
+const firstGate = new Promise((resolve) => { resolveFirst = resolve; });
 let executedAfterParentAbort = false;
 const first = lifecycle.start({
   runId: 'child-1',
   parentSignal: parent.signal,
   execute: async ({ signal }) => {
     assert.equal(signal.aborted, false);
-    await new Promise((resolve) => { resolveFirst = resolve; });
+    await firstGate;
     return 'done';
   }
 });

@@ -37,6 +37,13 @@ Bilinmeyen üst alan, bilinmeyen argüman alanı veya tekrarlı ad doğrudan red
   `createSkillsRegistry({ allowedProjects })` ile izin verilen kimlikten yüklenir.
 - `listForAgent(agent)` yalnız ajanın çalıştırabileceği skill'leri döndürür; onay gerektirenler
   `requiresApproval: true` ile işaretlenir.
+- `intersectTools` seçeneği (skills runtime bu modu kullanır) yetkiyi genişletmez, yalnız
+  daraltır: policy'nin reddettiği araç skill'i gizlemek yerine listeden düşülür ve
+  `resolveInvocation` yalnız kesişimi döndürür. Kullanılabilir tek bir araç bile kalmazsa
+  çağrı `SKILL_NO_AUTHORIZED_TOOL` ile reddedilir. Seçenek verilmediğinde strict davranış
+  (`SKILL_TOOL_ESCALATION:<tool>`) korunur.
+- `model` alanı boş bırakılabilir; boş değer "model tercihi yok" anlamına gelir ve alanın hiç
+  verilmemesiyle aynı sonucu üretir.
 
 ## Test ve sonraki adım
 

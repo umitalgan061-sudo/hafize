@@ -8,4 +8,12 @@ Her child-process stdout/stderr akışı en fazla 64 KiB tutulur. Daha büyük �
 
 Yeni bir doğrulama veya test dosyası eklendiğinde `package.json` içine ayrıca yol eklemek gerekmez. `--list` keşfedilen paketleri, `--filter=a,b` ise eşleşen odak paketleri listeler/çalıştırır. Filtre geliştirici döngüsü içindir; PR öncesi filtresiz tam kapı kullanılır.
 
+`scripts/` altındaki `test-`/`validate-` ile başlamayan dosyalar paket olarak çalıştırılmaz;
+paylaşılan yardımcılardır. `shell-cache-contract.mjs` service worker shell cache
+değişmezlerini (sürüm biçimi, eski sürümlerin temizlenmesi, her asset'in diskte bulunması,
+`index.html`'in yüklediği her asset'in cache listesinde olması), `source-contract.mjs` ise
+kaynak-sözleşme yardımcılarını sağlar: bir attribute markup ya da `setAttribute` ile,
+bir sınıf seçici ya da sınıf adı olarak, CSS parçaları ise boşluktan bağımsız eşleşir.
+Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
+
 Runner hata çıktısını bounded biçimde raporlar ve keşif/çalıştırma hatasında fail-closed şekilde sıfır olmayan çıkış kodu verir. Secret veya credential değeri kendi çıktısına ekleyen testler repo sözleşmesine aykırıdır.

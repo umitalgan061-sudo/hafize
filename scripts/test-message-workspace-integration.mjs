@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertCssIncludes } from './source-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
@@ -12,7 +13,9 @@ const policy = await read('public/message-workspace-policy.js');
 const css = await read('public/message-workspace.css');
 const sw = await read('public/sw-policy.js');
 
-assert.equal((html.match(/message-workspace/g) || []).length >= 4, true);
+// The shell references the stylesheet and both scripts once each; the panel
+// itself is injected by the module at runtime.
+assert.equal((html.match(/message-workspace/g) || []).length, 3);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
 assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));
@@ -39,13 +42,13 @@ assert.ok(policy.includes('Object.freeze'));
 assert.ok(policy.includes('normalizeRecord'));
 assert.ok(policy.includes('normalizeRecords'));
 
-assert.ok(css.includes('.message-workspace-panel'));
-assert.ok(css.includes('.message-workspace-action'));
-assert.ok(css.includes('.message-workspace-focus'));
-assert.ok(css.includes('forced-colors:active'));
-assert.ok(css.includes('prefers-reduced-motion:reduce'));
+assertCssIncludes(css, '.message-workspace-panel');
+assertCssIncludes(css, '.message-workspace-action');
+assertCssIncludes(css, '.message-workspace-focus');
+assertCssIncludes(css, 'forced-colors:active');
+assertCssIncludes(css, 'prefers-reduced-motion:reduce');
 
-assert.ok(sw.includes("CURRENT_CACHE = `${CACHE_PREFIX}v23`"));
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 for (const asset of ['/message-workspace.css','/message-workspace-policy.js','/message-workspace.js']) {
   assert.equal((sw.match(new RegExp(asset.replace('.', '\\.'), 'g')) || []).length, 1);
 }

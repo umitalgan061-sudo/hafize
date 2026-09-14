@@ -10,6 +10,22 @@ assert.throws(() => normalizeToolCall({ id: 'x', function: { name: '', arguments
 assert.throws(() => normalizeToolCall({ id: 'x', function: { name: 'x', arguments: null } }), /INVALID_TOOL_ARGUMENTS/);
 assert.throws(() => normalizeToolCall({ id: 'x', function: { name: 'x', arguments: 'a'.repeat(TOOL_CALL_LIMITS.maxArgumentsLength + 1) } }), /TOOL_ARGUMENTS_TOO_LARGE/);
 
+// Boundary rejections carry their code, so a caller reports the real reason
+// instead of the generic execution failure.
+for (const [call, code] of [
+  [{ function: { name: 'x', arguments: '{}' } }, 'INVALID_TOOL_CALL_ID'],
+  [{ id: 'x', function: { name: '', arguments: '{}' } }, 'INVALID_TOOL_NAME'],
+  [{ id: 'x', function: { name: 'x', arguments: null } }, 'INVALID_TOOL_ARGUMENTS'],
+  [null, 'INVALID_TOOL_CALL']
+]) {
+  try {
+    normalizeToolCall(call);
+    assert.fail(`expected ${code}`);
+  } catch (error) {
+    assert.equal(sanitizeToolError(error).code, code);
+  }
+}
+
 assert.deepEqual(parseToolArguments('{}'), {});
 assert.deepEqual(parseToolArguments('{"a":1}'), { a: 1 });
 assert.throws(() => parseToolArguments('[]'), /INVALID_TOOL_ARGUMENTS/);

@@ -70,7 +70,7 @@
   }
 
   function cleanTag(value) {
-    return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+/, '').slice(0, MAX_TAG);
+    return String(value ?? '').replace(/\s+/g, ' ').trim().replace(/^#+\s*/, '').slice(0, MAX_TAG);
   }
 
   function readConversations(storage = localStorage) {

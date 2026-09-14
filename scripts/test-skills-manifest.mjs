@@ -23,6 +23,13 @@ assert.deepEqual(manifest.arguments.map((item) => item.required), [true, false])
 assert.equal(Object.isFrozen(manifest), true);
 assert.throws(() => { manifest.allowedTools.push('secret.read'); });
 
+// An explicit empty model means "no preference", exactly like an omitted field;
+// a non-string model is still rejected.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '   ' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: 'nvidia/llama-3.3-70b' }).model, 'nvidia/llama-3.3-70b');
+assert.throws(() => normalizeSkillManifest({ ...base, model: 42 }), /INVALID_SKILL_MODEL/);
+
 // Strict manifest: unknown fields, malformed values and credential material are rejected.
 for (const [patch, pattern] of [
   [{ source: 'builtin' }, /INVALID_SKILL_FIELD/],

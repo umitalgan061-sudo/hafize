@@ -44,6 +44,12 @@ assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role:
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: [{ id: 'x', function: { name: 'x', arguments: 'x'.repeat(MODEL_RESPONSE_CONTRACT.maxToolArgumentLength + 1) } }] } }] }), /INVALID_MODEL_TOOL_CALL/);
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: Array.from({ length: MODEL_RESPONSE_CONTRACT.maxToolCalls + 1 }, () => ({ id: 'x', function: { name: 'x', arguments: '{}' } })) } }] }), /INVALID_MODEL_TOOL_CALLS/);
 
+// Normalization is idempotent: a normalized response can be re-normalized and
+// inspected (isTerminalModelResponse does exactly that).
+assert.deepEqual(normalizeModelResponse(toolResponse), toolResponse);
+assert.equal(isTerminalModelResponse(toolResponse), false);
+assert.throws(() => normalizeModelResponse({ toolCalls: [{ id: 'x', function: { name: '', arguments: '{}' } }] }), /INVALID_MODEL_TOOL_CALL_NAME/);
+
 assert.equal(normalizeModelResponse({ finishReason: 'future-provider-value' }).finishReason, 'unknown');
 assert.throws(() => normalizeModelResponse({ content: 'x'.repeat(MODEL_RESPONSE_CONTRACT.maxContentLength + 1) }), /MODEL_CONTENT_TOO_LARGE/);
 assert.throws(() => normalizeModelResponse({ toolCalls: Array.from({ length: 17 }, () => ({ id: 'x', function: { name: 'x', arguments: '{}' } })) }), /INVALID_MODEL_TOOL_CALLS/);

@@ -92,6 +92,28 @@ for (const [input, pattern] of [
 ]) {
   assert.throws(() => registry.resolveInvocation(input), pattern);
 }
+// Intersection mode (used by the skills runtime): a declared tool the policy
+// denies is dropped instead of hiding the skill, and it never widens a policy.
+const partiallyUsable = {
+  name: 'mixed-tools',
+  description: 'Ajanın yalnız bir kısmına sahip olduğu araçları ister.',
+  allowedTools: ['repo.read', 'task.update_ledger'],
+  prompt: 'Depoyu oku ve özetle.'
+};
+registry.register(partiallyUsable, { source: 'builtin' });
+assert.equal(registry.listForAgent(agent).some((skill) => skill.name === 'mixed-tools'), false);
+assert.equal(registry.listForAgent(agent, { intersectTools: true }).some((skill) => skill.name === 'mixed-tools'), true);
+assert.throws(() => registry.resolveInvocation({ agent, name: 'mixed-tools' }), /SKILL_TOOL_ESCALATION:task.update_ledger/);
+assert.deepEqual(
+  [...registry.resolveInvocation({ agent, name: 'mixed-tools', intersectTools: true }).tools],
+  ['repo.read']
+);
+assert.equal(registry.listForAgent(agent, { intersectTools: true }).some((skill) => skill.name === 'ledger-writer'), false);
+assert.throws(
+  () => registry.resolveInvocation({ agent, name: 'ledger-writer', intersectTools: true }),
+  /SKILL_NO_AUTHORIZED_TOOL/
+);
+
 assert.throws(() => createSkillsRegistry({ allowedProjects: 'hafize' }), /INVALID_SKILL_PROJECT_SCOPE/);
 
 console.log('skills registry tests passed');

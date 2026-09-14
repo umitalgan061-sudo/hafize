@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-
-const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.js');
-
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+import { join } from 'node:path';
+import {
+  ROOT,
+  assertShellAssets,
+  assertShellCacheContract,
+  indexHtmlAssets,
+  swPolicy as policy
+} from './shell-cache-contract.mjs';
 const ORIGIN = 'https://hafize.example';
 
 function request(path, options = {}) {
@@ -31,30 +31,24 @@ function headers(values = {}) {
   };
 }
 
-assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
-assert.ok(Object.isFrozen(policy));
-assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// The cache version is bumped whenever the shell changes, so the contract is
+// asserted through invariants instead of a literal version or asset snapshot.
+assertShellCacheContract();
+assertShellAssets([
   '/',
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/premium.css',
-  '/voice-output.css',
-  '/screen-share.css',
-  '/hands-free.css',
   '/app.js',
-  '/voice-input.js',
-  '/voice-output.js',
-  '/screen-share.js',
-  '/hands-free.js',
   '/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
-]);
-assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
+], 'core shell asset');
+
+// Anything index.html loads must survive offline, otherwise the cached shell
+// boots into a half-broken page.
+assertShellAssets(indexHtmlAssets(), 'index.html asset');
 
 for (const asset of policy.SHELL_ASSETS) {
   assert.equal(
@@ -65,7 +59,7 @@ for (const asset of policy.SHELL_ASSETS) {
 }
 
 assert.equal(
-  policy.classifyRequest(request('/styles.css?v=14'), ORIGIN),
+  policy.classifyRequest(request('/styles.css?v=1'), ORIGIN),
   'shell',
   'query strings must not prevent shell matching'
 );
@@ -144,14 +138,6 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
-assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
-assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
-assert.equal(policy.shouldDeleteCache(null), false);
 
 const swSource = await readFile(join(ROOT, 'public', 'sw.js'), 'utf8');
 assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);

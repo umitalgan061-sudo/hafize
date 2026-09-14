@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertAttributeDeclared } from './source-contract.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.css'), 'utf8');
@@ -22,17 +23,23 @@ const responsiveContracts = [
 ];
 for (const [fragment, label] of responsiveContracts) assert.ok(css.includes(fragment), label);
 
-const accessibilityContracts = [
+// Display-mode contracts live in the stylesheet, ARIA contracts in the module
+// that builds the DOM.
+const cssAccessibilityContracts = [
   ['@media (forced-colors: active)', 'forced color mode exists'],
   ["html[data-reduced-motion='true']", 'application reduced-motion flag exists'],
-  ['@media (prefers-reduced-motion: reduce)', 'system reduced-motion mode exists'],
+  ['@media (prefers-reduced-motion: reduce)', 'system reduced-motion mode exists']
+];
+for (const [fragment, label] of cssAccessibilityContracts) assert.ok(css.includes(fragment), label);
+
+const ariaContracts = [
   ['aria-valuemin', 'progressbar minimum is explicit'],
   ['aria-valuemax', 'progressbar maximum is explicit'],
   ['aria-valuenow', 'progressbar current value is explicit'],
   ['role="status"', 'live status exists'],
   ['aria-label="Sohbet çalışma alanı yönetimi"', 'workspace has named region']
 ];
-for (const [fragment, label] of accessibilityContracts) assert.ok(workspace.includes(fragment), label);
+for (const [fragment, label] of ariaContracts) assertAttributeDeclared(workspace, fragment, label);
 
 const shortcutVisualContracts = [
   ['.conversation-workspace-shortcuts', 'shortcut helper has a container'],
@@ -46,7 +53,8 @@ for (const [fragment, label] of shortcutVisualContracts) assert.ok(keyboardCss.i
 const shortcutBehaviorContracts = [
   ["event.isComposing", 'IME composition is respected'],
   ["event.altKey", 'Alt combinations are excluded'],
-  ["event.key === 'Escape'", 'Escape is explicitly handled'],
+  ["SHORTCUTS.escape.key", 'Escape is explicitly handled'],
+  ['matchesEscape(event)', 'Escape handling is centralized'],
   ['isTextEditingTarget(event.target)', 'editing fields own normal text entry'],
   ['event.target !== ui.search', 'workspace search is the controlled input'],
   ['event.preventDefault()', 'shortcut browser defaults are prevented'],
@@ -86,4 +94,4 @@ assert.ok(workspace.includes("row.style.order = visible ? String(orderedIds.get(
 assert.ok(workspace.includes('row.classList.toggle(\'workspace-selected\''));
 assert.ok(workspace.includes('check.checked = state.selected.includes(id)'));
 
-console.log(`conversation-workspace-navigation: responsive, accessibility, shortcut, shell-order and no-network contracts passed (${responsiveContracts.length + accessibilityContracts.length + shortcutVisualContracts.length + shortcutBehaviorContracts.length} checks)`);
+console.log(`conversation-workspace-navigation: responsive, accessibility, shortcut, shell-order and no-network contracts passed (${responsiveContracts.length + cssAccessibilityContracts.length + ariaContracts.length + shortcutVisualContracts.length + shortcutBehaviorContracts.length} checks)`);

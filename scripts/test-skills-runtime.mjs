@@ -78,8 +78,8 @@ const fake = await createSkillsRuntime({
 assert.equal(loaded, true);
 assert.equal(fake.size, 1);
 
-assert.throws(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
-assert.throws(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
+await assert.rejects(() => createSkillsRuntime({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
+await assert.rejects(() => createSkillsRuntime({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ readFileImpl: null }), /INVALID_SKILL_RUNTIME_READER/);
 assert.throws(() => createBuiltinSkillsRuntimeSync({ createRegistry: null }), /INVALID_SKILL_RUNTIME_REGISTRY/);
 

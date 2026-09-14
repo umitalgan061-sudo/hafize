@@ -53,12 +53,16 @@ const good = new MemoryStorage({
 const records = JSON.parse(good.getItem('hafize.message-workspace.v1'));
 assert.equal(Array.isArray(records), true);
 const normalized = policy.normalizeRecords(records);
-assert.equal(normalized.length, 3);
+// r-1 plus the first 'duplicate'; the null entry, the repeated id and the record
+// without a message id are dropped.
+assert.equal(normalized.length, 2);
+assert.deepEqual(normalized.map((item) => item.id), ['r-1', 'duplicate']);
 assert.equal(new Set(normalized.map(item => item.id)).size, normalized.length);
 
 const state = policy.normalizeState(JSON.parse(good.getItem('hafize.message-workspace.v1.state')));
+// Turkish locale lowercasing maps 'İ' to a plain dotted 'i'.
 assert.deepEqual(state, {
-  query: 'hafi̇ze',
+  query: 'hafize',
   filter: 'assistant',
   sort: 'feedback',
   selected: ['r-1', 'r-2']

@@ -15,9 +15,10 @@ assert.match(app, /function beginMessageEdit\(id\)/);
 assert.match(app, /function cancelMessageEdit\(\)/);
 assert.match(app, /function replaceEditedTurn\(id, content\)/);
 assert.match(app, /messages = target\.conversation\.messages\.slice\(0, target\.index\)/);
+// app.js consumes the event; chat-composer-features.js is the only dispatcher.
 assert.match(app, /window\.addEventListener\('hafize:edit-message'/);
-assert.match(app, /new CustomEvent\('hafize:edit-message'/);
-assert.match(app, /detail: \{ messageId \}/);
+assert.match(app, /event\.detail\?\.messageId/);
+assert.match(features, /detail: \{ messageId \}/);
 assert.match(app, /if \(editingMessageId\) \{/);
 assert.match(app, /replaceEditedTurn\(editingMessageId, clean\)/);
 assert.match(app, /event\.key === 'Escape' && editingMessageId/);
@@ -34,7 +35,6 @@ assert.match(features, /aria-label', 'Kullanıcı mesajını düzenle'/);
 assert.match(features, /title = 'Bu mesajı düzenle ve yeniden gönder'/);
 assert.match(features, /window\.dispatchEvent\(new CustomEvent\('hafize:edit-message'/);
 assert.match(features, /className = 'message-actions'/);
-assert.match(features, /messageId \}\}/);
 assert.doesNotMatch(features, /assistant.*Düzenle/);
 
 assert.match(css, /\.composer-editing\s*\{/);
