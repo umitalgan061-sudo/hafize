@@ -58,7 +58,27 @@ npm run precheck
 npm run check
 ```
 
-Prompt Library testleri `scripts/test-prompt-library-*.mjs` adıyla genel check runner tarafından otomatik keşfedilir.
+Conversation Workspace özel kontrolleri:
+
+```bash
+node scripts/test-conversation-workspace.mjs
+node scripts/test-conversation-workspace-adversarial.mjs
+node scripts/test-conversation-workspace-data-compat.mjs
+node scripts/test-conversation-workspace-keyboard.mjs
+```
+
+Mesaj Workspace özel kontrolleri:
+
+```bash
+node scripts/test-message-workspace-policy.mjs
+node scripts/test-message-workspace-source.mjs
+node scripts/test-message-workspace-adversarial.mjs
+node scripts/test-message-workspace-compatibility.mjs
+node scripts/test-message-workspace-keyboard.mjs
+node scripts/test-message-workspace-runtime.mjs
+node scripts/test-message-workspace-export.mjs
+node scripts/test-message-workspace-regression.mjs
+```
 
 Production hardening için ayrıca:
 
