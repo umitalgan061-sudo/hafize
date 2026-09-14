@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
+assert.match(text, /try \{ store\(\)\?\.getItem/);
+assert.match(text, /catch \{ return \[\]; \}/);
+assert.match(text, /try \{\n      store\(\)\?\.setItem/);
+assert.match(text, /catch \{\n      return false;/);
+assert.match(text, /if \(!writePresets/);
+assert.match(text, /showError\('Değişken seti kaydedilemedi\.'/);
+assert.doesNotMatch(text, /throw new Error/);
+console.log('prompt smart-fill storage failures: ok');
