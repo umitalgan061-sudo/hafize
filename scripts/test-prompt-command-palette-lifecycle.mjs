@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.js'), 'utf8');
+assert.match(text, /if \(documentRef\.getElementById\(PALETTE_ID\)\)/);
+assert.match(text, /let previousFocus = null/);
+assert.match(text, /previousFocus\?\.focus/);
+assert.match(text, /palette\.remove\(\)/);
+assert.match(text, /removeEventListener\('keydown', onInputKeydown\)/);
+assert.match(text, /removeEventListener\('input', onInput\)/);
+assert.match(text, /removeEventListener\('input', onQueryInput\)/);
+assert.match(text, /removeEventListener\('keydown', onPaletteKeydown\)/);
+assert.match(text, /destroy: \(\) =>/);
+console.log('prompt command palette lifecycle: ok');
