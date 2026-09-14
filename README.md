@@ -44,6 +44,15 @@ Desteklenen işlemler:
 
 Workspace yalnızca `localStorage` kullanır. Import/export için backend endpoint'i veya uzak dosya yükleme çağrısı eklenmez. Import sırasında id çakışması mevcut kaydın üzerine yazmak yerine yeni import id'si üretir.
 
+Kısayollar:
+
+```text
+Ctrl / ⌘ + Shift + A   Görünen sohbetleri seç
+Ctrl / ⌘ + Shift + X   Seçimi temizle
+Ctrl / ⌘ + Shift + U   Workspace aramasına geç
+Esc                    Workspace aramasını temizle
+```
+
 ## Mesaj çalışma alanı
 
 Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları uzun vadeli kişisel işaretlere dönüştürür. Kullanıcı veya Hafize mesajı kaydedilebilir; asistan yanıtına olumlu/olumsuz geri bildirim, kısa not ve etiket eklenebilir.
@@ -64,7 +73,19 @@ Ctrl / ⌘ + Shift + X   Mesaj seçimini temizle
 
 Metadata katmanı `/api/` çağırmaz; `fetch`, `XMLHttpRequest`, `WebSocket`, cookie veya Authorization erişimi yoktur. Yeni asset'ler PWA shell cache'ine eklenmiştir.
 
-Ayrıntılı sözleşme için `docs/MESSAGE_WORKSPACE.md`, güvenlik için `docs/MESSAGE_WORKSPACE_SECURITY.md`, operasyon için `docs/MESSAGE_WORKSPACE_RUNBOOK.md` kullanılmalıdır.
+## Asistan Markdown çıktısı
+
+Asistan yanıtları güvenli bir Markdown alt kümesiyle biçimlendirilir. Başlıklar, paragraflar, sıralı/sırasız listeler, görev listeleri, alıntılar, yatay çizgiler, fenced code block'lar, pipe tabloları, satır içi kod, kalın/eğik/üstü çizili metin ve güvenli HTTP(S)/mailto bağlantıları desteklenir.
+
+Kod bloklarında `Kopyala` düğmesi bulunur ve yalnız kod metnini Clipboard API üzerinden kopyalar. Geniş tablolar ve code block'lar kendi kaydırma alanlarında kalır; mobil görünümün yatay taşması engellenir.
+
+Markdown yalnız `.message.assistant .content` alanına uygulanır. Kullanıcı mesajları düz metin kalır. Renderer sohbet state'inin sahibi değildir; `hafize.conversations.v1`, Message Workspace metadata'sı ve model/tool akışı değiştirilmez.
+
+Güvenlik sınırı fail-closed'dur: raw HTML DOM'a dönüştürülmez, `javascript:`/`data:`/`vbscript:` gibi URL'ler link olmaz ve modelin verdiği fence language doğrudan CSS selector'a yazılmaz. Parser input, block, list, table, inline ve code boyutlarında bounded'dır.
+
+Streaming sırasında kapanmamış code fence ara durum olarak desteklenir. Renderer DOM observer ile kaynak değişikliklerini takip eder ancak kendi render mutation'ını yeniden sonsuz döngüye sokmaz.
+
+Ayrıntılar için `docs/CHAT_MARKDOWN.md`, `docs/CHAT_MARKDOWN_SECURITY.md`, `docs/CHAT_MARKDOWN_STREAMING.md` ve `docs/CHAT_MARKDOWN_RUNBOOK.md` kullanılmalıdır.
 
 ## Test
 
@@ -93,6 +114,16 @@ node scripts/test-message-workspace-keyboard.mjs
 node scripts/test-message-workspace-runtime.mjs
 node scripts/test-message-workspace-export.mjs
 node scripts/test-message-workspace-regression.mjs
+```
+
+Markdown özel kontrolleri:
+
+```bash
+node scripts/test-chat-markdown.mjs
+node scripts/test-chat-markdown-golden.mjs
+node scripts/test-chat-markdown-security.mjs
+node scripts/test-chat-markdown-stream.mjs
+node scripts/test-chat-markdown-pwa-contract.mjs
 ```
 
 Production hardening için ayrıca:
