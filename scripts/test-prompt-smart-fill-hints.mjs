@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill-hints.js'), 'utf8');
+assert.match(text, /HafizePromptSmartFillHints/);
+assert.match(text, /MAX_VALUE = 1000/);
+assert.match(text, /MAX_PREVIEW = 8000/);
+assert.match(text, /prompt-smart-fill-count/);
+assert.match(text, /prompt-smart-fill-preview-count/);
+assert.match(text, /aria-label/);
+assert.match(text, /MutationObserver/);
+assert.match(text, /disconnect\(\)/);
+assert.doesNotMatch(text, /fetch\s*\(/);
+console.log('prompt smart-fill hints: ok');

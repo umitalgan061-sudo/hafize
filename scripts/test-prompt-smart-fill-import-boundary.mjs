@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const root = process.cwd();
+const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.js'),'utf8');
+const core = fs.readFileSync(path.join(root,'public/prompt-library.js'),'utf8');
+assert.match(core,/normalizeImportedPayload/);
+assert.match(core,/exportPayload/);
+assert.match(smart,/STORAGE_KEY = 'hafize\.prompt-library\.smart-fill\.v1'/);
+assert.match(smart,/keyForPrompt\(promptId\)/);
+assert.doesNotMatch(smart,/normalizeImportedPayload/);
+assert.doesNotMatch(smart,/exportPayload/);
+assert.doesNotMatch(smart,/download/);
+assert.doesNotMatch(smart,/Blob\(/);
+console.log('prompt smart-fill import boundary: ok');

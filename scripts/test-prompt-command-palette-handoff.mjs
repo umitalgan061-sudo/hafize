@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-command-palette.js'),'utf8');
+assert.match(text,/variableCount\(item\)/);
+assert.match(text,/HafizePromptLibrarySmartFill\?\.open/);
+assert.match(text,/close\(\)/);
+assert.match(text,/open\(item\)/);
+assert.match(text,/input\.value/);
+assert.match(text,/dispatchEvent\(new Event\('input'/);
+assert.doesNotMatch(text,/requestSubmit/);
+console.log('prompt command palette smart-fill handoff: ok');
