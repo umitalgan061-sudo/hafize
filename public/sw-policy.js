@@ -5,21 +5,19 @@
   else root.HafizeSwPolicy = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
-
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v25`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v26`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html', '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
-    '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css',
-    '/chat-history-management.css', '/settings-workspace.css', '/chat-drafts.css', '/conversation-workspace.css', '/conversation-workspace-keyboard.css',
-    '/message-workspace.css', '/prompt-library.css', '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js',
-    '/chat-history-export.js', '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js',
-    '/message-workspace-policy.js', '/message-workspace.js', '/prompt-library.js', '/prompt-library-starters.js', '/voice-input.js',
-    '/voice-output.js', '/screen-share.js', '/hands-free.js', '/hands-free-background-guard.js', '/settings-workspace.js',
-    '/workspace-navigation.js', '/ui-shell.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+    '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css', '/chat-history-management.css',
+    '/settings-workspace.css', '/chat-drafts.css', '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/message-workspace.css',
+    '/prompt-library.css', '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
+    '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js', '/message-workspace-policy.js',
+    '/message-workspace.js', '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/voice-input.js', '/voice-output.js',
+    '/screen-share.js', '/hands-free.js', '/hands-free-background-guard.js', '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
+    '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
-
   function readHeader(headers, name) {
     if (!headers) return '';
     if (typeof headers.get === 'function') return headers.get(name) || '';
@@ -39,8 +37,7 @@
     const pathname = pathnameFor(request.url, origin);
     if (!pathname) return 'ignore';
     if (pathname.startsWith('/api/')) return 'network-only';
-    const acceptsHtml = readHeader(request.headers, 'accept').toLowerCase().includes('text/html');
-    if (request.mode === 'navigate' || acceptsHtml) return 'navigation';
+    if (request.mode === 'navigate' || readHeader(request.headers, 'accept').toLowerCase().includes('text/html')) return 'navigation';
     if (SHELL_PATHS.has(pathname)) return 'shell';
     return 'network-only';
   }
