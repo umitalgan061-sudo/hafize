@@ -167,3 +167,20 @@
   else boot();
   root.addEventListener?.('beforeunload', () => { observer?.disconnect?.(); for (const off of listeners.splice(0)) off(); });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptLibraryUsage(root) {
+  'use strict';
+  const start = () => {
+    if (!root.document || root.HafizePromptLibraryUsage) return;
+    const existing = root.document.querySelector('script[data-hafize-prompt-usage]');
+    if (existing) return;
+    const script = root.document.createElement('script');
+    script.src = '/prompt-library-usage.js';
+    script.defer = true;
+    script.dataset.hafizePromptUsage = 'true';
+    script.setAttribute('aria-hidden', 'true');
+    (root.document.head || root.document.documentElement)?.append(script);
+  };
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
