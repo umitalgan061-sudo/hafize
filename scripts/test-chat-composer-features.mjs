@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { assertShellCacheSourceAtLeast } from './sw-cache-version.mjs';
 import { readFile } from 'node:fs/promises';
 
 const composer = await readFile(new URL('../public/chat-composer-features.js', import.meta.url), 'utf8');
@@ -38,7 +39,7 @@ assert.match(style, /\.composer\.drag-active/);
 assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
-assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v16`/);
+assertShellCacheSourceAtLeast(serviceWorkerPolicy, 16);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 

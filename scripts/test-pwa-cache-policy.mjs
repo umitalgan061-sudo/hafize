@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { assertShellCacheAtLeast } from './sw-cache-version.mjs';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -32,10 +33,13 @@ function headers(values = {}) {
 }
 
 assert.equal(policy.CACHE_PREFIX, 'hafize-shell-');
-assert.equal(policy.CURRENT_CACHE, 'hafize-shell-v14');
+const shellCacheVersion = assertShellCacheAtLeast(policy, 14);
 assert.ok(Object.isFrozen(policy));
 assert.ok(Object.isFrozen(policy.SHELL_ASSETS));
-assert.deepEqual(policy.SHELL_ASSETS, [
+// The shell grows with every offline-capable feature, so this asserts the assets the
+// offline experience cannot lose plus the structural rules every entry must obey —
+// not a frozen snapshot that any new asset would break.
+for (const asset of [
   '/',
   '/index.html',
   '/offline.html',
@@ -53,7 +57,13 @@ assert.deepEqual(policy.SHELL_ASSETS, [
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
-]);
+]) {
+  assert.ok(policy.SHELL_ASSETS.includes(asset), `${asset} must stay in the offline shell`);
+}
+assert.equal(new Set(policy.SHELL_ASSETS).size, policy.SHELL_ASSETS.length, 'shell assets must be unique');
+for (const asset of policy.SHELL_ASSETS) {
+  assert.match(asset, /^\/[A-Za-z0-9._/-]*$/, `${asset} must be a same-origin root-relative path`);
+}
 assert.equal(policy.SHELL_ASSETS.some((path) => path.startsWith('/api/')), false);
 
 for (const asset of policy.SHELL_ASSETS) {
@@ -144,11 +154,10 @@ assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), fal
 assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
-assert.equal(policy.shouldDeleteCache('hafize-shell-v1'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v11'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v12'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v13'), true);
-assert.equal(policy.shouldDeleteCache('hafize-shell-v14'), false);
+for (let version = 1; version < shellCacheVersion; version += 1) {
+  assert.equal(policy.shouldDeleteCache(`hafize-shell-v${version}`), true, `stale shell cache v${version} must be evicted`);
+}
+assert.equal(policy.shouldDeleteCache(policy.CURRENT_CACHE), false);
 assert.equal(policy.shouldDeleteCache('other-app-cache-v1'), false);
 assert.equal(policy.shouldDeleteCache('hafize-runtime-v1'), false);
 assert.equal(policy.shouldDeleteCache(null), false);

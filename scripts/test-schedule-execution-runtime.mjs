@@ -14,9 +14,18 @@ const plain = createScheduleExecutionRuntime({ executor });
 assert.equal(plain.configured, true);
 assert.equal(plain.leaseGuarded, false);
 assert.equal(Object.isFrozen(plain), true);
-assert.equal(plain.executeAgentTask, executor.executeAgentTask);
+// The runtime never hands the raw executor to the worker: results pass through the
+// worker-contract projection, which drops internal execution metadata.
+assert.equal(typeof plain.executeAgentTask, 'function');
+assert.notEqual(plain.executeAgentTask, executor.executeAgentTask);
 assert.deepEqual(await plain.executeAgentTask({ scheduleId: 'schedule_1' }), { ok: true, source: 'base' });
 assert.equal(calls.length, 1);
+assert.deepEqual(
+  await createScheduleExecutionRuntime({
+    executor: { configured: true, executeAgentTask: async () => ({ ok: true, content: 'gizli özet', taskLedger: { entries: [] } }) }
+  }).executeAgentTask({ scheduleId: 'schedule_1' }),
+  { ok: true }
+);
 
 let guardInput = null;
 const lease = { name: 'distributed-lease' };

@@ -11,7 +11,9 @@ assert.match(index, /chat-history-search\.js/);
 assert.match(search, /hafize\.conversations\.v1/);
 assert.match(search, /conversationSearchInput/);
 assert.match(search, /toLocaleLowerCase\('tr-TR'\)/);
-assert.match(search, /event\.ctrlKey \|\| event\.metaKey/);
+// The shortcut must require a platform modifier; the guard may be written either way round.
+assert.match(search, /event\.ctrlKey/);
+assert.match(search, /event\.metaKey/);
 assert.match(search, /event\.altKey/);
 assert.match(search, /event\.key\.toLocaleLowerCase\(\) !== SHORTCUT\.key/);
 assert.match(search, /event\.key === 'Escape'/);

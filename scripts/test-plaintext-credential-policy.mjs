@@ -8,7 +8,11 @@ for (const value of [
   'nvapi-1234567890abcdefghijklmnopqrstuv',
   'ya29.A0ARrdaM_exampleGoogleOauthToken123456789',
   'token=ya29.A0ARrdaM_exampleGoogleOauthToken123456789~',
-  '-----BEGIN PRIVATE KEY-----'
+  '-----BEGIN PRIVATE KEY-----',
+  // Env-var spellings: the credential name is joined to its prefix by an underscore.
+  'NVIDIA_API_KEY=should-never-leak',
+  'GITHUB_ACCESS_TOKEN=abcdef123456',
+  'HAFIZE_CLIENT_SECRET: swordfish123'
 ]) assert.equal(containsPlaintextCredential(value), true);
 
 for (const value of [

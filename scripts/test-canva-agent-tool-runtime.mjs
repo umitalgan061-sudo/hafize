@@ -24,16 +24,16 @@ assert.equal(getAllowedNvidiaTools(agent, { canvaReadAuthenticated: true }).some
 assert.equal(getAllowedNvidiaTools({ ...agent, toolPolicy: { default: 'deny', allow: [] } }, context).length, 0);
 
 const result = await executeNvidiaToolCall(agent, {
-  function: { name: 'canva_read', arguments: JSON.stringify({ operation: 'design.get', params: { designId: 'DAF123' } }) }
+  id: 'call_canva_1', function: { name: 'canva_read', arguments: JSON.stringify({ operation: 'design.get', params: { designId: 'DAF123' } }) }
 }, { ...context, approvalGranted: false });
 assert.deepEqual(result, { ok: true, value: { design: { id: 'DAF123' } } });
 assert.deepEqual(calls[0], { operation: 'design.get', params: { designId: 'DAF123' } });
 
 assert.deepEqual(await executeNvidiaToolCall(agent, {
-  function: { name: 'canva_read', arguments: '{}' }
+  id: 'call_canva_2', function: { name: 'canva_read', arguments: '{}' }
 }, { canvaReadTool, canvaReadAuthenticated: false }), { ok: false, error: 'TOOL_UNAVAILABLE' });
 assert.deepEqual(await executeNvidiaToolCall(agent, {
-  function: { name: 'canva_read', arguments: '[]' }
+  id: 'call_canva_3', function: { name: 'canva_read', arguments: '[]' }
 }, context), { ok: false, error: 'INVALID_TOOL_ARGUMENTS' });
 assert.equal('principal' in context, false);
 assert.equal(listToolPermissions().some((item) => item.permission === 'connector.canva.read' && item.functionName === 'canva_read'), true);

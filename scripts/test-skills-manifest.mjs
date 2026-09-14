@@ -23,6 +23,13 @@ assert.deepEqual(manifest.arguments.map((item) => item.required), [true, false])
 assert.equal(Object.isFrozen(manifest), true);
 assert.throws(() => { manifest.allowedTools.push('secret.read'); });
 
+// Normalization is idempotent: a normalized manifest carries `model: ''` and must
+// stay registerable, otherwise every shipped skill file breaks the runtime boot.
+assert.equal(normalizeSkillManifest({ ...base, model: '' }).model, '');
+assert.equal(normalizeSkillManifest({ ...base, model: '  ' }).model, '');
+assert.deepEqual(normalizeSkillManifest({ ...manifest }), manifest);
+assert.throws(() => normalizeSkillManifest({ ...base, model: 42 }), /INVALID_SKILL_MODEL/);
+
 // Strict manifest: unknown fields, malformed values and credential material are rejected.
 for (const [patch, pattern] of [
   [{ source: 'builtin' }, /INVALID_SKILL_FIELD/],
