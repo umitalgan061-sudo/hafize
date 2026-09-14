@@ -12,15 +12,22 @@
     ['Test senaryoları', '{{ozellik}} için mutlu yol, sınır durumları, hata yolları ve güvenlik kontrollerini içeren test senaryoları yaz.', ['test', 'yazılım']],
     ['Fikirden gereksinime', '{{fikir}} fikrini kullanıcı hikâyeleri, kabul kriterleri, veri modeli, riskler ve MVP kapsamına dönüştür.', ['ürün', 'MVP']]
   ]);
-  function run() {
+  function seed({ force = false } = {}) {
     const api = root.HafizePromptLibrary;
     const storage = root.localStorage;
     if (!api || !storage || typeof api.loadItems !== 'function' || typeof api.saveItems !== 'function') return false;
-    if (api.loadItems(storage).length) return false;
+    const current = api.loadItems(storage);
+    if (current.length && !force) return false;
     const stamp = new Date().toISOString();
-    const items = STARTERS.map(([title, body, tags], index) => api.normalizeItem({ id: `starter-${index + 1}`, title, body, tags, favorite: false, useCount: 0, createdAt: stamp, updatedAt: stamp }));
-    return api.saveItems(storage, items.filter(Boolean));
+    const existingTitles = new Set(current.map((item) => item.title));
+    const additions = STARTERS
+      .filter(([title]) => !existingTitles.has(title))
+      .map(([title, body, tags], index) => api.normalizeItem({ id: `starter-${index + 1}-${Date.now()}`, title, body, tags, favorite: false, useCount: 0, createdAt: stamp, updatedAt: stamp }))
+      .filter(Boolean);
+    if (!additions.length) return false;
+    return api.saveItems(storage, [...additions, ...current]);
   }
-  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', run, { once: true });
-  else run();
+  root.HafizePromptLibraryStarters = Object.freeze({ STARTERS, seed });
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', () => seed(), { once: true });
+  else seed();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
