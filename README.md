@@ -28,43 +28,28 @@ NVIDIA anahtarı server-side tutulur. GitHub okuma erişimi allowlist ile sını
 
 Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetmek için kullanılır. Mevcut tekli sabitleme/adlandırma/dışa aktarma yüzeylerinin yerine geçmez; onları tamamlar.
 
-Desteklenen işlemler:
-
-- başlık, etiket, mesaj ve ajan kimliğine göre yerel arama,
-- aktif/arşivlenmiş/sabitlenmiş/etiketli filtreleri,
-- güncelleme, oluşturulma ve başlığa göre sıralama,
-- görünür sohbetleri topluca seçme ve seçim temizleme,
-- arşivleme ve arşivden çıkarma,
-- sabitleme ve sabitlemeyi kaldırma,
-- seçilen sohbetleri kopyalama,
-- seçilen sohbetlere kullanıcı girişiyle etiket ekleme,
-- seçilen sohbetleri JSON olarak dışa aktarma,
-- JSON yedeklerini bounded normalization ile içe aktarma,
-- yerel history için 30 kayıtlık quota görünümü.
-
-Workspace yalnızca `localStorage` kullanır. Import/export için backend endpoint'i veya uzak dosya yükleme çağrısı eklenmez. Import sırasında id çakışması mevcut kaydın üzerine yazmak yerine yeni import id'si üretir.
-
 ## Mesaj çalışma alanı
 
-Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları uzun vadeli kişisel işaretlere dönüştürür. Kullanıcı veya Hafize mesajı kaydedilebilir; asistan yanıtına olumlu/olumsuz geri bildirim, kısa not ve etiket eklenebilir.
+Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları yerel olarak kaydetme, geri bildirimleme, notlama, etiketleme, arama, filtreleme, sıralama ve seçerek JSON dışa aktarma yüzeyidir. Metadata ayrı local storage anahtarında tutulur.
 
-Panel sağdaki yardımcı araçlar bölümünde açılır. Kayıtlı mesajlar mesaj metni, not ve etiket üzerinde aranabilir; kaydedilen, geri bildirimli, notlu, kullanıcı, Hafize ve etiketli görünümler arasında filtrelenebilir. Son güncellenen, eski, etkileşimli ve notlu sıralamalar mevcuttur.
+## İstem Kütüphanesi
 
-Seçili mesaj kayıtları JSON olarak dışa aktarılabilir. Export yerel Blob üzerinden yapılır; backend'e yeni endpoint eklenmez ve sohbet geçmişi ayrı storage anahtarında tutulduğu için `app.js`'nin sohbet kaydetmesi metadata'yı ezmez.
+İstem Kütüphanesi, tekrar kullanılan prompt'ları cihaz üzerinde saklayıp sohbet composer alanına aktaran yerel yardımcı araçtır.
 
-Veri anahtarı `hafize.message-workspace.v1`, görünüm durumu ise aynı anahtarın `.state` uzantısıdır. Kayıtlar 240, seçim ve export 100, not 600, etiket 24 karakter ve 8 adetle sınırlandırılır.
+Desteklenen akış:
 
-Kısayollar:
+- yeni prompt oluşturma, düzenleme ve silme,
+- etiketleme ve favorileme,
+- başlık/gövde/etiket/değişken araması,
+- güncellenen, favoriler, yeni oluşturulan ve başlık sıralaması,
+- `{{konu}}` benzeri değişkenleri kullanım sırasında doldurma,
+- istem metnini panoya kopyalama veya yeni id ile çoğaltma,
+- çoklu seçim, favorileme ve onaylı toplu silme,
+- 1 MB sınırlandırılmış JSON import/export,
+- 10 güvenli başlangıç istemi ve eksik starter'ları geri yükleme,
+- `Ctrl / ⌘ + Shift + P` arama ve `Ctrl / ⌘ + Shift + N` yeni istem kısayolları.
 
-```text
-Ctrl / ⌘ + Shift + B   Mesaj çalışma alanı aramasına geç
-Ctrl / ⌘ + Shift + K   Görünen mesaj kayıtlarını seç
-Ctrl / ⌘ + Shift + X   Mesaj seçimini temizle
-```
-
-Metadata katmanı `/api/` çağırmaz; `fetch`, `XMLHttpRequest`, `WebSocket`, cookie veya Authorization erişimi yoktur. Yeni asset'ler PWA shell cache'ine eklenmiştir.
-
-Ayrıntılı sözleşme için `docs/MESSAGE_WORKSPACE.md`, güvenlik için `docs/MESSAGE_WORKSPACE_SECURITY.md`, operasyon için `docs/MESSAGE_WORKSPACE_RUNBOOK.md` kullanılmalıdır.
+`Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
 ## Test
 
@@ -73,27 +58,7 @@ npm run precheck
 npm run check
 ```
 
-Conversation Workspace özel kontrolleri:
-
-```bash
-node scripts/test-conversation-workspace.mjs
-node scripts/test-conversation-workspace-adversarial.mjs
-node scripts/test-conversation-workspace-data-compat.mjs
-node scripts/test-conversation-workspace-keyboard.mjs
-```
-
-Mesaj Workspace özel kontrolleri:
-
-```bash
-node scripts/test-message-workspace-policy.mjs
-node scripts/test-message-workspace-source.mjs
-node scripts/test-message-workspace-adversarial.mjs
-node scripts/test-message-workspace-compatibility.mjs
-node scripts/test-message-workspace-keyboard.mjs
-node scripts/test-message-workspace-runtime.mjs
-node scripts/test-message-workspace-export.mjs
-node scripts/test-message-workspace-regression.mjs
-```
+Prompt Library testleri `scripts/test-prompt-library-*.mjs` adıyla genel check runner tarafından otomatik keşfedilir.
 
 Production hardening için ayrıca:
 
