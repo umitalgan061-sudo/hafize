@@ -13,7 +13,7 @@
     '/settings-workspace.css', '/chat-drafts.css', '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/message-workspace.css',
     '/prompt-library.css', '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js', '/message-workspace-policy.js',
-    '/message-workspace.js', '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
+    '/message-workspace.js', '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js', '/prompt-library-usage.js',
     '/voice-input.js', '/voice-output.js', '/screen-share.js', '/hands-free.js', '/hands-free-background-guard.js', '/settings-workspace.js',
     '/workspace-navigation.js', '/ui-shell.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
