@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(source, /replace\(\/\\0\/g, ''\)/);
+assert.match(source, /reason === 'manual' \? 'manual' : 'before-edit'/);
+assert.match(source, /title: clamp\(input\.title, MAX_TITLE\)/);
+assert.match(source, /body: clamp\(input\.body, MAX_BODY\)/);
+assert.match(source, /tags: cleanTags\(input\.tags\)/);
+assert.match(source, /if \(!promptId \|\| !body\) return null/);
+assert.match(source, /filter\(\(revision\) => revision\.promptId === promptId\)/);
+console.log('prompt revision normalization: ok');
