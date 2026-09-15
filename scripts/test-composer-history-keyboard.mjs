@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+const source = (await import('node:fs')).readFileSync('public/composer-history.js', 'utf8');
+assert.match(source, /ArrowUp/);
+assert.match(source, /ArrowDown/);
+assert.match(source, /event\.preventDefault\(\)/);
+assert.match(source, /selectionStart/);
+assert.match(source, /event\.isComposing/);
+assert.match(source, /compositionstart/);
+assert.match(source, /compositionend/);
+assert.match(source, /restoreDraft/);
+console.log('composer history keyboard contract: ok');
