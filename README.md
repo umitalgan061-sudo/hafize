@@ -51,11 +51,40 @@ Desteklenen akış:
 
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
+## Zamanlanmış Görevler
+
+Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
+
+- `/api/schedules` GET/POST ve `/api/schedules/:id` DELETE kullanılır.
+- Ajan, task metni, gelecek tarih/saat ve 1–5 maksimum deneme seçilebilir.
+- Günlük özet, satış özeti, kod incelemesi, araştırma özeti, haftalık plan ve kontrol listesi hızlı şablonları vardır.
+- Durum filtreleri Planlandı, Çalışıyor, Tamamlandı, Başarısız ve İptal edildi olarak ayrılır.
+- Planlanan görevlerde kalan süre göstergesi bulunur ve panel açıkken liste periyodik yenilenir.
+- `Ctrl / ⌘ + Shift + T` ile görevler paneli açılır; düzenlenebilir alanlarda kısayol devre dışıdır.
+- Görev içeriği browser storage'a otomatik kopyalanmaz ve schedule API response'ları service worker cache'lenmez.
+- Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
+- Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
+
 ## Test
 
 ```bash
 npm run precheck
 npm run check
+```
+
+Scheduled Tasks özel kontrolleri:
+
+```bash
+node scripts/test-scheduled-tasks-contract.mjs
+node scripts/test-scheduled-tasks-source.mjs
+node scripts/test-scheduled-tasks-security.mjs
+node scripts/test-scheduled-tasks-time-and-errors.mjs
+node scripts/test-scheduled-tasks-ui.mjs
+node scripts/test-scheduled-tasks-keyboard.mjs
+node scripts/test-scheduled-tasks-countdown.mjs
+node scripts/test-scheduled-tasks-pwa.mjs
+node scripts/test-scheduled-tasks-index-and-sw.mjs
+node scripts/test-scheduled-tasks-regression.mjs
 ```
 
 Conversation Workspace özel kontrolleri:
