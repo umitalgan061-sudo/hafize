@@ -105,18 +105,25 @@
     const heading = documentRef.createElement('strong'); heading.id = 'promptRevisionTitle'; heading.textContent = 'İstem sürüm geçmişi';
     const close = makeButton(documentRef, 'Kapat', 'close'); close.className = 'mini-btn prompt-revision-action'; head.append(heading, close);
     const description = documentRef.createElement('p'); description.className = 'prompt-revision-description'; description.setAttribute('aria-live', 'polite');
+    const currentTitle = documentRef.createElement('div'); currentTitle.className = 'prompt-revision-current-title'; currentTitle.setAttribute('aria-live', 'polite');
     const current = documentRef.createElement('pre'); current.className = 'prompt-revision-current';
+    const comparison = documentRef.createElement('div'); comparison.className = 'prompt-revision-comparison'; comparison.hidden = true;
+    const comparisonHeading = documentRef.createElement('strong'); comparisonHeading.className = 'prompt-revision-comparison-heading'; comparisonHeading.textContent = 'Karşılaştırma';
+    const comparisonGrid = documentRef.createElement('div'); comparisonGrid.className = 'prompt-revision-comparison-grid';
+    comparison.append(comparisonHeading, comparisonGrid);
     const listNode = documentRef.createElement('div'); listNode.className = 'prompt-revision-list'; listNode.setAttribute('role', 'list');
     const footer = documentRef.createElement('div'); footer.className = 'prompt-revision-footer';
     const exportButton = makeButton(documentRef, 'Geçmişi dışa aktar', 'export'); const clearButton = makeButton(documentRef, 'Geçmişi temizle', 'clear'); footer.append(exportButton, clearButton);
     const status = documentRef.createElement('div'); status.className = 'prompt-revision-status'; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-    shell.append(head, description, current, listNode, footer, status); panel.append(shell); card.append(panel);
+    shell.append(head, description, currentTitle, current, comparison, listNode, footer, status); panel.append(shell); card.append(panel);
     let activePrompt = null; let previousFocus = null; let observer = null;
 
     const report = (message) => { status.textContent = clamp(message, 180); };
-    const closePanel = () => { panel.hidden = true; activePrompt = null; listNode.replaceChildren(); current.textContent = ''; status.textContent = ''; previousFocus?.focus?.(); previousFocus = null; };
+    const closePanel = () => { panel.hidden = true; activePrompt = null; listNode.replaceChildren(); comparisonGrid.replaceChildren(); comparison.hidden = true; current.textContent = ''; status.textContent = ''; previousFocus?.focus?.(); previousFocus = null; };
     const render = () => {
-      if (!activePrompt) return; const revisions = list(activePrompt.id); current.textContent = activePrompt.body.slice(0, MAX_BODY); description.textContent = `${revisions.length} kayıtlı sürüm · geri yükleme favori ve kullanım sayısını korur.`; listNode.replaceChildren();
+      if (!activePrompt) return;
+      const revisions = list(activePrompt.id);
+      currentTitle.textContent = `Mevcut: ${activePrompt.title}`; current.textContent = activePrompt.body.slice(0, MAX_BODY); description.textContent = `${revisions.length} kayıtlı sürüm · geri yükleme favori ve kullanım sayısını korur.`; listNode.replaceChildren();
       if (!revisions.length) { const empty = documentRef.createElement('div'); empty.className = 'prompt-revision-empty'; empty.textContent = 'Bu istem için henüz geçmiş yok.'; listNode.append(empty); return; }
       revisions.forEach((revision, index) => {
         const row = documentRef.createElement('article'); row.className = 'prompt-revision-row'; row.setAttribute('role', 'listitem');
@@ -128,6 +135,18 @@
       });
     };
 
+    const showComparison = (revision) => {
+      comparisonGrid.replaceChildren(); comparison.hidden = false;
+      for (const [label, value, className] of [['Mevcut sürüm', activePrompt?.body || '', 'prompt-revision-diff-current'], [`Revision · ${revision.title}`, revision.body, 'prompt-revision-diff-old']]) {
+        const box = documentRef.createElement('div'); box.className = `prompt-revision-diff ${className}`;
+        const title = documentRef.createElement('strong'); title.textContent = label;
+        const body = documentRef.createElement('pre'); body.textContent = value.slice(0, 2000);
+        box.append(title, body); comparisonGrid.append(box);
+      }
+      const same = activePrompt?.body === revision.body && activePrompt?.title === revision.title && JSON.stringify(activePrompt?.tags || []) === JSON.stringify(revision.tags || []);
+      report(same ? 'Bu revision mevcut içerikle aynı.' : 'Mevcut sürüm ile seçilen revision yan yana gösteriliyor.');
+    };
+
     const open = (prompt) => { const found = prompt && core()?.loadItems?.(storage())?.find?.((item) => item.id === prompt.id); if (!found) return; previousFocus = documentRef.activeElement; activePrompt = found; panel.hidden = false; render(); close.focus(); };
     const handle = (event) => {
       const target = event.target?.closest?.('[data-prompt-revision-action]'); if (!target) return; const action = target.dataset.promptRevisionAction;
@@ -135,22 +154,27 @@
       if (action === 'export') { const payload = exportPrompt(activePrompt.id); const blob = new Blob([payload], { type: 'application/json;charset=utf-8' }); const url = URL.createObjectURL(blob); const link = documentRef.createElement('a'); link.href = url; link.download = 'hafize-prompt-revisions.json'; link.click(); rootRef.setTimeout?.(() => URL.revokeObjectURL(url), 0); return report('Sürüm geçmişi dışa aktarıldı.'); }
       if (action === 'clear') { if (!rootRef.confirm?.('Bu istemin tüm sürüm geçmişi temizlensin mi?')) return; clear(activePrompt.id); render(); return report('Sürüm geçmişi temizlendi.'); }
       const revision = list(activePrompt.id).find((item) => item.id === target.dataset.promptRevisionId); if (!revision) return;
-      if (action === 'compare') return report(activePrompt.body === revision.body ? 'Mevcut içerikle aynı sürüm.' : `Mevcut ${activePrompt.body.length} karakter · sürüm ${revision.body.length} karakter. Önizleme: ${revision.body.slice(0, 150)}`);
+      if (action === 'compare') return showComparison(revision);
       if (action === 'remove') { if (!rootRef.confirm?.('Bu eski sürüm silinsin mi?')) return; remove(activePrompt.id, revision.id); render(); return report('Eski sürüm silindi.'); }
       if (action === 'restore') { if (!rootRef.confirm?.(`“${revision.title}” sürümü geri yüklensin mi?`)) return; capture(activePrompt, 'manual'); const result = restore(revision); if (!result.ok) return report('Sürüm geri yüklenemedi.'); activePrompt = result.item; render(); return report('Sürüm geri yüklendi.'); }
     };
-    const interceptEdit = (event) => {
-      const target = event.target?.closest?.('.prompt-item-actions button'); if (!target || target.textContent?.trim() !== 'Düzenle') return;
-      const id = target.closest('.prompt-item')?.dataset?.promptId; const item = id ? core()?.loadItems?.(storage())?.find?.((candidate) => candidate.id === id) : null; if (item) capture(item);
-    };
-    const enhanceRows = () => {
-      card.querySelectorAll('.prompt-item').forEach((row) => { const id = row.dataset.promptId; const actions = row.querySelector('.prompt-item-actions'); if (!id || !actions || actions.querySelector('[data-prompt-revision-action="history"]')) return; actions.append(makeButton(documentRef, 'Geçmiş', 'history', id)); });
-    };
+    const interceptEdit = (event) => { const target = event.target?.closest?.('.prompt-item-actions button'); if (!target || target.textContent?.trim() !== 'Düzenle') return; const id = target.closest('.prompt-item')?.dataset?.promptId; const item = id ? core()?.loadItems?.(storage())?.find?.((candidate) => candidate.id === id) : null; if (item) capture(item); };
+    const enhanceRows = () => { card.querySelectorAll('.prompt-item').forEach((row) => { const id = row.dataset.promptId; const actions = row.querySelector('.prompt-item-actions'); if (!id || !actions || actions.querySelector('[data-prompt-revision-action="history"]')) return; actions.append(makeButton(documentRef, 'Geçmiş', 'history', id)); }); };
     const rowHandler = (event) => { const target = event.target?.closest?.('[data-prompt-revision-action="history"]'); if (!target) return; event.preventDefault(); event.stopImmediatePropagation(); const id = target.dataset.promptRevisionId; const item = id ? core()?.loadItems?.(storage())?.find?.((candidate) => candidate.id === id) : null; if (item) open(item); };
+    const keydownHandler = (event) => {
+      if (panel.hidden) return;
+      if (event.key === 'Escape') { event.preventDefault(); closePanel(); return; }
+      if (event.key !== 'Tab') return;
+      const focusables = [...panel.querySelectorAll('button')].filter((node) => !node.disabled && !node.hidden);
+      if (!focusables.length) return;
+      const first = focusables[0]; const last = focusables[focusables.length - 1];
+      if (event.shiftKey && documentRef.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && documentRef.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
     const storageHandler = (event) => { if (event.key === core()?.STORAGE_KEY && activePrompt) { activePrompt = core()?.loadItems?.(storage())?.find?.((item) => item.id === activePrompt.id) || activePrompt; render(); } };
     observer = typeof MutationObserver === 'function' ? new MutationObserver(enhanceRows) : null; observer?.observe(card, { childList: true, subtree: true }); enhanceRows();
-    card.addEventListener('click', interceptEdit, true); card.addEventListener('click', rowHandler, true); panel.addEventListener('click', handle); documentRef.addEventListener('keydown', (event) => { if (!panel.hidden && event.key === 'Escape') { event.preventDefault(); closePanel(); } }); rootRef.addEventListener?.('storage', storageHandler);
-    return Object.freeze({ mounted: true, open, close: closePanel, list, capture, normalizeRevision, exportPrompt, restore, destroy: () => { observer?.disconnect(); card.removeEventListener('click', interceptEdit, true); card.removeEventListener('click', rowHandler, true); panel.removeEventListener('click', handle); rootRef.removeEventListener?.('storage', storageHandler); closePanel(); panel.remove(); delete card.dataset.revisionsMounted; } });
+    card.addEventListener('click', interceptEdit, true); card.addEventListener('click', rowHandler, true); panel.addEventListener('click', handle); documentRef.addEventListener('keydown', keydownHandler); rootRef.addEventListener?.('storage', storageHandler);
+    return Object.freeze({ mounted: true, open, close: closePanel, list, capture, normalizeRevision, exportPrompt, restore, destroy: () => { observer?.disconnect(); card.removeEventListener('click', interceptEdit, true); card.removeEventListener('click', rowHandler, true); panel.removeEventListener('click', handle); documentRef.removeEventListener('keydown', keydownHandler); rootRef.removeEventListener?.('storage', storageHandler); closePanel(); panel.remove(); delete card.dataset.revisionsMounted; } });
   }
 
   root.HafizePromptLibraryRevisions = Object.freeze({ STORAGE_KEY, MAX_REVISIONS, normalizeRevision, normalizeStore, readAll, writeAll, list, capture, remove, clear, exportPrompt, restore, mount });
