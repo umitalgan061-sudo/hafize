@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s = fs.readFileSync('public/sw-policy.js', 'utf8');
+assert.match(s, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v30`/);
+assert.match(s, /\/prompt-library-revisions\.js/);
+assert.match(s, /SHELL_ASSETS/);
+const loader = fs.readFileSync('public/prompt-library-enhancements.js', 'utf8');
+assert.match(loader, /prompt-library-revisions\.js/);
+assert.match(loader, /data-hafize-prompt-revisions/);
+console.log('revision PWA policy: ok');
