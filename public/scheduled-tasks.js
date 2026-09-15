@@ -154,7 +154,7 @@
 
   function row(entry) {
     const item = make('article', undefined, 'scheduled-task-row');
-    item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status;
+    item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status; item.dataset.runAt = clamp(entry.runAt, 40);
     item.setAttribute('role','listitem');
     const head = make('div', undefined, 'scheduled-task-row-head');
     const title = make('strong', clamp(entry.task, 120));
@@ -222,7 +222,6 @@
     const nav = [...doc().querySelectorAll('.nav-item')].find((node) => node.textContent?.includes('Görevler'));
     if (!nav) return;
     build(); nav.disabled = false; nav.addEventListener('click', open); nav.setAttribute('aria-controls', PANEL_ID); nav.setAttribute('aria-expanded', 'false');
-    panel.addEventListener('toggle', () => {});
     mounted = true;
   }
 
