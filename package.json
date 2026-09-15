@@ -7,6 +7,7 @@
     "start": "node --import ./lib/production-guard.mjs server.mjs",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
+    "check:markdown": "node scripts/run-checks.mjs --filter=message-markdown,message-actions,message-outline",
     "test": "node scripts/run-checks.mjs"
   },
   "dependencies": {
