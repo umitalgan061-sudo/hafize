@@ -20,9 +20,11 @@
     const row = form.querySelector('.composer-row'); row?.after(note) || form.append(note);
     loadAsset(doc, 'link', '/message-markdown.css');
     loadAsset(doc, 'link', '/message-markdown-tools.css');
+    loadAsset(doc, 'link', '/message-actions.css');
     loadAsset(doc, 'script', '/message-markdown.js');
     loadAsset(doc, 'script', '/message-markdown-enhancement.js');
     loadAsset(doc, 'script', '/message-markdown-tools.js');
+    loadAsset(doc, 'script', '/message-actions.js');
     root.HafizeComposerHistoryHelp = Object.freeze({ element: note, destroy: () => { note.remove(); delete root.HafizeComposerHistoryHelp; } });
     return root.HafizeComposerHistoryHelp;
   }
