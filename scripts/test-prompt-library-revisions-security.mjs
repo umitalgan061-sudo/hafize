@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.doesNotMatch(s, /fetch\s*\(/);
+assert.doesNotMatch(s, /XMLHttpRequest/);
+assert.doesNotMatch(s, /WebSocket/);
+assert.doesNotMatch(s, /innerHTML/);
+assert.doesNotMatch(s, /outerHTML/);
+assert.match(s, /textContent/);
+assert.match(s, /createElement\('pre'\)/);
+assert.match(s, /if \(!rootRef\.confirm/);
+assert.match(s, /MAX_EXPORT = 1_000_000/);
+assert.match(s, /replace\(\/\\0\/g, ''\)/);
+console.log('revision security boundaries: ok');
