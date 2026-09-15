@@ -15,33 +15,18 @@
   };
   const saveSettings = (settings) => {
     const next = { enabled: settings?.enabled !== false, maxItems: RETENTION_VALUES.includes(settings?.maxItems) ? settings.maxItems : MAX_ITEMS };
-    try { root.localStorage?.setItem?.(SETTINGS_KEY, JSON.stringify(next)); return true; } catch { return false; }
+    try {
+      root.localStorage?.setItem?.(SETTINGS_KEY, JSON.stringify(next));
+      if (!next.enabled || next.maxItems === 0) root.localStorage?.removeItem?.(STORAGE_KEY);
+      return true;
+    } catch { return false; }
   };
-  const api = Object.freeze({
-    STORAGE_KEY, SETTINGS_KEY, MAX_ITEMS, MAX_TEXT, RETENTION_VALUES, normalize, loadSettings, saveSettings, mount: boot,
-    load() {
-      try {
-        const parsed = JSON.parse(root.localStorage?.getItem?.(STORAGE_KEY) || '[]');
-        const settings = loadSettings();
-        const limit = settings.maxItems === 0 ? 0 : Math.min(MAX_ITEMS, settings.maxItems);
-        return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string' && item.trim()).map(normalize).slice(0, limit) : [];
-      } catch { return []; }
-    },
-    save(items) {
-      const settings = loadSettings();
-      if (!settings.enabled || settings.maxItems === 0) {
-        try { root.localStorage?.removeItem?.(STORAGE_KEY); return true; } catch { return false; }
-      }
-      try { root.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify(items.slice(0, Math.min(MAX_ITEMS, settings.maxItems)))); return true; } catch { return false; }
-    }
-  });
-  root.HafizeComposerHistory = api;
-
   function boot() {
     const documentRef = root.document;
     const composer = documentRef?.getElementById?.(INPUT_ID);
     if (!documentRef || !composer || composer.dataset.historyReady === 'true') return null;
     composer.dataset.historyReady = 'true';
+    const api = root.HafizeComposerHistory;
     let settings = api.loadSettings();
     let items = api.load(); let cursor = -1; let draft = ''; let navigating = false; let composing = false;
     const emitInput = () => composer.dispatchEvent(new Event('input', { bubbles: true }));
@@ -75,19 +60,35 @@
     const onSubmit = () => { add(composer.value); cursor = -1; draft = ''; };
     const onStorage = (event) => { if (event.key === STORAGE_KEY || event.key === SETTINGS_KEY) refresh(); };
     const onSettings = (event) => { settings = api.loadSettings(); items = api.load(); if (event?.detail?.clear) { items = []; api.save(items); } root.dispatchEvent?.(new root.CustomEvent('hafize:composer-history-changed', { detail: { size: items.length } })); };
-
     composer.addEventListener('input', onInput); composer.addEventListener('keydown', onKeydown); composer.addEventListener('compositionstart', onComposition); composer.addEventListener('compositionend', onComposition);
     composer.closest('form')?.addEventListener('submit', onSubmit); root.addEventListener?.('storage', onStorage); root.addEventListener?.('hafize:composer-history-settings-changed', onSettings);
     const controller = Object.freeze({
       getItems: () => items.slice(), add, navigate, getCursor: () => cursor,
       clear: () => { items = []; api.save(items); root.dispatchEvent?.(new root.CustomEvent('hafize:composer-history-changed', { detail: { size: 0 } })); },
       getSettings: () => ({ ...settings }),
-      setSettings: (next) => { settings = api.loadSettings(); const merged = { ...settings, ...next }; api.saveSettings(merged); settings = api.loadSettings(); items = api.load(); root.dispatchEvent?.(new root.CustomEvent('hafize:composer-history-settings-changed', { detail: { ...settings } })); },
+      setSettings: (next) => { const merged = { ...settings, ...next }; api.saveSettings(merged); settings = api.loadSettings(); items = api.load(); if (!settings.enabled || settings.maxItems === 0) items = []; root.dispatchEvent?.(new root.CustomEvent('hafize:composer-history-settings-changed', { detail: { ...settings } })); },
       destroy: () => { composer.removeEventListener('input', onInput); composer.removeEventListener('keydown', onKeydown); composer.removeEventListener('compositionstart', onComposition); composer.removeEventListener('compositionend', onComposition); composer.closest('form')?.removeEventListener('submit', onSubmit); root.removeEventListener?.('storage', onStorage); root.removeEventListener?.('hafize:composer-history-settings-changed', onSettings); delete composer.dataset.historyReady; delete root.HafizeComposerHistoryController; }
     });
     root.HafizeComposerHistoryController = controller;
     return controller;
   }
-
+  const api = Object.freeze({ STORAGE_KEY, SETTINGS_KEY, MAX_ITEMS, MAX_TEXT, RETENTION_VALUES, normalize, loadSettings, saveSettings, mount: boot,
+    load() {
+      try {
+        const settings = loadSettings();
+        if (!settings.enabled || settings.maxItems === 0) return [];
+        const parsed = JSON.parse(root.localStorage?.getItem?.(STORAGE_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string' && item.trim()).map(normalize).slice(0, Math.min(MAX_ITEMS, settings.maxItems)) : [];
+      } catch { return []; }
+    },
+    save(items) {
+      const settings = loadSettings();
+      if (!settings.enabled || settings.maxItems === 0) {
+        try { root.localStorage?.removeItem?.(STORAGE_KEY); return true; } catch { return false; }
+      }
+      try { root.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify(items.slice(0, Math.min(MAX_ITEMS, settings.maxItems)))); return true; } catch { return false; }
+    }
+  });
+  root.HafizeComposerHistory = api;
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
