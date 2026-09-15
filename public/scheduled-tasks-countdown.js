@@ -29,26 +29,48 @@
       const timestamp = row.dataset.runAt;
       if (!meta || !timestamp) return;
       let node = row.querySelector('.scheduled-task-countdown');
-      if (!node) { node = root.document.createElement('span'); node.className = 'scheduled-task-countdown'; meta.append(' · ', node); }
+      if (!node) {
+        node = root.document.createElement('span');
+        node.className = 'scheduled-task-countdown';
+        meta.append(' · ', node);
+      }
       node.textContent = label(timestamp);
     });
   }
 
-  function watch() {
-    if (timer) return;
+  function stop() {
+    if (!timer) return;
+    root.clearInterval?.(timer);
+    timer = 0;
+  }
+
+  function start() {
+    stop();
+    const panel = root.document?.getElementById?.(PANEL_ID);
+    if (!panel || panel.hidden) return;
     timer = root.setInterval?.(refresh, REFRESH_MS) || 0;
     refresh();
   }
 
   function boot() {
     if (!root.document) return;
-    const observer = new MutationObserver(() => watch());
-    observer.observe(root.document.documentElement, { childList: true, subtree: true });
-    watch();
-    root.addEventListener('beforeunload', () => { observer.disconnect(); root.clearInterval?.(timer); timer = 0; }, { once: true });
+    root.addEventListener?.('hafize:scheduled-tasks-open', start);
+    root.addEventListener?.('hafize:scheduled-tasks-close', stop);
+    const observer = new MutationObserver(() => {
+      const panel = root.document.getElementById(PANEL_ID);
+      if (panel && !panel.hidden) start();
+      if (panel?.hidden) stop();
+    });
+    observer.observe(root.document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] });
+    root.addEventListener('beforeunload', () => {
+      observer.disconnect();
+      stop();
+      root.removeEventListener?.('hafize:scheduled-tasks-open', start);
+      root.removeEventListener?.('hafize:scheduled-tasks-close', stop);
+    }, { once: true });
   }
 
-  root.ScheduledTaskCountdown = Object.freeze({ label, refresh });
+  root.ScheduledTaskCountdown = Object.freeze({ label, refresh, start, stop });
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
