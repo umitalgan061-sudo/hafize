@@ -163,3 +163,30 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function bootstrapPromptWorkspace(root) {
+  'use strict';
+  const ASSETS = Object.freeze([
+    '/prompt-workspace.css',
+    '/prompt-library-workspaces.js',
+    '/prompt-library-collections.js',
+    '/prompt-library-revisions.js',
+    '/prompt-library-packs.js',
+    '/prompt-library-smart-insert.js',
+    '/prompt-library-workflows.js',
+    '/prompt-library-audit.js',
+    '/prompt-library-batch-editor.js',
+    '/prompt-library-import-review.js',
+    '/prompt-library-dashboard.js'
+  ]);
+  function loadAsset(url) {
+    if (!root.document) return;
+    if (root.document.querySelector(`script[src="${url}"]`) || root.document.querySelector(`link[href="${url}"]`)) return;
+    if (url.endsWith('.css')) {
+      const link = root.document.createElement('link'); link.rel = 'stylesheet'; link.href = url; root.document.head?.append(link); return;
+    }
+    const script = root.document.createElement('script'); script.src = url; script.defer = true; root.document.head?.append(script);
+  }
+  function boot() { ASSETS.forEach(loadAsset); }
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
