@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const source = fs.readFileSync('public/local-data-center.js', 'utf8');
+assert.doesNotMatch(source, /fetch\s*\(/);
+assert.doesNotMatch(source, /XMLHttpRequest/);
+assert.doesNotMatch(source, /WebSocket/);
+assert.doesNotMatch(source, /sendBeacon/);
+assert.doesNotMatch(source, /document\.cookie/);
+assert.doesNotMatch(source, /sessionStorage/);
+assert.doesNotMatch(source, /indexedDB/);
+assert.doesNotMatch(source, /innerHTML\s*=/);
+assert.doesNotMatch(source, /outerHTML/);
+assert.doesNotMatch(source, /eval\s*\(/);
+assert.match(source, /KNOWN_KEYS\.has/);
+assert.match(source, /rootRef\.confirm/);
+assert.match(source, /link\.download/);
+assert.match(source, /source: 'hafize-local-data-center'/);
+assert.match(source, /unmanagedHafizeKeys/);
+console.log('local data center security: ok');
