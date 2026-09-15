@@ -10,7 +10,7 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 
 1. Önce bu dosyayı ve `README.md` dosyasını oku.
 2. Mevcut kodu incele; yapılmış işi yeniden yapma.
-3. Her turda tek bir ana iyileştirme seç; aynı ana iyileştirmenin ilişkili, ölçülebilir ve test edilebilir alt adımları bütçe içinde tamamlanabilir.
+3. Her turda tek bir ana iyileştirme seç; aynı ana iyileştirmenin ilişkili, ölçülebilir ve test edilebilir alt adımları iş paketi tamamlanana kadar bütçe içinde tamamlanabilir.
 4. Mevcut işlevleri gereksiz yere silme veya yeniden yazma.
 5. Değişikliği ayrı bir `hafize/auto-*` branch'inde yap.
 6. Uygun statik/syntax/smoke testlerini çalıştır.
@@ -18,15 +18,17 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 8. Self-development değişikliklerini doğrudan `main` üzerine merge etme.
 9. Test başarısızsa bunu saklama; PR açıklamasında açıkça belirt.
 
-## Tur değişiklik bütçesi — 3000 satır
+## Tur tamamlama kriteri — 4000+ anlamlı değişiklik
 
-- Her self-development turunun toplam Git diff bütçesi **en fazla 3000 değişen satırdır**. Ölçüm turun başlangıç base commit'i ile son stacked head arasındaki `additions + deletions` toplamıdır.
-- Güvenli ve anlamlı iş kaldığı sürece tur erken bitirilmez. Hedef, yapay değişiklik üretmeden **yaklaşık 2800–3000 değişen satıra** yaklaşmaktır.
-- Aynı ana iyileştirmeye ait ilişkili alt adımlar bütçe elverdiği sürece aynı turda tamamlanabilir; her alt adımdan sonra base→head diff yeniden ölçülür.
-- 3000 satırı aşacak yeni alt adım sonraki tura bırakılır.
-- Sırf kotayı doldurmak için yapay refactor, yorum şişirme, tekrarlı test veya davranışsız kod değişikliği yapılmaz.
-- Güvenlik, veri kaybını önleme, test/DoD ve kullanıcı onayı gereksinimleri satır kotasından daha yüksek önceliklidir. Güvenli anlamlı iş kalmazsa 2800 satıra ulaşmadan da durulabilir; PR açıklamasında nedeni belirtilir.
-- Tek PR'ın kendi diff'i de 3000 satırı geçemez.
+- Normal koşullarda bir self-development turu **4000 değişen satıra ulaşmadan kapatılmaz**. Ölçüm turun başlangıç base commit'i ile son stacked head arasındaki Git diff'teki `additions + deletions` toplamıdır.
+- Hedef yalnızca 4000'e dokunmak değildir; iş paketinin gerektirdiği **4000'den fazla anlamlı değişiklik ve/veya ekleme** tamamlanmalıdır.
+- Diff 4000'in altındaysa ve repository içinde aynı iş paketine ait gerçek, yüksek öncelikli işler kaldıysa araştırmaya ve uygulamaya devam edilir.
+- **4000 satıra ulaşılması otomatik durma sinyali değildir.** 4000 sonrasında da iş paketi tamamlanana, ilgili testler/DoD karşılanana ve yüksek öncelikli anlamlı işler bitene kadar devam edilir.
+- İkinci veya sonraki ilişkili alt adımlar aynı ana iyileştirmenin kapsamında olduğu sürece tur içinde sürdürülebilir; her önemli alt adımdan sonra base→head diff yeniden ölçülür.
+- 4000+ hedefi hiçbir şekilde yapay satır doldurma gerekçesi değildir. Gereksiz boilerplate, kopya kod, tekrarlı test, anlamsız yorum, davranışsız refactor veya sırf sayı artırmak için üretilen dokümantasyon yasaktır.
+- 4000'e ulaşmadan önce anlamlı iş kalmamışsa tur yalnızca istisnai olarak daha erken kapanabilir; PR açıklamasında neden açıkça belirtilmelidir.
+- Güvenlik, veri kaybını önleme, test/DoD ve kullanıcı onayı gereksinimleri her zaman değişiklik hacmi hedefinden daha yüksek önceliklidir.
+- Tek PR'ın diff'i için ayrı bir yapay satır kotası uygulanmaz; ancak GitHub/araç sınırları, inceleme yapılabilirliği, güvenlik ve değişikliğin bütünlüğü korunur.
 
 ## Öncelik sırası
 
@@ -63,4 +65,4 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 
 ## Sürüm yaklaşımı
 
-Büyük sıçramalar yerine küçük PR'lar tercih edilir. Her PR açıklamasında ne değiştiği, neden gerekli olduğu, nasıl test edildiği ve geri alma yolu açıkça yazılır.
+Büyük sıçramalar yerine, iş paketini uçtan uca tamamlayan ve doğrulanabilir PR'lar tercih edilir. Her PR açıklamasında ne değiştiği, neden gerekli olduğu, nasıl test edildiği ve geri alma yolu açıkça yazılır.
