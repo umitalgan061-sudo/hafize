@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(s, /id: clamp\(input\.id, 120\)/);
+assert.match(s, /promptId/);
+assert.match(s, /savedAt/);
+assert.match(s, /reason:/);
+assert.match(s, /title:/);
+assert.match(s, /body:/);
+assert.match(s, /tags:/);
+assert.doesNotMatch(s, /favorite: revision/);
+assert.doesNotMatch(s, /useCount: revision/);
+assert.doesNotMatch(s, /createdAt: revision/);
+console.log('revision metadata invariants: ok');
