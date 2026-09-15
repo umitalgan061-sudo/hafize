@@ -201,3 +201,20 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptRevisionCheckpoint(root) {
+  'use strict';
+  const start = () => {
+    if (!root.document || root.HafizePromptRevisionCheckpoint) return;
+    const existing = root.document.querySelector('script[data-hafize-prompt-revision-checkpoint]');
+    if (existing) return;
+    const script = root.document.createElement('script');
+    script.src = '/prompt-library-revision-checkpoint.js';
+    script.defer = true;
+    script.dataset.hafizePromptRevisionCheckpoint = 'true';
+    script.setAttribute('aria-hidden', 'true');
+    (root.document.head || root.document.documentElement)?.append(script);
+  };
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
