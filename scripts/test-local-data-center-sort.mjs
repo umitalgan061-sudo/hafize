@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/local-data-center-sort.js', 'utf8');
+for (const label of ['Varsayılan', 'En büyük', 'En küçük', 'Ada göre', 'Duruma göre']) assert.match(source, new RegExp(label));
+assert.match(source, /size-desc/);
+assert.match(source, /size-asc/);
+assert.match(source, /name-asc/);
+assert.match(source, /data-audit-state/);
+assert.match(source, /MutationObserver/);
+assert.match(source, /refresh/);
+assert.doesNotMatch(source, /fetch\s*\(/);
+console.log('local data center sort: ok');
