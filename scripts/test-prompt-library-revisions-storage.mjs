@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(source, /try \{ return normalizeStore\(JSON\.parse/);
+assert.match(source, /catch \{ return \{\}; \}/);
+assert.match(source, /try \{ storage\(\)\?\.setItem/);
+assert.match(source, /catch \{ return false; \}/);
+assert.match(source, /if \(!id\) return \[\]/);
+assert.match(source, /if \(!promptId \|\| !body\) return null/);
+console.log('prompt revision storage resilience: ok');
