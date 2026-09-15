@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/composer-history.js', 'utf8');
+const settings = fs.readFileSync('public/composer-history-settings.js', 'utf8');
+assert.match(source, /hafize\.composer-history\.settings\.v1/);
+assert.match(source, /RETENTION_VALUES.*0, 10, 20, 40/);
+assert.match(source, /enabled: data\.enabled !== false/);
+assert.match(source, /maxItems: RETENTION_VALUES\.includes/);
+assert.match(source, /removeItem\?\(STORAGE_KEY\)/);
+assert.match(settings, /Gönderim geçmişini cihazda sakla/);
+assert.match(settings, /Saklama limiti/);
+assert.match(settings, /hafize:composer-history-settings-changed/);
+console.log('composer history settings: ok');

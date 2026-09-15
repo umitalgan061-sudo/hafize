@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/composer-history-panel.js', 'utf8');
+assert.match(source, /composerHistoryPanel/);
+assert.match(source, /composerHistoryToggle/);
+assert.match(source, /Geçmiş/);
+assert.match(source, /Geçmişte ara/);
+assert.match(source, /Geçmişi temizle/);
+assert.match(source, /Yedeği|history|Kapat/i);
+assert.match(source, /role.*list/);
+assert.match(source, /Escape/);
+assert.match(source, /Ctrl|metaKey/);
+assert.match(source, /destroy:/);
+console.log('composer history panel: ok');

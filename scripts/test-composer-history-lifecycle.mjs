@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/composer-history.js', 'utf8');
+assert.match(source, /addEventListener\('input'/);
+assert.match(source, /removeEventListener\('input'/);
+assert.match(source, /addEventListener\('keydown'/);
+assert.match(source, /removeEventListener\('keydown'/);
+assert.match(source, /removeEventListener\?\.\('storage'/);
+assert.match(source, /delete root\.HafizeComposerHistoryController/);
+console.log('composer history lifecycle: ok');

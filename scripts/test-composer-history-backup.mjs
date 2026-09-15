@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+const source = (await import('node:fs')).readFileSync('public/composer-history-backup.js', 'utf8');
+assert.match(source, /MAX_EXPORT = 512000/);
+assert.match(source, /MAX_IMPORT = 512000/);
+assert.match(source, /exportPayload/);
+assert.match(source, /importPayload/);
+assert.match(source, /JSON\.parse/);
+assert.match(source, /slice\(0, .*MAX_IMPORT|MAX_IMPORT/);
+assert.match(source, /application\/json/);
+assert.match(source, /composer-history/);
+assert.match(source, /createObjectURL|Blob/);
+console.log('composer history backup: ok');

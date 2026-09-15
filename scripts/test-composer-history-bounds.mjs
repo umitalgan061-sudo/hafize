@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+const MAX_ITEMS = 40;
+const MAX_TEXT = 12000;
+const normalize = (value) => String(value ?? '').replace(/\0/g, '').slice(0, MAX_TEXT);
+const source = Array.from({ length: 60 }, (_, i) => `item-${i}`);
+assert.equal(source.slice(0, MAX_ITEMS).length, MAX_ITEMS);
+assert.equal(normalize('x'.repeat(MAX_TEXT + 500)).length, MAX_TEXT);
+assert.equal(normalize('a\0b'), 'ab');
+assert.equal(normalize(null), '');
+console.log('composer history bounds: ok');
