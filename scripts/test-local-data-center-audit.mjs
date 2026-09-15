@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const source = fs.readFileSync('public/local-data-center-audit.js', 'utf8');
+const context = { globalThis: null, console };
+context.globalThis = context;
+vm.runInNewContext(source, context);
+const api = context.HafizeLocalDataCenterAudit;
+assert.equal(typeof api.statusFor, 'function');
+assert.deepEqual(api.statusFor({ present: false }), ['empty', 'Boş']);
+assert.deepEqual(api.statusFor({ present: true, unavailable: true }), ['unavailable', 'Erişilemiyor']);
+assert.deepEqual(api.statusFor({ present: true, truncated: true }), ['truncated', 'Büyük değer']);
+assert.deepEqual(api.statusFor({ present: true, count: 'okunamadı' }), ['invalid', 'JSON okunamadı']);
+assert.deepEqual(api.statusFor({ present: true, count: '2 kayıt' }), ['valid', 'Geçerli']);
+console.log('local data center audit: ok');
