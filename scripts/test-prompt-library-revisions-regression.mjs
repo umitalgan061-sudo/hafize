@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const revision = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+const checkpoint = fs.readFileSync('public/prompt-library-revision-checkpoint.js', 'utf8');
+const loader = fs.readFileSync('public/prompt-library-enhancements.js', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
+
+assert.match(revision, /hafize\.prompt-library\.revisions\.v1/);
+assert.match(revision, /MAX_REVISIONS = 10/);
+assert.match(revision, /capture\(activePrompt, 'manual'\)/);
+assert.match(revision, /function restore/);
+assert.match(revision, /Karşılaştır/);
+assert.match(revision, /Geri yükle/);
+assert.match(revision, /Geçmişi temizle/);
+assert.match(revision, /Geçmişi dışa aktar/);
+assert.match(revision, /aria-modal/);
+assert.match(revision, /event\.key === 'Escape'/);
+assert.match(revision, /event\.key !== 'Tab'/);
+assert.match(revision, /observer\?\.disconnect/);
+assert.doesNotMatch(revision, /innerHTML/);
+assert.doesNotMatch(revision, /fetch\(/);
+assert.match(checkpoint, /Sürümü koru/);
+assert.match(checkpoint, /api\.capture\(item, 'manual'\)/);
+assert.match(loader, /prompt-library-revisions\.js/);
+assert.match(loader, /prompt-library-revision-checkpoint\.js/);
+assert.match(sw, /prompt-library-revisions\.js/);
+assert.match(sw, /prompt-library-revision-checkpoint\.js/);
+console.log('prompt revision regression gate: ok');
