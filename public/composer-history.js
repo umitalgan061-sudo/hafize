@@ -18,14 +18,7 @@
     try { root.localStorage?.setItem?.(SETTINGS_KEY, JSON.stringify(next)); return true; } catch { return false; }
   };
   const api = Object.freeze({
-    STORAGE_KEY,
-    SETTINGS_KEY,
-    MAX_ITEMS,
-    MAX_TEXT,
-    RETENTION_VALUES,
-    normalize,
-    loadSettings,
-    saveSettings,
+    STORAGE_KEY, SETTINGS_KEY, MAX_ITEMS, MAX_TEXT, RETENTION_VALUES, normalize, loadSettings, saveSettings, mount: boot,
     load() {
       try {
         const parsed = JSON.parse(root.localStorage?.getItem?.(STORAGE_KEY) || '[]');
@@ -95,6 +88,6 @@
     root.HafizeComposerHistoryController = controller;
     return controller;
   }
-  root.HafizeComposerHistory.mount = boot;
+
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
