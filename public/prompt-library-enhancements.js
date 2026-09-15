@@ -122,7 +122,7 @@
   const start = () => {
     if (!root.document || root.HafizePromptLibraryUsage) return;
     const existing = root.document.querySelector('script[data-hafize-prompt-usage]'); if (existing) return;
-    const script = root.document.createElement('script'); script.src = '/prompt-library-usage.js'; script.defer = true; script.dataset.hafizePromptUsage = 'true'; script.setAttribute('aria-hidden', 'true');
+    const script = root.document.createElement('script'); script.src = '/prompt-library-usage.js'; script.defer = true; script.dataset.hafizePromptUsage = 'true';
     (root.document.head || root.document.documentElement)?.append(script);
   };
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
@@ -133,7 +133,19 @@
   const start = () => {
     if (!root.document || root.HafizePromptLibraryRevisions) return;
     const existing = root.document.querySelector('script[data-hafize-prompt-revisions]'); if (existing) return;
-    const script = root.document.createElement('script'); script.src = '/prompt-library-revisions.js'; script.defer = true; script.dataset.hafizePromptRevisions = 'true'; script.setAttribute('aria-hidden', 'true');
+    const script = root.document.createElement('script'); script.src = '/prompt-library-revisions.js'; script.defer = true; script.dataset.hafizePromptRevisions = 'true';
+    (root.document.head || root.document.documentElement)?.append(script);
+  };
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptLibrarySmartInsert(root) {
+  'use strict';
+  const start = () => {
+    if (!root.document || root.HafizePromptLibrarySmartInsert) return;
+    const existing = root.document.querySelector('script[data-hafize-prompt-smart-insert]'); if (existing) return;
+    const script = root.document.createElement('script');
+    script.src = '/prompt-library-smart-insert.js'; script.defer = true; script.dataset.hafizePromptSmartInsert = 'true';
     (root.document.head || root.document.documentElement)?.append(script);
   };
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
