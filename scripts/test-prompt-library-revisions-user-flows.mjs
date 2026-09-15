@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(s, /open = \(prompt\)/);
+assert.match(s, /Karşılaştır/);
+assert.match(s, /Geri yükle/);
+assert.match(s, /Sürümü koru|capture\(activePrompt, 'manual'\)/);
+assert.match(s, /Geçmişi temizle/);
+assert.match(s, /Geçmişi dışa aktar/);
+assert.match(s, /previousFocus\?\.focus/);
+assert.match(s, /event\.key === 'Escape'/);
+console.log('revision user flow contracts: ok');
