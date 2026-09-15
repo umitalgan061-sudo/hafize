@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(source, /createElement\('section'\)/);
+assert.match(source, /createElement\('article'\)/);
+assert.match(source, /textContent = revision\.title/);
+assert.match(source, /textContent = revision\.body\.slice/);
+assert.match(source, /setAttribute\('aria-modal', 'true'\)/);
+assert.match(source, /setAttribute\('role', 'list'\)/);
+assert.doesNotMatch(source, /innerHTML/);
+assert.doesNotMatch(source, /outerHTML/);
+console.log('prompt revision DOM safety: ok');
