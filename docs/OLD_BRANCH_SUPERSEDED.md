@@ -1,0 +1,1 @@
+Bu dal güncel main tabanından ayrıştığı için merge hedefi değildir. Güncel geliştirmeler yeni branch üzerinden yapılmalıdır.
