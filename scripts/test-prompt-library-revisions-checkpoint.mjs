@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s = fs.readFileSync('public/prompt-library-revision-checkpoint.js', 'utf8');
+assert.match(s, /Sürümü koru/);
+assert.match(s, /promptRevisionCheckpoint/);
+assert.match(s, /api\.capture\(item, 'manual'\)/);
+assert.match(s, /Mevcut istem sürümünü koru/);
+assert.match(s, /MutationObserver/);
+assert.match(s, /beforeunload/);
+assert.doesNotMatch(s, /fetch\(/);
+assert.doesNotMatch(s, /XMLHttpRequest/);
+assert.doesNotMatch(s, /innerHTML/);
+console.log('manual revision checkpoint: ok');
