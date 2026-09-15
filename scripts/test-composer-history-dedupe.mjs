@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+const add = (items, value) => [value, ...items.filter((item) => item !== value)].slice(0, 40);
+let items = [];
+items = add(items, 'a');
+items = add(items, 'b');
+items = add(items, 'a');
+assert.deepEqual(items, ['a', 'b']);
+items = add(items, '');
+assert.deepEqual(items, ['a', 'b']);
+console.log('composer history dedupe: ok');
