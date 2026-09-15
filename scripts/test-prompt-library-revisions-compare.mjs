@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(s, /prompt-revision-comparison/);
+assert.match(s, /prompt-revision-comparison-grid/);
+assert.match(s, /showComparison/);
+assert.match(s, /Mevcut sürüm/);
+assert.match(s, /Revision ·/);
+assert.match(s, /value\.slice\(0, 2000\)/);
+assert.match(s, /comparison\.hidden = false/);
+assert.match(s, /comparisonGrid\.replaceChildren\(\)/);
+console.log('revision comparison surface: ok');
