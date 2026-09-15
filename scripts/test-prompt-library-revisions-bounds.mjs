@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(source, /MAX_PROMPTS = 120/);
+assert.match(source, /MAX_REVISIONS = 10/);
+assert.match(source, /MAX_TITLE = 100/);
+assert.match(source, /MAX_BODY = 8000/);
+assert.match(source, /MAX_TAGS = 8/);
+assert.match(source, /MAX_TAG = 24/);
+assert.match(source, /MAX_EXPORT = 1_000_000/);
+assert.match(source, /slice\(0, MAX_REVISIONS\)/);
+assert.match(source, /Object\.keys\(value\)\.slice\(0, MAX_PROMPTS\)/);
+console.log('prompt revision bounds: ok');
