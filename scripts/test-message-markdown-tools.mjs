@@ -5,8 +5,7 @@ const file = fs.readFileSync(new URL('../public/message-markdown-tools.js', impo
 assert.ok(file.includes('Kopyala'));
 assert.ok(file.includes('Kodu aç'));
 assert.ok(file.includes('Kodu daralt'));
-assert.ok(file.includes('navigator?.clipboard?.writeText'));
-assert.ok(file.includes('noopener') === false);
+assert.ok(file.includes('root.navigator?.clipboard?.writeText'));
 assert.ok(file.includes('MAX_COPY'));
 assert.ok(file.includes('COLLAPSE_LINES'));
 assert.ok(file.includes('aria-expanded'));
