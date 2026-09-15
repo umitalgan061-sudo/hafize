@@ -18,13 +18,8 @@
     note.textContent = 'Geçmiş: ↑ / ↓ · Panel: Ctrl/⌘ + Shift + H';
     note.setAttribute('aria-label', 'Gönderim geçmişi kısayolları: yukarı ve aşağı oklarla gezin, kontrol veya komut artı shift artı H ile paneli aç');
     const row = form.querySelector('.composer-row'); row?.after(note) || form.append(note);
-    loadAsset(doc, 'link', '/message-markdown.css');
-    loadAsset(doc, 'link', '/message-markdown-tools.css');
-    loadAsset(doc, 'link', '/message-actions.css');
-    loadAsset(doc, 'script', '/message-markdown.js');
-    loadAsset(doc, 'script', '/message-markdown-enhancement.js');
-    loadAsset(doc, 'script', '/message-markdown-tools.js');
-    loadAsset(doc, 'script', '/message-actions.js');
+    for (const href of ['/message-markdown.css','/message-markdown-tools.css','/message-actions.css','/message-outline.css']) loadAsset(doc, 'link', href);
+    for (const href of ['/message-markdown.js','/message-markdown-enhancement.js','/message-markdown-tools.js','/message-actions.js','/message-outline.js']) loadAsset(doc, 'script', href);
     root.HafizeComposerHistoryHelp = Object.freeze({ element: note, destroy: () => { note.remove(); delete root.HafizeComposerHistoryHelp; } });
     return root.HafizeComposerHistoryHelp;
   }
