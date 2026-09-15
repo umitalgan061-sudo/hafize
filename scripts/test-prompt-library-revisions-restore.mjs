@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(source, /favorite: target\.favorite/);
+assert.match(source, /useCount: target\.useCount/);
+assert.match(source, /createdAt: target\.createdAt/);
+assert.match(source, /updatedAt: now\(\)/);
+assert.match(source, /const result = items\.map/);
+assert.match(source, /api\.saveItems\(storage\(\), result\)/);
+assert.match(source, /dispatchRefresh\(result\)/);
+console.log('prompt revision restore semantics: ok');
