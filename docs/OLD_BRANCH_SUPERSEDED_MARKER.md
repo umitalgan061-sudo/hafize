@@ -1,0 +1,1 @@
+Bu dosya yalnızca stale branch işaretidir. Güncel main tabanlı geliştirme branch'i kullanılmalıdır.
