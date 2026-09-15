@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/local-data-center-bulk.js', 'utf8');
+assert.match(source, /MAX_SELECTION = 8/);
+assert.match(source, /Görünenleri seç/);
+assert.match(source, /Seçilenleri sil/);
+assert.match(source, /root\.confirm/);
+assert.match(source, /api\.clearStores/);
+assert.match(source, /clearSelection\.clear/);
+assert.match(source, /MutationObserver/);
+assert.match(source, /getSelected/);
+assert.doesNotMatch(source, /fetch\s*\(/);
+assert.doesNotMatch(source, /WebSocket/);
+assert.doesNotMatch(source, /innerHTML\s*=/);
+console.log('local data center bulk: ok');
