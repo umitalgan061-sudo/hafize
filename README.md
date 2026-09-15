@@ -83,6 +83,7 @@ node scripts/test-scheduled-tasks-ui.mjs
 node scripts/test-scheduled-tasks-keyboard.mjs
 node scripts/test-scheduled-tasks-countdown.mjs
 node scripts/test-scheduled-tasks-pwa.mjs
+node scripts/test-scheduled-tasks-index-and-sw.mjs
 node scripts/test-scheduled-tasks-regression.mjs
 ```
 
