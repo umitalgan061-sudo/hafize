@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+assert.match(source, /MAX_EXPORT = 1_000_000/);
+assert.match(source, /source: 'hafize-prompt-library-revisions'/);
+assert.match(source, /version: 1/);
+assert.match(source, /JSON\.stringify\(payload, null, 2\)/);
+assert.match(source, /slice\(0, 5\)/);
+assert.match(source, /application\/json;charset=utf-8/);
+assert.match(source, /hafize-prompt-revisions\.json/);
+console.log('prompt revision export boundary: ok');
