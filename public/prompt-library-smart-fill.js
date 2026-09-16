@@ -20,7 +20,10 @@
   }
 
   function readPresets(promptId) {
-    const raw = store()?.getItem?.(keyForPrompt(promptId));
+    // Reading storage can throw outright when site data is blocked, so the
+    // panel falls back to "no saved sets" instead of failing to open.
+    let raw = null;
+    try { raw = store()?.getItem?.(keyForPrompt(promptId)); } catch { return []; }
     const data = safeParse(raw || '[]', []);
     if (!Array.isArray(data)) return [];
     return data.filter((preset) => preset && typeof preset === 'object')
@@ -214,6 +217,31 @@
       renderPresetBar(); renderPreview(); dialog.hidden = false;
     }
 
+    // Smart fill intercepts the library's own "Kullan" button, so the use that
+    // button would have counted has to be counted here — otherwise every prompt
+    // with variables stays at zero uses in the insights panel.
+    function persist(items) {
+      return core()?.saveItems?.(store(), items) === true;
+    }
+
+    function recordUse(promptId) {
+      const api = core();
+      if (!api?.loadItems || !api.normalizeItem || !promptId) return;
+      let items = [];
+      try { items = api.loadItems(store()) || []; } catch { return; }
+      const index = items.findIndex((item) => item.id === promptId);
+      if (index < 0) return;
+      const next = items.slice();
+      next[index] = api.normalizeItem({ ...items[index], useCount: items[index].useCount + 1, updatedAt: new Date().toISOString() });
+      if (!persist(next)) return;
+      // The library card and the insights panel both listen for a storage
+      // change, which same-tab writes do not emit on their own.
+      try {
+        const detail = { key: api.STORAGE_KEY, newValue: JSON.stringify(next), storageArea: store() };
+        if (typeof rootRef.StorageEvent === 'function') rootRef.dispatchEvent(new rootRef.StorageEvent('storage', detail));
+      } catch { /* the counter is already stored; a missed repaint is not fatal */ }
+    }
+
     function insertIntoComposer() {
       if (!activePrompt) return;
       const values = currentValues();
@@ -221,10 +249,12 @@
       const text = core()?.replaceVariables?.(activePrompt.body, values) || activePrompt.body;
       const composer = documentRef.querySelector('#messageInput');
       if (!composer) return showError('Mesaj alanı bulunamadı.');
+      const usedPromptId = activePrompt.id;
       composer.value = text.slice(0, MAX_PREVIEW);
       composer.dispatchEvent(new Event('input', { bubbles: true }));
       composer.focus();
       closeDialog();
+      recordUse(usedPromptId);
     }
 
     function trapKeydown(event) {

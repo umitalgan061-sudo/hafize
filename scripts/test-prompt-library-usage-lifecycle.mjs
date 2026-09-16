@@ -18,7 +18,7 @@ assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /return Object\.freeze\(\{/);
 assert.match(usage, /refresh: render/);
 assert.match(usage, /summarize: \(\) => summarize\(readItems\(rootRef\)\)/);
-assert.match(enhancements, /if \(root\.HafizePromptLibraryUsage\)/);
+assert.match(enhancements, /root\.HafizePromptLibraryUsage\) return/);
 assert.match(enhancements, /existing = root\.document\.querySelector\('script\[data-hafize-prompt-usage\]'\)/);
 assert.match(enhancements, /script\.dataset\.hafizePromptUsage = 'true'/);
 console.log('prompt-library usage lifecycle contracts: ok');

@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { filterItems, sortItems, safeState, normalizeCollection, collectTags } from '../public/prompt-library.js';
+// public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
+// at runtime, which Node cannot statically analyse into named exports, so the
+// suite takes the default (CommonJS) export and destructures it.
+import promptLibrary from '../public/prompt-library.js';
+const { filterItems, sortItems, safeState, normalizeCollection, collectTags } = promptLibrary;
 
 const items = normalizeCollection([
   { id: '1', title: 'Kod yardımcı', body: 'typescript hata analizi', tags: ['Kod'], favorite: false, updatedAt: '2026-09-12' },

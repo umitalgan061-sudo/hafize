@@ -172,7 +172,12 @@
   'use strict';
   const start = () => {
     if (!root.document || root.HafizePromptLibraryUsage) return;
-    const existing = root.document.querySelector('script[data-hafize-prompt-usage]');
+    // index.html already ships the usage module, and deferred scripts run in
+    // document order, so this loader would otherwise inject a second copy
+    // before the page's own tag had its turn. The marker covers a previous
+    // injection, the src lookup covers the tag that is already in the page.
+    const existing = root.document.querySelector('script[data-hafize-prompt-usage]')
+      || root.document.querySelector('script[src="/prompt-library-usage.js"]');
     if (existing) return;
     const script = root.document.createElement('script');
     script.src = '/prompt-library-usage.js';

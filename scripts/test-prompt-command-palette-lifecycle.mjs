@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.js'), 'utf8');
-assert.match(text, /if \(documentRef\.getElementById\(PALETTE_ID\)\)/);
+assert.match(text, /documentRef\.getElementById\(PALETTE_ID\)\) return null/);
 assert.match(text, /let previousFocus = null/);
 assert.match(text, /previousFocus\?\.focus/);
 assert.match(text, /palette\.remove\(\)/);

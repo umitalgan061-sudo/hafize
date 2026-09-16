@@ -11,5 +11,5 @@ assert.match(smart,/normalizeItem/);
 assert.doesNotMatch(smart,/HafizePromptLibraryUsage/);
 assert.doesNotMatch(smart,/fetch\s*\(/);
 assert.doesNotMatch(smart,/navigator\.sendBeacon/);
-assert.match(smart,/persist\(\)/);
+assert.match(smart,/persist\(next\)/);
 console.log('prompt smart-fill usage boundary: ok');
