@@ -29,4 +29,30 @@ declare global {
    * "burada alan erişimi bilerek gevşek" demenin okunur yoludur.
    */
   type UnvalidatedInput = Record<string, any>;
+
+  /**
+   * Bir `fetch` yanıtından Hafize modüllerinin gerçekten okuduğu kadarı.
+   *
+   * Gerçek `Response` bu yüzeyi karşılar; kontrol paketlerindeki ikizler de
+   * yalnızca test ettikleri yolun ihtiyaç duyduğu alanları sağlar. Bu yüzden
+   * gövde okuyucuları isteğe bağlıdır: bir ikizin `text()` sunmaması, o testin
+   * o yoldan geçmediği anlamına gelir.
+   */
+  interface HafizeFetchResponse {
+    ok?: boolean;
+    status?: number;
+    json?: () => Promise<any>;
+    text?: () => Promise<string>;
+    headers?: any;
+    body?: any;
+  }
+
+  /**
+   * Enjekte edilebilir `fetch`.
+   *
+   * `typeof fetch` yerine bu kullanılır: modüllerin ihtiyacı `Response`'un
+   * tamamı değil, yukarıdaki dar yüzeydir; sözleşmeyi dar tutmak hem gerçek
+   * `fetch`'i hem de test ikizlerini kabul eder.
+   */
+  type HafizeFetch = (input: any, init?: any) => Promise<HafizeFetchResponse>;
 }

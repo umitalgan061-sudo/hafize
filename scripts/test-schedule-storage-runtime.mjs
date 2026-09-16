@@ -43,6 +43,7 @@ const durable = await createScheduleStorageRuntime({
     assert.equal(env.marker, 'env');
     return { filePath: '/tmp/hafize-schedules.enc', get key() { return Buffer.from(sourceKey); } };
   },
+  /** @param {{ filePath?: string; key?: Buffer }} options */
   createEncryptedAdapter({ filePath, key }) {
     events.push('adapter');
     runtimeKey = key;
@@ -84,7 +85,7 @@ await assert.rejects(
       return {};
     }
   }),
-  (error) => error?.message === 'SCHEDULE_STORAGE_STARTUP_FAILED' && !error.message.includes('secret')
+  (/** @type {HafizeCodedError} */ error) => error?.message === 'SCHEDULE_STORAGE_STARTUP_FAILED' && !error.message.includes('secret')
 );
 assert.equal(executionReached, false);
 

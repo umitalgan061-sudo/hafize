@@ -126,7 +126,7 @@ await assert.rejects(
       throw new Error('rediss://user:secret@example.test:6380 adapter failure');
     }
   }),
-  (error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
 );
 assert.equal(cleanupCalls, 1);
 
@@ -137,7 +137,7 @@ await assert.rejects(
       throw new Error('rediss://user:secret@example.test:6380 import failure');
     }
   }),
-  (error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
 );
 
 console.log('redis schedule lease runtime tests passed');

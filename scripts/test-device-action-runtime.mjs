@@ -127,6 +127,7 @@ assert.equal(wrongTrace.error, 'DEVICE_REVIEW_TRACE_MISMATCH');
 assert.equal(calls.length, 1);
 
 const expiring = await runtime.beginReview(hafize, { action: 'app.open', appId: 'browser.chrome' }, { traceId, principal: ownerA, ttlMs: 5 });
+assert.ok(expiring.ok === true, 'süresi dolacak inceleme başlatılmalı');
 clock += 6;
 runtime.pruneExpiredReviews();
 const expired = await runtime.confirmAndExecute(hafize, { action: 'app.open', appId: 'browser.chrome' }, { reviewId: expiring.review.id, traceId, principal: ownerA });
@@ -134,8 +135,11 @@ assert.equal(expired.ok, false);
 assert.equal(expired.error, 'DEVICE_REVIEW_NOT_FOUND');
 
 const cancelled = await runtime.beginReview(hafize, { action: 'app.open', appId: 'browser.chrome' }, { traceId, principal: ownerA });
+assert.ok(cancelled.ok === true, 'iptal edilecek inceleme başlatılmalı');
 assert.equal((await runtime.cancelReview(cancelled.review.id, { principal: ownerA })).ok, true);
-assert.equal((await runtime.cancelReview(cancelled.review.id, { principal: ownerA })).error, 'DEVICE_REVIEW_NOT_FOUND');
+const secondCancel = await runtime.cancelReview(cancelled.review.id, { principal: ownerA });
+assert.ok(secondCancel.ok === false, 'ikinci iptal başarısız olmalı');
+assert.equal(secondCancel.error, 'DEVICE_REVIEW_NOT_FOUND');
 
 const auditFailApproval = createDeviceApprovalLeaseStore({ randomId: () => 'audit-fail-token' });
 const auditFailReviews = createDeviceApprovalReviewStore({ approvalStore: auditFailApproval, randomId: () => 'audit-fail-review' });
@@ -161,14 +165,14 @@ assert.deepEqual(blockedExecution, { ok: false, error: 'DEVICE_APPROVAL_AUDIT_FA
 assert.equal(confirmAuditApproval.size(), 0);
 assert.equal(calls.length, 1);
 
-for (const invalid of [
+for (const invalid of /** @type {any[]} */ ([
   {},
   { deviceBridge: bridge },
   { deviceBridge: {}, ownerResolver },
   { deviceBridge: bridge, ownerResolver, approvalStore: {} },
   { deviceBridge: bridge, ownerResolver, auditSink: true },
   { deviceBridge: bridge, ownerResolver, maxActiveReviewsPerOwner: 0 }
-]) {
+])) {
   assert.throws(() => createDeviceActionRuntime(invalid), /INVALID_DEVICE_ACTION_RUNTIME/);
 }
 

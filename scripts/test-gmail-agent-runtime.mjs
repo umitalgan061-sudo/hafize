@@ -30,7 +30,7 @@ const boundary = {
 
 const runtime = createGmailAgentRuntime({
   env,
-  fetchImpl: async () => {},
+  fetchImpl: /** @type {HafizeFetch} */ (async () => {}),
   createAuthenticator(input) {
     calls.push(['authenticator', input]);
     return { authenticate({ headers }) { return headers?.authorization === `Bearer ${authToken}` ? { ok: true, principal } : { ok: false }; } };

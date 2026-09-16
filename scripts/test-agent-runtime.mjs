@@ -26,7 +26,7 @@ async function expectRegistryFailure(label, mutate, expectedError) {
   await writeFile(fixturePath, JSON.stringify(fixture), 'utf8');
   await assert.rejects(
     () => loadAgentRegistry(fixturePath),
-    (error) => {
+    (/** @type {HafizeCodedError} */ error) => {
       assert.equal(error.message, expectedError);
       return true;
     }

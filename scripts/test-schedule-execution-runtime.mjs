@@ -68,7 +68,7 @@ assert.throws(
       throw new Error('secret provider detail');
     }
   }),
-  (error) => error.message === 'SCHEDULE_EXECUTION_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret provider detail')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_EXECUTION_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret provider detail')
 );
 assert.throws(
   () => createScheduleExecutionRuntime({ executor, lease, createGuard: () => ({}) }),

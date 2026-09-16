@@ -124,7 +124,7 @@ await assert.rejects(
       return lease;
     }
   }),
-  (error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
 );
 
 await assert.rejects(
@@ -138,7 +138,7 @@ await assert.rejects(
       throw new Error('internal adapter detail');
     }
   }),
-  (error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED'
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED'
 );
 
 console.log('schedule lease runtime config tests passed');

@@ -92,7 +92,7 @@ const failingRedis = {
 const failingAdapter = createRedisScheduleLeaseAdapter({ redis: failingRedis });
 await assert.rejects(
   () => failingAdapter.acquire({ scheduleId: 'schedule_9', holderId: 'worker-a', leaseMs: 30_000 }),
-  (error) => error?.message === 'REDIS_SCHEDULE_LEASE_FAILED' && !error.message.includes('super-secret')
+  (/** @type {HafizeCodedError} */ error) => error?.message === 'REDIS_SCHEDULE_LEASE_FAILED' && !error.message.includes('super-secret')
 );
 
 const malformedRedis = new FakeRedis();

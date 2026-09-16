@@ -12,7 +12,7 @@ const env = {
 };
 const runtime = createCanvaAgentRuntime({
   env,
-  fetchImpl: async () => {},
+  fetchImpl: /** @type {HafizeFetch} */ (async () => {}),
   createAuthenticator() {
     return {
       authenticate({ headers }) {
