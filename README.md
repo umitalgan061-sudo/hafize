@@ -83,7 +83,9 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 - Aktarım composer'ı doldurur, submit etmez ve istemin kullanım sayacını (`useCount`) artırır.
 - `/prompt` komut paleti aynı istemleri composer içinden arayıp seçmeyi sağlar.
 
-Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
+Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Panelin uçtan
+uca davranışı `node scripts/test-prompt-smart-fill-ui.mjs` ile mount edilerek doğrulanır.
+Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
 ## İçe aktarma önizlemesi
 
@@ -97,8 +99,15 @@ Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilme
 - Birleştirme Prompt Library çekirdeğinin `normalizeImportedPayload` / `mergeImportedItems`
   fonksiyonlarından geçer; aynı id taşıyan kayıt mevcut kaydı ezmez.
 
-Kontrol: `node scripts/test-prompt-library-import-preview.mjs`. Senaryolar
-`docs/PROMPT_IMPORT_QA.md` dosyasındadır.
+Kontroller:
+
+```bash
+node scripts/test-prompt-library-import-preview.mjs
+node scripts/test-prompt-library-import-preview-runtime.mjs
+node scripts/test-prompt-library-import-preview-ui.mjs
+```
+
+Senaryolar `docs/PROMPT_IMPORT_QA.md` dosyasındadır.
 
 ## Kütüphane sağlığı
 
@@ -109,8 +118,15 @@ Kontrol: `node scripts/test-prompt-library-import-preview.mjs`. Senaryolar
 - Onarım kayıtları mevcut normalizer'dan geçirir, koleksiyon üyelerini var olan prompt id'lerine göre filtreler.
 - Tarama en fazla 120 kayıt ve 200 yetim üye ile sınırlıdır; panel ağa hiçbir şey göndermez.
 
-Kontrol: `node scripts/test-prompt-library-diagnostics.mjs`. Ayrıntılar
-`docs/PROMPT_DIAGNOSTICS.md` dosyasındadır.
+Kontroller:
+
+```bash
+node scripts/test-prompt-library-diagnostics.mjs
+node scripts/test-prompt-library-diagnostics-runtime.mjs
+node scripts/test-prompt-library-diagnostics-ui.mjs
+```
+
+Ayrıntılar `docs/PROMPT_DIAGNOSTICS.md` dosyasındadır.
 
 ## Zamanlanmış Görevler
 
