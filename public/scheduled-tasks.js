@@ -6,6 +6,7 @@
   const MAX_TASK = 20_000;
   const MAX_LIST = 128;
   const MAX_ATTEMPTS = 5;
+  const MAX_SELECTION = 40;
   const REFRESH_MS = 30_000;
   let panel = null;
   let mounted = false;
@@ -14,6 +15,7 @@
   let selectedStatus = 'all';
   let editingId = null;
   let controller = null;
+  let selectedIds = new Set();
 
   const doc = () => root.document;
   const make = (tag, text, className) => { const node = doc().createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = String(text); return node; };
@@ -33,7 +35,7 @@
   }
   function agentOptions() { const select = doc().getElementById('agentSelect'); return select ? [...select.options].filter((option) => option.value).map((option) => ({ id: option.value, label: option.textContent?.trim() || option.value })) : []; }
   function localDateTimeValue(offsetMinutes = 5) { const date = new Date(Date.now() + offsetMinutes * 60_000); const pad = (value) => String(value).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; }
-  function localInputFromIso(value) { const date = new Date(value || ''); if (Number.isNaN(date.getTime())) return localDateTimeValue(); const pad = (part) => String(part).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`; }
+  function localInputFromIso(value) { const date = new Date(value || ''); if (Number.isNaN(date.getTime())) return localDateTimeValue(); const pad = (part) => String(part).padStart(2, '0'); return `${date.getFullYear()}-${pad(date.getMonth() + 1)}T${pad(date.getHours())}:${pad(date.getMinutes())}`; }
   function isoFromLocal(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toISOString(); }
   function formattedDate(value) { const timestamp = Date.parse(value || ''); return Number.isFinite(timestamp) ? new Intl.DateTimeFormat('tr-TR', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(timestamp)) : 'Tarih bilinmiyor'; }
   function status(message, tone = '') { const target = panel?.querySelector('.scheduled-tasks-status'); if (!target) return; target.textContent = clamp(message, 220); target.dataset.tone = tone; }
@@ -48,8 +50,7 @@
     const whenLabel = make('label', 'Çalıştırma zamanı'); const when = doc().createElement('input'); when.type = 'datetime-local'; when.required = true; when.value = localDateTimeValue(); when.min = localDateTimeValue(); whenLabel.append(when);
     const attemptsLabel = make('label', 'Maksimum deneme'); const attempts = doc().createElement('select'); attempts.setAttribute('aria-label', 'Maksimum deneme sayısı'); for (let i = 1; i <= MAX_ATTEMPTS; i += 1) { const option = make('option', i); option.value = String(i); attempts.append(option); } attemptsLabel.append(attempts);
     const grid = make('div', undefined, 'scheduled-tasks-form-grid'); grid.append(agentLabel, whenLabel, attemptsLabel);
-    const actions = make('div', undefined, 'scheduled-tasks-form-actions'); const submit = button(editingId ? 'Değişiklikleri kaydet' : 'Görevi planla', 'save', 'soft-btn'); submit.classList.add('primary');
-    actions.append(submit); if (editingId) actions.append(button('Düzenlemeyi iptal et', 'edit-cancel', 'mini-btn'));
+    const actions = make('div', undefined, 'scheduled-tasks-form-actions'); const submit = button(editingId ? 'Değişiklikleri kaydet' : 'Görevi planla', 'save', 'soft-btn'); submit.classList.add('primary'); actions.append(submit); if (editingId) actions.append(button('Düzenlemeyi iptal et', 'edit-cancel', 'mini-btn'));
     create.append(heading, taskLabel, grid, actions); return create;
   }
 
@@ -83,9 +84,35 @@
     });
   }
 
+  function toggleSelection(id, checked) {
+    const next = new Set(selectedIds);
+    if (checked) { if (next.size >= MAX_SELECTION) return false; next.add(id); } else next.delete(id);
+    selectedIds = next;
+    renderBulkActions();
+    return true;
+  }
+  function renderBulkActions() {
+    const host = panel?.querySelector('.scheduled-tasks-bulk'); if (!host) return;
+    host.replaceChildren();
+    if (!selectedIds.size) { host.hidden = true; return; }
+    host.hidden = false;
+    host.append(make('span', `${selectedIds.size} görev seçildi.`, 'scheduled-tasks-bulk-count'), button('+15 dk','bulk-postpone-15','mini-btn'), button('+1 saat','bulk-postpone-60','mini-btn'), button('Seçilenleri iptal et','bulk-cancel','mini-btn'), button('Seçimi temizle','bulk-clear','mini-btn'));
+  }
+  async function bulkPostpone(minutes) {
+    const ids = [...selectedIds].slice(0, MAX_SELECTION); if (!ids.length) return;
+    let ok = 0; for (const id of ids) { try { const runAt = new Date(Date.now() + minutes * 60_000).toISOString(); await request(`${API_PATH}/${encodeURIComponent(id)}`, { method:'PATCH', body:JSON.stringify({ runAt }) }); ok += 1; } catch {} }
+    selectedIds.clear(); status(`${ok}/${ids.length} görev ertelendi.`,'success'); await refresh();
+  }
+  async function bulkCancel() {
+    const ids = [...selectedIds].slice(0, MAX_SELECTION); if (!ids.length || !root.confirm?.(`${ids.length} planlanmış görev iptal edilsin mi?`)) return;
+    let ok = 0; for (const id of ids) { try { await request(`${API_PATH}/${encodeURIComponent(id)}`, { method:'DELETE' }); ok += 1; } catch {} }
+    selectedIds.clear(); status(`${ok}/${ids.length} görev iptal edildi.`,'success'); await refresh();
+  }
   function row(entry) {
     const item = make('article', undefined, 'scheduled-task-row'); item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status; item.dataset.runAt = clamp(entry.runAt, 40); item._scheduleEntry = entry; item.setAttribute('role','listitem');
-    const head = make('div', undefined, 'scheduled-task-row-head'); const title = make('strong', clamp(entry.task, 120)); const badge = make('span', statusText(entry.status), `scheduled-task-status status-${entry.status}`); head.append(title, badge);
+    const head = make('div', undefined, 'scheduled-task-row-head');
+    if (entry.status === 'scheduled') { const check = doc().createElement('input'); check.type='checkbox'; check.checked=selectedIds.has(entry.scheduleId); check.setAttribute('aria-label', `${clamp(entry.task, 80)} seç`); check.addEventListener('change', () => { if (!toggleSelection(entry.scheduleId, check.checked)) check.checked = false; }); head.append(check); }
+    const title = make('strong', clamp(entry.task, 120)); const badge = make('span', statusText(entry.status), `scheduled-task-status status-${entry.status}`); head.append(title, badge);
     const meta = make('div', `${formattedDate(entry.runAt)} · ${clamp(entry.agentId, 80)} · deneme ${entry.attempts}/${entry.maxAttempts}`, 'scheduled-task-meta'); const detail = make('p', entry.lastError ? `Son hata: ${clamp(entry.lastError, 120)}` : entry.status === 'completed' ? 'Başarıyla tamamlandı.' : '');
     const actions = make('div', undefined, 'scheduled-task-actions'); if (entry.status === 'scheduled') actions.append(button('Düzenle','edit','mini-btn'), button('İptal et','cancel','mini-btn'), button('Tekrar planla','duplicate','mini-btn'), button('+15 dk','postpone-15','mini-btn'), button('+1 saat','postpone-60','mini-btn'));
     const trace = button('Trace ID','trace','mini-btn'); trace.title = clamp(entry.traceId, 128); trace.setAttribute('aria-label', `Trace ID: ${clamp(entry.traceId, 40)}`); actions.append(trace); item.append(head, meta, detail, actions); return item;
@@ -94,18 +121,20 @@
   async function refresh() {
     const list = panel?.querySelector('.scheduled-tasks-list'); const info = panel?.querySelector('.scheduled-tasks-filter-info'); if (!list) return;
     list.replaceChildren(make('div','Görevler yükleniyor…','scheduled-tasks-empty'));
-    try { const payload = await request(API_PATH); const entries = Array.isArray(payload.schedules) ? payload.schedules.slice(0, MAX_LIST) : []; entries.sort((a,b) => String(a.runAt).localeCompare(String(b.runAt)) || String(a.scheduleId).localeCompare(String(b.scheduleId))); list.replaceChildren(); if (!entries.length) list.append(make('div','Henüz planlanmış görev yok.','scheduled-tasks-empty')); else entries.forEach((entry) => list.append(row(entry))); applyFilter(list, info); if (editingId) { const entry = entries.find((value) => value.scheduleId === editingId); if (entry) fillForm(entry); else { editingId = null; panel.querySelector('.scheduled-tasks-form-host').replaceChildren(buildCreateForm()); wireForm(); } } }
-    catch (error) { list.replaceChildren(make('div', error.status === 401 ? 'Görevleri görmek için oturum açmalısın.' : 'Görev listesi yüklenemedi.','scheduled-tasks-empty')); status(error.status === 401 ? 'Kimlik doğrulama gerekli.' : 'Görev servisine ulaşılamadı.','error'); }
+    try {
+      const payload = await request(API_PATH); const entries = Array.isArray(payload.schedules) ? payload.schedules.slice(0, MAX_LIST) : [];
+      const validIds = new Set(entries.filter((entry) => entry.status === 'scheduled').map((entry) => entry.scheduleId)); selectedIds = new Set([...selectedIds].filter((id) => validIds.has(id)));
+      entries.sort((a,b) => String(a.runAt).localeCompare(String(b.runAt)) || String(a.scheduleId).localeCompare(String(b.scheduleId))); list.replaceChildren();
+      const bulk = make('div', undefined, 'scheduled-tasks-bulk'); list.before(bulk); renderBulkActions();
+      if (!entries.length) list.append(make('div','Henüz planlanmış görev yok.','scheduled-tasks-empty')); else entries.forEach((entry) => list.append(row(entry)));
+      applyFilter(list, info);
+      if (editingId) { const entry = entries.find((value) => value.scheduleId === editingId); if (entry) fillForm(entry); else { editingId = null; panel.querySelector('.scheduled-tasks-form-host').replaceChildren(buildCreateForm()); wireForm(); } }
+    } catch (error) { list.replaceChildren(make('div', error.status === 401 ? 'Görevleri görmek için oturum açmalısın.' : 'Görev listesi yüklenemedi.','scheduled-tasks-empty')); status(error.status === 401 ? 'Kimlik doğrulama gerekli.' : 'Görev servisine ulaşılamadı.','error'); }
   }
   async function cancelTask(id) { if (!id || !root.confirm?.('Bu planlanmış görev iptal edilsin mi?')) return; try { await request(`${API_PATH}/${encodeURIComponent(id)}`, { method: 'DELETE' }); status('Görev iptal edildi.','success'); await refresh(); } catch (error) { status(error.message === 'SCHEDULE_NOT_CANCELLABLE' ? 'Görev artık iptal edilemez.' : 'Görev iptal edilemedi.','error'); await refresh(); } }
   function startEdit(entry) { if (!entry || entry.status !== 'scheduled') return; editingId = entry.scheduleId; const host = panel?.querySelector('.scheduled-tasks-form-host'); if (!host) return; host.replaceChildren(buildCreateForm()); wireForm(); fillForm(entry); host.querySelector('textarea')?.focus(); status('Görev düzenleme modunda.','info'); }
   async function duplicateTask(entry) { if (!entry || entry.status !== 'scheduled') return; const runAt = localDateTimeValue(10); try { await request(API_PATH, { method:'POST', body:JSON.stringify({ agentId:entry.agentId, task:entry.task, runAt:isoFromLocal(runAt), maxAttempts:entry.maxAttempts }) }); status('Görev yeni zamanla tekrar planlandı.','success'); await refresh(); } catch (error) { status(error.message === 'SCHEDULE_CAPACITY_REACHED' ? 'Görev kapasitesi dolu.' : 'Görev tekrar planlanamadı.','error'); } }
-  async function postponeTask(entry, minutes) {
-    if (!entry || entry.status !== 'scheduled' || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440) return;
-    const runAt = new Date(Date.now() + minutes * 60_000).toISOString();
-    try { await request(`${API_PATH}/${encodeURIComponent(entry.scheduleId)}`, { method:'PATCH', body:JSON.stringify({ runAt }) }); status(`Görev ${minutes === 60 ? '60 dk' : '15 dk'} ertelendi.`,'success'); await refresh(); }
-    catch (error) { status(error.message === 'SCHEDULE_NOT_EDITABLE' ? 'Bu görev artık düzenlenemez.' : 'Görev ertelenemedi.','error'); }
-  }
+  async function postponeTask(entry, minutes) { if (!entry || entry.status !== 'scheduled' || !Number.isInteger(minutes) || minutes < 1 || minutes > 1440) return; const runAt = new Date(Date.now() + minutes * 60_000).toISOString(); try { await request(`${API_PATH}/${encodeURIComponent(entry.scheduleId)}`, { method:'PATCH', body:JSON.stringify({ runAt }) }); status(`Görev ${minutes === 60 ? '60 dk' : '15 dk'} ertelendi.`,'success'); await refresh(); } catch (error) { status(error.message === 'SCHEDULE_NOT_EDITABLE' ? 'Bu görev artık düzenlenemez.' : 'Görev ertelenemedi.','error'); } }
   function onClick(event) {
     const target = event.target?.closest?.('[data-task-action]'); if (!target) return; const action = target.dataset.taskAction;
     if (action === 'close') return close(); if (action === 'refresh') return refresh();
@@ -115,11 +144,15 @@
     if (action === 'duplicate') return duplicateTask(target.closest('.scheduled-task-row')?._scheduleEntry);
     if (action === 'postpone-15') return postponeTask(target.closest('.scheduled-task-row')?._scheduleEntry, 15);
     if (action === 'postpone-60') return postponeTask(target.closest('.scheduled-task-row')?._scheduleEntry, 60);
+    if (action === 'bulk-postpone-15') return bulkPostpone(15);
+    if (action === 'bulk-postpone-60') return bulkPostpone(60);
+    if (action === 'bulk-cancel') return bulkCancel();
+    if (action === 'bulk-clear') { selectedIds.clear(); return refresh(); }
     if (action === 'trace') return status(`Trace ID: ${target.title}`,'info');
   }
-  function open() { if (!panel) return; lastFocus = doc().activeElement; panel.hidden = false; editingId = null; panel.querySelector('.scheduled-tasks-form-host').replaceChildren(buildCreateForm()); wireForm(); selectedStatus = 'all'; const filter = panel.querySelector('.scheduled-tasks-filter select'); if (filter) filter.value = 'all'; refresh(); clearInterval(refreshTimer); refreshTimer = root.setInterval?.(refresh, REFRESH_MS) || 0; panel.querySelector('[data-task-action="close"]')?.focus(); }
-  function close() { if (!panel) return; panel.hidden = true; editingId = null; clearInterval(refreshTimer); refreshTimer = 0; controller?.abort?.(); lastFocus?.focus?.(); lastFocus = null; }
+  function open() { if (!panel) return; lastFocus = doc().activeElement; panel.hidden = false; editingId = null; selectedIds.clear(); panel.querySelector('.scheduled-tasks-form-host').replaceChildren(buildCreateForm()); wireForm(); selectedStatus = 'all'; const filter = panel.querySelector('.scheduled-tasks-filter select'); if (filter) filter.value = 'all'; refresh(); clearInterval(refreshTimer); refreshTimer = root.setInterval?.(refresh, REFRESH_MS) || 0; panel.querySelector('[data-task-action="close"]')?.focus(); }
+  function close() { if (!panel) return; panel.hidden = true; editingId = null; selectedIds.clear(); clearInterval(refreshTimer); refreshTimer = 0; controller?.abort?.(); lastFocus?.focus?.(); lastFocus = null; }
   function boot() { if (mounted || !doc()) return; const nav = [...doc().querySelectorAll('.nav-item')].find((node) => node.textContent?.includes('Görevler')); if (!nav) return; build(); nav.disabled = false; nav.addEventListener('click', open); nav.setAttribute('aria-controls', PANEL_ID); nav.setAttribute('aria-expanded', 'false'); mounted = true; }
-  root.ScheduledTasksWorkspace = Object.freeze({ open, close, refresh, request, startEdit, postponeTask });
+  root.ScheduledTasksWorkspace = Object.freeze({ open, close, refresh, request, startEdit, postponeTask, bulkPostpone, bulkCancel });
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
