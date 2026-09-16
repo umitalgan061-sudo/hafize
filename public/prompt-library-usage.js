@@ -24,6 +24,8 @@
       ['script', 'src', '/prompt-library-fill-backup-ui.js', 'data-hafize-prompt-fill-backup-ui'],
       ['script', 'src', '/prompt-library-fill-history.js', 'data-hafize-prompt-fill-history'],
       ['script', 'src', '/prompt-library-fill-history-ui.js', 'data-hafize-prompt-fill-history-ui'],
+      ['script', 'src', '/prompt-library-fill-history-backup.js', 'data-hafize-prompt-fill-history-backup'],
+      ['script', 'src', '/prompt-library-fill-history-backup-ui.js', 'data-hafize-prompt-fill-history-backup-ui'],
       ['script', 'src', '/prompt-library-fill-privacy.js', 'data-hafize-prompt-fill-privacy'],
       ['script', 'src', '/prompt-library-fill-field-status.js', 'data-hafize-prompt-fill-field-status'],
       ['script', 'src', '/prompt-library-fill-defaults.js', 'data-hafize-prompt-fill-defaults'],
