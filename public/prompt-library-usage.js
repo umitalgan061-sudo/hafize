@@ -19,12 +19,10 @@
       ['script', 'src', '/prompt-library-fill.js', 'data-hafize-prompt-fill-script'],
       ['script', 'src', '/prompt-library-fill-presets.js', 'data-hafize-prompt-fill-presets'],
       ['script', 'src', '/prompt-library-fill-keyboard.js', 'data-hafize-prompt-fill-keyboard'],
-      ['script', 'src', '/prompt-library-fill-backup.js', 'data-hafize-prompt-fill-backup']
+      ['script', 'src', '/prompt-library-fill-backup.js', 'data-hafize-prompt-fill-backup'],
+      ['script', 'src', '/prompt-library-fill-backup-ui.js', 'data-hafize-prompt-fill-backup-ui']
     ];
-    for (const [tag, attr, value, marker] of assets) {
-      if (documentRef.querySelector(`[${marker}]`)) continue;
-      const node = documentRef.createElement(tag); node[attr] = value; node.dataset.hafizePromptFill = 'true'; node.setAttribute(marker, 'true'); if (tag === 'link') node.rel = 'stylesheet'; else node.defer = true; documentRef.head.append(node);
-    }
+    for (const [tag, attr, value, marker] of assets) { if (documentRef.querySelector(`[${marker}]`)) continue; const node = documentRef.createElement(tag); node[attr] = value; node.dataset.hafizePromptFill = 'true'; node.setAttribute(marker, 'true'); if (tag === 'link') node.rel = 'stylesheet'; else node.defer = true; documentRef.head.append(node); }
   }
   function mount(documentRef = root.document, rootRef = root) {
     const card = documentRef?.getElementById?.(CARD_ID); if (!documentRef || !card || documentRef.getElementById(INSIGHTS_ID)) return null;
