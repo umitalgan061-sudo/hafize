@@ -19,6 +19,7 @@ function assert(condition, message) {
 const migrated = [
   'prompt-library-smart-fill',
   'prompt-library-command-palette',
+  'prompt-library-smart-fill-hints',
   'scheduled-tasks-countdown'
 ];
 
@@ -31,11 +32,12 @@ for (const name of migrated) {
 assert(await exists('public/typed/hafize-api.ts'), 'typed API boundary missing');
 assert(await exists('public/typed/hafize-types.ts'), 'typed domain contracts missing');
 assert(await exists('public/typed/app-runtime.ts'), 'typed runtime surface missing');
-assert(html.includes('/hafize-runtime.css'), 'runtime diagnostics stylesheet missing');
+assert(await exists('public/hafize-runtime.css'), 'runtime diagnostics stylesheet missing');
+assert(html.includes('/hafize-runtime.css'), 'runtime diagnostics stylesheet is not linked');
 
 const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 for (const name of migrated) assert(sw.includes(`/typed-build/${name}.js`), `${name} generated entry is not in PWA shell`);
 assert(sw.includes('/typed-build/app-runtime.js'), 'app runtime generated entry is not in PWA shell');
-assert(sw.includes('hafize-shell-v34'), 'PWA cache was not versioned for the new entries');
+assert(sw.includes('hafize-shell-v35'), 'PWA cache was not versioned for the new entries');
 
 console.log(`legacy-entry-contract: ${migrated.length} migrated modules protected`);
