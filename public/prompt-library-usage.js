@@ -14,9 +14,17 @@
   function summarize(items) { const valid = items.filter((item) => typeof item.id === 'string'); const totalUses = valid.reduce((sum, item) => sum + usageOf(item), 0); const used = valid.filter((item) => usageOf(item) > 0); const top = used.slice().sort((a, b) => usageOf(b) - usageOf(a) || dateValue(b) - dateValue(a)).slice(0, MAX_ITEMS); const recent = used.slice().sort((a, b) => dateValue(b) - dateValue(a) || usageOf(b) - usageOf(a)).slice(0, MAX_ITEMS); return { total: valid.length, usedCount: used.length, totalUses, top, recent }; }
   function loadFillAssets(documentRef) {
     if (!documentRef?.head) return;
-    if (!documentRef.querySelector('link[data-hafize-prompt-fill-style]')) { const link = documentRef.createElement('link'); link.rel = 'stylesheet'; link.href = '/prompt-library-fill.css'; link.dataset.hafizePromptFillStyle = 'true'; documentRef.head.append(link); }
-    if (!documentRef.querySelector('script[data-hafize-prompt-fill-script]')) { const script = documentRef.createElement('script'); script.src = '/prompt-library-fill.js'; script.defer = true; script.dataset.hafizePromptFillScript = 'true'; documentRef.head.append(script); }
-    if (!documentRef.querySelector('script[data-hafize-prompt-fill-presets]')) { const script = documentRef.createElement('script'); script.src = '/prompt-library-fill-presets.js'; script.defer = true; script.dataset.hafizePromptFillPresets = 'true'; documentRef.head.append(script); }
+    const assets = [
+      ['link', 'href', '/prompt-library-fill.css', 'data-hafize-prompt-fill-style'],
+      ['script', 'src', '/prompt-library-fill.js', 'data-hafize-prompt-fill-script'],
+      ['script', 'src', '/prompt-library-fill-presets.js', 'data-hafize-prompt-fill-presets'],
+      ['script', 'src', '/prompt-library-fill-keyboard.js', 'data-hafize-prompt-fill-keyboard'],
+      ['script', 'src', '/prompt-library-fill-backup.js', 'data-hafize-prompt-fill-backup']
+    ];
+    for (const [tag, attr, value, marker] of assets) {
+      if (documentRef.querySelector(`[${marker}]`)) continue;
+      const node = documentRef.createElement(tag); node[attr] = value; node.dataset.hafizePromptFill = 'true'; node.setAttribute(marker, 'true'); if (tag === 'link') node.rel = 'stylesheet'; else node.defer = true; documentRef.head.append(node);
+    }
   }
   function mount(documentRef = root.document, rootRef = root) {
     const card = documentRef?.getElementById?.(CARD_ID); if (!documentRef || !card || documentRef.getElementById(INSIGHTS_ID)) return null;
