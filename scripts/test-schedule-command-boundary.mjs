@@ -12,6 +12,7 @@ const bob = { authenticated: true, subject: 'user-bob' };
 
 assert.deepEqual(await commands.create(), { ok: false, error: 'AUTH_REQUIRED' });
 assert.deepEqual(await commands.list({ principal: { authenticated: false, subject: 'user-alice' } }), { ok: false, error: 'AUTH_REQUIRED' });
+assert.deepEqual(await commands.stats({ principal: { authenticated: false, subject: 'user-alice' } }), { ok: false, error: 'AUTH_REQUIRED' });
 assert.deepEqual(await commands.cancel({ principal: { authenticated: true, subject: ' ' }, scheduleId: 'schedule_1' }), { ok: false, error: 'AUTH_REQUIRED' });
 
 assert.deepEqual(await commands.create({ principal: alice, input: { agentId: 'hafize-general', task: 'Sabah özetini hazırla.', runAt: '2026-08-13T06:00:00.000Z', token: 'must-not-be-accepted' } }), { ok: false, error: 'INVALID_SCHEDULE_COMMAND' });
@@ -36,6 +37,12 @@ assert.equal(aliceList.hasMore, false);
 assert.equal('ownerId' in aliceList.schedules[0], false);
 const bobList = await commands.list({ principal: bob });
 assert.deepEqual(bobList.schedules.map((entry) => entry.scheduleId), [bobCreated.schedule.scheduleId]);
+
+const aliceStats = await commands.stats({ principal: alice });
+assert.equal(aliceStats.ok, true);
+assert.equal(aliceStats.stats.total, 1);
+assert.equal(aliceStats.stats.counts.scheduled, 1);
+assert.equal(aliceStats.stats.capacity, 'unbounded');
 
 assert.deepEqual(await commands.cancel({ principal: bob, scheduleId: created.schedule.scheduleId }), { ok: false, error: 'SCHEDULE_NOT_FOUND' });
 assert.equal(store.read(created.schedule.scheduleId).status, 'scheduled');
@@ -66,7 +73,8 @@ const asyncStore = {
   async read(scheduleId) { const entry = asyncEntries.find((item) => item.scheduleId === scheduleId); return entry ? { ...entry } : null; },
   async snapshot() { return { entries: asyncEntries.map((entry) => ({ ...entry })) }; },
   async cancel(scheduleId) { const entry = asyncEntries.find((item) => item.scheduleId === scheduleId); if (!entry) throw new Error('TASK_SCHEDULE_NOT_FOUND'); entry.status = 'cancelled'; entry.updatedAt = '2026-08-12T11:01:00.000Z'; return { ...entry }; },
-  async list({ ownerId }) { return { entries: asyncEntries.filter((entry) => entry.ownerId === ownerId).map((entry) => ({ ...entry })), total: asyncEntries.filter((entry) => entry.ownerId === ownerId).length, hasMore: false, nextCursor: null }; },
+  async list({ ownerId }) { const entries = asyncEntries.filter((entry) => entry.ownerId === ownerId).map((entry) => ({ ...entry })); return { entries, total: entries.length, hasMore: false, nextCursor: null }; },
+  async stats(ownerId) { const entries = asyncEntries.filter((entry) => entry.ownerId === ownerId); return { total: entries.length, counts: { scheduled: entries.filter((entry) => entry.status === 'scheduled').length, running: 0, completed: 0, failed: 0, cancelled: entries.filter((entry) => entry.status === 'cancelled').length }, due: 0, retrying: 0, capacity: 'unbounded' }; },
   async cancelMany(ids, ownerId) { const selected = new Set(ids); const output = []; for (const entry of asyncEntries) if (selected.has(entry.scheduleId) && entry.ownerId === ownerId && entry.status === 'scheduled') { entry.status = 'cancelled'; output.push({ ...entry }); } return output; }
 };
 const asyncCommands = createScheduleCommandBoundary({ store: asyncStore, registry, createTraceId: () => 'trace-async' });
@@ -75,6 +83,7 @@ assert.equal(asyncCreated.ok, true);
 assert.equal(asyncCreated.schedule.traceId, 'trace-async');
 assert.equal((await asyncStore.read(asyncCreated.schedule.scheduleId)).ownerId, 'user-alice');
 assert.deepEqual((await asyncCommands.list({ principal: alice })).schedules.map((entry) => entry.scheduleId), [asyncCreated.schedule.scheduleId]);
+assert.equal((await asyncCommands.stats({ principal: alice })).stats.total, 1);
 assert.equal((await asyncCommands.cancel({ principal: alice, scheduleId: asyncCreated.schedule.scheduleId })).schedule.status, 'cancelled');
 
 const failingAsyncStore = {
@@ -83,11 +92,13 @@ const failingAsyncStore = {
   snapshot: async () => { throw new Error('provider secret detail'); },
   cancel: async () => { throw new Error('provider secret detail'); },
   list: async () => { throw new Error('provider secret detail'); },
+  stats: async () => { throw new Error('provider secret detail'); },
   cancelMany: async () => { throw new Error('provider secret detail'); }
 };
 const failing = createScheduleCommandBoundary({ store: failingAsyncStore, registry, createTraceId: () => 'trace-failing' });
 assert.deepEqual(await failing.create({ principal: alice, input: { agentId: 'hafize-general', task: 'x', runAt: '2026-08-13T09:00:00.000Z' } }), { ok: false, error: 'SCHEDULE_COMMAND_FAILED' });
 assert.deepEqual(await failing.list({ principal: alice }), { ok: false, error: 'SCHEDULE_COMMAND_FAILED' });
+assert.deepEqual(await failing.stats({ principal: alice }), { ok: false, error: 'SCHEDULE_COMMAND_FAILED' });
 assert.deepEqual(await failing.cancel({ principal: alice, scheduleId: 'schedule_1' }), { ok: false, error: 'SCHEDULE_COMMAND_FAILED' });
 
 console.log('schedule command boundary tests passed');
