@@ -36,8 +36,12 @@ describe('Prompt Library command palette', () => {
   it('caps query length and maximum result count', () => {
     const items = Array.from({ length: 40 }, (_, index) => ({ id: String(index), title: `A ${index}`, body: 'A', tags: [], updatedAt: new Date().toISOString() }));
     installStorage(items);
-    expect(searchPromptLibrary('A'.repeat(500))).toHaveLength(12);
+    // A matching query returns at most MAX_RESULTS rows, however many items match.
     expect(searchPromptLibrary('A')).toHaveLength(12);
+    // An over-long query is cut to MAX_QUERY (120) characters: a title of exactly
+    // that length still matches, and the 500 characters behind it match nothing.
+    installStorage([{ id: 'long', title: 'A'.repeat(120), body: '', tags: [], updatedAt: new Date().toISOString() }, ...items]);
+    expect(searchPromptLibrary('A'.repeat(500)).map((item) => item.id)).toEqual(['long']);
   });
 
   it('survives malformed local storage', () => {

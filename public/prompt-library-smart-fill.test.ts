@@ -18,6 +18,40 @@ describe('Prompt Library Smart Fill', () => {
     expect(readPresets('prompt')[0]?.values.konu).toBe('değer-0');
   });
 
+  it('caps the variable count and the length of each name', () => {
+    vi.stubGlobal('HafizePromptLibrary', {
+      extractVariables: (body: string) => [...body.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g)].map((match) => match[1])
+    });
+    const many = Array.from({ length: 30 }, (_, index) => `{{ad${index}}}`).join(' ');
+    expect(variableNames(many)).toHaveLength(12);
+    expect(variableNames(`{{${'u'.repeat(80)}}}`)[0]).toHaveLength(32);
+    expect(variableNames('düz metin')).toEqual([]);
+  });
+
+  it('degrades to an empty preset list when storage refuses to be read', () => {
+    vi.stubGlobal('localStorage', { getItem: () => { throw new Error('SecurityError'); } });
+    expect(readPresets('prompt')).toEqual([]);
+  });
+
+  it('reports a failed write instead of pretending the preset was stored', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => null,
+      setItem: () => { throw new Error('QuotaExceededError'); }
+    });
+    expect(writePresets('prompt', [{ id: 'a', name: 'Set', values: {} }])).toBe(false);
+  });
+
+  it('drops preset records without a name or an id', () => {
+    vi.stubGlobal('localStorage', {
+      getItem: () => JSON.stringify([
+        { id: 'keep', name: 'Set', values: { konu: 'değer' } },
+        { id: '', name: 'Adsız', values: {} },
+        { id: 'no-name', name: '   ', values: {} }
+      ])
+    });
+    expect(readPresets('prompt').map((preset) => preset.id)).toEqual(['keep']);
+  });
+
   it('stores only the bounded preset collection under a prompt-specific key', () => {
     const setItem = vi.fn();
     vi.stubGlobal('localStorage', { setItem, getItem: () => null });

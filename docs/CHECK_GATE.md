@@ -11,7 +11,9 @@ ya da herhangi bir TypeScript kaynağından/yapı ayarından eskiyse `npm run bu
 `vite build`) çalıştırılır. Üretilen paketler repoya commit edilmez; `index.html` onları yükler, service
 worker cache'ler ve shell-cache sözleşmesi diskte bulunmalarını şart koşar. `--skip-build` bu adımı atlar.
 Böylece derlemesi bozuk bir TypeScript kaynağı kapıdan geçemez. `test-modern-unit-suite.mjs` Vitest
-paketini, `validate-formatting.mjs` ise biçim kurallarını aynı kapı içinde çalıştırır.
+paketini, `validate-formatting.mjs` ise biçim kurallarını aynı kapı içinde çalıştırır. Vitest
+`src/**/*.test.ts` ve `public/**/*.test.ts` dosyalarının tamamını toplar; bir `*.test.ts` dosyası
+yalnızca `public/typed/` altında olduğu için çalıştırılmaz duruma düşmez.
 
 Yeni bir doğrulama veya test dosyası eklendiğinde `package.json` içine ayrıca yol eklemek gerekmez. `--list` keşfedilen paketleri, `--filter=a,b` ise eşleşen odak paketleri listeler/çalıştırır. Filtre geliştirici döngüsü içindir; PR öncesi filtresiz tam kapı kullanılır.
 
