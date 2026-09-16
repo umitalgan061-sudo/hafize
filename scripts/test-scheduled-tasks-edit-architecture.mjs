@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const ui=await readFile(new URL('../public/scheduled-tasks.js',import.meta.url),'utf8');
+const http=await readFile(new URL('../lib/schedule-http-api.mjs',import.meta.url),'utf8');
+const boundary=await readFile(new URL('../lib/schedule-command-boundary.mjs',import.meta.url),'utf8');
+const store=await readFile(new URL('../lib/task-schedule-store.mjs',import.meta.url),'utf8');
+assert.ok(ui.includes('postponeTask'));
+assert.ok(http.includes("verb === 'PATCH'"));
+assert.ok(boundary.includes('current.ownerId !== ownerId'));
+assert.ok(store.includes('function update('));
+console.log('scheduled task edit architecture boundaries ok');
