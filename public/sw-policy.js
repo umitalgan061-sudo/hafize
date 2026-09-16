@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v33`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v34`;
   // `cache.addAll()` is atomic: a single missing entry rejects the install and
   // leaves the app without an offline shell. The list therefore mirrors what
   // `index.html` actually loads — nothing more, nothing less — and
@@ -15,14 +15,14 @@
     // Documents
     '/', '/index.html', '/offline.html',
     // Stylesheets, in index.html order
-    '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
+    '/styles.css', '/premium.css', '/chat-markdown.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
     '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css',
     '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
     '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/message-workspace.css',
     '/prompt-library.css', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
     '/composer-history.css', '/scheduled-tasks.css',
     // Scripts, in index.html order
-    '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
+    '/auth.js', '/markdown-renderer.js', '/chat-markdown.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js',
     '/message-workspace-policy.js', '/message-workspace.js',
     '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
