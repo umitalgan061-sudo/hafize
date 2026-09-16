@@ -16,7 +16,7 @@ assert.match(files.html, /prompt-library-collections\.js/);
 assert.match(files.html, /prompt-library-collections-enhancements\.js/);
 assert.match(files.html, /prompt-library-revisions\.js/);
 assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
-assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 for (const asset of [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',

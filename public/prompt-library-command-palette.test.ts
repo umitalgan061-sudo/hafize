@@ -35,8 +35,11 @@ describe('Prompt Library command palette', () => {
 
   it('caps query length and maximum result count', () => {
     const items = Array.from({ length: 40 }, (_, index) => ({ id: String(index), title: `A ${index}`, body: 'A', tags: [], updatedAt: new Date().toISOString() }));
+    // Only the first 120 characters of a query are matched, so an over-long
+    // query behaves exactly like its bounded prefix instead of scanning on.
+    items.push({ id: 'long', title: 'A'.repeat(130), body: 'A', tags: [], updatedAt: new Date().toISOString() });
     installStorage(items);
-    expect(searchPromptLibrary('A'.repeat(500))).toHaveLength(12);
+    expect(searchPromptLibrary('A'.repeat(500)).map((item) => item.id)).toEqual(['long']);
     expect(searchPromptLibrary('A')).toHaveLength(12);
   });
 

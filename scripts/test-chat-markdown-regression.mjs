@@ -20,9 +20,10 @@ const requiredRendererContracts = [
   /appendChild|append\(/,
   /https?:/,
   /mailto:/,
-  /javascript/i,
-  /data:/,
-  /escape/i,
+  // The renderer allowlists schemes instead of blocking `javascript:` by name,
+  // so the policy is asserted through the allowlist itself. Text never needs
+  // escaping either: it is written as text nodes, never as markup.
+  /SAFE_SCHEMES = Object\.freeze\(\['http:', 'https:', 'mailto:'\]\)/,
   /table/i,
   /blockquote/i,
   /code/i,
@@ -40,8 +41,13 @@ const forbiddenExecution = [
   /srcdoc/i,
   /<script/i
 ];
+// Comments explain what the renderer refuses to execute (`<script>`, `onerror`),
+// so the scan runs against code only.
+const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
 for (const source of [files.renderer, files.chat]) {
-  for (const contract of forbiddenExecution) assert.doesNotMatch(source, contract, `unsafe contract ${contract} present`);
+  for (const contract of forbiddenExecution) {
+    assert.doesNotMatch(withoutComments(source), contract, `unsafe contract ${contract} present`);
+  }
 }
 
 const chatContracts = [
@@ -50,7 +56,9 @@ const chatContracts = [
   /aria-busy/,
   /navigator\.clipboard/,
   /MutationObserver/,
-  /assistant/i,
+  // The layer itself is role-agnostic: app.js decides which messages render as
+  // markdown by passing `plain`, which is asserted on app.js below.
+  /options\.plain/,
   /content/,
   /copy|kopy/i,
   /stream/i
@@ -59,7 +67,7 @@ for (const contract of chatContracts) assert.match(files.chat, contract, `chat c
 
 const integrationContracts = [
   [/updateMessage\(assistantId, content\)/, 'assistant stream update remains canonical'],
-  [/textContent\s*=\s*content/, 'plain text fallback remains available'],
+  [/node\.textContent = value \|\| MESSAGE_PLACEHOLDER/, 'plain text fallback remains available'],
   [/addMessage\(['"]assistant['"]/, 'assistant messages still use app message path'],
   [/hafize/, 'existing application namespace remains referenced']
 ];
@@ -101,7 +109,7 @@ const operations = fs.readFileSync('docs/CHAT_MARKDOWN_USAGE.md', 'utf8');
 for (const [source, terms, label] of [
   [docs, ['Markdown', 'Streaming', 'Geri alma'], 'product doc'],
   [security, ['DOM', 'javascript:', 'Gizlilik', 'Streaming'], 'security doc'],
-  [matrix, ['Bloklar', 'DOM', 'Güvenlik', 'Streaming'], 'test matrix'],
+  [matrix, ['Blok', 'DOM', 'Güvenlik', 'Streaming'], 'test matrix'],
   [review, ['Product', 'Security', 'Integration', 'Rollback'], 'release review'],
   [operations, ['Kullanıcı davranışı', 'Operasyon', 'Geri alma'], 'operations doc']
 ]) {

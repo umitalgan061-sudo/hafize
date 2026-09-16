@@ -75,8 +75,11 @@ describe('HafizeApiClient', () => {
     const fetchImpl = fetchMock([new Error('socket closed'), new Error('socket closed')]);
     const api = new HafizeApiClient('', fetchImpl);
     const promise = api.models();
+    // The rejection handler is attached before the timers advance, so the retry
+    // failure is never momentarily unhandled.
+    const rejection = expect(promise).rejects.toMatchObject({ code: 'NETWORK_ERROR', retryable: true });
     await vi.runAllTimersAsync();
-    await expect(promise).rejects.toMatchObject({ code: 'NETWORK_ERROR', retryable: true });
+    await rejection;
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });

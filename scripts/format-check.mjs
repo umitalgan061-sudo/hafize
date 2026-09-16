@@ -4,7 +4,16 @@ import { join } from 'node:path';
 const ROOT = new URL('../', import.meta.url);
 const DIRECTORIES = ['public', 'src', 'scripts'];
 const EXTENSIONS = new Set(['.ts', '.mjs']);
+// Application sources are wrapped like ordinary code. The `scripts/` suites are
+// written as one dense assertion per line on purpose — wrapping them buries the
+// assertion in punctuation — so they get a looser ceiling that still catches a
+// line nobody can read in review.
 const MAX_LINE_LENGTH = 240;
+const MAX_SUITE_LINE_LENGTH = 400;
+
+function limitFor(file) {
+  return file.startsWith('scripts/') && file.endsWith('.mjs') ? MAX_SUITE_LINE_LENGTH : MAX_LINE_LENGTH;
+}
 
 async function walk(directory, output = []) {
   let entries;
@@ -28,9 +37,10 @@ const violations = [];
 for (const file of files) {
   const content = await readFile(new URL(file, ROOT), 'utf8');
   const lines = content.split(/\r?\n/);
+  const limit = limitFor(file);
   lines.forEach((line, index) => {
     if (/\s+$/.test(line)) violations.push(`${file}:${index + 1}: trailing whitespace`);
-    if (line.length > MAX_LINE_LENGTH) violations.push(`${file}:${index + 1}: line exceeds ${MAX_LINE_LENGTH} characters`);
+    if (line.length > limit) violations.push(`${file}:${index + 1}: line exceeds ${limit} characters`);
   });
   if (!content.endsWith('\n')) violations.push(`${file}: missing final newline`);
 }

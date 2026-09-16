@@ -1,5 +1,13 @@
 # Prompt Import QA
 
+## Uygulama
+
+Akış `public/prompt-library-import-preview.js` içindedir. Modül kütüphane kartındaki gizli
+dosya girdisini capture aşamasında dinler, kartın kendi anında içe aktarma davranışını
+`stopImmediatePropagation()` ile durdurur ve dosyayı önce önizleme panelinde gösterir.
+Birleştirme ve normalizasyon Prompt Library çekirdeğinde kalır; panel yalnızca sonucu
+gösterir ve onay alındığında `saveItems` ile yazar.
+
 ## Fonksiyonel senaryolar
 
 1. Boş JSON dizisi seçilir; önizleme açılır, aktarım düğmesi pasif kalır.

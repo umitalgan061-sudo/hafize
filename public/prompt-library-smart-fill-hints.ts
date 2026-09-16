@@ -5,7 +5,7 @@ interface HintsWindow extends Window {
   }>;
 }
 
-const root = globalThis as HintsWindow;
+const root = globalThis as unknown as HintsWindow;
 const CARD_ID = 'promptLibraryCard';
 const PANEL_ID = 'promptLibrarySmartFill';
 const MAX_VALUE = 1000;

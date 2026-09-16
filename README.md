@@ -24,6 +24,20 @@ Uygulama oturumları imzalı, HttpOnly ve SameSite=Strict cookie kullanır. Stat
 
 NVIDIA anahtarı server-side tutulur. GitHub okuma erişimi allowlist ile sınırlandırılır. Scheduled task API'si kullanıcı oturumundan ayrı olarak `HAFIZE_SCHEDULE_AUTH_TOKEN` ile korunur; böylece dış worker/cron çağrıları web oturum cookie'sine ihtiyaç duymaz.
 
+## Sohbet biçimlendirme
+
+Asistan yanıtları düz metin yerine güvenli markdown olarak çizilir: başlıklar, listeler,
+alıntılar, tablolar, satır içi kod ve kopyalanabilir kod blokları desteklenir.
+
+- `markdown-renderer.js` yalnızca DOM düğümü üretir; `innerHTML` kullanılmaz ve `href`
+  değerleri `http:`, `https:`, `mailto:` allowlist'inden geçer.
+- Akış sırasında gelen her delta tek bir animasyon karesinde birleştirilir.
+- Kullanıcı mesajları düz metin kalır; kopyalama, mesaj çalışma alanı ve sesli çıkış
+  render edilmiş DOM yerine modelin yazdığı markdown metnini okur.
+- Renderer yüklenemezse sohbet düz metne düşer.
+
+Ayrıntılar `docs/CHAT_MARKDOWN*.md` dosyalarındadır.
+
 ## Sohbet çalışma alanı
 
 Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetmek için kullanılır. Mevcut tekli sabitleme/adlandırma/dışa aktarma yüzeylerinin yerine geçmez; onları tamamlar.
@@ -69,7 +83,50 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 - Aktarım composer'ı doldurur, submit etmez ve istemin kullanım sayacını (`useCount`) artırır.
 - `/prompt` komut paleti aynı istemleri composer içinden arayıp seçmeyi sağlar.
 
-Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
+Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Panelin uçtan
+uca davranışı `node scripts/test-prompt-smart-fill-ui.mjs` ile mount edilerek doğrulanır.
+Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
+
+## İçe aktarma önizlemesi
+
+`İçe aktar`, seçilen yedeği doğrudan birleştirmek yerine önce bir önizleme paneli açar.
+
+- Panel dosyadaki kayıt sayısını, normalize edilebilen kayıtları, atlananları, yeni id ile
+  eklenecek olanları ve kapasite dışında kalanları gösterir.
+- Örnek başlıklar güvenli DOM düğümleri olarak yazılır; HTML olarak yorumlanmaz.
+- 1 MB üstü dosya okunmadan reddedilir, geçersiz JSON mevcut kütüphaneyi değiştirmez.
+- Yazma yalnızca `Aktar` onaylandığında yapılır; `Escape`, `Kapat` ve `Vazgeç` hiçbir şey yazmaz.
+- Birleştirme Prompt Library çekirdeğinin `normalizeImportedPayload` / `mergeImportedItems`
+  fonksiyonlarından geçer; aynı id taşıyan kayıt mevcut kaydı ezmez.
+
+Kontroller:
+
+```bash
+node scripts/test-prompt-library-import-preview.mjs
+node scripts/test-prompt-library-import-preview-runtime.mjs
+node scripts/test-prompt-library-import-preview-ui.mjs
+```
+
+Senaryolar `docs/PROMPT_IMPORT_QA.md` dosyasındadır.
+
+## Kütüphane sağlığı
+
+İstem Kütüphanesi kartındaki sağlık paneli, bozuk storage'ı görünür yapar ve onarır.
+
+- Ham kayıt, okunabilir kayıt, bozuk kayıt, yinelenen id, koleksiyon ve yetim üye sayıları raporlanır.
+- Onar düğmesi yalnızca sorun varsa etkinleşir ve yazmadan önce onay ister.
+- Onarım kayıtları mevcut normalizer'dan geçirir, koleksiyon üyelerini var olan prompt id'lerine göre filtreler.
+- Tarama en fazla 120 kayıt ve 200 yetim üye ile sınırlıdır; panel ağa hiçbir şey göndermez.
+
+Kontroller:
+
+```bash
+node scripts/test-prompt-library-diagnostics.mjs
+node scripts/test-prompt-library-diagnostics-runtime.mjs
+node scripts/test-prompt-library-diagnostics-ui.mjs
+```
+
+Ayrıntılar `docs/PROMPT_DIAGNOSTICS.md` dosyasındadır.
 
 ## Zamanlanmış Görevler
 
@@ -90,7 +147,14 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 ```bash
 npm run precheck
 npm run check
+npm run check:modern
 ```
+
+`npm run check` Node'un kendisiyle çalışır ve bağımlılık kurulumuna ihtiyaç duymaz.
+`npm run check:modern` TypeScript tip kontrolü, Vitest birim testleri, biçim kontrolü ve
+toolchain sözleşmelerini çalıştırır; bunun için `npm install` gerekir.
+Tarayıcıya giden `public/typed-build/*.js` dosyaları `npm run build` tarafından üretilir ve
+repoya eklenmez.
 
 Scheduled Tasks özel kontrolleri:
 
