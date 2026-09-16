@@ -3,21 +3,33 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
+const TYPED_PATHS = {
+  'app-runtime': 'public/typed/app-runtime.ts',
+  'prompt-library-smart-fill': 'public/prompt-library-smart-fill.ts',
+  'prompt-library-command-palette': 'public/prompt-library-command-palette.ts',
+  'scheduled-tasks-countdown': 'public/scheduled-tasks-countdown.ts',
+  'prompt-library-smart-fill-hints': 'public/prompt-library-smart-fill-hints.ts',
+  'prompt-library-keyboard': 'public/prompt-library-keyboard.ts',
+  'prompt-library-starters': 'public/prompt-library-starters.ts',
+  'prompt-library-usage': 'public/prompt-library-usage.ts',
+  'prompt-library-enhancements': 'public/prompt-library-enhancements.ts',
+  'scheduled-tasks': 'public/scheduled-tasks.ts',
+  'voice-output': 'public/voice-output.ts'
+} as const;
 
+const TYPED_ENTRIES = Object.keys(TYPED_PATHS) as Array<keyof typeof TYPED_PATHS>;
 const typedDevEntryPlugin = (): Plugin => ({
   name: 'hafize-typed-dev-entries',
   transformIndexHtml(html, context) {
-    if (context.server) {
-      return html
-        .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
-        .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
-        .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
-    }
-    return html;
+    if (!context.server) return html;
+    return TYPED_ENTRIES.reduce(
+      (source, name) => source.replaceAll(`/typed-build/${name}.js`, `/${TYPED_PATHS[name].replace(/^public\//, '')}`),
+      html
+    );
   }
 });
+
+const entry = Object.fromEntries(TYPED_ENTRIES.map((name) => [name, resolve(ROOT, TYPED_PATHS[name])]));
 
 export default defineConfig({
   root: resolve(ROOT, 'public'),
@@ -26,35 +38,14 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     fs: { strict: true },
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:4173',
-        changeOrigin: false
-      }
-    }
+    proxy: { '/api': { target: 'http://127.0.0.1:4173', changeOrigin: false } }
   },
   build: {
-    lib: {
-      entry: {
-        'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
-        'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
-        'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
-        'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
-        'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')
-      },
-      formats: ['es'],
-      fileName: (_format, entryName) => `${entryName}.js`
-    },
+    lib: { entry, formats: ['es'], fileName: (_format, entryName) => `${entryName}.js` },
     outDir: resolve(ROOT, 'public/typed-build'),
     emptyOutDir: true,
     sourcemap: true,
     target: 'es2022',
-    rollupOptions: {
-      output: {
-        entryFileNames: '[name].js',
-        chunkFileNames: '[name]-[hash].js',
-        assetFileNames: '[name]-[hash][extname]'
-      }
-    }
+    rollupOptions: { output: { entryFileNames: '[name].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } }
   }
 });
