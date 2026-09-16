@@ -66,12 +66,6 @@ interface PlatformWindow extends Window {
   readonly cancelIdleCallback?: (handle: number) => void;
 }
 
-interface PerformanceMemoryLike {
-  readonly usedJSHeapSize?: number;
-  readonly totalJSHeapSize?: number;
-  readonly jsHeapSizeLimit?: number;
-}
-
 const root = globalThis as PlatformWindow;
 const MAX_METRICS = 80;
 const MAX_ERRORS = 24;
@@ -83,14 +77,15 @@ function nowIso(): string { return new Date().toISOString(); }
 function clampMetric(value: number): number { return Number.isFinite(value) ? Math.max(0, Math.min(value, Number.MAX_SAFE_INTEGER)) : 0; }
 
 function detectCapabilities(windowRef: PlatformWindow): RuntimeCapabilities {
+  const navigatorRef = typeof navigator === 'undefined' ? null : navigator;
   return Object.freeze({
     storage: (() => { try { return Boolean(windowRef.localStorage); } catch { return false; } })(),
-    storageEstimate: typeof navigator !== 'undefined' && typeof navigator.storage?.estimate === 'function',
-    serviceWorker: 'serviceWorker' in navigator,
+    storageEstimate: Boolean(navigatorRef?.storage && typeof navigatorRef.storage.estimate === 'function'),
+    serviceWorker: Boolean(navigatorRef && 'serviceWorker' in navigatorRef),
     speechSynthesis: 'speechSynthesis' in windowRef && typeof windowRef.speechSynthesis?.speak === 'function',
     speechRecognition: 'SpeechRecognition' in windowRef || 'webkitSpeechRecognition' in windowRef,
-    screenCapture: typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function',
-    clipboard: typeof navigator !== 'undefined' && Boolean(navigator.clipboard?.writeText),
+    screenCapture: Boolean(navigatorRef?.mediaDevices && typeof navigatorRef.mediaDevices.getDisplayMedia === 'function'),
+    clipboard: Boolean(navigatorRef?.clipboard?.writeText),
     webTransport: 'WebTransport' in windowRef,
     trustedTypes: 'trustedTypes' in windowRef,
     performanceObserver: typeof windowRef.PerformanceObserver === 'function',
@@ -99,11 +94,12 @@ function detectCapabilities(windowRef: PlatformWindow): RuntimeCapabilities {
 }
 
 async function estimateStorage(): Promise<StorageSnapshot> {
-  if (typeof navigator === 'undefined' || !navigator.storage) return { usage: null, quota: null, available: null, persisted: null };
+  const navigatorRef = typeof navigator === 'undefined' ? null : navigator;
+  if (!navigatorRef?.storage) return { usage: null, quota: null, available: null, persisted: null };
   try {
     const [estimate, persisted] = await Promise.all([
-      typeof navigator.storage.estimate === 'function' ? navigator.storage.estimate() : Promise.resolve({}),
-      typeof navigator.storage.persisted === 'function' ? navigator.storage.persisted() : Promise.resolve(null)
+      typeof navigatorRef.storage.estimate === 'function' ? navigatorRef.storage.estimate() : Promise.resolve({}),
+      typeof navigatorRef.storage.persisted === 'function' ? navigatorRef.storage.persisted() : Promise.resolve(null)
     ]);
     const usage = typeof estimate.usage === 'number' ? estimate.usage : null;
     const quota = typeof estimate.quota === 'number' ? estimate.quota : null;
@@ -121,17 +117,13 @@ function readPersistedSnapshot(): Partial<PlatformSnapshot> {
     if (!parsed || typeof parsed !== 'object') return {};
     const record = parsed as Record<string, unknown>;
     return Number(record.version) === SNAPSHOT_VERSION ? parsed as Partial<PlatformSnapshot> : {};
-  } catch {
-    return {};
-  }
+  } catch { return {}; }
 }
 
 function persistSnapshot(snapshot: PlatformSnapshot): void {
   try {
     root.localStorage?.setItem(STORAGE_KEY, JSON.stringify({ version: SNAPSHOT_VERSION, phase: snapshot.phase, startedAt: snapshot.startedAt, updatedAt: snapshot.updatedAt }));
-  } catch {
-    // Runtime diagnostics must never break application features.
-  }
+  } catch { /* diagnostics must never break application features */ }
 }
 
 export class PlatformRuntime {
@@ -141,6 +133,7 @@ export class PlatformRuntime {
   private readonly metrics: RuntimeMetric[] = [];
   private readonly featureStates = new Map<string, FeatureState>();
   private readonly errorMessages: string[] = [];
+  private readonly features = new Map<string, PlatformFeature>();
   private snapshotValue: PlatformSnapshot;
   private phase: PlatformPhase = 'booting';
   private idleHandle = 0;
@@ -150,32 +143,20 @@ export class PlatformRuntime {
   constructor(private readonly windowRef: PlatformWindow = root) {
     const persisted = readPersistedSnapshot();
     const startedAt = typeof persisted.startedAt === 'string' ? persisted.startedAt : nowIso();
+    const network = windowRef.navigator?.onLine === false ? 'offline' : 'online';
     this.snapshotValue = Object.freeze({
-      phase: 'booting',
-      network: windowRef.navigator?.onLine === false ? 'offline' : 'online',
+      phase: 'booting', network,
       visible: windowRef.document?.visibilityState !== 'hidden',
-      onlineAt: windowRef.navigator?.onLine === false ? null : startedAt,
-      offlineAt: null,
-      startedAt,
-      updatedAt: nowIso(),
-      capabilities: detectCapabilities(windowRef),
-      storage: { usage: null, quota: null, available: null, persisted: null },
-      metrics: [],
-      featureStates: {},
-      errors: 0
+      onlineAt: network === 'offline' ? null : startedAt, offlineAt: null,
+      startedAt, updatedAt: nowIso(), capabilities: detectCapabilities(windowRef),
+      storage: { usage: null, quota: null, available: null, persisted: null }, metrics: [], featureStates: {}, errors: 0
     });
   }
 
   snapshot(): PlatformSnapshot { return this.snapshotValue; }
 
   private patch(patch: Partial<PlatformSnapshot>): void {
-    this.snapshotValue = Object.freeze({
-      ...this.snapshotValue,
-      ...patch,
-      updatedAt: nowIso(),
-      metrics: Object.freeze(this.metrics.slice(-MAX_METRICS)),
-      featureStates: Object.freeze(Object.fromEntries(this.featureStates.entries()))
-    });
+    this.snapshotValue = Object.freeze({ ...this.snapshotValue, ...patch, updatedAt: nowIso(), metrics: Object.freeze(this.metrics.slice(-MAX_METRICS)), featureStates: Object.freeze(Object.fromEntries(this.featureStates.entries())) });
     persistSnapshot(this.snapshotValue);
     this.windowRef.dispatchEvent(new CustomEvent('hafize:platform-snapshot', { detail: this.snapshotValue }));
   }
@@ -214,16 +195,9 @@ export class PlatformRuntime {
         });
         observer.observe(options ?? { entryTypes: [type] });
         this.listeners.push(() => observer.disconnect());
-      } catch {
-        // Unsupported entry types are ignored per-browser.
-      }
+      } catch { /* unsupported entry types are ignored per-browser */ }
     };
-    observe('navigation');
-    observe('resource');
-    observe('longtask');
-    observe('largest-contentful-paint');
-    observe('layout-shift');
-    observe('event', { type: 'event', buffered: true, durationThreshold: 40 });
+    observe('navigation'); observe('resource'); observe('longtask'); observe('largest-contentful-paint'); observe('layout-shift'); observe('event', { type: 'event', buffered: true, durationThreshold: 40 });
   }
 
   private async refreshStorage(): Promise<void> {
@@ -238,30 +212,30 @@ export class PlatformRuntime {
       target.addEventListener(type, handler as EventListener);
       this.listeners.push(() => target.removeEventListener(type, handler as EventListener));
     };
-    listen(this.windowRef, 'online', () => { this.patch({ network: 'online', onlineAt: nowIso(), phase: this.phase === 'stopped' ? this.phase : 'ready' }); this.refreshStorage(); });
+    listen(this.windowRef, 'online', () => { this.patch({ network: 'online', onlineAt: nowIso(), phase: this.phase === 'stopped' ? this.phase : 'ready' }); void this.refreshStorage(); });
     listen(this.windowRef, 'offline', () => { this.patch({ network: 'offline', offlineAt: nowIso(), phase: this.phase === 'stopped' ? this.phase : 'degraded' }); });
     listen(this.windowRef, 'visibilitychange', () => { this.patch({ visible: this.windowRef.document.visibilityState !== 'hidden' }); });
     listen(this.windowRef, 'error', (event) => { this.recordError(event.error ?? event.message, 'window'); });
     listen(this.windowRef, 'unhandledrejection', (event) => { this.recordError(event.reason, 'promise'); });
-    listen(this.windowRef, 'pagehide', () => { this.persistForNavigation(); });
+    listen(this.windowRef, 'pagehide', () => { persistSnapshot(this.snapshotValue); });
   }
-
-  private persistForNavigation(): void { persistSnapshot(this.snapshotValue); }
 
   register(feature: PlatformFeature): void {
     if (!feature.id || this.featureStates.has(feature.id) || this.featureStates.size >= MAX_FEATURES) return;
     this.featureStates.set(feature.id, 'registered');
+    this.features.set(feature.id, feature);
     this.patch({});
   }
 
   async startFeatures(): Promise<void> {
-    const features = [...this.featureStates.keys()].sort((a, b) => a.localeCompare(b));
-    for (const id of features) await this.startFeature(id);
+    const features = [...this.features.values()].sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0) || a.id.localeCompare(b.id));
+    for (const feature of features) await this.startFeature(feature.id);
   }
 
   async startFeature(id: string): Promise<void> {
     const feature = this.features.get(id);
-    if (!feature || this.featureStates.get(id) === 'running' || this.featureStates.get(id) === 'starting') return;
+    const state = this.featureStates.get(id);
+    if (!feature || state === 'running' || state === 'starting') return;
     this.featureStates.set(id, 'starting');
     const controller = new AbortController();
     this.controllers.set(id, controller);
@@ -285,20 +259,13 @@ export class PlatformRuntime {
     this.patch({});
   }
 
-  private readonly features = new Map<string, PlatformFeature>();
-
   addFeature(feature: PlatformFeature): void {
     if (this.features.has(feature.id)) return;
-    this.features.set(feature.id, feature);
     this.register(feature);
+    if (this.started) void this.startFeature(feature.id);
   }
 
-  removeFeature(id: string): void {
-    this.stopFeature(id);
-    this.features.delete(id);
-    this.featureStates.delete(id);
-    this.patch({});
-  }
+  removeFeature(id: string): void { this.stopFeature(id); this.features.delete(id); this.featureStates.delete(id); this.patch({}); }
 
   async start(): Promise<PlatformSnapshot> {
     if (this.started) return this.snapshotValue;
@@ -308,17 +275,16 @@ export class PlatformRuntime {
     await this.refreshStorage();
     await this.startFeatures();
     this.setPhase('ready');
+    if (typeof document !== 'undefined') {
+      void import('./platform-dashboard.ts').then(({ mountPlatformDashboard }) => { mountPlatformDashboard(document); }).catch((error: unknown) => this.recordError(error, 'platform-dashboard'));
+    }
     this.windowRef.dispatchEvent(new CustomEvent('hafize:platform-ready', { detail: this.snapshotValue }));
     return this.snapshotValue;
   }
 
   stop(): void {
     for (const id of [...this.featureStates.keys()]) this.stopFeature(id);
-    if (this.idleHandle) {
-      this.windowRef.cancelIdleCallback?.(this.idleHandle);
-      this.windowRef.clearTimeout(this.idleHandle);
-      this.idleHandle = 0;
-    }
+    if (this.idleHandle) { this.windowRef.cancelIdleCallback?.(this.idleHandle); this.windowRef.clearTimeout(this.idleHandle); this.idleHandle = 0; }
     for (const off of this.listeners.splice(0)) off();
     this.started = false;
     this.setPhase('stopped');
@@ -337,7 +303,6 @@ const bootFeature: PlatformFeature = {
     return () => undefined;
   }
 };
-
 hafizePlatform.addFeature(bootFeature);
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { void hafizePlatform.start(); }, { once: true });
