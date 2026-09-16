@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const source = fs.readFileSync(path.join(process.cwd(), 'public/typed/platform-diagnostics.ts'), 'utf8');
+assert.ok(source.includes('export interface DiagnosticsDocument'));
+assert.ok(source.includes('export function buildDiagnostics'));
+assert.ok(source.includes('export function diagnosticsJson'));
+assert.ok(source.includes('export function downloadDiagnostics'));
+assert.ok(source.includes('export function privacyChecklist'));
+assert.ok(source.includes('MAX_METRICS = 20'));
+assert.ok(source.includes('MAX_JSON_BYTES = 120_000'));
+assert.ok(source.includes('SAFE_APP_NAME'));
+assert.ok(source.includes('slice(-MAX_METRICS)'));
+assert.ok(source.includes('secret'));
+assert.ok(source.includes('chat'));
+assert.ok(!source.includes('document.cookie'));
+assert.ok(!source.includes('authorization'));
+assert.ok(!source.includes('HAFIZE_AUTH_TOKEN'));
+console.log('platform diagnostics: ok');
