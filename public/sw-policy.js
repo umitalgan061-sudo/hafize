@@ -6,32 +6,26 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v33`;
-  // `cache.addAll()` is atomic: a single missing entry rejects the install and
-  // leaves the app without an offline shell. The list therefore mirrors what
-  // `index.html` actually loads — nothing more, nothing less — and
-  // `scripts/shell-cache-contract.mjs` enforces that in both directions.
+  const CURRENT_CACHE = `${CACHE_PREFIX}v35`;
   const SHELL_ASSETS = Object.freeze([
-    // Documents
     '/', '/index.html', '/offline.html',
-    // Stylesheets, in index.html order
     '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
     '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css',
     '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
     '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/message-workspace.css',
     '/prompt-library.css', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
-    '/composer-history.css', '/scheduled-tasks.css',
-    // Scripts, in index.html order
+    '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
     '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js',
     '/message-workspace-policy.js', '/message-workspace.js',
     '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
-    '/prompt-library-usage.js', '/prompt-library-smart-fill.js', '/prompt-library-command-palette.js', '/prompt-library-smart-fill-hints.js',
+    '/prompt-library-usage.js',
     '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
-    '/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js', '/scheduled-tasks-countdown.js',
+    '/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js',
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
     '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
-    // Service worker policy and static assets
+    '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
+    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/scheduled-tasks-countdown.js',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
