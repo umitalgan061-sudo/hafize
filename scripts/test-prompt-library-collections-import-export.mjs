@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const source = fs.readFileSync('public/prompt-library-collections.js', 'utf8');
+assert.match(source, /function exportPayload/);
+assert.match(source, /source: 'hafize-prompt-library-collections'/);
+assert.match(source, /version: 1/);
+assert.match(source, /function importPayload/);
+assert.match(source, /JSON\.parse/);
+assert.match(source, /existingNames/);
+assert.match(source, /new Set\(current\.map/);
+assert.match(source, /id: makeId\(\)/);
+assert.match(source, /500_000/);
+assert.match(source, /payload\.collections/);
+assert.match(source, /saveCollections\(storage, current\)/);
+assert.doesNotMatch(source, /prompt\.body/);
+assert.doesNotMatch(source, /promptIds: .*body/);
+assert.doesNotMatch(source, /eval\(/);
+assert.doesNotMatch(source, /Function\(/);
+assert.doesNotMatch(source, /setTimeout\([^)]*input/);
+console.log('prompt collection import/export contract: ok');
