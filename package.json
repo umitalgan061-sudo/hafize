@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node --import ./lib/production-guard.mjs server.mjs",
+    "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
     "dev:server": "node --import ./lib/production-guard.mjs server.mjs",
     "build": "tsc --noEmit && vite build",
@@ -15,7 +16,8 @@
     "test:modern": "vitest run",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
-    "test": "node scripts/run-checks.mjs"
+    "test": "node scripts/run-checks.mjs",
+    "format:check": "node scripts/format-check.mjs"
   },
   "dependencies": {
     "redis": "^6.1.0"
