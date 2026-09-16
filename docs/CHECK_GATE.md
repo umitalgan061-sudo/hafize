@@ -25,7 +25,11 @@ değişmezlerini (sürüm biçimi, eski sürümlerin temizlenmesi, her asset'in 
 kaynak-sözleşme yardımcılarını sağlar: bir attribute markup ya da `setAttribute` ile,
 bir sınıf seçici ya da sınıf adı olarak, CSS parçaları ise boşluktan bağımsız eşleşir.
 `browser-storage-stub.mjs` ise tarayıcı modüllerini Node içinde çalıştırmak için bellek içi
-`localStorage` ve bilinçli olarak hata fırlatan store taklitleri verir.
+`localStorage` ve bilinçli olarak hata fırlatan store taklitleri verir. `panel-dom-harness.mjs`
+panel modüllerini gerçekten mount etmek için küçük bir DOM verir: element arama, sınırlı seçici
+desteği, odak takibi ve gerçek capture fazı olan bir olay dağıtıcısı. Böylece "içe aktarma
+önizlemesi dosya seçimini çekirdek importtan önce alır" gibi bir davranış, kaynak metnine
+bakmadan doğrulanabilir.
 Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
 
 ## Paket yazarken
