@@ -49,6 +49,8 @@ Desteklenen akış:
 - 10 güvenli başlangıç istemi ve eksik starter'ları geri yükleme,
 - `Ctrl / ⌘ + Shift + P` arama ve `Ctrl / ⌘ + Shift + N` yeni istem kısayolları.
 
+Kullanım İstatistikleri paneli toplam kullanım, kullanılan kayıt, en çok kullanılan ve son kullanılan istem özetlerini cihaz üzerinde gösterir. Panel gizlenebilir; analytics veya telemetry servisine veri göndermez.
+
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
 ## Test
