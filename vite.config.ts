@@ -12,7 +12,8 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
         .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
         .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
-        .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts');
+        .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
+        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
     }
     return html;
   }
@@ -38,7 +39,8 @@ export default defineConfig({
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
-        'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts')
+        'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
+        'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`
