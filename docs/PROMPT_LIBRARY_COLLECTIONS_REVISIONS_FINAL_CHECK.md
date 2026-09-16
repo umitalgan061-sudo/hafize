@@ -1,0 +1,22 @@
+# Final check
+
+- Collection storage key v1.
+- Revision storage key v1.
+- 40 collection cap.
+- 120 member cap.
+- 20 revision per prompt.
+- 600 revision global cap.
+- Orphan cleanup enabled.
+- Restore confirmation required.
+- Before-restore snapshot recorded.
+- Prompt id remains stable.
+- Use count remains stable.
+- JSON import bounded.
+- JSON export local-only.
+- DOM text boundary protected.
+- No network transport.
+- PWA assets cached.
+- API stays network-only.
+- Lifecycle cleanup present.
+- Mobile/forced-colors styles present.
+- Release evidence documented.
