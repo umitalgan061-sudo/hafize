@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const fill = fs.readFileSync('public/prompt-library-fill.js', 'utf8');
+const presets = fs.readFileSync('public/prompt-library-fill-presets.js', 'utf8');
+
+assert.match(fill, /const MAX_VALUE = 1000/);
+assert.match(fill, /const MAX_SAVED = 30/);
+assert.match(fill, /Object\.entries\(values\)/);
+assert.match(fill, /slice\(0, MAX_VALUE\)/);
+assert.match(fill, /localStorage/);
+assert.match(fill, /hafize\.prompt-library\.fill\.v1/);
+assert.match(fill, /promptLibraryFillDialog/);
+assert.match(fill, /aria-labelledby/);
+assert.match(fill, /aria-label/);
+assert.match(fill, /textContent/);
+assert.doesNotMatch(fill, /innerHTML\s*=/);
+assert.doesNotMatch(fill, /outerHTML/);
+assert.doesNotMatch(fill, /eval\s*\(/);
+assert.doesNotMatch(fill, /new Function/);
+assert.doesNotMatch(fill, /fetch\s*\(/);
+assert.doesNotMatch(fill, /XMLHttpRequest/);
+assert.doesNotMatch(fill, /navigator\.sendBeacon/);
+assert.match(presets, /MAX_PRESETS = 8/);
+assert.match(presets, /MAX_NAME = 48/);
+assert.match(presets, /MAX_VALUE = 1000/);
+assert.match(presets, /MAX_VARS = 12/);
+assert.match(presets, /safeValues/);
+assert.match(presets, /localStorage/);
+assert.match(presets, /textContent/);
+assert.doesNotMatch(presets, /innerHTML\s*=/);
+assert.doesNotMatch(presets, /fetch\s*\(/);
+console.log('smart fill safety boundaries: ok');
