@@ -21,8 +21,11 @@
   async function ensure() { await refresh(); if (!state.required || state.authenticated) return; openLogin(); while (!state.authenticated) { await new Promise((resolve) => setTimeout(resolve, 200)); await refresh(); } }
   window.fetch = async function hafizeFetch(input, init = {}) {
     if (!apiPath(input) || authPath(input)) return rawFetch(input, init);
-    await ensure(); const next = { ...init, credentials: 'same-origin' }, method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
-    if (!['GET', 'HEAD'].includes(method)) { next.headers = new Headers(next.headers || {}); if (state.csrf) next.headers.set('X-Hafize-CSRF', state.csrf); }
+    await ensure();
+    /** @type {RequestInit & { headers: Headers }} */
+    const next = { ...init, credentials: 'same-origin', headers: new Headers(init.headers || {}) };
+    const method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    if (!['GET', 'HEAD'].includes(method) && state.csrf) next.headers.set('X-Hafize-CSRF', state.csrf);
     let response = await rawFetch(input, next); if (response.status !== 401) return response;
     state.authenticated = false; state.csrf = ''; await ensure(); if (!['GET', 'HEAD'].includes(method)) { next.headers.set('X-Hafize-CSRF', state.csrf); }
     return rawFetch(input, next);

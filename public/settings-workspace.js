@@ -241,9 +241,9 @@
     const existing = documentRef.getElementById?.(WORKSPACE_ID);
     if (existing) return existing;
     ensureStyle(documentRef);
-    const rail = documentRef.querySelector('.utility-rail');
-    const primary = documentRef.querySelector('.primary-column');
-    const main = documentRef.querySelector('.main');
+    const rail = /** @type {HTMLElement} */ (documentRef.querySelector('.utility-rail'));
+    const primary = /** @type {HTMLElement} */ (documentRef.querySelector('.primary-column'));
+    const main = /** @type {HTMLElement} */ (documentRef.querySelector('.main'));
     if (!rail || !primary || !main) return null;
     const storage = rootRef?.localStorage;
     const view = createView(documentRef, storage, rootRef);
@@ -265,9 +265,10 @@
       view.hidden = false;
       primary.hidden = true;
       main.setAttribute('data-workspace', 'settings');
-      const intro = documentRef.querySelector('#workspaceNavigationIntro');
+      const intro = /** @type {HTMLElement | null} */ (documentRef.querySelector('#workspaceNavigationIntro'));
       if (intro) intro.hidden = true;
-      for (const node of Array.from(rail.children || [])) {
+      for (const child of Array.from(rail.children || [])) {
+        const node = /** @type {HTMLElement} */ (child);
         if (node !== view && node !== intro) node.hidden = true;
       }
       rail.setAttribute('aria-label', 'Hafize ayarlar çalışma alanı');
@@ -284,8 +285,8 @@
     const onSettingsClick = (event) => {
       event.preventDefault();
       showSettings();
-      const sidebar = documentRef.querySelector('#sidebar');
-      const toggle = documentRef.querySelector('#sidebarToggle');
+      const sidebar = /** @type {HTMLElement | null} */ (documentRef.querySelector('#sidebar'));
+      const toggle = /** @type {HTMLButtonElement | null} */ (documentRef.querySelector('#sidebarToggle'));
       if (sidebar?.classList?.contains('open') && typeof toggle?.click === 'function') toggle.click();
     };
 

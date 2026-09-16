@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// Neden": [
+    "Kök yapılandırma yalnızca iki projeyi birbirine bağlar. Tarayıcı ve",
+    "sunucu kodu farklı global'lere sahiptir; tek bir tsconfig ikisini de",
+    "doğru denetleyemez."
+  ],
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.browser.json" },
+    { "path": "./tsconfig.worker.json" }
+  ]
+}

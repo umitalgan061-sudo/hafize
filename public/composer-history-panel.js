@@ -24,7 +24,7 @@
 
   function boot() {
     const doc = root.document;
-    const composer = doc?.getElementById?.(INPUT_ID);
+    const composer = /** @type {HTMLTextAreaElement | null} */ (doc?.getElementById?.(INPUT_ID) ?? null);
     const form = composer?.closest?.('form');
     if (!doc || !composer || !form || doc.getElementById(PANEL_ID)) return null;
 

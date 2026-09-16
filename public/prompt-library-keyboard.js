@@ -10,7 +10,7 @@
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
       const key = event.key.toLowerCase();
       if (key === 'p') {
-        const search = root.document.querySelector('#promptLibrarySearch');
+        const search = /** @type {HTMLInputElement | null} */ (root.document.querySelector('#promptLibrarySearch'));
         if (!search) return;
         event.preventDefault();
         search.focus();
@@ -18,7 +18,7 @@
         return;
       }
       if (key === 'n') {
-        const create = card.querySelector('.prompt-library-actions .soft-btn');
+        const create = /** @type {HTMLButtonElement | null} */ (card.querySelector('.prompt-library-actions .soft-btn'));
         if (!create) return;
         event.preventDefault();
         create.click();

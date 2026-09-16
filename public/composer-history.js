@@ -23,7 +23,7 @@
   };
   function boot() {
     const documentRef = root.document;
-    const composer = documentRef?.getElementById?.(INPUT_ID);
+    const composer = /** @type {HTMLTextAreaElement | null} */ (documentRef?.getElementById?.(INPUT_ID) ?? null);
     if (!documentRef || !composer || composer.dataset.historyReady === 'true') return null;
     composer.dataset.historyReady = 'true';
     const api = root.HafizeComposerHistory;

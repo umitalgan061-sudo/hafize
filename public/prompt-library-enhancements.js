@@ -72,7 +72,7 @@
   function clearFilters() {
     const next = { query: '', tag: 'all', favoriteOnly: false, sort: 'updated-desc' };
     api.saveState(storage(), next);
-    const search = root.document.querySelector('#promptLibrarySearch');
+    const search = /** @type {HTMLInputElement | null} */ (root.document.querySelector('#promptLibrarySearch'));
     search?.focus?.();
     root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-state-changed', { detail: next }));
     report('İstem filtreleri sıfırlandı.');
@@ -104,7 +104,9 @@
     if (action === 'restore-starters') return restoreStarters();
     if (action === 'clear-filters') return clearFilters();
     if (action === 'bulk-clear') {
-      card.querySelectorAll('[data-prompt-selection]').forEach((node) => { node.checked = false; });
+      card.querySelectorAll('[data-prompt-selection]').forEach((node) => {
+        /** @type {HTMLInputElement} */ (node).checked = false;
+      });
       enhance();
       return;
     }
@@ -131,7 +133,8 @@
       toolbar.addEventListener('click', onClick);
       listeners.push(() => toolbar.removeEventListener('click', onClick));
     }
-    list.querySelectorAll('.prompt-item').forEach((row) => {
+    list.querySelectorAll('.prompt-item').forEach((node) => {
+      const row = /** @type {HTMLElement} */ (node);
       const id = row.dataset.promptId;
       const actions = row.querySelector('.prompt-item-actions');
       if (!id || !actions || actions.querySelector('[data-prompt-enhancement="copy"]')) return;

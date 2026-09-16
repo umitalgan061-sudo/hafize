@@ -177,7 +177,7 @@
 
   function mount(documentRef = globalThis.document, rootRef = globalThis, options = {}) {
     const rail = documentRef?.querySelector?.('.utility-rail');
-    const composer = documentRef?.querySelector?.('#messageInput');
+    const composer = /** @type {HTMLTextAreaElement | null} */ (documentRef?.querySelector?.('#messageInput') ?? null);
     if (!documentRef || !rail || !composer) return null;
     if (documentRef.getElementById('promptLibraryCard')) return { mounted: false, reason: 'already-mounted' };
     const storage = options.storage || rootRef.localStorage;

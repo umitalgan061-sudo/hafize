@@ -20,7 +20,8 @@
   function refresh() {
     const panel = root.document?.getElementById?.(PANEL_ID);
     if (!panel || panel.hidden) return;
-    panel.querySelectorAll('.scheduled-task-row').forEach((row) => {
+    panel.querySelectorAll('.scheduled-task-row').forEach((rowNode) => {
+      const row = /** @type {HTMLElement} */ (rowNode);
       if (row.dataset.status !== 'scheduled') {
         row.querySelector('.scheduled-task-countdown')?.remove();
         return;

@@ -131,9 +131,9 @@
       throw new Error('INVALID_WORKSPACE_NAVIGATION_DOCUMENT');
     }
 
-    const main = documentRef.querySelector('.main');
-    const primary = documentRef.querySelector('.primary-column');
-    const rail = documentRef.querySelector('.utility-rail');
+    const main = /** @type {HTMLElement} */ (documentRef.querySelector('.main'));
+    const primary = /** @type {HTMLElement} */ (documentRef.querySelector('.primary-column'));
+    const rail = /** @type {HTMLElement} */ (documentRef.querySelector('.utility-rail'));
     const nav = resolveNavigation(documentRef);
     if (!main || !primary || !rail || !nav) throw new Error('WORKSPACE_NAVIGATION_HOST_UNAVAILABLE');
 

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// Neden": [
+    "public/ tarayıcıda çalışır: Node global'leri (process, Buffer, Node'un",
+    "setTimeout'u) burada yoktur ve yanlışlıkla kullanılırsa hata olmalıdır.",
+    "Bu yüzden types boş bırakılır ve yalnızca DOM lib'i yüklenir."
+  ],
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["public/**/*.js", "types/browser.d.ts", "types/shared.d.ts"],
+  "exclude": ["public/sw.js"]
+}

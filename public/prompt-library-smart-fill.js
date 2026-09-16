@@ -247,7 +247,7 @@
       const values = currentValues();
       if (activeNames.some((name) => values[name].trim().length === 0)) return showError('Tüm değişken alanlarını doldur veya gerekli olmayan alanı boş bırakmak için istemi düzenle.');
       const text = core()?.replaceVariables?.(activePrompt.body, values) || activePrompt.body;
-      const composer = documentRef.querySelector('#messageInput');
+      const composer = /** @type {HTMLTextAreaElement | null} */ (documentRef.querySelector('#messageInput'));
       if (!composer) return showError('Mesaj alanı bulunamadı.');
       const usedPromptId = activePrompt.id;
       composer.value = text.slice(0, MAX_PREVIEW);

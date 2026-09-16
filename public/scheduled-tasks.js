@@ -38,7 +38,10 @@
     const response = await root.fetch(path, { ...options, credentials: 'same-origin', headers, signal: controller?.signal });
     const payload = await safeJson(response);
     if (!response.ok) {
-      const error = new Error(payload?.code || payload?.error || `HTTP_${response.status}`);
+      // HTTP durumu ve gövdesi çağırana taşınır; mesaj yalnızca makine kodudur.
+      const error = /** @type {Error & { status?: number; payload?: unknown }} */ (
+        new Error(payload?.code || payload?.error || `HTTP_${response.status}`)
+      );
       error.status = response.status;
       error.payload = payload;
       throw error;
@@ -47,7 +50,7 @@
   }
 
   function agentOptions() {
-    const select = doc().getElementById('agentSelect');
+    const select = /** @type {HTMLSelectElement | null} */ (doc().getElementById('agentSelect'));
     return select ? [...select.options].filter((option) => option.value).map((option) => ({ id: option.value, label: option.textContent?.trim() || option.value })) : [];
   }
 
@@ -219,7 +222,9 @@
 
   function boot() {
     if (mounted || !doc()) return;
-    const nav = [...doc().querySelectorAll('.nav-item')].find((node) => node.textContent?.includes('Görevler'));
+    const nav = /** @type {HTMLButtonElement | undefined} */ (
+      [...doc().querySelectorAll('.nav-item')].find((node) => node.textContent?.includes('Görevler'))
+    );
     if (!nav) return;
     build(); nav.disabled = false; nav.addEventListener('click', open); nav.setAttribute('aria-controls', PANEL_ID); nav.setAttribute('aria-expanded', 'false');
     mounted = true;

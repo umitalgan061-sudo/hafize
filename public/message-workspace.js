@@ -165,7 +165,7 @@
   }
 
   function currentConversationId() {
-    const active = document.querySelector('.conversation-row.active .conversation-open');
+    const active = /** @type {HTMLElement | null} */ (document.querySelector('.conversation-row.active .conversation-open'));
     return active?.dataset?.conversationId || '';
   }
 
@@ -532,7 +532,8 @@
   }
 
   function sweepMissingRecords() {
-    const live = new Set([...ui.messages.querySelectorAll('.message[data-message-id]')].map(article => article.dataset.messageId));
+    const live = new Set([...ui.messages.querySelectorAll('.message[data-message-id]')]
+      .map((article) => /** @type {HTMLElement} */ (article).dataset.messageId));
     const conversationId=currentConversationId();
     if (!conversationId) return;
     const before=runtime.records.length;

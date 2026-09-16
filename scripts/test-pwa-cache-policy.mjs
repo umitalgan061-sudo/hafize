@@ -141,7 +141,11 @@ assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 const swSource = await readFile(join(ROOT, 'public', 'sw.js'), 'utf8');
 assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);
-assert.match(swSource, /classifyRequest\(event\.request, self\.location\.origin\)/);
+// Kapsam takma adı `sw`, tip denetimi için `self`'i ServiceWorkerGlobalScope
+// olarak daraltır; sınıflandırmanın isteği ve worker'ın kendi origin'ini
+// kullandığı sözleşmesi değişmez.
+assert.match(swSource, /const sw = \/\*\* @type \{ServiceWorkerGlobalScope/);
+assert.match(swSource, /classifyRequest\(event\.request, sw\.location\.origin\)/);
 assert.match(swSource, /shouldDeleteCache\(key\)/);
 assert.match(swSource, /cache\.addAll\(SHELL_ASSETS\)/);
 assert.match(swSource, /cache\.match\('\/offline\.html'\)/);

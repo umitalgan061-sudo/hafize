@@ -19,7 +19,7 @@
   };
 
   function status(message, tone = '') {
-    const target = root.document.querySelector(`#${PANEL_ID} .scheduled-tasks-status`);
+    const target = /** @type {HTMLElement | null} */ (root.document.querySelector(`#${PANEL_ID} .scheduled-tasks-status`));
     if (!target) return;
     target.textContent = String(message).slice(0, 220);
     target.dataset.tone = tone;
@@ -70,9 +70,9 @@
   }
 
   function onTemplate(event) {
-    const target = event.target?.closest?.('[data-template-task]');
+    const target = /** @type {HTMLElement | null} */ (event.target?.closest?.('[data-template-task]') ?? null);
     if (!target) return;
-    const textarea = root.document.querySelector(`#${PANEL_ID} .scheduled-tasks-create textarea`);
+    const textarea = /** @type {HTMLTextAreaElement | null} */ (root.document.querySelector(`#${PANEL_ID} .scheduled-tasks-create textarea`));
     if (!textarea) return;
     textarea.value = target.dataset.templateTask || '';
     textarea.focus();

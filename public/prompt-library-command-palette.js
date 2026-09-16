@@ -47,7 +47,7 @@
   }
 
   function mount(documentRef = root.document, rootRef = root) {
-    const input = documentRef?.getElementById?.(INPUT_ID);
+    const input = /** @type {HTMLTextAreaElement | null} */ (documentRef?.getElementById?.(INPUT_ID) ?? null);
     if (!documentRef || !input || documentRef.getElementById(PALETTE_ID)) return null;
 
     const palette = make(documentRef, 'section', undefined, 'prompt-command-palette');
