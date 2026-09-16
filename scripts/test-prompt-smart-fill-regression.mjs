@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root,p),'utf8');
 const smart = read('public/prompt-library-smart-fill.js');
@@ -58,7 +59,7 @@ assert.match(index,/prompt-library-command-palette\.css/);
 assert.match(index,/prompt-library-smart-fill\.js/);
 assert.match(index,/prompt-library-command-palette\.js/);
 assert.match(index,/prompt-library-smart-fill-hints\.js/);
-assert.match(sw,/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v29`/);
+assertVersionedCacheDeclaration(sw);
 for (const asset of ['prompt-library-smart-fill.css','prompt-library-smart-fill.js','prompt-library-smart-fill-hints.js','prompt-library-command-palette.css','prompt-library-command-palette.js']) assert.match(sw,new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 assert.match(sw,/pathname\.startsWith\('\/api\/'\)/);
 console.log('prompt smart-fill regression suite: ok');
