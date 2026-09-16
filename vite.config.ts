@@ -17,7 +17,12 @@ const TYPED_ENTRIES = [
   'chat-composer-features',
   'chat-drafts',
   'voice-output',
-  'workspace-navigation'
+  'workspace-navigation',
+  'chat-history-search',
+  'chat-history-management',
+  'composer-history',
+  'settings-workspace',
+  'ui-shell'
 ] as const;
 
 const typedDevEntryPlugin = (): Plugin => ({
