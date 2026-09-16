@@ -17,6 +17,20 @@ assert.equal(merged.imported, 2);
 assert.equal(merged.items.length, 3);
 assert.equal(merged.items[0].body, 'keep');
 assert.equal(new Set(merged.items.map((item) => item.id)).size, 3);
+// A library at capacity imports nothing and says so: appending past the limit
+// and trimming afterwards used to report a prompt that never landed.
+const full = Array.from({ length: LIMITS.maxItems }, (_, index) => ({ id: `id-${index}`, title: `T${index}`, body: 'gövde' }));
+const overflow = mergeImportedItems(full, [{ id: 'new', title: 'Yeni', body: 'gövde' }]);
+assert.equal(overflow.imported, 0);
+assert.equal(overflow.items.length, LIMITS.maxItems);
+assert.equal(overflow.items.some((item) => item.id === 'new'), false);
+const almost = mergeImportedItems(full.slice(0, LIMITS.maxItems - 1), [
+  { id: 'new-1', title: 'Yeni 1', body: 'gövde' },
+  { id: 'new-2', title: 'Yeni 2', body: 'gövde' }
+]);
+assert.equal(almost.imported, 1, 'only what fits is counted as imported');
+assert.equal(almost.items.length, LIMITS.maxItems);
+
 const json = exportPayload(merged.items);
 const parsed = JSON.parse(json);
 assert.equal(parsed.version, 1);
