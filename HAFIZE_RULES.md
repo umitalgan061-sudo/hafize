@@ -18,15 +18,15 @@ Claude-benzeri sade bir sohbet deneyimi üzerinde çalışan; NVIDIA NIM modelle
 8. Self-development değişikliklerini doğrudan `main` üzerine merge etme.
 9. Test başarısızsa bunu saklama; PR açıklamasında açıkça belirt.
 
-## Tur tamamlama kriteri — 4000+ anlamlı değişiklik
+## Tur tamamlama kriteri — 3000+ anlamlı değişiklik
 
-- Normal koşullarda bir self-development turu **4000 değişen satıra ulaşmadan kapatılmaz**. Ölçüm turun başlangıç base commit'i ile son stacked head arasındaki Git diff'teki `additions + deletions` toplamıdır.
-- Hedef yalnızca 4000'e dokunmak değildir; iş paketinin gerektirdiği **4000'den fazla anlamlı değişiklik ve/veya ekleme** tamamlanmalıdır.
-- Diff 4000'in altındaysa ve repository içinde aynı iş paketine ait gerçek, yüksek öncelikli işler kaldıysa araştırmaya ve uygulamaya devam edilir.
-- **4000 satıra ulaşılması otomatik durma sinyali değildir.** 4000 sonrasında da iş paketi tamamlanana, ilgili testler/DoD karşılanana ve yüksek öncelikli anlamlı işler bitene kadar devam edilir.
+- Normal koşullarda bir self-development turu **3000 değişen satırı geçmeden kapatılmaz**. Ölçüm turun başlangıç base commit'i ile son stacked head arasındaki Git diff'teki `additions + deletions` toplamıdır.
+- Hedef yalnızca 3000'e dokunmak değildir; iş paketinin gerektirdiği **3000'den fazla anlamlı değişiklik ve/veya ekleme** tamamlanmalıdır.
+- Diff 3000'in altındaysa ve repository içinde aynı iş paketine ait gerçek, yüksek öncelikli işler kaldıysa araştırmaya ve uygulamaya devam edilir.
+- **3000 satıra ulaşılması otomatik durma sinyali değildir.** 3000 sonrasında da iş paketi tamamlanana, ilgili testler/DoD karşılanana ve yüksek öncelikli anlamlı işler bitene kadar devam edilir.
 - İkinci veya sonraki ilişkili alt adımlar aynı ana iyileştirmenin kapsamında olduğu sürece tur içinde sürdürülebilir; her önemli alt adımdan sonra base→head diff yeniden ölçülür.
-- 4000+ hedefi hiçbir şekilde yapay satır doldurma gerekçesi değildir. Gereksiz boilerplate, kopya kod, tekrarlı test, anlamsız yorum, davranışsız refactor veya sırf sayı artırmak için üretilen dokümantasyon yasaktır.
-- 4000'e ulaşmadan önce anlamlı iş kalmamışsa tur yalnızca istisnai olarak daha erken kapanabilir; PR açıklamasında neden açıkça belirtilmelidir.
+- 3000+ hedefi hiçbir şekilde yapay satır doldurma gerekçesi değildir. Gereksiz boilerplate, kopya kod, tekrarlı test, anlamsız yorum, davranışsız refactor veya sırf sayı artırmak için üretilen dokümantasyon yasaktır.
+- 3000'e ulaşmadan önce anlamlı iş kalmamışsa tur yalnızca istisnai olarak daha erken kapanabilir; PR açıklamasında neden açıkça belirtilmelidir.
 - Güvenlik, veri kaybını önleme, test/DoD ve kullanıcı onayı gereksinimleri her zaman değişiklik hacmi hedefinden daha yüksek önceliklidir.
 - Tek PR'ın diff'i için ayrı bir yapay satır kotası uygulanmaz; ancak GitHub/araç sınırları, inceleme yapılabilirliği, güvenlik ve değişikliğin bütünlüğü korunur.
 
