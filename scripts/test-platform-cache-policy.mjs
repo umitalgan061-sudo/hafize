@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const source = fs.readFileSync(path.join(process.cwd(), 'public/typed/platform-cache-policy.ts'), 'utf8');
+assert.ok(source.includes('PLATFORM_CACHE_POLICY'));
+assert.ok(source.includes('typed-build/app-runtime.js'));
+assert.ok(source.includes('export function classifyCacheRequest'));
+assert.ok(source.includes("pathname.startsWith('/api/')"));
+assert.ok(source.includes('network-only'));
+assert.ok(source.includes('sameOrigin'));
+assert.ok(source.includes('shouldDeleteCache'));
+assert.ok(source.includes('hafize-shell-v36'));
+console.log('platform cache policy: ok');
