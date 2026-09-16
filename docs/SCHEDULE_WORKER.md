@@ -1,33 +1,45 @@
-# Schedule Worker Adapter
+# Schedule Worker — Burst ve Retry Davranışı
 
-`lib/schedule-worker.mjs`, `task-schedule-store` içindeki due görevleri claim edip mevcut agent execution katmanına güvenli biçimde taşıyan provider-bağımsız worker adapter'ıdır.
+`lib/schedule-worker.mjs` due görevleri claim edip mevcut agent execution katmanına güvenli biçimde taşır. Bu turdaki worker davranışı tek görevlik küçük kuyruklar kadar büyük backlog'lar için de bounded throughput sağlar.
 
-## Sorumluluk
+## Claim modeli
 
-- Due görevleri bounded batch ile claim eder.
-- Schedule kaydındaki `traceId`, `agentId` ve `task` değerlerini executor'a taşır.
-- Agent kimliğini registry'den yeniden çözer; bilinmeyen ajan model çağrısından önce reddedilir.
-- Başarılı görevleri `completed`, başarısız görevleri retry bütçesine göre tekrar `scheduled` veya terminal `failed` yapar.
-- Executor exception mesajlarını dışarı sızdırmaz; `SCHEDULE_EXECUTION_FAILED` koduna indirger.
+Worker `claimDue({ limit })` ile yalnız henüz çalıştırılmamış ve zamanı gelmiş `scheduled` kayıtları claim eder. Claim sırasında durum `running` olur ve attempt sayısı artırılır.
 
-## Güvenlik sınırı
+Claim batch'i 64 ile sınırlandırılmıştır. Worker tek tick içinde birden fazla batch tüketebilir; `maxBatchesPerTick` ayrıca bounded tutulur.
 
-Worker kendi başına tool permission üretmez, approval vermez veya connector çağırmaz. `executeAgentTask` adapter'ı mevcut backend default-deny agent runtime'ını kullanmalıdır. Bu nedenle schedule edilmek, ajana yeni bir yetki kazandırmaz.
+## Kontrollü concurrency
 
-Worker yeni secret alanı oluşturmaz ve schedule kaydındaki verileri olduğu gibi agent context'ine genişletmez. Store sözleşmesindeki `traceId`, `agentId` ve `task` dışında credential/token taşıma yolu yoktur.
+Her batch, `maxConcurrent` değerine göre execution wave'lerine ayrılır. Varsayılan eşzamanlılık 4, maksimum 8'dir.
 
-## Bounded davranış
+Bu sınır tüm görevlerin aynı anda başlamasını engeller. Bir görev provider hatası verse bile aynı wave'deki diğer görevlerin sonucu `Promise.allSettled` ile toplanır; tek rejection bütün tick'i düşürmez.
 
-- `maxBatch` 1-16 aralığına sınırlandırılır.
-- `retryDelayMs` 1 saniye ile 24 saat aralığına sınırlandırılır.
-- Retry sayısı worker tarafından değil store'daki `maxAttempts` sözleşmesiyle yönetilir.
+## Retry
 
-## Bu PR'ın kapsamadıkları
+Her schedule `maxAttempts` değerini taşır. Başarısız işlem bu sayıya ulaşmadan önce tekrar `scheduled` durumuna dönerek gelecekteki retry zamanına alınır.
 
-- Kalıcı database/persistence
-- Distributed lease veya çoklu worker locking
-- Cloud cron/provider entegrasyonu
-- Kullanıcıya schedule CRUD API/UI
-- Dış yazma/gönderme/merge için approval akışı
+Lease kaynaklı `SCHEDULE_LEASE_BUSY` durumunda attempt refund edilir. Böylece lease yarışının gerçek execution failure olarak sayılması önlenir.
 
-Bunlar ayrı, küçük ve geri alınabilir geliştirme turları olmalıdır.
+## Agent kaybı
+
+Registry'de schedule'ın agent id'si bulunmazsa görev kontrollü olarak `failed` durumuna geçirilir. Worker hayali bir agent çalıştırmaya çalışmaz.
+
+## Büyük backlog
+
+Yüksek hacimli due task kümelerinde worker maksimum concurrency'yi aşmadan çoklu batch tüketebilir. Bu yaklaşım throughput ile downstream kaynak koruması arasında deterministik bir sınır oluşturur.
+
+## Multi-instance
+
+Redis lease mevcut olduğunda aynı schedule'ın birden fazla worker tarafından eşzamanlı çalıştırılması engellenir. Local store claim davranışı tek process içindeki state güvenliğini sağlarken distributed guarantee lease/runtime katmanından gelir.
+
+## Gözlemlenebilirlik
+
+Her execution `scheduleId`, `traceId`, attempt ve sonuç koduyla korele edilebilir. Worker sonucu `claimed`, `batches`, `concurrency` ve task bazlı sonuçları içerir.
+
+## Operasyonel sınırlar
+
+Kullanıcıya sınırsız görev oluşturma imkânı worker'ın sınırsız paralellikte çalışacağı anlamına gelmez. Concurrency yükseltilmeden önce NVIDIA provider limitleri, execution timeoutları, Redis latency'si ve CPU/bellek kullanımı birlikte izlenmelidir.
+
+## Rollback
+
+Worker değişiklikleri bağımsız olarak revert edilebilir. Store schedule kayıtlarının kendisi worker kodunun geri alınmasıyla silinmez; backlog sonraki worker tick'inde mevcut status ve retry politikasına göre yeniden ele alınır.
