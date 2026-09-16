@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-import-preview.js', 'utf8');
+assert.doesNotMatch(source, /\.innerHTML\s*=/);
+assert.doesNotMatch(source, /\.outerHTML\s*=/);
+assert.doesNotMatch(source, /fetch\s*\(/);
+assert.doesNotMatch(source, /XMLHttpRequest/);
+assert.doesNotMatch(source, /navigator\.sendBeacon/);
+assert.match(source, /textContent/);
+assert.match(source, /MAX_FILE\s*=\s*1000000/);
+assert.match(source, /stopImmediatePropagation/);
+console.log('prompt import security contract: ok');

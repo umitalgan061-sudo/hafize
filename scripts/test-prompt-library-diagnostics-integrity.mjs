@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-diagnostics.js', 'utf8');
+assert.match(source, /invalidPrompts/);
+assert.match(source, /duplicatePrompts/);
+assert.match(source, /orphanMembers/);
+assert.match(source, /MAX_ORPHANS/);
+assert.match(source, /normalizeCollection/);
+assert.match(source, /root\.confirm\?\./);
+assert.match(source, /StorageEvent/);
+assert.doesNotMatch(source, /fetch\s*\(/);
+console.log('prompt diagnostics integrity contract: ok');

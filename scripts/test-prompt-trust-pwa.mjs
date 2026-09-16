@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
+assert.match(usage, /prompt-library-import-preview\.js/);
+assert.match(usage, /prompt-library-bulk-organizer\.js/);
+assert.match(usage, /prompt-library-diagnostics\.js/);
+assert.match(sw, /prompt-library-import-preview\.css/);
+assert.match(sw, /prompt-library-import-preview\.js/);
+assert.match(sw, /prompt-library-bulk-organizer\.css/);
+assert.match(sw, /prompt-library-bulk-organizer\.js/);
+assert.match(sw, /prompt-library-diagnostics\.js/);
+assert.match(sw, /CURRENT_CACHE.*v37/);
+console.log('prompt trust PWA wiring contract: ok');

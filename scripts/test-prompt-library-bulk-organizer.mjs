@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source = fs.readFileSync('public/prompt-library-bulk-organizer.js', 'utf8');
+assert.match(source, /MAX_SELECTION\s*=\s*40/);
+assert.match(source, /MAX_TAGS\s*=\s*8/);
+assert.match(source, /data-bulk-tags/);
+assert.match(source, /data-bulk-favorite/);
+assert.match(source, /add-tags/);
+assert.match(source, /replace-tags/);
+assert.match(source, /remove-tags/);
+assert.match(source, /root\.confirm\?\./);
+assert.match(source, /StorageEvent/);
+assert.doesNotMatch(source, /fetch\s*\(/);
+console.log('prompt bulk organizer contract: ok');
