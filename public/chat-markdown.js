@@ -147,13 +147,32 @@
 
   function init(messagesNode) {
     const node = messagesNode ?? root.document?.querySelector?.('#messages');
-    if (!node || node.dataset?.mdCopyBound === 'true') return false;
+    if (!node) return false;
+    if (node.dataset?.mdCopyBound === 'true') return true;
     node.addEventListener('click', handleCopyClick);
     if (node.dataset) node.dataset.mdCopyBound = 'true';
     return true;
   }
 
-  if (root.document?.querySelector) init();
+  // The shipped shell carries `#messages`, but it can arrive later (behind the
+  // auth gate) or be replaced by a re-render, which drops the delegated copy
+  // handler. A MutationObserver rebinds it and stops as soon as it is bound.
+  let observer = null;
 
-  return Object.freeze({ paint, sourceFor, plainTextFor, copyText, codeTextFor, init, COPY_FEEDBACK_MS });
+  function stopWatching() {
+    observer?.disconnect?.();
+    observer = null;
+  }
+
+  function watchForMessages() {
+    const doc = root.document;
+    if (observer || !doc || typeof root.MutationObserver !== 'function') return false;
+    observer = new root.MutationObserver(() => { if (init()) stopWatching(); });
+    observer.observe(doc.documentElement ?? doc, { childList: true, subtree: true });
+    return true;
+  }
+
+  if (root.document?.querySelector && !init()) watchForMessages();
+
+  return Object.freeze({ paint, sourceFor, plainTextFor, copyText, codeTextFor, init, watchForMessages, stopWatching, COPY_FEEDBACK_MS });
 });

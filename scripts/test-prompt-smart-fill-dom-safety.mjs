@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const smart = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill.js'),'utf8');
-const hints = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill-hints.js'),'utf8');
-const palette = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-command-palette.js'),'utf8');
+const smart = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill.ts'),'utf8');
+const hints = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill-hints.ts'),'utf8');
+const palette = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-command-palette.ts'),'utf8');
 for (const source of [smart,hints,palette]) {
   assert.doesNotMatch(source,/innerHTML\s*=/);
   assert.doesNotMatch(source,/outerHTML/);

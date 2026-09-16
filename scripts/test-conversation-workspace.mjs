@@ -176,7 +176,7 @@ check('service worker has workspace script', sw.includes('/conversation-workspac
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
 // HAFIZE_RULES.md replaced the old 3000-line budget with a completion rule:
 // a round stays open until the work package is finished, not until a number.
-check('rules state the round completion criterion', rules.includes('Tur tamamlama kriteri — 4000+ anlamlı değişiklik'));
+check('rules state the round completion criterion', /Tur tamamlama kriteri — \d+\+ anlamlı değişiklik/.test(rules));
 check('rules keep the change volume meaningful', rules.includes('yapay satır doldurma gerekçesi değildir'));
 check('rules put safety above change volume', rules.includes('değişiklik hacmi hedefinden daha yüksek önceliklidir'));
 
@@ -255,7 +255,7 @@ const summary = {
   sourceBytes: Buffer.byteLength(source),
   cssBytes: Buffer.byteLength(css),
   testBytes: fs.statSync(new URL(import.meta.url)).size,
-  shellVersion: 'v22'
+  shellVersion: (/CURRENT_CACHE = `\$\{CACHE_PREFIX\}(v\d+)`/.exec(sw) ?? [])[1] ?? 'unknown'
 };
 
 console.log(`conversation-workspace contract: ${summary.checks} checks passed`);

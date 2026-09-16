@@ -11,6 +11,9 @@ import {
   type ModelsResponse
 } from './hafize-types.ts';
 
+export { HafizeApiError } from './hafize-types.ts';
+export type { AgentsResponse, ApiRequestOptions, HealthResponse, ModelsResponse } from './hafize-types.ts';
+
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
@@ -32,6 +35,12 @@ function delay(ms: number, signal?: AbortSignal): Promise<void> {
 function retryDelay(attempt: number): number {
   const jitter = Math.floor(Math.random() * 120);
   return Math.min(MAX_RETRY_DELAY_MS, 300 * (attempt + 1) + jitter);
+}
+
+// `exactOptionalPropertyTypes` rejects `{ signal: undefined }`, so an absent
+// caller signal must stay an absent key rather than an explicit `undefined`.
+function signalOption(signal?: AbortSignal): { signal?: AbortSignal } {
+  return signal ? { signal } : {};
 }
 
 function traceIdOf(response: Response): string | null {
@@ -110,7 +119,7 @@ export class HafizeApiClient {
               }
             );
         if (!normalized.retryable || attempt >= retries) throw normalized;
-        await delay(retryDelay(attempt), parentSignal);
+        await delay(retryDelay(attempt), parentSignal ?? undefined);
       } finally {
         globalThis.clearTimeout(timeout);
         parentSignal?.removeEventListener('abort', abortParent);
@@ -120,15 +129,15 @@ export class HafizeApiClient {
   }
 
   health(signal?: AbortSignal): Promise<HealthResponse> {
-    return this.request('/api/health', { signal, timeoutMs: 8000, retry: 1 }).then(parseHealth);
+    return this.request('/api/health', { ...signalOption(signal), timeoutMs: 8000, retry: 1 }).then(parseHealth);
   }
 
   models(signal?: AbortSignal): Promise<ModelsResponse> {
-    return this.request('/api/models', { signal, timeoutMs: 12_000, retry: 1 }).then(parseModels);
+    return this.request('/api/models', { ...signalOption(signal), timeoutMs: 12_000, retry: 1 }).then(parseModels);
   }
 
   agents(signal?: AbortSignal): Promise<AgentsResponse> {
-    return this.request('/api/agents', { signal, timeoutMs: 8000, retry: 1 }).then(parseAgents);
+    return this.request('/api/agents', { ...signalOption(signal), timeoutMs: 8000, retry: 1 }).then(parseAgents);
   }
 }
 

@@ -200,3 +200,33 @@ ol.md-list { list-style: decimal; }
   .md-heading-1 { font-size: 1.3em; }
   .md-table th, .md-table td { padding: 7px 9px; }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  /* The copy button and the streaming code head are the only moving parts of a
+   * rendered answer; both settle instantly when motion is not wanted. */
+  .md-code-copy,
+  .md-code[data-streaming="true"] .md-code-head {
+    transition: none;
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  /* In a forced palette the token colours are replaced, so the structure has to
+   * come from system colours and real borders instead. */
+  .message.assistant .content[data-md] .md-code,
+  .message.assistant .content[data-md] .md-table,
+  .message.assistant .content[data-md] .md-table th,
+  .message.assistant .content[data-md] .md-table td {
+    border-color: CanvasText;
+  }
+  .message.assistant .content[data-md] .md-quote { border-left-color: CanvasText; }
+  .md-code-copy {
+    border-color: ButtonBorder;
+    color: ButtonText;
+    forced-color-adjust: none;
+    background: ButtonFace;
+  }
+  .message.assistant .content[data-md] .md-link { color: LinkText; }
+  .message.assistant .content[data-md] .md-divider { border-top-color: CanvasText; }
+}

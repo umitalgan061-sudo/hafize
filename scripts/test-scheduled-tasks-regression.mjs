@@ -8,7 +8,7 @@ const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Pro
   read('public/scheduled-tasks.css'),
   read('public/scheduled-tasks-enhancements.js'),
   read('public/scheduled-tasks-keyboard.js'),
-  read('public/scheduled-tasks-countdown.js'),
+  read('public/scheduled-tasks-countdown.ts'),
   read('public/index.html'),
   read('public/sw-policy.js'),
   read('README.md')
@@ -52,12 +52,12 @@ assert.match(index, /scheduled-tasks\.css/);
 assert.match(index, /scheduled-tasks\.js/);
 assert.match(index, /scheduled-tasks-enhancements\.js/);
 assert.match(index, /scheduled-tasks-keyboard\.js/);
-assert.match(index, /scheduled-tasks-countdown\.js/);
+assert.match(index, /\/typed-build\/scheduled-tasks-countdown\.js/);
 assertVersionedCacheDeclaration(sw);
 assert.match(sw, /\/scheduled-tasks\.css/);
 assert.match(sw, /\/scheduled-tasks\.js/);
 assert.match(sw, /\/scheduled-tasks-keyboard\.js/);
-assert.match(sw, /\/scheduled-tasks-countdown\.js/);
+assert.match(sw, /\/typed-build\/scheduled-tasks-countdown\.js/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(readme, /Görev|schedule|Zamanlanmış/);
 

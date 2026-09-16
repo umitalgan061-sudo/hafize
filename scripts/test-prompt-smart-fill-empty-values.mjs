@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill.js'),'utf8');
-assert.match(text,/activeNames\.some/);
-assert.match(text,/values\[name\]\.trim\(\)\.length === 0/);
-assert.match(text,/Tüm değişken alanlarını doldur/);
+const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill.ts'),'utf8');
+assert.match(text,/const missing = activeNames\.filter/);
+assert.match(text,/\(values\[name\] \?\? ''\)\.trim\(\)\.length === 0/);
+// Empty fields block the transfer and the warning names each one.
+assert.match(text,/Doldurulmamış değişkenler: \$\{missing/);
 assert.match(text,/return showError/);
 assert.match(text,/replaceVariables/);
 assert.match(text,/composer\.value = text/);

@@ -7,6 +7,9 @@
 // test-*/validate-*).
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DECLARATION_PATTERN = /^([a-zA-Z-]+)="([^"]*)"$/;
 
@@ -48,4 +51,75 @@ export function cssIncludes(css, snippet) {
 
 export function assertCssIncludes(css, snippet, label = snippet) {
   assert.ok(cssIncludes(css, snippet), label);
+}
+
+// --- Declaration and call shapes -------------------------------------------
+//
+// The browser modules that moved to TypeScript kept their behaviour but changed
+// their spelling: `function open(prompt) {` became
+// `const open = (prompt: PromptRecord): void =>` and `node.closest('.x')` became
+// `node.closest<HTMLElement>('.x')`. Suites assert behaviour, so the helpers
+// below match a declaration or a call in either style — and keep failing when
+// the behaviour itself disappears.
+
+export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+/** Reads a repo-relative file, independent of the caller's working directory. */
+export function readSource(file) {
+  return readFileSync(path.join(ROOT, file), 'utf8');
+}
+
+function escapeForRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Matches a named unit of behaviour however it is declared: a function
+ * declaration, an arrow constant (typed or not), a class method or an async
+ * variant of any of those.
+ */
+export function declarationPattern(name) {
+  const escaped = escapeForRegExp(name);
+  return new RegExp(
+    `(?:(?:async\\s+)?function\\s+${escaped}\\s*[(<]` +
+      `|(?:const|let|var)\\s+${escaped}\\s*(?::[^=\\n]+)?=\\s*(?:async\\s*)?[(<]` +
+      `|^\\s*(?:async\\s+)?${escaped}\\s*\\([^)]*\\)\\s*[:{])`,
+    'm'
+  );
+}
+
+/** True when `source` declares `name` in any of the supported styles. */
+export function declaresFunction(source, name) {
+  return declarationPattern(name).test(source);
+}
+
+export function assertDeclaresFunction(source, name, label = `declares ${name}()`) {
+  assert.ok(declaresFunction(source, name), label);
+}
+
+/**
+ * Matches a call to `name`, tolerating optional chaining (`name?.(`) and an
+ * explicit type argument list (`name<T>(`).
+ */
+export function callPattern(name, argumentText = '') {
+  const escaped = escapeForRegExp(name);
+  const args = argumentText ? escapeForRegExp(argumentText) : '';
+  return new RegExp(`${escaped}\\s*(?:<[^<>()]*>)?\\s*\\??\\.?\\(\\s*${args}`);
+}
+
+/** True when `source` calls `name`, with `argumentText` as a literal prefix of its arguments. */
+export function callsFunction(source, name, argumentText = '') {
+  return callPattern(name, argumentText).test(source);
+}
+
+export function assertCalls(source, name, argumentText = '', label = `calls ${name}(${argumentText})`) {
+  assert.ok(callsFunction(source, name, argumentText), label);
+}
+
+/** Asserts every listed behaviour anchor is present, reporting the first gap by name. */
+export function assertAnchors(source, anchors, kind = 'anchor') {
+  for (const [name, pattern] of anchors) {
+    if (pattern instanceof RegExp) assert.match(source, pattern, `missing ${kind}: ${name}`);
+    else assert.ok(source.includes(pattern), `missing ${kind}: ${name}`);
+  }
 }

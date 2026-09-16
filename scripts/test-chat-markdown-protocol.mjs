@@ -10,5 +10,6 @@ assert.match(chat, /requestAnimationFrame/);
 assert.match(chat, /aria-busy/);
 assert.match(chat, /navigator\.clipboard/);
 assert.match(css, /message\.assistant/);
-assert.doesNotMatch(css, /body\s*\{/);
+// A bare `body` rule would leak out of the chat; `.md-code-body` is scoped.
+assert.doesNotMatch(css, /(^|[\s,>])body\s*\{/m);
 console.log('chat markdown protocol contract: ok');

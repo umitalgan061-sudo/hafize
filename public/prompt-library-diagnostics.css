@@ -1,0 +1,75 @@
+/* Prompt Library health panel.
+ *
+ * The panel sits at the bottom of the library card and stays collapsed until it
+ * is asked for, so a healthy library costs one line of chrome.
+ */
+
+.prompt-library-diagnostics {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.prompt-library-diagnostics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-library-diagnostics-title {
+  font-size: 12px;
+}
+
+.prompt-library-diagnostics-report {
+  margin-top: 8px;
+}
+
+.prompt-library-diagnostics-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.prompt-library-diagnostics-list dt {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.prompt-library-diagnostics-list dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt-library-diagnostics-status {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.prompt-library-diagnostics-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.prompt-library-diagnostics-actions button[disabled] {
+  opacity: 0.55;
+}
+
+@media (max-width: 560px) {
+  .prompt-library-diagnostics-list { font-size: 10px; }
+  .prompt-library-diagnostics-actions { flex-wrap: wrap; }
+}
+
+@media (forced-colors: active) {
+  .prompt-library-diagnostics { border-top-color: CanvasText; }
+  .prompt-library-diagnostics-status,
+  .prompt-library-diagnostics-list dt { color: CanvasText; }
+  .prompt-library-diagnostics-actions button[disabled] { opacity: 1; color: GrayText; }
+}

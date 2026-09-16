@@ -19,6 +19,30 @@ bir sınıf seçici ya da sınıf adı olarak, CSS parçaları ise boşluktan ba
 `localStorage` ve bilinçli olarak hata fırlatan store taklitleri verir.
 Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
 
+## TypeScript'e taşınmış tarayıcı modülleri
+
+Smart Fill, komut paleti, Smart Fill ipuçları ve zamanlanmış görev sayacı TypeScript
+kaynaklarından (`public/*.ts`) derlenir ve tarayıcıya `public/typed-build/*.js` olarak
+gider. Bu nedenle:
+
+- Kaynak sözleşmeleri `public/<modül>.ts` dosyasını okur; derlenmiş çıktı okunmaz.
+- Çalışma zamanı sözleşmeleri modülü doğrudan `await import('../public/<modül>.ts')`
+  ile yükler; Node tip sıyırma ile `.ts` dosyasını çalıştırır, ek derleme adımı gerekmez.
+- `index.html` ve `SHELL_ASSETS` bu modülleri `/typed-build/<modül>.js` yolundan yükler.
+- `public/typed-build/` git'e girmez. Shell sözleşmesi bu üretilmiş asset'leri diskte
+  aramak yerine `vite.config.ts` içindeki entry ve onun TypeScript kaynağı üzerinden
+  doğrular; böylece temiz bir checkout'ta `npm run build` çalıştırmadan da kapı yeşildir.
+- `function x(...)` yerine `const x = (...): void =>` yazımı sözleşmeyi kırmamalıdır:
+  `source-contract.mjs` içindeki `declaresFunction` / `assertDeclaresFunction` her iki
+  yazımı da kabul eder, davranış kaybolduğunda ise yine başarısız olur.
+
+## Biçim kontrolü
+
+`npm run format:check` sondaki boşluk, dosya sonu satırı ve satır uzunluğunu denetler.
+Uygulama kaynaklarında sınır 240 karakterdir. `scripts/` altındaki `.mjs` paketleri
+bilinçli olarak satır başına tek yoğun assertion biçiminde yazıldığı için onlarda sınır
+400 karakterdir; bu sınır yine de incelenemeyecek uzunluktaki satırı yakalar.
+
 ## Paket yazarken
 
 - **Shell cache sürümü sabit yazılmaz.** `assertVersionedCacheDeclaration(sw)` ya da

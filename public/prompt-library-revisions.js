@@ -207,10 +207,17 @@
 
     let selectedPrompt = '';
     let hidden = false;
+    let statusTimer = null;
 
+    // The status line clears itself, so the pending timer is tracked and cleared
+    // on the next status and on destroy instead of firing against a removed panel.
     function setStatus(value) {
       status.textContent = clip(value, 160);
-      rootRef.setTimeout?.(() => { if (status.textContent === value) status.textContent = ''; }, 2600);
+      if (statusTimer !== null) rootRef.clearTimeout?.(statusTimer);
+      statusTimer = rootRef.setTimeout?.(() => {
+        statusTimer = null;
+        if (status.textContent === value) status.textContent = '';
+      }, 2600) ?? null;
     }
 
     function updatePromptOptions() {
@@ -317,6 +324,8 @@
       destroy: () => {
         observer?.disconnect();
         rootRef.removeEventListener?.('storage', onStorage);
+        if (statusTimer !== null) rootRef.clearTimeout?.(statusTimer);
+        statusTimer = null;
         section.remove();
       }
     });

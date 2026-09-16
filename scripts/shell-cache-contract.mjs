@@ -30,6 +30,41 @@ export function shellAssetFile(assetPath) {
   return path.join(PUBLIC_DIR, assetPath.slice(1));
 }
 
+/**
+ * Entry name → TypeScript source, read from the Vite config.
+ *
+ * `public/typed-build/*.js` is produced by `npm run build`, so it is absent in a
+ * clean checkout. The invariant the shell cares about is that nothing stale is
+ * listed, which is the same question as "does the build still emit this entry",
+ * so a generated asset is checked against its Vite entry instead of the disk.
+ */
+export function viteEntrySources() {
+  const config = readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
+  const entries = new Map();
+  for (const match of config.matchAll(/'([\w-]+)':\s*resolve\(ROOT,\s*'([^']+)'\)/g)) {
+    entries.set(match[1], path.join(ROOT, match[2]));
+  }
+  return entries;
+}
+
+const GENERATED_PREFIX = '/typed-build/';
+
+/** True when the asset is emitted by the build rather than committed. */
+export function isGeneratedAsset(assetPath) {
+  return typeof assetPath === 'string' && assetPath.startsWith(GENERATED_PREFIX);
+}
+
+/**
+ * Asserts a generated asset is still produced: its Vite entry exists and the
+ * TypeScript source behind that entry is on disk.
+ */
+export function assertGeneratedAsset(assetPath, entries = viteEntrySources()) {
+  const name = assetPath.slice(GENERATED_PREFIX.length).replace(/\.js$/, '');
+  const source = entries.get(name);
+  assert.ok(source, `generated shell asset ${assetPath} has no Vite entry`);
+  assert.ok(existsSync(source), `Vite entry ${name} points at a missing source`);
+}
+
 /** Same-origin CSS/JS URLs referenced by `public/index.html`. */
 export function indexHtmlAssets() {
   const html = readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
@@ -64,8 +99,14 @@ export function assertShellCacheContract() {
   assert.equal(new Set(swPolicy.SHELL_ASSETS).size, swPolicy.SHELL_ASSETS.length, 'shell assets are unique');
 
   // `cache.addAll()` rejects as a whole, so one stale path disables the
-  // offline shell entirely: every entry must be backed by a real file.
+  // offline shell entirely: every entry must be backed by a real file, or — for
+  // the compiled entries — by a Vite entry that still emits it.
+  const entries = viteEntrySources();
   for (const asset of swPolicy.SHELL_ASSETS) {
+    if (isGeneratedAsset(asset)) {
+      assertGeneratedAsset(asset, entries);
+      continue;
+    }
     const file = shellAssetFile(asset);
     assert.ok(file && existsSync(file), `shell asset ${asset} exists on disk`);
   }
