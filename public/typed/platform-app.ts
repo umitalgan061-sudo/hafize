@@ -8,13 +8,11 @@ import './platform-error-boundary.ts';
 import './platform-accessibility.ts';
 import './platform-cache-policy.ts';
 import './platform-task-queue-fixed.ts';
+import './platform-feature-registry.ts';
 import './app-runtime.ts';
 
 export const HAFIZE_TYPED_PLATFORM_ENTRY = Object.freeze({
   name: 'hafize-platform',
-  version: 3,
-  modules: Object.freeze([
-    'platform-runtime', 'platform-dashboard-static', 'platform-styles', 'platform-events', 'platform-performance',
-    'platform-diagnostics', 'platform-error-boundary', 'platform-accessibility', 'platform-cache-policy', 'platform-task-queue-fixed', 'app-runtime'
-  ])
+  version: 4,
+  modules: Object.freeze(['platform-runtime','platform-dashboard-static','platform-styles','platform-events','platform-performance','platform-diagnostics','platform-error-boundary','platform-accessibility','platform-cache-policy','platform-task-queue-fixed','platform-feature-registry','app-runtime'])
 });
