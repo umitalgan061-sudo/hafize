@@ -184,3 +184,30 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptPowerWorkflows(root) {
+  'use strict';
+  const assets = [
+    ['/prompt-library-smart-fill.css', 'style'],
+    ['/prompt-library-collections.css', 'style'],
+    ['/prompt-library-command-palette.css', 'style'],
+    ['/prompt-library-smart-fill-hints.js', 'script'],
+    ['/prompt-library-smart-insert.js', 'script'],
+    ['/prompt-library-smart-fill.js', 'script'],
+    ['/prompt-library-command-palette.js', 'script'],
+    ['/prompt-library-collections.js', 'script'],
+    ['/prompt-library-revisions.js', 'script']
+  ];
+  const seen = new Set();
+  function load([src, type]) {
+    if (seen.has(src) || root.document.querySelector(`[src="${src}"]`) || root.document.querySelector(`[href="${src}"]`)) return;
+    seen.add(src);
+    const element = root.document.createElement(type === 'style' ? 'link' : 'script');
+    if (type === 'style') { element.rel = 'stylesheet'; element.href = src; }
+    else { element.src = src; element.defer = true; }
+    (root.document.head || root.document.documentElement).append(element);
+  }
+  const boot = () => assets.forEach(load);
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
+  else boot();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
