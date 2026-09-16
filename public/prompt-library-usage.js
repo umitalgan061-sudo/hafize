@@ -16,11 +16,17 @@
     if (!documentRef?.head) return;
     const assets = [
       ['link', 'href', '/prompt-library-fill.css', 'data-hafize-prompt-fill-style'],
+      ['link', 'href', '/prompt-library-fill-history.css', 'data-hafize-prompt-fill-history-style'],
       ['script', 'src', '/prompt-library-fill.js', 'data-hafize-prompt-fill-script'],
       ['script', 'src', '/prompt-library-fill-presets.js', 'data-hafize-prompt-fill-presets'],
       ['script', 'src', '/prompt-library-fill-keyboard.js', 'data-hafize-prompt-fill-keyboard'],
       ['script', 'src', '/prompt-library-fill-backup.js', 'data-hafize-prompt-fill-backup'],
-      ['script', 'src', '/prompt-library-fill-backup-ui.js', 'data-hafize-prompt-fill-backup-ui']
+      ['script', 'src', '/prompt-library-fill-backup-ui.js', 'data-hafize-prompt-fill-backup-ui'],
+      ['script', 'src', '/prompt-library-fill-history.js', 'data-hafize-prompt-fill-history'],
+      ['script', 'src', '/prompt-library-fill-history-ui.js', 'data-hafize-prompt-fill-history-ui'],
+      ['script', 'src', '/prompt-library-fill-privacy.js', 'data-hafize-prompt-fill-privacy'],
+      ['script', 'src', '/prompt-library-fill-field-status.js', 'data-hafize-prompt-fill-field-status'],
+      ['script', 'src', '/prompt-library-fill-defaults.js', 'data-hafize-prompt-fill-defaults']
     ];
     for (const [tag, attr, value, marker] of assets) { if (documentRef.querySelector(`[${marker}]`)) continue; const node = documentRef.createElement(tag); node[attr] = value; node.dataset.hafizePromptFill = 'true'; node.setAttribute(marker, 'true'); if (tag === 'link') node.rel = 'stylesheet'; else node.defer = true; documentRef.head.append(node); }
   }
