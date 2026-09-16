@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Promise.all([
@@ -31,7 +32,7 @@ assert.match(enhance, /Günlük özet/);
 assert.match(enhance, /Kod incelemesi/);
 assert.match(enhance, /scheduled-tasks-filter/);
 
-assert.match(keyboard, /Shift/);
+assert.match(keyboard, /shiftKey/);
 assert.match(keyboard, /'t'/);
 assert.match(keyboard, /ScheduledTasksWorkspace/);
 assert.match(keyboard, /input,textarea,select/);
@@ -49,7 +50,7 @@ assert.match(index, /scheduled-tasks\.js/);
 assert.match(index, /scheduled-tasks-enhancements\.js/);
 assert.match(index, /scheduled-tasks-keyboard\.js/);
 assert.match(index, /scheduled-tasks-countdown\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v32`/);
+assertVersionedCacheDeclaration(sw);
 assert.match(sw, /\/scheduled-tasks\.css/);
 assert.match(sw, /\/scheduled-tasks\.js/);
 assert.match(sw, /\/scheduled-tasks-keyboard\.js/);

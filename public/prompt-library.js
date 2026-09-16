@@ -140,8 +140,13 @@
     const result = normalizeCollection(current);
     const ids = new Set(result.map((item) => item.id));
     let imported = 0;
-    for (const raw of normalizeCollection(incoming)) {
-      let item = raw;
+    // Incoming entries are normalized one at a time: `normalizeCollection` drops
+    // entries that repeat an id inside the same file, while the loop below re-ids
+    // collisions instead, so an import never silently loses a prompt.
+    const candidates = Array.isArray(incoming) ? incoming.slice(0, LIMITS.maxItems * 2) : [];
+    for (const raw of candidates) {
+      let item = normalizeItem(raw);
+      if (!item) continue;
       let nextId = item.id;
       while (ids.has(nextId)) nextId = id();
       if (nextId !== item.id) item = Object.freeze({ ...item, id: nextId });

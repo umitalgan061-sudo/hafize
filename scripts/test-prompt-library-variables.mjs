@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { extractVariables, replaceVariables, LIMITS } from '../public/prompt-library.js';
+import { loadPublicModule } from './public-module.mjs';
+const { extractVariables, replaceVariables, LIMITS } = loadPublicModule('prompt-library.js');
 
 assert.deepEqual(extractVariables('{{konu}} {{dil}} {{konu}}'), ['konu', 'dil']);
 assert.deepEqual(extractVariables('{{ spaced_name }} {{dash-name}} {{bad.name}}'), ['spaced_name', 'dash-name']);

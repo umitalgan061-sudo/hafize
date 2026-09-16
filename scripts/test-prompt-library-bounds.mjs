@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { LIMITS, normalizeItem, normalizeCollection, safeState } from '../public/prompt-library.js';
+import { loadPublicModule } from './public-module.mjs';
+const { LIMITS, normalizeItem, normalizeCollection, safeState } = loadPublicModule('prompt-library.js');
 
 const item = normalizeItem({ title: 'x'.repeat(200), body: 'x'.repeat(9000), tags: Array.from({ length: 20 }, (_, i) => `tag-${i}`), variables: Array.from({ length: 20 }, (_, i) => `v-${i}`) });
 assert.equal(item.title.length, LIMITS.maxTitle);

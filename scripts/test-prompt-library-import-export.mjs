@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { LIMITS, normalizeImportedPayload, mergeImportedItems, exportPayload } from '../public/prompt-library.js';
+import { loadPublicModule } from './public-module.mjs';
+const { LIMITS, normalizeImportedPayload, mergeImportedItems, exportPayload } = loadPublicModule('prompt-library.js');
 
 const payload = normalizeImportedPayload({ version: 1, source: 'fixture', exportedAt: '2026-09-14', items: [
   { id: 'a', title: 'A', body: 'first' },

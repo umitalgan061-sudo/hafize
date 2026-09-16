@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { LIMITS, normalizeItem, normalizeCollection, safeState } from '../public/prompt-library.js';
+import { loadPublicModule } from './public-module.mjs';
+const { LIMITS, normalizeItem, normalizeCollection, safeState } = loadPublicModule('prompt-library.js');
 
 const item = normalizeItem({
   title: '  Başlık  ',

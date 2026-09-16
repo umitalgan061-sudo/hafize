@@ -174,8 +174,9 @@ check('workspace remains before voice modules', index.indexOf('/conversation-wor
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
 check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
-check('rules advertise 3000 line budget', rules.includes('Tur değişiklik bütçesi — 3000 satır'));
-check('rules define 3000 max diff', rules.includes('en fazla 3000 değişen satır'));
+check('rules advertise the round completion budget', rules.includes('Tur tamamlama kriteri — 4000+ anlamlı değişiklik'));
+check('rules define the minimum meaningful diff', rules.includes('**4000 değişen satıra ulaşmadan kapatılmaz**'));
+check('rules forbid padding the diff', rules.includes('yapay satır doldurma gerekçesi değildir'));
 
 const dangerous = [
   'document.cookie',

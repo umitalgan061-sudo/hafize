@@ -32,6 +32,13 @@ Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetm
 
 Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları yerel olarak kaydetme, geri bildirimleme, notlama, etiketleme, arama, filtreleme, sıralama ve seçerek JSON dışa aktarma yüzeyidir. Metadata ayrı local storage anahtarında tutulur.
 
+Veri ve kısayollar:
+
+- Kayıtlar `hafize.message-workspace.v1` anahtarında, panel durumu (arama, filtre, sıralama) ise `hafize.message-workspace.v1.state` anahtarında tutulur; ikisi de yalnızca bu cihazda kalır ve sunucuya gönderilmez.
+- `Ctrl / ⌘ + Shift + B` arama alanına odaklanır, `Ctrl / ⌘ + Shift + K` görünen kayıtları seçer, `Ctrl / ⌘ + Shift + X` seçimi temizler.
+- Dışa aktarma `hafize-message-workspace/v1` şemasıyla, mesaj başına en fazla 12.000 karakter içeren bir JSON dosyası üretir.
+- Aynı anahtarlara yazan diğer sekmeler `storage` olayıyla yakalanır; panel kendini yeniden çizer.
+
 ## İstem Kütüphanesi
 
 İstem Kütüphanesi, tekrar kullanılan prompt'ları cihaz üzerinde saklayıp sohbet composer alanına aktaran yerel yardımcı araçtır.

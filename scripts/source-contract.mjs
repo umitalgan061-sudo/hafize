@@ -37,6 +37,23 @@ export function assertClassDeclared(source, selector, label = selector) {
 }
 
 /**
+ * True when `source` builds `<tag>` nodes. Modules either call
+ * `createElement('article')` directly or route the tag through a small factory
+ * (`make(doc, 'article', …)`); both spell the same contract, so a factory is
+ * accepted only when the tag literal is actually present in the file.
+ */
+export function elementCreated(source, tag) {
+  if (typeof source !== 'string') return false;
+  if (source.includes(`createElement('${tag}')`) || source.includes(`createElement("${tag}")`)) return true;
+  const usesFactory = /createElement\(\s*[A-Za-z_$][\w$]*\s*\)/.test(source);
+  return usesFactory && (source.includes(`'${tag}'`) || source.includes(`"${tag}"`));
+}
+
+export function assertElementCreated(source, tag, label = `creates <${tag}> nodes`) {
+  assert.ok(elementCreated(source, tag), label);
+}
+
+/**
  * True when `css` contains `snippet`, ignoring formatting whitespace, so a
  * stylesheet reformat (`max-width:560px` vs `max-width: 560px`) is not a
  * contract change.

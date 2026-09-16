@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { STORAGE_KEY, STATE_KEY, saveItems, saveState, loadItems, loadState, normalizeItem } from '../public/prompt-library.js';
+import { loadPublicModule } from './public-module.mjs';
+const { STORAGE_KEY, STATE_KEY, saveItems, saveState, loadItems, loadState, normalizeItem } = loadPublicModule('prompt-library.js');
 
 const data = new Map();
 const storage = {

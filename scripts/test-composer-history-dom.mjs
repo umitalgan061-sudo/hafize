@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertAttributeDeclared, assertElementCreated } from './source-contract.mjs';
 const source = fs.readFileSync('public/composer-history-panel.js', 'utf8');
 assert.match(source, /textContent/);
-assert.match(source, /createElement\('article'/);
-assert.match(source, /createElement\('button'/);
+assertElementCreated(source, 'article');
+assertElementCreated(source, 'button');
 assert.doesNotMatch(source, /innerHTML/);
 assert.doesNotMatch(source, /outerHTML/);
-assert.match(source, /aria-label/);
+assertAttributeDeclared(source, 'aria-label="Gönderim geçmişinde ara"', 'search field carries an accessible name');
 console.log('composer history DOM boundary: ok');

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mergeImportedItems } from '../public/prompt-library.js';
+import { loadPublicModule } from './public-module.mjs';
+const { mergeImportedItems } = loadPublicModule('prompt-library.js');
 
 const result = mergeImportedItems(
   [{ id: 'fixed', title: 'Yerel', body: 'yerel içerik' }],
