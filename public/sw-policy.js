@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v39`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v40`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html', '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
     '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css', '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
@@ -14,7 +14,7 @@
     '/prompt-library-collections.css', '/prompt-library-revisions.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css', '/prompt-library-fill.css', '/prompt-library-fill-history.css',
     '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js', '/chat-history-management.js', '/chat-drafts.js',
     '/conversation-workspace.js', '/conversation-workspace-keyboard.js', '/message-workspace-policy.js', '/message-workspace.js', '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
-    '/prompt-library-usage.js', '/prompt-library-fill.js', '/prompt-library-fill-presets.js', '/prompt-library-fill-keyboard.js', '/prompt-library-fill-backup.js', '/prompt-library-fill-backup-ui.js', '/prompt-library-fill-history.js', '/prompt-library-fill-history-ui.js', '/prompt-library-fill-privacy.js', '/prompt-library-fill-field-status.js', '/prompt-library-fill-defaults.js', '/prompt-library-fill-session.js', '/prompt-library-fill-copy.js',
+    '/prompt-library-usage.js', '/prompt-library-fill.js', '/prompt-library-fill-presets.js', '/prompt-library-fill-keyboard.js', '/prompt-library-fill-backup.js', '/prompt-library-fill-backup-ui.js', '/prompt-library-fill-history.js', '/prompt-library-fill-history-ui.js', '/prompt-library-fill-privacy.js', '/prompt-library-fill-field-status.js', '/prompt-library-fill-defaults.js', '/prompt-library-fill-session.js', '/prompt-library-fill-session-ui.js', '/prompt-library-fill-copy.js',
     '/prompt-library-collections.js', '/prompt-library-collections-enhancements.js', '/prompt-library-revisions.js', '/prompt-library-revisions-enhancements.js', '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
     '/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js', '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js', '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js', '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/scheduled-tasks-countdown.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
