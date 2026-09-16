@@ -21,7 +21,7 @@ assert.match(source['public/sw-policy.js'], /prompt-library-collections\.js/);
 assert.match(source['public/sw-policy.js'], /prompt-library-revisions\.js/);
 assert.match(source['public/sw-policy.js'], /prompt-library-collections\.css/);
 assert.match(source['public/sw-policy.js'], /prompt-library-revisions\.css/);
-assert.match(source['public/sw-policy.js'], /v36/);
+assert.match(source['public/sw-policy.js'], /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(source['public/prompt-library-collections.js'], /MAX_COLLECTIONS = 40/);
 assert.match(source['public/prompt-library-collections.js'], /MAX_MEMBERS = 120/);
 assert.match(source['public/prompt-library-revisions.js'], /MAX_REVISIONS_PER_PROMPT = 20/);

@@ -147,7 +147,8 @@ export function mountHafizeRuntime(): RuntimeController | null {
     health: null,
     lastErrorCode: null
   });
-  let timer: number | undefined;
+  // Node and DOM disagree on the handle type; follow whichever runtime is typed in.
+  let timer: ReturnType<typeof globalThis.setInterval> | undefined;
   let destroyed = false;
 
   const refresh = async (): Promise<void> => {

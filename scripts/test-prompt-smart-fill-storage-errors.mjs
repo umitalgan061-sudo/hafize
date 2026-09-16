@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
-assert.match(text, /try \{ raw = store\(\)\?\.getItem/);
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
+assert.match(text, /try \{ raw = store\.getItem\(keyForPrompt\(promptId\)\); \} catch/);
 assert.match(text, /catch \{ return \[\]; \}/);
-assert.match(text, /try \{\n      store\(\)\?\.setItem/);
-assert.match(text, /catch \{\n      return false;/);
+assert.match(text, /try \{\n    store\.setItem\(keyForPrompt\(promptId\)/);
+assert.match(text, /catch \{ return false; \}/);
 assert.match(text, /if \(!writePresets/);
 assert.match(text, /showError\('Değişken seti kaydedilemedi\.'/);
 assert.doesNotMatch(text, /throw new Error/);

@@ -9,7 +9,17 @@ import { createDeviceApprovalAuditEvent, DEVICE_APPROVAL_AUDIT_CONTRACT } from '
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'system.info' }), { ok: true, command: { action: 'system.info' } });
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'browser.open', explicitUserIntent: true, url: 'https://example.com/path?q=1' }), { ok: true, command: { action: 'browser.open', url: 'https://example.com/path?q=1' } });
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'app.open', explicitUserIntent: true, appId: 'Browser.Chrome' }), { ok: true, command: { action: 'app.open', appId: 'browser.chrome' } });
-for (const invalid of [null, { action: 'shell.run', explicitUserIntent: true }, { action: 'browser.open', url: 'https://example.com' }, { action: 'browser.open', explicitUserIntent: true, url: 'http://example.com' }, { action: 'browser.open', explicitUserIntent: true, url: 'https://user:pass@example.com' }, { action: 'browser.open', explicitUserIntent: true, url: 'not-a-url' }, { action: 'app.open', explicitUserIntent: true, appId: '../calc' }, { action: 'system.info', url: 'https://example.com' }, { action: 'system.info', arbitrary: true }]) assert.equal(normalizeDeviceBridgeCommand(invalid).ok, false);
+for (const invalid of [
+  null,
+  { action: 'shell.run', explicitUserIntent: true },
+  { action: 'browser.open', url: 'https://example.com' },
+  { action: 'browser.open', explicitUserIntent: true, url: 'http://example.com' },
+  { action: 'browser.open', explicitUserIntent: true, url: 'https://user:pass@example.com' },
+  { action: 'browser.open', explicitUserIntent: true, url: 'not-a-url' },
+  { action: 'app.open', explicitUserIntent: true, appId: '../calc' },
+  { action: 'system.info', url: 'https://example.com' },
+  { action: 'system.info', arbitrary: true }
+]) assert.equal(normalizeDeviceBridgeCommand(invalid).ok, false);
 assert.deepEqual(normalizeSystemInfo({ platform: 'darwin', arch: 'arm64', release: '25.0.0', hostname: 'hafize-mac' }), { ok: true, info: { platform: 'darwin', arch: 'arm64', release: '25.0.0', hostname: 'hafize-mac' } });
 assert.equal(normalizeSystemInfo({ platform: 'darwin' }).ok, false);
 assert.equal(normalizeSystemInfo({ platform: 'darwin', arch: 'arm64', username: 'umit' }).ok, false);

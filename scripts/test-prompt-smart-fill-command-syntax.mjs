@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.js'), 'utf8');
-assert.match(text, /match = before\.match\(\/\(\^\|\\s\)\\\/prompt/);
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.ts'), 'utf8');
+assert.match(text, /\.match\(\/\(\^\|\\s\)\\\/prompt/);
 assert.match(text, /match\[2\] \|\| ''/);
 assert.match(text, /query\.value = \(match\[2\]/);
 assert.match(text, /if \(!match\) \{ if \(!palette\.hidden\) close\(\); return; \}/);

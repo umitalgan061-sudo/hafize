@@ -30,6 +30,64 @@
   let availableAgents = [];
   let defaultAgentId = '';
   let editingMessageId = null;
+  // The turn currently in flight: `{ controller, stopRequested }`. It exists
+  // only while a request is open, which is exactly when stopping is possible.
+  let activeStream = null;
+
+  // Stop/regenerate rules live in `chat-stream-policy.js` so the composer
+  // controls answer the same questions this runtime does. The module is
+  // optional on purpose: without it the chat keeps working, just without the
+  // stop and regenerate affordances.
+  function streamPolicy() {
+    return window.HafizeChatStreamPolicy ?? null;
+  }
+
+  function isAbortError(error) {
+    return streamPolicy()?.isAbortError(error) ?? error?.name === 'AbortError';
+  }
+
+  function stoppedAnswerContent(content) {
+    return streamPolicy()?.stoppedContent(content) ?? content;
+  }
+
+  /**
+   * Publishes what the composer controls may offer right now. Every transition
+   * that can change the answer — send, stop, finish, regenerate, switching or
+   * clearing a conversation — ends with this, so the buttons never outlive the
+   * state that justified them.
+   */
+  function emitStreamState() {
+    const messages = getActiveConversation()?.messages ?? [];
+    const detail = streamPolicy()?.describeState({
+      streaming: isStreaming,
+      hasActiveStream: Boolean(activeStream),
+      messages
+    });
+    if (!detail) return;
+    window.dispatchEvent(new CustomEvent('hafize:stream-state', { detail }));
+  }
+
+  /**
+   * Aborts the open turn. The partial answer is kept: the finaliser below
+   * persists whatever arrived and flags the message, so a stopped turn reads as
+   * a stopped turn instead of silently looking like the model's whole answer.
+   */
+  function stopStreaming() {
+    if (!isStreaming || !activeStream || activeStream.stopRequested) return false;
+    activeStream.stopRequested = true;
+    activeStream.controller.abort();
+    showToast('Yanıt durduruldu.');
+    return true;
+  }
+
+  function markAnswerStopped(id, content) {
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((item) => item.id === id);
+    if (!message || message.role !== 'assistant') return;
+    message.stopped = true;
+    updateMessage(id, stoppedAnswerContent(content ?? message.content), { persist: true });
+    render();
+  }
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -362,6 +420,15 @@
         article.append(activities);
       }
       article.append(content);
+      // A stopped answer is partial by definition; saying so keeps it from
+      // reading like everything the model had to say.
+      if (message.role === 'assistant' && message.stopped) {
+        article.dataset.stopped = 'true';
+        const note = document.createElement('div');
+        note.className = 'message-stopped';
+        note.textContent = streamPolicy()?.STOPPED_BADGE ?? 'Yanıt durduruldu';
+        article.append(note);
+      }
       ui.messages.append(article);
     }
 
@@ -392,6 +459,7 @@
     syncAgentSelect();
     syncToolMode();
     updateEditingIndicator();
+    emitStreamState();
   }
 
   function showToast(text) {
@@ -506,34 +574,42 @@
     let buffer = '';
     let content = '';
 
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() || '';
-      for (const block of blocks) {
-        const parsed = parseSseBlock(block);
-        if (!parsed) continue;
-        if (parsed.type === 'hafize-tool-activity') {
-          appendToolActivity(assistantId, parsed.payload);
-          continue;
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          const parsed = parseSseBlock(block);
+          if (!parsed) continue;
+          if (parsed.type === 'hafize-tool-activity') {
+            appendToolActivity(assistantId, parsed.payload);
+            continue;
+          }
+          if (parsed.type !== 'message') continue;
+          const event = parsed.payload;
+          if (event.error) throw new Error(event.error);
+          const delta = event.choices?.[0]?.delta?.content;
+          if (typeof delta === 'string' && delta) {
+            content += delta;
+            updateMessage(assistantId, content);
+          }
         }
-        if (parsed.type !== 'message') continue;
-        const event = parsed.payload;
-        if (event.error) throw new Error(event.error);
-        const delta = event.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
-          content += delta;
-          updateMessage(assistantId, content);
-        }
+        if (done) break;
       }
-      if (done) break;
+    } catch (error) {
+      // A stop aborts the body mid-read. Everything that already arrived is a
+      // real part of the answer, so it is kept rather than thrown away.
+      if (!activeStream?.stopRequested && !isAbortError(error)) throw error;
+      markAnswerStopped(assistantId, content);
+      return;
     }
 
     updateMessage(assistantId, content || emptyMessage, { persist: true });
   }
 
-  async function streamAssistantReply() {
+  async function streamAssistantReply(signal) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -546,12 +622,13 @@
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal
     });
     await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
   }
 
-  async function runAssistantWithTools() {
+  async function runAssistantWithTools(signal) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -564,7 +641,8 @@
     const response = await fetch('/api/agent/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 }),
+      signal
     });
     await consumeAssistantStream(
       response,
@@ -573,17 +651,67 @@
     );
   }
 
-  async function submitMessage(text) {
-    const clean = text.trim();
-    if (!clean || isStreaming) return;
+  function readyToAnswer() {
     if (!ui.modelSelect.value) {
       showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
-      return;
+      return false;
     }
     if (!getConversationAgentId()) {
       showToast('Önce Hafize ajan listesinin hazır olması gerekiyor.');
-      return;
+      return false;
     }
+    return true;
+  }
+
+  /**
+   * Runs one assistant turn against the transcript as it stands. Sending a new
+   * message and regenerating the last answer differ only in how they prepare
+   * that transcript, so they share this: one abort controller, one error path,
+   * one place where the composer goes back to being usable.
+   */
+  async function runAssistantTurn() {
+    const controller = new AbortController();
+    activeStream = { controller, stopRequested: false };
+    isStreaming = true;
+    ui.messageInput.disabled = true;
+    ui.agentSelect.disabled = true;
+    ui.toolModeBtn.disabled = true;
+    emitStreamState();
+
+    try {
+      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools(controller.signal);
+      else await streamAssistantReply(controller.signal);
+    } catch (error) {
+      const conversation = getActiveConversation();
+      const last = conversation?.messages.at(-1);
+      // The abort can also reject the request itself, before a single byte of
+      // the body arrives; that is still a stop, not a failure to report.
+      if (activeStream?.stopRequested || isAbortError(error)) {
+        if (last?.role === 'assistant') markAnswerStopped(last.id, last.content);
+      } else {
+        const message = error?.message === 'MODEL_REQUIRED'
+          ? 'Bir NVIDIA modeli seçilmedi.'
+          : error?.message === 'AGENT_REQUIRED'
+            ? 'Bir Hafize ajanı seçilmedi.'
+            : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+        if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
+        else addMessage('assistant', message);
+      }
+    } finally {
+      isStreaming = false;
+      activeStream = null;
+      ui.messageInput.disabled = false;
+      syncAgentSelect();
+      syncToolMode();
+      emitStreamState();
+      ui.messageInput.focus();
+    }
+  }
+
+  async function submitMessage(text) {
+    const clean = text.trim();
+    if (!clean || isStreaming) return;
+    if (!readyToAnswer()) return;
 
     if (editingMessageId) {
       if (!replaceEditedTurn(editingMessageId, clean)) return;
@@ -592,34 +720,39 @@
     }
     ui.messageInput.value = '';
     autoResizeComposer();
-    isStreaming = true;
-    ui.messageInput.disabled = true;
-    ui.agentSelect.disabled = true;
-    ui.toolModeBtn.disabled = true;
+    await runAssistantTurn();
+  }
 
-    try {
-      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
-      else await streamAssistantReply();
-    } catch (error) {
-      const message = error?.message === 'MODEL_REQUIRED'
-        ? 'Bir NVIDIA modeli seçilmedi.'
-        : error?.message === 'AGENT_REQUIRED'
-          ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
-      const conversation = getActiveConversation();
-      const last = conversation?.messages.at(-1);
-      if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
-      else addMessage('assistant', message);
-    } finally {
-      isStreaming = false;
-      ui.messageInput.disabled = false;
-      syncAgentSelect();
-      syncToolMode();
-      ui.messageInput.focus();
+  /**
+   * Drops the last answer and asks for another one from the same question. The
+   * dropped turn is gone from the transcript before the request goes out, so
+   * the model is never shown the answer it is being asked to replace.
+   */
+  async function regenerateLastAnswer() {
+    if (isStreaming) {
+      showToast('Yanıt sürerken yeniden üretilemez.');
+      return;
     }
+    const conversation = getActiveConversation();
+    const remaining = streamPolicy()?.truncateForRegenerate(conversation?.messages ?? []);
+    if (!remaining) {
+      showToast('Yeniden üretilecek bir Hafize yanıtı yok.');
+      return;
+    }
+    if (!readyToAnswer()) return;
+    if (editingMessageId) cancelMessageEdit();
+
+    conversation.messages = remaining;
+    conversation.updatedAt = new Date().toISOString();
+    conversations.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    saveConversations();
+    render();
+    await runAssistantTurn();
   }
 
   window.addEventListener('hafize:edit-message', (event) => beginMessageEdit(event.detail?.messageId));
+  window.addEventListener('hafize:stop-stream', () => stopStreaming());
+  window.addEventListener('hafize:regenerate-answer', () => { void regenerateLastAnswer(); });
 
   ui.sidebarToggle.addEventListener('click', () => ui.sidebar.classList.toggle('open'));
   ui.newChatBtn.addEventListener('click', () => {

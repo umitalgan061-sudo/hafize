@@ -1,5 +1,13 @@
 # Prompt Library Sağlık Tanısı
 
+## Uygulama
+
+Panel `public/prompt-library-diagnostics.js` içindedir ve İstem Kütüphanesi kartının altına
+eklenir. Varsayılan olarak kapalıdır; `Göster` düğmesi `aria-expanded` durumunu günceller.
+Tanı ve onarım, prompt tarafında `normalizeItem` / `normalizeCollection` / `saveItems`,
+koleksiyon tarafında `readCollections` / `pruneMembers` / `saveCollections` fonksiyonlarını
+kullanır; ayrı bir veri formatı tanımlanmaz.
+
 Sağlık paneli, Prompt Library storage alanlarını okumak için yalnızca tarayıcı API'lerini kullanır. Tanı işlemi veri göndermeyi gerektirmez.
 
 ## Ölçülen alanlar
@@ -24,6 +32,10 @@ Aşağıdaki koşullar sağlanıyorsa panel `Kütüphane sağlıklı` mesajı g�
 ## Onarım
 
 Onarım düğmesi yalnızca sorun varsa etkinleşir. Kullanıcı onayı alınmadan yazma işlemi yapılmaz.
+
+İstem deposu hiç okunamıyorsa (bozuk JSON, erişimi engellenmiş storage veya dizi olmayan kök)
+onarım çalıştırılmaz ve düğme pasif kalır: okunamayan bir depo boş bir depo değildir, onarım
+hâlâ orada duran kayıtları boş listeyle değiştirebilirdi.
 
 Prompt kayıtları mevcut normalizer ile yeniden sınırlandırılır ve geçersiz kayıtlar elenir. Koleksiyon üyeleri mevcut prompt id kümesine göre filtrelenir.
 

@@ -19,3 +19,6 @@ coverage/
 *.crt
 runtime/
 data/
+
+# Vite output for the typed browser entries; rebuilt by `npm run build`.
+public/typed-build/
