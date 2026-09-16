@@ -36,22 +36,17 @@
     pending.then(() => report('İstem panoya kopyalandı.')).catch(() => report('Panoya kopyalama kullanılamıyor.'));
   }
   function duplicateItem(item) {
-    const items = load();
-    if (items.length >= MAX_ITEMS) return report('Kütüphane sınırı dolu.');
+    const items = load(); if (items.length >= MAX_ITEMS) return report('Kütüphane sınırı dolu.');
     const copy = api.normalizeItem({ ...item, id: makeId(), title: `${item.title} kopyası`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), favorite: false, useCount: 0 });
-    if (!copy || !persist([copy, ...items])) return report('İstem çoğaltılamadı.');
-    syncCore(); report('İstem çoğaltıldı.');
+    if (!copy || !persist([copy, ...items])) return report('İstem çoğaltılamadı.'); syncCore(); report('İstem çoğaltıldı.');
   }
   function restoreStarters() {
-    const starters = root.HafizePromptLibraryStarters;
-    if (!starters?.seed) return report('Başlangıç seti modülü kullanılamıyor.');
-    const changed = starters.seed({ force: true }); syncCore();
-    report(changed ? 'Eksik başlangıç istemleri eklendi.' : 'Başlangıç istemlerinin tamamı zaten mevcut.');
+    const starters = root.HafizePromptLibraryStarters; if (!starters?.seed) return report('Başlangıç seti modülü kullanılamıyor.');
+    const changed = starters.seed({ force: true }); syncCore(); report(changed ? 'Eksik başlangıç istemleri eklendi.' : 'Başlangıç istemlerinin tamamı zaten mevcut.');
   }
   function clearFilters() {
     const next = { query: '', tag: 'all', favoriteOnly: false, sort: 'updated-desc' };
-    api.saveState(storage(), next); root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-state-changed', { detail: next }));
-    report('İstem filtreleri sıfırlandı.');
+    api.saveState(storage(), next); root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-state-changed', { detail: next })); report('İstem filtreleri sıfırlandı.');
   }
   function selectedIds(card) {
     return [...card.querySelectorAll('[data-prompt-selection]:checked')].map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
@@ -66,10 +61,8 @@
     if (action === 'clear-filters') return clearFilters();
     if (action === 'bulk-clear') { card.querySelectorAll('[data-prompt-selection]').forEach((node) => { node.checked = false; }); enhance(); return; }
     if (action === 'bulk-delete') {
-      const ids = new Set(selectedIds(card)); if (!ids.size) return report('Seçili istem yok.');
-      if (!root.confirm?.(`${ids.size} istem silinsin mi?`)) return;
-      if (!persist(load().filter((item) => !ids.has(item.id)))) return report('Seçilen istemler silinemedi.');
-      syncCore(); report('Seçilen istemler silindi.');
+      const ids = new Set(selectedIds(card)); if (!ids.size) return report('Seçili istem yok.'); if (!root.confirm?.(`${ids.size} istem silinsin mi?`)) return;
+      if (!persist(load().filter((item) => !ids.has(item.id)))) return report('Seçilen istemler silinemedi.'); syncCore(); report('Seçilen istemler silindi.');
     }
   }
   function enhance() {
@@ -104,7 +97,7 @@
     if (!root.document || root.HafizePromptLibraryUsage) return;
     const existing = root.document.querySelector('script[data-hafize-prompt-usage]') || root.document.querySelector('script[src="/prompt-library-usage.js"]');
     if (existing) return;
-    const script = root.document.createElement('script'); script.src = '/prompt-library-usage.js'; script.defer = true; script.dataset.hafizePromptUsage = 'true'; script.setAttribute('aria-hidden', 'true');
+    const script = root.document.createElement('script'); script.src = '/prompt-library-usage.js'; script.defer = true; script.dataset.hafizePromptUsage = 'true';
     (root.document.head || root.document.documentElement)?.append(script);
   };
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
@@ -114,14 +107,24 @@
   'use strict';
   const start = () => {
     if (!root.document || root.HafizePromptSmartInsertLoaded) return;
-    if (!root.document.querySelector('link[data-hafize-prompt-smart-insert-css]')) {
-      const css = root.document.createElement('link'); css.rel = 'stylesheet'; css.href = '/prompt-library-smart-insert.css'; css.dataset.hafizePromptSmartInsertCss = 'true';
-      (root.document.head || root.document.documentElement)?.append(css);
-    }
+    if (!root.document.querySelector('link[data-hafize-prompt-smart-insert-css]')) { const css = root.document.createElement('link'); css.rel = 'stylesheet'; css.href = '/prompt-library-smart-insert.css'; css.dataset.hafizePromptSmartInsertCss = 'true'; (root.document.head || root.document.documentElement)?.append(css); }
     const existing = root.document.querySelector('script[data-hafize-prompt-smart-insert]') || root.document.querySelector('script[src="/prompt-library-smart-insert.js"]');
     if (existing) return;
     const script = root.document.createElement('script'); script.src = '/prompt-library-smart-insert.js'; script.defer = true; script.dataset.hafizePromptSmartInsert = 'true';
     (root.document.head || root.document.documentElement)?.append(script);
+  };
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptLibrarySmartInsertCenter(root) {
+  'use strict';
+  const start = () => {
+    if (!root.document || root.HafizePromptLibrarySmartInsertCenter) return;
+    if (!root.document.querySelector('link[data-hafize-prompt-smart-insert-center-css]')) { const css = root.document.createElement('link'); css.rel = 'stylesheet'; css.href = '/prompt-library-smart-insert-center.css'; css.dataset.hafizePromptSmartInsertCenterCss = 'true'; (root.document.head || root.document.documentElement)?.append(css); }
+    const existing = root.document.querySelector('script[data-hafize-prompt-smart-insert-center]') || root.document.querySelector('script[src="/prompt-library-smart-insert-center.js"]');
+    if (existing) return;
+    const script = root.document.createElement('script'); script.src = '/prompt-library-smart-insert-center.js'; script.defer = true; script.dataset.hafizePromptSmartInsertCenter = 'true';
+    (root.document.body || root.document.documentElement)?.append(script);
   };
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
