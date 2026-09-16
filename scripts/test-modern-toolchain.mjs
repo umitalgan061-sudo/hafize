@@ -29,6 +29,7 @@ assert(pkg.devDependencies?.vitest?.startsWith('^5.'), 'Vitest 5 is not pinned')
 assert(pkg.scripts?.build === 'tsc --noEmit && vite build', 'build script must typecheck before bundling');
 assert(pkg.scripts?.prestart === 'npm run build', 'production start must build typed assets');
 assert(pkg.scripts?.typecheck === 'tsc --noEmit', 'typecheck script missing');
+assert(pkg.scripts?.['check:modern']?.includes('test-modern-toolchain.mjs'), 'modern verification command missing source contract');
 assert(tsconfig.compilerOptions?.strict === true, 'strict TypeScript is required');
 assert(tsconfig.compilerOptions?.moduleResolution === 'bundler', 'bundler module resolution is required');
 assert(tsconfig.include?.includes('public/**/*.ts'), 'browser TypeScript sources are not in typecheck include');
@@ -36,6 +37,7 @@ assert(text.vite.includes("'app-runtime': resolve(ROOT, 'public/typed/app-runtim
 assert(text.vite.includes("'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts')"), 'Smart Fill entry missing');
 assert(text.vite.includes("'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts')"), 'Command Palette entry missing');
 assert(text.vite.includes("'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts')"), 'Countdown entry missing');
+assert(text.vite.includes("'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')"), 'Smart Fill hints entry missing');
 assert(text.vite.includes("'/api':"), 'development API proxy missing');
 assert(text.vite.includes('transformIndexHtml'), 'Vite development typed-entry transform missing');
 assert(text.api.includes('retryable'), 'typed API error resilience missing');
@@ -45,13 +47,16 @@ assert(text.index.includes('/typed-build/app-runtime.js'), 'compiled runtime is 
 assert(text.index.includes('/typed-build/prompt-library-smart-fill.js'), 'compiled Smart Fill is not loaded by HTML');
 assert(text.index.includes('/typed-build/prompt-library-command-palette.js'), 'compiled Command Palette is not loaded by HTML');
 assert(text.index.includes('/typed-build/scheduled-tasks-countdown.js'), 'compiled Countdown is not loaded by HTML');
+assert(text.index.includes('/typed-build/prompt-library-smart-fill-hints.js'), 'compiled Smart Fill hints are not loaded by HTML');
 assert(!text.index.includes('prompt-library-smart-fill.js" defer'), 'legacy Smart Fill script remains in HTML');
 assert(!text.index.includes('prompt-library-command-palette.js" defer'), 'legacy Command Palette script remains in HTML');
 assert(!text.index.includes('scheduled-tasks-countdown.js" defer'), 'legacy Countdown script remains in HTML');
-assert(text.sw.includes('hafize-shell-v34'), 'service worker cache version was not advanced');
+assert(!text.index.includes('prompt-library-smart-fill-hints.js" defer'), 'legacy Smart Fill hints remain in HTML');
+assert(text.sw.includes('hafize-shell-v35'), 'service worker cache version must be v35');
 assert(text.sw.includes('/typed-build/app-runtime.js'), 'runtime build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-smart-fill.js'), 'Smart Fill build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-command-palette.js'), 'Command Palette build missing from PWA shell');
 assert(text.sw.includes('/typed-build/scheduled-tasks-countdown.js'), 'Countdown build missing from PWA shell');
+assert(text.sw.includes('/typed-build/prompt-library-smart-fill-hints.js'), 'Smart Fill hints build missing from PWA shell');
 assert(!text.api.includes('Authorization'), 'browser API client must not own auth credentials');
 console.log('modern-toolchain: source contracts ok');
