@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const source = fs.readFileSync(path.join(process.cwd(), 'public/typed/platform-task-queue-fixed.ts'), 'utf8');
+assert.ok(source.includes("export type TaskPriority"));
+assert.ok(source.includes("export type TaskState"));
+assert.ok(source.includes('PlatformTaskOptions'));
+assert.ok(source.includes('PlatformTaskSnapshot'));
+assert.ok(source.includes('PlatformTaskHandle'));
+assert.ok(source.includes('MAX_QUEUE = 32'));
+assert.ok(source.includes('DEFAULT_TIMEOUT = 10_000'));
+assert.ok(source.includes('PLATFORM_TASK_QUEUE_FULL'));
+assert.ok(source.includes('PLATFORM_TASK_DUPLICATE'));
+assert.ok(source.includes('AbortController'));
+assert.ok(source.includes('TimeoutError'));
+assert.ok(source.includes("'user-cancelled'"));
+assert.ok(source.includes("'feature-stopped'"));
+assert.ok(source.includes('concurrency'));
+assert.ok(source.includes('prune(keepCompleted = 8)'));
+assert.ok(source.includes('snapshots(): readonly PlatformTaskSnapshot[]'));
+assert.ok(!source.includes('task.work(task.controller.signal)?.then?.'));
+console.log('platform task queue: ok');
