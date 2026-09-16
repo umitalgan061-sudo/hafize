@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
+
+let now = new Date('2026-09-16T12:00:00.000Z');
+const store = createTaskScheduleStore({ now: () => now });
+const created = store.add({ traceId: 'trace_1', ownerId: 'user_1', agentId: 'research', task: 'İlk görev', runAt: '2026-09-16T13:00:00.000Z', maxAttempts: 3 });
+const edited = store.update(created.scheduleId, { task: 'Güncellenen görev', runAt: '2026-09-16T14:30:00.000Z', maxAttempts: 4 });
+assert.equal(edited.task, 'Güncellenen görev');
+assert.equal(edited.runAt, '2026-09-16T14:30:00.000Z');
+assert.equal(edited.maxAttempts, 4);
+assert.ok(edited.updatedAt);
+assert.throws(() => store.update(created.scheduleId, { runAt: '2026-09-16T11:59:00.000Z' }), /INVALID_TASK_SCHEDULE:runAt/);
+assert.throws(() => store.update(created.scheduleId, { maxAttempts: 1 }), /INVALID_TASK_SCHEDULE:maxAttempts/);
+const claimed = store.claimDue();
+assert.equal(claimed.length, 0);
+now = new Date('2026-09-16T15:00:00.000Z');
+const due = store.claimDue();
+assert.equal(due[0].status, 'running');
+assert.throws(() => store.update(created.scheduleId, { task: 'Geçiş sonrası düzenleme' }), /INVALID_TASK_SCHEDULE_TRANSITION/);
+console.log('scheduled task store edit contracts ok');
