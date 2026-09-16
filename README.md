@@ -73,17 +73,21 @@ Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilme
 
 ## Zamanlanmış Görevler
 
-Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
+Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme, düzenleme, yeniden planlama ve iptal etme yüzeyi sağlar.
 
-- `/api/schedules` GET/POST ve `/api/schedules/:id` DELETE kullanılır.
+- `/api/schedules` GET/POST ve `/api/schedules/:id` PATCH/DELETE kullanılır.
 - Ajan, task metni, gelecek tarih/saat ve 1–5 maksimum deneme seçilebilir.
+- Planlandı durumundaki görevler `Düzenle` ile ajan, metin, zaman ve maksimum deneme açısından güncellenebilir.
+- Planlandı durumundaki görevlerde `+15 dk` ve `+1 saat` hızlı erteleme seçenekleri vardır.
+- `Tekrar planla` mevcut içeriği yeni bir schedule kaydı olarak yeniden oluşturur; eski kayıt değiştirilmez.
+- Yalnızca kayıt sahibi düzenleyebilir; çalışan, tamamlanmış, başarısız veya iptal edilmiş kayıtlar düzenlenemez.
 - Günlük özet, satış özeti, kod incelemesi, araştırma özeti, haftalık plan ve kontrol listesi hızlı şablonları vardır.
 - Durum filtreleri Planlandı, Çalışıyor, Tamamlandı, Başarısız ve İptal edildi olarak ayrılır.
 - Planlanan görevlerde kalan süre göstergesi bulunur ve panel açıkken liste periyodik yenilenir.
 - `Ctrl / ⌘ + Shift + T` ile görevler paneli açılır; düzenlenebilir alanlarda kısayol devre dışıdır.
 - Görev içeriği browser storage'a otomatik kopyalanmaz ve schedule API response'ları service worker cache'lenmez.
-- Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
-- Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
+- Server authentication, ownership, credential policy ve state transitions backend'de tekrar doğrulanır.
+- Ayrıntılar `docs/SCHEDULED_TASKS_*.md` ve `docs/SCHEDULED_TASK_EDIT*.md` dosyalarındadır.
 
 ## Test
 
@@ -105,6 +109,18 @@ node scripts/test-scheduled-tasks-countdown.mjs
 node scripts/test-scheduled-tasks-pwa.mjs
 node scripts/test-scheduled-tasks-index-and-sw.mjs
 node scripts/test-scheduled-tasks-regression.mjs
+node scripts/test-scheduled-tasks-edit-store.mjs
+node scripts/test-scheduled-tasks-edit-api.mjs
+node scripts/test-scheduled-tasks-edit-http.mjs
+node scripts/test-scheduled-tasks-edit-persistence.mjs
+node scripts/test-scheduled-tasks-edit-credential.mjs
+node scripts/test-scheduled-tasks-edit-validation.mjs
+node scripts/test-scheduled-tasks-edit-auth.mjs
+node scripts/test-scheduled-tasks-edit-errors.mjs
+node scripts/test-scheduled-tasks-edit-regression.mjs
+node scripts/test-scheduled-tasks-edit-postpone.mjs
+node scripts/test-scheduled-tasks-edit-copy.mjs
+node scripts/test-scheduled-tasks-edit-keyboard.mjs
 ```
 
 Conversation Workspace özel kontrolleri:
