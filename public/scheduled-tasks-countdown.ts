@@ -14,10 +14,10 @@ interface CountdownWindow extends Window {
   }>;
 }
 
-const root = globalThis as CountdownWindow;
+const root = globalThis as unknown as CountdownWindow;
 const PANEL_ID = 'scheduledTasksWorkspace';
 const REFRESH_MS = 1_000;
-let timer: number | undefined;
+let timer: ReturnType<typeof root.setInterval> | undefined;
 let observer: MutationObserver | undefined;
 
 export function countdownLabel(timestamp: string): string {

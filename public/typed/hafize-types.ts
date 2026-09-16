@@ -41,9 +41,10 @@ export interface RuntimeSnapshot {
   readonly lastErrorCode: string | null;
 }
 
-export interface ApiRequestOptions extends RequestInit {
-  readonly timeoutMs?: number;
-  readonly retry?: number;
+export interface ApiRequestOptions extends Omit<RequestInit, 'signal'> {
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: number | undefined;
+  readonly signal?: AbortSignal | null | undefined;
 }
 
 export class HafizeApiError extends Error {
@@ -60,6 +61,12 @@ export class HafizeApiError extends Error {
     this.traceId = options.traceId ?? null;
     this.retryable = options.retryable ?? false;
   }
+}
+
+const PROTOTYPE_TOKENS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
+
+export function isPrototypeToken(value: unknown): boolean {
+  return typeof value === 'string' && PROTOTYPE_TOKENS.has(value);
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -83,6 +90,7 @@ export function parseAgents(value: unknown): AgentsResponse {
   const agents = Array.isArray(source.agents)
     ? source.agents.flatMap((raw): PublicAgent[] => {
         if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return [];
+        if (isPrototypeToken(raw.id)) return [];
         const description = typeof raw.description === 'string' ? raw.description.slice(0, 320) : undefined;
         const tools = Array.isArray(raw.tools)
           ? raw.tools.filter((tool): tool is string => typeof tool === 'string').slice(0, 64)
@@ -90,8 +98,9 @@ export function parseAgents(value: unknown): AgentsResponse {
         return [{ id: raw.id.slice(0, 160), name: raw.name.slice(0, 160), ...(description ? { description } : {}), ...(tools ? { tools } : {}) }];
       })
     : [];
+  const defaultAgent = stringValue(source.defaultAgent).slice(0, 160);
   return Object.freeze({
-    defaultAgent: stringValue(source.defaultAgent).slice(0, 160),
+    defaultAgent: isPrototypeToken(defaultAgent) ? '' : defaultAgent,
     agents: Object.freeze(agents)
   });
 }

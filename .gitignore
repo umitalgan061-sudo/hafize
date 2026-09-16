@@ -19,3 +19,6 @@ coverage/
 *.crt
 runtime/
 data/
+
+# generated typed bundles (npm run build)
+public/typed-build/

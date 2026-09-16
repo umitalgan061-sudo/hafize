@@ -147,7 +147,7 @@ export function mountHafizeRuntime(): RuntimeController | null {
     health: null,
     lastErrorCode: null
   });
-  let timer: number | undefined;
+  let timer: ReturnType<typeof globalThis.setInterval> | undefined;
   let destroyed = false;
 
   const refresh = async (): Promise<void> => {

@@ -8,7 +8,9 @@ describe('typed contract hostile payloads', () => {
       agents: [{ id: 'a'.repeat(500), name: 'b'.repeat(500), description: 'c'.repeat(500), tools: Array(200).fill('tool') }]
     };
     const parsed = parseAgents(payload);
-    expect(parsed.defaultAgent).toHaveLength(160);
+    expect(parsed.defaultAgent).toBe('');
+    expect(parseAgents({ defaultAgent: 'z'.repeat(500), agents: [] }).defaultAgent).toHaveLength(160);
+    expect(parseAgents({ agents: [{ id: '__proto__', name: 'poison' }] }).agents).toHaveLength(0);
     expect(parsed.agents[0]?.id).toHaveLength(160);
     expect(parsed.agents[0]?.name).toHaveLength(160);
     expect(parsed.agents[0]?.description).toHaveLength(320);
