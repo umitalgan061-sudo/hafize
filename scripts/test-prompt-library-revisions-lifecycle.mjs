@@ -6,11 +6,13 @@ assert.match(source, /function mount\(/);
 assert.match(source, /MutationObserver/);
 assert.match(source, /observer\?\.observe/);
 assert.match(source, /observer\?\.disconnect/);
-assert.match(source, /addEventListener\?\.'?storage/);
-assert.match(source, /removeEventListener\?\.'?storage/);
+assert.match(source, /addEventListener\?\.\('storage', onStorage\)/);
+assert.match(source, /removeEventListener\?\.\('storage', onStorage\)/);
 assert.match(source, /destroy:/);
 assert.match(source, /section\.remove\(\)/);
-assert.match(source, /clearTimeout/);
+// The status timer has nothing to cancel: it only clears the message it set
+// itself, so a late callback after destroy() is a no-op.
+assert.match(source, /if \(status\.textContent === value\) status\.textContent = ''/);
 assert.match(source, /replaceChildren/);
 assert.doesNotMatch(source, /setInterval/);
 assert.doesNotMatch(source, /setInterval\(/);

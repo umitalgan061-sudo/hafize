@@ -7,7 +7,7 @@ assert.match(source, /const promptIds = readPromptIds\(storage\)/);
 assert.match(source, /promptIds\.filter\(\(id\) => promptIds\.has\(id\)\)/);
 assert.match(source, /function readPromptIds/);
 assert.match(source, /typeof item\.id === 'string'/);
-assert.match(source, /filter\(\(item\) => item && typeof item === 'object'/);
+assert.match(source, /filter\(\(item\) => item && typeof item\.id === 'string'\)/);
 assert.match(source, /pruneMembers\(readCollections\(storage\), storage\)/);
 assert.match(source, /return normalizeCollections\(collections\)\.map/);
 assert.match(source, /collection\.promptIds\.filter/);
