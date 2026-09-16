@@ -1,11 +1,9 @@
 {
   "name": "hafize-ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, Claude-benzeri frontend başlangıcı.",
-  "engines": {
-    "node": ">=24.21.0"
-  },
+  "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, typed ve PWA hazır frontend/runtime.",
+  "engines": { "node": ">=24.21.0" },
   "scripts": {
     "start": "node --import ./lib/production-guard.mjs server.mjs",
     "prestart": "npm run build",
@@ -20,13 +18,6 @@
     "test": "node scripts/run-checks.mjs",
     "format:check": "node scripts/format-check.mjs"
   },
-  "dependencies": {
-    "redis": "^6.1.0"
-  },
-  "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^6.0.0",
-    "vite": "^8.1.0",
-    "vitest": "^5.0.0"
-  }
+  "dependencies": { "redis": "^6.1.0" },
+  "devDependencies": { "@types/node": "^24.0.0", "typescript": "7.0.2", "vite": "^8.1.0", "vitest": "^5.0.0" }
 }
