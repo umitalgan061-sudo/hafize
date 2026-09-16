@@ -14,6 +14,7 @@ const TYPED_ENTRIES = [
   'prompt-library-starters',
   'prompt-library-keyboard',
   'auth',
+  'browser-platform',
   'chat-composer-features',
   'chat-drafts',
   'voice-output',
@@ -27,7 +28,8 @@ const TYPED_ENTRIES = [
   'voice-input',
   'screen-share',
   'hands-free',
-  'conversation-workspace'
+  'conversation-workspace',
+  'runtime-health'
 ] as const;
 
 const typedDevEntryPlugin = (): Plugin => ({
