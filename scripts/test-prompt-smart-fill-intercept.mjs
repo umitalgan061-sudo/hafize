@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
 assert.match(text, /function interceptUse\(event\)/);
-assert.match(text, /closest\('\.prompt-item-actions button'\)/);
+assert.match(text, /closest\??\.?\('\.prompt-item-actions button'\)/, 'the use button is matched inside the item action bar');
 assert.match(text, /textContent\?\.trim\(\) !== 'Kullan'/);
 assert.match(text, /stopImmediatePropagation/);
 assert.match(text, /preventDefault/);

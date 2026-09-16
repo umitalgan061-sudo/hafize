@@ -14,6 +14,40 @@ değişmezlerini (sürüm biçimi, eski sürümlerin temizlenmesi, her asset'in 
 `index.html`'in yüklediği her asset'in cache listesinde olması), `source-contract.mjs` ise
 kaynak-sözleşme yardımcılarını sağlar: bir attribute markup ya da `setAttribute` ile,
 bir sınıf seçici ya da sınıf adı olarak, CSS parçaları ise boşluktan bağımsız eşleşir.
-Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
+`browser-module-harness.mjs` ise `public/*.js` tarayıcı modüllerini Node altında
+yükler. Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
+
+## Test yazarken kaçınılacak üç kalıp
+
+Kapının 51 paketle kırmızı kaldığı dönemde tekrarlayan üç hata vardı. Yeni paket
+yazarken bunlardan kaçının.
+
+**1. Sabit cache sürümü.** `CURRENT_CACHE = ${CACHE_PREFIX}v29` gibi bir literal
+kabuk her değiştiğinde kırılır ve farklı paketler farklı sürümlere sabitlendiğinde
+aynı anda geçmeleri imkânsız hale gelir. Bunun yerine
+`assertVersionedCacheDeclaration(sw)` veya `assertShellAssets([...])` kullanın.
+
+**2. Ürünü değil kendi kopyasını test etmek.** Bir paket, doğrulayacağı mantığı
+test dosyasının içinde yeniden yazıp o kopyaya assert ederse `public/` altında ne
+olduğundan bağımsız olarak geçer veya kalır. Gerçek dosyayı
+`browser-module-harness.mjs` ile yükleyin:
+
+```js
+import { createStorage, loadBrowserApi } from './browser-module-harness.mjs';
+const localStorage = createStorage();
+const { api } = loadBrowserApi('composer-history.js', 'HafizeComposerHistory', { localStorage });
+```
+
+Modül `globalThis`/`self` sahte bir köke bağlanarak mevcut realm'de çalıştırılır;
+`document` verilmediği için kendini mount etmez ve yalnız saf API'sini yayınlar.
+`createStorage(initial, { failOn: ['getItem'] })` engellenmiş site verisini taklit
+eder. Değerler aynı realm'de üretildiği için `assert.deepStrictEqual` çalışır.
+
+**3. Davranış yerine yazım biçimini sabitlemek.** `navigator.clipboard`,
+`slice(0, MAX_VALUE)` veya `closest('.x')` gibi literal `grep`'ler, kod isteğe
+bağlı zincirlemeye (`navigator?.clipboard`), bir `clamp()` yardımcısına veya
+`closest?.()` biçimine geçtiğinde davranış hiç değişmeden kırılır. Sözleşmeyi
+doğrulayın: mümkünse davranışı çalıştırın, değilse `source-contract.mjs`
+yardımcılarını veya yazım biçimine toleranslı bir desen kullanın.
 
 Runner hata çıktısını bounded biçimde raporlar ve keşif/çalıştırma hatasında fail-closed şekilde sıfır olmayan çıkış kodu verir. Secret veya credential değeri kendi çıktısına ekleyen testler repo sözleşmesine aykırıdır.

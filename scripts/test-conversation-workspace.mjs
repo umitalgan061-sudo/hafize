@@ -174,8 +174,10 @@ check('workspace remains before voice modules', index.indexOf('/conversation-wor
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
 check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
-check('rules advertise 3000 line budget', rules.includes('Tur değişiklik bütçesi — 3000 satır'));
-check('rules define 3000 max diff', rules.includes('en fazla 3000 değişen satır'));
+// The round-size rule moved from a 3000-line budget to the 4000+ completion
+// criterion; these check the wording that HAFIZE_RULES.md actually carries.
+check('rules advertise the 4000+ completion criterion', rules.includes('Tur tamamlama kriteri — 4000+ anlamlı değişiklik'));
+check('rules define the 4000 line threshold', rules.includes('4000 değişen satıra ulaşmadan kapatılmaz'));
 
 const dangerous = [
   'document.cookie',

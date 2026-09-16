@@ -22,5 +22,7 @@ for (const file of docs) {
 }
 const requiredTerms = ['güvenlik','rollback','PWA','keyboard','storage'];
 const corpus = docs.map((file) => fs.readFileSync(path.join(root,file),'utf8').toLocaleLowerCase('tr-TR')).join('\n');
-for (const term of requiredTerms) assert.ok(corpus.includes(term), `missing term: ${term}`);
+// The corpus is lower-cased, so the terms are folded the same way; comparing a
+// mixed-case term such as 'PWA' against it could never match.
+for (const term of requiredTerms) assert.ok(corpus.includes(term.toLocaleLowerCase('tr-TR')), `missing term: ${term}`);
 console.log('prompt smart-fill documentation regression: ok');

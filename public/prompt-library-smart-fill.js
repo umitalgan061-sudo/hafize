@@ -20,7 +20,10 @@
   }
 
   function readPresets(promptId) {
-    const raw = store()?.getItem?.(keyForPrompt(promptId));
+    // `getItem` itself throws when site data is blocked (private windows, strict
+    // cookie policies), so the read is guarded as well as the JSON parse.
+    let raw = null;
+    try { raw = store()?.getItem?.(keyForPrompt(promptId)); } catch { return []; }
     const data = safeParse(raw || '[]', []);
     if (!Array.isArray(data)) return [];
     return data.filter((preset) => preset && typeof preset === 'object')
@@ -49,6 +52,36 @@
 
   function randomId() {
     return root.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  /**
+   * Counts one use of a prompt against the library's own record.
+   *
+   * The dialog intercepts the library's "Kullan" button and stops the event, so
+   * the library never runs its own increment for a prompt that has variables.
+   * Without this the usage insights reported zero uses for exactly the prompts
+   * the dialog exists to serve. The count is written through the library API so
+   * the storage shape stays owned by one module.
+   */
+  function recordUse(promptId) {
+    const library = core();
+    if (!library?.loadItems || !library?.saveItems || !library?.normalizeItem || !promptId) return false;
+    const items = library.loadItems(store());
+    const index = items.findIndex((item) => item.id === promptId);
+    if (index < 0) return false;
+    const current = items[index];
+    const updated = library.normalizeItem({
+      ...current,
+      useCount: (Number(current.useCount) || 0) + 1,
+      updatedAt: new Date().toISOString()
+    });
+    if (!updated) return false;
+    items.splice(index, 1, updated);
+    return persist(items);
+  }
+
+  function persist(items) {
+    try { return core()?.saveItems?.(store(), items) === true; } catch { return false; }
   }
 
   function buildElement(doc, tag, textValue, className) {
@@ -107,13 +140,19 @@
     let activePrompt = null;
     let activeNames = [];
     let activeInputs = new Map();
-    let lastFocus = null;
+    let previousFocus = null;
 
-    function closeDialog() {
+    // `restoreFocus` is false only when the caller has already placed focus
+    // somewhere deliberate. Closing after an insert would otherwise pull focus
+    // back to the "Kullan" button and out of the composer the user is about to
+    // type in. Called directly as a click handler too, where the Event argument
+    // destructures to the default.
+    function closeDialog({ restoreFocus = true } = {}) {
       dialog.hidden = true;
       fields.replaceChildren(); presetBar.replaceChildren(); errors.textContent = '';
       activePrompt = null; activeNames = []; activeInputs = new Map();
-      lastFocus?.focus?.(); lastFocus = null;
+      if (restoreFocus) previousFocus?.focus?.();
+      previousFocus = null;
     }
 
     function showError(message) { errors.textContent = clamp(message, 180); }
@@ -182,7 +221,7 @@
 
     function openFor(prompt) {
       if (!prompt) return;
-      lastFocus = documentRef.activeElement;
+      previousFocus = documentRef.activeElement;
       activePrompt = prompt;
       activeNames = variableNames(prompt.body);
       activeInputs = new Map();
@@ -224,7 +263,8 @@
       composer.value = text.slice(0, MAX_PREVIEW);
       composer.dispatchEvent(new Event('input', { bubbles: true }));
       composer.focus();
-      closeDialog();
+      recordUse(activePrompt.id);
+      closeDialog({ restoreFocus: false });
     }
 
     function trapKeydown(event) {
@@ -259,7 +299,7 @@
     return Object.freeze({ mounted: true, open: openFor, close: closeDialog, destroy: () => { card.removeEventListener('click', interceptUse, true); closeDialog(); dialog.remove(); delete card.dataset.smartFillReady; } });
   }
 
-  const api = Object.freeze({ STORAGE_KEY, mount, readPresets, writePresets, variableNames });
+  const api = Object.freeze({ STORAGE_KEY, mount, readPresets, writePresets, variableNames, recordUse });
   root.HafizePromptLibrarySmartFill = api;
   const start = () => mount(root.document, root);
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });

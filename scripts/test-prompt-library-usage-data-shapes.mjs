@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { loadBrowserApi } from './browser-module-harness.mjs';
 
 const core = fs.readFileSync('public/prompt-library.js', 'utf8');
 const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
@@ -7,7 +8,15 @@ const docs = fs.readFileSync('docs/PROMPT_LIBRARY_USAGE_INSIGHTS.md', 'utf8');
 
 assert.match(core, /useCount/);
 assert.match(core, /Math\.min\(9999, Math\.floor\(input\.useCount\)\)/);
-assert.match(core, /useCount: 0/);
+// A freshly normalized prompt starts at zero uses. Asserted as behaviour:
+// the source spells the default as a fallback inside normalizeItem.
+{
+  const { api } = loadBrowserApi('prompt-library.js', 'HafizePromptLibrary');
+  assert.equal(api.normalizeItem({ title: 'T', body: 'B' }).useCount, 0, 'a new prompt starts unused');
+  assert.equal(api.normalizeItem({ title: 'T', body: 'B', useCount: -5 }).useCount, 0, 'a negative count is rejected');
+  assert.equal(api.normalizeItem({ title: 'T', body: 'B', useCount: 3.7 }).useCount, 3, 'a fractional count is floored');
+  assert.equal(api.normalizeItem({ title: 'T', body: 'B', useCount: 1e9 }).useCount, 9999, 'the count is capped');
+}
 assert.match(core, /useCount: items\[index\]\.useCount \+ 1/);
 assert.match(usage, /function usageOf\(item\)/);
 assert.match(usage, /const value = Number\(item\.useCount\)/);

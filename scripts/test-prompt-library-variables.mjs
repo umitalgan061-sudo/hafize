@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { extractVariables, replaceVariables, LIMITS } from '../public/prompt-library.js';
+import { loadBrowserApi } from './browser-module-harness.mjs';
+
+// prompt-library.js is a browser IIFE that publishes its API on the global
+// object, so Node cannot statically detect named exports from it. The harness
+// evaluates the shipped file and hands back the same API.
+const { api: promptLibrary } = loadBrowserApi('prompt-library.js', 'HafizePromptLibrary');
+const { extractVariables, replaceVariables, LIMITS } = promptLibrary;
 
 assert.deepEqual(extractVariables('{{konu}} {{dil}} {{konu}}'), ['konu', 'dil']);
 assert.deepEqual(extractVariables('{{ spaced_name }} {{dash-name}} {{bad.name}}'), ['spaced_name', 'dash-name']);

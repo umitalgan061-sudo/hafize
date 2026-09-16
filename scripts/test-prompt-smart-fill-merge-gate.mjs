@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
@@ -19,7 +20,7 @@ assert.ok(sw.includes('/prompt-library-command-palette.css'));
 assert.ok(sw.includes('/prompt-library-smart-fill.js'));
 assert.ok(sw.includes('/prompt-library-command-palette.js'));
 assert.ok(sw.includes('/prompt-library-smart-fill-hints.js'));
-assert.ok(sw.includes('v29'));
+assertVersionedCacheDeclaration(sw);
 assert.ok(sw.includes("pathname.startsWith('/api/')"));
 assert.ok(smart.includes('Mesaja aktar'));
 assert.ok(smart.includes('Önizleme'));

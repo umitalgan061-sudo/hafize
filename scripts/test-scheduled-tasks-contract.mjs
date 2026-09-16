@@ -6,9 +6,12 @@ const boundary = await readFile(new URL('../lib/schedule-command-boundary.mjs', 
 const store = await readFile(new URL('../lib/task-schedule-store.mjs', import.meta.url), 'utf8');
 
 assert.match(api, /\/api\/schedules/);
-assert.match(api, /method === 'GET'/);
-assert.match(api, /method === 'POST'/);
-assert.match(api, /method === 'DELETE'/);
+// The handler upper-cases `method` into `verb` before dispatching, so the
+// contract is on the normalized verb rather than the raw field.
+assert.match(api, /verb === 'GET'/);
+assert.match(api, /verb === 'POST'/);
+assert.match(api, /verb === 'DELETE'/);
+assert.match(api, /method\.toUpperCase\(\)/, 'the request method is normalized before dispatch');
 assert.match(api, /WWW-Authenticate/);
 assert.match(boundary, /ownerId/);
 assert.match(boundary, /INVALID_AGENT/);

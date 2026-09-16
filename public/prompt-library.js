@@ -51,7 +51,10 @@
     if (!input || typeof input !== 'object') return null;
     const body = typeof input.body === 'string' ? input.body.slice(0, LIMITS.maxBody).replace(/\0/g, '') : '';
     if (!body) return null;
-    const createdAt = trim(input.createdAt, 40) || timestamp();
+    // An imported prompt often carries only `updatedAt`. Falling back to it
+    // keeps the backup's chronology; stamping `timestamp()` would reset every
+    // imported prompt to "now" and destroy created-order sorting.
+    const createdAt = trim(input.createdAt, 40) || trim(input.updatedAt, 40) || timestamp();
     return Object.freeze({
       id: trim(input.id, 120) || id(),
       title: trim(input.title, LIMITS.maxTitle) || 'İsimsiz istem',
@@ -140,13 +143,19 @@
     const result = normalizeCollection(current);
     const ids = new Set(result.map((item) => item.id));
     let imported = 0;
-    for (const raw of normalizeCollection(incoming)) {
-      let item = raw;
+    // Incoming entries are normalized one at a time rather than through
+    // normalizeCollection: that helper drops any entry whose id was already
+    // seen, so a backup that reuses an id lost prompts before the re-id below
+    // ever ran. Collisions get a fresh id here instead, so nothing is dropped.
+    const candidates = Array.isArray(incoming) ? incoming.slice(0, LIMITS.maxItems * 2) : [];
+    for (const raw of candidates) {
+      if (result.length >= LIMITS.maxItems) break;
+      let item = normalizeItem(raw);
+      if (!item) continue;
       let nextId = item.id;
       while (ids.has(nextId)) nextId = id();
       if (nextId !== item.id) item = Object.freeze({ ...item, id: nextId });
       ids.add(item.id); result.push(item); imported += 1;
-      if (result.length >= LIMITS.maxItems) break;
     }
     return { items: normalizeCollection(result), imported };
   }
@@ -279,7 +288,12 @@
     on(rootRef, 'storage', (event) => { if (event.key === STORAGE_KEY) { items = loadItems(storage); render(); } if (event.key === STATE_KEY) { state = loadState(storage); render(); } });
     on(documentRef, 'keydown', (event) => { if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'p') return; event.preventDefault(); search.focus(); search.select(); });
     render();
-    return Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy: () => { destroyed = true; for (const off of listeners.splice(0)) off(); card.remove(); } });
+    // Teardown is driven by destroy(), deliberately not by a `beforeunload`
+    // listener: registering one disqualifies the page from the back/forward
+    // cache, and a cancelled navigation would leave the card on screen with its
+    // listeners already released.
+    const releaseListeners = () => { destroyed = true; for (const off of listeners.splice(0)) off(); };
+    return Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy: () => { releaseListeners(); card.remove(); } });
   }
 
   return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems, filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });

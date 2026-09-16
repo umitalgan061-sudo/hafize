@@ -13,5 +13,7 @@ assert.match(source, /FileReader/);
 assert.match(source, /URL\.revokeObjectURL/);
 assert.doesNotMatch(enhancements, /fetch\s*\(/);
 assert.doesNotMatch(enhancements, /XMLHttpRequest/);
-assert.match(enhancements, /navigator\.clipboard/);
+// Optional chaining is deliberate: `navigator.clipboard` is undefined on
+// insecure origins, so the guarded form is the correct spelling.
+assert.match(enhancements, /navigator\??\.clipboard/, 'copy uses the clipboard API');
 console.log('test-prompt-library-source: ok');

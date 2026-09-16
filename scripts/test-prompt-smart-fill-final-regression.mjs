@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -56,7 +57,7 @@ for (const source of [smart, palette, hints]) {
 assert.match(index, /prompt-library-smart-fill\.js/);
 assert.match(index, /prompt-library-command-palette\.js/);
 assert.match(index, /prompt-library-smart-fill-hints\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v29`/);
+assertVersionedCacheDeclaration(sw);
 assert.match(sw, /prompt-library-smart-fill\.js/);
 assert.match(sw, /prompt-library-command-palette\.js/);
 assert.match(sw, /prompt-library-smart-fill-hints\.js/);

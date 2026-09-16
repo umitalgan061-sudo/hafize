@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { LIMITS, normalizeItem, normalizeCollection, safeState } from '../public/prompt-library.js';
+import { loadBrowserApi } from './browser-module-harness.mjs';
+
+// prompt-library.js is a browser IIFE that publishes its API on the global
+// object, so Node cannot statically detect named exports from it. The harness
+// evaluates the shipped file and hands back the same API.
+const { api: promptLibrary } = loadBrowserApi('prompt-library.js', 'HafizePromptLibrary');
+const { LIMITS, normalizeItem, normalizeCollection, safeState } = promptLibrary;
 
 const item = normalizeItem({ title: 'x'.repeat(200), body: 'x'.repeat(9000), tags: Array.from({ length: 20 }, (_, i) => `tag-${i}`), variables: Array.from({ length: 20 }, (_, i) => `v-${i}`) });
 assert.equal(item.title.length, LIMITS.maxTitle);

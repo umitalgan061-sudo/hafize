@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
@@ -7,11 +8,16 @@ const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'u
 assert.match(index, /scheduled-tasks\.css/);
 assert.match(index, /scheduled-tasks\.js/);
 assert.match(index, /scheduled-tasks-enhancements\.js/);
-assert.match(index, /id="scheduledTasksWorkspace"|scheduledTasksWorkspace/);
+// The panel is created at runtime by scheduled-tasks.js, so `index.html` never
+// carries the id. The contract is that the module owning the id is the one the
+// page loads and the service worker caches.
+const workspace = await readFile(new URL('../public/scheduled-tasks.js', import.meta.url), 'utf8');
+assert.match(workspace, /PANEL_ID = 'scheduledTasksWorkspace'/);
+assert.match(index, /\/scheduled-tasks\.js/);
 assert.match(sw, /\/scheduled-tasks\.css/);
 assert.match(sw, /\/scheduled-tasks\.js/);
 assert.match(sw, /\/scheduled-tasks-enhancements\.js/);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v3[0-9]+`/);
+assertVersionedCacheDeclaration(sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /network-only/);
 console.log('scheduled task PWA policy: ok');

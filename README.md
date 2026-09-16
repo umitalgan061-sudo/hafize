@@ -30,7 +30,20 @@ Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetm
 
 ## Mesaj çalışma alanı
 
-Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları yerel olarak kaydetme, geri bildirimleme, notlama, etiketleme, arama, filtreleme, sıralama ve seçerek JSON dışa aktarma yüzeyidir. Metadata ayrı local storage anahtarında tutulur.
+Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları yerel olarak kaydetme, geri bildirimleme, notlama, etiketleme, arama, filtreleme, sıralama ve seçerek JSON dışa aktarma yüzeyidir.
+
+Metadata, conversation history'den ayrı bir anahtarda — `hafize.message-workspace.v1` — tutulur; mesaj metinleri kopyalanmaz, yalnız kayıt referansları ve kullanıcının eklediği not/etiket/geri bildirim saklanır. Kayıt sayısı, not ve etiket uzunlukları sınırlıdır ve veri cihazdan çıkmaz.
+
+`Ctrl / ⌘ + Shift + B` arama alanına odaklanır, `Ctrl / ⌘ + Shift + K` görünen kayıtları seçer. Düzenlenebilir alanlardayken kısayollar devre dışıdır.
+
+Doğrulama:
+
+```bash
+node scripts/test-message-workspace-policy.mjs
+node scripts/test-message-workspace-adversarial.mjs
+```
+
+Ayrıntılar `docs/MESSAGE_WORKSPACE*.md` dosyalarındadır.
 
 ## İstem Kütüphanesi
 
@@ -50,6 +63,20 @@ Desteklenen akış:
 - `Ctrl / ⌘ + Shift + P` arama ve `Ctrl / ⌘ + Shift + N` yeni istem kısayolları.
 
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
+
+## Akıllı doldurma
+
+Değişken içeren bir istemde `Kullan` düğmesi, istemi doğrudan composer'a yazmak yerine akıllı doldurma penceresini açar. Pencere modal bir `dialog` olarak çalışır; `Escape` kapatır, `Tab` ve `Shift + Tab` odağı pencere içinde döndürür ve kapanışta odak çağıran düğmeye geri verilir.
+
+Desteklenen akış:
+
+- her `{{degisken}}` için ayrı bir alan ve `aria-live` ile duyurulan canlı önizleme,
+- `Enter`, `↑` ve `↓` ile alanlar arasında geçiş,
+- istem başına en fazla 6 kayıtlı değişken seti; setler `hafize.prompt-library.smart-fill.v1.<istemId>` altında **cihazda** tutulur,
+- önizlemeyi panoya kopyalama,
+- `Mesaja aktar` ile doldurulmuş metni `#messageInput` alanına yazma.
+
+Değerler 1000, değişken sayısı 12, önizleme 8000 karakterle sınırlıdır. Pencere hiçbir ağ çağrısı yapmaz; tüm veri kullanıcının cihazında kalır. `Mesaja aktar` istemin kullanım sayacını (`useCount`) bir artırır, böylece değişkenli istemler de İstem Kütüphanesi kullanım özetinde görünür. Doldurma yalnızca composer değerini değiştirir, mesajı otomatik göndermez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
 ## Zamanlanmış Görevler
 
