@@ -34,7 +34,7 @@ Presetler Prompt Library export'una dahil edilmez. Böylece kişisel değerler y
 
 ## ADR-09 — Cache version
 
-Yeni asset eklenince shell cache v29'a yükseltilir. Eski cache ile yeni index arasında kısmi yükleme riskini azaltır.
+Shell asset listesi her değiştiğinde `CURRENT_CACHE` sürümü bir artırılır. Eski cache ile yeni index arasında kısmi yükleme riskini azaltır. Kontrol paketleri sabit bir sürüm numarası beklemez; `scripts/shell-cache-contract.mjs` yalnızca sürümlü isim biçimini, eski sürümlerin temizlendiğini ve listenin `index.html` ile iki yönlü eşleştiğini doğrular.
 
 ## ADR-10 — Live hints
 
