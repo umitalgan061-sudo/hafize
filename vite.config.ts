@@ -4,6 +4,15 @@ import { resolve } from 'node:path';
 export default defineConfig({
   root: resolve(__dirname, 'public'),
   publicDir: false,
+  server: {
+    fs: { strict: true },
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:4173',
+        changeOrigin: false
+      }
+    }
+  },
   build: {
     outDir: resolve(__dirname, 'dist'),
     emptyOutDir: true,
@@ -16,11 +25,6 @@ export default defineConfig({
         chunkFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash][extname]'
       }
-    }
-  },
-  server: {
-    fs: {
-      strict: true
     }
   }
 });
