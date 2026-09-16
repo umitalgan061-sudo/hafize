@@ -33,17 +33,13 @@
       const detail = { key: STORAGE_KEY, newValue: JSON.stringify(load()), storageArea: storage() };
       if (typeof root.StorageEvent === 'function') root.dispatchEvent(new root.StorageEvent('storage', detail));
       else root.dispatchEvent(new root.Event('hafize:prompt-library-refresh'));
-    } catch {
-      root.dispatchEvent?.(new root.Event('hafize:prompt-library-refresh'));
-    }
+    } catch { root.dispatchEvent?.(new root.Event('hafize:prompt-library-refresh')); }
   }
-
   function copyItem(item) {
     const pending = root.navigator?.clipboard?.writeText?.(item.body);
     if (!pending?.then) return report('Panoya kopyalama kullanılamıyor.');
     pending.then(() => report('İstem panoya kopyalandı.')).catch(() => report('Panoya kopyalama kullanılamıyor.'));
   }
-
   function duplicateItem(item) {
     const items = load();
     if (items.length >= MAX_ITEMS) return report('Kütüphane sınırı dolu.');
@@ -51,24 +47,20 @@
     if (!copy || !persist([copy, ...items])) return report('İstem çoğaltılamadı.');
     syncCore(); report('İstem çoğaltıldı.');
   }
-
   function restoreStarters() {
     const starters = root.HafizePromptLibraryStarters;
     if (!starters?.seed) return report('Başlangıç seti modülü kullanılamıyor.');
     const changed = starters.seed({ force: true }); syncCore();
     report(changed ? 'Eksik başlangıç istemleri eklendi.' : 'Başlangıç istemlerinin tamamı zaten mevcut.');
   }
-
   function clearFilters() {
     const next = { query: '', tag: 'all', favoriteOnly: false, sort: 'updated-desc' };
     api.saveState(storage(), next); root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-state-changed', { detail: next }));
     root.document.querySelector('#promptLibrarySearch')?.focus?.(); report('İstem filtreleri sıfırlandı.');
   }
-
   function selectedIds(card) {
     return [...card.querySelectorAll('[data-prompt-selection]:checked')].map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
   }
-
   function onClick(event) {
     const target = event.target?.closest?.('[data-prompt-enhancement]'); if (!target) return;
     const action = target.dataset.promptEnhancement; const card = root.document.querySelector('#promptLibraryCard'); if (!card) return;
@@ -86,7 +78,6 @@
       syncCore(); report('Seçilen istemler silindi.');
     }
   }
-
   function enhance() {
     const card = root.document?.querySelector?.('#promptLibraryCard'); const list = card?.querySelector?.('#promptLibraryList');
     if (!card || !list) return;
@@ -94,14 +85,12 @@
     if (!toolbar) {
       toolbar = root.document.createElement('div'); toolbar.className = 'prompt-library-enhancement-toolbar';
       toolbar.append(makeButton('Filtreleri sıfırla', 'clear-filters'), makeButton('Başlangıç seti', 'restore-starters'));
-      card.querySelector('.prompt-library-filters')?.after(toolbar); toolbar.addEventListener('click', onClick);
-      listeners.push(() => toolbar.removeEventListener('click', onClick));
+      card.querySelector('.prompt-library-filters')?.after(toolbar); toolbar.addEventListener('click', onClick); listeners.push(() => toolbar.removeEventListener('click', onClick));
     }
     list.querySelectorAll('.prompt-item').forEach((row) => {
       const id = row.dataset.promptId; const actions = row.querySelector('.prompt-item-actions');
       if (!id || !actions || actions.querySelector('[data-prompt-enhancement="copy"]')) return;
-      actions.append(makeButton('Kopyala', 'copy'), makeButton('Çoğalt', 'duplicate'));
-      row.querySelector('input[type="checkbox"]')?.setAttribute('data-prompt-selection', id);
+      actions.append(makeButton('Kopyala', 'copy'), makeButton('Çoğalt', 'duplicate')); row.querySelector('input[type="checkbox"]')?.setAttribute('data-prompt-selection', id);
     });
     const hasSelection = selectedIds(card).length > 0; const existingBulk = list.querySelector('.prompt-library-enhancement-bulk');
     if (hasSelection && !existingBulk) {
@@ -109,7 +98,6 @@
       bulk.append(makeButton('Seçilenleri sil', 'bulk-delete'), makeButton('Seçimi kaldır', 'bulk-clear')); list.prepend(bulk); bulk.addEventListener('click', onClick);
     } else if (!hasSelection) existingBulk?.remove();
   }
-
   function boot() {
     if (mounted || !api || !root.document) return; const card = root.document.querySelector('#promptLibraryCard'); if (!card) return;
     mounted = true; observer = new MutationObserver(enhance); observer.observe(card, { childList: true, subtree: true }); enhance();
@@ -128,4 +116,23 @@
     (root.document.head || root.document.documentElement)?.append(script);
   };
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true }); else start();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptLibraryTrustTools(root) {
+  'use strict';
+  const assets = [
+    ['/prompt-library-import-preview.css', 'style'],
+    ['/prompt-library-import-preview.js', 'script'],
+    ['/prompt-library-diagnostics.js', 'script']
+  ];
+  const loaded = new Set();
+  const load = ([src, type]) => {
+    if (loaded.has(src) || root.document.querySelector(`[src="${src}"]`) || root.document.querySelector(`[href="${src}"]`)) return;
+    loaded.add(src);
+    const element = root.document.createElement(type === 'style' ? 'link' : 'script');
+    if (type === 'style') { element.rel = 'stylesheet'; element.href = src; } else { element.src = src; element.defer = true; }
+    (root.document.head || root.document.documentElement)?.append(element);
+  };
+  const boot = () => assets.forEach(load);
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
