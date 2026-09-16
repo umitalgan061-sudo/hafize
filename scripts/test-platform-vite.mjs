@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const source = fs.readFileSync(path.join(process.cwd(), 'vite.config.ts'), 'utf8');
+assert.ok(source.includes("'app-runtime': 'public/typed/platform-app.ts'"));
+assert.ok(source.includes("'platform-runtime': 'public/typed/platform-runtime.ts'"));
+assert.ok(source.includes("formats: ['es']"));
+assert.ok(source.includes("target: 'es2022'"));
+assert.ok(source.includes("entryFileNames: '[name].js'"));
+assert.ok(source.includes('typedDevEntryPlugin'));
+assert.ok(source.includes("fs: { strict: true }"));
+assert.ok(source.includes("'/api':"));
+console.log('platform vite: ok');
