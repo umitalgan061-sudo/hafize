@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const file = path.join(process.cwd(), 'public/typed/platform-dashboard-static.ts');
+const source = fs.readFileSync(file, 'utf8');
+for (const token of ['hafizePlatformDashboard','aria-expanded','aria-controls','role', 'dialog','Escape','replaceChildren','textContent','mountPlatformDashboardStatic']) assert.ok(source.includes(token), `dashboard contract missing: ${token}`);
+assert.ok(source.includes("if (typeof document !== 'undefined')"));
+assert.ok(source.includes('panel.hidden = true'));
+assert.ok(source.includes('toggle.focus()'));
+assert.ok(!source.includes('innerHTML'));
+console.log('platform dashboard: ok');
