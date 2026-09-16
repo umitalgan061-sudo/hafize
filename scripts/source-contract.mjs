@@ -28,11 +28,16 @@ export function assertAttributeDeclared(source, declaration, label = declaration
   assert.ok(attributeDeclared(source, declaration), label);
 }
 
-/** True when `source` mentions a class either as a selector or as a bare class name. */
+/**
+ * True when `source` mentions a class as a selector, as a bare class name, or
+ * as one entry of a class list (`className = 'icon-btn chat-stream-stop'`),
+ * which is how a module that reuses a shared button style spells it.
+ */
 export function classDeclared(source, selector) {
   if (typeof source !== 'string') return false;
   const className = selector.replace(/^\./, '');
-  return source.includes(selector) || source.includes(`'${className}'`) || source.includes(`"${className}"`);
+  if (source.includes(selector) || source.includes(`'${className}'`) || source.includes(`"${className}"`)) return true;
+  return new RegExp(`['"\\s.]${className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"\\s]`).test(source);
 }
 
 export function assertClassDeclared(source, selector, label = selector) {

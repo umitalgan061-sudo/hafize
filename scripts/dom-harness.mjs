@@ -158,6 +158,11 @@ class FakeElement extends EventTargetBase {
     this.maxLength = -1;
     this.selectionStart = null;
     this.disabled = false;
+    // Inline styles and scroll metrics: a composer that grows with its text
+    // reads and writes both, and a mounted runtime would otherwise throw before
+    // reaching the behaviour under test.
+    this.style = {};
+    this.scrollHeight = 0;
     const element = this;
     this.dataset = new Proxy({}, {
       get(_target, key) {
@@ -206,6 +211,12 @@ class FakeElement extends EventTargetBase {
         const classes = new Set(element.className.split(/\s+/).filter(Boolean));
         classes.delete(String(name));
         element.className = [...classes].join(' ');
+      },
+      toggle: (name, force) => {
+        const on = force === undefined ? !element.classList.contains(name) : Boolean(force);
+        if (on) element.classList.add(name);
+        else element.classList.remove(name);
+        return on;
       }
     };
   }
@@ -241,6 +252,20 @@ class FakeElement extends EventTargetBase {
     }
   }
 
+  // Panels that add a control to an existing row place it relative to what is
+  // already there — the composer's own editing indicator does exactly this — so
+  // ordering has to be real, not an append in disguise.
+  insertBefore(node, reference) {
+    if (!node) return node;
+    if (!reference) return this.appendChild(node);
+    node.parentNode?.removeChild?.(node);
+    const index = this.childNodes.indexOf(reference);
+    if (index < 0) throw new Error('dom-harness: insertBefore reference is not a child');
+    node.parentNode = this;
+    this.childNodes.splice(index, 0, node);
+    return node;
+  }
+
   removeChild(node) {
     const index = this.childNodes.indexOf(node);
     if (index >= 0) {
@@ -267,6 +292,12 @@ class FakeElement extends EventTargetBase {
 
   focus() {
     if (this.ownerDocument) this.ownerDocument.activeElement = this;
+  }
+
+  /** Text selection is not modelled; the call is recorded so a suite can see it. */
+  select() {
+    this.selectionStart = 0;
+    this.selected = true;
   }
 
   closest(selector) {

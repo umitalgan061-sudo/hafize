@@ -146,4 +146,45 @@ installDomGlobals();
   assert.equal(node.hidden, false);
 }
 
+/* Ordered insertion, class toggling and the composer's metrics ------------- */
+
+{
+  const documentRef = createDocument();
+  const row = documentRef.createElement('div');
+  const send = documentRef.createElement('button');
+  row.append(send);
+  documentRef.body.append(row);
+
+  const stop = documentRef.createElement('button');
+  row.insertBefore(stop, send);
+  assert.deepEqual(row.children, [stop, send], 'insertBefore places a node ahead of its reference');
+  assert.equal(stop.parentNode, row);
+
+  row.insertBefore(stop, null);
+  assert.deepEqual(row.children, [send, stop], 'a missing reference appends, and the node moves rather than duplicates');
+
+  const orphan = documentRef.createElement('span');
+  assert.throws(() => row.insertBefore(send, orphan), /insertBefore reference/, 'a reference outside the parent is a mistake');
+
+  const node = documentRef.createElement('div');
+  node.className = 'panel';
+  assert.equal(node.classList.toggle('open'), true);
+  assert.equal(node.className, 'panel open');
+  assert.equal(node.classList.toggle('open'), false);
+  assert.equal(node.classList.contains('open'), false);
+  node.classList.toggle('open', false);
+  assert.equal(node.classList.contains('open'), false, 'a forced-off toggle stays off');
+  node.classList.toggle('open', true);
+  node.classList.toggle('open', true);
+  assert.equal(node.className, 'panel open', 'a forced-on toggle does not repeat the class');
+
+  const input = documentRef.createElement('textarea');
+  assert.deepEqual(input.style, {}, 'inline styles start empty');
+  input.style.height = '48px';
+  assert.equal(input.style.height, '48px');
+  assert.equal(input.scrollHeight, 0, 'scroll metrics are readable and default to zero');
+  input.select();
+  assert.equal(input.selected, true, 'select() is recorded');
+}
+
 console.log('dom harness: ok');

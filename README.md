@@ -38,6 +38,34 @@ alıntılar, tablolar, satır içi kod ve kopyalanabilir kod blokları desteklen
 
 Ayrıntılar `docs/CHAT_MARKDOWN*.md` dosyalarındadır.
 
+## Akış denetimi
+
+Akan bir yanıt artık beklenmek zorunda değildir. Composer, yanıt akarken gönder
+düğmesinin yerine `■ Durdur`, akış bittiğinde ise son yanıt için
+`↻ Yeniden üret` düğmesini gösterir.
+
+- `Durdur` açık isteği iptal eder; o ana kadar gelen metin aynen saklanır,
+  mesaj `stopped` olarak işaretlenir ve transkriptte `Yanıt durduruldu` etiketi
+  görünür. Hiç içerik gelmemişse mesaj aynı nota düşer.
+- `Escape` akarken durdurur; açık bir `role="dialog"` paneli varsa kısayol o
+  panele bırakılır.
+- `Yeniden üret` son yanıtı transkriptten düşürdükten sonra aynı soruyu yeniden
+  sorar; model, yerine geçeceği yanıtı görmez. Araç modunda da aynı yol izlenir.
+- Kurallar `chat-stream-policy.js` içinde, ağ ve transkript `app.js` içinde,
+  düğmeler `chat-stream-control.js` içindedir; denetimler ağa çıkmaz ve
+  storage'a yazmaz. Sunucu tarafında değişiklik yoktur.
+
+Kontroller:
+
+```bash
+node scripts/test-chat-stream-policy.mjs
+node scripts/test-chat-stream-control-ui.mjs
+node scripts/test-chat-stream-runtime.mjs
+node scripts/test-chat-stream-source.mjs
+```
+
+Ayrıntılar `docs/CHAT_STREAM_CONTROL.md` dosyasındadır.
+
 ## Sohbet çalışma alanı
 
 Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetmek için kullanılır. Mevcut tekli sabitleme/adlandırma/dışa aktarma yüzeylerinin yerine geçmez; onları tamamlar.

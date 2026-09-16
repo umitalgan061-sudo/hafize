@@ -1,0 +1,56 @@
+/* Stop / regenerate controls, and the marker on an answer that was stopped. */
+
+.chat-stream-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-stream-status {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.chat-stream-status:empty { display: none; }
+
+.chat-stream-stop,
+.chat-stream-regenerate {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: 8px 12px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chat-stream-stop:hover,
+.chat-stream-regenerate:hover { background: var(--panel); }
+.chat-stream-stop[hidden],
+.chat-stream-regenerate[hidden] { display: none; }
+.chat-stream-stop:disabled,
+.chat-stream-regenerate:disabled { opacity: .55; }
+
+.chat-stream-stop {
+  border-color: rgba(157, 92, 74, .4);
+  color: #8c5340;
+}
+
+.message-stopped {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.message[data-stopped="true"] .content { opacity: .92; }
+
+@media (max-width: 560px) {
+  /* The status text is the first thing to go: the buttons carry the state. */
+  .chat-stream-status { display: none; }
+  .chat-stream-stop,
+  .chat-stream-regenerate { padding: 8px 10px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chat-stream-stop,
+  .chat-stream-regenerate { transition: background .15s ease; }
+}
