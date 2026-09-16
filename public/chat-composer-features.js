@@ -179,7 +179,10 @@
     copy.setAttribute('aria-label', 'Hafize yanıtını kopyala');
     copy.title = 'Hafize yanıtını panoya kopyala';
     copy.addEventListener('click', async () => {
-      if (await copyText(content.textContent?.trim() || '')) {
+      // A rendered answer copies as the markdown the model wrote, not as the
+      // flattened text of the rendered nodes.
+      const source = window.HafizeChatMarkdown?.sourceFor?.(content) ?? content.textContent;
+      if (await copyText(String(source || '').trim())) {
         copy.textContent = 'Kopyalandı';
         window.setTimeout(() => { copy.textContent = 'Kopyala'; }, 1400);
       } else announce('Yanıt panoya kopyalanamadı.');

@@ -161,7 +161,13 @@
 
     function latestAssistantText() {
       const nodes = messages?.querySelectorAll?.('.message.assistant .content') || [];
-      return nodes.length ? nodes[nodes.length - 1]?.textContent || '' : '';
+      const node = nodes.length ? nodes[nodes.length - 1] : null;
+      if (!node) return '';
+      // The markdown source is preferred over the rendered nodes:
+      // `normalizeSpeechText` below already knows how to drop fenced code and
+      // links, and `textContent` of a rendered answer has lost those markers.
+      const source = root.HafizeChatMarkdown?.sourceFor?.(node);
+      return source || node.textContent || '';
     }
 
     function syncStreamState() {
