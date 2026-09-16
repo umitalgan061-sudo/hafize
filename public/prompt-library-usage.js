@@ -28,6 +28,7 @@
       ['script', 'src', '/prompt-library-fill-field-status.js', 'data-hafize-prompt-fill-field-status'],
       ['script', 'src', '/prompt-library-fill-defaults.js', 'data-hafize-prompt-fill-defaults'],
       ['script', 'src', '/prompt-library-fill-session.js', 'data-hafize-prompt-fill-session'],
+      ['script', 'src', '/prompt-library-fill-session-ui.js', 'data-hafize-prompt-fill-session-ui'],
       ['script', 'src', '/prompt-library-fill-copy.js', 'data-hafize-prompt-fill-copy']
     ];
     for (const [tag, attr, value, marker] of assets) { if (documentRef.querySelector(`[${marker}]`)) continue; const node = documentRef.createElement(tag); node[attr] = value; node.dataset.hafizePromptFill = 'true'; node.setAttribute(marker, 'true'); if (tag === 'link') node.rel = 'stylesheet'; else node.defer = true; documentRef.head.append(node); }
