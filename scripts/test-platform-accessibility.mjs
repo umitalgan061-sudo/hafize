@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const source = fs.readFileSync(path.join(process.cwd(), 'public/typed/platform-accessibility.ts'), 'utf8');
+assert.ok(source.includes('AccessibilitySnapshot'));
+assert.ok(source.includes("prefers-reduced-motion: reduce"));
+assert.ok(source.includes("prefers-contrast: more"));
+assert.ok(source.includes("forced-colors: active"));
+assert.ok(source.includes('aria-live'));
+assert.ok(source.includes('aria-atomic'));
+assert.ok(source.includes('role'));
+assert.ok(source.includes('sr-only'));
+assert.ok(source.includes('matches(windowRef'));
+console.log('platform accessibility: ok');
