@@ -344,6 +344,36 @@ export function createPanelWindow({ storage = null, confirmResponses = [], promp
   return root;
 }
 
+/** Minimal `Event`: enough for `new Event('input', { bubbles: true })`. */
+export class FakeEvent {
+  constructor(type, init = {}) {
+    this.type = String(type);
+    this.bubbles = init.bubbles === true;
+  }
+}
+
+/**
+ * Installs the browser globals the panel modules reach for directly —
+ * `Element` and `HTMLElement` for `instanceof` checks, `Event` for the input
+ * notification — and returns a function that puts the environment back.
+ */
+export function installBrowserGlobals() {
+  const previous = {
+    Element: globalThis.Element,
+    HTMLElement: globalThis.HTMLElement,
+    Event: globalThis.Event
+  };
+  globalThis.Element = FakeElement;
+  globalThis.HTMLElement = FakeElement;
+  globalThis.Event = FakeEvent;
+  return () => {
+    for (const [name, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[name];
+      else globalThis[name] = value;
+    }
+  };
+}
+
 /** A file input the way the Prompt Library builds one, already in the card. */
 export function createFileInput(documentRef) {
   const input = documentRef.createElement('input');
