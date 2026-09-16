@@ -1,4 +1,4 @@
-(function installPromptLibraryFillHistoryUi(root) {
+(function installHafizePromptLibraryFillHistoryUi(root) {
   'use strict';
   const DIALOG_ID = 'promptLibraryFillDialog';
   const MARKER = 'data-hafize-fill-history-ui';
@@ -12,6 +12,7 @@
     dialog.setAttribute(MARKER, 'true');
     history().connect(dialog, item, root.HafizePromptLibraryFill);
     dialog.querySelector('.prompt-library-fill-panel')?.addEventListener('submit', () => {
+      if (!root.document?.querySelector?.('#messageInput')) return;
       history().record({ promptId: item.id, title: item.title, values: valuesFor(dialog), usedAt: new Date().toISOString() });
     });
   }
