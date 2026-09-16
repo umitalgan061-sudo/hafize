@@ -8,7 +8,7 @@ const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Pro
   read('public/scheduled-tasks.css'),
   read('public/scheduled-tasks-enhancements.js'),
   read('public/scheduled-tasks-keyboard.js'),
-  read('public/scheduled-tasks-countdown.js'),
+  read('public/scheduled-tasks-countdown.ts'),
   read('public/index.html'),
   read('public/sw-policy.js'),
   read('README.md')
