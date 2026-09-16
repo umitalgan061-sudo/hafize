@@ -19,12 +19,8 @@
   };
   const makeButton = (label, action) => {
     const node = root.document.createElement('button');
-    node.type = 'button';
-    node.className = 'soft-btn prompt-enhancement-action';
-    node.textContent = label;
-    node.dataset.promptEnhancement = action;
-    node.setAttribute('aria-label', label);
-    return node;
+    node.type = 'button'; node.className = 'soft-btn prompt-enhancement-action'; node.textContent = label;
+    node.dataset.promptEnhancement = action; node.setAttribute('aria-label', label); return node;
   };
   const makeId = () => root.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   function syncCore() {
@@ -54,8 +50,8 @@
   }
   function clearFilters() {
     const next = { query: '', tag: 'all', favoriteOnly: false, sort: 'updated-desc' };
-    api.saveState(storage(), next);
-    root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-state-changed', { detail: next })); report('İstem filtreleri sıfırlandı.');
+    api.saveState(storage(), next); root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-state-changed', { detail: next }));
+    report('İstem filtreleri sıfırlandı.');
   }
   function selectedIds(card) {
     return [...card.querySelectorAll('[data-prompt-selection]:checked')].map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
@@ -118,6 +114,10 @@
   'use strict';
   const start = () => {
     if (!root.document || root.HafizePromptSmartInsertLoaded) return;
+    if (!root.document.querySelector('link[data-hafize-prompt-smart-insert-css]')) {
+      const css = root.document.createElement('link'); css.rel = 'stylesheet'; css.href = '/prompt-library-smart-insert.css'; css.dataset.hafizePromptSmartInsertCss = 'true';
+      (root.document.head || root.document.documentElement)?.append(css);
+    }
     const existing = root.document.querySelector('script[data-hafize-prompt-smart-insert]') || root.document.querySelector('script[src="/prompt-library-smart-insert.js"]');
     if (existing) return;
     const script = root.document.createElement('script'); script.src = '/prompt-library-smart-insert.js'; script.defer = true; script.dataset.hafizePromptSmartInsert = 'true';
