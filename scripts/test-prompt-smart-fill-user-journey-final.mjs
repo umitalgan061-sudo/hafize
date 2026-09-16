@@ -19,7 +19,7 @@ const journey = [
   ['no auto-send', /dispatchEvent\(new Event\('input'/]
 ];
 
-for (const [name, pattern] of journey) assert.match(source, pattern, `missing journey step: ${name}`);
+for (const [name, pattern] of /** @type {[string, RegExp][]} */ (journey)) assert.match(source, pattern, `missing journey step: ${name}`);
 assert.match(index, /prompt-library-smart-fill/);
 assert.ok(source.indexOf('insertIntoComposer') < source.indexOf('interceptUse'));
 assert.ok(source.indexOf("event.preventDefault(); event.stopImmediatePropagation(); openFor") >= 0);

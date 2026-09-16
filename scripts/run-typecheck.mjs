@@ -20,7 +20,8 @@ const MAX_OUTPUT_LINES = 60;
 
 /** Denetlenen projeler; her biri kendi global kümesini tanımlar. */
 export const PROJECTS = Object.freeze([
-  { name: 'node', config: 'tsconfig.node.json', describe: 'sunucu runtime ve kontrol paketleri' },
+  { name: 'node', config: 'tsconfig.node.json', describe: 'sunucu runtime' },
+  { name: 'scripts', config: 'tsconfig.scripts.json', describe: 'kontrol paketleri' },
   { name: 'browser', config: 'tsconfig.browser.json', describe: 'tarayıcı arayüzü' },
   { name: 'worker', config: 'tsconfig.worker.json', describe: 'service worker' }
 ]);

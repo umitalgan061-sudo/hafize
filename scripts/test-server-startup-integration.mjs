@@ -15,13 +15,17 @@ function delay(ms) {
 
 async function reservePort() {
   const probe = createNetServer();
-  await new Promise((resolve, reject) => {
+  /** @type {Promise<void>} */
+  const listening = new Promise((resolve, reject) => {
     probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', resolve);
+    probe.listen(0, '127.0.0.1', () => resolve());
   });
+  await listening;
   const address = probe.address();
   const port = typeof address === 'object' && address ? address.port : 0;
-  await new Promise((resolve, reject) => probe.close((/** @type {HafizeCodedError} */ error) => error ? reject(error) : resolve()));
+  /** @type {Promise<void>} */
+  const closed = new Promise((resolve, reject) => probe.close((/** @type {HafizeCodedError} */ error) => error ? reject(error) : resolve()));
+  await closed;
   if (!port) throw new Error('TEST_PORT_UNAVAILABLE');
   return port;
 }

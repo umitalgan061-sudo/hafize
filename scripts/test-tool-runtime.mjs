@@ -183,7 +183,7 @@ assert.equal(deniedGithub.error, 'TOOL_NOT_AUTHORIZED');
 const safeExecutionError = await executeNvidiaToolCall(
   reviewer,
   { id: 'call_6', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
-  { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => { const error = new Error('do not expose this internal detail'); error.code = 'GITHUB_REPO_NOT_ALLOWED'; error.status = 403; throw error; } }
+  { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => { const error = /** @type {HafizeCodedError} */ (new Error('do not expose this internal detail')); error.code = 'GITHUB_REPO_NOT_ALLOWED'; error.status = 403; throw error; } }
 );
 assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);

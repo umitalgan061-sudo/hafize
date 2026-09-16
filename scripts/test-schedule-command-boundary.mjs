@@ -67,7 +67,7 @@ const created = await commands.create({
 assert.equal(created.ok, true);
 assert.equal(created.schedule.traceId, 'trace-server-1');
 assert.equal('ownerId' in created.schedule, false);
-assert.equal(store.read(created.schedule.scheduleId).ownerId, 'user-alice');
+assert.equal(/** @type {any} */ (store.read(String(created.schedule.scheduleId))).ownerId, 'user-alice');
 
 const bobCreated = await commands.create({
   principal: bob,
@@ -98,12 +98,12 @@ assert.deepEqual(
   await commands.cancel({ principal: bob, scheduleId: created.schedule.scheduleId }),
   { ok: false, error: 'SCHEDULE_NOT_FOUND' }
 );
-assert.equal(store.read(created.schedule.scheduleId).status, 'scheduled');
+assert.equal(/** @type {any} */ (store.read(String(created.schedule.scheduleId))).status, 'scheduled');
 
 const cancelled = await commands.cancel({ principal: alice, scheduleId: created.schedule.scheduleId });
 assert.equal(cancelled.ok, true);
 assert.equal(cancelled.schedule.status, 'cancelled');
-assert.equal(store.read(created.schedule.scheduleId).status, 'cancelled');
+assert.equal(/** @type {any} */ (store.read(String(created.schedule.scheduleId))).status, 'cancelled');
 assert.deepEqual(
   await commands.cancel({ principal: alice, scheduleId: created.schedule.scheduleId }),
   { ok: false, error: 'SCHEDULE_NOT_CANCELLABLE' }

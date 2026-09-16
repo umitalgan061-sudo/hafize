@@ -17,11 +17,11 @@ assert.match(text, /input\.maxLength = MAX_VALUE/);
 // each `slice(...)` call, so sharing one clamp helper stays a free refactor
 // while a widened bound still fails the suite.
 const memory = new Map();
-globalThis.localStorage = {
+globalThis.localStorage = /** @type {any} */ ({
   getItem: (key) => (memory.has(key) ? memory.get(key) : null),
   setItem: (key, value) => { memory.set(key, String(value)); },
   removeItem: (key) => { memory.delete(key); }
-};
+});
 // Variable extraction lives in the prompt library core, which smart fill reads
 // off the same global the browser gives it.
 globalThis.HafizePromptLibrary = require('../public/prompt-library.js');

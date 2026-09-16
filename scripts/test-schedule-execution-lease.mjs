@@ -77,7 +77,7 @@ const idempotencyCall = calls.find(([name]) => name === 'complete')[1];
 assert.equal(idempotencyCall.idempotencyKey, 'schedule-execution:schedule_42');
 assert.equal('token' in idempotencyCall, false);
 
-const released = await workerA.acquire('schedule_43');
+const released = /** @type {any} */ (await workerA.acquire('schedule_43'));
 assert.deepEqual(await workerA.release({ scheduleId: 'schedule_43', fence: released.fence }), { status: 'released' });
 assert.deepEqual(await workerA.release({ scheduleId: 'schedule_43', fence: released.fence }), { status: 'stale' });
 

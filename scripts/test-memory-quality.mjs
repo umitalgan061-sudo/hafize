@@ -12,7 +12,7 @@ const exact = scoreMemoryRecord(records[0], 'sütlü kahve', { now });
 assert.equal(exact.lexical > 0, true); assert.equal(exact.score > 0, true);
 const ranked = rankMemoryRecords(records.slice(0, 2), 'kahve sütlü', { now, limit: 2 });
 assert.equal(ranked[0].memoryId, 'memory_alpha12345'); assert.equal(ranked.length, 2); assert.ok(ranked[0].metrics.score >= ranked[1].metrics.score);
-const quality = measureRetrievalQuality({ expectedIds: ['memory_alpha12345'], ranked, minScore: 0.2 });
+const quality = measureRetrievalQuality({ expectedIds: ['memory_alpha12345'], ranked: /** @type {any[]} */ ([...ranked]), minScore: 0.2 });
 assert.equal(quality.topHit, 1); assert.equal(quality.precisionAtK, 0.5); assert.equal(quality.recallAtK, 1); assert.equal(quality.thresholdPass, true);
 const store = createPersonalMemoryStore({ now: () => new Date(now), createId: (() => { let index = 0; return () => `stable${String(++index).padStart(8, '0')}`; })() });
 assert.equal(store.write({ ownerId: 'u1', kind: 'preference', content: 'Kahve sütlü ve şekersiz.', sourceType: 'user_statement', sensitivity: 'personal', explicitUserIntent: true }).ok, true);

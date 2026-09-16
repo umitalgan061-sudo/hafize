@@ -96,7 +96,8 @@ const acquired = await runtime.lease.acquire('schedule_42');
 assert.equal(acquired.status, 'acquired');
 assert.equal(acquired.fence, 7);
 assert.equal(calls.length, 2);
-assert.equal(calls[1].options.keys.every((key) => key.includes('{schedule_42}')), true);
+const evalCall = /** @type {any} */ (calls[1]);
+assert.equal(evalCall.options.keys.every((/** @type {string} */ key) => key.includes('{schedule_42}')), true);
 
 await runtime.close();
 await runtime.close();

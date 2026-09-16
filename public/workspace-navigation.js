@@ -122,6 +122,9 @@
     return false;
   }
 
+  /**
+   * @param {{ documentRef?: any; rootRef?: any; MutationObserverImpl?: any }} [options]
+   */
   function createController({
     documentRef = globalThis.document,
     rootRef = globalThis,

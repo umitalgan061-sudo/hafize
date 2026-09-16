@@ -98,7 +98,7 @@ const modelChecks = [
   [/function\s+downloadSelected\s*\(/, 'export boundary exists'],
   [/function\s+onDelete\s*\(/, 'destructive boundary exists']
 ];
-for (const [pattern, label] of modelChecks) assert.match(source, pattern, label);
+for (const [pattern, label] of /** @type {[RegExp, string][]} */ (modelChecks)) assert.match(source, pattern, label);
 
 const docsChecks = [
   '## Amaç',

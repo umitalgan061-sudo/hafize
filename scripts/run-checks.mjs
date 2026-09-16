@@ -3,6 +3,7 @@ import { readdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { typecheck, PROJECTS as TYPE_PROJECTS } from './run-typecheck.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SYNTAX_TARGETS = [
@@ -11,6 +12,7 @@ const SYNTAX_TARGETS = [
   { dir: 'scripts', extensions: ['.mjs'] },
   { dir: 'public', extensions: ['.js'] }
 ];
+const PROJECT_COUNT = TYPE_PROJECTS.length;
 const SUITE_TIMEOUT_MS = 120_000;
 const SYNTAX_TIMEOUT_MS = 30_000;
 const MAX_FAILURE_OUTPUT_LINES = 40;
@@ -127,16 +129,31 @@ try {
   }
 
   const failures = [];
+
+  // Tip denetimi sözdizimi geçişinden önce çalışır: bir imza uyuşmazlığını
+  // testler koşmadan önce görmek, 256 paketi beklemekten hızlıdır. Filtre
+  // verildiğinde atlanır; o mod tek bir paketi hızlı çalıştırmak içindir.
+  if (!options.filters.length) {
+    const typeResult = await typecheck();
+    failures.push(...typeResult.failures);
+  }
+
   console.log(`syntax: ${syntaxFiles.length} dosya kontrol ediliyor`);
   const syntaxResults = await runPool(
     syntaxFiles,
     (file) => run(process.execPath, ['--check', file], { timeoutMs: SYNTAX_TIMEOUT_MS }),
     concurrency
   );
+  let syntaxFailures = 0;
   syntaxResults.forEach((result, index) => {
-    if (!result.ok) failures.push({ name: `syntax ${syntaxFiles[index]}`, output: result.output });
+    if (!result.ok) {
+      syntaxFailures += 1;
+      failures.push({ name: `syntax ${syntaxFiles[index]}`, output: result.output });
+    }
   });
-  console.log(failures.length ? `syntax: ${failures.length} dosya başarısız` : `syntax: ${syntaxFiles.length} dosya tamam`);
+  // Sayaç yalnızca sözdizimini sayar: tip denetimi hataları da aynı listeye
+  // girer, ama onlar yukarıda kendi satırlarıyla raporlanır.
+  console.log(syntaxFailures ? `syntax: ${syntaxFailures} dosya başarısız` : `syntax: ${syntaxFiles.length} dosya tamam`);
 
   console.log(`check: ${suites.length} paket çalıştırılıyor (eşzamanlılık ${concurrency})`);
   const suiteResults = await runPool(
@@ -159,7 +176,8 @@ try {
     }
     process.exit(1);
   }
-  console.log(`\nTüm kontroller tamam: ${syntaxFiles.length} syntax, ${suites.length} doğrulama/test paketi`);
+  const typeLabel = options.filters.length ? 'tip denetimi atlandı' : `${PROJECT_COUNT} tip projesi`;
+  console.log(`\nTüm kontroller tamam: ${typeLabel}, ${syntaxFiles.length} syntax, ${suites.length} doğrulama/test paketi`);
 } catch (error) {
   console.error(error?.message || 'CHECK_RUNNER_FAILED');
   process.exit(1);

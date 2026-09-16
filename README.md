@@ -107,12 +107,31 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
+## Tip denetimi
+
+Kaynak ağacının tamamı TypeScript ile denetlenir ve kapı sıfır hatada tutulur.
+Derleme adımı yoktur: Node 22.18+ `.ts` dosyalarını yerel tip sıyırma ile
+çalıştırdığı için TypeScript burada yalnızca denetleyicidir. `typescript` ve
+`@types/node` devDependency'dir; çalışma zamanı bağımlılığı hâlâ yalnızca
+`redis`.
+
+Dört ayrı proje denetlenir, çünkü dosyalar dört farklı ortamda çalışır:
+sunucu runtime'ı (DOM'suz), kontrol paketleri (Node + DOM), tarayıcı arayüzü
+(Node global'leri olmadan) ve service worker. Paylaşılan sözleşmeler `types/`
+altındadır. Ayrıntılar `docs/TYPE_CHECKING.md` dosyasındadır.
+
+```bash
+npm run typecheck
+```
+
 ## Test
 
 ```bash
 npm run precheck
 npm run check
 ```
+
+`npm run check` tip denetimini de çalıştırır.
 
 Yanıt biçimlendirme kontrolleri:
 

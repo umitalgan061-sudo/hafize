@@ -37,7 +37,17 @@ const documentRef = {
 
 const recognitions = [];
 class Recognition {
-  constructor() { recognitions.push(this); }
+  constructor() {
+    // Modülün atadığı olay yuvaları; ikizin yüzeyinde bildirilir.
+    /** @type {(() => void) | undefined} */
+    this.onstart = undefined;
+    /** @type {(() => void) | undefined} */
+    this.onend = undefined;
+    this.started = false;
+    this.stopped = false;
+    this.aborted = false;
+    recognitions.push(this);
+  }
   start() { this.started = true; this.onstart?.(); }
   stop() { this.stopped = true; this.onend?.(); }
   abort() { this.aborted = true; this.onend?.(); }

@@ -79,7 +79,7 @@ assert.equal(approved.execution, 'fork');
 assert.deepEqual([...approved.tools], ['external.write', 'trace.write']);
 
 // No self-escalation, server-side approval, and a strict argument contract.
-for (const [input, pattern] of [
+for (const [input, pattern] of /** @type {[any, RegExp][]} */ ([
   [{ agent, name: 'ledger-writer' }, /SKILL_TOOL_ESCALATION:task.update_ledger/],
   [{ agent, name: 'issue-publisher' }, /SKILL_APPROVAL_REQUIRED:external.write/],
   [{ agent, name: 'repo-triage' }, /MISSING_SKILL_ARGUMENT:repo/],
@@ -89,7 +89,7 @@ for (const [input, pattern] of [
   [{ agent, name: 'repo-triage', args: { repo: 'h', label: 'access_token=abcdef123456' } }, /SKILL_ARGUMENT_SECRET_MATERIAL/],
   [{ agent, name: 'missing-skill' }, /UNKNOWN_SKILL/],
   [{ name: 'repo-triage' }, /INVALID_SKILL_AGENT/]
-]) {
+])) {
   assert.throws(() => registry.resolveInvocation(input), pattern);
 }
 // Intersection mode (used by the skills runtime): a declared tool the policy
@@ -114,6 +114,6 @@ assert.throws(
   /SKILL_NO_AUTHORIZED_TOOL/
 );
 
-assert.throws(() => createSkillsRegistry({ allowedProjects: 'hafize' }), /INVALID_SKILL_PROJECT_SCOPE/);
+assert.throws(() => createSkillsRegistry(/** @type {any} */ ({ allowedProjects: 'hafize' })), /INVALID_SKILL_PROJECT_SCOPE/);
 
 console.log('skills registry tests passed');

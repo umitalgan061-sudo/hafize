@@ -103,7 +103,7 @@ await assert.rejects(
   /REDIS_SCHEDULE_LEASE_INVALID_RESPONSE:fence/
 );
 
-assert.throws(() => createRedisScheduleLeaseAdapter({ redis: {} }), /INVALID_REDIS_SCHEDULE_LEASE:redis/);
+assert.throws(() => createRedisScheduleLeaseAdapter(/** @type {any} */ ({ redis: {} })), /INVALID_REDIS_SCHEDULE_LEASE:redis/);
 assert.throws(() => createRedisScheduleLeaseAdapter({ redis, keyPrefix: 'bad prefix' }), /INVALID_REDIS_SCHEDULE_LEASE:keyPrefix/);
 
 console.log('redis schedule lease adapter tests passed');

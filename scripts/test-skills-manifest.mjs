@@ -21,7 +21,7 @@ assert.equal(manifest.model, '');
 assert.deepEqual([...manifest.triggers], ['repo triage', 'issue triage']);
 assert.deepEqual(manifest.arguments.map((item) => item.required), [true, false]);
 assert.equal(Object.isFrozen(manifest), true);
-assert.throws(() => { manifest.allowedTools.push('secret.read'); });
+assert.throws(() => { /** @type {any[]} */ (manifest.allowedTools).push('secret.read'); });
 
 // An explicit empty model means "no preference", exactly like an omitted field;
 // a non-string model is still rejected.

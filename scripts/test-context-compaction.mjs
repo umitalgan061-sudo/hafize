@@ -70,7 +70,7 @@ assert.equal(failureCalls, 1);
 assert.equal(failed.messages, original);
 assert.equal(failed.meta.compacted, false);
 assert.equal(failed.meta.attempted, true);
-assert.equal(failed.meta.reason, 'summary_failed');
+assert.equal(/** @type {any} */ (failed.meta).reason, 'summary_failed');
 assert.equal(JSON.stringify(failed.meta).includes('secret upstream detail'), false);
 
 assert.throws(() => createContextCompactor({ summarize() {}, triggerRatio: 0.1 }), /triggerRatio/);

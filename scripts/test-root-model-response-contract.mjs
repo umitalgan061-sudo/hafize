@@ -5,8 +5,8 @@ function normalizeRootCompletion(response) {
   try {
     return normalizeNvidiaChatCompletion(response);
   } catch (error) {
-    const normalized = new Error('INVALID_NVIDIA_RESPONSE');
-    normalized.code = error?.message || 'INVALID_NVIDIA_RESPONSE';
+    const normalized = /** @type {HafizeCodedError} */ (new Error('INVALID_NVIDIA_RESPONSE'));
+    normalized.code = /** @type {HafizeCodedError} */ (error)?.message || 'INVALID_NVIDIA_RESPONSE';
     normalized.status = 502;
     throw normalized;
   }

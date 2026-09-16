@@ -23,7 +23,7 @@ const boundary = {
 
 const runtime = createCanvaAgentRuntime({
   env,
-  fetchImpl: /** @type {HafizeFetch} */ (async () => {}),
+  fetchImpl: /** @type {HafizeFetch} */ (/** @type {unknown} */ (async () => {})),
   createAuthenticator(input) {
     calls.push(['authenticator', input]);
     return {
