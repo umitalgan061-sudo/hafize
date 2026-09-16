@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v33`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v34`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html', '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
     '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css', '/chat-history-management.css',
@@ -19,7 +19,8 @@
     '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
     '/scheduled-tasks.css', '/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js', '/scheduled-tasks-countdown.js',
     '/voice-input.js', '/voice-output.js', '/screen-share.js', '/hands-free.js', '/hands-free-background-guard.js', '/settings-workspace.js',
-    '/workspace-navigation.js', '/ui-shell.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+    '/workspace-navigation.js', '/ui-shell.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg',
+    '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
   function readHeader(headers, name) {

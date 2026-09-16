@@ -93,6 +93,20 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
+## PWA ve çevrimdışı kabuk
+
+`public/sw-policy.js` içindeki `SHELL_ASSETS`, uygulamanın çevrimdışı kabuğudur; `public/sw.js` bu listeyi `cache.addAll` ile tek seferde önbelleğe alır. Listedeki tek bir yol bile 404 dönerse `addAll` reddedilir ve service worker hiç kurulmaz — yani yeni bir CSS/JS dosyası eklerken `public/index.html`, `SHELL_ASSETS` ve `CURRENT_CACHE` birlikte güncellenmelidir. `node scripts/test-pwa-cache-policy.mjs` bu üçünün tutarlılığını doğrular.
+
+Service worker'ın kendisi (`/sw.js`) kasıtlı olarak kabuk listesinde değildir: önbellekten servis edilirse tarayıcı eski worker'a sabitlenir.
+
+Kurulabilirlik için ikon seti `public/icon-192.png`, `public/icon-512.png` ve launcher'ların kırpma yaptığı durumlar için `public/icon-maskable-512.png` dosyalarından oluşur. Tarayıcılar kurulum önerisi için en az 192×192 kare bir ikon ister. İkonlar uygulamanın kendi çiçek logosundan üretilir:
+
+```bash
+node scripts/generate-pwa-icons.mjs
+```
+
+`node scripts/test-pwa-manifest-assets.mjs` manifest'teki her ikonun diskte, iddia ettiği boyutta ve kabuk önbelleğinde bulunduğunu doğrular.
+
 ## Test
 
 ```bash
@@ -141,6 +155,15 @@ Production hardening için ayrıca:
 
 ```bash
 node scripts/test-production-hardening.mjs
+```
+
+PWA kabuğu ve kurulabilirlik için:
+
+```bash
+node scripts/test-pwa-cache-policy.mjs
+node scripts/test-pwa-manifest-assets.mjs
+node scripts/test-pwa-readiness.mjs
+node scripts/test-pwa-service-worker-runtime.mjs
 ```
 
 ## Güvenlik
