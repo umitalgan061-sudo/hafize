@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const sw = fs.readFileSync(path.join(root,'public/sw-policy.js'),'utf8');
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
@@ -15,7 +16,7 @@ for (const asset of assets) {
   assert.match(index,new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   assert.match(sw,new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 }
-assert.match(sw,/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v29`/);
+assertVersionedCacheDeclaration(sw);
 assert.match(sw,/new Set\(SHELL_ASSETS\)/);
 assert.match(sw,/pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw,/return 'network-only'/);

@@ -13,5 +13,5 @@ assert.match(source, /FileReader/);
 assert.match(source, /URL\.revokeObjectURL/);
 assert.doesNotMatch(enhancements, /fetch\s*\(/);
 assert.doesNotMatch(enhancements, /XMLHttpRequest/);
-assert.match(enhancements, /navigator\.clipboard/);
+assert.match(enhancements, /navigator\??\.clipboard/);
 console.log('test-prompt-library-source: ok');

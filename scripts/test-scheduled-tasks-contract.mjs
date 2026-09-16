@@ -6,9 +6,12 @@ const boundary = await readFile(new URL('../lib/schedule-command-boundary.mjs', 
 const store = await readFile(new URL('../lib/task-schedule-store.mjs', import.meta.url), 'utf8');
 
 assert.match(api, /\/api\/schedules/);
-assert.match(api, /method === 'GET'/);
-assert.match(api, /method === 'POST'/);
-assert.match(api, /method === 'DELETE'/);
+// The handler upper-cases the verb once and then dispatches on it.
+assert.match(api, /method\.toUpperCase\(\)/);
+assert.match(api, /verb === 'GET'/);
+assert.match(api, /verb === 'POST'/);
+assert.match(api, /verb === 'DELETE'/);
+assert.match(api, /Allow: root \? 'GET, POST' : 'DELETE'/);
 assert.match(api, /WWW-Authenticate/);
 assert.match(boundary, /ownerId/);
 assert.match(boundary, /INVALID_AGENT/);

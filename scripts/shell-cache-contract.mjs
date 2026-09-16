@@ -39,6 +39,15 @@ export function indexHtmlAssets() {
 }
 
 /**
+ * Shell entries that are not `<link>`ed or `<script>`ed from index.html:
+ * documents, the policy the service worker pulls in with `importScripts`, and
+ * static assets referenced from the manifest.
+ */
+export const NON_INDEX_SHELL_ASSETS = Object.freeze([
+  '/', '/index.html', '/offline.html', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+]);
+
+/**
  * Asserts the version-independent shell-cache invariants:
  * a well-formed current cache name, scoped cleanup of older versions, no API
  * paths in the shell list, no duplicates, and a real file behind every asset.
@@ -53,9 +62,23 @@ export function assertShellCacheContract() {
 
   assert.equal(swPolicy.SHELL_ASSETS.some((asset) => asset.startsWith('/api/')), false, 'API paths never enter the shell cache');
   assert.equal(new Set(swPolicy.SHELL_ASSETS).size, swPolicy.SHELL_ASSETS.length, 'shell assets are unique');
+
+  // `cache.addAll()` rejects as a whole, so one stale path disables the
+  // offline shell entirely: every entry must be backed by a real file.
   for (const asset of swPolicy.SHELL_ASSETS) {
     const file = shellAssetFile(asset);
     assert.ok(file && existsSync(file), `shell asset ${asset} exists on disk`);
+  }
+
+  // The list is kept in sync with the page in both directions: everything
+  // index.html loads is cached, and nothing else is carried around for free.
+  const indexAssets = new Set(indexHtmlAssets());
+  for (const asset of indexAssets) {
+    assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `index.html asset ${asset} is cached by the service worker`);
+  }
+  for (const asset of swPolicy.SHELL_ASSETS) {
+    if (NON_INDEX_SHELL_ASSETS.includes(asset) || !/\.(css|js)$/.test(asset)) continue;
+    assert.ok(indexAssets.has(asset), `shell asset ${asset} is still loaded by index.html`);
   }
 
   // Every older version is cleaned up, the current one is kept and foreign caches are untouched.

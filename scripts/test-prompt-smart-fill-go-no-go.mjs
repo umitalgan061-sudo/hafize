@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.js'),'utf8');
 const palette = fs.readFileSync(path.join(root,'public/prompt-library-command-palette.js'),'utf8');
@@ -12,7 +13,7 @@ for (const asset of ['prompt-library-smart-fill.css','prompt-library-smart-fill.
   assert.ok(index.includes(asset));
   assert.ok(sw.includes(asset));
 }
-assert.match(sw,/v29/);
+assertVersionedCacheDeclaration(sw);
 assert.match(sw,/network-only/);
 assert.match(smart,/replaceVariables/);
 assert.match(smart,/composer\.value/);

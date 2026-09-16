@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.js'),'utf8');
 const palette = fs.readFileSync(path.join(root,'public/prompt-library-command-palette.js'),'utf8');
@@ -14,6 +15,6 @@ for (const asset of ['prompt-library-smart-fill.js','prompt-library-command-pale
   assert.ok(index.includes(asset));
   assert.ok(sw.includes(asset));
 }
-assert.ok(sw.includes('v29'));
+assertVersionedCacheDeclaration(sw);
 assert.ok(sw.includes("pathname.startsWith('/api/')"));
 console.log('prompt smart-fill final smoke: ok');

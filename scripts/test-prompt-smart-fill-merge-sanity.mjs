@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
 const sw = fs.readFileSync(path.join(root,'public/sw-policy.js'),'utf8');
@@ -10,7 +11,7 @@ const hints = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill-h
 assert.ok(index.includes('/prompt-library-smart-fill.js'));
 assert.ok(index.includes('/prompt-library-command-palette.js'));
 assert.ok(index.includes('/prompt-library-smart-fill-hints.js'));
-assert.ok(sw.includes('v29'));
+assertVersionedCacheDeclaration(sw);
 assert.ok(sw.includes('/prompt-library-smart-fill.js'));
 assert.ok(sw.includes('/prompt-library-command-palette.js'));
 assert.ok(sw.includes('/prompt-library-smart-fill-hints.js'));

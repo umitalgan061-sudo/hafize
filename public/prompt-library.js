@@ -112,7 +112,14 @@
   function sortItems(items, sort) {
     const output = items.slice();
     if (sort === 'title-asc') return output.sort((a, b) => a.title.localeCompare(b.title, 'tr'));
-    if (sort === 'created-desc') return output.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    // Prompts restored or imported in one batch share a createdAt stamp, so the
+    // newest-first list falls back to updatedAt and then to the title instead of
+    // leaving the order up to how storage happened to hand them over.
+    if (sort === 'created-desc') {
+      return output.sort((a, b) => b.createdAt.localeCompare(a.createdAt)
+        || b.updatedAt.localeCompare(a.updatedAt)
+        || a.title.localeCompare(b.title, 'tr'));
+    }
     if (sort === 'favorite-first') return output.sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.updatedAt.localeCompare(a.updatedAt));
     return output.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
@@ -140,8 +147,12 @@
     const result = normalizeCollection(current);
     const ids = new Set(result.map((item) => item.id));
     let imported = 0;
-    for (const raw of normalizeCollection(incoming)) {
-      let item = raw;
+    // Imported prompts are normalized one by one instead of through
+    // normalizeCollection: a backup that repeats an id would otherwise lose the
+    // later prompt silently, where re-keying keeps every prompt in the file.
+    for (const raw of Array.isArray(incoming) ? incoming.slice(0, LIMITS.maxItems * 2) : []) {
+      let item = normalizeItem(raw);
+      if (!item) continue;
       let nextId = item.id;
       while (ids.has(nextId)) nextId = id();
       if (nextId !== item.id) item = Object.freeze({ ...item, id: nextId });
@@ -279,7 +290,11 @@
     on(rootRef, 'storage', (event) => { if (event.key === STORAGE_KEY) { items = loadItems(storage); render(); } if (event.key === STATE_KEY) { state = loadState(storage); render(); } });
     on(documentRef, 'keydown', (event) => { if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'p') return; event.preventDefault(); search.focus(); search.select(); });
     render();
-    return Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy: () => { destroyed = true; for (const off of listeners.splice(0)) off(); card.remove(); } });
+    const controller = Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy: () => { destroyed = true; for (const off of listeners.splice(0)) off(); card.remove(); } });
+    // The card outlives the page only through its window-level listeners, so
+    // unload tears them down the same way every other Hafize surface does.
+    rootRef.addEventListener?.('beforeunload', () => controller.destroy(), { once: true });
+    return controller;
   }
 
   return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems, filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });

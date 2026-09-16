@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { extractVariables, replaceVariables, LIMITS } from '../public/prompt-library.js';
+// public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
+// at runtime, which Node cannot statically analyse into named exports, so the
+// suite takes the default (CommonJS) export and destructures it.
+import promptLibrary from '../public/prompt-library.js';
+const { extractVariables, replaceVariables, LIMITS } = promptLibrary;
 
 assert.deepEqual(extractVariables('{{konu}} {{dil}} {{konu}}'), ['konu', 'dil']);
 assert.deepEqual(extractVariables('{{ spaced_name }} {{dash-name}} {{bad.name}}'), ['spaced_name', 'dash-name']);

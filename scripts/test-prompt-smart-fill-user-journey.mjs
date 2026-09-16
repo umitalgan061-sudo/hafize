@@ -11,7 +11,7 @@ const index = read('public/index.html');
 
 const openFlow = [
   'function interceptUse(event)',
-  'closest(\'.prompt-item-actions button\')',
+  'closest?.(\'.prompt-item-actions button\')',
   "textContent?.trim() !== 'Kullan'",
   'variableNames(promptItem.body)',
   'event.preventDefault()',
@@ -23,7 +23,7 @@ for (const token of openFlow) assert.ok(smart.includes(token), `open flow missin
 const editFlow = [
   'function renderPreview()',
   'currentValues()',
-  'replaceVariables(activePrompt.body, values)',
+  'replaceVariables?.(activePrompt.body, values)',
   'preview.textContent',
   'input.addEventListener(\'input\', renderPreview)'
 ];

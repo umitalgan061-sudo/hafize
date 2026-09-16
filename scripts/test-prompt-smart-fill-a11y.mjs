@@ -13,5 +13,7 @@ assert.match(text, /dialog\.addEventListener\('keydown'/);
 assert.match(text, /if \(event\.key === 'Escape'\)/);
 assert.match(text, /event\.key !== 'Tab'/);
 assert.match(text, /focus\(\)/);
-assert.match(text, /previousFocus/);
+// Focus returns to whatever opened the dialog once it closes.
+assert.match(text, /lastFocus = documentRef\.activeElement/);
+assert.match(text, /lastFocus\?\.focus\?\.\(\)/);
 console.log('prompt smart-fill accessibility contracts: ok');
