@@ -15,16 +15,23 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: resolve(__dirname, 'dist'),
+    lib: {
+      entry: {
+        'app-runtime': resolve(__dirname, 'public/typed/app-runtime.ts'),
+        'prompt-library-smart-fill': resolve(__dirname, 'public/prompt-library-smart-fill.ts')
+      },
+      formats: ['es'],
+      fileName: (_format, entryName) => `${entryName}.js`
+    },
+    outDir: resolve(__dirname, 'public/typed-build'),
     emptyOutDir: true,
     sourcemap: true,
-    manifest: true,
     target: 'es2022',
     rollupOptions: {
       output: {
-        entryFileNames: 'typed/[name].js',
-        chunkFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash][extname]'
+        entryFileNames: '[name].js',
+        chunkFileNames: '[name]-[hash].js',
+        assetFileNames: '[name]-[hash][extname]'
       }
     }
   }
