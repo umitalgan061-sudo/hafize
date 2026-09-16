@@ -101,9 +101,9 @@ denetimi atlanır; o mod tek bir paketi hızlı çalıştırmak içindir.
 ## Kapının gerçekten kapı olduğu nasıl doğrulanır
 
 ```bash
-printf '\nconst probe = /** @type {number} */ ("metin");\n' >> lib/rate-limit.mjs
+printf '\nconst probe = /** @type {number} */ ("metin");\n' >> lib/task-ledger.mjs
 npm run typecheck   # başarısız olmalı
-git checkout lib/rate-limit.mjs
+git checkout lib/task-ledger.mjs
 ```
 
 ## Bilinen tercihler
