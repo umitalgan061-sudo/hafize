@@ -4,20 +4,31 @@ import { resolve } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 
+const TYPED_ENTRIES = [
+  'app-runtime',
+  'prompt-library-smart-fill',
+  'prompt-library-command-palette',
+  'prompt-library-smart-fill-hints',
+  'scheduled-tasks-countdown',
+  'prompt-library-usage',
+  'prompt-library-starters',
+  'prompt-library-keyboard',
+  'auth',
+  'chat-composer-features',
+  'chat-drafts',
+  'voice-output',
+  'workspace-navigation'
+] as const;
+
 const typedDevEntryPlugin = (): Plugin => ({
   name: 'hafize-typed-dev-entries',
   transformIndexHtml(html, context) {
-    if (context.server) {
-      return html
-        .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
-        .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
-        .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
-    }
-    return html;
+    if (!context.server) return html;
+    return TYPED_ENTRIES.reduce((source, name) => source.replaceAll(`/typed-build/${name}.js`, `/typed/${name}.ts`), html);
   }
 });
+
+const entry = Object.fromEntries(TYPED_ENTRIES.map((name) => [name, resolve(ROOT, `public/typed/${name}.ts`)]));
 
 export default defineConfig({
   root: resolve(ROOT, 'public'),
@@ -26,22 +37,11 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     fs: { strict: true },
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:4173',
-        changeOrigin: false
-      }
-    }
+    proxy: { '/api': { target: 'http://127.0.0.1:4173', changeOrigin: false } }
   },
   build: {
     lib: {
-      entry: {
-        'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
-        'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
-        'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
-        'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
-        'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')
-      },
+      entry,
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`
     },
