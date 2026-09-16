@@ -1,0 +1,134 @@
+export type AgentId = string;
+
+export interface PublicAgent {
+  readonly id: AgentId;
+  readonly name: string;
+  readonly description?: string;
+  readonly tools?: readonly string[];
+}
+
+export interface AgentsResponse {
+  readonly defaultAgent: AgentId;
+  readonly agents: readonly PublicAgent[];
+}
+
+export interface ModelsResponse {
+  readonly models: readonly string[];
+}
+
+export interface HealthResponse {
+  readonly status: 'ok' | string;
+  readonly nvidiaConfigured: boolean;
+  readonly githubReadConfigured: boolean;
+  readonly canvaReadConfigured: boolean;
+  readonly gmailReadConfigured: boolean;
+  readonly contextCompactionConfigured: boolean;
+  readonly scheduleWorkerConfigured: boolean;
+  readonly scheduleApiConfigured: boolean;
+  readonly scheduleStorageDurable: boolean;
+  readonly scheduleLeaseConfigured: boolean;
+  readonly agents: number;
+}
+
+export type RuntimeConnectivity = 'online' | 'offline' | 'degraded' | 'unknown';
+
+export type RuntimeSeverity = 'info' | 'success' | 'warning' | 'error';
+
+export interface RuntimeNotice {
+  readonly severity: RuntimeSeverity;
+  readonly message: string;
+  readonly expiresAt?: number;
+}
+
+export interface RuntimeSnapshot {
+  readonly connectivity: RuntimeConnectivity;
+  readonly checkedAt: string | null;
+  readonly apiReachable: boolean;
+  readonly health: HealthResponse | null;
+  readonly lastErrorCode: string | null;
+}
+
+export interface ApiRequestOptions extends RequestInit {
+  readonly timeoutMs?: number;
+  readonly retry?: number;
+}
+
+export class HafizeApiError extends Error {
+  readonly code: string;
+  readonly status: number;
+  readonly traceId: string | null;
+  readonly retryable: boolean;
+
+  constructor(message: string, options: { code?: string; status?: number; traceId?: string | null; retryable?: boolean } = {}) {
+    super(message);
+    this.name = 'HafizeApiError';
+    this.code = options.code ?? 'API_ERROR';
+    this.status = options.status ?? 0;
+    this.traceId = options.traceId ?? null;
+    this.retryable = options.retryable ?? false;
+  }
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+export function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+export function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
+export function asNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+export function parseAgents(value: unknown): AgentsResponse {
+  const source = isRecord(value) ? value : {};
+  const agents = Array.isArray(source.agents)
+    ? source.agents.flatMap((raw): PublicAgent[] => {
+        if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return [];
+        const description = typeof raw.description === 'string' ? raw.description : undefined;
+        const tools = Array.isArray(raw.tools) ? raw.tools.filter((tool): tool is string => typeof tool === 'string').slice(0, 64) : undefined;
+        return [{ id: raw.id, name: raw.name, ...(description ? { description } : {}), ...(tools ? { tools } : {}) }];
+      })
+    : [];
+  return Object.freeze({
+    defaultAgent: asString(source.defaultAgent),
+    agents: Object.freeze(agents)
+  });
+}
+
+export function parseModels(value: unknown): ModelsResponse {
+  const source = isRecord(value) ? value : {};
+  const models = Array.isArray(source.models)
+    ? source.models.filter((model): model is string => typeof model === 'string' && model.length > 0).slice(0, 200)
+    : [];
+  return Object.freeze({ models: Object.freeze(models) });
+}
+
+export function parseHealth(value: unknown): HealthResponse {
+  const source = isRecord(value) ? value : {};
+  return Object.freeze({
+    status: asString(source.status, 'unknown'),
+    nvidiaConfigured: asBoolean(source.nvidiaConfigured),
+    githubReadConfigured: asBoolean(source.githubReadConfigured),
+    canvaReadConfigured: asBoolean(source.canvaReadConfigured),
+    gmailReadConfigured: asBoolean(source.gmailReadConfigured),
+    contextCompactionConfigured: asBoolean(source.contextCompactionConfigured),
+    scheduleWorkerConfigured: asBoolean(source.scheduleWorkerConfigured),
+    scheduleApiConfigured: asBoolean(source.scheduleApiConfigured),
+    scheduleStorageDurable: asBoolean(source.scheduleStorageDurable),
+    scheduleLeaseConfigured: asBoolean(source.scheduleLeaseConfigured),
+    agents: Math.max(0, Math.floor(asNumber(source.agents)))
+  });
+}
+
+export function connectivityFromHealth(health: HealthResponse | null, networkOnline: boolean): RuntimeConnectivity {
+  if (!networkOnline) return 'offline';
+  if (!health) return 'unknown';
+  if (health.status !== 'ok') return 'degraded';
+  return health.nvidiaConfigured ? 'online' : 'degraded';
+}
