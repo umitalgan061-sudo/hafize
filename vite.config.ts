@@ -22,7 +22,12 @@ const TYPED_ENTRIES = [
   'chat-history-management',
   'composer-history',
   'settings-workspace',
-  'ui-shell'
+  'ui-shell',
+  'scheduled-tasks',
+  'voice-input',
+  'screen-share',
+  'hands-free',
+  'conversation-workspace'
 ] as const;
 
 const typedDevEntryPlugin = (): Plugin => ({
