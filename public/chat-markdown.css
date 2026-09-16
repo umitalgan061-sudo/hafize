@@ -1,0 +1,202 @@
+/* Rendered assistant answers.
+ *
+ * Only `.message.assistant .content[data-md]` is restyled: a user bubble and a
+ * not-yet-rendered answer keep the original `pre-wrap` plain-text look, so this
+ * sheet can never change how a message the renderer skipped is displayed. */
+
+:root {
+  --md-code-bg: #f3f0e9;
+  --md-code-head-bg: #e9e5db;
+  --md-code-ink: #33352f;
+  --md-quote-bar: color-mix(in srgb, var(--premium-orange, #d9774f) 55%, transparent);
+  --md-line: var(--premium-line, rgba(70, 61, 52, .13));
+  --md-muted: var(--premium-muted, #8c877f);
+  --md-inline-code-bg: color-mix(in srgb, var(--premium-orange, #d9774f) 10%, transparent);
+}
+
+html[data-theme="dark"] {
+  --md-code-bg: #1b1c1d;
+  --md-code-head-bg: #26272a;
+  --md-code-ink: #e9e6e0;
+  --md-inline-code-bg: color-mix(in srgb, var(--premium-orange, #dd7a52) 18%, transparent);
+}
+
+.message.assistant .content[data-md] {
+  white-space: normal;
+  line-height: 1.68;
+}
+
+.message.assistant .content[data-md] > *:first-child { margin-top: 0; }
+.message.assistant .content[data-md] > *:last-child { margin-bottom: 0; }
+
+/* Blocks ------------------------------------------------------------- */
+
+.md-paragraph { margin: 0 0 14px; }
+.md-paragraph:last-child { margin-bottom: 0; }
+
+.md-heading {
+  margin: 22px 0 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.md-heading-1 { font-size: 1.44em; }
+.md-heading-2 { font-size: 1.28em; }
+.md-heading-3 { font-size: 1.14em; }
+.md-heading-4, .md-heading-5, .md-heading-6 { font-size: 1em; }
+.md-heading-5, .md-heading-6 { color: var(--md-muted); }
+
+.md-divider {
+  height: 1px;
+  margin: 20px 0;
+  border: 0;
+  background: var(--md-line);
+}
+
+.md-quote {
+  margin: 0 0 14px;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--md-quote-bar);
+  color: var(--md-muted);
+}
+.md-quote > *:last-child { margin-bottom: 0; }
+
+.md-list { margin: 0 0 14px; padding-left: 1.45em; }
+.md-list .md-list { margin-bottom: 0; }
+.md-list-item { margin: 0 0 6px; }
+.md-list-tight > .md-list-item { margin-bottom: 2px; }
+.md-list-item:last-child { margin-bottom: 0; }
+.md-list-item > .md-paragraph:last-child { margin-bottom: 0; }
+ul.md-list { list-style: disc; }
+ul.md-list ul.md-list { list-style: circle; }
+ol.md-list { list-style: decimal; }
+
+/* Inline ------------------------------------------------------------- */
+
+.md-inline-code {
+  padding: .12em .36em;
+  border-radius: 6px;
+  background: var(--md-inline-code-bg);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: .92em;
+  overflow-wrap: anywhere;
+}
+
+.md-link {
+  color: var(--premium-orange-strong, #c85e36);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+.md-link:hover { text-decoration-thickness: 2px; }
+/* An image reference is rendered as a link, never as a remote fetch. */
+.md-link-image::before { content: "🖼 "; }
+
+.message.assistant .content[data-md] s { color: var(--md-muted); }
+
+/* Code blocks -------------------------------------------------------- */
+
+.md-code {
+  margin: 0 0 16px;
+  border: 1px solid var(--md-line);
+  border-radius: 12px;
+  background: var(--md-code-bg);
+  overflow: hidden;
+}
+
+.md-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  background: var(--md-code-head-bg);
+  border-bottom: 1px solid var(--md-line);
+}
+
+/* The label and the button text come from CSS, so `textContent` of an answer
+ * stays exactly the answer for voice output, copy and the message workspace. */
+.md-code-lang::after {
+  content: attr(data-language);
+  color: var(--md-muted);
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.md-code-copy {
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: transparent;
+  color: var(--md-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.md-code-copy::after { content: "⧉ Kopyala"; }
+.md-code-copy[data-state="copied"]::after { content: "✓ Kopyalandı"; }
+.md-code-copy[data-state="failed"]::after { content: "Kopyalanamadı"; }
+.md-code-copy:hover { border-color: var(--md-line); color: var(--premium-text, #34312d); }
+.md-code-copy[data-state="copied"] { color: var(--premium-orange-strong, #c85e36); }
+
+.md-code-body {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  color: var(--md-code-ink);
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+.md-code-body code { white-space: pre; }
+
+/* While a fenced block is still streaming its closing fence is missing; the
+ * bar keeps the block visibly "in progress" instead of looking finished. */
+.md-code[data-streaming="true"] .md-code-head { border-bottom-style: dashed; }
+.md-code[data-streaming="true"] .md-code-lang::after { content: attr(data-language) " · yazılıyor"; }
+
+/* Tables ------------------------------------------------------------- */
+
+.md-table-wrap {
+  margin: 0 0 16px;
+  overflow-x: auto;
+  border: 1px solid var(--md-line);
+  border-radius: 12px;
+}
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .95em;
+}
+.md-table th, .md-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--md-line);
+  text-align: left;
+  vertical-align: top;
+}
+.md-table th {
+  background: color-mix(in srgb, var(--premium-orange, #d9774f) 7%, transparent);
+  font-weight: 650;
+}
+.md-table tbody tr:last-child td { border-bottom: 0; }
+.md-table [data-align="center"] { text-align: center; }
+.md-table [data-align="right"] { text-align: right; }
+.md-table [data-align="left"] { text-align: left; }
+
+/* A truncated answer is never silently shortened: the tail is still there as
+ * plain text, and the reader is told the renderer stopped structuring it. */
+.message.assistant .content[data-md="truncated"]::after {
+  content: "Bu yanıt biçimlendirme sınırına ulaştı; kalan bölüm düz metin olarak gösteriliyor.";
+  display: block;
+  margin-top: 12px;
+  color: var(--md-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .md-code-body { font-size: 12px; padding: 10px 12px; }
+  .md-heading-1 { font-size: 1.3em; }
+  .md-table th, .md-table td { padding: 7px 9px; }
+}

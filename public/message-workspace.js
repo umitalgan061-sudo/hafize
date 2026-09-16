@@ -202,7 +202,11 @@
   }
 
   function messageText(article) {
-    return cleanText(article?.querySelector('.content')?.textContent || '').slice(0, 12000);
+    const content = article?.querySelector('.content');
+    // A rendered answer is read through the markdown layer: block elements
+    // concatenate in `textContent`, which would glue paragraphs together.
+    const text = window.HafizeChatMarkdown?.plainTextFor?.(content) ?? content?.textContent;
+    return cleanText(text || '').slice(0, 12000);
   }
 
   function ensureActionBar(article) {

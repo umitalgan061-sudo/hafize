@@ -4,6 +4,7 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
+  const MESSAGE_PLACEHOLDER = '…';
   const ui = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -32,6 +33,21 @@
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  // Assistant answers are markdown; user messages stay literal text. The
+  // renderer is optional on purpose: if `chat-markdown.js` fails to load the
+  // chat still shows every answer, just without headings, lists and code
+  // blocks.
+  function paintContent(node, text, { role = 'assistant', streaming = false } = {}) {
+    if (!node) return;
+    const value = typeof text === 'string' ? text : '';
+    const painter = window.HafizeChatMarkdown;
+    if (painter?.paint) {
+      painter.paint(node, value, { placeholder: MESSAGE_PLACEHOLDER, plain: role !== 'assistant', streaming });
+      return;
+    }
+    node.textContent = value || MESSAGE_PLACEHOLDER;
   }
 
   function loadConversations() {
@@ -128,7 +144,8 @@
     message.content = content;
     conversation.updatedAt = new Date().toISOString();
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
-    if (node) node.textContent = content || '…';
+    // Deltas paint on the next frame; the final, persisted update paints now.
+    if (node) paintContent(node, content, { role: message.role, streaming: !persist });
     if (persist) saveConversations();
   }
 
@@ -333,7 +350,7 @@
 
       const content = document.createElement('div');
       content.className = 'content';
-      content.textContent = message.content || '…';
+      paintContent(content, message.content, { role: message.role });
 
       article.append(meta);
       if (message.role === 'assistant') {
