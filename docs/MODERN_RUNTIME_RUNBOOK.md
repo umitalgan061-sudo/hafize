@@ -1,88 +1,68 @@
-# Modern runtime operasyon runbook'u
+# Modern Runtime Runbook
 
 ## Geliştirme
 
-Geliştirme sırasında iki süreç vardır: mevcut Node API runtime ve Vite development server.
+Geliştirme iki ayrı execution hattı kullanır: Vite browser tooling ve Node runtime. Typed runtime değişikliği browser bundle ile karıştırılmamalıdır.
 
-`npm run dev:server` mevcut backend'i 127.0.0.1:4173 üzerinde çalıştırır.
-
-`npm run dev` Vite'i 127.0.0.1 üzerinde açar. `/api` istekleri Node runtime'a proxy edilir.
-
-Typed entry'ler development sırasında Vite tarafından doğrudan `.ts` kaynaklarından sunulur. Üretim sırasında aynı entry'ler `public/typed-build/` altında generated `.js` olarak servis edilir.
+`npm run dev` Vite development server'ını başlatır. `npm run dev:server` production'a yakın Node entrypoint'i kullanır. API çağrıları browser tarafında mevcut server sınırından geçer.
 
 ## Üretim
 
-`npm start` önce `prestart` nedeniyle `npm run build` çalıştırır. TypeScript typecheck başarısızsa server başlatılmaz.
+`npm start` önce build ve Node typecheck yapar. Typecheck başarısızsa server başlatılmaz. Production entrypoint `server.ts` olmalıdır.
 
-Vite build başarısızsa generated output kullanılmaz. Bu davranış eksik veya eski typed bundle ile üretime çıkmayı önler.
+Eski `node server.mjs` komutu yalnız uyumluluk bridge'ini çalıştırır. Bridge'de business logic bulunmaz.
 
-## Cache
+## Configuration
 
-Service worker shell cache v34'tür. Typed generated entry'lerde değişiklik olduğunda cache sürümü yükseltilmelidir.
+`HAFIZE_UPSTREAM_TIMEOUT_MS`, `HAFIZE_MAX_BODY_BYTES` ve scheduler limitleri bounded olarak okunur. NIM endpoint'i HTTPS olmalıdır. Node major sürümü 24'ün altında ise bootstrap fail-fast davranır.
 
-Cache listesinde HTML tarafından yüklenmeyen generated dosya bırakılmamalıdır. HTML'de yüklenen generated dosya cache listesinde bulunmalıdır.
+## Health
 
-API endpoint'leri cache'e alınmaz.
+`GET /api/health` yalnız operasyonel durum döndürür. Secret, Authorization header, prompt, model response veya connector credential döndürülmez.
 
-## Sağlık kontrolü
+## Request lifecycle
 
-Typed runtime her 60 saniyede bir `/api/health` kontrolü yapar.
+Her dış model çağrısında request abort ile timeout birlikte değerlendirilir. Client bağlantısı kapanırsa upstream request'i de iptal edilir. Body sınırı aşılırsa upstream'e hiçbir veri gönderilmez.
 
-Browser offline olduğunda backend isteği gönderilmez ve kullanıcıya çevrimdışı durum gösterilir.
+## Model response
 
-Backend erişilebilir fakat NVIDIA hazır değilse durum sınırlı olarak gösterilir.
-
-Panelde secret, Authorization header veya connector credential gösterilmez.
+NVIDIA response typed canonical contract'ta normalize edilir. Unknown finish reason kararlı fallback kullanır. Tool call count ve argument length bounded'dır.
 
 ## Hata yönetimi
 
-Typed API client:
+JSON response başladıktan sonra hata oluşursa stable public error code kullanılır. SSE stream başladıysa aynı boundary stream-safe terminal event üretir. Upstream diagnostic body doğrudan client'a geçirilmez.
 
-- timeout uygular,
-- geçici 5xx ve 429 yanıtlarını sınırlı sayıda tekrarlar,
-- 4xx hataları tekrar denemez,
-- trace id header'ını korur,
-- response payload'ı `unknown` olarak normalize eder.
+## Scheduler
 
-UI tarafına sınırsız upstream body taşınmaz.
+Scheduler yalnız gereken runtime'lar configured olduğunda timer açar. Aynı anda tek tick çalışır. Shutdown öncesi timer durdurulur ve aktif tick'in güvenli biçimde tamamlanmasına izin verilir.
+
+## Static dosyalar
+
+Path traversal reddedilir. Public dışına çıkılamaz. TypeScript source browser static endpoint'i üzerinden servis edilmez.
 
 ## Rollback
 
-En güvenli rollback sırası:
+Migration sorunu çıkarsa PR revert edilir. Legacy bridge mevcut olduğu için deployment komutunun biçimi korunabilir. Rollback sonrası typecheck, build, health ve temel chat smoke test tekrar çalıştırılır.
 
-1. ilgili generated entry'nin HTML referansını önceki sürüme döndür,
-2. TypeScript kaynak migration commit'ini revert et,
-3. service worker cache sürümünü önceki çalışan sürüme döndür,
-4. `npm start` ile temiz build al,
-5. `/api/health` ve ana sohbet akışını smoke test et.
+## Incident checklist
 
-Backend migration yoksa browser migration bağımsız olarak geri alınabilir.
+- Node version
+- NIM endpoint
+- upstream timeout
+- body limit
+- active/peak requests
+- upstream error count
+- authentication failures
+- scheduler lease/storage state
+- PWA/static cache state
 
-## Arıza senaryoları
+## Release gates
 
-### Generated entry 404
-
-`npm run build` çalıştırılmamış olabilir veya `public/typed-build` yanlışlıkla temizlenmiş olabilir. Production start'ın prestart adımı build'i yeniden üretmelidir.
-
-### Vite dev API 502
-
-Node backend 4173 portunda çalışmıyor olabilir. `npm run dev:server` ayrı terminalde başlatılmalıdır.
-
-### Typecheck hatası
-
-Migration yeni kodunda tip sözleşmesi bozulmuştur. `as any` eklemek yerine API boundary normalize edilmelidir.
-
-### PWA eski JS çalıştırıyor
-
-Service worker cache sürümü yükseltilmeli ve generated entry listesi güncellenmelidir.
-
-## DoD
-
-Bir modern runtime değişikliği şu dört kapıdan geçmeden release edilmemelidir:
-
-- `npm run typecheck`
-- `npm run build`
-- `npm run test:modern`
-- `node scripts/test-modern-toolchain.mjs` ve `node scripts/test-legacy-entry-contract.mjs`
-
-Repository ana test suite'i ayrıca korunur.
+- [ ] `npm run typecheck`
+- [ ] `npm run test:modern`
+- [ ] `npm run format:check`
+- [ ] modern runtime contract tests
+- [ ] legacy entry contract
+- [ ] production hardening
+- [ ] no secret file changes
+- [ ] no direct main write
