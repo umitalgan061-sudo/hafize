@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const source = fs.readFileSync(path.join(process.cwd(), 'public/typed/platform-feature-registry.ts'), 'utf8');
+for (const id of ['application-runtime','prompt-library','prompt-smart-fill','prompt-command-palette','scheduled-task-countdown','voice-output','hands-free','screen-share','workspace-navigation']) assert.ok(source.includes(`id: '${id}'`), `adapter missing: ${id}`);
+assert.ok(source.includes('registerKnownFeatures'));
+assert.ok(source.includes('hafizePlatform.addFeature'));
+assert.ok(source.includes('feature-ready'));
+assert.ok(source.includes('feature-missing'));
+assert.ok(source.includes('priority'));
+console.log('platform feature registry: ok');
