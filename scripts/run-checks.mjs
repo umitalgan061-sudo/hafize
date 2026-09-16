@@ -6,9 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { typecheck, PROJECTS as TYPE_PROJECTS } from './run-typecheck.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// `.mts` de taranır: `node --check` tip sıyırmayı bilir, yani bir TypeScript
+// modülünün ayrıştırılabilirliği tiplerinden bağımsız olarak burada doğrulanır.
 const SYNTAX_TARGETS = [
   { dir: '.', extensions: ['.mjs'] },
-  { dir: 'lib', extensions: ['.mjs'] },
+  { dir: 'lib', extensions: ['.mjs', '.mts'] },
   { dir: 'scripts', extensions: ['.mjs'] },
   { dir: 'public', extensions: ['.js'] }
 ];

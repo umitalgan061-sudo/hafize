@@ -9,5 +9,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["server.mjs", "lib/**/*.mjs", "lib/**/*.ts", "types/node.d.ts", "types/shared.d.ts"]
+  "include": ["server.mjs", "lib/**/*.mjs", "lib/**/*.mts", "types/node.d.ts", "types/shared.d.ts"]
 }

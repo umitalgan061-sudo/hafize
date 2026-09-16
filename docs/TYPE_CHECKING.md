@@ -30,6 +30,28 @@ farklı ortamda çalışır. Her projenin kendi `lib` ve `types` kümesi vardır
 `tsconfig.json` yalnızca bu dördünü birbirine bağlar; kendisi hiçbir dosya
 içermez.
 
+## TypeScript'e geçiş
+
+`lib/rate-limit.mts` projedeki ilk gerçek TypeScript modülüdür ve derleme adımı
+olmadan çalışır: `npm start` onu `lib/production-guard.mjs` üzerinden doğrudan
+yükler.
+
+Uzantı `.mts`'tir, `.ts` değil. İki neden:
+
+1. Mevcut `.mjs` kuralıyla eşleşir ve Node'a dosyanın ESM olduğunu açıkça
+   söyler. `.ts` modül türünü tahmin ettirir ve her yüklemede uyarı üretir.
+2. O uyarıyı `package.json` içine `"type": "module"` yazarak susturmak mümkün
+   değildi: `public/` altındaki UMD modülleri kontrol paketleri tarafından
+   `require()` ile yükleniyor ve o bayrak onları ESM'e çevirip kırardı.
+
+İçe aktarma belirteci uzantıyı taşır (`from './rate-limit.mts'`); bu, Node'un
+istediği biçimdir ve `allowImportingTsExtensions` ile TypeScript tarafında da
+geçerlidir.
+
+Geri kalan `.mjs` modülleri `checkJs` altında zaten tam denetleniyor, yani
+dönüşüm tip güvenliği için gerekli değil — sıra geldiğinde her modül tek tek
+taşınabilir, kapı her adımda yeşil kalır.
+
 ## Katılık
 
 `strict` kapalıdır. Bu bilinçli bir seçimdir: `strictNullChecks` ve

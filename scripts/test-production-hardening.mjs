@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createRateLimiter } from '../lib/rate-limit.mjs';
+import { createRateLimiter } from '../lib/rate-limit.mts';
 import { createSessionAuth } from '../lib/session-auth.mjs';
 
 const secret = 's'.repeat(64);
