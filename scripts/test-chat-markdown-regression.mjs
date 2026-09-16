@@ -9,7 +9,8 @@ const files = {
   composer: fs.readFileSync('public/chat-composer-features.js', 'utf8'),
   workspace: fs.readFileSync('public/message-workspace.js', 'utf8'),
   voice: fs.readFileSync('public/voice-output.js', 'utf8'),
-  loader: fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8')
+  loader: fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8'),
+  html: fs.readFileSync('public/index.html', 'utf8')
 };
 
 const requiredRendererContracts = [
@@ -20,9 +21,11 @@ const requiredRendererContracts = [
   /appendChild|append\(/,
   /https?:/,
   /mailto:/,
-  /javascript/i,
-  /data:/,
-  /escape/i,
+  // Destinations are allowlisted rather than denylisted, so `javascript:` and
+  // `data:` never appear here; scheme rejection is covered behaviourally by
+  // test-chat-markdown-security.mjs.
+  /SAFE_SCHEMES/,
+  /ESCAPABLE_PATTERN/,
   /table/i,
   /blockquote/i,
   /code/i,
@@ -40,8 +43,15 @@ const forbiddenExecution = [
   /srcdoc/i,
   /<script/i
 ];
+// Comment lines are dropped first: the renderer documents what it refuses to
+// build (`<script>`, `onerror=`), and the prose must not read as a violation.
+const withoutCommentLines = (source) => source
+  .split('\n')
+  .filter((line) => !/^\s*(?:\/\/|\/\*|\*)/.test(line))
+  .join('\n');
 for (const source of [files.renderer, files.chat]) {
-  for (const contract of forbiddenExecution) assert.doesNotMatch(source, contract, `unsafe contract ${contract} present`);
+  const code = withoutCommentLines(source);
+  for (const contract of forbiddenExecution) assert.doesNotMatch(code, contract, `unsafe contract ${contract} present`);
 }
 
 const chatContracts = [
@@ -49,8 +59,9 @@ const chatContracts = [
   /cancelAnimationFrame/,
   /aria-busy/,
   /navigator\.clipboard/,
-  /MutationObserver/,
-  /assistant/i,
+  // Code copy is delegated from the message list, so it survives re-renders
+  // without observing the DOM.
+  /data-md-copy="code"/,
   /content/,
   /copy|kopy/i,
   /stream/i
@@ -59,9 +70,12 @@ for (const contract of chatContracts) assert.match(files.chat, contract, `chat c
 
 const integrationContracts = [
   [/updateMessage\(assistantId, content\)/, 'assistant stream update remains canonical'],
-  [/textContent\s*=\s*content/, 'plain text fallback remains available'],
+  [/node\.textContent = value \|\| MESSAGE_PLACEHOLDER/, 'plain text fallback remains available'],
   [/addMessage\(['"]assistant['"]/, 'assistant messages still use app message path'],
-  [/hafize/, 'existing application namespace remains referenced']
+  [/hafize/, 'existing application namespace remains referenced'],
+  // Role handling lives in app.js: only an assistant answer is rendered as
+  // markdown, a user message stays plain text.
+  [/plain: role !== 'assistant'/, 'only assistant answers are rendered as markdown']
 ];
 for (const [contract, label] of integrationContracts) assert.match(files.app, contract, label);
 
@@ -78,20 +92,13 @@ assert.match(files.css, /prefers-reduced-motion/);
 assert.match(files.css, /forced-colors/);
 assert.doesNotMatch(files.css, /\.message\.user\s*\{/);
 
-const bootstrapContracts = [
-  ["const STYLE = '/chat-markdown.css'", 'static stylesheet'],
-  ["const RENDERER = '/markdown-renderer.js'", 'static renderer'],
-  ["const CHAT = '/chat-markdown.js'", 'static chat module'],
-  /createElement\(['"]link['"]\)/,
-  /createElement\(['"]script['"]\)/,
-  /script\.defer\s*=\s*true/,
-  /loadScript\(RENDERER, \(\) => loadScript\(CHAT\)\)/,
-  /loaded\.has\(src\)/
+// The renderer is loaded by the shell itself, not injected by another module.
+const shellContracts = [
+  /<link rel="stylesheet" href="\/chat-markdown\.css" \/>/,
+  /<script src="\/markdown-renderer\.js" defer><\/script>/,
+  /<script src="\/chat-markdown\.js" defer><\/script>/
 ];
-for (const contract of bootstrapContracts) {
-  const pattern = Array.isArray(contract) ? contract[0] : contract;
-  assert.match(files.loader, pattern instanceof RegExp ? pattern : new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-}
+for (const contract of shellContracts) assert.match(files.html, contract, `shell contract ${contract} missing`);
 
 const docs = fs.readFileSync('docs/CHAT_MARKDOWN.md', 'utf8');
 const security = fs.readFileSync('docs/CHAT_MARKDOWN_SECURITY.md', 'utf8');
@@ -101,7 +108,7 @@ const operations = fs.readFileSync('docs/CHAT_MARKDOWN_USAGE.md', 'utf8');
 for (const [source, terms, label] of [
   [docs, ['Markdown', 'Streaming', 'Geri alma'], 'product doc'],
   [security, ['DOM', 'javascript:', 'Gizlilik', 'Streaming'], 'security doc'],
-  [matrix, ['Bloklar', 'DOM', 'Güvenlik', 'Streaming'], 'test matrix'],
+  [matrix, ['Blok', 'DOM', 'Güvenlik', 'Akış'], 'test matrix'],
   [review, ['Product', 'Security', 'Integration', 'Rollback'], 'release review'],
   [operations, ['Kullanıcı davranışı', 'Operasyon', 'Geri alma'], 'operations doc']
 ]) {

@@ -71,6 +71,26 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
+## Kütüphane sağlığı ve içe aktarma önizlemesi
+
+İstem Kütüphanesi kartı iki yardımcı yüzey daha içerir.
+
+**Kütüphane sağlığı** paneli istem ve koleksiyon depolarını okuyup depodaki kayıt, normalize
+edilebilen kayıt, bozuk kayıt, yinelenen id, koleksiyon ve artık var olmayan istemlere işaret
+eden üye sayısını gösterir. Sorun yoksa `Onar` düğmesi pasiftir. Onarım kullanıcı onayı ister,
+kayıtları mevcut normalizer'dan geçirir ve yetim koleksiyon üyelerini temizler; normalize
+edilemeyen kayıt tahmin edilmez, elenir. Tanı en fazla 120 istem ve 200 yetim üye okur.
+
+**İçe aktarma önizlemesi** dosya seçimini devralır: yedek önce bellekte ayrıştırılır ve
+dosyadaki kayıt sayısı, geçerli/bozuk kayıtlar, aktarılacak ve kapasite nedeniyle dışarıda
+kalacak kayıt sayısı gösterilir. Örnek başlıklar metin düğümü olarak çizilir. `Vazgeç`,
+`Kapat` ve `Escape` hiçbir şey yazmaz; 1 MB üstü dosya okunmadan reddedilir ve bozuk JSON
+mevcut kütüphaneyi değiştirmez. Aynı id taşıyan kayıt mevcut istemi ezmez, yeni id ile eklenir.
+
+Kontroller `node scripts/test-prompt-library-diagnostics-runtime.mjs` ve
+`node scripts/test-prompt-library-import-preview-runtime.mjs` ile çalıştırılır. Ayrıntılar
+`docs/PROMPT_DIAGNOSTICS.md` ve `docs/PROMPT_IMPORT_QA.md` dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
@@ -91,6 +111,15 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 npm run precheck
 npm run check
 ```
+
+`npm run check` paketleri çalıştırmadan önce tipli tarayıcı paketlerini tazeler: bir TypeScript
+kaynağı `public/typed-build/` çıktısından yeniye ise `npm run build` (`tsc --noEmit` ve
+`vite build`) çalıştırılır. Vitest paketi ve biçim kontrolü de aynı kapının içindedir, bu yüzden
+derlemesi ya da tipleri bozuk bir değişiklik kapıdan geçemez. Modern zinciri tek başına çalıştırmak
+için `npm run check:modern` kullanılır.
+
+`public/typed-build/` üretilmiş çıktıdır ve repoya commit edilmez; `npm start` öncesi `prestart`
+adımı onu üretir.
 
 Scheduled Tasks özel kontrolleri:
 
@@ -138,6 +167,13 @@ node scripts/test-production-hardening.mjs
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.
+
+## Sohbet markdown'ı
+
+Asistan yanıtları `markdown-renderer.js` ve `chat-markdown.js` katmanlarıyla çizilir. İkisi de
+`index.html` tarafından `app.js`'ten önce yüklenir ve offline shell'de cache'lenir; kullanıcı
+mesajları düz metin olarak kalır. Renderer hiçbir zaman string'den markup üretmez ve yalnızca
+`http:`, `https:`, `mailto:` şemalarının `href` olmasına izin verir.
 
 ## Mimari not
 

@@ -10,5 +10,5 @@ assert.match(chat, /requestAnimationFrame/);
 assert.match(chat, /aria-busy/);
 assert.match(chat, /navigator\.clipboard/);
 assert.match(css, /message\.assistant/);
-assert.doesNotMatch(css, /body\s*\{/);
+assert.doesNotMatch(css, /(?:^|[\s,>+~])body\s*\{/m);
 console.log('chat markdown protocol contract: ok');

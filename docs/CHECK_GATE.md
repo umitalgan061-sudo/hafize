@@ -6,6 +6,15 @@ Koşucu kök `*.mjs`, `lib/*.mjs`, `scripts/*.mjs` ve `public/*.js` kaynakların
 
 Her child-process stdout/stderr akışı en fazla 64 KiB tutulur. Daha büyük çıktı `OUTPUT_TRUNCATED` ile işaretlenir; böylece hata raporlama yapılırken sınırsız bellek birikimi oluşmaz.
 
+Paketlerden önce koşucu tipli paketleri tazeler: `public/typed-build/*.js` dosyalarından biri eksikse
+ya da herhangi bir TypeScript kaynağından/yapı ayarından eskiyse `npm run build` (yani `tsc --noEmit` ve
+`vite build`) çalıştırılır. Üretilen paketler repoya commit edilmez; `index.html` onları yükler, service
+worker cache'ler ve shell-cache sözleşmesi diskte bulunmalarını şart koşar. `--skip-build` bu adımı atlar.
+Böylece derlemesi bozuk bir TypeScript kaynağı kapıdan geçemez. `test-modern-unit-suite.mjs` Vitest
+paketini, `validate-formatting.mjs` ise biçim kurallarını aynı kapı içinde çalıştırır. Vitest
+`src/**/*.test.ts` ve `public/**/*.test.ts` dosyalarının tamamını toplar; bir `*.test.ts` dosyası
+yalnızca `public/typed/` altında olduğu için çalıştırılmaz duruma düşmez.
+
 Yeni bir doğrulama veya test dosyası eklendiğinde `package.json` içine ayrıca yol eklemek gerekmez. `--list` keşfedilen paketleri, `--filter=a,b` ise eşleşen odak paketleri listeler/çalıştırır. Filtre geliştirici döngüsü içindir; PR öncesi filtresiz tam kapı kullanılır.
 
 `scripts/` altındaki `test-`/`validate-` ile başlamayan dosyalar paket olarak çalıştırılmaz;
@@ -16,14 +25,20 @@ değişmezlerini (sürüm biçimi, eski sürümlerin temizlenmesi, her asset'in 
 kaynak-sözleşme yardımcılarını sağlar: bir attribute markup ya da `setAttribute` ile,
 bir sınıf seçici ya da sınıf adı olarak, CSS parçaları ise boşluktan bağımsız eşleşir.
 `browser-storage-stub.mjs` ise tarayıcı modüllerini Node içinde çalıştırmak için bellek içi
-`localStorage` ve bilinçli olarak hata fırlatan store taklitleri verir.
+`localStorage` ve bilinçli olarak hata fırlatan store taklitleri verir. `panel-dom-harness.mjs`
+panel modüllerini gerçekten mount etmek için küçük bir DOM verir: element arama, sınırlı seçici
+desteği, odak takibi ve gerçek capture fazı olan bir olay dağıtıcısı. Böylece "içe aktarma
+önizlemesi dosya seçimini çekirdek importtan önce alır" gibi bir davranış, kaynak metnine
+bakmadan doğrulanabilir.
 Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
 
 ## Paket yazarken
 
 - **Shell cache sürümü sabit yazılmaz.** `assertVersionedCacheDeclaration(sw)` ya da
   `assertShellCacheContract()` kullanılır. `v29` gibi bir sabit, bir sonraki asset
-  değişikliğinde ilgisiz paketleri kırar.
+  değişikliğinde ilgisiz paketleri kırar. Aynı kural değişmesi beklenen her sabit için
+  geçerlidir: `HAFIZE_RULES.md` içindeki değişiklik bütçesi de biçimiyle eşleştirilir,
+  değeriyle değil.
 - **Asset listesi tek yerden doğrulanır.** Yeni bir dosya `index.html` ve `SHELL_ASSETS`
   listesinin ikisine birden eklenir; `assertShellAssets([...])` özellik bazlı kontrol içindir.
 - **Davranış tercih edilir, yazım değil.** Bir sınır veya kural test edilecekse modül

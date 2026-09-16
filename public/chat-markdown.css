@@ -133,6 +133,7 @@ ol.md-list { list-style: decimal; }
   color: var(--md-muted);
   font-size: 11px;
   line-height: 1.5;
+  transition: color .16s ease, border-color .16s ease;
 }
 .md-code-copy::after { content: "⧉ Kopyala"; }
 .md-code-copy[data-state="copied"]::after { content: "✓ Kopyalandı"; }
@@ -199,4 +200,35 @@ ol.md-list { list-style: decimal; }
   .md-code-body { font-size: 12px; padding: 10px 12px; }
   .md-heading-1 { font-size: 1.3em; }
   .md-table th, .md-table td { padding: 7px 9px; }
+}
+
+/* Accessibility ------------------------------------------------------ */
+
+/* The copy button is the only thing that animates in a rendered answer, so a
+ * reader who asked for less motion still gets the state change, instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .md-code-copy { transition: none; }
+}
+
+/* Forced colours drop the token palette: tinted backgrounds disappear and
+ * `color-mix()` borders stop separating anything. Structure is restored with
+ * system colours so code blocks, quotes and tables keep their outlines. */
+@media (forced-colors: active) {
+  .md-code,
+  .md-table-wrap { border-color: CanvasText; }
+  .md-code-head { border-bottom-color: CanvasText; }
+  .md-quote { border-left-color: CanvasText; }
+  .md-divider { background: CanvasText; }
+  .md-table th,
+  .md-table td { border-bottom-color: CanvasText; }
+  .md-table th { background: Canvas; }
+  .md-inline-code {
+    background: Canvas;
+    border: 1px solid CanvasText;
+  }
+  .md-code-copy {
+    border-color: ButtonBorder;
+    color: ButtonText;
+  }
+  .md-code-copy[data-state="copied"] { color: Highlight; }
 }

@@ -94,4 +94,9 @@ assert.ok(workspace.includes("row.style.order = visible ? String(orderedIds.get(
 assert.ok(workspace.includes('row.classList.toggle(\'workspace-selected\''));
 assert.ok(workspace.includes('check.checked = state.selected.includes(id)'));
 
-console.log(`conversation-workspace-navigation: responsive, accessibility, shortcut, shell-order and no-network contracts passed (${responsiveContracts.length + cssAccessibilityContracts.length + ariaContracts.length + shortcutVisualContracts.length + shortcutBehaviorContracts.length} checks)`);
+const checked = responsiveContracts.length
+  + cssAccessibilityContracts.length
+  + ariaContracts.length
+  + shortcutVisualContracts.length
+  + shortcutBehaviorContracts.length;
+console.log(`conversation-workspace-navigation: responsive, accessibility, shortcut, shell-order and no-network contracts passed (${checked} checks)`);

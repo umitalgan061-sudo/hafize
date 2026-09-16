@@ -16,7 +16,7 @@ const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
 const MAX_RETRY_DELAY_MS = 1_500;
 
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
+function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = globalThis.setTimeout(resolve, ms);
     if (!signal) return;
@@ -131,5 +131,7 @@ export class HafizeApiClient {
     return this.request('/api/agents', { signal, timeoutMs: 8000, retry: 1 }).then(parseAgents);
   }
 }
+
+export { HafizeApiError } from './hafize-types.ts';
 
 export const hafizeApi = new HafizeApiClient();

@@ -1,10 +1,19 @@
 import { spawn } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const TYPED_BUILD_DIR = path.join(ROOT, 'public', 'typed-build');
+const TYPED_BUNDLES = [
+  'app-runtime.js',
+  'prompt-library-smart-fill.js',
+  'prompt-library-command-palette.js',
+  'prompt-library-smart-fill-hints.js',
+  'scheduled-tasks-countdown.js'
+];
+const BUILD_TIMEOUT_MS = 300_000;
 const SYNTAX_TARGETS = [
   { dir: '.', extensions: ['.mjs'] },
   { dir: 'lib', extensions: ['.mjs'] },
@@ -17,10 +26,11 @@ const MAX_FAILURE_OUTPUT_LINES = 40;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 
 function parseArgs(argv) {
-  const options = { filters: [], list: false };
+  const options = { filters: [], list: false, skipBuild: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--list') options.list = true;
+    else if (arg === '--skip-build') options.skipBuild = true;
     else if (arg === '--filter') options.filters.push(argv[++index] ?? '');
     else if (arg.startsWith('--filter=')) options.filters.push(arg.slice('--filter='.length));
     else if (!arg.startsWith('-')) options.filters.push(arg);
@@ -102,6 +112,33 @@ async function runPool(items, worker, concurrency) {
   return results;
 }
 
+async function newestMtime(files) {
+  let newest = 0;
+  for (const file of files) {
+    const info = await stat(file).catch(() => null);
+    if (info) newest = Math.max(newest, info.mtimeMs);
+  }
+  return newest;
+}
+
+/**
+ * `public/typed-build/*.js` is build output: index.html loads it, the service
+ * worker caches it and the shell-cache contract asserts every cached asset
+ * exists on disk. It is not committed, so the gate regenerates it whenever a
+ * TypeScript source or a build configuration file is newer than the bundles.
+ */
+async function typedBundlesAreStale() {
+  const bundles = TYPED_BUNDLES.map((name) => path.join(TYPED_BUILD_DIR, name));
+  for (const bundle of bundles) {
+    if (!(await stat(bundle).catch(() => null))) return true;
+  }
+  const publicFiles = await collectFiles({ dir: 'public', extensions: ['.ts'] });
+  const typedFiles = await collectFiles({ dir: 'public/typed', extensions: ['.ts'] });
+  const sources = [...publicFiles, ...typedFiles, 'vite.config.ts', 'tsconfig.json', 'package.json']
+    .map((file) => path.join(ROOT, file));
+  return (await newestMtime(sources)) > (await newestMtime(bundles));
+}
+
 function tail(text) {
   const lines = String(text || '').trimEnd().split('\n');
   return lines.slice(-MAX_FAILURE_OUTPUT_LINES).join('\n');
@@ -127,16 +164,28 @@ try {
   }
 
   const failures = [];
+
+  if (!options.skipBuild && (await typedBundlesAreStale())) {
+    console.log('build: tipli paketler yeniden üretiliyor (tsc --noEmit && vite build)');
+    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const build = await run(npm, ['run', 'build'], { timeoutMs: BUILD_TIMEOUT_MS });
+    console.log(`build: ${build.ok ? 'tamam' : 'BAŞARISIZ'} (${(build.durationMs / 1000).toFixed(1)}s)`);
+    if (!build.ok) failures.push({ name: 'build typed-build', output: build.output });
+  }
+
   console.log(`syntax: ${syntaxFiles.length} dosya kontrol ediliyor`);
   const syntaxResults = await runPool(
     syntaxFiles,
     (file) => run(process.execPath, ['--check', file], { timeoutMs: SYNTAX_TIMEOUT_MS }),
     concurrency
   );
+  let syntaxFailures = 0;
   syntaxResults.forEach((result, index) => {
-    if (!result.ok) failures.push({ name: `syntax ${syntaxFiles[index]}`, output: result.output });
+    if (result.ok) return;
+    syntaxFailures += 1;
+    failures.push({ name: `syntax ${syntaxFiles[index]}`, output: result.output });
   });
-  console.log(failures.length ? `syntax: ${failures.length} dosya başarısız` : `syntax: ${syntaxFiles.length} dosya tamam`);
+  console.log(syntaxFailures ? `syntax: ${syntaxFailures} dosya başarısız` : `syntax: ${syntaxFiles.length} dosya tamam`);
 
   console.log(`check: ${suites.length} paket çalıştırılıyor (eşzamanlılık ${concurrency})`);
   const suiteResults = await runPool(

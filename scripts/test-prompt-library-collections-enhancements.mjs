@@ -10,7 +10,10 @@ assert.match(source, /function duplicateCollection/);
 assert.match(source, /MAX_SELECTION = 40/);
 assert.match(source, /data-prompt-collection-action/);
 assert.match(source, /data-collection-id/);
-assert.match(source, /crypto\?\.randomUUID/);
+// Ids are never minted here: the enhancement asks the core collections API
+// to create the record, so identifiers stay unique across both surfaces.
+assert.match(source, /api\(\)\?\.createCollection\?\.\(/);
+assert.doesNotMatch(source, /Math\.random/);
 assert.match(source, /CustomEvent\('hafize:prompt-library-collections-changed'/);
 assert.match(source, /aria-label/);
 assert.match(source, /textContent/);

@@ -174,9 +174,10 @@ check('workspace remains before voice modules', index.indexOf('/conversation-wor
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
 check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
-// HAFIZE_RULES.md replaced the old 3000-line budget with a completion rule:
-// a round stays open until the work package is finished, not until a number.
-check('rules state the round completion criterion', rules.includes('Tur tamamlama kriteri — 4000+ anlamlı değişiklik'));
+// HAFIZE_RULES.md pairs a change budget with a completion rule: a round stays
+// open until the work package is finished, not until a number. The budget
+// itself is tuned from time to time, so the heading is matched, not its value.
+check('rules state the round completion criterion', /Tur tamamlama kriteri — \d+\+ anlamlı değişiklik/.test(rules));
 check('rules keep the change volume meaningful', rules.includes('yapay satır doldurma gerekçesi değildir'));
 check('rules put safety above change volume', rules.includes('değişiklik hacmi hedefinden daha yüksek önceliklidir'));
 

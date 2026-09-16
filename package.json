@@ -18,7 +18,7 @@
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",
-    "format:check": "node scripts/format-check.mjs"
+    "format:check": "node scripts/validate-formatting.mjs"
   },
   "dependencies": {
     "redis": "^6.1.0"

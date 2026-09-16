@@ -13,13 +13,22 @@ const validWrite = {
   ownerId: 'user-123', kind: 'preference', content: 'Kısa yanıtları tercih ediyor.', sourceType: 'user_statement',
   sourceRef: 'conversation-42:message-7', sensitivity: 'personal', explicitUserIntent: true
 };
-assert.deepEqual(normalizeMemoryWrite(validWrite), { ok: true, command: { ownerId: 'user-123', kind: 'preference', content: 'Kısa yanıtları tercih ediyor.', sourceType: 'user_statement', sourceRef: 'conversation-42:message-7', sensitivity: 'personal' } });
+assert.deepEqual(
+  normalizeMemoryWrite(validWrite),
+  { ok: true, command: { ownerId: 'user-123', kind: 'preference', content: 'Kısa yanıtları tercih ediyor.', sourceType: 'user_statement', sourceRef: 'conversation-42:message-7', sensitivity: 'personal' } }
+);
 
 assert.deepEqual(normalizeMemoryWrite({ ownerId: 'user-123', kind: 'note', content: 'Not.', sourceType: 'user_note', sensitivity: 'personal' }), { ok: false, error: 'MEMORY_WRITE_REQUIRES_EXPLICIT_USER_INTENT' });
 assert.deepEqual(normalizeMemoryWrite({ ownerId: 'user-123', kind: 'note', content: 'Not.', sourceType: 'user_note', sensitivity: 'restricted', explicitUserIntent: true }), { ok: false, error: 'MEMORY_SENSITIVITY_NOT_ALLOWED' });
 
-for (const kind of ['identity', 'preference', 'project', 'note']) assert.equal(normalizeMemoryWrite({ ownerId: 'owner', kind, content: `kind:${kind}`, sourceType: 'user_import', sensitivity: 'personal', explicitUserIntent: true }).ok, true);
-for (const invalidKind of ['', 'credential', 'other']) assert.deepEqual(normalizeMemoryWrite({ ownerId: 'owner', kind: invalidKind, content: 'x', sourceType: 'user_note', sensitivity: 'personal', explicitUserIntent: true }), { ok: false, error: 'INVALID_MEMORY_COMMAND:kind' });
+for (const kind of ['identity', 'preference', 'project', 'note']) {
+  const command = { ownerId: 'owner', kind, content: `kind:${kind}`, sourceType: 'user_import', sensitivity: 'personal', explicitUserIntent: true };
+  assert.equal(normalizeMemoryWrite(command).ok, true);
+}
+for (const invalidKind of ['', 'credential', 'other']) {
+  const command = { ownerId: 'owner', kind: invalidKind, content: 'x', sourceType: 'user_note', sensitivity: 'personal', explicitUserIntent: true };
+  assert.deepEqual(normalizeMemoryWrite(command), { ok: false, error: 'INVALID_MEMORY_COMMAND:kind' });
+}
 assert.deepEqual(normalizeMemoryWrite({ ownerId: 'owner', kind: 'note', content: 'x', sourceType: 'assistant_guess', sensitivity: 'personal', explicitUserIntent: true }), { ok: false, error: 'INVALID_MEMORY_COMMAND:sourceType' });
 assert.deepEqual(normalizeMemoryWrite({ ...validWrite, extra: 'not accepted' }), { ok: false, error: 'INVALID_MEMORY_COMMAND:field' });
 
