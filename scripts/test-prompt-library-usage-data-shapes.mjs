@@ -1,14 +1,22 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { loadPublicModule } from './public-module.mjs';
+
+const { normalizeItem } = loadPublicModule('prompt-library.js');
 
 const core = fs.readFileSync('public/prompt-library.js', 'utf8');
 const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
 const docs = fs.readFileSync('docs/PROMPT_LIBRARY_USAGE_INSIGHTS.md', 'utf8');
 
-assert.match(core, /useCount/);
-assert.match(core, /Math\.min\(9999, Math\.floor\(input\.useCount\)\)/);
-assert.match(core, /useCount: 0/);
-assert.match(core, /useCount: items\[index\]\.useCount \+ 1/);
+// The stored shape is asserted by normalizing values, not by grepping for a
+// literal default that a refactor can respell without changing behaviour.
+assert.equal(normalizeItem({ body: 'gövde' }).useCount, 0, 'a new prompt starts unused');
+assert.equal(normalizeItem({ body: 'gövde', useCount: 7 }).useCount, 7);
+assert.equal(normalizeItem({ body: 'gövde', useCount: 12345 }).useCount, 9999, 'use counts stay bounded');
+assert.equal(normalizeItem({ body: 'gövde', useCount: -3 }).useCount, 0, 'negative counts fall back to zero');
+assert.equal(normalizeItem({ body: 'gövde', useCount: 2.7 }).useCount, 2, 'fractional counts are floored');
+assert.equal(normalizeItem({ body: 'gövde', useCount: 'çok' }).useCount, 0, 'non-numeric counts fall back to zero');
+assert.match(core, /useCount: items\[index\]\.useCount \+ 1/, 'using a prompt increments its counter');
 assert.match(usage, /function usageOf\(item\)/);
 assert.match(usage, /const value = Number\(item\.useCount\)/);
 assert.match(usage, /value >= 0/);

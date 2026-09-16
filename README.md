@@ -58,6 +58,27 @@ Desteklenen akış:
 
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
+### Akıllı doldurma
+
+`{{konu}}` gibi değişken içeren bir istemde `Kullan` düğmesi, istemi doğrudan aktarmak yerine Akıllı doldurma panelini açar:
+
+- her değişken için ayrı bir alan, canlı önizleme ve karakter sayacı (`1000` karakter/alan, `8000` karakter önizleme) bulunur,
+- panel modal bir diyalogdur: `Esc` kapatır, `Tab` odağı panel içinde döndürür ve kapanışta odak geldiği yere döner,
+- sık kullanılan değer kümeleri istem başına `hafize.prompt-library.smart-fill.v1.<istemId>` anahtarında saklanır; istem başına en fazla 6 set tutulur ve setler yalnızca bu cihazda kalır,
+- `Mesaja aktar` yalnızca boş olmayan değerlerle çalışır, istemi composer'a yazar ve istemin kullanım sayacını (`useCount`) artırır,
+- `Önizlemeyi kopyala` panoya yazar; modül hiçbir koşulda ağ isteği yapmaz.
+
+### İstem seçici
+
+Composer içine `/prompt` yazmak veya `Ctrl / ⌘ + Shift + O` kısayolu, istem seçiciyi açar:
+
+- `↑ / ↓` gezinir, `Enter` seçer, `Esc` kapatır,
+- arama sorgusu 120 karakterle, sonuç listesi 12 kayıtla sınırlıdır,
+- seçilen istem değişken içeriyorsa doğrudan Akıllı doldurma paneline devredilir,
+- arama tamamen cihaz üzerindeki kütüphane verisi üzerinde çalışır.
+
+Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.

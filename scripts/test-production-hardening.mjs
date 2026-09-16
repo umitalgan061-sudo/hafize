@@ -28,14 +28,15 @@ second.release();
 assert.equal(limiter.check('user', 61_002).ok, false);
 
 const root = new URL('..', import.meta.url);
-const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;
-const port = 43100 + Math.floor(Math.random() * 500);
+// The child binds port 0 and reports the port it got, so two suites running in
+// parallel can never land on the same one.
+const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(0,'127.0.0.1',()=>{process.stdout.write('HAFIZE_TEST_PORT='+server.address().port+'\\n');});`;
 const child = spawn(process.execPath, ['--import', new URL('../lib/production-guard.mjs', import.meta.url).pathname, '--input-type=module', '-e', inlineServer], {
   cwd: root.pathname.replace(/\/$/, ''),
   env: {
     ...process.env,
     HOST: '127.0.0.1',
-    PORT: String(port),
+    PORT: '0',
     NODE_ENV: 'production',
     HAFIZE_AUTH_REQUIRED: 'true',
     HAFIZE_AUTH_TOKEN: secret,
@@ -44,9 +45,29 @@ const child = spawn(process.execPath, ['--import', new URL('../lib/production-gu
   },
   stdio: ['ignore', 'pipe', 'pipe']
 });
+function announcedPort(stdout, timeoutMs = 20_000) {
+  return new Promise((resolve, reject) => {
+    let buffer = '';
+    const timer = setTimeout(() => { stdout.off('data', onData); reject(new Error('guarded server never reported a port')); }, timeoutMs);
+    const onData = (chunk) => {
+      buffer += String(chunk);
+      const match = /HAFIZE_TEST_PORT=(\d+)/.exec(buffer);
+      if (!match) return;
+      clearTimeout(timer);
+      stdout.off('data', onData);
+      resolve(Number(match[1]));
+    };
+    stdout.on('data', onData);
+  });
+}
+
+let port;
 try {
+  port = await announcedPort(child.stdout);
   let ready = false;
-  for (let i = 0; i < 40 && !ready; i += 1) {
+  // A cold Node start under a loaded checker can take seconds, so the budget is
+  // generous; the loop still exits on the first guarded response.
+  for (let i = 0; i < 200 && !ready; i += 1) {
     try { const response = await fetch(`http://127.0.0.1:${port}/api/agents`); ready = response.status === 401; } catch {}
     if (!ready) await new Promise((resolve) => setTimeout(resolve, 50));
   }

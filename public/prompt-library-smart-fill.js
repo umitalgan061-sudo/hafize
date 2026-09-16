@@ -20,7 +20,10 @@
   }
 
   function readPresets(promptId) {
-    const raw = store()?.getItem?.(keyForPrompt(promptId));
+    // Reading localStorage throws outright when site data is blocked, so the
+    // access is guarded the same way the write below is.
+    let raw = '';
+    try { raw = store()?.getItem?.(keyForPrompt(promptId)) || ''; } catch { return []; }
     const data = safeParse(raw || '[]', []);
     if (!Array.isArray(data)) return [];
     return data.filter((preset) => preset && typeof preset === 'object')
@@ -40,6 +43,38 @@
     } catch {
       return false;
     }
+  }
+
+  function persist(items) {
+    try { return core()?.saveItems?.(store(), items) === true; } catch { return false; }
+  }
+
+  function notifyChanged(items) {
+    // Same-tab writes do not raise a storage event, so the library card is told
+    // explicitly; without it the new count only shows up after a reload.
+    try {
+      const key = core()?.STORAGE_KEY;
+      if (!key || typeof root.StorageEvent !== 'function') return;
+      root.dispatchEvent(new root.StorageEvent('storage', { key, newValue: JSON.stringify(items), storageArea: store() }));
+    } catch { /* the card still refreshes on its next render */ }
+  }
+
+  // Smart fill intercepts the library's own "Kullan" click, so the use is counted
+  // here instead; otherwise prompts with variables never reach usage insights.
+  function recordUse(promptId) {
+    const api = core();
+    if (!promptId || !api?.loadItems || !api?.normalizeItem) return false;
+    let items = [];
+    try { items = api.loadItems(store()) || []; } catch { return false; }
+    const index = items.findIndex((item) => item.id === promptId);
+    if (index < 0) return false;
+    const updated = api.normalizeItem({ ...items[index], useCount: items[index].useCount + 1, updatedAt: new Date().toISOString() });
+    if (!updated) return false;
+    const next = items.slice();
+    next.splice(index, 1, updated);
+    if (!persist(next)) return false;
+    notifyChanged(next);
+    return true;
   }
 
   function variableNames(body) {
@@ -221,10 +256,12 @@
       const text = core()?.replaceVariables?.(activePrompt.body, values) || activePrompt.body;
       const composer = documentRef.querySelector('#messageInput');
       if (!composer) return showError('Mesaj alanı bulunamadı.');
+      const usedId = activePrompt.id;
       composer.value = text.slice(0, MAX_PREVIEW);
       composer.dispatchEvent(new Event('input', { bubbles: true }));
       composer.focus();
       closeDialog();
+      recordUse(usedId);
     }
 
     function trapKeydown(event) {

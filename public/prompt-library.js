@@ -283,8 +283,18 @@
     on(exportButton, 'click', () => { const ids = selected.size ? selected : new Set(filterItems(items, state).map((item) => item.id).slice(0, LIMITS.maxSelection)); const chosen = items.filter((item) => ids.has(item.id)); if (!chosen.length) return report('Dışa aktarılacak istem yok.'); const blob = new Blob([exportPayload(chosen)], { type: 'application/json;charset=utf-8' }); const url = URL.createObjectURL(blob); const link = element(documentRef, 'a'); link.href = url; link.download = 'hafize-prompt-library.json'; link.click(); rootRef.setTimeout?.(() => URL.revokeObjectURL(url), 0); report(`${chosen.length} istem dışa aktarıldı.`); });
     on(rootRef, 'storage', (event) => { if (event.key === STORAGE_KEY) { items = loadItems(storage); render(); } if (event.key === STATE_KEY) { state = loadState(storage); render(); } });
     on(documentRef, 'keydown', (event) => { if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'p') return; event.preventDefault(); search.focus(); search.select(); });
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      for (const off of listeners.splice(0)) off();
+      card.remove();
+    }
+    // The document and window listeners outlive the card, so release them when
+    // the page goes away instead of leaving a detached library reacting to
+    // storage events from other tabs.
+    on(rootRef, 'beforeunload', destroy);
     render();
-    return Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy: () => { destroyed = true; for (const off of listeners.splice(0)) off(); card.remove(); } });
+    return Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy });
   }
 
   return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems, filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });

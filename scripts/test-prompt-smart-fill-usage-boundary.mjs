@@ -11,5 +11,6 @@ assert.match(smart,/normalizeItem/);
 assert.doesNotMatch(smart,/HafizePromptLibraryUsage/);
 assert.doesNotMatch(smart,/fetch\s*\(/);
 assert.doesNotMatch(smart,/navigator\.sendBeacon/);
-assert.match(smart,/persist\(\)/);
+assert.match(smart,/persist\(next\)/);
+assert.match(smart,/saveItems/, 'the use count is written back through the library API');
 console.log('prompt smart-fill usage boundary: ok');

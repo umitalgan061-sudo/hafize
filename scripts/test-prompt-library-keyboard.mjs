@@ -10,6 +10,6 @@ assert.match(source, /key === 'n'/);
 assert.match(source, /#promptLibrarySearch/);
 assert.match(source, /\.focus\(\)/);
 assert.match(source, /\.select\(\)/);
-assert.match(source, /promptLibrary-actions/);
+assert.match(source, /\.prompt-library-actions/);
 assert.match(source, /passive: false/);
 console.log('test-prompt-library-keyboard: ok');

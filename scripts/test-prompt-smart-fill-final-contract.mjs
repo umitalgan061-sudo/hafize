@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const smartFill = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.js'), 'utf8');
@@ -26,14 +27,13 @@ assert.match(smartFill, /MAX_PRESETS = 6/);
 assert.match(smartFill, /MAX_PREVIEW = 8000/);
 assert.match(smartFill, /Object\.entries\(preset\.values/);
 assert.match(smartFill, /slice\(0, MAX_VARIABLES\)/);
-assert.match(smartFill, /slice\(0, MAX_VALUE\)/);
+assert.match(smartFill, /clamp\(value, MAX_VALUE\)/);
 assert.match(smartFill, /localStorage/);
-assert.match(smartFill, /prompt-library-smart-fill\.v1/);
+assert.match(smartFill, /hafize\.prompt-library\.smart-fill\.v1/);
 assert.match(smartFill, /navigator\?\.clipboard/);
 assert.match(smartFill, /setAttribute\('aria-live', 'polite'\)/);
-assert.match(smartFill, /Tab/);
-assert.match(smartFill, /Shift/);
-assert.match(smartFill, /Meta/);
+assert.match(smartFill, /event\.key !== 'Tab'/);
+assert.match(smartFill, /event\.shiftKey/, 'Tab cycles both ways inside the dialog');
 assert.doesNotMatch(smartFill, /fetch\(/);
 assert.doesNotMatch(smartFill, /XMLHttpRequest/);
 assert.doesNotMatch(smartFill, /WebSocket/);
@@ -58,7 +58,7 @@ assert.ok(jsPosition < index.indexOf('voice-input.js'));
 
 assert.match(sw, /prompt-library-smart-fill\.css/);
 assert.match(sw, /prompt-library-smart-fill\.js/);
-assert.match(sw, /hafize-shell-v/);
+assertVersionedCacheDeclaration(sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 
 assert.match(readme, /Akıllı doldurma/i);
