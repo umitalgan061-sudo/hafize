@@ -16,5 +16,5 @@
     "types": ["node", "vitest/globals"],
     "lib": ["ES2025", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/**/*.ts", "public/typed/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["public/**/*.ts", "src/**/*.ts", "vite.config.ts", "vitest.config.ts"]
 }
