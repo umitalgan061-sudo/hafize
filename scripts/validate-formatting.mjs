@@ -40,4 +40,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`format-check: ${files.length} source files clean`);
+console.log(`formatting: ${files.length} source files clean`);

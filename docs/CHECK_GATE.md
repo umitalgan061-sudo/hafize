@@ -6,6 +6,13 @@ Koşucu kök `*.mjs`, `lib/*.mjs`, `scripts/*.mjs` ve `public/*.js` kaynakların
 
 Her child-process stdout/stderr akışı en fazla 64 KiB tutulur. Daha büyük çıktı `OUTPUT_TRUNCATED` ile işaretlenir; böylece hata raporlama yapılırken sınırsız bellek birikimi oluşmaz.
 
+Paketlerden önce koşucu tipli paketleri tazeler: `public/typed-build/*.js` dosyalarından biri eksikse
+ya da herhangi bir TypeScript kaynağından/yapı ayarından eskiyse `npm run build` (yani `tsc --noEmit` ve
+`vite build`) çalıştırılır. Üretilen paketler repoya commit edilmez; `index.html` onları yükler, service
+worker cache'ler ve shell-cache sözleşmesi diskte bulunmalarını şart koşar. `--skip-build` bu adımı atlar.
+Böylece derlemesi bozuk bir TypeScript kaynağı kapıdan geçemez. `test-modern-unit-suite.mjs` Vitest
+paketini, `validate-formatting.mjs` ise biçim kurallarını aynı kapı içinde çalıştırır.
+
 Yeni bir doğrulama veya test dosyası eklendiğinde `package.json` içine ayrıca yol eklemek gerekmez. `--list` keşfedilen paketleri, `--filter=a,b` ise eşleşen odak paketleri listeler/çalıştırır. Filtre geliştirici döngüsü içindir; PR öncesi filtresiz tam kapı kullanılır.
 
 `scripts/` altındaki `test-`/`validate-` ile başlamayan dosyalar paket olarak çalıştırılmaz;
@@ -23,7 +30,9 @@ Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
 
 - **Shell cache sürümü sabit yazılmaz.** `assertVersionedCacheDeclaration(sw)` ya da
   `assertShellCacheContract()` kullanılır. `v29` gibi bir sabit, bir sonraki asset
-  değişikliğinde ilgisiz paketleri kırar.
+  değişikliğinde ilgisiz paketleri kırar. Aynı kural değişmesi beklenen her sabit için
+  geçerlidir: `HAFIZE_RULES.md` içindeki değişiklik bütçesi de biçimiyle eşleştirilir,
+  değeriyle değil.
 - **Asset listesi tek yerden doğrulanır.** Yeni bir dosya `index.html` ve `SHELL_ASSETS`
   listesinin ikisine birden eklenir; `assertShellAssets([...])` özellik bazlı kontrol içindir.
 - **Davranış tercih edilir, yazım değil.** Bir sınır veya kural test edilecekse modül

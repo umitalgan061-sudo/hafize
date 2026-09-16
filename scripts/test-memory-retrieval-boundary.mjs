@@ -3,7 +3,10 @@ import { MEMORY_RETRIEVAL_LIMIT, normalizeMemoryRetrieval } from '../lib/memory-
 
 assert.equal(MEMORY_RETRIEVAL_LIMIT, 5);
 const record = { memoryId: 'memory_abcdefgh1234', ownerId: 'user-1', kind: 'project', content: 'Hafize projesi üzerinde çalışıyor.', sourceType: 'user_statement', sourceRef: 'conversation-1:message-2' };
-assert.deepEqual(normalizeMemoryRetrieval({ ownerId: ' user-1 ', records: [record] }), { ok: true, records: [{ memoryId: 'memory_abcdefgh1234', kind: 'project', content: 'Hafize projesi üzerinde çalışıyor.', sourceType: 'user_statement', sourceRef: 'conversation-1:message-2' }] });
+assert.deepEqual(
+  normalizeMemoryRetrieval({ ownerId: ' user-1 ', records: [record] }),
+  { ok: true, records: [{ memoryId: 'memory_abcdefgh1234', kind: 'project', content: 'Hafize projesi üzerinde çalışıyor.', sourceType: 'user_statement', sourceRef: 'conversation-1:message-2' }] }
+);
 assert.equal('ownerId' in normalizeMemoryRetrieval({ ownerId: 'user-1', records: [record] }).records[0], false);
 assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-2', records: [record] }), { ok: false, error: 'MEMORY_RETRIEVAL_SCOPE_MISMATCH' });
 assert.deepEqual(normalizeMemoryRetrieval({ ownerId: 'user-1', records: [{ ...record, memoryId: 'all' }] }), { ok: false, error: 'INVALID_MEMORY_RETRIEVAL:memoryId' });

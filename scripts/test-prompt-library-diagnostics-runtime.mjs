@@ -7,22 +7,14 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
+import { createStorageStub, createThrowingStorage } from './browser-storage-stub.mjs';
 
-function memoryStorage(seed = {}) {
-  const map = new Map(Object.entries(seed));
-  return {
-    getItem: (key) => (map.has(key) ? map.get(key) : null),
-    setItem: (key, value) => map.set(key, String(value)),
-    removeItem: (key) => map.delete(key),
-    snapshot: () => Object.fromEntries(map)
-  };
-}
+const require = createRequire(import.meta.url);
 
 const PROMPT_KEY = 'hafize.prompt-library.v1';
 const COLLECTION_KEY = 'hafize.prompt-library.collections.v1';
 
-const storage = memoryStorage();
+const storage = createStorageStub();
 globalThis.localStorage = storage;
 
 // The panel reads both libraries through the window globals they install.
@@ -121,9 +113,7 @@ assert.ok(report.orphanMembers > 0);
 
 /* A storage that refuses writes fails the repair instead of half-applying */
 
-const readOnly = memoryStorage(storage.snapshot());
-readOnly.setItem = () => { throw new Error('QuotaExceededError'); };
-globalThis.localStorage = readOnly;
+globalThis.localStorage = createThrowingStorage(['setItem']);
 assert.equal(diagnostics.repair(), false, 'a rejected write is reported, not swallowed');
 globalThis.localStorage = storage;
 

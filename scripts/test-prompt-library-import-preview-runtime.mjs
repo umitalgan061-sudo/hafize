@@ -6,14 +6,12 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
+import { createStorageStub } from './browser-storage-stub.mjs';
+
 const require = createRequire(import.meta.url);
 
-const storage = new Map();
-globalThis.localStorage = {
-  getItem: (key) => (storage.has(key) ? storage.get(key) : null),
-  setItem: (key, value) => storage.set(key, String(value)),
-  removeItem: (key) => storage.delete(key)
-};
+const storage = createStorageStub();
+globalThis.localStorage = storage;
 
 const library = require('../public/prompt-library.js');
 globalThis.HafizePromptLibrary = library;
@@ -87,7 +85,7 @@ assert.equal(result.rejected, 1);
 
 /* The preview writes nothing ------------------------------------------- */
 
-assert.equal(storage.size, 0, 'previewing a backup never touches storage');
+assert.deepEqual(storage.snapshot(), {}, 'previewing a backup never touches storage');
 
 /* The file ceiling matches the library's own import limit --------------- */
 

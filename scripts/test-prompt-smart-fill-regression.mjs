@@ -60,6 +60,13 @@ assert.match(index,/prompt-library-smart-fill\.js/);
 assert.match(index,/prompt-library-command-palette\.js/);
 assert.match(index,/prompt-library-smart-fill-hints\.js/);
 assertVersionedCacheDeclaration(sw);
-for (const asset of ['prompt-library-smart-fill.css','prompt-library-smart-fill.js','prompt-library-smart-fill-hints.js','prompt-library-command-palette.css','prompt-library-command-palette.js']) assert.match(sw,new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+const shellAssets = [
+  'prompt-library-smart-fill.css',
+  'prompt-library-smart-fill.js',
+  'prompt-library-smart-fill-hints.js',
+  'prompt-library-command-palette.css',
+  'prompt-library-command-palette.js'
+];
+for (const asset of shellAssets) assert.match(sw,new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 assert.match(sw,/pathname\.startsWith\('\/api\/'\)/);
 console.log('prompt smart-fill regression suite: ok');
