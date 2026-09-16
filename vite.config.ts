@@ -3,31 +3,31 @@ import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
+const TYPED_PATHS = {
+  'app-runtime': 'public/typed/app-runtime.ts',
+  'prompt-library-smart-fill': 'public/prompt-library-smart-fill.ts',
+  'prompt-library-command-palette': 'public/prompt-library-command-palette.ts',
+  'scheduled-tasks-countdown': 'public/scheduled-tasks-countdown.ts',
+  'prompt-library-smart-fill-hints': 'public/prompt-library-smart-fill-hints.ts',
+  'prompt-library-usage': 'public/prompt-library-usage.ts',
+  'prompt-library-starters': 'public/prompt-library-starters.ts',
+  'prompt-library-keyboard': 'public/prompt-library-keyboard.ts',
+  'voice-output': 'public/voice-output.ts'
+} as const;
 
-const TYPED_ENTRIES = [
-  'app-runtime',
-  'prompt-library-smart-fill',
-  'prompt-library-command-palette',
-  'prompt-library-smart-fill-hints',
-  'scheduled-tasks-countdown',
-  'prompt-library-usage',
-  'prompt-library-starters',
-  'prompt-library-keyboard',
-  'voice-output'
-] as const;
-
+const TYPED_ENTRIES = Object.keys(TYPED_PATHS) as Array<keyof typeof TYPED_PATHS>;
 const typedDevEntryPlugin = (): Plugin => ({
   name: 'hafize-typed-dev-entries',
   transformIndexHtml(html, context) {
     if (!context.server) return html;
     return TYPED_ENTRIES.reduce(
-      (source, name) => source.replaceAll(`/typed-build/${name}.js`, name === 'voice-output' ? `/voice-output.ts` : `/typed/${name}.ts`),
+      (source, name) => source.replaceAll(`/typed-build/${name}.js`, `/${TYPED_PATHS[name].replace(/^public\//, '')}`),
       html
     );
   }
 });
 
-const entry = Object.fromEntries(TYPED_ENTRIES.map((name) => [name, resolve(ROOT, name === 'voice-output' ? `public/${name}.ts` : `public/typed/${name}.ts`)]));
+const entry = Object.fromEntries(TYPED_ENTRIES.map((name) => [name, resolve(ROOT, TYPED_PATHS[name])]));
 
 export default defineConfig({
   root: resolve(ROOT, 'public'),
@@ -39,21 +39,11 @@ export default defineConfig({
     proxy: { '/api': { target: 'http://127.0.0.1:4173', changeOrigin: false } }
   },
   build: {
-    lib: {
-      entry,
-      formats: ['es'],
-      fileName: (_format, entryName) => `${entryName}.js`
-    },
+    lib: { entry, formats: ['es'], fileName: (_format, entryName) => `${entryName}.js` },
     outDir: resolve(ROOT, 'public/typed-build'),
     emptyOutDir: true,
     sourcemap: true,
     target: 'es2022',
-    rollupOptions: {
-      output: {
-        entryFileNames: '[name].js',
-        chunkFileNames: '[name]-[hash].js',
-        assetFileNames: '[name]-[hash][extname]'
-      }
-    }
+    rollupOptions: { output: { entryFileNames: '[name].js', chunkFileNames: '[name]-[hash].js', assetFileNames: '[name]-[hash][extname]' } }
   }
 });
