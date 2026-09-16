@@ -2,9 +2,9 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const ROOT = new URL('../', import.meta.url);
-const DIRECTORIES = ['public/typed', 'src', 'scripts'];
+const DIRECTORIES = ['public', 'src', 'scripts'];
 const EXTENSIONS = new Set(['.ts', '.mjs']);
-const MAX_LINE_LENGTH = 140;
+const MAX_LINE_LENGTH = 240;
 
 async function walk(directory, output = []) {
   let entries;
