@@ -14,6 +14,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:modern": "vitest run",
+    "check:modern": "npm run typecheck && npm run test:modern && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",
