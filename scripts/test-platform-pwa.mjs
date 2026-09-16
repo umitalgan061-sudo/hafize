@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const sw = fs.readFileSync(path.join(process.cwd(), 'public', 'sw-policy.js'), 'utf8');
+const runtime = fs.readFileSync(path.join(process.cwd(), 'public/typed/platform-runtime.ts'), 'utf8');
+assert.ok(sw.includes("'/typed-build/app-runtime.js'"));
+assert.ok(sw.includes("pathname.startsWith('/api/')"));
+assert.ok(sw.includes("return 'network-only'"));
+assert.ok(runtime.includes('serviceWorker'));
+assert.ok(runtime.includes('offline'));
+assert.ok(runtime.includes('online'));
+assert.ok(!runtime.includes('caches.open'));
+console.log('platform pwa: ok');
