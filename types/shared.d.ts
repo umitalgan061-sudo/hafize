@@ -116,7 +116,8 @@ declare global {
     maxAttempts: number;
     lastError: string | null;
     createdAt: string;
-    updatedAt: string;
+    /** Kayıt hiç güncellenmediyse `null`. */
+    updatedAt: string | null;
   }
 
   /** `POST /api/schedules` istek gövdesi. */
@@ -149,5 +150,7 @@ declare global {
   interface HafizeCodedError extends Error {
     code?: string;
     status?: number;
+    /** Yukarı akış gövdesinden kırpılmış, secret içermeyen ayrıntı. */
+    detail?: string;
   }
 }
