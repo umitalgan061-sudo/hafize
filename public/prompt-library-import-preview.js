@@ -20,28 +20,27 @@
   const MAX_TITLE = 80;
 
   const core = () => root.HafizePromptLibrary;
-  const doc = () => root.document;
-  const storage = () => {
-    try { return root.localStorage; } catch { return null; }
-  };
   const clip = (value, limit) => String(value ?? '').slice(0, limit);
 
-  function element(tag, text, className) {
-    const node = doc().createElement(tag);
+  // The document is threaded through rather than read off the global, the same
+  // way the core library builds its card, so the panel can be mounted on a
+  // stand-in document.
+  function element(doc, tag, text, className) {
+    const node = doc.createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
   }
 
-  function button(label, className = 'soft-btn') {
-    const node = element('button', label, className);
+  function button(doc, label, className = 'soft-btn') {
+    const node = element(doc, 'button', label, className);
     node.type = 'button';
     return node;
   }
 
-  function stat(value, label) {
-    const cell = element('div', undefined, 'prompt-library-import-stat');
-    cell.append(element('strong', String(value)), element('span', label));
+  function stat(doc, value, label) {
+    const cell = element(doc, 'div', undefined, 'prompt-library-import-stat');
+    cell.append(element(doc, 'strong', String(value)), element(doc, 'span', label));
     return cell;
   }
 
@@ -65,6 +64,11 @@
   }
 
   function mount(documentRef = root.document, rootRef = root) {
+    // Everything below reads the host window through `rootRef`, so a suite can
+    // mount the panel on a stand-in window instead of the real global.
+    const store = () => {
+      try { return rootRef.localStorage; } catch { return null; }
+    };
     const card = documentRef?.getElementById(CARD_ID);
     const input = card?.querySelector('input[type="file"]');
     if (!card || !input || card.dataset.importPreviewReady === 'true') return null;
@@ -78,7 +82,7 @@
       overlay?.remove();
       overlay = null;
       pending = null;
-      if (lastFocus instanceof HTMLElement) lastFocus.focus();
+      if (typeof lastFocus?.focus === 'function') lastFocus.focus();
       lastFocus = null;
     };
 
@@ -97,11 +101,11 @@
     /** Writes the merged library and tells the open panel to repaint. */
     function commit() {
       const api = core();
-      const store = storage();
-      if (!pending || !api || !store) return false;
-      if (!api.saveItems(store, pending.items)) return false;
+      const current = store();
+      if (!pending || !api || !current) return false;
+      if (!api.saveItems(current, pending.items)) return false;
       try {
-        const detail = { key: api.STORAGE_KEY, newValue: JSON.stringify(pending.items), storageArea: store };
+        const detail = { key: api.STORAGE_KEY, newValue: JSON.stringify(pending.items), storageArea: current };
         if (typeof rootRef.StorageEvent === 'function') rootRef.dispatchEvent(new rootRef.StorageEvent('storage', detail));
       } catch {
         // The prompts are saved either way; only the live repaint is lost.
@@ -114,30 +118,31 @@
       lastFocus = documentRef.activeElement;
       pending = summary;
 
-      overlay = element('div', undefined, 'prompt-library-import-preview');
+      overlay = element(documentRef, 'div', undefined, 'prompt-library-import-preview');
       overlay.id = PANEL_ID;
       overlay.setAttribute('role', 'dialog');
       overlay.setAttribute('aria-modal', 'true');
       overlay.setAttribute('aria-labelledby', TITLE_ID);
 
-      const panel = element('div', undefined, 'prompt-library-import-preview-panel');
-      const header = element('div', undefined, 'prompt-library-import-preview-header');
-      const title = element('h3', 'İçe aktarma önizlemesi');
+      const panel = element(documentRef, 'div', undefined, 'prompt-library-import-preview-panel');
+      const header = element(documentRef, 'div', undefined, 'prompt-library-import-preview-header');
+      const title = element(documentRef, 'h3', 'İçe aktarma önizlemesi');
       title.id = TITLE_ID;
-      const dismiss = button('Kapat', 'mini-btn');
+      const dismiss = button(documentRef, 'Kapat', 'mini-btn');
       dismiss.setAttribute('aria-label', 'İçe aktarma önizlemesini kapat');
       header.append(title, dismiss);
 
-      const totals = element('div', undefined, 'prompt-library-import-preview-summary');
+      const totals = element(documentRef, 'div', undefined, 'prompt-library-import-preview-summary');
       totals.append(
-        stat(summary.total, 'dosyadaki kayıt'),
-        stat(summary.valid, 'geçerli kayıt'),
-        stat(summary.imported, 'aktarılacak'),
-        stat(summary.duplicates, 'yinelenen id'),
-        stat(summary.dropped, 'kapasite dışı')
+        stat(documentRef, summary.total, 'dosyadaki kayıt'),
+        stat(documentRef, summary.valid, 'geçerli kayıt'),
+        stat(documentRef, summary.imported, 'aktarılacak'),
+        stat(documentRef, summary.duplicates, 'yinelenen id'),
+        stat(documentRef, summary.dropped, 'kapasite dışı')
       );
 
       const metaLine = element(
+        documentRef,
         'p',
         meta.source || meta.exportedAt
           ? `Kaynak: ${clip(meta.source || 'bilinmiyor', 80)} · Tarih: ${clip(meta.exportedAt || 'bilinmiyor', 40)}`
@@ -145,32 +150,33 @@
         'prompt-library-import-preview-meta'
       );
 
-      const list = element('div', undefined, 'prompt-library-import-preview-list');
+      const list = element(documentRef, 'div', undefined, 'prompt-library-import-preview-list');
       if (summary.samples.length) {
         summary.samples.forEach((sample, index) => {
-          const row = element('div', undefined, 'prompt-library-import-preview-item');
-          row.append(element('span', String(index + 1)), element('span', sample, 'prompt-library-import-preview-name'));
+          const row = element(documentRef, 'div', undefined, 'prompt-library-import-preview-item');
+          row.append(element(documentRef, 'span', String(index + 1)), element(documentRef, 'span', sample, 'prompt-library-import-preview-name'));
           list.append(row);
         });
         if (summary.valid > summary.samples.length) {
-          list.append(element('div', `ve ${summary.valid - summary.samples.length} kayıt daha`, 'prompt-library-import-preview-more'));
+          list.append(element(documentRef, 'div', `ve ${summary.valid - summary.samples.length} kayıt daha`, 'prompt-library-import-preview-more'));
         }
       } else {
-        list.append(element('div', 'Dosyada içe aktarılabilir istem bulunamadı.', 'prompt-library-import-preview-empty'));
+        list.append(element(documentRef, 'div', 'Dosyada içe aktarılabilir istem bulunamadı.', 'prompt-library-import-preview-empty'));
       }
 
       const note = element(
+        documentRef,
         'p',
         'Yinelenen id taşıyan kayıtlar yeni id ile eklenir; mevcut istemlerin üzerine yazılmaz. Onaylamadan hiçbir değişiklik kaydedilmez.',
         'prompt-library-import-preview-note'
       );
-      const feedback = element('p', '', 'prompt-library-import-preview-feedback');
+      const feedback = element(documentRef, 'p', '', 'prompt-library-import-preview-feedback');
       feedback.setAttribute('role', 'status');
       feedback.setAttribute('aria-live', 'polite');
 
-      const actions = element('div', undefined, 'prompt-library-import-preview-actions');
-      const cancel = button('Vazgeç');
-      const confirm = button('İçe aktar');
+      const actions = element(documentRef, 'div', undefined, 'prompt-library-import-preview-actions');
+      const cancel = button(documentRef, 'Vazgeç');
+      const confirm = button(documentRef, 'İçe aktar');
       // Nothing to import means nothing to confirm, so the action stays off
       // instead of writing the library back unchanged.
       confirm.disabled = summary.imported === 0;
@@ -198,12 +204,12 @@
 
     function preview(file) {
       const api = core();
-      const store = storage();
-      if (!api || !store) return report('İstem kütüphanesi hazır değil.');
+      const current = store();
+      if (!api || !current) return report('İstem kütüphanesi hazır değil.');
       if (!file) return;
       // Checked before reading, so an oversized file is never pulled into memory.
       if (file.size > MAX_FILE) return report('İçe aktarma dosyası 1 MB sınırını aşamaz.');
-      const reader = new root.FileReader();
+      const reader = new rootRef.FileReader();
       reader.onerror = () => report('İstem yedeği okunamadı.');
       reader.onload = () => {
         let raw;
@@ -216,7 +222,7 @@
         // Counted from the file rather than from the normalizer, so the summary
         // can show how many records were dropped as unreadable.
         const total = Array.isArray(raw) ? raw.length : (Array.isArray(raw?.items) ? raw.items.length : 0);
-        const merge = describeMerge(api.loadItems(store), parsed.items);
+        const merge = describeMerge(api.loadItems(current), parsed.items);
         open({
           total,
           valid: parsed.items.length,

@@ -127,6 +127,11 @@
   }
 
   function mount(documentRef = root.document, rootRef = root) {
+    // Storage is read through `rootRef` so the panel can be mounted on a
+    // stand-in window, the same way the document is threaded through.
+    const store = () => {
+      try { return rootRef.localStorage; } catch { return null; }
+    };
     const card = documentRef?.getElementById(CARD_ID);
     if (!card || documentRef.getElementById(PANEL_ID)) return null;
 
@@ -168,7 +173,7 @@
     }
 
     function render() {
-      const current = inspect(storage());
+      const current = inspect(store());
       report.replaceChildren(
         line('Ham kayıt', current.records),
         line('Normalize edilebilen', current.normalized),
@@ -189,14 +194,14 @@
     function onRepair(event) {
       if (!event.target?.closest?.('[data-diagnostics-repair]') || fix.disabled) return;
       if (!rootRef.confirm?.('Bozuk istem kayıtları ve yetim koleksiyon üyeleri temizlensin mi? Bu işlem geri alınamaz.')) return;
-      if (!repair(storage())) {
+      if (!repair(store())) {
         status.textContent = 'Onarım cihazda kaydedilemedi.';
         return;
       }
       const api = core();
-      const store = storage();
+      const current = store();
       try {
-        const detail = { key: api.STORAGE_KEY, newValue: store?.getItem?.(api.STORAGE_KEY), storageArea: store };
+        const detail = { key: api.STORAGE_KEY, newValue: current?.getItem?.(api.STORAGE_KEY), storageArea: current };
         if (typeof rootRef.StorageEvent === 'function') rootRef.dispatchEvent(new rootRef.StorageEvent('storage', detail));
       } catch {
         // The keys are repaired either way; only the live repaint is lost.
@@ -227,7 +232,7 @@
     return Object.freeze({
       mounted: true,
       refresh: render,
-      inspect: () => inspect(storage()),
+      inspect: () => inspect(store()),
       destroy: () => {
         rootRef.removeEventListener?.('storage', onStorage);
         section.remove();
