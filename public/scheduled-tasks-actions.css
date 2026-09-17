@@ -1,0 +1,11 @@
+.scheduled-tasks-actions-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:7px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.scheduled-tasks-actions-bar button{font-size:10px}
+.scheduled-tasks-actions-count{margin-right:auto;color:var(--muted);font-size:10px}
+.scheduled-task-select{display:inline-flex;align-items:center;gap:5px;margin-right:auto;color:var(--muted);font-size:9px}
+.scheduled-task-select input{margin:0}
+.scheduled-task-select span{white-space:nowrap}
+.scheduled-tasks-actions-bar button:disabled{opacity:.55;cursor:not-allowed}
+.scheduled-task-row:has(.scheduled-task-select input:checked){border-color:var(--accent)}
+@media (max-width:650px){.scheduled-tasks-actions-bar{display:grid;grid-template-columns:1fr 1fr}.scheduled-tasks-actions-count{grid-column:1/-1;margin-right:0}.scheduled-task-select{margin-right:0}}
+@media (prefers-reduced-motion:reduce){.scheduled-tasks-actions-bar *{scroll-behavior:auto}}
+@media (forced-colors:active){.scheduled-tasks-actions-bar{border-color:CanvasText;background:Canvas;color:CanvasText}.scheduled-task-row:has(.scheduled-task-select input:checked){outline:1px solid Highlight}}
