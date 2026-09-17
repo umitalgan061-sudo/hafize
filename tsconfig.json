@@ -8,6 +8,7 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
@@ -16,5 +17,5 @@
     "types": ["node", "vitest/globals"],
     "lib": ["ES2025", "DOM", "DOM.Iterable"]
   },
-  "include": ["public/**/*.ts", "src/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": ["public/**/*.ts", "src/**/*.ts", "lib/**/*.ts", "vite.config.ts", "vitest.config.ts"]
 }
