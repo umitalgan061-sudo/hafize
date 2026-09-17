@@ -184,3 +184,24 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+(function loadPromptLibrarySmartFill(root) {
+  'use strict';
+  const start = () => {
+    if (!root.document || root.HafizePromptLibrarySmartFill) return;
+    if (!root.document.querySelector('link[data-hafize-smart-fill-style]')) {
+      const link = root.document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/prompt-library-smart-fill.css';
+      link.dataset.hafizeSmartFillStyle = 'true';
+      root.document.head?.append(link);
+    }
+    if (root.document.querySelector('script[data-hafize-smart-fill]')) return;
+    const script = root.document.createElement('script');
+    script.src = '/prompt-library-smart-fill.js';
+    script.dataset.hafizeSmartFill = 'true';
+    root.document.head?.append(script);
+  };
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
+})(typeof globalThis !== 'undefined' ? globalThis : self);
