@@ -5,16 +5,11 @@ interface CountdownRow extends HTMLElement {
   };
 }
 
-interface CountdownWindow extends Window {
-  ScheduledTaskCountdown?: Readonly<{
-    label: (timestamp: string) => string;
-    refresh: () => void;
-    start: () => void;
-    stop: () => void;
-  }>;
-}
-
-const root = globalThis as CountdownWindow;
+// `ScheduledTaskCountdown` global'i `types/browser.d.ts` içinde bildirilir.
+// Node, bu modülü tip sıyırmayla doğrudan yükleyip saf fonksiyonlarını
+// sınayabilsin diye kök `window` yerine `globalThis` üzerinden alınır:
+// `window` modül yüklenirken Node'da ReferenceError verirdi.
+const root = globalThis as unknown as Window & typeof globalThis;
 const PANEL_ID = 'scheduledTasksWorkspace';
 const REFRESH_MS = 1_000;
 let timer: number | undefined;

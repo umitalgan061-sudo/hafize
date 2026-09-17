@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-class Storage {
+class StorageDouble {
   data = new Map();
   getItem(key) { return this.data.has(key) ? this.data.get(key) : null; }
   setItem(key, value) { this.data.set(key, String(value)); }
   removeItem(key) { this.data.delete(key); }
 }
 
-const storage = new Storage();
-globalThis.localStorage = storage;
-await import(new URL('../public/prompt-library-revisions.js', import.meta.url));
+const storage = new StorageDouble();
+globalThis.localStorage = /** @type {Storage} */ (/** @type {unknown} */ (storage));
+await import(String(new URL('../public/prompt-library-revisions.js', import.meta.url)));
 const api = globalThis.HafizePromptLibraryRevisions;
 assert.ok(api);
 

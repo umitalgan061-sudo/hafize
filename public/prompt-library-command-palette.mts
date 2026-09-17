@@ -1,36 +1,14 @@
-interface PromptRecord {
-  readonly id: string;
-  readonly title: string;
-  readonly body: string;
-  readonly favorite?: boolean;
-  readonly tags?: readonly string[];
-  readonly updatedAt?: string;
-}
+// Bu modülün yayınladığı global'ler ve prompt kaydının şekli
+// `types/browser.d.ts` içinde tek yerde bildirilir; burada yeniden
+// bildirilmeleri `Window` ile çakışırdı.
+type PromptRecord = HafizePromptRecord;
 
-interface PromptLibraryCore {
-  readonly loadItems?: (storage: Storage) => PromptRecord[];
-  readonly extractVariables?: (body: string) => string[];
-}
+export type PaletteController = HafizePaletteController;
 
-interface SmartFillBridge {
-  readonly open?: (item: PromptRecord) => void;
-}
-
-interface PaletteWindow extends Window {
-  HafizePromptLibrary?: PromptLibraryCore;
-  HafizePromptLibrarySmartFill?: SmartFillBridge;
-  PromptLibraryCommandPalette?: Readonly<{ mount: () => PaletteController | null; results: (query: string) => PromptRecord[] }>;
-}
-
-export interface PaletteController {
-  readonly mounted: true;
-  readonly open: (start: number) => void;
-  readonly close: () => void;
-  readonly search: (query: string) => PromptRecord[];
-  readonly destroy: () => void;
-}
-
-const root = globalThis as PaletteWindow;
+// Node, bu modülü tip sıyırmayla doğrudan yükleyip saf fonksiyonlarını
+// sınayabilsin diye kök `window` yerine `globalThis` üzerinden alınır:
+// `window` modül yüklenirken Node'da ReferenceError verirdi.
+const root = globalThis as unknown as Window & typeof globalThis;
 const CARD_ID = 'promptLibraryCard';
 const INPUT_ID = 'messageInput';
 const PALETTE_ID = 'promptLibraryCommandPalette';
@@ -81,7 +59,7 @@ function variableCount(item: PromptRecord): number {
   return root.HafizePromptLibrary?.extractVariables?.(item.body)?.length ?? 0;
 }
 
-function mount(documentRef: Document = root.document, rootRef: PaletteWindow = root): PaletteController | null {
+function mount(documentRef: Document = root.document, rootRef: Window & typeof globalThis = root): PaletteController | null {
   const input = documentRef?.getElementById(INPUT_ID) as HTMLTextAreaElement | null;
   if (!documentRef || !input || documentRef.getElementById(PALETTE_ID)) return null;
 
@@ -189,7 +167,10 @@ function mount(documentRef: Document = root.document, rootRef: PaletteWindow = r
       if (palette.hidden) open(cursor - match[0].length + (match[1] ? 1 : 0));
       if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
       if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-      if (event.key === 'Enter' && current[activeIndex]) { event.preventDefault(); insert(current[activeIndex]); }
+      // `noUncheckedIndexedAccess` dizin erişimini daraltmaz; seçili kayıt bir
+      // yerel değişkene bağlanır.
+      const selected = current[activeIndex];
+      if (event.key === 'Enter' && selected) { event.preventDefault(); insert(selected); }
     } else if (palette.hidden && !event.ctrlKey && !event.metaKey && event.key === ' ') {
       open(cursor - match[0].length + (match[1] ? 1 : 0));
     }
@@ -209,7 +190,10 @@ function mount(documentRef: Document = root.document, rootRef: PaletteWindow = r
     if (event.key === 'Escape') { event.preventDefault(); close(); }
     else if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-    else if (event.key === 'Enter' && current[activeIndex]) { event.preventDefault(); insert(current[activeIndex]); }
+    else if (event.key === 'Enter') {
+      const selected = current[activeIndex];
+      if (selected) { event.preventDefault(); insert(selected); }
+    }
   };
   const onShortcut = (event: KeyboardEvent): void => {
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'o') return;

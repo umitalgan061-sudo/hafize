@@ -69,6 +69,54 @@ interface HafizeSwPolicyApi {
 type HafizeLooseModule = Record<string, unknown> | undefined;
 
 declare global {
+
+  /**
+   * Prompt kütüphanesi kaydı.
+   *
+   * `public/prompt-library.js` kayıtları `localStorage` içinde tutar ve sürümler
+   * arasında alan ekler; bu yüzden bilinen alanların yanında bir dizin imzası
+   * taşır. İmza aynı zamanda tipin `HafizeLooseModule` tüketicilerine
+   * atanabilir kalmasını sağlar.
+   */
+  interface HafizePromptRecord {
+    readonly id: string;
+    readonly title: string;
+    readonly body: string;
+    readonly useCount?: number;
+    readonly favorite?: boolean;
+    readonly tags?: readonly string[];
+    readonly updatedAt?: string;
+    readonly [key: string]: unknown;
+  }
+
+  /** `public/prompt-library.js` yüzeyinin tiplenmiş modüllerce kullanılan kısmı. */
+  interface HafizePromptLibraryApi {
+    readonly STORAGE_KEY?: string;
+    readonly loadItems?: (storage: Storage) => HafizePromptRecord[];
+    readonly saveItems?: (storage: Storage, items: HafizePromptRecord[]) => boolean;
+    readonly normalizeItem?: (value: HafizePromptRecord) => HafizePromptRecord | null;
+    readonly extractVariables?: (body: string) => string[];
+    readonly replaceVariables?: (body: string, values: Record<string, string>) => string;
+    readonly [key: string]: unknown;
+  }
+
+  /** `public/prompt-library-smart-fill.ts` denetleyicisi. */
+  interface HafizeSmartFillController {
+    readonly mounted: true;
+    readonly open: (prompt: HafizePromptRecord) => void;
+    readonly close: () => void;
+    readonly destroy: () => void;
+  }
+
+  /** `public/prompt-library-command-palette.ts` denetleyicisi. */
+  interface HafizePaletteController {
+    readonly mounted: true;
+    readonly open: (start: number) => void;
+    readonly close: () => void;
+    readonly search: (query: string) => HafizePromptRecord[];
+    readonly destroy: () => void;
+  }
+
   interface Window {
     HafizeMarkdown?: HafizeMarkdownApi;
     HafizeChatMarkdown?: HafizeChatMarkdownApi;
@@ -86,17 +134,36 @@ declare global {
     HafizeHandsFree?: HafizeLooseModule;
     HafizeHandsFreeBackgroundGuard?: HafizeLooseModule;
     HafizeMessageWorkspacePolicy?: HafizeLooseModule;
-    HafizePromptLibrary?: HafizeLooseModule;
-    HafizePromptLibrarySmartFill?: HafizeLooseModule;
+    HafizePromptLibrary?: HafizePromptLibraryApi;
+    HafizePromptLibrarySmartFill?: {
+      readonly STORAGE_KEY: string;
+      readonly mount: () => HafizeSmartFillController | null;
+      readonly open?: (item: HafizePromptRecord) => void;
+    };
     HafizePromptLibraryStarters?: HafizeLooseModule;
     HafizePromptLibraryUsage?: HafizeLooseModule;
-    HafizePromptSmartFillHints?: HafizeLooseModule;
+    HafizePromptSmartFillHints?: {
+      readonly mount: () => void;
+      readonly paint: (panel: HTMLElement) => void;
+    };
     HafizeScreenShare?: HafizeLooseModule;
     HafizeSettingsWorkspace?: HafizeLooseModule;
     HafizeUiShell?: HafizeLooseModule;
     HafizeVoiceInput?: HafizeLooseModule;
     HafizeVoiceOutput?: HafizeLooseModule;
     HafizeWorkspaceNavigation?: HafizeLooseModule;
+
+    // `Hafize` ön ekini taşımayan iki tarihsel ad.
+    PromptLibraryCommandPalette?: {
+      readonly mount: () => HafizePaletteController | null;
+      readonly results: (query: string) => HafizePromptRecord[];
+    };
+    ScheduledTaskCountdown?: {
+      readonly label: (timestamp: string) => string;
+      readonly refresh: () => void;
+      readonly start: () => void;
+      readonly stop: () => void;
+    };
   }
 
   /**

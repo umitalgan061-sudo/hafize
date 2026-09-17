@@ -9,11 +9,11 @@ const typedDevEntryPlugin = (): Plugin => ({
   transformIndexHtml(html, context) {
     if (context.server) {
       return html
-        .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
-        .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
-        .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
+        .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.mts')
+        .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.mts')
+        .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.mts')
+        .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.mts')
+        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.mts');
     }
     return html;
   }
@@ -36,11 +36,11 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
-        'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
-        'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
-        'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
-        'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
-        'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')
+        'app-runtime': resolve(ROOT, 'public/typed/app-runtime.mts'),
+        'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.mts'),
+        'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.mts'),
+        'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.mts'),
+        'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.mts')
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`

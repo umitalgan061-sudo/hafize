@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-class Storage {
+class StorageDouble {
   #data = new Map();
   getItem(key) { return this.#data.has(key) ? this.#data.get(key) : null; }
   setItem(key, value) { this.#data.set(key, String(value)); }
@@ -9,11 +9,11 @@ class Storage {
   clear() { this.#data.clear(); }
 }
 
-const storage = new Storage();
+const storage = new StorageDouble();
 const previous = globalThis.localStorage;
-globalThis.localStorage = storage;
+globalThis.localStorage = /** @type {Storage} */ (/** @type {unknown} */ (storage));
 delete globalThis.HafizePromptLibraryCollections;
-await import(new URL('../public/prompt-library-collections.js', import.meta.url));
+await import(String(new URL('../public/prompt-library-collections.js', import.meta.url)));
 const api = globalThis.HafizePromptLibraryCollections;
 assert.ok(api);
 
@@ -39,7 +39,7 @@ assert.equal(payload.version, 1);
 assert.equal(payload.source, 'hafize-prompt-library-collections');
 assert.equal(payload.collections.length, 1);
 
-const importedStorage = new Storage();
+const importedStorage = new StorageDouble();
 importedStorage.setItem('hafize.prompt-library.v1', JSON.stringify([{ id: 'prompt-3', title: 'p3', body: 'x' }]));
 const imported = api.importPayload(payload, importedStorage);
 assert.equal(imported.imported, 1);

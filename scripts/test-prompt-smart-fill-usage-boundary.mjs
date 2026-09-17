@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 const root = process.cwd();
-const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.js'),'utf8');
+const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.mts'),'utf8');
 const usage = fs.readFileSync(path.join(root,'public/prompt-library-usage.js'),'utf8');
 assert.match(usage,/useCount/);
 assert.match(smart,/useCount/);

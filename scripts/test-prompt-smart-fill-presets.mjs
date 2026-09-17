@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.mts'), 'utf8');
 assert.match(text, /STORAGE_KEY = 'hafize\.prompt-library\.smart-fill\.v1'/);
 assert.match(text, /keyForPrompt/);
 assert.match(text, /readPresets/);

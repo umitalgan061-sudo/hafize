@@ -1,11 +1,11 @@
-import { hafizeApi } from './hafize-api.ts';
+import { hafizeApi } from './hafize-api.mts';
 import {
   connectivityFromHealth,
   type HealthResponse,
   type RuntimeConnectivity,
   type RuntimeSeverity,
   type RuntimeSnapshot
-} from './hafize-types.ts';
+} from './hafize-types.mts';
 
 const STATUS_ID = 'hafizeRuntimeStatus';
 const DETAILS_ID = 'hafizeRuntimeDetails';

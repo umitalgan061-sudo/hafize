@@ -57,6 +57,7 @@ const chatContracts = [
 ];
 for (const contract of chatContracts) assert.match(files.chat, contract, `chat contract ${contract} missing`);
 
+/** @type {ReadonlyArray<readonly [RegExp, string]>} */
 const integrationContracts = [
   [/updateMessage\(assistantId, content\)/, 'assistant stream update remains canonical'],
   [/textContent\s*=\s*content/, 'plain text fallback remains available'],
@@ -65,6 +66,7 @@ const integrationContracts = [
 ];
 for (const [contract, label] of integrationContracts) assert.match(files.app, contract, label);
 
+/** @type {ReadonlyArray<readonly [string, RegExp, string]>} */
 const downstreamContracts = [
   [files.composer, /clipboard|navigator\.clipboard|textContent/, 'composer copy path'],
   [files.workspace, /textContent|dataset|message/, 'message workspace path'],
@@ -98,13 +100,15 @@ const security = fs.readFileSync('docs/CHAT_MARKDOWN_SECURITY.md', 'utf8');
 const matrix = fs.readFileSync('docs/CHAT_MARKDOWN_TEST_MATRIX.md', 'utf8');
 const review = fs.readFileSync('docs/CHAT_MARKDOWN_REVIEW.md', 'utf8');
 const operations = fs.readFileSync('docs/CHAT_MARKDOWN_USAGE.md', 'utf8');
-for (const [source, terms, label] of [
+/** @type {ReadonlyArray<readonly [string, readonly string[], string]>} */
+const documentationContracts = [
   [docs, ['Markdown', 'Streaming', 'Geri alma'], 'product doc'],
   [security, ['DOM', 'javascript:', 'Gizlilik', 'Streaming'], 'security doc'],
   [matrix, ['Bloklar', 'DOM', 'Güvenlik', 'Streaming'], 'test matrix'],
   [review, ['Product', 'Security', 'Integration', 'Rollback'], 'release review'],
   [operations, ['Kullanıcı davranışı', 'Operasyon', 'Geri alma'], 'operations doc']
-]) {
+];
+for (const [source, terms, label] of documentationContracts) {
   for (const term of terms) assert.match(source, new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'), `${label}: ${term}`);
 }
 

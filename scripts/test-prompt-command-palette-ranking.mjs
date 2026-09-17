@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.js'), 'utf8');
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.mts'), 'utf8');
 assert.match(text, /title === q/);
 assert.match(text, /title\.startsWith\(q\)/);
 assert.match(text, /title\.includes\(q\)/);

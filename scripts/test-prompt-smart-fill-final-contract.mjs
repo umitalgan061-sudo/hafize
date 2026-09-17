@@ -4,7 +4,7 @@ import path from 'node:path';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
-const smartFill = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.js'), 'utf8');
+const smartFill = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.mts'), 'utf8');
 const smartCss = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.css'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
 const sw = fs.readFileSync(path.join(root, 'public/sw-policy.js'), 'utf8');

@@ -9,14 +9,14 @@ import {
   type ApiRequestOptions,
   type HealthResponse,
   type ModelsResponse
-} from './hafize-types.ts';
+} from './hafize-types.mts';
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
 const MAX_RETRY_DELAY_MS = 1_500;
 
-function delay(ms: number, signal?: AbortSignal): Promise<void> {
+function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = globalThis.setTimeout(resolve, ms);
     if (!signal) return;

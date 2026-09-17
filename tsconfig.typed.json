@@ -35,6 +35,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["public/**/*.ts", "types/browser.d.ts", "types/shared.d.ts"],
-  "exclude": ["public/**/*.test.ts"]
+  "include": ["public/**/*.mts", "types/browser.d.ts", "types/shared.d.ts"],
+  "exclude": ["public/**/*.test.ts", "public/typed-build/**"]
 }

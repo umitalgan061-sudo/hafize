@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.mts'), 'utf8');
 assert.match(text, /const preview = buildElement\(documentRef, 'pre'/);
 assert.match(text, /preview\.textContent =/);
 assert.doesNotMatch(text, /preview\.innerHTML/);

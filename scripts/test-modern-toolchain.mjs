@@ -1,62 +1,134 @@
+// Araç zinciri sözleşmesi.
+//
+// Projede iki ayrı TypeScript rejimi vardır ve bu paket ikisinin de
+// sınırlarını sabitler:
+//
+//   • `lib/`, `server.mjs`, `scripts/` ve `public/*.js` — Node'un yerel tip
+//     sıyırması ve `checkJs` ile **derlenmeden** denetlenir.
+//   • `public/**/*.mts` — tarayıcı `.mts` yükleyemediği için vite ile
+//     `public/typed-build/` altına derlenir.
+//
+// Burada sürüm numarası değil değişmez sabitlenir: "TypeScript 7" gibi bir
+// iddia bir sonraki yükseltmede yanlışlıkla kırmızıya döner, oysa "tip
+// denetimi derleme üretmez" iddiası sürümden bağımsızdır. Tek istisna
+// motorun alt sınırıdır: yerel tip sıyırma 22.18'den önce yoktur, yani o
+// sayının kendisi bir sözleşmedir.
+import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const files = {
-  package: 'package.json',
-  tsconfig: 'tsconfig.json',
-  vite: 'vite.config.ts',
-  vitest: 'vitest.config.ts',
-  api: 'public/typed/hafize-api.ts',
-  types: 'public/typed/hafize-types.ts',
-  runtime: 'public/typed/app-runtime.ts',
-  index: 'public/index.html',
-  sw: 'public/sw-policy.js'
-};
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const text = {};
-for (const [name, path] of Object.entries(files)) text[name] = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+const [pkgRaw, solutionRaw, typedRaw, baseRaw, vite, api, runtime, index] = await Promise.all([
+  read('package.json'),
+  read('tsconfig.json'),
+  read('tsconfig.typed.json'),
+  read('tsconfig.base.json'),
+  read('vite.config.mts'),
+  read('public/typed/hafize-api.mts'),
+  read('public/typed/app-runtime.mts'),
+  read('public/index.html')
+]);
 
-function assert(condition, message) {
-  if (!condition) throw new Error(`modern-toolchain: ${message}`);
+const pkg = JSON.parse(pkgRaw);
+// Yapılandırmalar açıklama amaçlı `"// Neden"` anahtarları taşır; JSON bunu
+// kabul eder, tsc yok sayar.
+const solution = JSON.parse(solutionRaw);
+const typed = JSON.parse(typedRaw);
+const base = JSON.parse(baseRaw);
+
+// --- Motor: yerel tip sıyırma için alt sınır --------------------------------
+{
+  const match = /^>=(\d+)\.(\d+)\./.exec(String(pkg.engines?.node ?? ''));
+  assert.ok(match, `engines.node bir alt sınır belirtmeli, bulunan: ${pkg.engines?.node}`);
+  const [major, minor] = [Number(match[1]), Number(match[2])];
+  assert.ok(
+    major > 22 || (major === 22 && minor >= 18),
+    `yerel TypeScript tip sıyırması Node 22.18 ile geldi; alt sınır daha düşük olamaz (${pkg.engines?.node})`
+  );
 }
 
-const pkg = JSON.parse(text.package);
-const tsconfig = JSON.parse(text.tsconfig);
+// --- Çalışma zamanı bağımlılıkları TypeScript'ten etkilenmez ----------------
+{
+  assert.deepEqual(Object.keys(pkg.dependencies ?? {}), ['redis'], 'tip araçları çalışma zamanına sızmamalı');
+  for (const name of ['typescript', 'vite', '@types/node']) {
+    assert.ok(pkg.devDependencies?.[name], `${name} devDependency olmalı`);
+    assert.equal(pkg.dependencies?.[name], undefined, `${name} çalışma zamanı bağımlılığı olmamalı`);
+  }
+}
 
-assert(pkg.engines?.node === '>=24.21.0', 'Node 24.21+ engine missing');
-assert(pkg.devDependencies?.typescript?.startsWith('^6.'), 'TypeScript 6 is not pinned');
-assert(pkg.devDependencies?.vite?.startsWith('^8.1'), 'Vite 8.1 is not pinned');
-assert(pkg.devDependencies?.vitest?.startsWith('^5.'), 'Vitest 5 is not pinned');
-assert(pkg.scripts?.build === 'tsc --noEmit && vite build', 'build script must typecheck before bundling');
-assert(pkg.scripts?.prestart === 'npm run build', 'production start must build typed assets');
-assert(pkg.scripts?.typecheck === 'tsc --noEmit', 'typecheck script missing');
-assert(pkg.scripts?.['check:modern']?.includes('test-modern-toolchain.mjs'), 'modern verification command missing source contract');
-assert(tsconfig.compilerOptions?.strict === true, 'strict TypeScript is required');
-assert(tsconfig.compilerOptions?.moduleResolution === 'bundler', 'bundler module resolution is required');
-assert(tsconfig.include?.includes('public/**/*.ts'), 'browser TypeScript sources are not in typecheck include');
-assert(text.vite.includes("'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts')"), 'runtime entry missing from Vite');
-assert(text.vite.includes("'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts')"), 'Smart Fill entry missing');
-assert(text.vite.includes("'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts')"), 'Command Palette entry missing');
-assert(text.vite.includes("'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts')"), 'Countdown entry missing');
-assert(text.vite.includes("'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')"), 'Smart Fill hints entry missing');
-assert(text.vite.includes("'/api':"), 'development API proxy missing');
-assert(text.vite.includes('transformIndexHtml'), 'Vite development typed-entry transform missing');
-assert(text.api.includes('retryable'), 'typed API error resilience missing');
-assert(text.api.includes('TimeoutError'), 'typed API timeout boundary missing');
-assert(text.runtime.includes("'hafize:runtime-ready'"), 'runtime lifecycle event missing');
-assert(text.index.includes('/typed-build/app-runtime.js'), 'compiled runtime is not loaded by HTML');
-assert(text.index.includes('/typed-build/prompt-library-smart-fill.js'), 'compiled Smart Fill is not loaded by HTML');
-assert(text.index.includes('/typed-build/prompt-library-command-palette.js'), 'compiled Command Palette is not loaded by HTML');
-assert(text.index.includes('/typed-build/scheduled-tasks-countdown.js'), 'compiled Countdown is not loaded by HTML');
-assert(text.index.includes('/typed-build/prompt-library-smart-fill-hints.js'), 'compiled Smart Fill hints are not loaded by HTML');
-assert(!text.index.includes('prompt-library-smart-fill.js" defer'), 'legacy Smart Fill script remains in HTML');
-assert(!text.index.includes('prompt-library-command-palette.js" defer'), 'legacy Command Palette script remains in HTML');
-assert(!text.index.includes('scheduled-tasks-countdown.js" defer'), 'legacy Countdown script remains in HTML');
-assert(!text.index.includes('prompt-library-smart-fill-hints.js" defer'), 'legacy Smart Fill hints remain in HTML');
-assert(text.sw.includes('hafize-shell-v35'), 'service worker cache version must be v35');
-assert(text.sw.includes('/typed-build/app-runtime.js'), 'runtime build missing from PWA shell');
-assert(text.sw.includes('/typed-build/prompt-library-smart-fill.js'), 'Smart Fill build missing from PWA shell');
-assert(text.sw.includes('/typed-build/prompt-library-command-palette.js'), 'Command Palette build missing from PWA shell');
-assert(text.sw.includes('/typed-build/scheduled-tasks-countdown.js'), 'Countdown build missing from PWA shell');
-assert(text.sw.includes('/typed-build/prompt-library-smart-fill-hints.js'), 'Smart Fill hints build missing from PWA shell');
-assert(!text.api.includes('Authorization'), 'browser API client must not own auth credentials');
-console.log('modern-toolchain: source contracts ok');
+// --- Tek bir test koşucusu --------------------------------------------------
+{
+  assert.equal(pkg.scripts?.test, 'node scripts/run-checks.mjs');
+  assert.equal(pkg.scripts?.check, 'node scripts/run-checks.mjs');
+  for (const name of ['vitest', 'jest', 'mocha', 'ava']) {
+    assert.equal(pkg.devDependencies?.[name], undefined, `${name} ikinci bir test sistemi kurar; koşucu tektir`);
+  }
+  assert.equal(
+    JSON.stringify(pkg.scripts).includes('vitest'),
+    false,
+    'hiçbir npm betiği ikinci bir test koşucusu çağırmamalı'
+  );
+}
+
+// --- Başlatma derleme adımı beklemez ---------------------------------------
+{
+  assert.equal(pkg.scripts?.prestart, undefined, 'npm start temiz bir kopyada derleme beklemeden çalışmalı');
+  assert.match(pkg.scripts?.start ?? '', /^node .*server\.mjs$/, 'start doğrudan sunucuyu açar');
+  assert.equal(pkg.scripts?.typecheck, 'node scripts/run-typecheck.mjs');
+  assert.match(pkg.scripts?.build ?? '', /run-typecheck\.mjs.*vite build/, 'build önce tip denetler, sonra paketler');
+}
+
+// --- Beş proje, tek çözüm dosyası ------------------------------------------
+{
+  const referenced = (solution.references ?? []).map((entry) => entry.path);
+  assert.deepEqual(
+    [...referenced].sort(),
+    ['./tsconfig.browser.json', './tsconfig.node.json', './tsconfig.scripts.json', './tsconfig.typed.json', './tsconfig.worker.json'],
+    'kök tsconfig yalnızca beş projeyi birbirine bağlar'
+  );
+  assert.deepEqual(solution.files ?? [], [], 'çözüm dosyası kendisi hiçbir dosya içermez');
+}
+
+// --- Denetim rejimi: taban derleme üretmez, typed projesi üretir ------------
+{
+  assert.equal(base.compilerOptions?.noEmit, true, 'taban yapılandırma yalnızca denetler');
+  assert.equal(base.compilerOptions?.erasableSyntaxOnly, true, "Node'un sıyıramayacağı sözdizimi reddedilir");
+  assert.equal(base.compilerOptions?.checkJs, true, '.mjs ve .js dosyaları da denetlenir');
+
+  assert.notEqual(typed.compilerOptions?.noEmit, true, 'tarayıcı .mts modülleri gerçekten derlenir');
+  assert.equal(typed.compilerOptions?.strict, true, 'sıfırdan yazılan TypeScript katı kipte denetlenir');
+  assert.equal(typed.compilerOptions?.noUncheckedIndexedAccess, true);
+  assert.equal(typed.compilerOptions?.exactOptionalPropertyTypes, true);
+  assert.ok(typed.include?.includes('public/**/*.mts'), 'tarayıcı TypeScript kaynakları denetim kapsamında');
+  assert.ok(typed.exclude?.includes('public/typed-build/**'), 'üretilmiş çıktı ikinci kez denetlenmez');
+}
+
+// --- Vite: her giriş bir `.mts` kaynağına bakar -----------------------------
+{
+  const entries = [
+    ['app-runtime', 'public/typed/app-runtime.mts'],
+    ['prompt-library-smart-fill', 'public/prompt-library-smart-fill.mts'],
+    ['prompt-library-command-palette', 'public/prompt-library-command-palette.mts'],
+    ['scheduled-tasks-countdown', 'public/scheduled-tasks-countdown.mts'],
+    ['prompt-library-smart-fill-hints', 'public/prompt-library-smart-fill-hints.mts']
+  ];
+  for (const [name, source] of entries) {
+    assert.ok(vite.includes(`'${name}': resolve(ROOT, '${source}')`), `vite girişi eksik: ${name}`);
+    assert.ok(index.includes(`/typed-build/${name}.js`), `derlenmiş çıktı index.html tarafından yüklenmiyor: ${name}`);
+    // Aynı modülün hem kaynağı hem derlenmişi yüklenirse iki kopya çalışır.
+    assert.equal(index.includes(`src="/${name.replace('app-runtime', 'typed/app-runtime')}.mts"`), false, `ham kaynak da yükleniyor: ${name}`);
+  }
+  assert.ok(vite.includes("'/api':"), 'geliştirme sunucusunda API vekili tanımlı');
+  assert.ok(vite.includes('transformIndexHtml'), 'geliştirme kipinde giriş yeniden yazımı tanımlı');
+}
+
+// --- Tarayıcı istemcisi kimlik bilgisi taşımaz ------------------------------
+{
+  assert.ok(api.includes('retryable'), 'geçici arıza ayrımı korunur');
+  assert.ok(api.includes('TimeoutError'), 'zaman aşımı sınırı korunur');
+  assert.doesNotMatch(api, /Authorization/, 'tarayıcı istemcisi kimlik bilgisi sahiplenemez');
+  assert.doesNotMatch(api, /nvapi-|api[_-]?key\s*[:=]\s*['"]/i, 'istemciye gömülü anahtar yok');
+  assert.ok(runtime.includes("'hafize:runtime-ready'"), 'çalışma zamanı yaşam döngüsü olayı korunur');
+}
+
+console.log('modern toolchain OK: tek koşucu, derlemesiz denetim, derlenen tek proje tarayıcı modülleri');

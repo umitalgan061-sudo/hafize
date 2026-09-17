@@ -10,6 +10,12 @@
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": []
   },
+  "// Neden dışlanıyor": [
+    "public/sw.js worker global'lerinde çalışır ve tsconfig.worker.json'a aittir.",
+    "public/typed-build/ ise vite'ın ürettiği çıktıdır: kaynağı public/**/*.ts",
+    "olarak tsconfig.typed.json zaten denetler, üretilmiş kopyayı ikinci kez",
+    "denetlemek yalnızca sahte hata üretir."
+  ],
   "include": ["public/**/*.js", "types/browser.d.ts", "types/shared.d.ts"],
-  "exclude": ["public/sw.js"]
+  "exclude": ["public/sw.js", "public/typed-build/**"]
 }

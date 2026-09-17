@@ -257,7 +257,7 @@
 
     function selectedPromptIds() {
       return [...card.querySelectorAll('[data-prompt-selection]:checked')]
-        .map((node) => node.dataset.promptSelection)
+        .map((node) => (node instanceof HTMLElement ? node.dataset.promptSelection : ''))
         .filter(Boolean)
         .slice(0, 40);
     }

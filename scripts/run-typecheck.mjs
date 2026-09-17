@@ -23,7 +23,8 @@ export const PROJECTS = Object.freeze([
   { name: 'node', config: 'tsconfig.node.json', describe: 'sunucu runtime' },
   { name: 'scripts', config: 'tsconfig.scripts.json', describe: 'kontrol paketleri' },
   { name: 'browser', config: 'tsconfig.browser.json', describe: 'tarayıcı arayüzü' },
-  { name: 'worker', config: 'tsconfig.worker.json', describe: 'service worker' }
+  { name: 'worker', config: 'tsconfig.worker.json', describe: 'service worker' },
+  { name: 'typed', config: 'tsconfig.typed.json', describe: 'tiplenmiş tarayıcı modülleri' }
 ]);
 
 function runProject(config) {

@@ -1,11 +1,8 @@
-interface HintsWindow extends Window {
-  HafizePromptSmartFillHints?: Readonly<{
-    mount: () => void;
-    paint: (panel: HTMLElement) => void;
-  }>;
-}
-
-const root = globalThis as HintsWindow;
+// `HafizePromptSmartFillHints` global'i `types/browser.d.ts` içinde bildirilir.
+// Node, bu modülü tip sıyırmayla doğrudan yükleyip saf fonksiyonlarını
+// sınayabilsin diye kök `window` yerine `globalThis` üzerinden alınır:
+// `window` modül yüklenirken Node'da ReferenceError verirdi.
+const root = globalThis as unknown as Window & typeof globalThis;
 const CARD_ID = 'promptLibraryCard';
 const PANEL_ID = 'promptLibrarySmartFill';
 const MAX_VALUE = 1000;

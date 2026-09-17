@@ -1,12 +1,10 @@
+// Prompt kaydının şekli, prompt kütüphanesi yüzeyi ve bu modülün yayınladığı
+// global `types/browser.d.ts` içinde tek yerde bildirilir. Burada yerel bir
+// `Window` alt tipi tanımlamak o bildirimle çakışırdı.
 type PromptId = string;
-
-type PromptRecord = Readonly<{
-  id: PromptId;
-  title: string;
-  body: string;
-  useCount: number;
-  [key: string]: unknown;
-}>;
+type PromptRecord = HafizePromptRecord;
+type PromptLibraryApi = HafizePromptLibraryApi;
+type SmartFillController = HafizeSmartFillController;
 
 type VariablePreset = Readonly<{
   id: string;
@@ -14,31 +12,10 @@ type VariablePreset = Readonly<{
   values: Readonly<Record<string, string>>;
 }>;
 
-interface PromptLibraryApi {
-  readonly STORAGE_KEY: string;
-  readonly loadItems?: (storage: Storage) => PromptRecord[];
-  readonly normalizeItem?: (value: PromptRecord) => PromptRecord | null;
-  readonly extractVariables?: (body: string) => string[];
-  readonly replaceVariables?: (body: string, values: Record<string, string>) => string;
-  readonly saveItems?: (storage: Storage, items: PromptRecord[]) => boolean;
-}
-
-interface SmartFillRoot extends Window {
-  HafizePromptLibrary?: PromptLibraryApi;
-  HafizePromptLibrarySmartFill?: {
-    readonly STORAGE_KEY: string;
-    readonly mount: () => SmartFillController | null;
-  };
-}
-
-interface SmartFillController {
-  readonly mounted: true;
-  readonly open: (prompt: PromptRecord) => void;
-  readonly close: () => void;
-  readonly destroy: () => void;
-}
-
-const root = globalThis as SmartFillRoot;
+// Node, bu modülü tip sıyırmayla doğrudan yükleyip saf fonksiyonlarını
+// sınayabilsin diye kök `window` yerine `globalThis` üzerinden alınır:
+// `window` modül yüklenirken Node'da ReferenceError verirdi.
+const root = globalThis as unknown as Window & typeof globalThis;
 const STORAGE_KEY = 'hafize.prompt-library.smart-fill.v1';
 const CARD_ID = 'promptLibraryCard';
 const MAX_VALUE = 1000;
@@ -61,7 +38,7 @@ function keyForPrompt(promptId: PromptId): string {
   return `${STORAGE_KEY}.${clamp(promptId, 120)}`;
 }
 
-function readPresets(promptId: PromptId): VariablePreset[] {
+export function readPresets(promptId: PromptId): VariablePreset[] {
   const store = storage();
   if (!store) return [];
   let raw: string | null = null;
@@ -85,7 +62,7 @@ function readPresets(promptId: PromptId): VariablePreset[] {
     .filter((preset) => Boolean(preset.name && preset.id));
 }
 
-function writePresets(promptId: PromptId, presets: readonly VariablePreset[]): boolean {
+export function writePresets(promptId: PromptId, presets: readonly VariablePreset[]): boolean {
   const store = storage();
   if (!store) return false;
   try {
@@ -94,7 +71,7 @@ function writePresets(promptId: PromptId, presets: readonly VariablePreset[]): b
   } catch { return false; }
 }
 
-function variableNames(body: string): string[] {
+export function variableNames(body: string): string[] {
   const found = core()?.extractVariables?.(body) ?? [];
   return [...new Set(found.map((name) => clamp(name, 32)).filter(Boolean))].slice(0, MAX_VARIABLES);
 }
@@ -116,7 +93,7 @@ function button(doc: Document, label: string, className = 'soft-btn'): HTMLButto
   return node;
 }
 
-function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = root): SmartFillController | null {
+function mount(documentRef: Document = root.document, rootRef: Window & typeof globalThis = root): SmartFillController | null {
   const card = documentRef?.getElementById(CARD_ID);
   if (!documentRef || !card || card.dataset.smartFillReady === 'true') return null;
   card.dataset.smartFillReady = 'true';
@@ -238,12 +215,13 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     if (index < 0) return;
     const next = items.slice();
     const item = items[index];
+    if (!item) return;
     const updated = api.normalizeItem({ ...item, useCount: Number(item.useCount) + 1, updatedAt: new Date().toISOString() });
     if (!updated) return;
     next[index] = updated;
     if (!api.saveItems(store, next)) return;
     try {
-      const detail = { key: api.STORAGE_KEY, newValue: JSON.stringify(next), storageArea: store };
+      const detail = { key: api.STORAGE_KEY ?? null, newValue: JSON.stringify(next), storageArea: store };
       if (typeof rootRef.StorageEvent === 'function') rootRef.dispatchEvent(new rootRef.StorageEvent('storage', detail));
     } catch { /* persisted state remains valid even when repaint cannot be signalled */ }
   };
@@ -251,7 +229,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
   const insertIntoComposer = (): void => {
     if (!activePrompt) return;
     const values = currentValues();
-    const missing = activeNames.filter((name) => values[name].trim().length === 0);
+    const missing = activeNames.filter((name) => (values[name] ?? '').trim().length === 0);
     if (missing.length) return showError(`Doldurulmamış değişkenler: ${missing.map((name) => `{{${name}}}`).join(', ')}`);
     const text = core()?.replaceVariables?.(activePrompt.body, values)?.slice(0, MAX_PREVIEW) || activePrompt.body.slice(0, MAX_PREVIEW);
     const composer = documentRef.querySelector<HTMLTextAreaElement>('#messageInput');
@@ -309,6 +287,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
+    if (!first || !last) return;
     if (event.shiftKey && documentRef.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && documentRef.activeElement === last) { event.preventDefault(); first.focus(); }
   };

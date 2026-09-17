@@ -41,9 +41,15 @@ export interface RuntimeSnapshot {
   readonly lastErrorCode: string | null;
 }
 
-export interface ApiRequestOptions extends RequestInit {
+// `exactOptionalPropertyTypes` açıkken `{ signal: undefined }` ile `{}` aynı
+// şey değildir; `RequestInit['signal']` ise yalnızca `AbortSignal | null`
+// kabul eder. Çağıranlar isteğe bağlı bir `signal` parametresini doğrudan
+// aktardığı için alan `Omit` ile ayrılıp `undefined` eklenerek yeniden
+// bildirilir — böylece her çağrı yerinde anahtarı ayıklamak gerekmez.
+export interface ApiRequestOptions extends Omit<RequestInit, 'signal'> {
   readonly timeoutMs?: number;
   readonly retry?: number;
+  readonly signal?: AbortSignal | null | undefined;
 }
 
 export class HafizeApiError extends Error {
