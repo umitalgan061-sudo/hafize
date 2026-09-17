@@ -14,8 +14,11 @@ assert.match(html, /prompt-library-collections\.js/);
 assert.match(html, /prompt-library-collections-enhancements\.js/);
 assert.match(html, /prompt-library-revisions\.js/);
 assert.match(html, /prompt-library-revisions-enhancements\.js/);
-assert.match(collections, /id = 'promptLibraryCollections'/);
-assert.match(revisions, /id = 'promptLibraryRevisions'/);
+// The panel id is declared once as a constant and applied from it.
+assert.match(collections, /PANEL_ID = 'promptLibraryCollections'/);
+assert.match(collections, /section\.id = PANEL_ID/);
+assert.match(revisions, /PANEL_ID = 'promptLibraryRevisions'/);
+assert.match(revisions, /section\.id = PANEL_ID/);
 assert.match(collections, /aria-labelledby/);
 assert.match(revisions, /aria-labelledby/);
 assert.match(collections, /aria-label/);

@@ -41,8 +41,10 @@ assert.equal(providerResponse.usage.total_tokens, 28);
 
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'user', content: 'bad' } }] }), /INVALID_MODEL_RESPONSE/);
 assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', content: { malformed: true } } }] }), /INVALID_MODEL_CONTENT/);
-assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: [{ id: 'x', function: { name: 'x', arguments: 'x'.repeat(MODEL_RESPONSE_CONTRACT.maxToolArgumentLength + 1) } }] } }] }), /INVALID_MODEL_TOOL_CALL/);
-assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: Array.from({ length: MODEL_RESPONSE_CONTRACT.maxToolCalls + 1 }, () => ({ id: 'x', function: { name: 'x', arguments: '{}' } })) } }] }), /INVALID_MODEL_TOOL_CALLS/);
+assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: [{ id: 'x', function: { name: 'x', arguments: 'x'.repeat(MODEL_RESPONSE_CONTRACT.maxToolArgumentLength + 1) } }] } }] }),
+  /INVALID_MODEL_TOOL_CALL/);
+assert.throws(() => normalizeNvidiaChatCompletion({ choices: [{ message: { role: 'assistant', tool_calls: Array.from({ length: MODEL_RESPONSE_CONTRACT.maxToolCalls + 1 }, () => ({ id: 'x', function: { name: 'x',
+  arguments: '{}' } })) } }] }), /INVALID_MODEL_TOOL_CALLS/);
 
 // Normalization is idempotent: a normalized response can be re-normalized and
 // inspected (isTerminalModelResponse does exactly that).

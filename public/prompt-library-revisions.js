@@ -207,10 +207,23 @@
 
     let selectedPrompt = '';
     let hidden = false;
+    let statusResetHandle;
+
+    function clearStatusReset() {
+      if (statusResetHandle === undefined) return;
+      rootRef.clearTimeout?.(statusResetHandle);
+      statusResetHandle = undefined;
+    }
 
     function setStatus(value) {
+      // A newer message replaces the pending reset instead of stacking another
+      // timer behind it, and `destroy()` cancels whatever is still scheduled.
+      clearStatusReset();
       status.textContent = clip(value, 160);
-      rootRef.setTimeout?.(() => { if (status.textContent === value) status.textContent = ''; }, 2600);
+      statusResetHandle = rootRef.setTimeout?.(() => {
+        statusResetHandle = undefined;
+        if (status.textContent === value) status.textContent = '';
+      }, 2600);
     }
 
     function updatePromptOptions() {
@@ -317,6 +330,7 @@
       destroy: () => {
         observer?.disconnect();
         rootRef.removeEventListener?.('storage', onStorage);
+        clearStatusReset();
         section.remove();
       }
     });

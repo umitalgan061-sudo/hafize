@@ -200,3 +200,33 @@ ol.md-list { list-style: decimal; }
   .md-heading-1 { font-size: 1.3em; }
   .md-table th, .md-table td { padding: 7px 9px; }
 }
+
+/* Forced colours replace every custom colour with a system one, which flattens
+ * the `color-mix()` fills this sheet uses to separate code, quotes and table
+ * headers from the surrounding answer. Borders carry that separation instead,
+ * and the copy button gets a visible outline rather than a transparent one. */
+@media (forced-colors: active) {
+  .md-code,
+  .md-table-wrap,
+  .md-table th,
+  .md-table td { border-color: CanvasText; }
+
+  .md-code-head { border-bottom-color: CanvasText; }
+  .md-quote { border-left-color: CanvasText; }
+
+  .md-inline-code {
+    border: 1px solid CanvasText;
+    background: Canvas;
+  }
+
+  .md-code-copy {
+    border-color: ButtonBorder;
+    color: ButtonText;
+    forced-color-adjust: none;
+    background: ButtonFace;
+  }
+  .md-code-copy[data-state="copied"] { color: Highlight; }
+
+  .md-link { color: LinkText; }
+  .md-divider { background: CanvasText; }
+}

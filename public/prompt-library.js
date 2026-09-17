@@ -151,13 +151,16 @@
     // normalizeCollection: a backup that repeats an id would otherwise lose the
     // later prompt silently, where re-keying keeps every prompt in the file.
     for (const raw of Array.isArray(incoming) ? incoming.slice(0, LIMITS.maxItems * 2) : []) {
+      // Checked before the push, not after: stopping afterwards accepted one
+      // prompt past the capacity, which `normalizeCollection` then dropped,
+      // leaving `imported` counting a prompt that never arrived.
+      if (result.length >= LIMITS.maxItems) break;
       let item = normalizeItem(raw);
       if (!item) continue;
       let nextId = item.id;
       while (ids.has(nextId)) nextId = id();
       if (nextId !== item.id) item = Object.freeze({ ...item, id: nextId });
       ids.add(item.id); result.push(item); imported += 1;
-      if (result.length >= LIMITS.maxItems) break;
     }
     return { items: normalizeCollection(result), imported };
   }

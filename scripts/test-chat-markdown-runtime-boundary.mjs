@@ -8,7 +8,11 @@ const chat = fs.readFileSync('public/chat-markdown.js', 'utf8');
 
 assert.match(app, /updateMessage\(assistantId, content\)/);
 assert.match(chat, /HafizeMarkdown/);
-assert.match(chat, /MutationObserver/);
+// Code copy is delegated once from the static `#messages` container, which
+// is why it survives every re-render without observing the DOM.
+assert.match(chat, /addEventListener\('click', handleCopyClick\)/);
+assert.match(chat, /data-md-copy="code"/);
+assert.match(chat, /dataset\.mdCopyBound/);
 assert.match(renderer, /createElement/);
 assert.match(renderer, /textContent/);
 assert.doesNotMatch(renderer, /innerHTML\s*=/);

@@ -12,7 +12,8 @@ const runtime = {
     calls.push(['begin', agent, request, context]);
     if (request.appId === 'terminal') return { ok: false, error: 'DEVICE_BRIDGE_APP_NOT_ALLOWED' };
     if (context.principal?.ownerId === 'limited') return { ok: false, error: 'DEVICE_REVIEW_OWNER_LIMIT_REACHED' };
-    return { ok: true, review: { id: 'review-123', action: request.action, title: 'Onay', target: request.action === 'browser.open' ? 'https://example.com/private' : request.appId.toLowerCase(), detail: request.action === 'browser.open' ? 'Sorgu gizlendi.' : undefined, expiresAt: 123456, requiresExplicitConfirmation: true } };
+    return { ok: true, review: { id: 'review-123', action: request.action, title: 'Onay', target: request.action === 'browser.open' ? 'https://example.com/private' : request.appId.toLowerCase(),
+      detail: request.action === 'browser.open' ? 'Sorgu gizlendi.' : undefined, expiresAt: 123456, requiresExplicitConfirmation: true } };
   },
   async confirmAndExecute(agent, request, context) {
     calls.push(['confirm', agent, request, context]);
@@ -54,7 +55,8 @@ assert.equal(JSON.stringify(beginBrowser.body).includes('approvalToken'), false)
 assert.equal(calls[2][3].principal, principal);
 assert.equal(calls[2][3].traceId, traceId);
 
-const confirmBrowser = await api.handle({ method: 'POST', pathname: '/api/device/reviews/review-123/confirm', body: { request: { action: 'browser.open', url: 'https://example.com/private?token=server-only' } } }, { agent, principal, traceId });
+const confirmBrowser = await api.handle({ method: 'POST', pathname: '/api/device/reviews/review-123/confirm', body: { request: { action: 'browser.open', url: 'https://example.com/private?token=server-only' } } }, { agent, principal,
+  traceId });
 assert.deepEqual(confirmBrowser, { status: 200, body: { ok: true, action: 'browser.open' } });
 assert.equal(JSON.stringify(confirmBrowser).includes('server-only'), false);
 assert.equal(calls[3][3].reviewId, 'review-123');
@@ -95,17 +97,20 @@ for (const invalid of [
 const route = await api.handle({ method: 'GET', pathname: '/api/device/reviews', body: {} }, { agent, principal, traceId });
 assert.deepEqual(route, { status: 404, body: { ok: false, error: 'DEVICE_HTTP_ROUTE_NOT_FOUND' } });
 
-const leakyRuntime = createDeviceActionHttpBoundary({ runtime: { ...runtime, async beginReview() { return { ok: true, review: { id: 'review-123', action: 'browser.open', title: 'Onay', target: 'https://example.com/safe', expiresAt: 1, requiresExplicitConfirmation: true, approvalToken: 'must-not-pass' } }; } } });
+const leakyRuntime = createDeviceActionHttpBoundary({ runtime: { ...runtime, async beginReview() { return { ok: true, review: { id: 'review-123', action: 'browser.open', title: 'Onay', target: 'https://example.com/safe', expiresAt: 1,
+  requiresExplicitConfirmation: true, approvalToken: 'must-not-pass' } }; } } });
 const sanitized = await leakyRuntime.handle({ method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'browser.open', url: 'https://example.com' } } }, { agent, principal, traceId });
 assert.equal(JSON.stringify(sanitized).includes('must-not-pass'), false);
 
-const unsafeRuntimeReview = createDeviceActionHttpBoundary({ runtime: { ...runtime, async beginReview() { return { ok: true, review: { id: 'review-123', action: 'browser.open', title: 'Onay', target: 'https://example.com/safe?token=leak', expiresAt: 1, requiresExplicitConfirmation: true } }; } } });
+const unsafeRuntimeReview = createDeviceActionHttpBoundary({ runtime: { ...runtime, async beginReview() { return { ok: true, review: { id: 'review-123', action: 'browser.open', title: 'Onay', target: 'https://example.com/safe?token=leak',
+  expiresAt: 1, requiresExplicitConfirmation: true } }; } } });
 const rejectedRuntimeLeak = await unsafeRuntimeReview.handle({ method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'browser.open', url: 'https://example.com' } } }, { agent, principal, traceId });
 // An unsafe runtime result is reported separately from a malformed client request.
 assert.deepEqual(rejectedRuntimeLeak, { status: 400, body: { ok: false, error: 'INVALID_DEVICE_HTTP_RUNTIME_RESULT' } });
 assert.equal(JSON.stringify(rejectedRuntimeLeak).includes('leak'), false);
 
-const unsafeSystemInfo = createDeviceActionHttpBoundary({ runtime: { ...runtime, async executeReadOnly() { return { ok: true, value: { ok: true, action: 'system.info', info: { platform: 'linux', arch: 'x64', username: 'secret-user' } } }; } } });
+const unsafeSystemInfo = createDeviceActionHttpBoundary({ runtime: { ...runtime, async executeReadOnly() { return { ok: true, value: { ok: true, action: 'system.info', info: { platform: 'linux', arch: 'x64',
+  username: 'secret-user' } } }; } } });
 assert.deepEqual(await unsafeSystemInfo.handle({ method: 'POST', pathname: '/api/device/system-info', body: {} }, { agent, principal, traceId }), { status: 400, body: { ok: false, error: 'INVALID_DEVICE_HTTP_RUNTIME_RESULT' } });
 
 assert.throws(() => createDeviceActionHttpBoundary(), /INVALID_DEVICE_HTTP_BOUNDARY/);

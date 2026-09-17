@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { assertShellAssets, assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { migratedEntryUrl } from './migrated-entry-contract.mjs';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
@@ -20,7 +21,7 @@ assertShellAssets([
   '/scheduled-tasks.js',
   '/scheduled-tasks-enhancements.js',
   '/scheduled-tasks-keyboard.js',
-  '/scheduled-tasks-countdown.js'
+  migratedEntryUrl('scheduled-tasks-countdown')
 ], 'scheduled tasks asset');
 assertVersionedCacheDeclaration(sw);
 

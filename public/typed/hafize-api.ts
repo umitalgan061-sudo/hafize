@@ -110,7 +110,7 @@ export class HafizeApiClient {
               }
             );
         if (!normalized.retryable || attempt >= retries) throw normalized;
-        await delay(retryDelay(attempt), parentSignal);
+        await delay(retryDelay(attempt), parentSignal ?? undefined);
       } finally {
         globalThis.clearTimeout(timeout);
         parentSignal?.removeEventListener('abort', abortParent);
@@ -133,3 +133,5 @@ export class HafizeApiClient {
 }
 
 export const hafizeApi = new HafizeApiClient();
+
+export { HafizeApiError };
