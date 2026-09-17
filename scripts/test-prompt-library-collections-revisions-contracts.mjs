@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const collections = read('public/prompt-library-collections.js');
@@ -103,7 +104,9 @@ for (const asset of [
   '/prompt-library-revisions-enhancements.js'
 ]) assert.ok(sw.includes(asset), `SW missing ${asset}`);
 
-assert.match(sw, /v36/);
+// The shell cache version moves with the shell, so the suite asserts that it
+// stays versioned rather than pinning the current number.
+assertVersionedCacheDeclaration(sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 

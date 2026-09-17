@@ -10,5 +10,7 @@ assert.match(chat, /requestAnimationFrame/);
 assert.match(chat, /aria-busy/);
 assert.match(chat, /navigator\.clipboard/);
 assert.match(css, /message\.assistant/);
-assert.doesNotMatch(css, /body\s*\{/);
+// The sheet must not restyle the page `body`; `.md-code-body` is its own
+// class and does not count.
+assert.doesNotMatch(css, /(?:^|[^-\w.])body\s*\{/m);
 console.log('chat markdown protocol contract: ok');

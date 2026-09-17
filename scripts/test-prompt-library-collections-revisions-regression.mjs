@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const files = {
   collections: fs.readFileSync('public/prompt-library-collections.js', 'utf8'),
@@ -16,7 +17,9 @@ assert.match(files.html, /prompt-library-collections\.js/);
 assert.match(files.html, /prompt-library-collections-enhancements\.js/);
 assert.match(files.html, /prompt-library-revisions\.js/);
 assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
-assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+// The shell cache version moves with the shell, so the suite asserts that it
+// stays versioned rather than pinning the current number.
+assertVersionedCacheDeclaration(files.sw);
 for (const asset of [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',

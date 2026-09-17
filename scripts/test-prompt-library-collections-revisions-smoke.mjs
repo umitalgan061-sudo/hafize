@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const html = read('public/index.html');
@@ -20,7 +21,9 @@ const requiredHtmlAssets = [
 ];
 for (const asset of requiredHtmlAssets) assert.ok(html.includes(asset), `missing HTML asset: ${asset}`);
 for (const asset of requiredHtmlAssets) assert.ok(sw.includes(asset), `missing shell asset: ${asset}`);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+// The shell cache version moves with the shell, so the suite asserts that it
+// stays versioned rather than pinning the current number.
+assertVersionedCacheDeclaration(sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 
