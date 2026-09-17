@@ -1,13 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import { createRequire } from 'node:module';
-// @ts-expect-error Legacy JS module has no declarations during the incremental migration.
-import { createSessionAuth } from './session-auth.mjs';
-// @ts-expect-error Legacy JS module has no declarations during the incremental migration.
-import { createBearerPrincipalAuthenticator } from './server-auth.mjs';
-// @ts-expect-error Legacy JS module has no declarations during the incremental migration.
-import { createRateLimiter } from './rate-limit.mjs';
-// @ts-expect-error Legacy JS module has no declarations during the incremental migration.
-import { createSecurityEventLogger } from './security-observability.mjs';
+import { createSessionAuth, type SessionAuth } from './session-auth.ts';
+import { createBearerPrincipalAuthenticator, type BearerPrincipalAuthenticator } from './server-auth.ts';
+import { createRateLimiter, type RateLimiter } from './rate-limit.ts';
+import { createSecurityEventLogger, type SecurityEventLogger } from './security-observability.ts';
 
 type HeaderValue = string | string[] | undefined;
 type Headers = Record<string, HeaderValue>;
@@ -30,52 +26,15 @@ interface HafizeResponse {
 type Listener = (req: HafizeRequest, res: HafizeResponse) => unknown | Promise<unknown>;
 type ServerFactory = (...args: unknown[]) => unknown;
 
-interface PrincipalResult {
+interface ProtectedPrincipal {
   readonly ok: boolean;
-  readonly principal?: { readonly subject: string };
+  readonly session?: boolean;
+  readonly connector?: boolean;
+  readonly subject?: string;
   readonly csrf?: string;
 }
 
-interface SessionAuth {
-  authenticate(headers: Headers): PrincipalResult;
-  verifyCredential(candidate: string): boolean;
-  issueSession(): string;
-  verifySessionCookie(value: string): { readonly csrf: string };
-  sessionCookieHeader(value: string): string;
-  clearCookieHeader(): string;
-}
-
-interface BearerAuth {
-  authenticate(input: { readonly headers: Headers }): PrincipalResult;
-}
-
-interface RateDecision {
-  readonly ok: boolean;
-  readonly retryAfterSeconds: number;
-  readonly concurrent?: boolean;
-  readonly release: () => void;
-}
-
-interface RateLimiter {
-  check(key: string): RateDecision;
-}
-
-interface SecurityEvent {
-  readonly event: string;
-  readonly requestId?: string | number | string[];
-  readonly route?: string;
-  readonly method?: string;
-  readonly outcome: string;
-  readonly metadata?: Record<string, unknown>;
-}
-
-interface SecurityEventLogger {
-  record(event: SecurityEvent): { readonly requestId: string };
-}
-
-interface HttpModule {
-  createServer: ServerFactory;
-}
+interface HttpModule { createServer: ServerFactory; }
 
 const http = createRequire(import.meta.url)('node:http') as HttpModule;
 const guardKey = '__HAFIZE_PRODUCTION_GUARD__';
@@ -100,8 +59,7 @@ if (!isInstalled()) {
         secureCookie: bool(process.env.HAFIZE_COOKIE_SECURE, process.env.NODE_ENV === 'production')
       })
     : null;
-
-  const connectorAuth: BearerAuth | null = connectorToken && connectorSubject
+  const connectorAuth: BearerPrincipalAuthenticator | null = connectorToken && connectorSubject
     ? createBearerPrincipalAuthenticator({ token: connectorToken, subject: connectorSubject })
     : null;
   const security: SecurityEventLogger = createSecurityEventLogger();
@@ -159,10 +117,8 @@ if (!isInstalled()) {
         res.once('close', decision.release);
         res.once('finish', decision.release);
       }
-
       return (listener as Listener)(req, res);
     };
-
     args[listenerIndex] = wrapped;
     return original(...args);
   };
@@ -170,49 +126,34 @@ if (!isInstalled()) {
   function protectedPath(path: string): boolean {
     return ['/api/models', '/api/agents', '/api/chat', '/api/agent/run', '/api/connectors/canva/status', '/api/connectors/gmail/status'].includes(path);
   }
-
   function connectorPath(path: string): boolean {
     return path === '/api/agent/run' || path === '/api/connectors/canva/status' || path === '/api/connectors/gmail/status';
   }
-
   function pathname(value?: string): string {
     try { return new URL(value || '/', 'http://hafize.local').pathname; } catch { return '/'; }
   }
-
   function headerValue(req: HafizeRequest, name: string): string | undefined {
     const value = req.headers[name.toLowerCase()];
-    return typeof value === 'string' ? value : undefined;
+    return typeof value === 'string' ? value : Array.isArray(value) ? value[0] : undefined;
   }
-
   function ip(req: HafizeRequest): string {
     const forwarded = headerValue(req, 'x-forwarded-for');
     return bool(process.env.HAFIZE_TRUST_PROXY, false) && forwarded
       ? forwarded.split(',')[0].trim().slice(0, 200)
       : String(req.socket?.remoteAddress || 'unknown').slice(0, 200);
   }
-
   function authenticateProtected(req: HafizeRequest, path: string): ProtectedPrincipal {
     const current = auth?.authenticate(req.headers);
-    if (current?.ok) return { ok: true, session: true, subject: current.principal?.subject || '', csrf: current.csrf };
+    if (current?.ok) return { ok: true, session: true, subject: current.principal.subject, csrf: current.csrf };
     if (connectorPath(path) && connectorAuth) {
       const connector = connectorAuth.authenticate({ headers: req.headers });
-      if (connector?.ok) return { ok: true, session: false, connector: true, subject: `connector:${connector.principal?.subject || ''}` };
+      if (connector?.ok) return { ok: true, session: false, connector: true, subject: `connector:${connector.principal.subject}` };
     }
     return { ok: false };
   }
-
-  interface ProtectedPrincipal {
-    readonly ok: boolean;
-    readonly session?: boolean;
-    readonly connector?: boolean;
-    readonly subject?: string;
-    readonly csrf?: string;
-  }
-
   function csrf(req: HafizeRequest, current: ProtectedPrincipal): boolean {
     return equal(headerValue(req, 'x-hafize-csrf'), current.csrf);
   }
-
   function equal(a?: string, b?: string): boolean {
     const x = Buffer.from(String(a ?? ''));
     const y = Buffer.from(String(b ?? ''));
@@ -224,26 +165,21 @@ if (!isInstalled()) {
     }
     return timingSafeEqual(x, y);
   }
-
   function bool(value: string | undefined, fallback: boolean): boolean {
     return value == null || value === '' ? fallback : /^(1|true|yes|on)$/i.test(value.trim());
   }
-
   function int(value: string | undefined, fallback: number, min: number, max: number): number {
     const parsed = Number.parseInt(value || '', 10);
     return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
   }
-
   function deny(res: HafizeResponse): void {
     res.setHeader('WWW-Authenticate', 'Bearer realm="Hafize"');
     send(res, 401, { error: 'AUTH_REQUIRED' });
   }
-
   function rate(res: HafizeResponse, seconds: number): void {
     res.setHeader('Retry-After', String(seconds));
     send(res, 429, { error: 'RATE_LIMITED', retryAfterSeconds: seconds });
   }
-
   function send(res: HafizeResponse, status: number, body: Record<string, unknown>): void {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -251,7 +187,6 @@ if (!isInstalled()) {
     res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(body));
   }
-
   async function json(req: HafizeRequest, max = 8192): Promise<Record<string, unknown>> {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -263,13 +198,11 @@ if (!isInstalled()) {
     const value = Buffer.concat(chunks).toString('utf8');
     return value ? JSON.parse(value) as Record<string, unknown> : {};
   }
-
   function session(req: HafizeRequest, res: HafizeResponse): void {
     if (!required) return send(res, 200, { required: false, authenticated: true, csrf: '' });
     const current = auth?.authenticate(req.headers);
     send(res, 200, { required: true, authenticated: Boolean(current?.ok), csrf: current?.ok ? current.csrf : '' });
   }
-
   async function login(req: HafizeRequest, res: HafizeResponse): Promise<void> {
     if (!auth) return send(res, 503, { error: 'AUTH_NOT_CONFIGURED' });
     const decision = loginLimit.check(`login:${ip(req)}`);
@@ -283,6 +216,7 @@ if (!isInstalled()) {
       if (!auth.verifyCredential(candidate)) return deny(res);
       const value = auth.issueSession();
       const current = auth.verifySessionCookie(value);
+      if (!current.ok) return deny(res);
       res.setHeader('Set-Cookie', auth.sessionCookieHeader(value));
       send(res, 200, { authenticated: true, csrf: current.csrf });
     } catch (error) {
@@ -290,7 +224,6 @@ if (!isInstalled()) {
       send(res, message === 'BODY_TOO_LARGE' ? 413 : 400, { error: message === 'BODY_TOO_LARGE' ? 'BODY_TOO_LARGE' : 'INVALID_JSON' });
     }
   }
-
   function logout(req: HafizeRequest, res: HafizeResponse): void {
     const current = auth?.authenticate(req.headers);
     if (required && !current?.ok) return deny(res);
