@@ -24,6 +24,11 @@
 .prompt-library-health-issue-meta{font-size:9px;color:var(--muted);overflow-wrap:anywhere}
 .prompt-library-health-empty,.prompt-library-health-message{padding:7px;color:var(--muted);font-size:10px;line-height:1.4}
 .prompt-library-health-actions button:focus-visible,.prompt-library-health-actions select:focus-visible,.prompt-library-health-head button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-@media (max-width:700px){.prompt-library-health-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.prompt-library-health-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.prompt-library-health-issues{max-height:260px}}
-@media (forced-colors:active){.prompt-library-health-metric,.prompt-library-health-issue,.prompt-library-health-actions select{border-color:CanvasText;background:Canvas;color:CanvasText}.prompt-library-health-issue.is-error,.prompt-library-health-issue.is-warning,.prompt-library-health-issue.is-info{border-left-color:Highlight}}
+.prompt-library-health-extra-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(150px,1.2fr);gap:6px}
+.prompt-library-health-extra-actions .mini-btn{min-width:0;font-size:10px}
+.prompt-library-health-important-toggle{display:flex;align-items:center;gap:6px;min-width:0;padding:6px 7px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);font-size:10px;cursor:pointer}
+.prompt-library-health-important-toggle input{accent-color:var(--accent)}
+.prompt-library-health-extra-actions button:focus-visible,.prompt-library-health-important-toggle:focus-within{outline:2px solid var(--accent);outline-offset:1px}
+@media (max-width:700px){.prompt-library-health-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.prompt-library-health-extra-actions{grid-template-columns:1fr}.prompt-library-health-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.prompt-library-health-issues{max-height:260px}}
+@media (forced-colors:active){.prompt-library-health-metric,.prompt-library-health-issue,.prompt-library-health-actions select,.prompt-library-health-important-toggle{border-color:CanvasText;background:Canvas;color:CanvasText}.prompt-library-health-issue.is-error,.prompt-library-health-issue.is-warning,.prompt-library-health-issue.is-info{border-left-color:Highlight}}
 @media (prefers-reduced-motion:reduce){.prompt-library-health-issues{scroll-behavior:auto}}
