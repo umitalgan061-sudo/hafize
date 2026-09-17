@@ -1,0 +1,89 @@
+/* Prompt library health check.
+ *
+ * The panel lives inside the prompt library card and is quiet by default: a
+ * one-line summary, and findings only when there are findings. Severity is
+ * carried by `data-severity` so the colour can be dropped in forced-colours
+ * mode without losing the distinction. */
+
+.prompt-library-diagnostics {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.prompt-library-diagnostics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-library-diagnostics-title { font-size: 13px; }
+
+.prompt-library-diagnostics-summary,
+.prompt-library-diagnostics-empty {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.prompt-library-diagnostics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.prompt-library-diagnostics-item {
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-inline-start-width: 3px;
+  border-radius: 9px;
+}
+
+.prompt-library-diagnostics-item[data-severity="error"] {
+  border-inline-start-color: var(--premium-orange-strong, #c85e36);
+}
+
+.prompt-library-diagnostics-item[data-severity="warning"] {
+  border-inline-start-color: var(--premium-orange, #d9774f);
+}
+
+.prompt-library-diagnostics-label { font-size: 12px; }
+
+.prompt-library-diagnostics-detail,
+.prompt-library-diagnostics-error {
+  color: var(--muted);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.prompt-library-diagnostics-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .prompt-library-diagnostics-actions { flex-wrap: wrap; }
+}
+
+@media (forced-colors: active) {
+  .prompt-library-diagnostics,
+  .prompt-library-diagnostics-item {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .prompt-library-diagnostics-item[data-severity="error"],
+  .prompt-library-diagnostics-item[data-severity="warning"] {
+    border-inline-start-color: CanvasText;
+  }
+}

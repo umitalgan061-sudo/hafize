@@ -98,8 +98,15 @@
     } catch {}
     return true;
   }
+  // index.html ships the markdown assets as static tags. This bootstrap stays as
+  // a fallback for pages that do not, so it must never load a second copy of a
+  // file the document already carries.
+  function alreadyInDocument(selector) {
+    try { return Boolean(root.document?.querySelector?.(selector)); } catch { return false; }
+  }
   function loadLink() {
-    if (!root.document || !markOnce('style') || loaded.has(STYLE)) return;
+    if (!root.document || alreadyInDocument(`link[href="${STYLE}"]`)) return;
+    if (!markOnce('style') || loaded.has(STYLE)) return;
     const link = root.document.createElement('link');
     link.rel = 'stylesheet';
     link.href = STYLE;
@@ -109,6 +116,11 @@
   }
   function loadScript(src, onload) {
     if (!root.document || loaded.has(src)) return;
+    if (alreadyInDocument(`script[src="${src}"]`)) {
+      loaded.add(src);
+      if (onload) onload();
+      return;
+    }
     const script = root.document.createElement('script');
     script.src = src;
     script.defer = true;

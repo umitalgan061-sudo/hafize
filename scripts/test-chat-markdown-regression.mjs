@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const markdown = require('../public/markdown-renderer.js');
 
 const files = {
   renderer: fs.readFileSync('public/markdown-renderer.js', 'utf8'),
@@ -20,9 +24,7 @@ const requiredRendererContracts = [
   /appendChild|append\(/,
   /https?:/,
   /mailto:/,
-  /javascript/i,
-  /data:/,
-  /escape/i,
+  /ESCAPABLE_PATTERN|escape/i,
   /table/i,
   /blockquote/i,
   /code/i,
@@ -31,6 +33,26 @@ const requiredRendererContracts = [
 ];
 for (const contract of requiredRendererContracts) assert.match(files.renderer, contract, `renderer contract ${contract} missing`);
 
+// Scheme safety is a behaviour, not a word in the source: the renderer works off
+// an allowlist, so it is asserted by running it rather than by grepping for the
+// schemes it rejects.
+for (const safe of ['https://example.com/a', 'http://example.com', 'mailto:a@example.com']) {
+  assert.equal(markdown.safeUrl(safe), safe, `${safe} stays linkable`);
+}
+for (const hostile of [
+  'javascript:alert(1)',
+  'JavaScript:alert(1)',
+  'java\tscript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  'vbscript:msgbox(1)',
+  'file:///etc/passwd',
+  '/api/chat',
+  './relative',
+  `https://example.com/${'a'.repeat(4000)}`
+]) {
+  assert.equal(markdown.safeUrl(hostile), '', `${hostile.slice(0, 40)} never reaches an href`);
+}
+
 const forbiddenExecution = [
   /innerHTML\s*=/,
   /insertAdjacentHTML\s*\(/,
@@ -38,7 +60,8 @@ const forbiddenExecution = [
   /new Function\s*\(/,
   /document\.write\s*\(/,
   /srcdoc/i,
-  /<script/i
+  // A `<script>` mentioned in a comment is not an execution path; creating one is.
+  /createElement\(\s*['"`]script/i
 ];
 for (const source of [files.renderer, files.chat]) {
   for (const contract of forbiddenExecution) assert.doesNotMatch(source, contract, `unsafe contract ${contract} present`);
@@ -59,7 +82,7 @@ for (const contract of chatContracts) assert.match(files.chat, contract, `chat c
 
 const integrationContracts = [
   [/updateMessage\(assistantId, content\)/, 'assistant stream update remains canonical'],
-  [/textContent\s*=\s*content/, 'plain text fallback remains available'],
+  [/node\.textContent = value \|\| MESSAGE_PLACEHOLDER/, 'plain text fallback remains available'],
   [/addMessage\(['"]assistant['"]/, 'assistant messages still use app message path'],
   [/hafize/, 'existing application namespace remains referenced']
 ];

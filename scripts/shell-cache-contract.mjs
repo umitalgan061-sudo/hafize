@@ -16,11 +16,26 @@ export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PUBLIC_DIR = path.join(ROOT, 'public');
 export const swPolicy = require('../public/sw-policy.js');
 export const CACHE_VERSION_PATTERN = /^hafize-shell-v(\d+)$/;
+const GENERATED_ASSET_PATTERN = /^\/typed-build\/([A-Za-z0-9_.-]+)\.js$/;
 export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.CURRENT_CACHE)?.[1] ?? NaN);
 
 /** Source text of `public/sw-policy.js`, for suites that assert on the file itself. */
 export function readSwPolicySource() {
   return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.js'), 'utf8');
+}
+
+/**
+ * TypeScript entry behind a generated `/typed-build/<name>.js` shell asset, or
+ * null when the path is not a build output. `public/typed-build/` is produced by
+ * `npm run build`, so a fresh checkout has none of it: the contract these suites
+ * can assert is that Vite still has an entry that produces the file.
+ */
+export function generatedAssetSource(assetPath) {
+  const match = GENERATED_ASSET_PATTERN.exec(assetPath);
+  if (!match) return null;
+  const config = readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
+  const entry = new RegExp(`'${match[1]}':\\s*resolve\\(ROOT, '([^']+)'\\)`).exec(config);
+  return entry ? path.join(ROOT, entry[1]) : null;
 }
 
 /** Local file backing a shell asset path, or null for the bare `/` entry. */
@@ -66,6 +81,11 @@ export function assertShellCacheContract() {
   // `cache.addAll()` rejects as a whole, so one stale path disables the
   // offline shell entirely: every entry must be backed by a real file.
   for (const asset of swPolicy.SHELL_ASSETS) {
+    const generated = generatedAssetSource(asset);
+    if (generated) {
+      assert.ok(existsSync(generated), `generated shell asset ${asset} is produced by a Vite entry`);
+      continue;
+    }
     const file = shellAssetFile(asset);
     assert.ok(file && existsSync(file), `shell asset ${asset} exists on disk`);
   }

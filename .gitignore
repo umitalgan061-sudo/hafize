@@ -19,3 +19,4 @@ coverage/
 *.crt
 runtime/
 data/
+public/typed-build/

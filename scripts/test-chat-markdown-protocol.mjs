@@ -10,5 +10,5 @@ assert.match(chat, /requestAnimationFrame/);
 assert.match(chat, /aria-busy/);
 assert.match(chat, /navigator\.clipboard/);
 assert.match(css, /message\.assistant/);
-assert.doesNotMatch(css, /body\s*\{/);
+assert.doesNotMatch(css, /^\s*body\s*\{/m, 'the sheet never restyles the whole page');
 console.log('chat markdown protocol contract: ok');

@@ -200,3 +200,55 @@ ol.md-list { list-style: decimal; }
   .md-heading-1 { font-size: 1.3em; }
   .md-table th, .md-table td { padding: 7px 9px; }
 }
+
+/* Copy feedback is the one moving part in a rendered answer. It is a short
+ * colour/border change, and it is removed entirely when the reader asked the
+ * system for less motion. */
+.md-code-copy {
+  transition: color 120ms ease, border-color 120ms ease, background-color 120ms ease;
+}
+.md-code-copy:focus-visible,
+.message.assistant .content[data-md] .md-link:focus-visible {
+  outline: 2px solid var(--premium-orange-strong, #c85e36);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-code-copy { transition: none; }
+  .message.assistant .content[data-md] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows High Contrast and other forced-colour modes drop the palette above.
+ * Structure then has to come from system colours and real borders, otherwise a
+ * code block, a quote and a table all collapse into the same flat surface. */
+@media (forced-colors: active) {
+  .message.assistant .content[data-md] .md-code,
+  .message.assistant .content[data-md] .md-table,
+  .message.assistant .content[data-md] .md-table th,
+  .message.assistant .content[data-md] .md-table td {
+    border: 1px solid CanvasText;
+  }
+  .message.assistant .content[data-md] .md-code-head,
+  .message.assistant .content[data-md] .md-code-body,
+  .message.assistant .content[data-md] .md-inline-code {
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+  .message.assistant .content[data-md] .md-inline-code {
+    border: 1px solid CanvasText;
+  }
+  .message.assistant .content[data-md] .md-quote {
+    border-inline-start: 3px solid CanvasText;
+  }
+  .message.assistant .content[data-md] .md-link { color: LinkText; }
+  .message.assistant .content[data-md] .md-divider { border-top-color: CanvasText; }
+  .md-code-copy { border-color: ButtonText; color: ButtonText; }
+  .md-code-copy:focus-visible { outline: 2px solid Highlight; }
+}

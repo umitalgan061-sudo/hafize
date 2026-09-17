@@ -10,4 +10,10 @@ assert.ok(styleAt >= 0 && rendererAt > styleAt && chatAt > rendererAt);
 assert.match(source, /loadScript\(RENDERER, \(\) => loadScript\(CHAT\)\)/);
 assert.match(source, /loaded\.has\(src\)/);
 
+// index.html now carries the same three assets as static tags, so the fallback
+// bootstrap must skip anything the document already loaded instead of fetching
+// and evaluating a second copy of the renderer.
+assert.match(source, /alreadyInDocument\(`link\[href="\$\{STYLE\}"\]`\)/, 'the stylesheet is skipped when the page already links it');
+assert.match(source, /alreadyInDocument\(`script\[src="\$\{src\}"\]`\)/, 'a script already in the document is never injected twice');
+
 console.log('chat markdown bootstrap order: ok');

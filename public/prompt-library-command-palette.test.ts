@@ -35,8 +35,10 @@ describe('Prompt Library command palette', () => {
 
   it('caps query length and maximum result count', () => {
     const items = Array.from({ length: 40 }, (_, index) => ({ id: String(index), title: `A ${index}`, body: 'A', tags: [], updatedAt: new Date().toISOString() }));
-    installStorage(items);
-    expect(searchPromptLibrary('A'.repeat(500))).toHaveLength(12);
+    installStorage([...items, { id: 'long', title: 'A'.repeat(120), body: '', tags: [], updatedAt: new Date().toISOString() }]);
+    // A 500 character query is truncated to the 120 character bound, so it can only
+    // match the prompt whose title is exactly that bounded string.
+    expect(searchPromptLibrary('A'.repeat(500)).map((item) => item.id)).toEqual(['long']);
     expect(searchPromptLibrary('A')).toHaveLength(12);
   });
 

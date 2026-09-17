@@ -59,6 +59,16 @@ Desteklenen akış:
 
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
+## Yanıt biçimlendirme
+
+Asistan yanıtları `markdown-renderer.js` + `chat-markdown.js` ikilisiyle güvenli
+markdown olarak çizilir. Renderer hiçbir zaman HTML metni ayrıştırmaz; her düğüm
+`createElement` / `createTextNode` ile kurulur ve yalnızca `http:`, `https:` ve
+`mailto:` adresleri bir `href` içine girebilir. Akış sırasında boyamalar tek bir
+animasyon karesinde birleştirilir, düğüm `aria-busy` ile işaretlenir ve yanıt
+tamamlandığında bekleyen kare iptal edilir. Kullanıcı mesajları düz metin olarak
+kalır. Ayrıntılar `docs/CHAT_MARKDOWN*.md` dosyalarındadır.
+
 ## Akıllı doldurma
 
 Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı doldurma panelini açar. Panel her `{{değişken}}` için bir alan üretir, önizlemeyi yazdıkça günceller ve yalnızca tüm alanlar dolduğunda composer'a aktarır.
@@ -70,6 +80,31 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 - `/prompt` komut paleti aynı istemleri composer içinden arayıp seçmeyi sağlar.
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
+
+## Toplu düzenleme
+
+İstem kartındaki `Toplu düzenle`, seçili istemlerin etiketlerini ve favori
+durumunu tek seferde değiştirir. Etiket ekleme, değiştirme ve çıkarma ayrı
+işlemlerdir; en fazla 40 istem seçilir, istem başına 8 etiket ve etiket başına 24
+karakter tutulur. Panel `role="dialog"` ile açılır ve `Escape` ile kapanır.
+Yazma, kütüphanenin kendi `saveItems` yazıcısı üzerinden yapılır.
+
+## İstem içe aktarma önizlemesi
+
+`İçe aktar`, seçilen yedeği doğrudan yazmak yerine önce ne olacağını gösterir:
+kaç istem yeni, kaçı kopya olarak eklenecek, kaçı sınır nedeniyle atlanacak ve
+kaçı okunamıyor. Onaylanana kadar hiçbir şey yazılmaz; onay sonrası yazma
+kütüphanenin kendi `saveItems` yazıcısı üzerinden yapılır. Dosya sınırı 1 MB'dır
+ve veri cihazdan ayrılmaz. Ayrıntılar `docs/PROMPT_LIBRARY_IMPORT_PREVIEW.md`
+dosyasındadır.
+
+## İstem sağlık kontrolü
+
+İstem kartındaki sağlık kontrolü paneli üç yerel depoyu (istemler, koleksiyonlar,
+sürüm geçmişi) okur ve okunamayan kayıtları, çakışan kimlikleri, silinmiş
+istemlere işaret eden koleksiyon üyeliklerini ve depo baskısını raporlar. Onarım
+yalnızca açık onayla çalışır ve yazma işlemleri ilgili modülün kendi yazıcısı
+üzerinden yapılır. Ayrıntılar `docs/PROMPT_LIBRARY_DIAGNOSTICS.md` dosyasındadır.
 
 ## Zamanlanmış Görevler
 
@@ -90,6 +125,24 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 ```bash
 npm run precheck
 npm run check
+npm run check:modern
+```
+
+`npm run check` tüm node tabanlı sözleşme/duman paketlerini, `npm run check:modern`
+ise TypeScript tip kontrolünü, Vitest paketlerini, biçim kontrolünü ve modern
+araç zinciri sözleşmelerini çalıştırır. Tarayıcı tarafındaki TypeScript modülleri
+`npm run build` ile `public/typed-build/` altına derlenir; bu dizin üretilen bir
+çıktıdır ve repoya commit edilmez (`npm start` öncesinde `prestart` derlemeyi
+kendisi yapar).
+
+İstem kütüphanesi ek kontrolleri:
+
+```bash
+node scripts/test-prompt-library-import-preview.mjs
+node scripts/test-prompt-library-import-preview-behavior.mjs
+node scripts/test-prompt-library-diagnostics.mjs
+node scripts/test-prompt-library-diagnostics-behavior.mjs
+node scripts/test-prompt-library-bulk-organizer.mjs
 ```
 
 Scheduled Tasks özel kontrolleri:
