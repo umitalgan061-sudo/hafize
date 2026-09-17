@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleExecutionRuntime } from '../lib/schedule-execution-runtime.mjs';
+import { createScheduleExecutionRuntime } from '../lib/schedule-execution-runtime.mts';
 
 const calls = [];
 const executor = {

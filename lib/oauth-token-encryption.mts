@@ -13,7 +13,7 @@ function keyBytes(value) {
   return key;
 }
 
-function decode(value, size) {
+function decode(value: unknown, size?: number): Buffer {
   if (typeof value !== 'string' || !value) throw new Error('OAUTH_TOKEN_DECRYPT_FAILED');
   const buffer = Buffer.from(value, 'base64');
   if (!buffer.length || (size && buffer.length !== size)) throw new Error('OAUTH_TOKEN_DECRYPT_FAILED');

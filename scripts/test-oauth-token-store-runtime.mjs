@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createOAuthTokenStoreRuntime, OAUTH_TOKEN_STORE_ENV } from '../lib/oauth-token-store-runtime.mjs';
+import { createOAuthTokenStoreRuntime, OAUTH_TOKEN_STORE_ENV } from '../lib/oauth-token-store-runtime.mts';
 
 const key = Buffer.alloc(32, 9).toString('base64');
 const calls = [];

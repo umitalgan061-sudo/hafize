@@ -43,7 +43,7 @@ export function rankSkills(skills, query) {
 export function createSkillSelector(skills) {
   const catalog = Object.freeze(skills?.filter(Boolean).slice() || []);
   return Object.freeze({
-    select(query, options) { return selectSkill(catalog, query, options); },
+    select(query: unknown, options?: { minScore?: number }) { return selectSkill(catalog, query, options); },
     rank(query) { return rankSkills(catalog, query); },
     size: catalog.length
   });

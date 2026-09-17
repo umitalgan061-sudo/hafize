@@ -17,10 +17,7 @@ function normalizeComponent(name, value) {
   return Object.freeze({ name, state, findings: Object.freeze(findings) });
 }
 
-/**
- * @param {{ runtime?: any; config?: any; release?: any; requiredComponents?: string[] }} [input]
- */
-export function evaluateDeploymentReadiness({ runtime, config, release, requiredComponents = ['runtime', 'config', 'release'] } = {}) {
+export function evaluateDeploymentReadiness({ runtime, config, release, requiredComponents = ['runtime', 'config', 'release'] }: { runtime?: any; config?: any; release?: any; requiredComponents?: string[] } = {}) {
   if (!Array.isArray(requiredComponents) || !requiredComponents.length) throw new Error('INVALID_DEPLOYMENT_REQUIRED_COMPONENTS');
 
   const names = [];
@@ -50,14 +47,12 @@ export function evaluateDeploymentReadiness({ runtime, config, release, required
   });
 }
 
-/** @param {Record<string, any>} report */
-export function assertDeploymentReleaseable(report) {
+export function assertDeploymentReleaseable(report: Record<string, any>) {
   if (!report || report.releaseable !== true || report.state !== 'ready') throw new Error('DEPLOYMENT_NOT_RELEASEABLE');
   return report;
 }
 
-/** @param {Record<string, any>} report */
-export function summarizeDeploymentReadiness(report) {
+export function summarizeDeploymentReadiness(report: Record<string, any>) {
   if (!report || !Array.isArray(report.components)) return 'deployment:unknown';
   return report.components.map((component) => `${component.name}:${component.state}`).join(',');
 }

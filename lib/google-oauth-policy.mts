@@ -24,8 +24,7 @@ function normalizeCapabilities(value) {
   return CAPABILITY_ORDER.filter((capability) => unique.has(capability));
 }
 
-/** @param {UnvalidatedInput} [input] */
-export function normalizeGoogleOAuthRequest(input = {}) {
+export function normalizeGoogleOAuthRequest(input: UnvalidatedInput = {}) {
   if (!input || Array.isArray(input) || typeof input !== 'object') fail('input');
   for (const key of Object.keys(input)) if (!ALLOWED_FIELDS.has(key)) fail(`unknown_field:${key}`);
 

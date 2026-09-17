@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { MAX_DELEGATED_CONTENT_CHARS, MAX_DELEGATED_ERROR_CHARS, normalizeDelegatedAgentResult } from '../lib/delegated-agent-result-policy.mjs';
+import { MAX_DELEGATED_CONTENT_CHARS, MAX_DELEGATED_ERROR_CHARS, normalizeDelegatedAgentResult } from '../lib/delegated-agent-result-policy.mts';
 
 function expectInvalid(value, reason) {
   const normalized = normalizeDelegatedAgentResult(value);

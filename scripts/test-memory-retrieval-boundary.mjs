@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { MEMORY_RETRIEVAL_LIMIT, normalizeMemoryRetrieval } from '../lib/memory-retrieval-boundary.mjs';
+import { MEMORY_RETRIEVAL_LIMIT, normalizeMemoryRetrieval } from '../lib/memory-retrieval-boundary.mts';
 
 assert.equal(MEMORY_RETRIEVAL_LIMIT, 5);
 const record = { memoryId: 'memory_abcdefgh1234', ownerId: 'user-1', kind: 'project', content: 'Hafize projesi üzerinde çalışıyor.', sourceType: 'user_statement', sourceRef: 'conversation-1:message-2' };

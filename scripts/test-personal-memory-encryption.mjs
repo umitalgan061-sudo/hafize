@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { decryptPersonalMemorySnapshot, encryptPersonalMemorySnapshot } from '../lib/personal-memory-encryption.mjs';
+import { decryptPersonalMemorySnapshot, encryptPersonalMemorySnapshot } from '../lib/personal-memory-encryption.mts';
 import { createPersonalMemoryPersistence } from '../lib/personal-memory-persistence.mjs';
 
 const key = Buffer.alloc(32, 7);

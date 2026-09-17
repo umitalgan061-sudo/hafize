@@ -6,11 +6,21 @@ import { fileURLToPath } from 'node:url';
 import { typecheck, PROJECTS as TYPE_PROJECTS } from './run-typecheck.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-// `.mts` de taranır: `node --check` tip sıyırmayı bilir, yani bir TypeScript
-// modülünün ayrıştırılabilirliği tiplerinden bağımsız olarak burada doğrulanır.
+// Sözdizimi taraması yalnızca JavaScript içindir.
+//
+// `.mts` bilerek dışarıdadır. `node --check` bir TypeScript modülünü önce
+// CommonJS olarak ayrıştırır ve yalnızca bu deneme *ESM sözdizimi* yüzünden
+// düşerse tip sıyırmalı moda geçer; bir tip açıklaması ilk `import`/`export`tan
+// önce geliyorsa hiç geçmez. Geçtiğinde bile sıyırma, tip bölgesini
+// doğrulamadan boşluğa çevirir: `function f(a: string {` gibi bozuk bir imza
+// sessizce geçer.
+//
+// `.mts` dosyalarının ayrıştırıcısı `tsc`'dir ve `npm run check` tip
+// denetimini en başta çalıştırır: yukarıdaki bozuk imza orada tam satır
+// numarasıyla `TS1005` olarak raporlanır.
 const SYNTAX_TARGETS = [
   { dir: '.', extensions: ['.mjs'] },
-  { dir: 'lib', extensions: ['.mjs', '.mts'] },
+  { dir: 'lib', extensions: ['.mjs'] },
   { dir: 'scripts', extensions: ['.mjs'] },
   { dir: 'public', extensions: ['.js'] }
 ];
@@ -184,3 +194,4 @@ try {
   console.error(error?.message || 'CHECK_RUNNER_FAILED');
   process.exit(1);
 }
+

@@ -1,34 +1,23 @@
 const REVOKE_ENDPOINT = 'https://api.canva.com/rest/v1/oauth/revoke';
 const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
-/**
- * @param {unknown} value
- * @param {string} field
- * @param {number} [max]
- * @returns {string}
- */
-function text(value, field, max = 4096) {
+function text(value: unknown, field: string, max: number = 4096): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (!normalized || normalized.length > max) throw new Error(`INVALID_CANVA_TOKEN_REVOKE:${field}`);
   return normalized;
 }
 
-/**
- * @param {{ clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch }} [options]
- */
-export function createCanvaTokenRevoke({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch } = {}) {
+export function createCanvaTokenRevoke({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch }: { clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch } = {}) {
   const safeClientId = text(clientId, 'clientId', 512);
   const safeClientSecret = text(clientSecret, 'clientSecret', 2048);
   if (typeof tokenStore?.load !== 'function' || typeof tokenStore?.remove !== 'function') throw new Error('INVALID_CANVA_TOKEN_REVOKE:tokenStore');
   if (typeof fetchImpl !== 'function') throw new Error('INVALID_CANVA_TOKEN_REVOKE:fetch');
   const authorization = `Basic ${Buffer.from(`${safeClientId}:${safeClientSecret}`, 'utf8').toString('base64')}`;
 
-  /**
-   * Jeton iptali açık kullanıcı isteği gerektirir.
-   *
-   * @param {{ ownerId?: string; explicitUserIntent?: boolean }} [input]
-   */
-  async function revoke({ ownerId, explicitUserIntent } = {}) {
+/**
+ * Jeton iptali açık kullanıcı isteği gerektirir.
+ */
+  async function revoke({ ownerId, explicitUserIntent }: { ownerId?: string; explicitUserIntent?: boolean } = {}) {
     const owner = text(ownerId, 'ownerId', 128);
     if (!OWNER_PATTERN.test(owner)) throw new Error('INVALID_CANVA_TOKEN_REVOKE:ownerId');
     if (explicitUserIntent !== true) throw new Error('CANVA_TOKEN_REVOKE_REQUIRES_INTENT');

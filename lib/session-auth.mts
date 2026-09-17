@@ -26,10 +26,7 @@ const decodeCookies = (header) => {
   return out;
 };
 
-/**
- * @param {{ secret?: string; subject?: string; ttlSeconds?: number; secureCookie?: boolean; cookieName?: string }} [options]
- */
-export function createSessionAuth({ secret, subject, ttlSeconds, secureCookie = false, cookieName = 'hafize_session' } = {}) {
+export function createSessionAuth({ secret, subject, ttlSeconds, secureCookie = false, cookieName = 'hafize_session' }: { secret?: string; subject?: string; ttlSeconds?: number; secureCookie?: boolean; cookieName?: string } = {}) {
   const expected = cleanSecret(secret), owner = cleanSubject(subject), ttl = ttlValue(ttlSeconds);
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(cookieName)) throw new Error('INVALID_SESSION_COOKIE_NAME');
   const verifyCredential = (candidate) => typeof candidate === 'string' && candidate.trim() !== '' && equal(candidate.trim(), expected);

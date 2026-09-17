@@ -35,8 +35,7 @@ function normalizeRecord(record, ownerId) {
   };
 }
 
-/** @param {{ ownerId?: string; records?: unknown }} [input] */
-export function normalizeMemoryRetrieval({ ownerId, records } = {}) {
+export function normalizeMemoryRetrieval({ ownerId, records }: { ownerId?: string; records?: unknown } = {}) {
   try {
     const safeOwnerId = text(ownerId, 'ownerId', 200);
     if (!Array.isArray(records) || records.length > MAX_RECORDS) throw new Error('INVALID_MEMORY_RETRIEVAL:records');

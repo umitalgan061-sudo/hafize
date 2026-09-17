@@ -35,13 +35,11 @@ function constantTimeTokenEquals(candidate, expected) {
   return timingSafeEqual(left, right);
 }
 
-/** @param {{ token?: string; subject?: string }} [options] */
-export function createBearerPrincipalAuthenticator({ token, subject } = {}) {
+export function createBearerPrincipalAuthenticator({ token, subject }: { token?: string; subject?: string } = {}) {
   const expectedToken = cleanToken(token);
   const principalSubject = cleanSubject(subject);
 
-  /** @param {{ headers?: Record<string, any> }} [input] */
-  function authenticate({ headers } = {}) {
+  function authenticate({ headers }: { headers?: Record<string, any> } = {}) {
     const authorization = readAuthorization(headers);
     const match = /^Bearer ([^\s]+)$/i.exec(authorization);
     if (!match) return { ok: false, error: 'AUTH_REQUIRED' };

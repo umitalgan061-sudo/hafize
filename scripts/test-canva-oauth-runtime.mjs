@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CANVA_AUTHORIZATION_ENDPOINT, createCanvaOAuthRuntime } from '../lib/canva-oauth-runtime.mjs';
+import { CANVA_AUTHORIZATION_ENDPOINT, createCanvaOAuthRuntime } from '../lib/canva-oauth-runtime.mts';
 
 const starts = [];
 const flowRuntime = {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createRateLimiter } from '../lib/rate-limit.mts';
-import { createSessionAuth } from '../lib/session-auth.mjs';
+import { createSessionAuth } from '../lib/session-auth.mts';
 
 const secret = 's'.repeat(64);
 const connectorToken = 'c'.repeat(64);

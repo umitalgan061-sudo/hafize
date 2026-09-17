@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createSkillSelector, rankSkills, selectSkill } from '../lib/skill-selector.mjs';
+import { createSkillSelector, rankSkills, selectSkill } from '../lib/skill-selector.mts';
 
 const skills = [
   { name: 'code-inspection', description: 'kod davranışını ve risklerini incele', triggers: ['kod incele', 'code review'] },

@@ -1,5 +1,5 @@
 import { createLocalModelProvider } from './local-model-provider.mjs';
-import { createModelProviderRouter } from './model-provider-router.mjs';
+import { createModelProviderRouter } from './model-provider-router.mts';
 
 function parseEnabled(value) {
   if (value == null || value === '' || value === '0' || value === 'false') return false;

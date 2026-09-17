@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { normalizeToolCall, parseToolArguments, sanitizeToolError, TOOL_CALL_LIMITS } from '../lib/tool-call-boundary.mjs';
+import { normalizeToolCall, parseToolArguments, sanitizeToolError, TOOL_CALL_LIMITS } from '../lib/tool-call-boundary.mts';
 
 const normalized = normalizeToolCall({ id: 'call-1', type: 'function', function: { name: 'github_read_file', arguments: '{"path":"README.md"}' } });
 assert.equal(normalized.id, 'call-1');

@@ -4,25 +4,13 @@ import { normalizeOAuthCallback } from './oauth-callback-contract.mts';
 
 /**
  * PKCE akışını başlatır ve geri dönüşü doğrular.
- *
- * @param {{ store?: any }} [options]
  */
-export function createOAuthFlowRuntime({ store = createOAuthFlowStore() } = {}) {
+export function createOAuthFlowRuntime({ store = createOAuthFlowStore() }: { store?: any } = {}) {
   if (typeof store?.issue !== 'function' || typeof store?.consume !== 'function') {
     throw new Error('INVALID_OAUTH_FLOW_RUNTIME:store');
   }
 
-  /**
-   * @param {{
-   *   provider?: string;
-   *   authorizationEndpoint?: string;
-   *   clientId?: string;
-   *   redirectUri?: string;
-   *   scopes?: string[];
-   *   extraParams?: Record<string, string>;
-   * }} [input]
-   */
-  function start({ provider, authorizationEndpoint, clientId, redirectUri, scopes, extraParams } = {}) {
+  function start({ provider, authorizationEndpoint, clientId, redirectUri, scopes, extraParams }: { provider?: string; authorizationEndpoint?: string; clientId?: string; redirectUri?: string; scopes?: string[]; extraParams?: Record<string, string>; } = {}) {
     const verifier = createPkceVerifier();
     const state = createOAuthState();
     const authorizationUrl = buildOAuthAuthorizationUrl({
@@ -38,8 +26,7 @@ export function createOAuthFlowRuntime({ store = createOAuthFlowStore() } = {}) 
     return Object.freeze({ authorizationUrl, state });
   }
 
-  /** @param {Record<string, any>} input */
-  function finish(input) {
+  function finish(input: Record<string, any>) {
     const callback = normalizeOAuthCallback(input);
     const flow = store.consume(callback.state);
     if (callback.ok === false) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CANVA_REVOKE_ENDPOINT, createCanvaTokenRevoke } from '../lib/canva-token-revoke.mjs';
+import { CANVA_REVOKE_ENDPOINT, createCanvaTokenRevoke } from '../lib/canva-token-revoke.mts';
 
 const loads = [];
 const removes = [];

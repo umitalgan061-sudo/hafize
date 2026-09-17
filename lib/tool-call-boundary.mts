@@ -6,7 +6,7 @@ const MAX_RESULT_TEXT_LENGTH = 32_000;
 // Boundary errors carry a code so sanitizeToolError reports the real reason
 // instead of collapsing every rejection into TOOL_EXECUTION_FAILED.
 function boundaryError(code) {
-  const error = /** @type {HafizeCodedError} */ (new Error(code));
+  const error = (new Error(code) as HafizeCodedError);
   error.code = code;
   return error;
 }

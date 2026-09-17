@@ -37,8 +37,7 @@ function exactKeys(descriptors, allowed) {
   return keys.every((key) => allowed.has(key)) && keys.length === allowed.size;
 }
 
-/** @param {UnvalidatedInput | null | undefined} value */
-export function normalizeDelegatedAgentResult(value) {
+export function normalizeDelegatedAgentResult(value: UnvalidatedInput | null | undefined) {
   const inspected = inspectDataRecord(value);
   if (!inspected.ok) return inspected;
   const { descriptors } = inspected;

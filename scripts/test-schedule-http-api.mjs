@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createBearerPrincipalAuthenticator } from '../lib/server-auth.mjs';
+import { createBearerPrincipalAuthenticator } from '../lib/server-auth.mts';
 import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mjs';
 import { createScheduleHttpApi } from '../lib/schedule-http-api.mjs';
 import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';

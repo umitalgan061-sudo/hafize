@@ -10,27 +10,10 @@ function requireFactory(value, label) {
 
 /**
  * Şifreli dosya deposu yapılandırılmışsa onu, değilse bellek içi depoyu kurar.
- *
  * Fabrikalar `Function` olarak yazılır: kontrol paketleri bunların yerine
  * yalnızca test ettikleri yüzeyi uygulayan ikizler geçirir.
- *
- * @param {{
- *   env?: Record<string, string | undefined>;
- *   storeOptions?: Record<string, any>;
- *   readConfig?: Function;
- *   createEncryptedAdapter?: Function;
- *   createPersistence?: Function;
- *   createMemoryStore?: Function;
- * }} [options]
  */
-export async function createScheduleStorageRuntime({
-  env = process.env,
-  storeOptions = {},
-  readConfig = readEncryptedScheduleStorageConfig,
-  createEncryptedAdapter = createEncryptedFileScheduleAdapter,
-  createPersistence = createTaskSchedulePersistence,
-  createMemoryStore = createTaskScheduleStore
-} = {}) {
+export async function createScheduleStorageRuntime({ env = process.env, storeOptions = {}, readConfig = readEncryptedScheduleStorageConfig, createEncryptedAdapter = createEncryptedFileScheduleAdapter, createPersistence = createTaskSchedulePersistence, createMemoryStore = createTaskScheduleStore }: { env?: Record<string, string | undefined>; storeOptions?: Record<string, any>; readConfig?: Function; createEncryptedAdapter?: Function; createPersistence?: Function; createMemoryStore?: Function; } = {}) {
   requireFactory(readConfig, 'readConfig');
   requireFactory(createEncryptedAdapter, 'createEncryptedAdapter');
   requireFactory(createPersistence, 'createPersistence');
@@ -39,7 +22,7 @@ export async function createScheduleStorageRuntime({
     throw new Error('INVALID_SCHEDULE_STORAGE_RUNTIME:storeOptions');
   }
 
-  const config = /** @type {{ filePath: string; key?: unknown } | null} */ (readConfig({ env }));
+  const config = (readConfig({ env }) as { filePath: string; key?: unknown } | null);
   if (!config) {
     return Object.freeze({
       store: createMemoryStore(storeOptions),

@@ -1,17 +1,12 @@
 const PROVIDERS = new Set(['nvidia', 'local']);
 
-/**
- * @param {string} code
- * @returns {never}
- */
-function fail(code) {
-  const error = /** @type {HafizeCodedError} */ (new Error(code));
+function fail(code: string): never {
+  const error = (new Error(code) as HafizeCodedError);
   error.code = code;
   throw error;
 }
 
-/** @param {unknown} value */
-function normalizeRequestedProvider(value) {
+function normalizeRequestedProvider(value: unknown) {
   if (value == null || value === '') return 'nvidia';
   if (typeof value !== 'string') fail('INVALID_MODEL_PROVIDER');
   const provider = value.trim().toLowerCase();
@@ -22,23 +17,16 @@ function normalizeRequestedProvider(value) {
 /**
  * Sağlayıcı seçimini tek yerde toplar; araç gerektiren istekler yerel
  * sağlayıcıya düşmez.
- *
- * @param {{ nvidiaComplete?: Function; localComplete?: Function | null; localEnabled?: boolean }} [options]
  */
-export function createModelProviderRouter({
-  nvidiaComplete,
-  localComplete = null,
-  localEnabled = false
-} = {}) {
+export function createModelProviderRouter({ nvidiaComplete, localComplete = null, localEnabled = false }: { nvidiaComplete?: Function; localComplete?: Function | null; localEnabled?: boolean } = {}) {
   if (typeof nvidiaComplete !== 'function') fail('INVALID_PROVIDER_ROUTER:nvidiaComplete');
   if (localComplete != null && typeof localComplete !== 'function') fail('INVALID_PROVIDER_ROUTER:localComplete');
   if (typeof localEnabled !== 'boolean') fail('INVALID_PROVIDER_ROUTER:localEnabled');
 
-  /**
-   * @param {unknown} [value] Verilmezse varsayılan sağlayıcı.
-   * @param {{ toolsRequired?: boolean }} [options]
-   */
-  function resolve(value, { toolsRequired = false } = {}) {
+/**
+ *  Verilmezse varsayılan sağlayıcı.
+ */
+  function resolve(value?: unknown, { toolsRequired = false }: { toolsRequired?: boolean } = {}) {
     const provider = normalizeRequestedProvider(value);
     if (provider === 'local') {
       if (!localEnabled || typeof localComplete !== 'function') fail('LOCAL_PROVIDER_NOT_ENABLED');
@@ -47,10 +35,7 @@ export function createModelProviderRouter({
     return provider;
   }
 
-  /**
-   * @param {{ provider?: string; payload?: unknown; signal?: AbortSignal; toolsRequired?: boolean }} [input]
-   */
-  async function complete({ provider, payload, signal, toolsRequired = false } = {}) {
+  async function complete({ provider, payload, signal, toolsRequired = false }: { provider?: string; payload?: unknown; signal?: AbortSignal; toolsRequired?: boolean } = {}) {
     const selected = resolve(provider, { toolsRequired });
     if (!payload || Array.isArray(payload) || typeof payload !== 'object') fail('INVALID_PROVIDER_PAYLOAD');
     const result = selected === 'local'

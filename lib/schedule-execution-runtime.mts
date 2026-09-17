@@ -24,20 +24,16 @@ function projectWorkerResult(value) {
   const ok = descriptors.ok?.value;
   if (ok === true) return Object.freeze({ ok: true });
   if (ok !== false) return value;
-  const projected = { ok: false, error: descriptors.error?.value };
+  const projected: { ok: false; error?: unknown; retryAt?: unknown } = { ok: false, error: descriptors.error?.value };
   if (Object.prototype.hasOwnProperty.call(descriptors, 'retryAt')) projected.retryAt = descriptors.retryAt.value;
   return Object.freeze(projected);
 }
 
-/** @param {(input: unknown) => Promise<any>} executeAgentTask */
-function workerFacingExecutor(executeAgentTask) {
+function workerFacingExecutor(executeAgentTask: (input: unknown) => Promise<any>) {
   return async (input) => projectWorkerResult(await executeAgentTask(input));
 }
 
-/**
- * @param {{ executor?: any; lease?: any; renewIntervalMs?: number; createGuard?: Function }} [options]
- */
-export function createScheduleExecutionRuntime({ executor, lease = null, renewIntervalMs, createGuard = createScheduleLeaseGuardedExecutor } = {}) {
+export function createScheduleExecutionRuntime({ executor, lease = null, renewIntervalMs, createGuard = createScheduleLeaseGuardedExecutor }: { executor?: any; lease?: any; renewIntervalMs?: number; createGuard?: Function } = {}) {
   if (!hasExecutor(executor)) throw new Error('INVALID_SCHEDULE_EXECUTION_RUNTIME:executor');
   if (lease == null) return Object.freeze({ configured: Boolean(executor.configured), leaseGuarded: false, executeAgentTask: workerFacingExecutor(executor.executeAgentTask) });
   if (typeof createGuard !== 'function') throw new Error('INVALID_SCHEDULE_EXECUTION_RUNTIME:createGuard');

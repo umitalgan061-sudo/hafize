@@ -21,14 +21,7 @@ function normalizeDirectory(value) {
   return directory;
 }
 
-/**
- * @param {{ env?: Record<string, string | undefined>; createStore?: Function; maxFileBytes?: number }} [options]
- */
-export function createOAuthTokenStoreRuntime({
-  env = process.env,
-  createStore = createOAuthTokenFileStore,
-  maxFileBytes
-} = {}) {
+export function createOAuthTokenStoreRuntime({ env = process.env, createStore = createOAuthTokenFileStore, maxFileBytes }: { env?: Record<string, string | undefined>; createStore?: Function; maxFileBytes?: number } = {}) {
   if (!env || typeof env !== 'object') fail('env');
   if (typeof createStore !== 'function') fail('createStore');
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createModelProviderRouter, MODEL_PROVIDER_IDS } from '../lib/model-provider-router.mjs';
+import { createModelProviderRouter, MODEL_PROVIDER_IDS } from '../lib/model-provider-router.mts';
 
 const calls = [];
 const router = createModelProviderRouter({

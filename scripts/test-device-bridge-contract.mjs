@@ -4,7 +4,7 @@ import { createDeviceBridge, DEVICE_BRIDGE_CONTRACT, normalizeDeviceBridgeComman
 import { authorizeDeviceToolRequest, DEVICE_TOOL_BOUNDARY, executeDeviceToolRequest, listDeviceToolPermissions } from '../lib/device-bridge-tool-boundary.mjs';
 import { createDeviceApprovalLeaseStore, DEVICE_APPROVAL_LEASE_CONTRACT, deviceApprovalTargetForRequest } from '../lib/device-approval-lease.mjs';
 import { createDeviceApprovalReviewStore, DEVICE_APPROVAL_REVIEW_CONTRACT } from '../lib/device-approval-review.mjs';
-import { createDeviceApprovalAuditEvent, DEVICE_APPROVAL_AUDIT_CONTRACT } from '../lib/device-approval-audit.mjs';
+import { createDeviceApprovalAuditEvent, DEVICE_APPROVAL_AUDIT_CONTRACT } from '../lib/device-approval-audit.mts';
 
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'system.info' }), { ok: true, command: { action: 'system.info' } });
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'browser.open', explicitUserIntent: true, url: 'https://example.com/path?q=1' }), { ok: true, command: { action: 'browser.open', url: 'https://example.com/path?q=1' } });

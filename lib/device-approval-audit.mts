@@ -21,10 +21,7 @@ function sanitizeAppTarget(value) {
   return { displayTarget: appId, queryRedacted: false };
 }
 
-/**
- * @param {{ stage?: string; traceId?: string; action?: string; target?: string; timestamp?: number }} [input]
- */
-export function createDeviceApprovalAuditEvent({ stage, traceId, action, target, timestamp = Date.now() } = {}) {
+export function createDeviceApprovalAuditEvent({ stage, traceId, action, target, timestamp = Date.now() }: { stage?: string; traceId?: string; action?: string; target?: string; timestamp?: number } = {}) {
   const normalizedStage = cleanString(stage, 'stage', 40);
   const normalizedAction = cleanString(action, 'action', 40);
   const normalizedTraceId = cleanString(traceId, 'traceId', 160);

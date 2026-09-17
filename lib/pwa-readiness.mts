@@ -2,30 +2,19 @@ const REQUIRED_SHELL_PATHS = Object.freeze(['/', '/index.html', '/offline.html',
 const REQUIRED_MANIFEST_FIELDS = Object.freeze(['name', 'short_name', 'start_url', 'display', 'icons']);
 const ALLOWED_DISPLAY = new Set(['standalone', 'minimal-ui', 'fullscreen', 'browser']);
 
-/**
- * @param {string} code
- * @returns {never}
- */
-function fail(code) {
-  const error = /** @type {HafizeCodedError} */ (new Error(code));
+function fail(code: string): never {
+  const error = (new Error(code) as HafizeCodedError);
   error.code = code;
   throw error;
 }
 
-/**
- * @param {unknown} value
- * @param {number} max
- * @param {string} code
- * @returns {string}
- */
-function text(value, max, code) {
+function text(value: unknown, max: number, code: string): string {
   const result = typeof value === 'string' ? value.trim() : '';
   if (!result || result.length > max) fail(code);
   return result;
 }
 
-/** @param {Record<string, any> | null | undefined} manifest */
-export function checkPwaManifest(manifest) {
+export function checkPwaManifest(manifest: Record<string, any> | null | undefined) {
   if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) fail('INVALID_PWA_MANIFEST');
   const missing = REQUIRED_MANIFEST_FIELDS.filter((field) => manifest[field] == null);
   if (missing.length) return Object.freeze({ pass: false, missing, issues: [`missing:${missing.join(',')}`] });
@@ -40,8 +29,7 @@ export function checkPwaManifest(manifest) {
   return Object.freeze({ pass: issues.length === 0, missing: [], issues, name, shortName, startUrl, display, iconCount: Array.isArray(manifest.icons) ? manifest.icons.length : 0 });
 }
 
-/** @param {unknown} paths */
-export function checkPwaShell(paths) {
+export function checkPwaShell(paths: unknown) {
   if (!Array.isArray(paths)) fail('INVALID_PWA_SHELL');
   const normalized = new Set(paths.filter((path) => typeof path === 'string').map((path) => path.trim()));
   const missing = REQUIRED_SHELL_PATHS.filter((path) => !normalized.has(path));
@@ -49,8 +37,7 @@ export function checkPwaShell(paths) {
   return Object.freeze({ pass: missing.length === 0 && networkApiCached.length === 0, missing, forbiddenCachedPaths: networkApiCached });
 }
 
-/** @param {{ manifest?: Record<string, any>; shellPaths?: unknown; serviceWorker?: Record<string, any> }} [input] */
-export function evaluatePwaReadiness({ manifest, shellPaths, serviceWorker } = {}) {
+export function evaluatePwaReadiness({ manifest, shellPaths, serviceWorker }: { manifest?: Record<string, any>; shellPaths?: unknown; serviceWorker?: Record<string, any> } = {}) {
   const manifestResult = checkPwaManifest(manifest);
   const shellResult = checkPwaShell(shellPaths);
   const swResult = typeof serviceWorker === 'object' && serviceWorker !== null
