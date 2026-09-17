@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import { evaluateRuntimeReadiness, normalizeReadinessReport, updateReadinessComponent, RUNTIME_READINESS_COMPONENTS } from '../lib/runtime-readiness.mjs';
 
-const report = normalizeReadinessReport({ auth: { status: 'ready' }, pwa: { status: 'ready' }, skills: { status: 'ready' }, memory: { status: 'ready' }, schedule: { status: 'warning', detail: 'retry backlog' }, connectors: { status: 'ready' }, model: { status: 'ready' } });
+const report = normalizeReadinessReport({
+  auth: { status: 'ready' },
+  pwa: { status: 'ready' },
+  skills: { status: 'ready' },
+  memory: { status: 'ready' },
+  schedule: { status: 'warning', detail: 'retry backlog' },
+  connectors: { status: 'ready' },
+  model: { status: 'ready' }
+});
 assert.equal(Object.keys(report).length, RUNTIME_READINESS_COMPONENTS.length);
 assert.equal(report.schedule.status, 'warning');
 assert.equal(evaluateRuntimeReadiness(report).ready, false);

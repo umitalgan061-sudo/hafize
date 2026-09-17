@@ -19,13 +19,23 @@
     return api && typeof api.renderMarkdownInto === 'function' ? api : null;
   }
 
+  /**
+   * Only an assistant answer is markdown: a user message is shown exactly as it
+   * was typed, and a caller that passes a role but no explicit `plain` flag still
+   * gets that rule applied instead of an accidental markdown pass.
+   */
+  function isPlain(options) {
+    if (options.plain !== undefined) return Boolean(options.plain);
+    return options.role !== undefined && options.role !== 'assistant';
+  }
+
   function flushPaint(container) {
     const job = pendingPaints.get(container);
     if (!job) return null;
     pendingPaints.delete(container);
     const api = markdown();
     const { text, options } = job;
-    if (!api || options.plain) {
+    if (!api || isPlain(options)) {
       if (api) return api.renderPlainInto(container, text, options) ? { rendered: false } : null;
       container.textContent = text || options.placeholder || '';
       return { rendered: false };
@@ -153,7 +163,24 @@
     return true;
   }
 
-  if (root.document?.querySelector) init();
+  /**
+   * Code copy is delegated from `#messages`, so the binding is lost whenever that
+   * node is replaced — a conversation switch rebuilds the list. A MutationObserver
+   * re-binds the fresh node instead of leaving dead copy buttons behind. `init()`
+   * is idempotent through the `mdCopyBound` flag, so re-running it is free.
+   */
+  function watch(documentRef = root.document) {
+    const target = documentRef?.body;
+    if (!target || typeof root.MutationObserver !== 'function') return null;
+    const observer = new root.MutationObserver(() => { init(); });
+    observer.observe(target, { childList: true, subtree: true });
+    return observer;
+  }
 
-  return Object.freeze({ paint, sourceFor, plainTextFor, copyText, codeTextFor, init, COPY_FEEDBACK_MS });
+  if (root.document?.querySelector) {
+    init();
+    watch();
+  }
+
+  return Object.freeze({ paint, isPlain, sourceFor, plainTextFor, copyText, codeTextFor, init, watch, COPY_FEEDBACK_MS });
 });

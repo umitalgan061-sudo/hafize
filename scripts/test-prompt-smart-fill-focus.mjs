@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
 assert.match(text, /lastFocus = documentRef\.activeElement/);
-assert.match(text, /lastFocus\?\.focus\?\.\(\)/);
+assert.match(text, /lastFocus instanceof HTMLElement\) lastFocus\.focus\(\)/);
 assert.match(text, /lastFocus = null/);
 assert.match(text, /dialog\.addEventListener\('keydown'/);
 assert.match(text, /event\.key === 'Escape'/);

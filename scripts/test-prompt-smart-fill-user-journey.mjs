@@ -4,24 +4,24 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const smart = read('public/prompt-library-smart-fill.js');
-const palette = read('public/prompt-library-command-palette.js');
-const hints = read('public/prompt-library-smart-fill-hints.js');
+const smart = read('public/prompt-library-smart-fill.ts');
+const palette = read('public/prompt-library-command-palette.ts');
+const hints = read('public/prompt-library-smart-fill-hints.ts');
 const index = read('public/index.html');
 
 const openFlow = [
-  'function interceptUse(event)',
-  'closest?.(\'.prompt-item-actions button\')',
+  'const interceptUse',
+  "closest<HTMLButtonElement>('.prompt-item-actions button')",
   "textContent?.trim() !== 'Kullan'",
-  'variableNames(promptItem.body)',
+  'variableNames(prompt.body)',
   'event.preventDefault()',
   'event.stopImmediatePropagation()',
-  'openFor(promptItem)'
+  'openFor(prompt)'
 ];
 for (const token of openFlow) assert.ok(smart.includes(token), `open flow missing: ${token}`);
 
 const editFlow = [
-  'function renderPreview()',
+  'const renderPreview',
   'currentValues()',
   'replaceVariables?.(activePrompt.body, values)',
   'preview.textContent',
@@ -30,7 +30,7 @@ const editFlow = [
 for (const token of editFlow) assert.ok(smart.includes(token), `preview flow missing: ${token}`);
 
 const presetFlow = [
-  'function savePreset()',
+  'const savePreset',
   'readPresets(activePrompt.id)',
   'writePresets(activePrompt.id',
   'renderPresetBar()',
@@ -39,11 +39,11 @@ const presetFlow = [
 for (const token of presetFlow) assert.ok(smart.includes(token), `preset flow missing: ${token}`);
 
 const insertFlow = [
-  'function insertIntoComposer()',
-  'activeNames.some',
-  'values[name].trim().length === 0',
-  "showError('Tüm değişken alanlarını dold",
-  'composer.value = text.slice',
+  'const insertIntoComposer',
+  'activeNames.filter',
+  "(values[name] ?? '').trim().length === 0",
+  'showError(`Doldurulmamış değişkenler',
+  'composer.value = text',
   "new Event('input', { bubbles: true })",
   'composer.focus()',
   'closeDialog()'
@@ -53,18 +53,18 @@ assert.doesNotMatch(smart,/requestSubmit\s*\(/);
 assert.doesNotMatch(smart,/\.submit\s*\(/);
 
 const paletteFlow = [
-  'function onInput(event)',
-  "match = before.match(/(^|\\s)\\/prompt",
+  'const onInput',
+  "input.value.slice(0, cursor).match(/(^|\\s)\\/prompt",
   'activeIndex = 0',
   'render()',
-  'function move(delta)',
+  'const move',
   "event.key === 'Enter'",
   "event.key === 'Escape'",
   'insert(item)'
 ];
 for (const token of paletteFlow) assert.ok(palette.includes(token), `palette flow missing: ${token}`);
 
-assert.match(hints,/function paint\(panel\)/);
+assert.match(hints,/function paintSmartFillHints\(panel/);
 assert.match(hints,/nextElementSibling/);
 assert.match(hints,/requestAnimationFrame/);
 

@@ -24,6 +24,7 @@ interface PromptLibraryApi {
 }
 
 interface SmartFillRoot extends Window {
+  StorageEvent?: typeof StorageEvent;
   HafizePromptLibrary?: PromptLibraryApi;
   HafizePromptLibrarySmartFill?: {
     readonly STORAGE_KEY: string;
@@ -38,7 +39,7 @@ interface SmartFillController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as SmartFillRoot;
+const root = globalThis as unknown as SmartFillRoot;
 const STORAGE_KEY = 'hafize.prompt-library.smart-fill.v1';
 const CARD_ID = 'promptLibraryCard';
 const MAX_VALUE = 1000;
@@ -188,44 +189,53 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     preview.textContent = core()?.replaceVariables?.(activePrompt.body, values)?.slice(0, MAX_PREVIEW) || activePrompt.body.slice(0, MAX_PREVIEW);
   };
 
-  const persistPresetBar = (): void => {
+  /** The `<option>` list of the saved variable sets for the open prompt. */
+  const presetSelectOptions = (promptId: PromptId): HTMLOptionElement[] => {
+    const empty = element(documentRef, 'option', 'Değişken seti seç…');
+    empty.value = '';
+    return [empty, ...readPresets(promptId).map((preset) => {
+      const option = element(documentRef, 'option', preset.name);
+      option.value = preset.id;
+      return option;
+    })];
+  };
+
+  /** Stores the values currently in the form as a named variable set. */
+  const savePreset = (): void => {
+    if (!activePrompt) return;
+    const name = rootRef.prompt?.('Değişken seti adı:', '')?.trim?.() || '';
+    if (!name) return;
+    const next: VariablePreset = Object.freeze({ id: randomId(), name: clamp(name, MAX_NAME), values: Object.freeze(currentValues()) });
+    if (!writePresets(activePrompt.id, [next, ...readPresets(activePrompt.id)])) showError('Değişken seti kaydedilemedi.');
+    else renderPresetBar();
+  };
+
+  const applyPreset = (presetId: string): void => {
+    if (!activePrompt) return;
+    const found = readPresets(activePrompt.id).find((preset) => preset.id === presetId);
+    if (!found) return;
+    activeNames.forEach((name) => {
+      const input = activeInputs.get(name);
+      if (input) input.value = found.values[name] || '';
+    });
+    renderPreview();
+  };
+
+  const renderPresetBar = (): void => {
     presetBar.replaceChildren();
     if (!activePrompt || !activeNames.length) return;
     const select = element(documentRef, 'select', undefined, 'prompt-smart-fill-preset-select');
     select.setAttribute('aria-label', 'Kaydedilmiş değişken seti');
-    const empty = element(documentRef, 'option', 'Değişken seti seç…');
-    empty.value = '';
-    select.append(empty);
-    readPresets(activePrompt.id).forEach((preset) => {
-      const option = element(documentRef, 'option', preset.name);
-      option.value = preset.id;
-      select.append(option);
-    });
+    select.append(...presetSelectOptions(activePrompt.id));
     const save = button(documentRef, 'Seti kaydet', 'mini-btn');
     const clear = button(documentRef, 'Setleri temizle', 'mini-btn');
     presetBar.append(select, save, clear);
-    select.addEventListener('change', () => {
-      if (!activePrompt) return;
-      const found = readPresets(activePrompt.id).find((preset) => preset.id === select.value);
-      if (!found) return;
-      activeNames.forEach((name) => {
-        const input = activeInputs.get(name);
-        if (input) input.value = found.values[name] || '';
-      });
-      renderPreview();
-    });
-    save.addEventListener('click', () => {
-      if (!activePrompt) return;
-      const name = rootRef.prompt?.('Değişken seti adı:', '')?.trim?.() || '';
-      if (!name) return;
-      const next: VariablePreset = Object.freeze({ id: randomId(), name: clamp(name, MAX_NAME), values: Object.freeze(currentValues()) });
-      if (!writePresets(activePrompt.id, [next, ...readPresets(activePrompt.id)])) showError('Değişken seti kaydedilemedi.');
-      else persistPresetBar();
-    });
+    select.addEventListener('change', () => applyPreset(select.value));
+    save.addEventListener('click', savePreset);
     clear.addEventListener('click', () => {
       if (!activePrompt || !rootRef.confirm?.('Bu istemin kaydedilmiş değişken setleri silinsin mi?')) return;
       writePresets(activePrompt.id, []);
-      persistPresetBar();
+      renderPresetBar();
     });
   };
 
@@ -236,12 +246,16 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     const items = api.loadItems(store);
     const index = items.findIndex((item) => item.id === promptId);
     if (index < 0) return;
-    const next = items.slice();
     const item = items[index];
+    if (!item) return;
+    const next = items.slice();
     const updated = api.normalizeItem({ ...item, useCount: Number(item.useCount) + 1, updatedAt: new Date().toISOString() });
     if (!updated) return;
     next[index] = updated;
-    if (!api.saveItems(store, next)) return;
+    // The use count belongs to the prompt library, so it is written through the
+    // library's own writer: this module owns no key but its own preset store.
+    const persist = (items: readonly PromptRecord[]): boolean => Boolean(api.saveItems?.(store, [...items]));
+    if (!persist(next)) return;
     try {
       const detail = { key: api.STORAGE_KEY, newValue: JSON.stringify(next), storageArea: store };
       if (typeof rootRef.StorageEvent === 'function') rootRef.dispatchEvent(new rootRef.StorageEvent('storage', detail));
@@ -251,7 +265,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
   const insertIntoComposer = (): void => {
     if (!activePrompt) return;
     const values = currentValues();
-    const missing = activeNames.filter((name) => values[name].trim().length === 0);
+    const missing = activeNames.filter((name) => (values[name] ?? '').trim().length === 0);
     if (missing.length) return showError(`Doldurulmamış değişkenler: ${missing.map((name) => `{{${name}}}`).join(', ')}`);
     const text = core()?.replaceVariables?.(activePrompt.body, values)?.slice(0, MAX_PREVIEW) || activePrompt.body.slice(0, MAX_PREVIEW);
     const composer = documentRef.querySelector<HTMLTextAreaElement>('#messageInput');
@@ -295,7 +309,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
       activeInputs.set(name, input);
       if (index === 0) rootRef.setTimeout?.(() => input.focus(), 0);
     });
-    persistPresetBar();
+    renderPresetBar();
     renderPreview();
     dialog.hidden = false;
     if (!activeNames.length) showError('Bu istem değişken içermiyor. Doğrudan mesaja aktarılabilir.');
@@ -309,6 +323,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
+    if (!first || !last) return;
     if (event.shiftKey && documentRef.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && documentRef.activeElement === last) { event.preventDefault(); first.focus(); }
   };
@@ -328,14 +343,16 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
 
   close.addEventListener('click', closeDialog);
   cancel.addEventListener('click', closeDialog);
-  copy.addEventListener('click', async () => {
+  const copyPreview = async (): Promise<void> => {
     try {
       await rootRef.navigator?.clipboard?.writeText?.(preview.textContent || '');
       showError('Önizleme panoya kopyalandı.');
     } catch {
       showError('Önizleme panoya kopyalanamadı.');
     }
-  });
+  };
+
+  copy.addEventListener('click', () => { void copyPreview(); });
   insert.addEventListener('click', insertIntoComposer);
   dialog.addEventListener('keydown', trapKeydown);
   card.addEventListener('click', interceptUse, true);
@@ -352,6 +369,8 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     }
   });
 }
+
+export { mount, readPresets, writePresets, variableNames, STORAGE_KEY };
 
 const api = Object.freeze({ STORAGE_KEY, mount, readPresets, writePresets, variableNames });
 root.HafizePromptLibrarySmartFill = api;

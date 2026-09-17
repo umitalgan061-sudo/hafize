@@ -208,9 +208,15 @@
     let selectedPrompt = '';
     let hidden = false;
 
+    let statusTimer;
+    let storageTimer;
+
     function setStatus(value) {
       status.textContent = clip(value, 160);
-      rootRef.setTimeout?.(() => { if (status.textContent === value) status.textContent = ''; }, 2600);
+      // A second message must not be wiped by the first one's timer, and a timer
+      // left running after destroy() would write into a detached node.
+      rootRef.clearTimeout?.(statusTimer);
+      statusTimer = rootRef.setTimeout?.(() => { if (status.textContent === value) status.textContent = ''; }, 2600);
     }
 
     function updatePromptOptions() {
@@ -280,7 +286,13 @@
 
     choose.addEventListener('change', render);
     refresh.addEventListener('click', render);
-    const onStorage = (event) => { if (event.key === PROMPT_KEY || event.key === REVISION_KEY) render(); };
+    // A bulk import writes the key many times in a row; repainting per event would
+    // rebuild the whole list each time, so the repaint is debounced.
+    const onStorage = (event) => {
+      if (event.key !== PROMPT_KEY && event.key !== REVISION_KEY) return;
+      rootRef.clearTimeout?.(storageTimer);
+      storageTimer = rootRef.setTimeout?.(() => render(), 120);
+    };
     rootRef.addEventListener?.('storage', onStorage);
     let previous = JSON.stringify(readPrompts(rootRef.localStorage));
     const observer = typeof MutationObserver === 'function' ? new MutationObserver(() => {
@@ -317,6 +329,8 @@
       destroy: () => {
         observer?.disconnect();
         rootRef.removeEventListener?.('storage', onStorage);
+        rootRef.clearTimeout?.(statusTimer);
+        rootRef.clearTimeout?.(storageTimer);
         section.remove();
       }
     });

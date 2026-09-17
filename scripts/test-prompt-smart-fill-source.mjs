@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const file = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.js'), 'utf8');
+const file = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.ts'), 'utf8');
 
 assert.match(file, /HafizePromptLibrarySmartFill/);
 assert.match(file, /readPresets/);

@@ -4,7 +4,7 @@ import { parseAgents, parseHealth, parseModels } from './hafize-types.ts';
 describe('typed contract hostile payloads', () => {
   it('ignores prototype-like and oversized agent fields', () => {
     const payload = {
-      defaultAgent: '__proto__',
+      defaultAgent: '__proto__'.repeat(40),
       agents: [{ id: 'a'.repeat(500), name: 'b'.repeat(500), description: 'c'.repeat(500), tools: Array(200).fill('tool') }]
     };
     const parsed = parseAgents(payload);
@@ -13,6 +13,8 @@ describe('typed contract hostile payloads', () => {
     expect(parsed.agents[0]?.name).toHaveLength(160);
     expect(parsed.agents[0]?.description).toHaveLength(320);
     expect(parsed.agents[0]?.tools).toHaveLength(64);
+    expect(Object.getPrototypeOf(parsed)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 
   it('rejects non-object health values without throwing', () => {

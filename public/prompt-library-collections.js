@@ -84,7 +84,7 @@
     try {
       const raw = storage?.getItem?.(PROMPT_KEY);
       const prompts = raw ? JSON.parse(raw) : [];
-      return new Set(Array.isArray(prompts) ? prompts.filter((item) => item && typeof item.id === 'string').map((item) => item.id) : []);
+      return new Set(Array.isArray(prompts) ? prompts.filter((item) => item && typeof item === 'object' && typeof item.id === 'string').map((item) => item.id) : []);
     } catch {
       return new Set();
     }

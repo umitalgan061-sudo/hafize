@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const ROOT = new URL('../', import.meta.url);
 const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -23,7 +24,9 @@ for (const entry of entries) {
   assert(vite.includes(`'${entry}':`), `${entry} missing from Vite entry map`);
 }
 
-assert(sw.includes('hafize-shell-v35'), 'expected cache version v35');
+// The shell cache version is bumped on every shell change, so the contract is
+// "a versioned cache name exists", never a literal version number.
+assertVersionedCacheDeclaration(sw);
 assert(!html.includes('typed-build/*.js'), 'wildcard generated entry is not allowed');
 assert(!html.includes('/public/typed'), 'source filesystem path must not appear in HTML');
 console.log(`generated-assets-contract: ${entries.length} typed entries aligned`);

@@ -41,9 +41,10 @@ export interface RuntimeSnapshot {
   readonly lastErrorCode: string | null;
 }
 
-export interface ApiRequestOptions extends RequestInit {
-  readonly timeoutMs?: number;
-  readonly retry?: number;
+export interface ApiRequestOptions extends Omit<RequestInit, 'signal'> {
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: number | undefined;
+  readonly signal?: AbortSignal | null | undefined;
 }
 
 export class HafizeApiError extends Error {

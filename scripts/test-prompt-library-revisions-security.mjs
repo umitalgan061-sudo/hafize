@@ -12,7 +12,7 @@ for (const pattern of [
   /storage\?\.setItem/,
   /return null;/,
   /return false;/,
-  /confirm/, 
+  /confirm/,
   /textContent/
 ]) assert.match(source, pattern);
 for (const forbidden of [/innerHTML\s*=/, /outerHTML/, /document\.write/, /sendBeacon/, /XMLHttpRequest/, /WebSocket/, /fetch\s*\(/, /Authorization/]) {
