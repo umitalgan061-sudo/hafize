@@ -1,0 +1,29 @@
+.prompt-library-health{display:flex;flex-direction:column;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.prompt-library-health-head{display:flex;align-items:center;gap:7px;min-width:0}
+.prompt-library-health-head strong{font-size:12px;line-height:1.35}
+.prompt-library-health-status{margin-left:auto;color:var(--muted);font-size:10px;text-align:right}
+.prompt-library-health-status[data-state="healthy"]{color:var(--accent-strong)}
+.prompt-library-health-status[data-state="issues"]{color:var(--muted)}
+.prompt-library-health-body{display:flex;flex-direction:column;gap:8px}
+.prompt-library-health-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(105px,.9fr);gap:6px}
+.prompt-library-health-actions .mini-btn{min-width:0;font-size:10px}
+.prompt-library-health-actions select{width:100%;min-width:0;box-sizing:border-box;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:6px 7px;font:inherit;font-size:10px}
+.prompt-library-health-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.prompt-library-health-metric{min-width:0;padding:7px 6px;border:1px solid var(--line);border-radius:8px;background:var(--panel);text-align:center}
+.prompt-library-health-value{display:block;font-size:13px;font-weight:650;line-height:1.2}
+.prompt-library-health-label{display:block;margin-top:2px;color:var(--muted);font-size:9px;line-height:1.2}
+.prompt-library-health-metric.has-error .prompt-library-health-value{color:var(--danger,#c33)}
+.prompt-library-health-metric.has-warning .prompt-library-health-value{color:var(--warning,#a66d00)}
+.prompt-library-health-issues{display:flex;flex-direction:column;gap:5px;max-height:320px;overflow:auto;overscroll-behavior:contain}
+.prompt-library-health-issue{display:flex;flex-direction:column;gap:2px;padding:7px;border-left:3px solid var(--line);border-radius:7px;background:var(--panel)}
+.prompt-library-health-issue.is-error{border-left-color:var(--danger,#c33)}
+.prompt-library-health-issue.is-warning{border-left-color:var(--warning,#a66d00)}
+.prompt-library-health-issue.is-info{border-left-color:var(--accent)}
+.prompt-library-health-issue-title{font-size:10px;font-weight:650}
+.prompt-library-health-issue-detail{font-size:10px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.prompt-library-health-issue-meta{font-size:9px;color:var(--muted);overflow-wrap:anywhere}
+.prompt-library-health-empty,.prompt-library-health-message{padding:7px;color:var(--muted);font-size:10px;line-height:1.4}
+.prompt-library-health-actions button:focus-visible,.prompt-library-health-actions select:focus-visible,.prompt-library-health-head button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+@media (max-width:700px){.prompt-library-health-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.prompt-library-health-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.prompt-library-health-issues{max-height:260px}}
+@media (forced-colors:active){.prompt-library-health-metric,.prompt-library-health-issue,.prompt-library-health-actions select{border-color:CanvasText;background:Canvas;color:CanvasText}.prompt-library-health-issue.is-error,.prompt-library-health-issue.is-warning,.prompt-library-health-issue.is-info{border-left-color:Highlight}}
+@media (prefers-reduced-motion:reduce){.prompt-library-health-issues{scroll-behavior:auto}}
