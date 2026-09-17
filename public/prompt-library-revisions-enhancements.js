@@ -1,15 +1,12 @@
 (function installPromptRevisionEnhancements(root) {
   'use strict';
   const PANEL = '#promptLibraryRevisions';
-  const CARD = '#promptLibraryCard';
   let booted = false;
   let observer = null;
   const listeners = [];
   const doc = () => root.document;
   const api = () => root.HafizePromptLibraryRevisions;
   const storage = () => root.localStorage;
-  const promptIds = () => [...doc()?.querySelectorAll?.('#promptLibraryList .prompt-item[data-prompt-id]') || []]
-    .map((row) => row.dataset.promptId).filter(Boolean);
 
   function status(message) {
     const node = doc()?.querySelector?.(`${PANEL} .prompt-library-revisions-status`);
@@ -33,6 +30,25 @@
     row?.querySelector?.('button')?.focus?.();
   }
 
+  /** Tells the revisions panel to repaint, the way another tab would. */
+  function repaintPanel() {
+    const key = api()?.REVISION_KEY;
+    if (!key) return;
+    const detail = { key, newValue: storage()?.getItem?.(key) ?? null, storageArea: storage() };
+    try {
+      if (typeof root.StorageEvent === 'function') {
+        root.dispatchEvent(new root.StorageEvent('storage', detail));
+        return;
+      }
+      // Without the constructor the panel still only needs `event.key`.
+      const event = new root.Event('storage');
+      Object.defineProperty(event, 'key', { value: key });
+      root.dispatchEvent(event);
+    } catch {
+      // The revisions are deleted either way; only the live repaint is lost.
+    }
+  }
+
   function onClick(event) {
     const target = event.target?.closest?.('[data-prompt-revision-action]');
     if (!target) return;
@@ -46,8 +62,10 @@
       if (!selected?.value) return status('Önce bir istem seç.');
       if (!root.confirm?.('Bu istemin sürüm geçmişi temizlensin mi?')) return;
       if (!api()?.removePromptRevisions?.(selected.value, storage())) return status('Sürüm geçmişi temizlenemedi.');
-      api()?.mount;
-      root.dispatchEvent?.(new root.Event('storage'));
+      // The panel repaints on a `storage` event carrying its own key. A bare
+      // `Event('storage')` has no key, so it was filtered out and the panel
+      // kept listing the revisions that had just been deleted.
+      repaintPanel();
       status('Sürüm geçmişi temizlendi.');
     }
   }
