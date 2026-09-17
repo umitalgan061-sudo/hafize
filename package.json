@@ -3,10 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, Claude-benzeri frontend başlangıcı.",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "start": "node --import ./lib/production-guard.mjs server.mjs",
-    "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
+    "dev": "vite --host 127.0.0.1",
+    "dev:server": "node --import ./lib/production-guard.mjs server.mjs",
+    "build": "node scripts/run-typecheck.mjs && vite build",
     "typecheck": "node scripts/run-typecheck.mjs",
+    "format:check": "node scripts/format-check.mjs",
+    "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs"
   },
@@ -15,6 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.3",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^8.1.0"
   }
 }
