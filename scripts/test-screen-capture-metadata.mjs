@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   normalizeScreenCaptureMetadata,
   SCREEN_CAPTURE_LIMITS
-} from '../lib/screen-capture-metadata.mjs';
+} from '../lib/screen-capture-metadata.mts';
 
 const valid = normalizeScreenCaptureMetadata({
   explicitUserIntent: true,

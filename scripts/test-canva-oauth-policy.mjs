@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getCanvaOAuthCapabilityScopes, normalizeCanvaOAuthRequest } from '../lib/canva-oauth-policy.mjs';
+import { getCanvaOAuthCapabilityScopes, normalizeCanvaOAuthRequest } from '../lib/canva-oauth-policy.mts';
 
 const read = normalizeCanvaOAuthRequest({ capabilities: ['design.content.read', 'profile.read'] });
 assert.deepEqual(read, {

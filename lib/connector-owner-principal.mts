@@ -23,12 +23,10 @@ function normalizePrincipal(value) {
   return subject;
 }
 
-/** @param {{ key?: unknown }} [options] */
-export function createConnectorOwnerResolver({ key } = {}) {
+export function createConnectorOwnerResolver({ key }: { key?: unknown } = {}) {
   const ownerKey = normalizeKey(key);
 
-  /** @param {Record<string, any> | null | undefined} principal */
-  function resolve(principal) {
+  function resolve(principal: Record<string, any> | null | undefined) {
     const subject = normalizePrincipal(principal);
     const digest = createHmac('sha256', ownerKey).update('hafize:connector-owner:v1\0', 'utf8').update(subject, 'utf8').digest('base64url');
     return Object.freeze({ ownerId: `owner_${digest}` });

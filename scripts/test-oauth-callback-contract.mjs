@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { normalizeOAuthCallback } from '../lib/oauth-callback-contract.mjs';
+import { normalizeOAuthCallback } from '../lib/oauth-callback-contract.mts';
 
 const state = 'z'.repeat(43);
 assert.deepEqual(normalizeOAuthCallback({ code: 'auth-code-123', state }), {

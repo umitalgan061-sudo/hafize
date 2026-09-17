@@ -6,8 +6,7 @@ function clone(item) {
   return { ...item };
 }
 
-/** @param {{ ownerId?: string; source?: any }} input */
-export function createCalendarReadRuntime({ ownerId, source }) {
+export function createCalendarReadRuntime({ ownerId, source }: { ownerId?: string; source?: any }) {
   const safeOwner = typeof ownerId === 'string' ? ownerId.trim() : '';
   if (!safeOwner) throw new Error('INVALID_CALENDAR_RUNTIME_OWNER');
   if (typeof source?.read !== 'function') throw new Error('INVALID_CALENDAR_RUNTIME_SOURCE');

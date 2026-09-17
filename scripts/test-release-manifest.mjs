@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createReleaseManifest, missingReleaseGates, RELEASE_MANIFEST_GATES } from '../lib/release-manifest.mjs';
+import { createReleaseManifest, missingReleaseGates, RELEASE_MANIFEST_GATES } from '../lib/release-manifest.mts';
 
 const readiness = {
   ready: true,

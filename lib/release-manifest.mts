@@ -4,10 +4,7 @@ function text(value, max = 500) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
-/**
- * @param {{ version?: string; commit?: string; readiness?: any; checks?: any[] }} [input]
- */
-export function createReleaseManifest({ version, commit, readiness, checks = [] } = {}) {
+export function createReleaseManifest({ version, commit, readiness, checks = [] }: { version?: string; commit?: string; readiness?: any; checks?: any[] } = {}) {
   const safeVersion = text(version, 80);
   const safeCommit = text(commit, 120);
   if (!safeVersion) throw new Error('INVALID_RELEASE_VERSION');
@@ -34,8 +31,7 @@ export function createReleaseManifest({ version, commit, readiness, checks = [] 
   });
 }
 
-/** @param {Record<string, any> | null | undefined} readiness */
-export function missingReleaseGates(readiness) {
+export function missingReleaseGates(readiness: Record<string, any> | null | undefined) {
   if (!readiness || typeof readiness !== 'object') return Object.freeze([...REQUIRED_GATES]);
   return Object.freeze(REQUIRED_GATES.filter((gate) => readiness.components?.[gate]?.status !== 'ready'));
 }

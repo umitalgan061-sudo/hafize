@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createCanvaReadClient } from '../lib/canva-read-client.mjs';
 import { createCanvaReadToolBoundary } from '../lib/canva-read-tool-boundary.mjs';
-import { createConnectorOwnerResolver } from '../lib/connector-owner-principal.mjs';
+import { createConnectorOwnerResolver } from '../lib/connector-owner-principal.mts';
 
 const now = 2_000_000_000_000;
 const ownerResolver = createConnectorOwnerResolver({ key: Buffer.alloc(32, 11) });

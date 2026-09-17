@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { normalizeScreenCaptureMetadata } from '../lib/screen-capture-contract.mjs';
+import { normalizeScreenCaptureMetadata } from '../lib/screen-capture-contract.mts';
 
 const require = createRequire(import.meta.url);
 const { boundedSize, captureScreenFrame, stopStream } = require('../public/screen-share.js');

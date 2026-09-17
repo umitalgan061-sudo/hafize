@@ -15,8 +15,7 @@ function fail(reason) {
   throw new Error(`INVALID_CANVA_OAUTH_POLICY:${reason}`);
 }
 
-/** @param {UnvalidatedInput} [input] */
-export function normalizeCanvaOAuthRequest(input = {}) {
+export function normalizeCanvaOAuthRequest(input: UnvalidatedInput = {}) {
   if (!input || Array.isArray(input) || typeof input !== 'object') fail('input');
   for (const field of Object.keys(input)) if (!FIELDS.has(field)) fail(`unknown_field:${field}`);
   if (!Array.isArray(input.capabilities) || input.capabilities.length === 0 || input.capabilities.length > ORDER.length) fail('capabilities');

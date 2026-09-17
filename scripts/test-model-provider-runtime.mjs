@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createModelProviderRuntime } from '../lib/model-provider-runtime.mjs';
+import { createModelProviderRuntime } from '../lib/model-provider-runtime.mts';
 
 const calls = [];
 const nvidiaComplete = async (payload, signal) => {

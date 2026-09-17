@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createConnectorOwnerResolver } from '../lib/connector-owner-principal.mjs';
+import { createConnectorOwnerResolver } from '../lib/connector-owner-principal.mts';
 
 const resolver = createConnectorOwnerResolver({ key: Buffer.alloc(32, 7) });
 const first = resolver.resolve({ authenticated: true, subject: 'user:123@example.com' });

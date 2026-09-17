@@ -7,14 +7,7 @@ function parseEnabled(value) {
   throw new Error('INVALID_PROVIDER_RUNTIME:localEnabled');
 }
 
-/**
- * @param {{ env?: Record<string, string | undefined>; nvidiaComplete?: Function; fetchImpl?: HafizeFetch }} [options]
- */
-export function createModelProviderRuntime({
-  env = process.env,
-  nvidiaComplete,
-  fetchImpl = globalThis.fetch
-} = {}) {
+export function createModelProviderRuntime({ env = process.env, nvidiaComplete, fetchImpl = globalThis.fetch }: { env?: Record<string, string | undefined>; nvidiaComplete?: Function; fetchImpl?: HafizeFetch } = {}) {
   if (typeof nvidiaComplete !== 'function') throw new Error('INVALID_PROVIDER_RUNTIME:nvidiaComplete');
   const localEnabled = parseEnabled(String(env?.HAFIZE_LOCAL_MODEL_ENABLED ?? '').trim().toLowerCase());
   const baseUrl = String(env?.HAFIZE_LOCAL_MODEL_BASE_URL || 'http://127.0.0.1:11434').trim();
