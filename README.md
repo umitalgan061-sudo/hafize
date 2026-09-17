@@ -71,6 +71,22 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
+## Kütüphane Kalite Merkezi
+
+Kütüphane Kalite Merkezi, Prompt Library, koleksiyonlar ve revizyonlar için cihaz üzerinde sağlık ve bakım taraması yapar.
+
+- bozuk JSON/kayıt, yinelenen id, tekrar eden veya birbirine çok benzeyen prompt'lar,
+- eksik etiket, uzun gövde, kullanılmayan/eski prompt ve değişken sınırı sorunları,
+- koleksiyonlarda yetim üyeler ve duplicate id durumları,
+- revizyonlarda bozuk veya yetim ilişkiler,
+- hata / uyarı / bilgi filtreleri, yeniden tarama ve kullanıcı onaylı güvenli onarım.
+
+Sağlık raporu yerelde üretilir. `Raporu kopyala` teşhis özetini panoya aktarır; health enhancement etkin olduğunda `Raporu indir` ve `Sorunlu promptları indir` bounded JSON dosyaları oluşturur. Prompt gövdeleri teşhis raporuna varsayılan olarak eklenmez.
+
+Health state yalnızca `hafize.prompt-library.health.v1` altında panel görünürlüğü ve severity filtresini saklar. Sağlık taraması fetch/XHR/WebSocket veya analytics/telemetry kullanmaz. Onarım confirmation gerektirir ve mevcut Prompt Library normalizer'ı üzerinden çalışır.
+
+Panel mobil ve forced-colors görünümlerini destekler, issue listesi bounded tutulur ve PWA shell cache v38 health asset'lerini içerir. Ayrıntılar `docs/PROMPT_LIBRARY_HEALTH*.md` dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
@@ -90,6 +106,29 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 ```bash
 npm run precheck
 npm run check
+```
+
+Health Center özel kontrolleri:
+
+```bash
+node scripts/test-prompt-library-health-core.mjs
+node scripts/test-prompt-library-health-limits.mjs
+node scripts/test-prompt-library-health-storage.mjs
+node scripts/test-prompt-library-health-security.mjs
+node scripts/test-prompt-library-health-dom.mjs
+node scripts/test-prompt-library-health-accessibility.mjs
+node scripts/test-prompt-library-health-pwa.mjs
+node scripts/test-prompt-library-health-repair.mjs
+node scripts/test-prompt-library-health-collections.mjs
+node scripts/test-prompt-library-health-revisions.mjs
+node scripts/test-prompt-library-health-stale.mjs
+node scripts/test-prompt-library-health-state.mjs
+node scripts/test-prompt-library-health-runtime.mjs
+node scripts/test-prompt-library-health-enhancements.mjs
+node scripts/test-prompt-library-health-export.mjs
+node scripts/test-prompt-library-health-integration.mjs
+node scripts/test-prompt-library-health-release.mjs
+node scripts/test-prompt-library-health-algorithms.mjs
 ```
 
 Scheduled Tasks özel kontrolleri:
