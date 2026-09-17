@@ -176,7 +176,10 @@ check('service worker has workspace script', sw.includes('/conversation-workspac
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
 // HAFIZE_RULES.md replaced the old 3000-line budget with a completion rule:
 // a round stays open until the work package is finished, not until a number.
-check('rules state the round completion criterion', rules.includes('Tur tamamlama kriteri — 4000+ anlamlı değişiklik'));
+// Eşiğin sayısı zaman içinde ayarlanır (4000 → 3000); paket sayıyı değil,
+// kuralın bir sayısal eşik belirttiğini doğrular. Sayıyı sabitlemek, kuralı
+// bilerek değiştiren her işlemeyi gereksizce kırardı.
+check('rules state the round completion criterion', /## Tur tamamlama kriteri — \d{3,}\+ anlamlı değişiklik/.test(rules));
 check('rules keep the change volume meaningful', rules.includes('yapay satır doldurma gerekçesi değildir'));
 check('rules put safety above change volume', rules.includes('değişiklik hacmi hedefinden daha yüksek önceliklidir'));
 

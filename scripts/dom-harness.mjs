@@ -100,7 +100,8 @@ class FakeElement extends FakeNode {
     this.classList = new FakeClassList(this);
     // `dataset` doğrudan nitelik haritasına yazar; ikisi ayrışırsa modül
     // `getAttribute('data-x')` ile `dataset.x`i farklı görürdü.
-    this.dataset = new Proxy({}, {
+    /** @type {Record<string, string | undefined>} */
+    this.dataset = new Proxy(/** @type {Record<string, string | undefined>} */ ({}), {
       get: (_target, key) => (typeof key === 'string' ? this.attributes.get(toAttributeName(key)) : undefined),
       set: (_target, key, value) => {
         this.attributes.set(toAttributeName(String(key)), String(value));
@@ -172,6 +173,12 @@ class FakeElement extends FakeNode {
   // --- Ağaç ----------------------------------------------------------------
   appendChild(node) {
     if (VOID_TAGS.has(this.tagName.toLowerCase())) throw new Error(`<${this.tagName.toLowerCase()}> çocuk alamaz`);
+    // Gerçek DOM bir düğümü kendi torununa eklemeyi HierarchyRequestError ile
+    // reddeder. Taklit bunu kabul etseydi `parentNode` zinciri döngüye girer ve
+    // yukarı doğru yürüyen her arama (closest, seçici eşleştirme) asılırdı.
+    if (node === this || node.contains?.(this)) {
+      throw new Error('HierarchyRequestError: bir düğüm kendi torununa eklenemez');
+    }
     node.remove();
     node.parentNode = this;
     this.childNodes.push(node);
@@ -185,6 +192,9 @@ class FakeElement extends FakeNode {
   prepend(...nodes) {
     for (const [offset, node] of nodes.entries()) {
       const child = typeof node === 'string' ? this.ownerDocument.createTextNode(node) : node;
+      if (child === this || child.contains?.(this)) {
+        throw new Error('HierarchyRequestError: bir düğüm kendi torununa eklenemez');
+      }
       child.remove();
       child.parentNode = this;
       this.childNodes.splice(offset, 0, child);
@@ -198,6 +208,9 @@ class FakeElement extends FakeNode {
 
   insertBefore(node, reference) {
     if (!reference) return this.appendChild(node);
+    if (node === this || node.contains?.(this)) {
+      throw new Error('HierarchyRequestError: bir düğüm kendi torununa eklenemez');
+    }
     node.remove();
     node.parentNode = this;
     this.childNodes.splice(this.childNodes.indexOf(reference), 0, node);
@@ -423,6 +436,37 @@ function matchesCompound(element, compound) {
   return true;
 }
 
+/**
+ * `MutationObserver` taklidi.
+ *
+ * Gerçek gözlemci mikro görev kuyruğunda çalışır; burada kayıt tutmak yeterli:
+ * paketler çoğunlukla gözlemcinin **bağlandığını ve `destroy()` sırasında
+ * kesildiğini** doğrular, geri çağırmanın ne zaman tetiklendiğini değil.
+ * `flush()` ile elle tetiklenebilir.
+ */
+class FakeMutationObserver {
+  static instances = [];
+
+  constructor(callback) {
+    this.callback = callback;
+    this.targets = [];
+    this.disconnected = false;
+    FakeMutationObserver.instances.push(this);
+  }
+
+  observe(target, options) { this.targets.push({ target, options }); }
+  disconnect() { this.disconnected = true; this.targets = []; }
+  takeRecords() { return []; }
+  flush() { this.callback?.([], this); }
+
+  /** Hâlâ bağlı olan gözlemciler: sızıntı denetimi için. */
+  static get active() {
+    return FakeMutationObserver.instances.filter((observer) => !observer.disconnected && observer.targets.length);
+  }
+
+  static reset() { FakeMutationObserver.instances = []; }
+}
+
 /** Ağacı derinlik öncelikli gezer. */
 export function walk(node, visit) {
   visit(node);
@@ -457,6 +501,7 @@ export function createEnvironment(options = {}) {
     HTMLButtonElement: FakeElement,
     Node: FakeNode,
     Text: FakeText,
+    MutationObserver: FakeMutationObserver,
     Event: FakeEvent,
     CustomEvent: FakeEvent,
     StorageEvent: FakeEvent,
@@ -466,10 +511,26 @@ export function createEnvironment(options = {}) {
     crypto: { randomUUID: () => `id-${(window.crypto.counter = (window.crypto.counter ?? 0) + 1)}`, counter: 0 },
     localStorage: options.storage ?? createStorage(),
     confirm: () => true,
+    // Zamanlayıcılar kuyruğa alınır: `window.timers.pending` bir modülün
+    // `destroy()` sonrası arkada iş bırakıp bırakmadığını gösterir.
+    timers: { queue: new Map(), next: 1, get pending() { return this.queue.size; } },
     addEventListener: (...args) => FakeElement.prototype.addEventListener.apply(window, args),
     removeEventListener: (...args) => FakeElement.prototype.removeEventListener.apply(window, args),
     dispatchEvent: (event) => FakeDocument.prototype.dispatchEvent.call(window, event)
   };
+  window.setTimeout = (fn, _ms) => {
+    const handle = window.timers.next++;
+    window.timers.queue.set(handle, fn);
+    return handle;
+  };
+  window.clearTimeout = (handle) => { window.timers.queue.delete(handle); };
+  window.setInterval = () => { throw new Error('setInterval bu ortamda yasaktır: yinelenen iş sızıntı üretir'); };
+  window.clearInterval = () => {};
+  /** Kuyruktaki tüm zamanlayıcıları çalıştırır. */
+  window.flushTimers = () => {
+    for (const [handle, fn] of [...window.timers.queue]) { window.timers.queue.delete(handle); fn(); }
+  };
+
   document.defaultView = window;
 
   return { window, document, body: document.body };
@@ -514,4 +575,4 @@ export function outline(node, depth = 0) {
   return lines.join('\n');
 }
 
-export { FakeDocument, FakeElement, FakeEvent, FakeNode, FakeText };
+export { FakeDocument, FakeElement, FakeEvent, FakeMutationObserver, FakeNode, FakeText };

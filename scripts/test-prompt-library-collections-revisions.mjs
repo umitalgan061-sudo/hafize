@@ -179,6 +179,50 @@ for (const name of [
   assert.ok(revisions.revisionsFor('kalan', storage).length >= 1, 'var olan istemin geçmişi korunur');
 }
 
+// === Üye budama: silinmiş istemlerin kimlikleri koleksiyonda kalmaz ========
+{
+  storage.clear();
+  const prompts = [{ id: 'kalan', title: 'T', body: 'b', tags: [], useCount: 0 }];
+  storage.setItem('hafize.prompt-library.v1', JSON.stringify(prompts));
+  const created = collections.createCollection({ name: 'Karışık' }, storage);
+  collections.addMembers(created.id, ['kalan', 'silinmiş', 'hiç-olmayan'], storage);
+
+  const [pruned] = collections.pruneMembers(collections.readCollections(storage), storage);
+  assert.deepEqual(pruned.promptIds, ['kalan'], 'var olmayan istem kimlikleri düşer');
+
+  // Budama yalnızca üyelikten çıkarır; istemin kendisine dokunmaz.
+  assert.equal(JSON.parse(storage.getItem('hafize.prompt-library.v1')).length, 1, 'istem listesi budamadan etkilenmez');
+}
+
+// === Dışa/içe aktarma ======================================================
+{
+  storage.clear();
+  storage.setItem('hafize.prompt-library.v1', JSON.stringify([{ id: 'p1', title: 'T', body: 'b', tags: [], useCount: 0 }]));
+  const created = collections.createCollection({ name: 'Dışarı', description: 'açıklama' }, storage);
+  collections.addMembers(created.id, ['p1'], storage);
+
+  const payload = JSON.parse(collections.exportPayload(storage));
+  assert.equal(payload.source, 'hafize-prompt-library-collections', 'yük kaynağını bildirir');
+  assert.equal(typeof payload.version, 'number');
+  assert.equal(payload.collections.length, 1);
+
+  // Aynı adı taşıyan kayıt ikinci kez içe aktarılmaz.
+  const again = collections.importPayload(payload, storage);
+  assert.equal(again.imported, 0);
+  assert.equal(again.skipped, 1, 'ad çakışması atlanır, üzerine yazılmaz');
+
+  // Nesne olmayan yük atmaz.
+  for (const bad of [null, undefined, 'metin', 42, []]) {
+    assert.doesNotThrow(() => collections.importPayload(bad, storage));
+  }
+  assert.deepEqual(collections.importPayload(null, storage), { imported: 0, skipped: 0 });
+
+  // İçe aktarma koleksiyon sınırını aşamaz.
+  const flood = { collections: Array.from({ length: 80 }, (_, index) => ({ id: `x${index}`, name: `Yeni ${index}`, description: '', promptIds: [] })) };
+  collections.importPayload(flood, storage);
+  assert.equal(collections.readCollections(storage).length, 40, 'içe aktarma 40 sınırını aşmaz');
+}
+
 // === Varlıklar sayfaya ve çevrimdışı kabuğa birlikte girer ==================
 {
   const html = fs.readFileSync('public/index.html', 'utf8');
