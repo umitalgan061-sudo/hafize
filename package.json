@@ -7,10 +7,10 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "start": "node --import ./lib/production-guard.mjs server.mjs",
+    "start": "node --import ./lib/production-guard.ts server.mjs",
     "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "node --import ./lib/production-guard.mjs server.mjs",
+    "dev:server": "node --import ./lib/production-guard.ts server.mjs",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:modern": "vitest run",
@@ -25,8 +25,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "^6.0.0",
-    "vite": "^8.1.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
     "vitest": "^5.0.0"
   }
 }
