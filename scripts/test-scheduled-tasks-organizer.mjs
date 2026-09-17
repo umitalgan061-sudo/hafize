@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const organizer = fs.readFileSync('public/scheduled-tasks-organizer.js', 'utf8');
+const actions = fs.readFileSync('public/scheduled-tasks-actions.js', 'utf8');
+const dashboard = fs.readFileSync('public/scheduled-tasks-dashboard.js', 'utf8');
+const index = fs.readFileSync('public/index.html', 'utf8');
+
+assert.match(organizer, /hafize\.scheduled-tasks\.view\.v1/);
+assert.match(organizer, /Görevlerde ara/);
+assert.match(organizer, /Ajanına göre filtrele/);
+assert.match(organizer, /runAt-asc/);
+assert.match(organizer, /runAt-desc/);
+assert.match(organizer, /status/);
+assert.match(organizer, /task-asc/);
+assert.match(organizer, /MAX_QUERY = 120/);
+assert.match(organizer, /MAX_AGENT = 80/);
+assert.match(organizer, /MutationObserver/);
+assert.match(organizer, /credentials: 'same-origin'/);
+assert.match(organizer, /encodeURIComponent/);
+assert.match(organizer, /root\.confirm/);
+assert.match(organizer, /POST/);
+assert.match(organizer, /\/api\/schedules/);
+assert.match(actions, /MAX_SELECTED = 40/);
+assert.match(actions, /MAX_EXPORT = 1_000_000/);
+assert.match(actions, /DELETE/);
+assert.match(actions, /Görünürleri dışa aktar/);
+assert.match(dashboard, /TIME_WINDOWS/);
+assert.match(dashboard, /MAX_VIEWS = 6/);
+assert.match(dashboard, /role/, 'dashboard keeps semantic dialog/list behavior');
+assert.match(index, /scheduled-tasks-organizer\.js/);
+assert.match(index, /scheduled-tasks-actions\.js/);
+assert.match(index, /scheduled-tasks-dashboard\.js/);
+assert.doesNotMatch(organizer, /document\.write\s*\(/);
+assert.doesNotMatch(actions, /document\.write\s*\(/);
+console.log('scheduled-task organizer contract: ok');
