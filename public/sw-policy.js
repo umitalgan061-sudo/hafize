@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v37`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v38`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
@@ -21,7 +21,7 @@
     '/message-workspace-policy.js', '/message-workspace.js',
     '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
     '/prompt-library-usage.js', '/prompt-library-collections.js', '/prompt-library-collections-enhancements.js',
-    '/prompt-library-revisions.js', '/prompt-library-revisions-enhancements.js', '/prompt-library-health.js',
+    '/prompt-library-revisions.js', '/prompt-library-revisions-enhancements.js', '/prompt-library-health.js', '/prompt-library-health-enhancements.js',
     '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
     '/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js',
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
