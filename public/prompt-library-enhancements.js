@@ -167,6 +167,13 @@
       script.dataset.hafizePromptSmartFill = 'true';
       (root.document.head || root.document.documentElement)?.append(script);
     }
+    if (!root.document.querySelector('script[data-hafize-prompt-smart-fill-usage]')) {
+      const script = root.document.createElement('script');
+      script.src = '/prompt-library-smart-fill-usage.js';
+      script.defer = true;
+      script.dataset.hafizePromptSmartFillUsage = 'true';
+      (root.document.head || root.document.documentElement)?.append(script);
+    }
   }
 
   function boot() {
