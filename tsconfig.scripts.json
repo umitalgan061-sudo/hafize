@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// Neden": [
+    "Kontrol paketleri iki dünyayı birden kullanır: Node'un fs/crypto modülleri",
+    "ve sahte bir DOM ile yüklenen public/ modülleri. Bu yüzden tek proje",
+    "içinde hem node tipleri hem DOM lib'i açıktır.",
+    "Sunucu runtime'ı bu gevşemeden etkilenmez: tsconfig.node.json hâlâ DOM'suz",
+    "denetlenir, yani lib/ içinde document'a dokunmak orada hata olmaya devam eder."
+  ],
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["scripts/**/*.mjs", "types/node.d.ts", "types/shared.d.ts", "types/browser.d.ts"]
+}

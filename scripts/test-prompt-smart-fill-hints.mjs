@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill-hints.js'), 'utf8');
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill-hints.mts'), 'utf8');
 assert.match(text, /HafizePromptSmartFillHints/);
 assert.match(text, /MAX_VALUE = 1000/);
 assert.match(text, /MAX_PREVIEW = 8000/);

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleExecutionRuntime } from '../lib/schedule-execution-runtime.mjs';
+import { createScheduleExecutionRuntime } from '../lib/schedule-execution-runtime.mts';
 
 const calls = [];
 const executor = {
@@ -68,7 +68,7 @@ assert.throws(
       throw new Error('secret provider detail');
     }
   }),
-  (error) => error.message === 'SCHEDULE_EXECUTION_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret provider detail')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_EXECUTION_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret provider detail')
 );
 assert.throws(
   () => createScheduleExecutionRuntime({ executor, lease, createGuard: () => ({}) }),

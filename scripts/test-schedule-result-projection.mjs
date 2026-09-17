@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleExecutionRuntime, projectWorkerResult } from '../lib/schedule-execution-runtime.mjs';
+import { createScheduleExecutionRuntime, projectWorkerResult } from '../lib/schedule-execution-runtime.mts';
 
 assert.deepEqual(projectWorkerResult({ ok: true, content: 'private model output', taskLedger: { traceId: 'trace-1' }, leaseStatus: 'completed', deduplicated: false }), { ok: true });
 assert.deepEqual(projectWorkerResult({ ok: false, error: 'SCHEDULE_LEASE_BUSY', retryAt: '2026-09-08T12:00:00.000Z', taskLedger: { traceId: 'trace-2' } }), { ok: false, error: 'SCHEDULE_LEASE_BUSY', retryAt: '2026-09-08T12:00:00.000Z' });

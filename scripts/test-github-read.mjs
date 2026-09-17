@@ -63,7 +63,7 @@ const credentialContent = createGitHubReadFile({
 });
 await assert.rejects(
   () => credentialContent({ repository: 'umitalgan061-sudo/hafize', path: 'README.md' }),
-  (error) => error?.code === 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' && error?.status === 403
+  (/** @type {HafizeCodedError} */ error) => error?.code === 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' && error?.status === 403
 );
 
 const oauthCredentialContent = createGitHubReadFile({
@@ -84,31 +84,31 @@ const oauthCredentialContent = createGitHubReadFile({
 });
 await assert.rejects(
   () => oauthCredentialContent({ repository: 'umitalgan061-sudo/hafize', path: 'README.md' }),
-  (error) => error?.code === 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' && error?.status === 403
+  (/** @type {HafizeCodedError} */ error) => error?.code === 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' && error?.status === 403
 );
 
 await assert.rejects(
   () => githubReadFile({ repository: 'other/repo', path: 'README.md' }),
-  (error) => error?.code === 'GITHUB_REPO_NOT_ALLOWED' && error?.status === 403
+  (/** @type {HafizeCodedError} */ error) => error?.code === 'GITHUB_REPO_NOT_ALLOWED' && error?.status === 403
 );
 assert.equal(calls.length, 1, 'disallowed repo must be rejected before network access');
 
 for (const sensitivePath of ['.env', 'config/client_secret.json', 'auth-token.txt', 'keys/private_key.pem']) {
   await assert.rejects(
     () => githubReadFile({ repository: 'umitalgan061-sudo/hafize', path: sensitivePath }),
-    (error) => error?.code === 'SENSITIVE_GITHUB_PATH_BLOCKED' && error?.status === 403
+    (/** @type {HafizeCodedError} */ error) => error?.code === 'SENSITIVE_GITHUB_PATH_BLOCKED' && error?.status === 403
   );
 }
 assert.equal(calls.length, 1, 'sensitive paths must be rejected before network access');
 
 await assert.rejects(
   () => githubReadFile({ repository: 'umitalgan061-sudo/hafize', path: '../README.md' }),
-  (error) => error?.code === 'INVALID_GITHUB_PATH'
+  (/** @type {HafizeCodedError} */ error) => error?.code === 'INVALID_GITHUB_PATH'
 );
 
 await assert.rejects(
   () => githubReadFile({ repository: 'umitalgan061-sudo/hafize', path: 'README.md', extra: 'not-allowed' }),
-  (error) => error?.code === 'INVALID_GITHUB_ARGUMENTS'
+  (/** @type {HafizeCodedError} */ error) => error?.code === 'INVALID_GITHUB_ARGUMENTS'
 );
 assert.equal(calls.length, 1, 'invalid arguments must be rejected before network access');
 
@@ -121,7 +121,7 @@ const unconfigured = createGitHubReadFile({
 });
 await assert.rejects(
   () => unconfigured({ repository: 'umitalgan061-sudo/hafize', path: 'README.md' }),
-  (error) => error?.code === 'GITHUB_NOT_CONFIGURED' && error?.status === 503
+  (/** @type {HafizeCodedError} */ error) => error?.code === 'GITHUB_NOT_CONFIGURED' && error?.status === 503
 );
 
 console.log('GitHub read OK: allowlist, strict arguments, path guard and credential-safe content egress enforced');

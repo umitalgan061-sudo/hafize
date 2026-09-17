@@ -111,7 +111,7 @@ try {
 
   const renewed = await workerA.renew({ scheduleId, fence: acquired.fence });
   assert.equal(renewed.status, 'renewed');
-  assert.equal(Number.isNaN(new Date(renewed.expiresAt).getTime()), false);
+  assert.equal(Number.isNaN(new Date(/** @type {any} */ (renewed).expiresAt).getTime()), false);
 
   assert.deepEqual(
     await workerA.complete({ scheduleId, fence: acquired.fence }),

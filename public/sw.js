@@ -1,18 +1,33 @@
 importScripts('/sw-policy.js');
 
+// `self` klasik bir worker script'inde `WorkerGlobalScope` olarak bilinir;
+// service worker'a özgü `skipWaiting`, `clients` ve `FetchEvent` yalnızca
+// `ServiceWorkerGlobalScope` üzerinde vardır. Tek bir daraltma ile tip
+// denetleyicisine doğru kapsam tanıtılır; çalışma zamanında değişen bir şey
+// yoktur, `sw` ile `self` aynı nesnedir.
+const sw = /** @type {ServiceWorkerGlobalScope & typeof globalThis} */ (/** @type {unknown} */ (self));
+
 const {
   CURRENT_CACHE,
   SHELL_ASSETS,
   classifyRequest,
   shouldDeleteCache
-} = self.HafizeSwPolicy;
+} = sw.HafizeSwPolicy;
 
+/**
+ * @param {Request} request
+ * @returns {Promise<Response>}
+ */
 async function matchShell(request) {
   const cache = await caches.open(CURRENT_CACHE);
   const cached = await cache.match(request, { ignoreSearch: true });
   return cached || fetch(request);
 }
 
+/**
+ * @param {Request} request
+ * @returns {Promise<Response>}
+ */
 async function navigateWithOfflineFallback(request) {
   try {
     return await fetch(request);
@@ -24,25 +39,25 @@ async function navigateWithOfflineFallback(request) {
   }
 }
 
-self.addEventListener('install', (event) => {
+sw.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CURRENT_CACHE)
       .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
+      .then(() => sw.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (event) => {
+sw.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
       keys.filter((key) => shouldDeleteCache(key)).map((key) => caches.delete(key))
     ))
   );
-  self.clients.claim();
+  sw.clients.claim();
 });
 
-self.addEventListener('fetch', (event) => {
-  const strategy = classifyRequest(event.request, self.location.origin);
+sw.addEventListener('fetch', (event) => {
+  const strategy = classifyRequest(event.request, sw.location.origin);
 
   if (strategy === 'navigation') {
     event.respondWith(navigateWithOfflineFallback(event.request));

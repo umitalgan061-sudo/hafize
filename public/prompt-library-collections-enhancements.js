@@ -13,7 +13,8 @@
   const doc = () => root.document;
   const read = () => api()?.readCollections?.(storage()) || [];
   const promptSelection = () => [...doc()?.querySelectorAll?.('#promptLibraryList [data-prompt-selection]:checked') || []]
-    .map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
+    .map((node) => (node instanceof HTMLElement ? node.dataset.promptSelection : ''))
+    .filter(Boolean).slice(0, MAX_SELECTION);
   const announce = (message) => {
     const node = doc()?.querySelector?.(`${COLLECTIONS} .prompt-library-collections-status`);
     if (!node) return;
@@ -35,7 +36,8 @@
   }
 
   function clearSelection() {
-    doc()?.querySelectorAll?.('#promptLibraryList [data-prompt-selection]').forEach((node) => { node.checked = false; });
+    doc()?.querySelectorAll?.('#promptLibraryList [data-prompt-selection]')
+      .forEach((node) => { if (node instanceof HTMLInputElement) node.checked = false; });
     renderTools();
   }
 
@@ -77,7 +79,7 @@
     if (action === 'duplicate' && collection) return duplicateCollection(collection);
     if (action === 'select-all') {
       const rows = [...doc().querySelectorAll('#promptLibraryList .prompt-item [data-prompt-selection]')].slice(0, MAX_SELECTION);
-      rows.forEach((node) => { node.checked = true; });
+      rows.forEach((node) => { if (node instanceof HTMLInputElement) node.checked = true; });
       renderTools();
       return announce(`${rows.length} istem seçildi.`);
     }
@@ -127,7 +129,8 @@
     const active = doc()?.activeElement;
     if (active?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
     event.preventDefault();
-    doc()?.querySelector?.(`${COLLECTIONS} input[type="search"]`)?.focus?.();
+    const search = doc()?.querySelector?.(`${COLLECTIONS} input[type="search"]`);
+    if (search instanceof HTMLElement) search.focus();
   }
 
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });

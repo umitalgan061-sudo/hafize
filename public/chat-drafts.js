@@ -11,9 +11,9 @@
   const SAVE_DELAY = 250;
   const STATUS_ID = 'chatDraftStatus';
 
-  const input = document.querySelector(INPUT);
-  const composer = document.querySelector(COMPOSER);
-  const list = document.querySelector(CONVERSATION_LIST);
+  const input = /** @type {HTMLTextAreaElement} */ (document.querySelector(INPUT));
+  const composer = /** @type {HTMLFormElement} */ (document.querySelector(COMPOSER));
+  const list = /** @type {HTMLElement} */ (document.querySelector(CONVERSATION_LIST));
   if (!input || !composer || !list) return;
 
   let saveTimer = 0;
@@ -73,7 +73,8 @@
 
   function activeConversationId() {
     const row = list.querySelector('.conversation-row.active');
-    return row?.querySelector('.conversation-open')?.dataset?.conversationId || '';
+    const open = /** @type {HTMLElement | null} */ (row?.querySelector('.conversation-open') ?? null);
+    return open?.dataset?.conversationId || '';
   }
 
   function getDraft(id = activeConversationId()) {

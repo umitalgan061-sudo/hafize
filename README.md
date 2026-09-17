@@ -24,6 +24,28 @@ Uygulama oturumları imzalı, HttpOnly ve SameSite=Strict cookie kullanır. Stat
 
 NVIDIA anahtarı server-side tutulur. GitHub okuma erişimi allowlist ile sınırlandırılır. Scheduled task API'si kullanıcı oturumundan ayrı olarak `HAFIZE_SCHEDULE_AUTH_TOKEN` ile korunur; böylece dış worker/cron çağrıları web oturum cookie'sine ihtiyaç duymaz.
 
+## Yanıt biçimlendirme
+
+Asistan yanıtları markdown olarak render edilir: başlıklar, listeler, alıntılar,
+tablolar, satır içi kod ve kopyalanabilir kod blokları. Kullanıcı mesajları düz
+metin kalır.
+
+- Ham HTML hiçbir zaman ayrıştırılmaz; model çıktısındaki etiketler harfi harfine
+  metin olarak görünür.
+- Bağlantılarda yalnızca `http:`, `https:` ve `mailto:` şemalarına izin verilir ve
+  her bağlantı `rel="noopener noreferrer nofollow ugc"` ile açılır.
+- `![alt](url)` bir bağlantı olarak çizilir; yanıt kendiliğinden uzak bir adrese
+  istek atamaz.
+- Streaming sırasında boyamalar tek bir animasyon karesinde birleştirilir ve
+  `.content` düğümü `aria-busy` taşır; ekran okuyucu yalnızca tamamlanmış yanıtı
+  okur.
+- Sınıra takılan çok uzun bir yanıt sessizce kısaltılmaz; kalan bölüm düz metin
+  olarak gösterilir ve bu durum kullanıcıya bildirilir.
+
+Kontroller `node scripts/test-chat-markdown-security.mjs` ve diğer
+`test-chat-markdown-*` paketleriyle çalıştırılır. Ayrıntılar
+`docs/CHAT_MARKDOWN*.md` dosyalarındadır.
+
 ## Sohbet çalışma alanı
 
 Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetmek için kullanılır. Mevcut tekli sabitleme/adlandırma/dışa aktarma yüzeylerinin yerine geçmez; onları tamamlar.
@@ -85,11 +107,42 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
+## Tip denetimi
+
+Kaynak ağacının tamamı TypeScript ile denetlenir ve kapı sıfır hatada tutulur.
+Derleme adımı yoktur: Node 22.18+ `.ts` dosyalarını yerel tip sıyırma ile
+çalıştırdığı için TypeScript burada yalnızca denetleyicidir. `typescript` ve
+`@types/node` devDependency'dir; çalışma zamanı bağımlılığı hâlâ yalnızca
+`redis`.
+
+Dört ayrı proje denetlenir, çünkü dosyalar dört farklı ortamda çalışır:
+sunucu runtime'ı (DOM'suz), kontrol paketleri (Node + DOM), tarayıcı arayüzü
+(Node global'leri olmadan) ve service worker. Paylaşılan sözleşmeler `types/`
+altındadır. Ayrıntılar `docs/TYPE_CHECKING.md` dosyasındadır.
+
+```bash
+npm run typecheck
+```
+
 ## Test
 
 ```bash
 npm run precheck
 npm run check
+```
+
+`npm run check` tip denetimini de çalıştırır.
+
+Yanıt biçimlendirme kontrolleri:
+
+```bash
+node scripts/test-chat-markdown-blocks.mjs
+node scripts/test-chat-markdown-inline.mjs
+node scripts/test-chat-markdown-security.mjs
+node scripts/test-chat-markdown-dom.mjs
+node scripts/test-chat-markdown-streaming.mjs
+node scripts/test-chat-markdown-limits.mjs
+node scripts/test-chat-markdown-integration.mjs
 ```
 
 Scheduled Tasks özel kontrolleri:

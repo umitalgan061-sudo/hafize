@@ -5,31 +5,39 @@
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const MESSAGE_PLACEHOLDER = '…';
+  // Her alanın kendi element tipiyle yazılması, hangi seçicinin hangi HTML
+  // elemanına karşılık geldiğini tek yerde kayda geçirir; `index.html` içindeki
+  // bir eleman türü değişirse tip denetimi burada durdurur.
   const ui = {
-    sidebar: document.querySelector('#sidebar'),
-    sidebarToggle: document.querySelector('#sidebarToggle'),
-    newChatBtn: document.querySelector('#newChatBtn'),
-    clearHistoryBtn: document.querySelector('#clearHistoryBtn'),
-    conversationList: document.querySelector('#conversationList'),
-    composer: document.querySelector('#composer'),
-    messageInput: document.querySelector('#messageInput'),
-    messages: document.querySelector('#messages'),
-    welcome: document.querySelector('#welcome'),
-    installBtn: document.querySelector('#installBtn'),
-    toast: document.querySelector('#toast'),
-    modelSelect: document.querySelector('#modelSelect'),
-    agentSelect: document.querySelector('#agentSelect'),
-    toolModeBtn: document.querySelector('#toolModeBtn')
+    sidebar: /** @type {HTMLElement} */ (document.querySelector('#sidebar')),
+    sidebarToggle: /** @type {HTMLButtonElement} */ (document.querySelector('#sidebarToggle')),
+    newChatBtn: /** @type {HTMLButtonElement} */ (document.querySelector('#newChatBtn')),
+    clearHistoryBtn: /** @type {HTMLButtonElement} */ (document.querySelector('#clearHistoryBtn')),
+    conversationList: /** @type {HTMLElement} */ (document.querySelector('#conversationList')),
+    composer: /** @type {HTMLFormElement} */ (document.querySelector('#composer')),
+    messageInput: /** @type {HTMLTextAreaElement} */ (document.querySelector('#messageInput')),
+    messages: /** @type {HTMLElement} */ (document.querySelector('#messages')),
+    welcome: /** @type {HTMLElement} */ (document.querySelector('#welcome')),
+    installBtn: /** @type {HTMLButtonElement} */ (document.querySelector('#installBtn')),
+    toast: /** @type {HTMLElement} */ (document.querySelector('#toast')),
+    modelSelect: /** @type {HTMLSelectElement} */ (document.querySelector('#modelSelect')),
+    agentSelect: /** @type {HTMLSelectElement} */ (document.querySelector('#agentSelect')),
+    toolModeBtn: /** @type {HTMLButtonElement} */ (document.querySelector('#toolModeBtn'))
   };
 
+  /** @type {BeforeInstallPromptEvent | null} */
   let installPrompt = null;
   let persistenceWarningShown = false;
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
+  /** @type {HafizeAgentSummary[]} */
   let availableAgents = [];
   let defaultAgentId = '';
+  /** @type {string | null} */
   let editingMessageId = null;
+  /** @type {number | undefined} */
+  let toastTimeoutId;
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -397,8 +405,8 @@
   function showToast(text) {
     ui.toast.textContent = text;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(showToast.timeoutId);
-    showToast.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    window.clearTimeout(toastTimeoutId);
+    toastTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function autoResizeComposer() {
@@ -665,7 +673,8 @@
     submitMessage(ui.messageInput.value);
   });
 
-  document.querySelectorAll('[data-prompt]').forEach((button) => {
+  document.querySelectorAll('[data-prompt]').forEach((node) => {
+    const button = /** @type {HTMLElement} */ (node);
     button.addEventListener('click', () => submitMessage(button.dataset.prompt || ''));
   });
 

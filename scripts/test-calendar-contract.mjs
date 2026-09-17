@@ -5,7 +5,7 @@ import {
   normalizeCalendarItems,
   normalizeCalendarRead
 } from '../lib/calendar-contract.mjs';
-import { createCalendarReadRuntime } from '../lib/calendar-read-runtime.mjs';
+import { createCalendarReadRuntime } from '../lib/calendar-read-runtime.mts';
 
 const read = normalizeCalendarRead({ ownerId: 'u1', query: { from: '2026-09-01', to: '2026-09-30', kind: 'event', query: 'toplantı' } });
 assert.equal(read.ownerId, 'u1');

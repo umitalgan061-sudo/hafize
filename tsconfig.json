@@ -1,20 +1,16 @@
 {
-  "compilerOptions": {
-    "target": "ES2025",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "noEmit": true,
-    "skipLibCheck": true,
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "useDefineForClassFields": true,
-    "types": ["node", "vitest/globals"],
-    "lib": ["ES2025", "DOM", "DOM.Iterable"]
-  },
-  "include": ["public/**/*.ts", "src/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// Neden": [
+    "Kök yapılandırma yalnızca projeleri birbirine bağlar. Dosyalar beş farklı",
+    "ortamda çalışır ve her birinin global kümesi farklıdır; tek bir tsconfig",
+    "hepsini birden doğru denetleyemez."
+  ],
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.scripts.json" },
+    { "path": "./tsconfig.browser.json" },
+    { "path": "./tsconfig.worker.json" },
+    { "path": "./tsconfig.typed.json" }
+  ]
 }

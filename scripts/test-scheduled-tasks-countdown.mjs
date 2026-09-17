@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../public/scheduled-tasks-countdown.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/scheduled-tasks-countdown.mts', import.meta.url), 'utf8');
 assert.match(source, /scheduled-task-countdown/);
 assert.match(source, /Date\.parse\(timestamp \|\| ''\)/);
 assert.match(source, /delta <= 0/);

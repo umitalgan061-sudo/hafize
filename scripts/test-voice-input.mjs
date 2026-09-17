@@ -94,6 +94,16 @@ class FakeRecognition {
     this.started = false;
     this.stopped = false;
     this.aborted = false;
+    // Modül bu yuvaları atar; ikizin yüzeyinde bildirilmeleri sözleşmeyi
+    // görünür kılar ve çalışma zamanında bir şey değiştirmez.
+    /** @type {(() => void) | undefined} */
+    this.onstart = undefined;
+    /** @type {(() => void) | undefined} */
+    this.onend = undefined;
+    /** @type {((event: any) => void) | undefined} */
+    this.onresult = undefined;
+    /** @type {((event: any) => void) | undefined} */
+    this.onerror = undefined;
     FakeRecognition.instances.push(this);
   }
   start() {

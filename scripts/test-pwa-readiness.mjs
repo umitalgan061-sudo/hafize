@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { checkPwaManifest, checkPwaShell, evaluatePwaReadiness, PWA_READINESS_CONTRACT } from '../lib/pwa-readiness.mjs';
+import { checkPwaManifest, checkPwaShell, evaluatePwaReadiness, PWA_READINESS_CONTRACT } from '../lib/pwa-readiness.mts';
 
 const manifest = {
   name: 'Hafize',

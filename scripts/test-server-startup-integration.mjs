@@ -15,25 +15,39 @@ function delay(ms) {
 
 async function reservePort() {
   const probe = createNetServer();
-  await new Promise((resolve, reject) => {
+  /** @type {Promise<void>} */
+  const listening = new Promise((resolve, reject) => {
     probe.once('error', reject);
-    probe.listen(0, '127.0.0.1', resolve);
+    probe.listen(0, '127.0.0.1', () => resolve());
   });
+  await listening;
   const address = probe.address();
   const port = typeof address === 'object' && address ? address.port : 0;
-  await new Promise((resolve, reject) => probe.close((error) => error ? reject(error) : resolve()));
+  /** @type {Promise<void>} */
+  const closed = new Promise((resolve, reject) => probe.close((/** @type {HafizeCodedError} */ error) => error ? reject(error) : resolve()));
+  await closed;
   if (!port) throw new Error('TEST_PORT_UNAVAILABLE');
   return port;
 }
 
+/**
+ * @param {number} port
+ * @returns {Promise<{ status: number; body: Record<string, any> }>}
+ */
 async function requestHealth(port) {
   const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(1_000)
   });
-  return { status: response.status, body: await response.json() };
+  return { status: response.status, body: /** @type {Record<string, any>} */ (await response.json()) };
 }
 
+/**
+ * @param {import('node:child_process').ChildProcess} child
+ * @param {number} port
+ * @param {{ stdout: string; stderr: string }} output
+ * @returns {Promise<{ status: number; body: Record<string, any> }>}
+ */
 async function waitForHealth(child, port, output) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (child.exitCode != null) {

@@ -81,7 +81,7 @@
   let refreshQueued = false;
 
   function rowConversationIndex() {
-    return Array.from(ui.history.querySelectorAll('.conversation-row'));
+    return /** @type {HTMLElement[]} */ (Array.from(ui.history.querySelectorAll('.conversation-row')));
   }
 
   function render() {
@@ -150,7 +150,7 @@
   });
 
   document.addEventListener('keydown', (event) => {
-    const target = event.target;
+    const target = /** @type {HTMLElement | null} */ (event.target);
     if (!event.ctrlKey && !event.metaKey) return;
     if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;

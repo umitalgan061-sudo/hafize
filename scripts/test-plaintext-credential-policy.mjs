@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { containsPlaintextCredential, isPlaintextCredentialField } from '../lib/plaintext-credential-policy.mjs';
+import { containsPlaintextCredential, isPlaintextCredentialField } from '../lib/plaintext-credential-policy.mts';
 
 for (const value of [
   'Authorization: Bearer abcdefghijklmnop',

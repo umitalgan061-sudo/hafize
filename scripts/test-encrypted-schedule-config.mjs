@@ -51,7 +51,7 @@ assert.throws(() => readEncryptedScheduleStorageConfig({ env: {
   [ENCRYPTED_SCHEDULE_STORAGE_ENV.file]: `${filePath}\0oops`,
   [ENCRYPTED_SCHEDULE_STORAGE_ENV.keyBase64]: base64
 } }), /INVALID_ENCRYPTED_SCHEDULE_CONFIG/);
-assert.throws(() => readEncryptedScheduleStorageConfig({ env: [] }), /INVALID_ENCRYPTED_SCHEDULE_CONFIG/);
+assert.throws(() => readEncryptedScheduleStorageConfig(/** @type {any} */ ({ env: [] })), /INVALID_ENCRYPTED_SCHEDULE_CONFIG/);
 
 let error;
 try {

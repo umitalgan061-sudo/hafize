@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { createRateLimiter } from '../lib/rate-limit.mjs';
-import { createSessionAuth } from '../lib/session-auth.mjs';
+import { createRateLimiter } from '../lib/rate-limit.mts';
+import { createSessionAuth } from '../lib/session-auth.mts';
 
 const secret = 's'.repeat(64);
 const connectorToken = 'c'.repeat(64);
@@ -71,7 +71,7 @@ try {
   const login = await fetch(`http://127.0.0.1:${port}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: secret }) });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie');
-  const payload = await login.json();
+  const payload = /** @type {Record<string, any>} */ (await login.json());
   assert.ok(cookie);
   const agents = await fetch(`http://127.0.0.1:${port}/api/agents`, { headers: { cookie } });
   assert.equal(agents.status, 200);

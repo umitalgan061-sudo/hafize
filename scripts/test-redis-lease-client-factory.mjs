@@ -61,7 +61,7 @@ await assert.rejects(() => createRedisLeaseClient({
       async quit() { quitCalls += 1; this.isOpen = false; }
     };
   }
-}), (error) => {
+}), (/** @type {HafizeCodedError} */ error) => {
   assert.equal(error.message, 'REDIS_LEASE_CLIENT_STARTUP_FAILED');
   assert.equal(error.message.includes('super-secret'), false);
   return true;

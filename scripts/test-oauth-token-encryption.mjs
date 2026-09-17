@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { decryptOAuthTokenRecord, encryptOAuthTokenRecord } from '../lib/oauth-token-encryption.mjs';
+import { decryptOAuthTokenRecord, encryptOAuthTokenRecord } from '../lib/oauth-token-encryption.mts';
 
 const key = Buffer.alloc(32, 7);
 const otherKey = Buffer.alloc(32, 8);

@@ -19,10 +19,10 @@ import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.mjs';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
-import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
+import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mts';
 import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
-import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
-import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
+import { createBearerPrincipalAuthenticator } from './lib/server-auth.mts';
+import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mts';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
@@ -124,7 +124,7 @@ async function readJson(req) {
 
 async function nvidiaFetch(pathname, init = {}) {
   if (!NVIDIA_API_KEY) {
-    const error = new Error('NVIDIA_NOT_CONFIGURED');
+    const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_NOT_CONFIGURED'));
     error.status = 503;
     throw error;
   }
@@ -146,7 +146,7 @@ async function nvidiaJsonCompletion(payload, signal) {
   });
   const text = await upstream.text();
   if (!upstream.ok) {
-    const error = new Error('NVIDIA_CHAT_ERROR');
+    const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_CHAT_ERROR'));
     error.status = upstream.status || 502;
     error.detail = text.slice(0, 1200);
     throw error;
@@ -154,7 +154,7 @@ async function nvidiaJsonCompletion(payload, signal) {
   try {
     return JSON.parse(text);
   } catch {
-    const error = new Error('INVALID_NVIDIA_RESPONSE');
+    const error = /** @type {HafizeCodedError} */ (new Error('INVALID_NVIDIA_RESPONSE'));
     error.status = 502;
     throw error;
   }
@@ -164,7 +164,7 @@ function normalizeRootCompletion(response) {
   try {
     return normalizeNvidiaChatCompletion(response);
   } catch (error) {
-    const normalized = new Error('INVALID_NVIDIA_RESPONSE');
+    const normalized = /** @type {HafizeCodedError} */ (new Error('INVALID_NVIDIA_RESPONSE'));
     normalized.code = error?.message || 'INVALID_NVIDIA_RESPONSE';
     normalized.status = 502;
     throw normalized;
@@ -501,7 +501,7 @@ async function handleAgentRun(req, res) {
     }
     if (!upstream.ok || !upstream.body) {
       await upstream.text();
-      const error = new Error('NVIDIA_CHAT_ERROR');
+      const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_CHAT_ERROR'));
       error.status = upstream.status || 502;
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
       deliverRequestFailure(res, error);
@@ -589,7 +589,7 @@ async function handleChat(req, res) {
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text();
-    const error = new Error('NVIDIA_CHAT_ERROR');
+    const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_CHAT_ERROR'));
     error.status = upstream.status || 502;
     error.detail = detail.slice(0, 1200);
     deliverRequestFailure(res, error);
@@ -656,7 +656,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/canva/status') {
       const status = await CANVA_AGENT_RUNTIME.connectionStatus({ headers: req.headers });
-      if (!status.ok) {
+      if (status.ok === false) {
         sendJson(res, status.error === 'AUTH_REQUIRED' ? 401 : 404, { error: status.error });
         return;
       }
@@ -665,7 +665,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/connectors/gmail/status') {
       const status = await GMAIL_AGENT_RUNTIME.connectionStatus({ headers: req.headers });
-      if (!status.ok) {
+      if (status.ok === false) {
         sendJson(res, status.error === 'AUTH_REQUIRED' ? 401 : 404, { error: status.error });
         return;
       }
@@ -719,14 +719,15 @@ const server = createServer(async (req, res) => {
 
 let shutdownPromise = null;
 
+/** @returns {Promise<void>} */
 function closeHttpServer() {
-  return new Promise((resolveClose) => {
+  return new Promise(/** @type {(resolve: () => void) => void} */ ((resolveClose) => {
     if (!server.listening) {
       resolveClose();
       return;
     }
     server.close(() => resolveClose());
-  });
+  }));
 }
 
 async function shutdown() {

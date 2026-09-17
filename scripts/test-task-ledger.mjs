@@ -44,7 +44,8 @@ assert.throws(
   /INVALID_TASK_LEDGER:traceId/
 );
 assert.throws(
-  () => ledger.update('task_1', { status: 'unknown' }),
+  // Bilerek geçersiz durum: reddedilmesi sınanıyor.
+  () => ledger.update('task_1', /** @type {any} */ ({ status: 'unknown' })),
   /INVALID_TASK_LEDGER:status/
 );
 assert.equal(JSON.stringify(snapshot).includes('token'), false);

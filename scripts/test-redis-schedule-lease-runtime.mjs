@@ -96,7 +96,8 @@ const acquired = await runtime.lease.acquire('schedule_42');
 assert.equal(acquired.status, 'acquired');
 assert.equal(acquired.fence, 7);
 assert.equal(calls.length, 2);
-assert.equal(calls[1].options.keys.every((key) => key.includes('{schedule_42}')), true);
+const evalCall = /** @type {any} */ (calls[1]);
+assert.equal(evalCall.options.keys.every((/** @type {string} */ key) => key.includes('{schedule_42}')), true);
 
 await runtime.close();
 await runtime.close();
@@ -126,7 +127,7 @@ await assert.rejects(
       throw new Error('rediss://user:secret@example.test:6380 adapter failure');
     }
   }),
-  (error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
 );
 assert.equal(cleanupCalls, 1);
 
@@ -137,7 +138,7 @@ await assert.rejects(
       throw new Error('rediss://user:secret@example.test:6380 import failure');
     }
   }),
-  (error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
+  (/** @type {HafizeCodedError} */ error) => error.message === 'SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED' && !error.message.includes('secret')
 );
 
 console.log('redis schedule lease runtime tests passed');

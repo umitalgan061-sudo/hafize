@@ -15,8 +15,13 @@ class MemoryStorage {
 }
 
 class ThrowingStorage {
-  getItem() { throw new Error('storage read denied'); }
-  setItem() { throw new Error('storage write denied'); }
+  /** @param {string} key */
+  getItem(key) { throw new Error(`storage read denied: ${key}`); }
+  /**
+   * @param {string} key
+   * @param {string} value
+   */
+  setItem(key, value) { throw new Error(`storage write denied: ${key}=${value.length}`); }
 }
 
 function record(index, overrides = {}) {
@@ -73,7 +78,7 @@ const roundTrip = policy.normalizeRecords(JSON.parse(good.getItem('hafize.messag
 assert.deepEqual(roundTrip.map(item => item.id), normalized.map(item => item.id));
 
 const throwing = new ThrowingStorage();
-assert.throws(() => JSON.parse(throwing.getItem('hafize.message-workspace.v1')), /storage read denied/);
+assert.throws(() => JSON.parse(/** @type {string} */ (/** @type {unknown} */ (throwing.getItem('hafize.message-workspace.v1')))), /storage read denied/);
 assert.throws(() => throwing.setItem('hafize.message-workspace.v1', '[]'), /storage write denied/);
 
 const corruptValues = [

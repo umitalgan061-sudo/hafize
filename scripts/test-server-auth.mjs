@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createBearerPrincipalAuthenticator } from '../lib/server-auth.mjs';
+import { createBearerPrincipalAuthenticator } from '../lib/server-auth.mts';
 
 const token = '0123456789abcdef0123456789abcdef';
 const auth = createBearerPrincipalAuthenticator({ token, subject: 'user-primary' });

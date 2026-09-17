@@ -5,8 +5,8 @@ function normalizeRootCompletion(response) {
   try {
     return normalizeNvidiaChatCompletion(response);
   } catch (error) {
-    const normalized = new Error('INVALID_NVIDIA_RESPONSE');
-    normalized.code = error?.message || 'INVALID_NVIDIA_RESPONSE';
+    const normalized = /** @type {HafizeCodedError} */ (new Error('INVALID_NVIDIA_RESPONSE'));
+    normalized.code = /** @type {HafizeCodedError} */ (error)?.message || 'INVALID_NVIDIA_RESPONSE';
     normalized.status = 502;
     throw normalized;
   }
@@ -32,11 +32,11 @@ assert.equal(toolCallResponse.toolCalls[0].name, 'runtime_status');
 
 assert.throws(
   () => normalizeRootCompletion({ choices: [{ finish_reason: 'stop', message: { role: 'assistant', content: { malformed: true } } }] }),
-  (error) => error?.message === 'INVALID_NVIDIA_RESPONSE' && error?.code === 'INVALID_MODEL_CONTENT' && error?.status === 502
+  (/** @type {HafizeCodedError} */ error) => error?.message === 'INVALID_NVIDIA_RESPONSE' && error?.code === 'INVALID_MODEL_CONTENT' && error?.status === 502
 );
 assert.throws(
   () => normalizeRootCompletion({ choices: [{ finish_reason: 7, message: { role: 'assistant', content: 'bad' } }] }),
-  (error) => error?.message === 'INVALID_NVIDIA_RESPONSE' && error?.code === 'INVALID_MODEL_FINISH_REASON' && error?.status === 502
+  (/** @type {HafizeCodedError} */ error) => error?.message === 'INVALID_NVIDIA_RESPONSE' && error?.code === 'INVALID_MODEL_FINISH_REASON' && error?.status === 502
 );
 
 console.log('root model response contract tests passed');

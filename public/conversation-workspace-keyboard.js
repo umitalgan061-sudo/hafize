@@ -9,11 +9,11 @@
     escape: { key: 'Escape', shift: false }
   });
   const ui = {
-    workspace: document.querySelector('.conversation-workspace'),
-    search: document.querySelector('#conversationWorkspaceSearch'),
-    selectAll: document.querySelector('.conversation-workspace-actions .workspace-ghost'),
-    clearSelection: document.querySelectorAll('.conversation-workspace-actions .workspace-ghost')?.[1],
-    status: document.querySelector('#conversationWorkspaceStatus')
+    workspace: /** @type {HTMLElement} */ (document.querySelector('.conversation-workspace')),
+    search: /** @type {HTMLInputElement} */ (document.querySelector('#conversationWorkspaceSearch')),
+    selectAll: /** @type {HTMLButtonElement} */ (document.querySelector('.conversation-workspace-actions .workspace-ghost')),
+    clearSelection: /** @type {HTMLButtonElement} */ (document.querySelectorAll('.conversation-workspace-actions .workspace-ghost')?.[1]),
+    status: /** @type {HTMLElement} */ (document.querySelector('#conversationWorkspaceStatus'))
   };
 
   if (!ui.workspace || !ui.search) return;

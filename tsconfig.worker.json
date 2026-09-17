@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// Neden": [
+    "Service worker'ın global'leri pencereninkilerden farklıdır: window yok,",
+    "buna karşılık importScripts, skipWaiting, clients ve FetchEvent var.",
+    "Ayrı bir proje olmasaydı ya worker API'leri bilinmez ya da public/",
+    "içindeki sayfa kodu olmayan DOM'a erişebilir görünürdü."
+  ],
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "WebWorker"],
+    "types": []
+  },
+  "include": ["public/sw.js", "types/worker.d.ts"]
+}

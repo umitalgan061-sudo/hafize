@@ -77,7 +77,7 @@ const idempotencyCall = calls.find(([name]) => name === 'complete')[1];
 assert.equal(idempotencyCall.idempotencyKey, 'schedule-execution:schedule_42');
 assert.equal('token' in idempotencyCall, false);
 
-const released = await workerA.acquire('schedule_43');
+const released = /** @type {any} */ (await workerA.acquire('schedule_43'));
 assert.deepEqual(await workerA.release({ scheduleId: 'schedule_43', fence: released.fence }), { status: 'released' });
 assert.deepEqual(await workerA.release({ scheduleId: 'schedule_43', fence: released.fence }), { status: 'stale' });
 
@@ -97,7 +97,7 @@ const broken = createScheduleExecutionLeaseBoundary({
 await assert.rejects(() => broken.acquire('schedule_1'), /SCHEDULE_LEASE_PROVIDER_INVALID_RESPONSE:expiresAt/);
 await assert.rejects(() => broken.renew({ scheduleId: 'schedule_1', fence: 1 }), /SCHEDULE_LEASE_PROVIDER_INVALID_RESPONSE:expiresAt/);
 await assert.rejects(() => broken.complete({ scheduleId: 'schedule_1', fence: 1 }), /SCHEDULE_LEASE_PROVIDER_INVALID_RESPONSE:response/);
-await assert.rejects(() => broken.release({ scheduleId: 'schedule_1', fence: 1 }), (error) => {
+await assert.rejects(() => broken.release({ scheduleId: 'schedule_1', fence: 1 }), (/** @type {HafizeCodedError} */ error) => {
   assert.equal(error.message, 'SCHEDULE_LEASE_PROVIDER_FAILED');
   assert.equal(error.message.includes('password'), false);
   return true;
@@ -121,7 +121,7 @@ const timed = createScheduleExecutionLeaseBoundary({
 });
 assert.equal(timed.providerTimeoutMs, 100);
 const timeoutStartedAt = Date.now();
-await assert.rejects(() => timed.acquire('schedule_timeout'), (error) => {
+await assert.rejects(() => timed.acquire('schedule_timeout'), (/** @type {HafizeCodedError} */ error) => {
   assert.equal(error.message, 'SCHEDULE_LEASE_PROVIDER_FAILED');
   return true;
 });

@@ -27,7 +27,9 @@
     const node = root.document.querySelector(`#${CARD_ID} .prompt-library-status`);
     if (node) node.textContent = String(message || '').slice(0, 180);
   };
-  const ids = () => [...root.document.querySelectorAll(`#${CARD_ID} [data-prompt-selection]:checked`)].map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
+  const ids = () => [...root.document.querySelectorAll(`#${CARD_ID} [data-prompt-selection]:checked`)]
+    .map((node) => (node instanceof HTMLElement ? node.dataset.promptSelection : ''))
+    .filter(Boolean).slice(0, MAX_SELECTION);
 
   function readItems() { return api()?.loadItems?.(root.localStorage) || []; }
   function writeItems(items) {

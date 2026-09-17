@@ -30,9 +30,13 @@
     };
   }
 
+  /**
+   * @param {HTMLVideoElement} video
+   * @returns {Promise<void>}
+   */
   function waitForVideo(video) {
     if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    return new Promise(/** @type {(resolve: () => void, reject: (reason?: unknown) => void) => void} */ ((resolve, reject) => {
       const cleanup = () => {
         video.removeEventListener('loadedmetadata', onReady);
         video.removeEventListener('error', onError);
@@ -41,7 +45,7 @@
       const onError = () => { cleanup(); reject(new Error('SCREEN_CAPTURE_VIDEO_FAILED')); };
       video.addEventListener('loadedmetadata', onReady, { once: true });
       video.addEventListener('error', onError, { once: true });
-    });
+    }));
   }
 
   function canvasToBlob(canvas) {
@@ -107,11 +111,11 @@
 
   function mountScreenShare({ root = globalThis } = {}) {
     const document = root.document;
-    const button = document?.querySelector?.('#screenShareBtn');
-    const panel = document?.querySelector?.('#screenSharePreview');
-    const image = document?.querySelector?.('#screenShareImage');
-    const status = document?.querySelector?.('#screenShareStatus');
-    const removeButton = document?.querySelector?.('#screenShareRemove');
+    const button = /** @type {HTMLButtonElement | null} */ (document?.querySelector?.('#screenShareBtn') ?? null);
+    const panel = /** @type {HTMLElement | null} */ (document?.querySelector?.('#screenSharePreview') ?? null);
+    const image = /** @type {HTMLImageElement | null} */ (document?.querySelector?.('#screenShareImage') ?? null);
+    const status = /** @type {HTMLElement | null} */ (document?.querySelector?.('#screenShareStatus') ?? null);
+    const removeButton = /** @type {HTMLButtonElement | null} */ (document?.querySelector?.('#screenShareRemove') ?? null);
     if (!button || !panel || !image || !status || !removeButton) return null;
 
     let objectUrl = null;

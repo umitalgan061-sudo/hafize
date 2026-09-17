@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assertDeploymentReleaseable, evaluateDeploymentReadiness, summarizeDeploymentReadiness } from '../lib/deployment-readiness.mjs';
+import { assertDeploymentReleaseable, evaluateDeploymentReadiness, summarizeDeploymentReadiness } from '../lib/deployment-readiness.mts';
 
 const ready = evaluateDeploymentReadiness({ runtime: { state: 'ready' }, config: { state: 'ready' }, release: { state: 'ready' } });
 assert.equal(ready.state, 'ready');

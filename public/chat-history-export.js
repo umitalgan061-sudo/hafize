@@ -10,12 +10,18 @@
 
   if (!ui.block || !ui.history) return;
 
+  // Zamanlayıcı tanıtıcısı fonksiyon nesnesinin üzerinde değil, modül
+  // kapsamında tutulur: fonksiyon özelliği tip denetimine kapalı bir
+  // gizli durumdur ve aynı davranışı sade bir değişken de verir.
+  /** @type {number | undefined} */
+  let announceTimeoutId;
+
   function announce(message) {
     if (!ui.toast || !message) return;
     ui.toast.textContent = message;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(announce.timeoutId);
-    announce.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    window.clearTimeout(announceTimeoutId);
+    announceTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function readConversations() {

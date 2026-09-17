@@ -65,8 +65,8 @@ function flush() {
 }
 
 function createHarness({ enabled = true, devices = [{ kind: 'audioinput' }], includeMediaDevices = true } = {}) {
-  const documentRef = new FakeTarget();
-  const root = new FakeTarget();
+  const documentRef = /** @type {TestDouble<FakeTarget>} */ (new FakeTarget());
+  const root = /** @type {TestDouble<FakeTarget>} */ (new FakeTarget());
   const attrs = new Map([['aria-pressed', String(enabled)]]);
   const toast = { textContent: '', classList: new FakeClassList() };
   const toggle = {

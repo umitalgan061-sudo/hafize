@@ -13,6 +13,7 @@ let cachedAssets = null;
 let skipWaitingCalled = false;
 let claimCalled = false;
 let fetchCalls = 0;
+/** @type {(request?: any) => Promise<{ source: string }>} */
 let fetchImpl = async () => ({ source: 'network' });
 
 function pathOf(input) {
@@ -50,6 +51,7 @@ const context = {
       return true;
     }
   },
+  /** @param {any} request */
   fetch(request) {
     fetchCalls += 1;
     return fetchImpl(request);

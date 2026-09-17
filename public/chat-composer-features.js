@@ -6,21 +6,38 @@
   const MAX_ATTACHMENT_TEXT = 9000;
   const ACCEPTED_EXTENSIONS = /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log)$/i;
   const ui = {
-    composer: document.querySelector('#composer'),
-    attachBtn: document.querySelector('#attachBtn'),
-    messageInput: document.querySelector('#messageInput'),
-    messages: document.querySelector('#messages'),
-    toast: document.querySelector('#toast')
+    composer: /** @type {HTMLFormElement} */ (document.querySelector('#composer')),
+    attachBtn: /** @type {HTMLButtonElement} */ (document.querySelector('#attachBtn')),
+    messageInput: /** @type {HTMLTextAreaElement} */ (document.querySelector('#messageInput')),
+    messages: /** @type {HTMLElement} */ (document.querySelector('#messages')),
+    toast: /** @type {HTMLElement} */ (document.querySelector('#toast'))
   };
 
   if (!ui.composer || !ui.attachBtn || !ui.messageInput || !ui.messages) return;
+
+  /**
+   * Eklenen dosyaların kaydı.
+   *
+   * Önceden bu liste composer elemanının üzerinde gizli bir özellik olarak
+   * duruyordu. Modül kapsamında tutulması aynı davranışı verir, tek bir
+   * composer olduğu için de tek bir listeye ihtiyaç vardır.
+   *
+   * @type {{ name: string; size: number; lastModified: number; block: string }[]}
+   */
+  let attachments = [];
+
+  // Zamanlayıcı tanıtıcısı fonksiyon nesnesinin üzerinde değil, modül
+  // kapsamında tutulur: fonksiyon özelliği tip denetimine kapalı bir
+  // gizli durumdur ve aynı davranışı sade bir değişken de verir.
+  /** @type {number | undefined} */
+  let announceTimeoutId;
 
   function announce(message) {
     if (!ui.toast || !message) return;
     ui.toast.textContent = message;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(announce.timeoutId);
-    announce.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    window.clearTimeout(announceTimeoutId);
+    announceTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function acceptedFile(file) {
@@ -33,7 +50,7 @@
 
   function renderAttachmentStrip() {
     let strip = ui.composer.querySelector('.attachment-strip');
-    const files = ui.composer._hafizeAttachments || [];
+    const files = attachments;
     if (!files.length) {
       strip?.remove();
       return;
@@ -78,7 +95,7 @@
   }
 
   async function addFile(file) {
-    const files = ui.composer._hafizeAttachments || (ui.composer._hafizeAttachments = []);
+    const files = attachments;
     if (files.length >= MAX_ATTACHMENTS) {
       announce(`En fazla ${MAX_ATTACHMENTS} dosya ekleyebilirsin.`);
       return;
@@ -117,7 +134,7 @@
   }
 
   function clearAttachments() {
-    ui.composer._hafizeAttachments = [];
+    attachments = [];
     renderAttachmentStrip();
   }
 
@@ -243,7 +260,8 @@
     ui.composer.classList.add('drag-active');
   });
   ui.composer.addEventListener('dragleave', (event) => {
-    if (!ui.composer.contains(event.relatedTarget)) ui.composer.classList.remove('drag-active');
+    const leavingTo = /** @type {Node | null} */ (event.relatedTarget);
+    if (!ui.composer.contains(leavingTo)) ui.composer.classList.remove('drag-active');
   });
   ui.composer.addEventListener('drop', async (event) => {
     event.preventDefault();

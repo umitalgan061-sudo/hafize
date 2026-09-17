@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createOAuthFlowRuntime } from '../lib/oauth-flow-runtime.mjs';
+import { createOAuthFlowRuntime } from '../lib/oauth-flow-runtime.mts';
 
 const issued = new Map();
 const store = {

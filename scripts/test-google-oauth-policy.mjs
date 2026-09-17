@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getGoogleOAuthCapabilityScopes, normalizeGoogleOAuthRequest } from '../lib/google-oauth-policy.mjs';
+import { getGoogleOAuthCapabilityScopes, normalizeGoogleOAuthRequest } from '../lib/google-oauth-policy.mts';
 
 const identity = normalizeGoogleOAuthRequest({ capabilities: ['identity'] });
 assert.equal(identity.provider, 'google');

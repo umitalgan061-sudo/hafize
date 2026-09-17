@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "// Neden": [
+    "`public/**/*.ts` tarayıcıda çalışan gerçek TypeScript modülleridir.",
+    "Tarayıcı `.ts` yükleyemediği için bunlar tek yapılandırmada derlenir ve",
+    "`public/typed-build/` altına yazılır. Bundler gerekmez: modüller birbirini",
+    "yalnızca göreli yoldan import ediyor ve `<script type=\"module\">` bunu",
+    "doğrudan çözebiliyor.",
+    "",
+    "Diğer dört projenin aksine burada `strict` açıktır. Bu kod sıfırdan",
+    "TypeScript yazıldı; mevcut JavaScript'i geriye dönük anlamlandırmak gibi",
+    "bir yükü yok, dolayısıyla katılığın bedeli de yok."
+  ],
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+
+    "outDir": "public/typed-build",
+    "rootDir": "public",
+    "removeComments": false,
+    "newLine": "lf",
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["public/**/*.mts", "types/browser.d.ts", "types/shared.d.ts"],
+  "exclude": ["public/**/*.test.ts", "public/typed-build/**"]
+}

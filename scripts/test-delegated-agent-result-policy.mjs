@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { MAX_DELEGATED_CONTENT_CHARS, MAX_DELEGATED_ERROR_CHARS, normalizeDelegatedAgentResult } from '../lib/delegated-agent-result-policy.mjs';
+import { MAX_DELEGATED_CONTENT_CHARS, MAX_DELEGATED_ERROR_CHARS, normalizeDelegatedAgentResult } from '../lib/delegated-agent-result-policy.mts';
 
 function expectInvalid(value, reason) {
   const normalized = normalizeDelegatedAgentResult(value);
@@ -9,10 +9,10 @@ function expectInvalid(value, reason) {
   assert.equal(Object.isFrozen(normalized), true);
 }
 
-assert.deepEqual(normalizeDelegatedAgentResult({ ok: true, content: 'safe child answer' }).result, { ok: true, content: 'safe child answer' });
+assert.deepEqual(/** @type {any} */ (normalizeDelegatedAgentResult({ ok: true, content: 'safe child answer' })).result, { ok: true, content: 'safe child answer' });
 const nullProto = Object.create(null); nullProto.ok = true; nullProto.content = '';
 assert.equal(normalizeDelegatedAgentResult(nullProto).ok, true);
-assert.deepEqual(normalizeDelegatedAgentResult({ ok: false, error: 'DELEGATED_TOOL_FAILED' }).result, { ok: false, error: 'DELEGATED_TOOL_FAILED' });
+assert.deepEqual(/** @type {any} */ (normalizeDelegatedAgentResult({ ok: false, error: 'DELEGATED_TOOL_FAILED' })).result, { ok: false, error: 'DELEGATED_TOOL_FAILED' });
 assert.equal(MAX_DELEGATED_CONTENT_CHARS, 32_768);
 assert.equal(MAX_DELEGATED_ERROR_CHARS, 120);
 expectInvalid(null, 'record');

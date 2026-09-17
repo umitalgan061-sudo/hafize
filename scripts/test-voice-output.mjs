@@ -40,11 +40,13 @@ const input = new FakeNode();
 const composer = new FakeNode();
 const assistantContent = new FakeNode();
 assistantContent.textContent = 'Merhaba. Sana nasıl yardımcı olabilirim?';
-const messages = new FakeNode();
+const messages = /** @type {TestDouble<FakeNode>} */ (new FakeNode());
 messages.querySelectorAll = () => [assistantContent];
 mic.setAttribute('aria-pressed', 'false');
 
-const documentTarget = new FakeEventTarget();
+// `document` ve `window` taklitleri, testin kullandığı alanları kurulum
+// sırasında kazanır; `TestDouble` bunu tip denetimine görünür kılar.
+const documentTarget = /** @type {TestDouble<FakeEventTarget>} */ (new FakeEventTarget());
 documentTarget.hidden = false;
 documentTarget.querySelector = (selector) => ({
   '#voiceOutputToggle': toggle,
@@ -64,7 +66,7 @@ const synth = {
 };
 class FakeUtterance { constructor(text) { this.text = text; } }
 const storageValues = new Map();
-const root = new FakeEventTarget();
+const root = /** @type {TestDouble<FakeEventTarget>} */ (new FakeEventTarget());
 root.speechSynthesis = synth;
 root.SpeechSynthesisUtterance = FakeUtterance;
 root.localStorage = { getItem(key) { return storageValues.get(key) ?? null; }, setItem(key, value) { storageValues.set(key, value); } };
@@ -122,7 +124,7 @@ controller.destroy();
 
 const unsupportedToggle = new FakeNode();
 const unsupportedCard = new FakeNode();
-const unsupportedDocument = new FakeEventTarget();
+const unsupportedDocument = /** @type {TestDouble<FakeEventTarget>} */ (new FakeEventTarget());
 unsupportedDocument.querySelector = (selector) => ({ '#voiceOutputToggle': unsupportedToggle, '.voice-card': unsupportedCard })[selector] || null;
 const unsupported = voiceOutput.installVoiceOutput(unsupportedDocument, new FakeEventTarget());
 assert.equal(unsupported.isSupported, false);

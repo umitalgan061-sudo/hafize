@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createModelProviderRouter, MODEL_PROVIDER_IDS } from '../lib/model-provider-router.mjs';
+import { createModelProviderRouter, MODEL_PROVIDER_IDS } from '../lib/model-provider-router.mts';
 
 const calls = [];
 const router = createModelProviderRouter({
@@ -38,6 +38,6 @@ assert.rejects(() => router.complete({ provider: 'local' }), /INVALID_PROVIDER_P
 const disabled = createModelProviderRouter({ nvidiaComplete: async () => ({}), localEnabled: false });
 assert.throws(() => disabled.resolve('local'), /LOCAL_PROVIDER_NOT_ENABLED/);
 assert.throws(() => createModelProviderRouter({}), /INVALID_PROVIDER_ROUTER:nvidiaComplete/);
-assert.throws(() => createModelProviderRouter({ nvidiaComplete: async () => ({}), localEnabled: 'yes' }), /INVALID_PROVIDER_ROUTER:localEnabled/);
+assert.throws(() => createModelProviderRouter(/** @type {any} */ ({ nvidiaComplete: async () => ({}), localEnabled: 'yes' })), /INVALID_PROVIDER_ROUTER:localEnabled/);
 
 console.log('model provider router tests passed');
