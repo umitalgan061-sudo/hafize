@@ -15,6 +15,7 @@
     return node;
   };
   const clamp = (value, limit) => String(value ?? '').slice(0, limit);
+  const isVisible = (row) => !row.hidden && row.dataset.dashboardTimeMatch !== 'false';
 
   function status(message, tone = '') {
     const target = doc().querySelector(`#${PANEL_ID} .scheduled-tasks-status`);
@@ -118,7 +119,7 @@
   function updateCount(panel) {
     const toolbar = panel.querySelector('.scheduled-tasks-actions-bar');
     if (!toolbar) return;
-    const visible = rows(panel).filter((row) => !row.hidden).length;
+    const visible = rows(panel).filter(isVisible).length;
     const selected = selectedRows(panel).length;
     const target = toolbar.querySelector('[data-task-actions-count]');
     if (target) target.textContent = `${visible} görünür · ${selected} seçili`;
@@ -129,7 +130,7 @@
   }
 
   function selectVisible(panel) {
-    rows(panel).filter((row) => !row.hidden && isScheduled(row)).slice(0, MAX_SELECTED).forEach((row) => {
+    rows(panel).filter((row) => isVisible(row) && isScheduled(row)).slice(0, MAX_SELECTED).forEach((row) => {
       const checkbox = row.querySelector('[data-task-action-select]');
       if (checkbox) checkbox.checked = true;
     });
@@ -166,7 +167,7 @@
   }
 
   async function exportVisible(panel) {
-    const ids = new Set(rows(panel).filter((row) => !row.hidden).map(idOf).filter(Boolean));
+    const ids = new Set(rows(panel).filter(isVisible).map(idOf).filter(Boolean));
     if (!ids.size) return status('Dışa aktarılacak görünür görev yok.', 'info');
     try {
       const payload = await request(API_PATH);
