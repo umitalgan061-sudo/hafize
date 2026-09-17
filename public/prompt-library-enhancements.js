@@ -151,6 +151,24 @@
     }
   }
 
+  function loadPromptLibraryAssets() {
+    if (!root.document) return;
+    if (!root.document.querySelector('link[data-hafize-prompt-smart-fill-css]')) {
+      const link = root.document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = '/prompt-library-smart-fill.css';
+      link.dataset.hafizePromptSmartFillCss = 'true';
+      (root.document.head || root.document.documentElement)?.append(link);
+    }
+    if (!root.document.querySelector('script[data-hafize-prompt-smart-fill]')) {
+      const script = root.document.createElement('script');
+      script.src = '/prompt-library-smart-fill.js';
+      script.defer = true;
+      script.dataset.hafizePromptSmartFill = 'true';
+      (root.document.head || root.document.documentElement)?.append(script);
+    }
+  }
+
   function boot() {
     if (mounted || !api || !root.document) return;
     const card = root.document.querySelector('#promptLibraryCard');
@@ -159,6 +177,7 @@
     observer = new MutationObserver(enhance);
     observer.observe(card, { childList: true, subtree: true });
     enhance();
+    loadPromptLibraryAssets();
     root.addEventListener?.('hafize:prompt-library-changed', syncCore);
     listeners.push(() => root.removeEventListener?.('hafize:prompt-library-changed', syncCore));
   }
