@@ -59,6 +59,30 @@ Desteklenen akış:
 
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
+### İçe aktarma önizlemesi
+
+`İçe aktar` bir dosyayı seçer seçmez kütüphaneye yazmaz. Önce, birleştirmenin sonucunu bellekte hesaplayan bir önizleme paneli açılır.
+
+- Panel dosyadaki kayıt, geçerli kayıt, aktarılacak kayıt, yinelenen id ve kapasite dışı kalan kayıt sayılarını gösterir.
+- Örnek başlıklar metin düğümü olarak çizilir; HTML olarak yorumlanmaz.
+- 1 MB üstü dosya okunmadan reddedilir; geçersiz JSON mevcut kütüphaneyi değiştirmez.
+- Yinelenen id taşıyan kayıtlar yeni id ile eklenir, mevcut istemin üzerine yazılmaz.
+- Aktarılacak kayıt yoksa onay düğmesi pasif kalır. `Escape` paneli kapatır ve Tab odağı panel içinde kalır.
+- Yazma yalnızca kullanıcı onayladığında, mevcut `saveItems` üzerinden yapılır.
+
+Kontroller `node scripts/test-prompt-library-import-preview.mjs` ve `node scripts/test-prompt-library-import-preview-runtime.mjs` ile çalıştırılır. Senaryolar `docs/PROMPT_IMPORT_QA.md` dosyasındadır.
+
+### Kütüphane sağlığı
+
+Sağlık paneli, istem ve koleksiyon storage anahtarlarını okuyup tutarsızlıkları raporlar: ham kayıt, normalize edilebilen kayıt, bozuk kayıt, yinelenen id, koleksiyon sayısı ve artık var olmayan istemlere işaret eden koleksiyon üyeleri.
+
+- Tanı en fazla 120 kaydı temel alır; yetim üye listesi 200 kayıtla sınırlıdır.
+- `Onar` düğmesi yalnızca gerçek bir sorun varsa etkinleşir ve yazmadan önce kullanıcı onayı ister.
+- Onarım, mevcut normalizer'ları kullanır; doğrulanamayan kayıtlar kopyalanmaz. Onarım öncesi yedek için mevcut JSON dışa aktarma kullanılabilir.
+- Tanı yalnızca `localStorage` okur; hiçbir veri sunucuya gönderilmez.
+
+Kontroller `node scripts/test-prompt-library-diagnostics.mjs` ve `node scripts/test-prompt-library-diagnostics-runtime.mjs` ile çalıştırılır. Ayrıntılar `docs/PROMPT_DIAGNOSTICS.md` dosyasındadır.
+
 ## Akıllı doldurma
 
 Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı doldurma panelini açar. Panel her `{{değişken}}` için bir alan üretir, önizlemeyi yazdıkça günceller ve yalnızca tüm alanlar dolduğunda composer'a aktarır.

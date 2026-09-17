@@ -24,7 +24,8 @@ assert.equal(requests[0].init.headers.authorization, `Basic ${Buffer.from('clien
 const body = new URLSearchParams(requests[0].init.body);
 assert.deepEqual(Object.fromEntries(body), { grant_type: 'authorization_code', code_verifier: 'v'.repeat(43), code: 'authorization-code', redirect_uri: 'https://example.com/oauth/callback' });
 assert.equal(requests[0].init.body.includes('client-secret'), false);
-assert.deepEqual(saves, [{ ownerId: 'owner:1', provider: 'canva', tokenRecord: { accessToken: 'access-token', refreshToken: 'refresh-token', tokenType: 'Bearer', scopes: ['asset:read', 'design:meta:read'], expiresAt: 1_700_014_400_000 } }]);
+assert.deepEqual(saves, [{ ownerId: 'owner:1', provider: 'canva', tokenRecord: { accessToken: 'access-token', refreshToken: 'refresh-token', tokenType: 'Bearer', scopes: ['asset:read', 'design:meta:read'],
+  expiresAt: 1_700_014_400_000 } }]);
 assert.deepEqual(receipt, { provider: 'canva', ownerId: 'owner:1', scopes: ['asset:read', 'design:meta:read'], expiresAt: 1_700_014_400_000, refreshTokenStored: true });
 assert.equal(JSON.stringify(receipt).includes('access-token'), false);
 assert.equal(JSON.stringify(receipt).includes('refresh-token'), false);
@@ -40,7 +41,8 @@ for (const input of [
   { ownerId: 'owner', code: 'authorization-code', verifier: 'v'.repeat(43), redirectUri: 'https://example.com/callback#fragment' }
 ]) await assert.rejects(() => exchange.exchange(input), /INVALID_CANVA_TOKEN_EXCHANGE/);
 
-for (const payload of [null, {}, { access_token: 'a', refresh_token: 'r', token_type: 'MAC', expires_in: 14400 }, { access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expires_in: 1 }, { access_token: 'a', refresh_token: '', token_type: 'Bearer', expires_in: 14400 }, { access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expires_in: 14400, scope: 'x'.repeat(5000) }]) {
+for (const payload of [null, {}, { access_token: 'a', refresh_token: 'r', token_type: 'MAC', expires_in: 14400 }, { access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expires_in: 1 }, { access_token: 'a', refresh_token: '',
+  token_type: 'Bearer', expires_in: 14400 }, { access_token: 'a', refresh_token: 'r', token_type: 'Bearer', expires_in: 14400, scope: 'x'.repeat(5000) }]) {
   const bad = createCanvaTokenExchange({ clientId: 'id', clientSecret: 'secret', tokenStore: { save: async () => {} }, fetchImpl: async () => ({ ok: true, json: async () => payload }) });
   await assert.rejects(() => bad.exchange({ ownerId: 'owner', code: 'authorization-code', verifier: 'v'.repeat(43), redirectUri: 'https://example.com/callback' }), /CANVA_TOKEN_EXCHANGE_FAILED|INVALID_CANVA_TOKEN_EXCHANGE/);
 }

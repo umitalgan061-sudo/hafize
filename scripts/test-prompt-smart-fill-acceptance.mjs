@@ -5,7 +5,8 @@ const root = process.cwd();
 const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.ts'),'utf8');
 const palette = fs.readFileSync(path.join(root,'public/prompt-library-command-palette.ts'),'utf8');
 const docs = fs.readFileSync(path.join(root,'docs/PROMPT_SMART_FILL_ACCEPTANCE.md'),'utf8');
-for (const token of ['Kullan','Mesaja aktar','aria-modal','aria-describedby','MAX_VALUE','MAX_VARIABLES','MAX_PRESETS','replaceVariables','composer.value','preventDefault']) assert.match(smart,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+for (const token of ['Kullan','Mesaja aktar','aria-modal','aria-describedby','MAX_VALUE','MAX_VARIABLES','MAX_PRESETS','replaceVariables','composer.value','preventDefault']) assert.match(smart,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,
+  '\\$&')));
 for (const token of ['/prompt','MAX_RESULTS','MAX_QUERY','ArrowDown','ArrowUp','Enter','Escape','HafizePromptLibrarySmartFill']) assert.match(palette,new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 assert.match(docs,/Kullanıcı akışı/);
 assert.match(docs,/Erişilebilirlik/);

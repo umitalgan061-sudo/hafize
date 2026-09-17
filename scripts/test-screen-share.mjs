@@ -72,7 +72,8 @@ assert.equal(captureStopped, 1);
 assert.deepEqual(normalizeScreenCaptureMetadata(capture.metadata), { ok: true, metadata: { mimeType: 'image/jpeg', byteLength: 123, width: 1280, height: 720 } });
 
 await assert.rejects(captureScreenFrame({ mediaDevices: {}, document, explicitUserIntent: true }), /SCREEN_CAPTURE_UNSUPPORTED/);
-await assert.rejects(captureScreenFrame({ mediaDevices: { getDisplayMedia: async () => { const error = new Error('denied'); error.name = 'NotAllowedError'; throw error; } }, document, explicitUserIntent: true }), /SCREEN_CAPTURE_CANCELLED/);
+await assert.rejects(captureScreenFrame({ mediaDevices: { getDisplayMedia: async () => { const error = new Error('denied'); error.name = 'NotAllowedError'; throw error; } }, document, explicitUserIntent: true }),
+  /SCREEN_CAPTURE_CANCELLED/);
 await assert.rejects(captureScreenFrame({ mediaDevices: { getDisplayMedia: async () => ({ getVideoTracks: () => [], getTracks: () => [{ stop() {} }] }) }, document, explicitUserIntent: true }), /SCREEN_CAPTURE_NO_VIDEO/);
 await assert.rejects(captureScreenFrame({ mediaDevices: { getDisplayMedia: async () => captureStream }, document: createDocument({ blobType: 'image/png' }), explicitUserIntent: true }), /SCREEN_CAPTURE_ENCODE_FAILED/);
 
