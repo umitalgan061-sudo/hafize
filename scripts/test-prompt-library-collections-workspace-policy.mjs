@@ -21,8 +21,8 @@ assert.match(source, /loadWorkspace/);
 assert.match(source, /visibleCollections/);
 assert.match(source, /exportWorkspace/);
 assert.match(source, /importWorkspace/);
-assert.match(source, /root\.fetch/);
-assert.equal(source.includes('fetch('), true);
+assert.equal(source.includes('fetch('), false, 'collection workspace must not call remote fetch');
+assert.equal(source.includes('XMLHttpRequest'), false);
 assert.equal(source.includes('navigator.sendBeacon'), false);
 assert.equal(source.includes('WebSocket'), false);
 
