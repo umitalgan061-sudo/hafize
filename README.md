@@ -83,7 +83,10 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - `Ctrl / ⌘ + Shift + T` ile görevler paneli açılır; düzenlenebilir alanlarda kısayol devre dışıdır.
 - Görev içeriği browser storage'a otomatik kopyalanmaz ve schedule API response'ları service worker cache'lenmez.
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
-- Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
+- Görev düzenleyicisi ayrıca metin araması, ajan filtresi, yaklaşan/uzaklaşan veya duruma göre sıralama, cihazda görünüm tercihi ve onaylı görev çoğaltma sunar.
+- Görünüm tercihi yalnızca `hafize.scheduled-tasks.view.v1` altında tutulur; görev payload'ı veya kimlik bilgileri localStorage'a kopyalanmaz.
+
+Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
 ## Test
 
@@ -105,6 +108,12 @@ node scripts/test-scheduled-tasks-countdown.mjs
 node scripts/test-scheduled-tasks-pwa.mjs
 node scripts/test-scheduled-tasks-index-and-sw.mjs
 node scripts/test-scheduled-tasks-regression.mjs
+node scripts/test-scheduled-tasks-organizer.mjs
+node scripts/test-scheduled-tasks-organizer-storage.mjs
+node scripts/test-scheduled-tasks-organizer-duplicate.mjs
+node scripts/test-scheduled-tasks-organizer-ui.mjs
+node scripts/test-scheduled-tasks-organizer-security.mjs
+node scripts/test-scheduled-tasks-organizer-pwa.mjs
 ```
 
 Conversation Workspace özel kontrolleri:
