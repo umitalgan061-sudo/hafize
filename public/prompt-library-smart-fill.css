@@ -1,0 +1,39 @@
+.prompt-library-smart-fill{width:min(680px,calc(100vw - 28px));max-width:680px;padding:0;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);box-shadow:0 24px 70px rgb(0 0 0 / .22)}
+.prompt-library-smart-fill::backdrop{background:rgb(0 0 0 / .34);backdrop-filter:blur(2px)}
+.prompt-library-smart-fill-shell{display:flex;flex-direction:column;max-height:min(82vh,760px)}
+.prompt-library-smart-fill-header{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.prompt-library-smart-fill-title{font-size:15px;line-height:1.3}
+.prompt-library-smart-fill-close{margin-left:auto}
+.prompt-library-smart-fill-prompt-title{padding:12px 16px 2px;font-size:12px;font-weight:650;overflow-wrap:anywhere}
+.prompt-library-smart-fill-fields{display:flex;flex-direction:column;gap:10px;padding:12px 16px 4px;overflow:auto}
+.prompt-library-smart-fill-field{display:flex;flex-direction:column;gap:6px}
+.prompt-library-smart-fill-field label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600}
+.prompt-library-smart-fill-token{font-weight:500;color:var(--muted)}
+.prompt-library-smart-fill-field input,.prompt-library-smart-fill-field textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);padding:9px 10px;font:inherit;font-size:12px;line-height:1.45}
+.prompt-library-smart-fill-field textarea{resize:vertical;min-height:72px}
+.prompt-library-smart-fill-field input:focus-visible,.prompt-library-smart-fill-field textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.prompt-library-smart-fill-field [aria-invalid="true"]{border-color:var(--danger,var(--accent))}
+.prompt-library-smart-fill-section-title{padding:10px 16px 5px;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.prompt-library-smart-fill-preview{margin:0 16px;padding:12px;min-height:88px;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.prompt-library-smart-fill-status{min-height:16px;padding:7px 16px 0;color:var(--muted);font-size:10px;line-height:1.4}
+.prompt-library-smart-fill-empty{padding:12px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:11px;line-height:1.5}
+.prompt-library-smart-fill-footer{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap;padding:12px 16px 14px;border-top:1px solid var(--line);margin-top:12px}
+.prompt-library-smart-fill-footer .soft-btn{font-size:11px}
+.prompt-smart-fill-button{font-size:10px;padding:5px 7px}
+@media (max-width:700px){
+  .prompt-library-smart-fill{width:calc(100vw - 16px);border-radius:14px}
+  .prompt-library-smart-fill-shell{max-height:88vh}
+  .prompt-library-smart-fill-header{padding:12px}
+  .prompt-library-smart-fill-fields{padding-left:12px;padding-right:12px}
+  .prompt-library-smart-fill-preview{margin-left:12px;margin-right:12px}
+  .prompt-library-smart-fill-status{padding-left:12px;padding-right:12px}
+  .prompt-library-smart-fill-footer{padding-left:12px;padding-right:12px}
+  .prompt-library-smart-fill-footer button{flex:1 1 140px}
+}
+@media (prefers-reduced-motion:reduce){.prompt-library-smart-fill *{scroll-behavior:auto}}
+@media (forced-colors:active){
+  .prompt-library-smart-fill{border-color:CanvasText;background:Canvas;color:CanvasText}
+  .prompt-library-smart-fill-field input,.prompt-library-smart-fill-field textarea,.prompt-library-smart-fill-preview{border-color:CanvasText;background:Canvas;color:CanvasText}
+  .prompt-library-smart-fill-field input:focus-visible,.prompt-library-smart-fill-field textarea:focus-visible{outline-color:Highlight}
+}
+@media (prefers-contrast:more){.prompt-library-smart-fill,.prompt-library-smart-fill-field input,.prompt-library-smart-fill-field textarea,.prompt-library-smart-fill-preview{border-width:2px}}
