@@ -1,92 +1,96 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { migratedEntryUrl, readMigratedSource } from './migrated-entry-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const smart = read('public/prompt-library-smart-fill.js');
-const palette = read('public/prompt-library-command-palette.js');
-const hints = read('public/prompt-library-smart-fill-hints.js');
+const smart = readMigratedSource('prompt-library-smart-fill');
+const palette = readMigratedSource('prompt-library-command-palette');
+const hints = readMigratedSource('prompt-library-smart-fill-hints');
 const index = read('public/index.html');
 
-const openFlow = [
-  'function interceptUse(event)',
-  'closest?.(\'.prompt-item-actions button\')',
-  "textContent?.trim() !== 'Kullan'",
-  'variableNames(promptItem.body)',
-  'event.preventDefault()',
-  'event.stopImmediatePropagation()',
-  'openFor(promptItem)'
-];
-for (const token of openFlow) assert.ok(smart.includes(token), `open flow missing: ${token}`);
+// Each journey step is matched with a whitespace-tolerant pattern so that
+// reformatting the source is not a contract change.
+const assertFlow = (source, label, patterns) => {
+  for (const pattern of patterns) assert.match(source, pattern, `${label} missing: ${pattern}`);
+};
 
-const editFlow = [
-  'function renderPreview()',
-  'currentValues()',
-  'replaceVariables?.(activePrompt.body, values)',
-  'preview.textContent',
-  'input.addEventListener(\'input\', renderPreview)'
-];
-for (const token of editFlow) assert.ok(smart.includes(token), `preview flow missing: ${token}`);
+assertFlow(smart, 'open flow', [
+  /const interceptUse = \(event: MouseEvent\)/,
+  /closest<HTMLButtonElement>\('\.prompt-item-actions button'\)/,
+  /textContent\?\.trim\(\) !== 'Kullan'/,
+  /variableNames\(prompt\.body\)/,
+  /event\.preventDefault\(\)/,
+  /event\.stopImmediatePropagation\(\)/,
+  /openFor\(prompt\)/
+]);
 
-const presetFlow = [
-  'function savePreset()',
-  'readPresets(activePrompt.id)',
-  'writePresets(activePrompt.id',
-  'renderPresetBar()',
-  'found.values[name]'
-];
-for (const token of presetFlow) assert.ok(smart.includes(token), `preset flow missing: ${token}`);
+assertFlow(smart, 'preview flow', [
+  /const renderPreview = \(\): void =>/,
+  /currentValues\(\)/,
+  /replaceVariables\?\.\(activePrompt\.body, values\)/,
+  /preview\.textContent/,
+  /input\.addEventListener\('input', renderPreview\)/
+]);
 
-const insertFlow = [
-  'function insertIntoComposer()',
-  'activeNames.some',
-  'values[name].trim().length === 0',
-  "showError('Tüm değişken alanlarını dold",
-  'composer.value = text.slice',
-  "new Event('input', { bubbles: true })",
-  'composer.focus()',
-  'closeDialog()'
-];
-for (const token of insertFlow) assert.ok(smart.includes(token), `insert flow missing: ${token}`);
-assert.doesNotMatch(smart,/requestSubmit\s*\(/);
-assert.doesNotMatch(smart,/\.submit\s*\(/);
+assertFlow(smart, 'preset flow', [
+  /save\.addEventListener\('click'/,
+  /readPresets\(activePrompt\.id\)/,
+  /writePresets\(activePrompt\.id/,
+  /persistPresetBar\(\)/,
+  /found\.values\[name\]/
+]);
 
-const paletteFlow = [
-  'function onInput(event)',
-  "match = before.match(/(^|\\s)\\/prompt",
-  'activeIndex = 0',
-  'render()',
-  'function move(delta)',
-  "event.key === 'Enter'",
-  "event.key === 'Escape'",
-  'insert(item)'
-];
-for (const token of paletteFlow) assert.ok(palette.includes(token), `palette flow missing: ${token}`);
+assertFlow(smart, 'insert flow', [
+  /const insertIntoComposer = \(\): void =>/,
+  /const missing = activeNames\.filter\(/,
+  /\(values\[name\] \?\? ''\)\.trim\(\)\.length === 0/,
+  /Doldurulmamış değişkenler/,
+  /composer\.value = text/,
+  /new Event\('input', \{ bubbles: true \}\)/,
+  /composer\.focus\(\)/,
+  /closeDialog\(\)/
+]);
+assert.doesNotMatch(smart, /requestSubmit\s*\(/);
+assert.doesNotMatch(smart, /\.submit\s*\(/);
 
-assert.match(hints,/function paint\(panel\)/);
-assert.match(hints,/nextElementSibling/);
-assert.match(hints,/requestAnimationFrame/);
+assertFlow(palette, 'palette flow', [
+  /const onInput = \(\): void =>/,
+  /input\.value\.slice\(0, cursor\)\.match\(\/\(\^\|\\s\)\\\/prompt/,
+  /activeIndex = 0/,
+  /render\(\)/,
+  /const move = \(delta: number\): void =>/,
+  /event\.key === 'Enter'/,
+  /event\.key === 'Escape'/,
+  /insert\(item\)/
+]);
+
+assert.match(hints, /export function paintSmartFillHints\(panel: HTMLElement\)/);
+assert.match(hints, /nextElementSibling/);
+assert.match(hints, /requestAnimationFrame/);
 
 for (const asset of [
-  'prompt-library-smart-fill.css',
-  'prompt-library-command-palette.css',
-  'prompt-library-smart-fill.js',
-  'prompt-library-command-palette.js',
-  'prompt-library-smart-fill-hints.js'
+  '/prompt-library-smart-fill.css',
+  '/prompt-library-command-palette.css',
+  migratedEntryUrl('prompt-library-smart-fill'),
+  migratedEntryUrl('prompt-library-command-palette'),
+  migratedEntryUrl('prompt-library-smart-fill-hints')
 ]) assert.ok(index.includes(asset), `missing asset: ${asset}`);
 
-assert.ok(index.indexOf('prompt-library.js') < index.indexOf('prompt-library-smart-fill.js'));
-assert.ok(index.indexOf('prompt-library-smart-fill.js') < index.indexOf('prompt-library-command-palette.js'));
-assert.ok(index.indexOf('prompt-library-command-palette.js') < index.indexOf('prompt-library-smart-fill-hints.js'));
+// The core library defines the API the typed entries bridge to, so it loads
+// first, and the entries keep their documented order among themselves.
+assert.ok(index.indexOf('/prompt-library.js') < index.indexOf(migratedEntryUrl('prompt-library-smart-fill')));
+assert.ok(index.indexOf(migratedEntryUrl('prompt-library-smart-fill')) < index.indexOf(migratedEntryUrl('prompt-library-command-palette')));
+assert.ok(index.indexOf(migratedEntryUrl('prompt-library-command-palette')) < index.indexOf(migratedEntryUrl('prompt-library-smart-fill-hints')));
 
-for (const source of [smart,palette,hints]) {
-  assert.doesNotMatch(source,/fetch\s*\(/);
-  assert.doesNotMatch(source,/XMLHttpRequest/);
-  assert.doesNotMatch(source,/WebSocket/);
-  assert.doesNotMatch(source,/navigator\.sendBeacon/);
-  assert.doesNotMatch(source,/innerHTML\s*=/);
-  assert.doesNotMatch(source,/outerHTML/);
+for (const source of [smart, palette, hints]) {
+  assert.doesNotMatch(source, /fetch\s*\(/);
+  assert.doesNotMatch(source, /XMLHttpRequest/);
+  assert.doesNotMatch(source, /WebSocket/);
+  assert.doesNotMatch(source, /navigator\.sendBeacon/);
+  assert.doesNotMatch(source, /innerHTML\s*=/);
+  assert.doesNotMatch(source, /outerHTML/);
 }
 
 console.log('prompt smart-fill user journey: ok');
