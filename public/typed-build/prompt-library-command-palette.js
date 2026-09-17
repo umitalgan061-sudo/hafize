@@ -11,25 +11,26 @@ function o() {
 		return [];
 	}
 }
-function s(e, t) {
+var s = 1;
+function c(e, t) {
 	let n = t.toLocaleLowerCase("tr-TR").trim();
-	if (!n) return 0;
+	if (!n) return s;
 	let r = String(e.title || "").toLocaleLowerCase("tr-TR"), i = (e.tags || []).join(" ").toLocaleLowerCase("tr-TR"), a = String(e.body || "").toLocaleLowerCase("tr-TR");
 	return r === n ? 100 : r.startsWith(n) ? 80 : r.includes(n) ? 60 : i.includes(n) ? 45 : a.includes(n) ? 20 : 0;
 }
-function c(e) {
+function l(e) {
 	let t = String(e || "").slice(0, i);
 	return o().map((e) => ({
 		item: e,
-		score: s(e, t)
+		score: c(e, t)
 	})).filter((e) => e.score > 0).sort((e, t) => t.score - e.score || Number(!!t.item.favorite) - Number(!!e.item.favorite) || String(t.item.updatedAt || "").localeCompare(String(e.item.updatedAt || ""))).slice(0, r).map((e) => e.item);
 }
-function l(t) {
+function u(t) {
 	return e.HafizePromptLibrary?.extractVariables?.(t.body)?.length ?? 0;
 }
-function u(r = e.document, s = e) {
-	let u = r?.getElementById(t);
-	if (!r || !u || r.getElementById(n)) return null;
+function d(r = e.document, s = e) {
+	let c = r?.getElementById(t);
+	if (!r || !c || r.getElementById(n)) return null;
 	let d = a(r, "section", void 0, "prompt-command-palette");
 	d.id = n, d.hidden = !0, d.setAttribute("role", "dialog"), d.setAttribute("aria-modal", "false"), d.setAttribute("aria-label", "İstem seçici");
 	let f = a(r, "div", void 0, "prompt-command-palette-head");
@@ -43,29 +44,29 @@ function u(r = e.document, s = e) {
 	let g = 0, _ = [], v = -1, y = null, b = () => {
 		d.hidden = !0, p.value = "", m.replaceChildren(), _ = [], g = 0, v = -1, y instanceof HTMLElement && y.focus(), y = null;
 	}, x = (e) => {
-		let t = u.value, n = v >= 0 ? v : 0, r = t.slice(0, n).replace(/\/prompt(?:\s+[^\n]*)?$/, "");
-		if (l(e) && s.HafizePromptLibrarySmartFill?.open) {
+		let t = c.value, n = v >= 0 ? v : 0, r = t.slice(0, n).replace(/\/prompt(?:\s+[^\n]*)?$/, "");
+		if (u(e) && s.HafizePromptLibrarySmartFill?.open) {
 			b(), s.HafizePromptLibrarySmartFill.open(e);
 			return;
 		}
-		u.value = `${r}${e.body}`, u.dispatchEvent(new Event("input", { bubbles: !0 })), u.focus(), b(), s.dispatchEvent(new CustomEvent("hafize:prompt-command-inserted", { detail: {
+		c.value = `${r}${e.body}`, c.dispatchEvent(new Event("input", { bubbles: !0 })), c.focus(), b(), s.dispatchEvent(new CustomEvent("hafize:prompt-command-inserted", { detail: {
 			id: e.id,
 			title: e.title
 		} }));
 	}, S = () => {
-		_ = c(p.value), m.replaceChildren(), g = Math.min(g, Math.max(0, _.length - 1)), h.textContent = _.length ? `${_.length} istem bulundu.` : o().length ? "Eşleşen istem bulunamadı." : "Kütüphanede istem yok.", _.forEach((e, t) => {
+		_ = l(p.value), m.replaceChildren(), g = Math.min(g, Math.max(0, _.length - 1)), h.textContent = _.length ? `${_.length} istem bulundu.` : o().length ? "Eşleşen istem bulunamadı." : "Kütüphanede istem yok.", _.forEach((e, t) => {
 			let n = a(r, "button", void 0, "prompt-command-palette-item");
-			n.type = "button", n.dataset.promptId = e.id, n.setAttribute("role", "option"), n.setAttribute("aria-selected", String(t === g)), n.append(a(r, "span", e.title, "prompt-command-palette-name"), a(r, "span", `${e.favorite ? "★ " : ""}${e.tags?.slice(0, 2).join(" · ") || "etiketsiz"}${l(e) ? ` · ${l(e)} değişken` : ""}`, "prompt-command-palette-meta")), n.addEventListener("click", () => x(e)), m.append(n);
+			n.type = "button", n.dataset.promptId = e.id, n.setAttribute("role", "option"), n.setAttribute("aria-selected", String(t === g)), n.append(a(r, "span", e.title, "prompt-command-palette-name"), a(r, "span", `${e.favorite ? "★ " : ""}${e.tags?.slice(0, 2).join(" · ") || "etiketsiz"}${u(e) ? ` · ${u(e)} değişken` : ""}`, "prompt-command-palette-meta")), n.addEventListener("click", () => x(e)), m.append(n);
 		}), m.children[g]?.scrollIntoView?.({ block: "nearest" });
 	}, C = (e) => {
 		y = r.activeElement, v = Math.max(0, e), d.hidden = !1, p.value = "", g = 0, S(), p.focus();
 	}, w = (e) => {
 		_.length && (g = (g + e + _.length) % _.length, [...m.children].forEach((e, t) => e.setAttribute("aria-selected", String(t === g))), m.children[g]?.scrollIntoView?.({ block: "nearest" }));
 	}, T = () => {
-		let e = u.selectionStart ?? u.value.length;
-		return u.value.slice(0, e).match(/(^|\s)\/prompt(?:\s+([^\n]*))?$/i);
+		let e = c.selectionStart ?? c.value.length;
+		return c.value.slice(0, e).match(/(^|\s)\/prompt(?:\s+([^\n]*))?$/i);
 	}, E = (e) => {
-		let t = T(), n = u.selectionStart ?? u.value.length;
+		let t = T(), n = c.selectionStart ?? c.value.length;
 		if (t) {
 			if (!e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && [
 				"ArrowDown",
@@ -83,7 +84,7 @@ function u(r = e.document, s = e) {
 			d.hidden || b();
 			return;
 		}
-		let t = u.selectionStart ?? u.value.length;
+		let t = c.selectionStart ?? c.value.length;
 		d.hidden && C(t - e[0].length + +!!e[1]), p.value = (e[2] || "").slice(0, i), g = 0, S();
 	}, O = () => {
 		g = 0, S();
@@ -96,27 +97,27 @@ function u(r = e.document, s = e) {
 			t && (e.preventDefault(), x(t));
 		}
 	}, A = (e) => {
-		(e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "o" && (e.preventDefault(), d.hidden ? C(u.selectionStart ?? u.value.length) : b());
+		(e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "o" && (e.preventDefault(), d.hidden ? C(c.selectionStart ?? c.value.length) : b());
 	};
-	return u.addEventListener("keydown", E), u.addEventListener("input", D), p.addEventListener("input", O), d.addEventListener("keydown", k), s.addEventListener("keydown", A), Object.freeze({
+	return c.addEventListener("keydown", E), c.addEventListener("input", D), p.addEventListener("input", O), d.addEventListener("keydown", k), s.addEventListener("keydown", A), Object.freeze({
 		mounted: !0,
 		open: C,
 		close: b,
-		search: c,
+		search: l,
 		destroy: () => {
-			b(), u.removeEventListener("keydown", E), u.removeEventListener("input", D), p.removeEventListener("input", O), d.removeEventListener("keydown", k), s.removeEventListener("keydown", A), d.remove();
+			b(), c.removeEventListener("keydown", E), c.removeEventListener("input", D), p.removeEventListener("input", O), d.removeEventListener("keydown", k), s.removeEventListener("keydown", A), d.remove();
 		}
 	});
 }
 e.PromptLibraryCommandPalette = Object.freeze({
-	mount: u,
-	results: c
+	mount: d,
+	results: l
 });
-var d = () => {
-	e.document && u(e.document, e);
+var f = () => {
+	e.document && d(e.document, e);
 };
-e.document?.readyState === "loading" ? e.document.addEventListener("DOMContentLoaded", d, { once: !0 }) : d();
+e.document?.readyState === "loading" ? e.document.addEventListener("DOMContentLoaded", f, { once: !0 }) : f();
 //#endregion
-export { c as searchPromptLibrary };
+export { l as searchPromptLibrary };
 
 //# sourceMappingURL=prompt-library-command-palette.js.map

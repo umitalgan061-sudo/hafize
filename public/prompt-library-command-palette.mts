@@ -31,9 +31,16 @@ function loadItems(): PromptRecord[] {
   }
 }
 
+// Boş sorgu "hiçbir şey eşleşmedi" demek değildir: palet `/prompt` yazılır
+// yazılmaz açılır ve kullanıcı henüz bir şey yazmamıştır. O anda boş bir liste
+// göstermek paleti yazmaya başlayana kadar işe yaramaz kılardı; bu yüzden boş
+// sorgu her kaydı eşit puanla geçirir ve sıralamayı favori/güncellenme
+// bozucuları belirler.
+const EMPTY_QUERY_SCORE = 1;
+
 function score(item: PromptRecord, query: string): number {
   const q = query.toLocaleLowerCase('tr-TR').trim();
-  if (!q) return 0;
+  if (!q) return EMPTY_QUERY_SCORE;
   const title = String(item.title || '').toLocaleLowerCase('tr-TR');
   const tags = (item.tags || []).join(' ').toLocaleLowerCase('tr-TR');
   const body = String(item.body || '').toLocaleLowerCase('tr-TR');
