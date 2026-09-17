@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const files = {
   package: 'package.json',
@@ -52,7 +53,8 @@ assert(!text.index.includes('prompt-library-smart-fill.js" defer'), 'legacy Smar
 assert(!text.index.includes('prompt-library-command-palette.js" defer'), 'legacy Command Palette script remains in HTML');
 assert(!text.index.includes('scheduled-tasks-countdown.js" defer'), 'legacy Countdown script remains in HTML');
 assert(!text.index.includes('prompt-library-smart-fill-hints.js" defer'), 'legacy Smart Fill hints remain in HTML');
-assert(text.sw.includes('hafize-shell-v35'), 'service worker cache version must be v35');
+// Asserted as an invariant: the version number itself moves with the shell.
+assertVersionedCacheDeclaration(text.sw);
 assert(text.sw.includes('/typed-build/app-runtime.js'), 'runtime build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-smart-fill.js'), 'Smart Fill build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-command-palette.js'), 'Command Palette build missing from PWA shell');

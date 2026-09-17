@@ -30,7 +30,7 @@ export interface PaletteController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as PaletteWindow;
+const root = globalThis as unknown as PaletteWindow;
 const CARD_ID = 'promptLibraryCard';
 const INPUT_ID = 'messageInput';
 const PALETTE_ID = 'promptLibraryCommandPalette';
@@ -189,7 +189,8 @@ function mount(documentRef: Document = root.document, rootRef: PaletteWindow = r
       if (palette.hidden) open(cursor - match[0].length + (match[1] ? 1 : 0));
       if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
       if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-      if (event.key === 'Enter' && current[activeIndex]) { event.preventDefault(); insert(current[activeIndex]); }
+      const active = current[activeIndex];
+      if (event.key === 'Enter' && active) { event.preventDefault(); insert(active); }
     } else if (palette.hidden && !event.ctrlKey && !event.metaKey && event.key === ' ') {
       open(cursor - match[0].length + (match[1] ? 1 : 0));
     }
@@ -206,10 +207,11 @@ function mount(documentRef: Document = root.document, rootRef: PaletteWindow = r
   };
   const onQueryInput = (): void => { activeIndex = 0; render(); };
   const onPaletteKeydown = (event: KeyboardEvent): void => {
+    const active = current[activeIndex];
     if (event.key === 'Escape') { event.preventDefault(); close(); }
     else if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-    else if (event.key === 'Enter' && current[activeIndex]) { event.preventDefault(); insert(current[activeIndex]); }
+    else if (event.key === 'Enter' && active) { event.preventDefault(); insert(active); }
   };
   const onShortcut = (event: KeyboardEvent): void => {
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'o') return;

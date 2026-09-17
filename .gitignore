@@ -19,3 +19,8 @@ coverage/
 *.crt
 runtime/
 data/
+
+# The typed entries in public/typed-build/ are committed: the static server
+# serves them directly and the check gate asserts every PWA shell asset exists
+# on disk. Their sourcemaps are pure build output and stay untracked.
+public/typed-build/*.map

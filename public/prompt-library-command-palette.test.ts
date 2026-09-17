@@ -34,9 +34,12 @@ describe('Prompt Library command palette', () => {
   });
 
   it('caps query length and maximum result count', () => {
-    const items = Array.from({ length: 40 }, (_, index) => ({ id: String(index), title: `A ${index}`, body: 'A', tags: [], updatedAt: new Date().toISOString() }));
+    // Bodies are exactly as long as the 120 character query bound, so an
+    // oversized query can only match once it has actually been truncated.
+    const items = Array.from({ length: 40 }, (_, index) => ({ id: String(index), title: `A ${index}`, body: 'A'.repeat(120), tags: [], updatedAt: new Date().toISOString() }));
     installStorage(items);
     expect(searchPromptLibrary('A'.repeat(500))).toHaveLength(12);
+    expect(searchPromptLibrary('A'.repeat(121))).toHaveLength(12);
     expect(searchPromptLibrary('A')).toHaveLength(12);
   });
 

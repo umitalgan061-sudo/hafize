@@ -41,7 +41,10 @@ export interface RuntimeSnapshot {
   readonly lastErrorCode: string | null;
 }
 
-export interface ApiRequestOptions extends RequestInit {
+export interface ApiRequestOptions extends Omit<RequestInit, 'signal'> {
+  // `signal` is re-declared so callers may forward an optional signal under
+  // `exactOptionalPropertyTypes` without widening every call site.
+  readonly signal?: AbortSignal | null | undefined;
   readonly timeoutMs?: number;
   readonly retry?: number;
 }
