@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "lib/**/*.ts"
+  ],
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": true
+  }
+}
