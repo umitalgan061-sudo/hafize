@@ -61,7 +61,10 @@
     for (const raw of source.slice(0, MAX_ITEMS * 2)) {
       const item = api?.normalizeItem?.(raw);
       if (!item) {
-        invalid.push(raw);
+        invalid.push({
+          index: source.indexOf(raw),
+          reason: !raw || typeof raw !== 'object' ? 'nesne değil' : (!raw.body ? 'body boş' : 'model sınırlarına uymuyor')
+        });
         continue;
       }
       if (ids.has(item.id)) {
@@ -201,6 +204,7 @@
       normalizedCount: normalized.length,
       overCapacity: rawItems.length > MAX_ITEMS,
       duplicateIds,
+      invalidSamples: invalid.slice(0, 6),
       invalidIndexes: [...new Set(invalidIndexes)],
       invalidBodies,
       invalidUseCounts,
