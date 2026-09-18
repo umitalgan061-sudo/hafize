@@ -50,9 +50,10 @@
     const repair = button(documentRef, 'Güvenli onarımı uygula');
     repair.dataset.diagnosticsRepair = 'true';
     const destructive = button(documentRef, 'Geçersiz kayıtları kaldır', 'mini-btn prompt-library-diagnostics-danger');
+    const restore = button(documentRef, 'Karantinayı geri al');
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
-    actions.append(backup, repair, destructive);
+    actions.append(backup, repair, destructive, restore);
     body.append(status, reportList, actions);
     section.append(header, body);
     card.append(section);
@@ -86,6 +87,7 @@
       });
       repair.disabled = !report.storageReadable;
       destructive.disabled = !report.invalidIndexes.length;
+      restore.disabled = safety().readQuarantine(rootRef.localStorage).items.length === 0;
       status.textContent = report.storageReadable
         ? 'Tarama tamamlandı; güvenli onarım geçerli kayıtları normalize eder ve yetim ilişkileri budar.'
         : 'İstem verisi okunamıyor; otomatik onarım yapılmadı.';
@@ -98,6 +100,34 @@
         status.textContent = 'Sağlık taraması başarısız.';
       }
     }
+
+    restore.disabled = true;
+    backup.addEventListener('click', function () {
+      const payload = safety().exportRecoverySnapshot(rootRef.localStorage);
+      if (!payload) {
+        status.textContent = 'Kurtarma yedeği üretilemedi veya boyutu sınırı aşıyor.';
+        return;
+      }
+      const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = documentRef.createElement('a');
+      link.href = url;
+      link.download = 'hafize-prompt-library-recovery.json';
+      link.click();
+      rootRef.setTimeout?.(function () { URL.revokeObjectURL(url); }, 0);
+      status.textContent = 'Kurtarma yedeği indirildi.';
+    });
+
+    restore.addEventListener('click', function () {
+      if (!rootRef.confirm || !rootRef.confirm('Karantinadaki geçersiz kayıtlar yeniden kütüphaneye aktarılsın mı?')) return;
+      const result = safety().restoreQuarantine(rootRef.localStorage);
+      if (!result.ok) {
+        status.textContent = 'Karantina geri yüklenemedi: ' + result.reason;
+        return;
+      }
+      status.textContent = result.imported + ' karantina kaydı geri alındı.';
+      scan();
+    });
 
     refresh.addEventListener('click', scan);
     backup.addEventListener('click', function () {
