@@ -264,6 +264,20 @@
     };
   }
 
+  function exportRecoverySnapshot(storage = root.localStorage) {
+    const payload = {
+      version: 1,
+      source: 'hafize-prompt-library-recovery',
+      exportedAt: new Date().toISOString(),
+      prompts: readRawPrompts(storage).parsed,
+      collections: readJson(storage, COLLECTION_KEY, []),
+      revisions: readJson(storage, REVISION_KEY, [])
+    };
+    const output = JSON.stringify(payload, null, 2);
+    if (output.length > 1500000) return '';
+    return output;
+  }
+
   root.HafizePromptLibrarySafety = Object.freeze({
     PROMPT_KEY,
     COLLECTION_KEY,
@@ -276,6 +290,7 @@
     applyImportPlan,
     analyzeLibrary,
     buildSafeRepair,
-    applySafeRepair
+    applySafeRepair,
+    exportRecoverySnapshot
   });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
