@@ -21,12 +21,12 @@ import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runt
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
 import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
-import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
+import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.mjs';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
-import { deliverRequestFailure } from './lib/request-failure.mjs';
+import { deliverRequestFailure } from './lib/request-failure.ts';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
