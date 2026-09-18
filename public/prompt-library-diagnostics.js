@@ -41,11 +41,12 @@
     const reportList = documentRef.createElement('div');
     reportList.className = 'prompt-library-diagnostics-report';
     reportList.setAttribute('role', 'list');
+    const backup = button(documentRef, 'Yedek indir');
     const repair = button(documentRef, 'Güvenli onarımı uygula');
     const destructive = button(documentRef, 'Geçersiz kayıtları kaldır', 'mini-btn prompt-library-diagnostics-danger');
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
-    actions.append(repair, destructive);
+    actions.append(backup, repair, destructive);
     body.append(status, reportList, actions);
     section.append(header, body);
     card.append(section);
@@ -93,6 +94,22 @@
     }
 
     refresh.addEventListener('click', scan);
+    backup.addEventListener('click', function () {
+      const payload = safety().exportRecoverySnapshot(rootRef.localStorage);
+      if (!payload) {
+        status.textContent = 'Kurtarma yedeği üretilemedi veya boyutu sınırı aşıyor.';
+        return;
+      }
+      const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = documentRef.createElement('a');
+      link.href = url;
+      link.download = 'hafize-prompt-library-recovery.json';
+      link.click();
+      rootRef.setTimeout?.(function () { URL.revokeObjectURL(url); }, 0);
+      status.textContent = 'Kurtarma yedeği indirildi.';
+    });
+
     repair.addEventListener('click', function () {
       if (!lastReport) scan();
       if (!lastReport || !rootRef.confirm || !rootRef.confirm('Normalize edilebilir kayıtlar ve yetim ilişkiler güvenli biçimde onarılsın mı?')) return;
