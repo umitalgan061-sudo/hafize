@@ -5,6 +5,7 @@
   const COLLECTION_KEY = 'hafize.prompt-library.collections.v1';
   const REVISION_KEY = 'hafize.prompt-library.revisions.v1';
   const QUARANTINE_KEY = 'hafize.prompt-library.quarantine.v1';
+  const REPAIR_BACKUP_KEY = 'hafize.prompt-library.repair-backup.v1';
   const MAX_IMPORT_BYTES = 1_000_000;
   const MAX_ITEMS = 120;
   const MAX_PREVIEW = 8;
@@ -243,9 +244,35 @@
     };
   }
 
+  function createRepairCheckpoint(storage = root.localStorage) {
+    const payload = exportRecoverySnapshot(storage);
+    if (!payload) return false;
+    return writeJson(storage, REPAIR_BACKUP_KEY, { version: 1, createdAt: new Date().toISOString(), payload });
+  }
+
+  function hasRepairCheckpoint(storage = root.localStorage) {
+    const value = readJson(storage, REPAIR_BACKUP_KEY, null);
+    return Boolean(value && typeof value.payload === 'string' && value.payload);
+  }
+
+  function undoLastRepair(storage = root.localStorage) {
+    const checkpoint = readJson(storage, REPAIR_BACKUP_KEY, null);
+    if (!checkpoint || typeof checkpoint.payload !== 'string') return { ok: false, reason: 'NO_REPAIR_CHECKPOINT' };
+    let payload;
+    try { payload = JSON.parse(checkpoint.payload); } catch { return { ok: false, reason: 'CHECKPOINT_CORRUPT' }; }
+    if (!payload || !Array.isArray(payload.prompts)) return { ok: false, reason: 'CHECKPOINT_INVALID' };
+    if (!writeJson(storage, PROMPT_KEY, payload.prompts)) return { ok: false, reason: 'PROMPT_RESTORE_FAILED' };
+    if (Array.isArray(payload.collections)) writeJson(storage, COLLECTION_KEY, payload.collections);
+    if (Array.isArray(payload.revisions)) writeJson(storage, REVISION_KEY, payload.revisions);
+    writeJson(storage, REPAIR_BACKUP_KEY, null);
+    try { root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-safety-changed')); } catch {}
+    return { ok: true, restored: payload.prompts.length };
+  }
+
   function applySafeRepair(storage = root.localStorage, options = {}) {
     const plan = buildSafeRepair(storage);
     if (!plan.report.storageReadable) return { ok: false, reason: 'PROMPT_STORAGE_UNREADABLE' };
+    if (!createRepairCheckpoint(storage)) return { ok: false, reason: 'REPAIR_CHECKPOINT_FAILED' };
     const promptOk = writeJson(storage, PROMPT_KEY, plan.normalizedItems);
     if (!promptOk) return { ok: false, reason: 'PROMPT_STORAGE_FAILED' };
 
@@ -324,6 +351,7 @@
     COLLECTION_KEY,
     REVISION_KEY,
     QUARANTINE_KEY,
+    REPAIR_BACKUP_KEY,
     MAX_IMPORT_BYTES,
     MAX_ITEMS,
     MAX_PREVIEW,
@@ -336,6 +364,9 @@
     exportRecoverySnapshot,
     readQuarantine,
     quarantineInvalidItems,
-    restoreQuarantine
+    restoreQuarantine,
+    createRepairCheckpoint,
+    hasRepairCheckpoint,
+    undoLastRepair
   });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
