@@ -5,6 +5,7 @@ import { createSessionAuth } from './session-auth.ts';
 import { createBearerPrincipalAuthenticator } from './server-auth.ts';
 import { createRateLimiter } from './rate-limit.ts';
 import { createSecurityEventLogger } from './security-observability.ts';
+import { parseRuntimeConfig } from './runtime-config.ts';
 
 declare global { var __HAFIZE_PRODUCTION_GUARD__: boolean | undefined; }
 
@@ -19,19 +20,13 @@ type RequestAuth = {
 if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   globalThis.__HAFIZE_PRODUCTION_GUARD__ = true;
 
-  const host = process.env.HOST || '127.0.0.1';
-  const required = flag(process.env.HAFIZE_AUTH_REQUIRED, process.env.NODE_ENV === 'production' || host !== '127.0.0.1');
-  const secret = (process.env.HAFIZE_AUTH_TOKEN || '').trim();
-  const connectorToken = (process.env.HAFIZE_CONNECTOR_AUTH_TOKEN || '').trim();
-  const connectorSubject = (process.env.HAFIZE_CONNECTOR_AUTH_SUBJECT || '').trim();
-
-  if (required && secret.length < 32) throw new Error('HAFIZE_AUTH_TOKEN_REQUIRED_FOR_PUBLIC_RUNTIME');
-
+  const config=parseRuntimeConfig(process.env);
+  const { host, authRequired: required, authToken: secret, connectorAuthToken: connectorToken, connectorAuthSubject: connectorSubject } = config;
   const auth = secret ? createSessionAuth({
     secret,
-    subject: process.env.HAFIZE_AUTH_SUBJECT,
-    ttlSeconds: process.env.HAFIZE_AUTH_SESSION_TTL_SECONDS,
-    secureCookie: flag(process.env.HAFIZE_COOKIE_SECURE, process.env.NODE_ENV === 'production')
+    subject: config.authSubject,
+    ttlSeconds: config.sessionTtlSeconds,
+    secureCookie: config.cookieSecure
   }) : null;
 
   const connectorAuth = connectorToken && connectorSubject
@@ -96,7 +91,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   }
   function remoteKey(req: IncomingMessage): string {
     const forwarded = req.headers['x-forwarded-for'];
-    if (flag(process.env.HAFIZE_TRUST_PROXY, false) && typeof forwarded === 'string') return forwarded.split(',')[0]!.trim().slice(0, 200);
+    if (config.trustProxy && typeof forwarded === 'string') return forwarded.split(',')[0]!.trim().slice(0, 200);
     return String(req.socket?.remoteAddress || 'unknown').slice(0, 200);
   }
   function protectedAuth(req: IncomingMessage, path: string): RequestAuth {
