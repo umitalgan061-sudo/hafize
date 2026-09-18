@@ -7,7 +7,7 @@ export interface AuthenticatedPrincipal {
 
 export interface AuthFailure {
   readonly ok: false;
-  readonly error: 'AUTH_REQUIRED';
+  readonly error: 'AUTH_REQUIRED' | 'AUTH_EXPIRED';
 }
 
 export type AuthenticationResult =
