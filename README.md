@@ -142,3 +142,6 @@ Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. 
 ## Mimari not
 
 `server.mjs` uygulamanın HTTP/API runtime'ıdır. `lib/production-guard.mjs` public çalıştırma giriş noktasına preloaded olarak kimlik doğrulama, CSRF ve rate limit sınırlarını ekler. Tarayıcı tarafındaki `public/auth.js` yalnızca oturum akışını yönetir; erişim anahtarını kalıcı olarak saklamaz.
+## TypeScript runtime migration
+
+Server çekirdeğinin güvenlik, agent, tool, model ve schedule sınırları TypeScript 6 strict mode ile çalışır. Node.js 24.21.0+ production hedefidir; Vite 8 ve Vitest 5 build/test zincirinin parçasıdır. Kalan .mjs modülleri güvenli kademeli migration için yaprak bağımlılık olarak korunur. Ayrıntılar: docs/TYPESCRIPT_MIGRATION.md, docs/TYPESCRIPT_ARCHITECTURE.md ve docs/TYPESCRIPT_TEST_MATRIX.md.
