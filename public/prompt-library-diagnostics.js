@@ -51,9 +51,10 @@
     repair.dataset.diagnosticsRepair = 'true';
     const destructive = button(documentRef, 'Geçersiz kayıtları kaldır', 'mini-btn prompt-library-diagnostics-danger');
     const restore = button(documentRef, 'Karantinayı geri al');
+    const undo = button(documentRef, 'Son onarımı geri al');
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
-    actions.append(backup, repair, destructive, restore);
+    actions.append(backup, repair, destructive, restore, undo);
     body.append(status, reportList, actions);
     section.append(header, body);
     card.append(section);
@@ -88,6 +89,7 @@
       repair.disabled = !report.storageReadable;
       destructive.disabled = !report.invalidIndexes.length;
       restore.disabled = safety().readQuarantine(rootRef.localStorage).items.length === 0;
+      undo.disabled = !safety().hasRepairCheckpoint(rootRef.localStorage);
       status.textContent = report.storageReadable
         ? 'Tarama tamamlandı; güvenli onarım geçerli kayıtları normalize eder ve yetim ilişkileri budar.'
         : 'İstem verisi okunamıyor; otomatik onarım yapılmadı.';
@@ -116,6 +118,17 @@
       link.click();
       rootRef.setTimeout?.(function () { URL.revokeObjectURL(url); }, 0);
       status.textContent = 'Kurtarma yedeği indirildi.';
+    });
+
+    undo.addEventListener('click', function () {
+      if (!rootRef.confirm || !rootRef.confirm('Son güvenli onarım geri alınsın mı?')) return;
+      const result = safety().undoLastRepair(rootRef.localStorage);
+      if (!result.ok) {
+        status.textContent = 'Son onarım geri alınamadı: ' + result.reason;
+        return;
+      }
+      status.textContent = String(result.restored) + ' kayıt son checkpoint üzerinden geri alındı.';
+      scan();
     });
 
     restore.addEventListener('click', function () {
