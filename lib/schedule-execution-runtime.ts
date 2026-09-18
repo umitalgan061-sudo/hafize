@@ -1,5 +1,5 @@
 // @ts-ignore Legacy lease executor remains a compatibility dependency.
-import { createScheduleLeaseGuardedExecutor } from './schedule-lease-executor.mjs';
+import { createScheduleLeaseGuardedExecutor } from './schedule-lease-executor.ts';
 
 const WORKER_KEYS=new Set(['ok','error','retryAt','content','taskLedger','leaseStatus','deduplicated']);
 export interface ScheduleTaskExecutor { readonly configured?:boolean; readonly executeAgentTask:(input:unknown)=>Promise<unknown>; }
