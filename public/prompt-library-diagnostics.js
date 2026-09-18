@@ -38,10 +38,14 @@
     const title = text(documentRef, 'Kütüphane sağlığı', 'prompt-library-diagnostics-title');
     title.id = 'promptLibraryDiagnosticsTitle';
     const refresh = button(documentRef, 'Tara');
-    header.append(title, refresh);
+    const collapse = button(documentRef, 'Gizle');
+    collapse.setAttribute('aria-expanded', 'true');
+    collapse.setAttribute('aria-controls', 'promptLibraryDiagnosticsBody');
+    header.append(title, refresh, collapse);
 
     const body = documentRef.createElement('div');
     body.className = 'prompt-library-diagnostics-body';
+    body.id = 'promptLibraryDiagnosticsBody';
     const status = text(documentRef, 'Henüz taranmadı.', 'prompt-library-diagnostics-status');
     const reportList = documentRef.createElement('div');
     reportList.className = 'prompt-library-diagnostics-report';
@@ -61,6 +65,7 @@
     card.append(section);
 
     let lastReport = null;
+    let hidden = false;
 
     function metric(label, value, tone) {
       const row = documentRef.createElement('div');
@@ -95,6 +100,13 @@
         ? 'Tarama tamamlandı; güvenli onarım geçerli kayıtları normalize eder ve yetim ilişkileri budar.'
         : 'İstem verisi okunamıyor; otomatik onarım yapılmadı.';
     }
+
+    collapse.addEventListener('click', function () {
+      hidden = !hidden;
+      body.hidden = hidden;
+      collapse.textContent = hidden ? 'Göster' : 'Gizle';
+      collapse.setAttribute('aria-expanded', String(!hidden));
+    });
 
     function scan() {
       try {
@@ -180,7 +192,7 @@
 
     destructive.addEventListener('click', function () {
       if (!lastReport || !lastReport.invalidIndexes.length) return;
-      if (!rootRef.confirm || !rootRef.confirm(String(lastReport.invalidIndexes.length) + ' geçersiz kayıt karantinaya alınsın mı?')) return;
+      if (!rootRef.confirm?.(String(lastReport.invalidIndexes.length) + ' geçersiz kayıt karantinaya alınsın mı?')) return;
       const result = safety().quarantineInvalidItems(rootRef.localStorage, lastReport.invalidIndexes);
       status.textContent = result.ok
         ? String(result.count) + ' kayıt karantinaya alındı; geri alınabilir.'
