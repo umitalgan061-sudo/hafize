@@ -159,3 +159,14 @@ Prompt Library içe aktarma akışı dosyayı yazmadan önce güvenli bir önizl
 - Import/diagnostics katmanları fetch, XHR, WebSocket veya telemetry kullanmaz.
 
 Ayrıntılar docs/PROMPT_LIBRARY_IMPORT_*.md ve docs/PROMPT_LIBRARY_DIAGNOSTICS_*.md dosyalarındadır.
+
+### Import ve diagnostics kontrolleri
+
+node scripts/test-prompt-library-safety-final-gate.mjs
+node scripts/test-prompt-library-import-preview.mjs
+node scripts/test-prompt-library-import-pwa.mjs
+node scripts/test-prompt-library-diagnostics.mjs
+node scripts/test-prompt-library-repair-checkpoint.mjs
+node scripts/test-prompt-library-quarantine.mjs
+
+İçe aktarma önizlemesi normal JSON yedeklerinin yanında recovery snapshot içindeki prompts alanını da tanır. Diagnostics paneli repair öncesi etki özeti gösterir; güvenli repair checkpoint üretir, geçersiz kayıtları karantinaya taşıyabilir ve son repair'i geri alabilir. Rapor ve repair planı prompt metinlerini içermeyen özet biçimde panoya kopyalanabilir.
