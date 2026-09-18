@@ -212,15 +212,19 @@
     const source = readRawPrompts(storage);
     const rawItems = Array.isArray(source.parsed) ? source.parsed : [];
     const normalized = [];
+    const seenIds = new Set();
     const duplicateIds = new Set();
     for (const raw of rawItems.slice(0, MAX_ITEMS * 2)) {
-      const item = api?.normalizeItem?.(raw);
+      let item = api?.normalizeItem?.(raw);
       if (!item) continue;
-      if (normalized.some((candidate) => candidate.id === item.id)) {
+      if (seenIds.has(item.id)) {
         duplicateIds.add(item.id);
-        continue;
+        item = Object.freeze({ ...item, id: randomId() });
+        while (seenIds.has(item.id)) item = Object.freeze({ ...item, id: randomId() });
       }
+      seenIds.add(item.id);
       normalized.push(item);
+      if (normalized.length >= MAX_ITEMS) break;
     }
     const promptIds = new Set(normalized.map((item) => item.id));
     const collections = collectionsApi?.pruneMembers?.(collectionsApi?.readCollections?.(storage) || [], storage) || [];
@@ -254,7 +258,7 @@
     return {
       ok: true,
       normalized: plan.normalizedItems.length,
-      duplicateIdsPreserved: plan.duplicateIds.length,
+      duplicateIdsRekeyed: plan.duplicateIds.length,
       collections: plan.collections.length,
       revisions: plan.revisions.length
     };
