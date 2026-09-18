@@ -78,6 +78,37 @@
     return { sourceCount: source.length, normalized, invalidCount: invalid.length, duplicateIds };
   }
 
+  function normalizeRecoveryPayload(payload) {
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.prompts)) {
+      return null;
+    }
+    return {
+      version: 1,
+      source: 'hafize-prompt-library-recovery',
+      exportedAt: clip(payload.exportedAt, 40),
+      items: payload.prompts
+    };
+  }
+
+  function buildRepairPreview(storage = root.localStorage) {
+    const plan = buildSafeRepair(storage);
+    return {
+      rawCount: plan.report.rawCount,
+      normalizedCount: plan.normalizedItems.length,
+      invalidCount: plan.report.invalidIndexes.length,
+      duplicateCount: plan.duplicateIds.length,
+      collectionCount: plan.report.collections.count,
+      orphanCollectionMembers: plan.report.collections.orphanMembers,
+      revisionCount: plan.report.revisions.count,
+      orphanRevisionRefs: plan.report.revisions.orphanPromptRefs,
+      rewrites: {
+        prompts: plan.willRewritePrompts,
+        collections: plan.willRewriteCollections,
+        revisions: plan.willRewriteRevisions
+      }
+    };
+  }
+
   function buildImportPlan(payload, currentItems = [], options = {}) {
     const current = api?.normalizeCollection?.(currentItems) || [];
     const incoming = normalizeIncoming(payload);
@@ -361,6 +392,8 @@
     MAX_PREVIEW,
     readRawPrompts,
     buildImportPlan,
+    normalizeRecoveryPayload,
+    buildRepairPreview,
     applyImportPlan,
     analyzeLibrary,
     buildSafeRepair,
