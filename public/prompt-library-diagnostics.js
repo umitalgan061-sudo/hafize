@@ -9,6 +9,9 @@
   const normalizeItem = function (item) { return library()?.normalizeItem?.(item); };
   const normalizeCollection = function (items) { return library()?.normalizeCollection?.(items) || []; };
   const saveItems = function (storage, items) { return library()?.saveItems?.(storage, items) === true; };
+  const confirmAction = function (rootRef, message) {
+    return rootRef === root ? root.confirm?.(message) : rootRef.confirm?.(message);
+  };
 
   const text = function (doc, value, className) {
     const el = doc.createElement('span');
@@ -246,7 +249,7 @@
 
     destructive.addEventListener('click', function () {
       if (!lastReport || !lastReport.invalidIndexes.length) return;
-      if (!rootRef.confirm?.(String(lastReport.invalidIndexes.length) + ' geçersiz kayıt karantinaya alınsın mı?')) return;
+      if (!confirmAction(rootRef, String(lastReport.invalidIndexes.length) + ' geçersiz kayıt karantinaya alınsın mı?')) return;
       const result = safety().quarantineInvalidItems(rootRef.localStorage, lastReport.invalidIndexes);
       status.textContent = result.ok
         ? String(result.count) + ' kayıt karantinaya alındı; geri alınabilir.'
