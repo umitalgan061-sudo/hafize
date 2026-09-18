@@ -52,9 +52,10 @@
     const destructive = button(documentRef, 'Geçersiz kayıtları kaldır', 'mini-btn prompt-library-diagnostics-danger');
     const restore = button(documentRef, 'Karantinayı geri al');
     const undo = button(documentRef, 'Son onarımı geri al');
+    const copyReport = button(documentRef, 'Raporu kopyala');
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
-    actions.append(backup, repair, destructive, restore, undo);
+    actions.append(backup, repair, destructive, restore, undo, copyReport);
     body.append(status, reportList, actions);
     section.append(header, body);
     card.append(section);
@@ -118,6 +119,32 @@
       link.click();
       rootRef.setTimeout?.(function () { URL.revokeObjectURL(url); }, 0);
       status.textContent = 'Kurtarma yedeği indirildi.';
+    });
+
+    copyReport.addEventListener('click', function () {
+      if (!lastReport) scan();
+      if (!lastReport) return;
+      const summary = {
+        generatedAt: new Date().toISOString(),
+        rawCount: lastReport.rawCount,
+        normalizedCount: lastReport.normalizedCount,
+        overCapacity: lastReport.overCapacity,
+        invalidCount: lastReport.invalidIndexes.length,
+        duplicateIdCount: lastReport.duplicateIds.length,
+        invalidUseCount: lastReport.invalidUseCounts,
+        orphanCollectionMembers: lastReport.collections.orphanMembers,
+        orphanRevisionRefs: lastReport.revisions.orphanPromptRefs,
+        snapshotMismatches: lastReport.revisions.snapshotMismatches
+      };
+      const payload = JSON.stringify(summary, null, 2);
+      const clipboard = rootRef.navigator?.clipboard?.writeText;
+      if (typeof clipboard !== 'function') {
+        status.textContent = 'Rapor kopyalama kullanılamıyor.';
+        return;
+      }
+      Promise.resolve(clipboard.call(rootRef.navigator.clipboard, payload))
+        .then(function () { status.textContent = 'Rapor panoya kopyalandı.'; })
+        .catch(function () { status.textContent = 'Rapor kopyalanamadı.'; });
     });
 
     undo.addEventListener('click', function () {
