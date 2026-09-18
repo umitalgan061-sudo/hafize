@@ -145,3 +145,28 @@ Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. 
 ## TypeScript runtime migration
 
 Server çekirdeğinin güvenlik, agent, tool, model ve schedule sınırları TypeScript 6 strict mode ile çalışır. Node.js 24.21.0+ production hedefidir; Vite 8 ve Vitest 5 build/test zincirinin parçasıdır. Kalan .mjs modülleri güvenli kademeli migration için yaprak bağımlılık olarak korunur. Ayrıntılar: docs/TYPESCRIPT_MIGRATION.md, docs/TYPESCRIPT_ARCHITECTURE.md ve docs/TYPESCRIPT_TEST_MATRIX.md.
+
+## İçe aktarma güvenliği ve kütüphane sağlığı
+
+Prompt Library içe aktarma akışı dosyayı yazmadan önce güvenli bir önizleme üretir. Kayıt sayısı, geçersiz kayıtlar, ID çakışmaları ve kapasite etkisi kullanıcıya gösterilir; açık onay olmadan storage değiştirilmez.
+
+- JSON dosyaları en fazla 1 MB olabilir; mevcut kütüphane en fazla 120 istem tutar.
+- Çakışan prompt ID'leri mevcut kaydın üzerine yazılmaz; yeni bir ID ile korunur.
+- Kütüphane Sağlığı paneli bozuk kayıtları, yinelenen ID'leri, geçersiz kullanım sayaçlarını ve koleksiyon/revizyon yetimlerini raporlar.
+- Güvenli onarım yalnızca kullanıcı onayıyla çalışır. Yinelenen kayıtlar yeni ID ile korunur; yetim ilişkiler geçerli prompt ID'lerine göre sınırlandırılır.
+- Geçersiz kayıtları kaldırma işlemi kalıcı silme yerine cihaz üzerindeki karantinaya taşır; Karantinayı geri al ile tekrar denenebilir.
+- Yedek indir eylemi prompt, collection ve revision verilerini tek recovery JSON dosyasında dışa aktarır; sunucuya gönderilmez.
+- Import/diagnostics katmanları fetch, XHR, WebSocket veya telemetry kullanmaz.
+
+Ayrıntılar docs/PROMPT_LIBRARY_IMPORT_*.md ve docs/PROMPT_LIBRARY_DIAGNOSTICS_*.md dosyalarındadır.
+
+### Import ve diagnostics kontrolleri
+
+node scripts/test-prompt-library-safety-final-gate.mjs
+node scripts/test-prompt-library-import-preview.mjs
+node scripts/test-prompt-library-import-pwa.mjs
+node scripts/test-prompt-library-diagnostics.mjs
+node scripts/test-prompt-library-repair-checkpoint.mjs
+node scripts/test-prompt-library-quarantine.mjs
+
+İçe aktarma önizlemesi normal JSON yedeklerinin yanında recovery snapshot içindeki prompts alanını da tanır. Diagnostics paneli repair öncesi etki özeti gösterir; güvenli repair checkpoint üretir, geçersiz kayıtları karantinaya taşıyabilir ve son repair'i geri alabilir. Rapor ve repair planı prompt metinlerini içermeyen özet biçimde panoya kopyalanabilir.
