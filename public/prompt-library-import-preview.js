@@ -93,6 +93,16 @@
         body.append(row);
       });
 
+      if (plan.invalidSamples && plan.invalidSamples.length) {
+        body.append(node(documentRef, 'h4', 'Atlanan kayıt örnekleri', 'prompt-import-preview-subtitle'));
+        plan.invalidSamples.forEach(function (item) {
+          const row = node(documentRef, 'div', undefined, 'prompt-import-preview-invalid');
+          row.append(node(documentRef, 'span', 'Kayıt #' + (Number(item.index) + 1), 'prompt-import-preview-invalid-index'));
+          row.append(node(documentRef, 'span', item.reason, 'prompt-import-preview-invalid-reason'));
+          body.append(row);
+        });
+      }
+
       if (plan.preview.length) {
         body.append(node(documentRef, 'h4', 'İlk aktarılacak istemler', 'prompt-import-preview-subtitle'));
         plan.preview.forEach(function (item) {
