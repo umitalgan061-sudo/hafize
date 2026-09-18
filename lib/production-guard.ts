@@ -1,7 +1,7 @@
-import { createRequire } from 'node:module';
+declare global { var __HAFIZE_PRODUCTION_GUARD__: boolean | undefined; }\n\nimport { createRequire } from 'node:module';
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createSessionAuth } from './session-auth.mjs';
+// @ts-ignore Transitional legacy auth implementation is intentionally isolated behind this typed boundary.\nimport { createSessionAuth } from './session-auth.mjs';
 import { createBearerPrincipalAuthenticator } from './server-auth.ts';
 import { createRateLimiter } from './rate-limit.ts';
 import { createSecurityEventLogger } from './security-observability.ts';
