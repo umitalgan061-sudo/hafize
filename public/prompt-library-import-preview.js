@@ -76,7 +76,9 @@
       body.replaceChildren();
       rows.replaceChildren();
 
+      const isRecovery = plan.meta?.source === 'hafize-prompt-library-recovery';
       const details = [
+        ['Kaynak türü', isRecovery ? 'Recovery yedeği' : 'Prompt Library yedeği'],
         ['Dosya', clip(file && file.name, 120) || 'JSON yedeği'],
         ['Dosya boyutu', Math.ceil((file && file.size || 0) / 1024) + ' KB'],
         ['Mevcut kayıt', plan.currentCount],
@@ -130,7 +132,8 @@
           showError('Geçersiz JSON istem yedeği.');
           return;
         }
-        const normalizedPayload = normalizeImportedPayload(parsed);
+        const recoveryPayload = safety().normalizeRecoveryPayload?.(parsed);
+        const normalizedPayload = recoveryPayload || normalizeImportedPayload(parsed);
         const current = rootRef.HafizePromptLibrary && rootRef.HafizePromptLibrary.loadItems
           ? rootRef.HafizePromptLibrary.loadItems(rootRef.localStorage) : [];
         const previewMerge = mergeImportedItems(current, normalizedPayload.items);
