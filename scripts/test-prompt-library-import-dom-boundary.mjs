@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const source = await fs.readFile('public/prompt-library-import-preview.js', 'utf8');
+assert.doesNotMatch(source, /\.innerHTML\s*=/);
+assert.doesNotMatch(source, /outerHTML/);
+assert.match(source, /textContent/);
+assert.match(source, /createElement/);
+assert.match(source, /append\(/);
+assert.match(source, /replaceChildren\(\)/);
+console.log('prompt-library-import-dom-boundary: ok');
