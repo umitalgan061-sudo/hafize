@@ -130,22 +130,6 @@
     });
 
     refresh.addEventListener('click', scan);
-    backup.addEventListener('click', function () {
-      const payload = safety().exportRecoverySnapshot(rootRef.localStorage);
-      if (!payload) {
-        status.textContent = 'Kurtarma yedeği üretilemedi veya boyutu sınırı aşıyor.';
-        return;
-      }
-      const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = documentRef.createElement('a');
-      link.href = url;
-      link.download = 'hafize-prompt-library-recovery.json';
-      link.click();
-      rootRef.setTimeout?.(function () { URL.revokeObjectURL(url); }, 0);
-      status.textContent = 'Kurtarma yedeği indirildi.';
-    });
-
     repair.addEventListener('click', function () {
       if (!lastReport) scan();
       if (!lastReport || !rootRef.confirm || !rootRef.confirm('Normalize edilebilir kayıtlar ve yetim ilişkiler güvenli biçimde onarılsın mı?')) return;
@@ -156,18 +140,11 @@
 
     destructive.addEventListener('click', function () {
       if (!lastReport || !lastReport.invalidIndexes.length) return;
-      if (!rootRef.confirm || !rootRef.confirm(String(lastReport.invalidIndexes.length) + ' geçersiz kayıt kalıcı olarak kaldırılsın mı?')) return;
-      const raw = safety().readRawPrompts(rootRef.localStorage);
-      const indexes = new Set(lastReport.invalidIndexes);
-      const kept = Array.isArray(raw.parsed) ? raw.parsed.filter(function (_item, index) { return !indexes.has(index); }) : [];
-      try {
-        const normalized = normalizeCollection(kept.map(normalizeItem).filter(Boolean));
-        if (!saveItems(rootRef.localStorage, normalized)) throw new Error('SAVE_FAILED');
-        rootRef.dispatchEvent && rootRef.dispatchEvent(new rootRef.CustomEvent('hafize:prompt-library-safety-changed'));
-      } catch {
-        status.textContent = 'Geçersiz kayıtlar kaldırılamadı.';
-        return;
-      }
+      if (!rootRef.confirm || !rootRef.confirm(String(lastReport.invalidIndexes.length) + ' geçersiz kayıt karantinaya alınsın mı?')) return;
+      const result = safety().quarantineInvalidItems(rootRef.localStorage, lastReport.invalidIndexes);
+      status.textContent = result.ok
+        ? String(result.count) + ' kayıt karantinaya alındı; geri alınabilir.'
+        : 'Karantina başarısız: ' + result.reason;
       scan();
     });
 
