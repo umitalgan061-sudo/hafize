@@ -7,18 +7,20 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "start": "node --import ./lib/production-guard.mjs server.mjs",
+    "start": "node --import ./lib/production-guard.ts server.mjs",
     "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "node --import ./lib/production-guard.mjs server.mjs",
+    "dev:server": "node --import ./lib/production-guard.ts server.mjs",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:modern": "vitest run",
-    "check:modern": "npm run typecheck && npm run test:modern && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs",
+    "check:modern": "npm run typecheck && npm run typecheck:runtime && npm run test:modern && npm run test:typed-core && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs && node scripts/test-typescript-migration.mjs && node scripts/test-typescript-migration-depth.mjs",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",
-    "format:check": "node scripts/format-check.mjs"
+    "format:check": "node scripts/format-check.mjs",
+    "test:typed-core": "vitest run lib/**/*.test.ts",
+    "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json"
   },
   "dependencies": {
     "redis": "^6.1.0"

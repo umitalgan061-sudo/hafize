@@ -9,30 +9,30 @@ import {
   loadAgentRegistry,
   normalizeClientMessages,
   resolveAgent
-} from './lib/agent-runtime.mjs';
-import { createAgentDelegator } from './lib/agent-delegation.mjs';
+} from './lib/agent-runtime.ts';
+import { createAgentDelegator } from './lib/agent-delegation.ts';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
-import { createAgentRunLedger } from './lib/agent-run-ledger.mjs';
+import { createAgentRunLedger } from './lib/agent-run-ledger.ts';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
-import { createContextCompactor } from './lib/context-compaction.mjs';
+import { createContextCompactor } from './lib/context-compaction.ts';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
-import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mjs';
-import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mjs';
+import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.ts';
+import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.ts';
 import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
-import { createBearerPrincipalAuthenticator } from './lib/server-auth.mjs';
+import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
-import { createScheduleWorker } from './lib/schedule-worker.mjs';
-import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
-import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
-import { deliverRequestFailure } from './lib/request-failure.mjs';
+import { createScheduleWorker } from './lib/schedule-worker.ts';
+import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
+import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
+import { deliverRequestFailure } from './lib/request-failure.ts';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
   getPublicToolActivity,
   getPublicToolRunningActivity
-} from './lib/tool-runtime.mjs';
+} from './lib/tool-runtime.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');

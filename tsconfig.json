@@ -13,8 +13,22 @@
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
     "useDefineForClassFields": true,
-    "types": ["node", "vitest/globals"],
-    "lib": ["ES2025", "DOM", "DOM.Iterable"]
+    "types": [
+      "node",
+      "vitest/globals"
+    ],
+    "lib": [
+      "ES2025",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "rewriteRelativeImportExtensions": true
   },
-  "include": ["public/**/*.ts", "src/**/*.ts", "vite.config.ts", "vitest.config.ts"]
+  "include": [
+    "public/**/*.ts",
+    "src/**/*.ts",
+    "lib/**/*.ts",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
 }
