@@ -24,7 +24,7 @@ import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
 import { createScheduleWorker } from './lib/schedule-worker.ts';
-import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
+import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
 import { deliverRequestFailure } from './lib/request-failure.ts';
 import {
