@@ -2,7 +2,8 @@
   'use strict';
   const CARD_ID = 'promptLibraryCard';
   const PANEL_ID = 'promptLibraryImportPreview';
-  const MAX_BYTES = 1000000;
+  const MAX_FILE = 1000000;
+  const MAX_BYTES = MAX_FILE;
   const safety = function () { return root.HafizePromptLibrarySafety; };
   const clip = function (value, max) { return typeof value === 'string' ? value.trim().slice(0, max) : ''; };
   const node = function (doc, tag, value, className) {
@@ -10,6 +11,13 @@
     if (className) el.className = className;
     if (value !== undefined) el.textContent = String(value);
     return el;
+  };
+  const core = function () { return root.HafizePromptLibrary; };
+  const normalizeImportedPayload = function (payload) {
+    return core() && core().normalizeImportedPayload ? core().normalizeImportedPayload(payload) : { items: [], meta: {} };
+  };
+  const mergeImportedItems = function (current, incoming) {
+    return core() && core().mergeImportedItems ? core().mergeImportedItems(current, incoming) : null;
   };
   const button = function (doc, label, className) {
     const el = node(doc, 'button', label, className || 'mini-btn');
@@ -112,9 +120,15 @@
           showError('Geçersiz JSON istem yedeği.');
           return;
         }
+        const normalizedPayload = normalizeImportedPayload(parsed);
         const current = rootRef.HafizePromptLibrary && rootRef.HafizePromptLibrary.loadItems
           ? rootRef.HafizePromptLibrary.loadItems(rootRef.localStorage) : [];
-        activePlan = safety().buildImportPlan(parsed, current);
+        const previewMerge = mergeImportedItems(current, normalizedPayload.items);
+        if (!previewMerge) {
+          showError('İstem yedeği mevcut veri modeliyle uyumlu değil.');
+          return;
+        }
+        activePlan = safety().buildImportPlan(normalizedPayload, current);
         previousFocus = documentRef.activeElement;
         if (!dialog) createDialog();
         dialog.hidden = false;
@@ -163,6 +177,15 @@
           showError('İçe aktarma kaydedilemedi. Mevcut kayıtlar korunuyor.');
           return;
         }
+        try {
+          if (typeof rootRef.StorageEvent === 'function') {
+            rootRef.dispatchEvent(new rootRef.StorageEvent('storage', {
+              key: rootRef.HafizePromptLibrary?.STORAGE_KEY || 'hafize.prompt-library.v1',
+              newValue: rootRef.localStorage?.getItem?.(rootRef.HafizePromptLibrary?.STORAGE_KEY || 'hafize.prompt-library.v1') || null,
+              storageArea: rootRef.localStorage
+            }));
+          }
+        } catch {}
         close();
       });
 
