@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const read = (p) => fs.readFile(p, 'utf8');
+const source = await read('public/prompt-library-safety.js');
+assert.match(source, /MAX_IMPORT_BYTES\s*=\s*1000000/);
+assert.match(source, /buildImportPlan/);
+assert.match(source, /applyImportPlan/);
+assert.match(source, /analyzeLibrary/);
+assert.match(source, /buildSafeRepair/);
+assert.match(source, /applySafeRepair/);
+assert.match(source, /exportRecoverySnapshot/);
+assert.doesNotMatch(source, /fetch\s*\(/);
+assert.doesNotMatch(source, /XMLHttpRequest/);
+console.log('prompt-library-safety: ok');
