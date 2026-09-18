@@ -60,9 +60,10 @@
     const restore = button(documentRef, 'Karantinayı geri al');
     const undo = button(documentRef, 'Son onarımı geri al');
     const copyReport = button(documentRef, 'Raporu kopyala');
+    const copyRepairPlan = button(documentRef, 'Onarım planını kopyala');
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
-    actions.append(backup, repair, destructive, restore, undo, copyReport);
+    actions.append(backup, repair, destructive, restore, undo, copyReport, copyRepairPlan);
     body.append(status, reportList, repairPreview, actions);
     section.append(header, body);
     card.append(section);
@@ -157,6 +158,33 @@
       link.click();
       rootRef.setTimeout?.(function () { URL.revokeObjectURL(url); }, 0);
       status.textContent = 'Kurtarma yedeği indirildi.';
+    });
+
+    copyRepairPlan.addEventListener('click', function () {
+      let preview;
+      try { preview = safety().buildRepairPreview(rootRef.localStorage); }
+      catch {
+        status.textContent = 'Onarım planı üretilemedi.';
+        return;
+      }
+      const plan = {
+        generatedAt: new Date().toISOString(),
+        rawCount: preview.rawCount,
+        normalizedCount: preview.normalizedCount,
+        invalidCount: preview.invalidCount,
+        duplicateCount: preview.duplicateCount,
+        orphanCollectionMembers: preview.orphanCollectionMembers,
+        orphanRevisionRefs: preview.orphanRevisionRefs,
+        rewrites: preview.rewrites
+      };
+      const clipboard = rootRef.navigator?.clipboard?.writeText;
+      if (typeof clipboard !== 'function') {
+        status.textContent = 'Onarım planı kopyalama kullanılamıyor.';
+        return;
+      }
+      Promise.resolve(clipboard.call(rootRef.navigator.clipboard, JSON.stringify(plan, null, 2)))
+        .then(function () { status.textContent = 'Onarım planı panoya kopyalandı.'; })
+        .catch(function () { status.textContent = 'Onarım planı kopyalanamadı.'; });
     });
 
     copyReport.addEventListener('click', function () {
