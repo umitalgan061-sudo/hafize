@@ -3,7 +3,12 @@
 
   const PANEL_ID = 'promptLibraryDiagnostics';
   const CARD_ID = 'promptLibraryCard';
+  const MAX_ORPHANS = 240;
   const safety = function () { return root.HafizePromptLibrarySafety; };
+  const library = function () { return root.HafizePromptLibrary; };
+  const normalizeItem = function (item) { return library()?.normalizeItem?.(item); };
+  const normalizeCollection = function (items) { return library()?.normalizeCollection?.(items) || []; };
+  const saveItems = function (storage, items) { return library()?.saveItems?.(storage, items) === true; };
 
   const text = function (doc, value, className) {
     const el = doc.createElement('span');
@@ -43,6 +48,7 @@
     reportList.setAttribute('role', 'list');
     const backup = button(documentRef, 'Yedek indir');
     const repair = button(documentRef, 'Güvenli onarımı uygula');
+    repair.dataset.diagnosticsRepair = 'true';
     const destructive = button(documentRef, 'Geçersiz kayıtları kaldır', 'mini-btn prompt-library-diagnostics-danger');
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
@@ -125,7 +131,8 @@
       const indexes = new Set(lastReport.invalidIndexes);
       const kept = Array.isArray(raw.parsed) ? raw.parsed.filter(function (_item, index) { return !indexes.has(index); }) : [];
       try {
-        rootRef.localStorage.setItem(safety().PROMPT_KEY, JSON.stringify(kept));
+        const normalized = normalizeCollection(kept.map(normalizeItem).filter(Boolean));
+        if (!saveItems(rootRef.localStorage, normalized)) throw new Error('SAVE_FAILED');
         rootRef.dispatchEvent && rootRef.dispatchEvent(new rootRef.CustomEvent('hafize:prompt-library-safety-changed'));
       } catch {
         status.textContent = 'Geçersiz kayıtlar kaldırılamadı.';
