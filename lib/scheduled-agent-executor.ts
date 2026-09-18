@@ -1,5 +1,5 @@
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
-import type { AgentRunLedger } from './agent-run-ledger.ts';
+import { createAgentRunLedger } from './agent-run-ledger.ts';
 // @ts-ignore Legacy delegated runner remains shared during migration.
 import { runDelegatedAgent } from './delegated-agent-runner.mjs';
 // @ts-ignore Typed credential boundary is the single policy source.
@@ -30,7 +30,7 @@ export function createScheduledAgentExecutor(args:{
     if(!safeTraceId||!safeTask||!canonicalAgent)return{ok:false as const,error:'INVALID_SCHEDULE_AGENT_TASK'};
     if(!safeModel)return{ok:false as const,error:'SCHEDULE_MODEL_NOT_CONFIGURED'};
     if(containsPlaintextCredential(safeTask))return{ok:false as const,error:'SCHEDULE_AGENT_TASK_CREDENTIAL_BLOCKED'};
-    const ledger=rest.runLedger as AgentRunLedger;
+    const ledger=createAgentRunLedger({traceId:safeTraceId,agentId:canonicalAgent.id,action:'schedule.run'});
     let result:Record<string,unknown>|null=null;
     try{
       result=await runAgentTask({agent:canonicalAgent,task:safeTask,traceId:safeTraceId,parentTaskId:ledger.rootTaskId,depth:0,registry,runLedger:ledger,model:safeModel,maxTokens:tokenLimit,complete,nvidiaConfigured:Boolean(nvidiaConfigured),githubReadConfigured:Boolean(githubReadConfigured),githubReadFile}) as Record<string,unknown>;
