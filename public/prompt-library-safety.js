@@ -4,6 +4,7 @@
   const PROMPT_KEY = 'hafize.prompt-library.v1';
   const COLLECTION_KEY = 'hafize.prompt-library.collections.v1';
   const REVISION_KEY = 'hafize.prompt-library.revisions.v1';
+  const QUARANTINE_KEY = 'hafize.prompt-library.quarantine.v1';
   const MAX_IMPORT_BYTES = 1_000_000;
   const MAX_ITEMS = 120;
   const MAX_PREVIEW = 8;
@@ -264,6 +265,46 @@
     };
   }
 
+  function readQuarantine(storage = root.localStorage) {
+    const value = readJson(storage, QUARANTINE_KEY, { version: 1, createdAt: '', items: [] });
+    return value && typeof value === 'object' && Array.isArray(value.items) ? value : { version: 1, createdAt: '', items: [] };
+  }
+
+  function quarantineInvalidItems(storage = root.localStorage, indexes = []) {
+    const raw = readRawPrompts(storage);
+    if (!Array.isArray(raw.parsed)) return { ok: false, reason: 'PROMPT_STORAGE_INVALID', count: 0 };
+    const indexSet = new Set(indexes.filter((value) => Number.isInteger(value) && value >= 0));
+    if (!indexSet.size) return { ok: false, reason: 'NO_INVALID_ITEMS', count: 0 };
+    const removed = raw.parsed.filter(function (_item, index) { return indexSet.has(index); });
+    const kept = raw.parsed.filter(function (_item, index) { return !indexSet.has(index); });
+    const existing = readQuarantine(storage);
+    const mergedQuarantine = {
+      version: 1,
+      createdAt: existing.createdAt || new Date().toISOString(),
+      items: existing.items.concat(removed).slice(-80)
+    };
+    const output = JSON.stringify(mergedQuarantine);
+    if (output.length > 1000000) return { ok: false, reason: 'QUARANTINE_TOO_LARGE', count: 0 };
+    if (!writeJson(storage, QUARANTINE_KEY, mergedQuarantine)) return { ok: false, reason: 'QUARANTINE_WRITE_FAILED', count: 0 };
+    if (!writeJson(storage, PROMPT_KEY, kept)) return { ok: false, reason: 'PROMPT_WRITE_FAILED', count: 0 };
+    try { root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-safety-changed')); } catch {}
+    return { ok: true, reason: '', count: removed.length };
+  }
+
+  function restoreQuarantine(storage = root.localStorage) {
+    const quarantine = readQuarantine(storage);
+    if (!quarantine.items.length) return { ok: false, reason: 'QUARANTINE_EMPTY', imported: 0 };
+    const merged = api?.mergeImportedItems?.(freshCurrent(storage), quarantine.items);
+    if (!merged || api?.saveItems?.(storage, merged.items) !== true) {
+      return { ok: false, reason: 'RESTORE_FAILED', imported: 0 };
+    }
+    if (!writeJson(storage, QUARANTINE_KEY, { version: 1, createdAt: new Date().toISOString(), items: [] })) {
+      return { ok: false, reason: 'QUARANTINE_CLEAR_FAILED', imported: 0 };
+    }
+    try { root.dispatchEvent?.(new root.CustomEvent('hafize:prompt-library-safety-changed')); } catch {}
+    return { ok: true, reason: '', imported: merged.imported };
+  }
+
   function exportRecoverySnapshot(storage = root.localStorage) {
     const payload = {
       version: 1,
@@ -282,6 +323,7 @@
     PROMPT_KEY,
     COLLECTION_KEY,
     REVISION_KEY,
+    QUARANTINE_KEY,
     MAX_IMPORT_BYTES,
     MAX_ITEMS,
     MAX_PREVIEW,
@@ -291,6 +333,9 @@
     analyzeLibrary,
     buildSafeRepair,
     applySafeRepair,
-    exportRecoverySnapshot
+    exportRecoverySnapshot,
+    readQuarantine,
+    quarantineInvalidItems,
+    restoreQuarantine
   });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
