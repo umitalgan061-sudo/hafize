@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+const source = await fs.readFile('public/prompt-library-import-preview.js', 'utf8');
+assert.match(source, /role', 'dialog'/);
+assert.match(source, /aria-modal', 'true'/);
+assert.match(source, /aria-labelledby/);
+assert.match(source, /event\.key === 'Escape'/);
+assert.match(source, /event\.key !== 'Tab'/);
+assert.match(source, /shiftKey/);
+assert.match(source, /focus\(\)/);
+console.log('prompt-library-import-a11y: ok');
