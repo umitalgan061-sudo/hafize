@@ -50,6 +50,9 @@
     const reportList = documentRef.createElement('div');
     reportList.className = 'prompt-library-diagnostics-report';
     reportList.setAttribute('role', 'list');
+    const repairPreview = documentRef.createElement('div');
+    repairPreview.className = 'prompt-library-diagnostics-repair-preview';
+    repairPreview.setAttribute('aria-live', 'polite');
     const backup = button(documentRef, 'Yedek indir');
     const repair = button(documentRef, 'Güvenli onarımı uygula');
     repair.dataset.diagnosticsRepair = 'true';
@@ -60,7 +63,7 @@
     const actions = documentRef.createElement('div');
     actions.className = 'prompt-library-diagnostics-actions';
     actions.append(backup, repair, destructive, restore, undo, copyReport);
-    body.append(status, reportList, actions);
+    body.append(status, reportList, repairPreview, actions);
     section.append(header, body);
     card.append(section);
 
@@ -96,6 +99,29 @@
       destructive.disabled = !report.invalidIndexes.length;
       restore.disabled = safety().readQuarantine(rootRef.localStorage).items.length === 0;
       undo.disabled = !safety().hasRepairCheckpoint(rootRef.localStorage);
+      try {
+        const preview = safety().buildRepairPreview(rootRef.localStorage);
+        repairPreview.textContent = '';
+        const summary = [
+          ['Onarım sonrası kayıt', preview.normalizedCount],
+          ['Yinelenen ID yeniden anahtarlama', preview.duplicateCount],
+          ['Koleksiyon yetimi budama', preview.orphanCollectionMembers],
+          ['Revizyon yetimi budama', preview.orphanRevisionRefs],
+          ['Checkpoint gerekecek', Object.values(preview.rewrites).some(Boolean) ? 'Evet' : 'Hayır']
+        ];
+        const heading = documentRef.createElement('strong');
+        heading.textContent = 'Onarım önizlemesi';
+        repairPreview.append(heading);
+        summary.forEach(function (entry) {
+          const row = documentRef.createElement('div');
+          row.className = 'prompt-library-diagnostics-repair-item';
+          row.append(text(documentRef, entry[0], 'prompt-library-diagnostics-label'));
+          row.append(text(documentRef, entry[1], 'prompt-library-diagnostics-value'));
+          repairPreview.append(row);
+        });
+      } catch {
+        repairPreview.textContent = 'Onarım önizlemesi üretilemedi.';
+      }
       status.textContent = report.storageReadable
         ? 'Tarama tamamlandı; güvenli onarım geçerli kayıtları normalize eder ve yetim ilişkileri budar.'
         : 'İstem verisi okunamıyor; otomatik onarım yapılmadı.';
