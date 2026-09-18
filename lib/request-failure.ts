@@ -45,7 +45,7 @@ export function deliverRequestFailure(res: ServerResponse, error: unknown): Requ
   if (classification === 'closed' || classification === 'aborted') return classification;
   if (classification === 'stream') {
     const candidate = error as FailureError | null;
-    safeWrite(res, (candidate?.message === 'NVIDIA_CHAT_ERROR' ? { error: 'NVIDIA_CHAT_ERROR' } : { error: 'STREAM_INTERRUPTED' }) + '\n');
+    safeWrite(res, JSON.stringify(candidate?.message === 'NVIDIA_CHAT_ERROR' ? { error: 'NVIDIA_CHAT_ERROR' } : { error: 'STREAM_INTERRUPTED' }) + '\n');
     try { if (!isResponseClosed(res)) res.end('data: [DONE]\n\n'); } catch {}
     return classification;
   }
