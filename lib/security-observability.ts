@@ -63,7 +63,7 @@ export function createSecurityEventLogger({
 }> {
   if (typeof sink !== 'function' || typeof now !== 'function') throw new Error('INVALID_SECURITY_EVENT_LOGGER');
 
-  function record(input = {}): SecurityEvent {
+  function record(input: { event?: unknown; requestId?: unknown; route?: unknown; method?: unknown; outcome?: unknown; metadata?: unknown } = {}): SecurityEvent {
     const payload = Object.freeze({
       timestamp: new Date(now()).toISOString(),
       event: normalizeEvent(input.event),
