@@ -21,7 +21,8 @@
       "ES2025",
       "DOM",
       "DOM.Iterable"
-    ]
+    ],
+    "rewriteRelativeImportExtensions": true
   },
   "include": [
     "public/**/*.ts",
