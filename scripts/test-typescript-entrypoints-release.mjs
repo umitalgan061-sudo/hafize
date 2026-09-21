@@ -13,7 +13,7 @@ const runtime = read('tsconfig.runtime.json');
 assert.equal(pkg.scripts.start, 'node --import ./lib/production-guard.ts server.ts');
 assert.equal(pkg.scripts['dev:server'], 'node --import ./lib/production-guard.ts server.ts');
 assert.match(runtime, /server\.ts/);
-for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-output']) {
+for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-output', 'markdown-renderer', 'conversation-workspace']) {
   assert.match(vite, new RegExp(entry));
   assert.match(html, new RegExp(`typed-build/${entry}\\.js`));
   assert.match(sw, new RegExp(`typed-build/${entry}\\.js`));
