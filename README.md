@@ -71,6 +71,28 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
+## GitHub çalışma alanı
+
+GitHub çalışma alanı, sunucu tarafındaki allowlist ile izin verilen repository'leri Hafize içinden salt-okunur incelemek için kullanılır.
+
+- Repository özeti, varsayılan branch, branch listesi, commit geçmişi ve PR listesi okunabilir.
+- Dosya görünümü güvenli path normalizasyonu, hassas dosya engeli ve plaintext credential kontrolünü mevcut GitHub read policy ile birlikte uygular.
+- Tarayıcı GitHub token'ı görmez; istekler same-origin /api/github/workspace endpoint'ine gider ve endpoint production oturum koruması arkasındadır.
+- UI yalnızca GET kullanır; branch oluşturma, commit, PR açma/merge etme ve silme işlemleri bu yüzeyde bulunmaz.
+- Son repository/ref/path durumu sadece sessionStorage içinde tutulur; token veya GitHub yanıtı kalıcı browser storage'a yazılmaz.
+- Ctrl / ⌘ + Shift + G repository alanına odaklanır.
+
+GitHub çalışma alanı özel kontrolü:
+
+```bash
+node scripts/test-github-workspace-api.mjs
+node scripts/test-github-workspace-security.mjs
+node scripts/test-github-workspace-ui.mjs
+node scripts/test-github-workspace-contract.mjs
+```
+
+Ayrıntılar docs/GITHUB_WORKSPACE*.md dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
