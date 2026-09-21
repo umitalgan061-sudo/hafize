@@ -1,5 +1,3 @@
-import type { GitHubReadFile } from './github-read.ts';
-
 const DEFAULT_API = 'https://api.github.com';
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const MAX_REPOSITORY = 120;
@@ -35,7 +33,7 @@ type WorkspaceReaderOptions = {
   readonly allowedRepositories?: readonly string[];
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
-  readonly readFile?: GitHubReadFile;
+  readonly readFile?: (input: { readonly repository: string; readonly path: string; readonly ref: string | null }) => Promise<{ readonly path: string; readonly ref: string | null; readonly sha: string | null; readonly size: number; readonly content: string; readonly truncated: boolean; }>;
 };
 type JsonRecord = Record<string, unknown>;
 
