@@ -9,6 +9,7 @@ const typedDevEntryPlugin = (): Plugin => ({
   transformIndexHtml(html, context) {
     if (context.server) {
       return html
+        .replaceAll('/typed-build/auth.js', '/typed/auth.ts')
         .replaceAll('/typed-build/app-shell.js', '/typed/app-shell.ts')
         .replaceAll('/typed-build/ui-shell.js', '/typed/ui-shell.ts')
         .replaceAll('/typed-build/voice-input.js', '/typed/voice-input.ts')
@@ -40,6 +41,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
+        'auth': resolve(ROOT, 'public/typed/auth.ts'),
         'app-shell': resolve(ROOT, 'public/typed/app-shell.ts'),
         'ui-shell': resolve(ROOT, 'public/typed/ui-shell.ts'),
         'voice-input': resolve(ROOT, 'public/typed/voice-input.ts'),
