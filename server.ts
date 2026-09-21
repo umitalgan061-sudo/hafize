@@ -1,3 +1,4 @@
+// Node 24+ executes this entrypoint with stable native TypeScript type stripping.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -11,18 +12,18 @@ import {
   resolveAgent
 } from './lib/agent-runtime.ts';
 import { createAgentDelegator } from './lib/agent-delegation.ts';
-import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
+import { runDelegatedAgent } from './lib/delegated-agent-runner.ts';
 import { createAgentRunLedger } from './lib/agent-run-ledger.ts';
-import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
-import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
-import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
+import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.ts';
+import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
+import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
-import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
+import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.ts';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.ts';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.ts';
-import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
+import { createScheduleHttpApi } from './lib/schedule-http-api.ts';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
-import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
+import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.ts';
 import { createScheduleWorker } from './lib/schedule-worker.ts';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
