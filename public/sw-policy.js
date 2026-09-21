@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v39`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v41`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
