@@ -93,13 +93,13 @@
     const closePanel = () => { open = false; panel.hidden = true; attach.setAttribute('aria-expanded', 'false'); attach.focus(); };
 
     function addFile(file) {
+      const validation = api.validateFile(file, items);
+      if (!validation.ok) {
+        const messages = { type: 'desteklenmeyen tür', empty: 'boş dosya', size: '256 KB sınırı', duplicate: 'aynı dosya zaten eklendi' };
+        report(`${validation.name}: ${messages[validation.reason] || 'dosya eklenemedi'}.`);
+        return Promise.resolve(false);
+      }
       return api.readText(file).then((raw) => {
-        const validation = api.validateFile(file, items);
-        if (!validation.ok) {
-          const messages = { type: 'desteklenmeyen tür', empty: 'boş dosya', size: '256 KB sınırı', duplicate: 'aynı dosya zaten eklendi' };
-          report(`${validation.name}: ${messages[validation.reason] || 'dosya eklenemedi'}.`);
-          return false;
-        }
         const content = api.normalizeContent(raw);
         if (!content) { report(`${validation.name}: okunabilir metin bulunamadı.`); return false; }
         if (api.binaryScore(content) > 0.01) { report(`${validation.name}: binary içerik olarak algılandı.`); return false; }
