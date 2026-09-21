@@ -48,7 +48,7 @@ for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   check(!source.includes('fetch('), `${legacy} bridge has no network implementation`);
 }
 
-check(sw.includes('hafize-shell-v36'), 'PWA cache version bumped');
+check(sw.includes('hafize-shell-v40'), 'PWA cache version bumped');
 check(!html.includes('/typed-build/markdown-renderer.js" defer'), 'module entry is not marked defer-only');
 check(!html.includes('/typed-build/conversation-workspace.js" defer'), 'module entry is not marked defer-only');
 
