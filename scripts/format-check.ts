@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 const ROOT = new URL('../', import.meta.url);
 const DIRECTORIES = ['public', 'src', 'scripts'];
-const EXTENSIONS = new Set(['.ts', '.mjs']);
+const EXTENSIONS = new Set(['.ts', '.mjs', '.js']);
 const MAX_LINE_LENGTH = 240;
 
 async function walk(directory, output = []) {
