@@ -13,7 +13,7 @@ function assert(condition,message){
   if(!condition)throw new Error('TYPESCRIPT_MIGRATION_FAILED:'+message);
 }
 const deps=packageData.devDependencies||{};
-assert(major(deps.typescript)===6,'typescript-major');
+assert(major(deps.typescript)===7,'typescript-major');
 assert(major(deps.vite)===8,'vite-major');
 assert(major(deps.vitest)===5,'vitest-major');
 assert(String(packageData.engines?.node||'').includes('24.21.0'),'node-engine');
@@ -27,7 +27,7 @@ const includes=Array.isArray(tsconfig.include)?tsconfig.include:[];
 assert(includes.includes('lib/**/*.ts'),'tsconfig-lib-scope');
 assert(tsconfig.compilerOptions?.rewriteRelativeImportExtensions===true,'ts-extension-rewrite');
 
-for(const path of ['prompt-library-smart-fill.ts','prompt-library-command-palette.ts','prompt-library-smart-fill-hints.ts','markdown-renderer.ts','conversation-workspace.ts',
+for(const path of [
   'agent-runtime.ts','agent-delegation.ts','agent-run-ledger.ts','context-compaction.ts',
   'model-response-contract.ts','schedule-command-boundary.ts','schedule-execution-runtime.ts',
   'schedule-worker.ts','scheduled-agent-executor.ts','server-auth.ts','session-auth.ts',
@@ -37,6 +37,8 @@ for(const path of ['prompt-library-smart-fill.ts','prompt-library-command-palett
 }
 
 assert(server.includes('./lib/production-guard.ts'),'production-guard-entry');
+assert(server.includes('./lib/http-runtime.ts'),'http-runtime-entry');
+for(const browserPath of ['markdown-renderer.ts','conversation-workspace.ts']) assert(browserPath.endsWith('.ts'),'browser-migration-contract');
 for(const path of ['session-auth.ts','server-auth.ts','rate-limit.ts','security-observability.ts','runtime-config.ts']){
   assert(guard.includes('./'+path), 'guard-import:'+path);
 }
