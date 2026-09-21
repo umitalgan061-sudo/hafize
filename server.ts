@@ -17,6 +17,7 @@ import { createAgentRunLedger } from './lib/agent-run-ledger.ts';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.ts';
 import { createGitHubWorkspaceReader, GitHubWorkspaceError } from './lib/github-workspace.ts';
 import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/github-workspace-extra.ts';
+import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -65,6 +66,10 @@ const GITHUB_WORKSPACE_READER = createGitHubWorkspaceReader({
   readFile: GITHUB_READ_FILE
 });
 const GITHUB_WORKSPACE_EXTRA = createGitHubWorkspaceExtra({
+  token: GITHUB_TOKEN,
+  allowedRepositories: GITHUB_ALLOWED_REPOS
+});
+const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
   token: GITHUB_TOKEN,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
@@ -285,6 +290,28 @@ function handleAgents(res) {
   });
 }
 
+
+async function handleGitHubWorkspaceDetails(pathname, url, res) {
+  try {
+    if (pathname === '/api/github/workspace/commit') {
+      const payload = await GITHUB_WORKSPACE_DETAILS.commit({ repository: url.searchParams.get('repository') || '', sha: url.searchParams.get('sha') || '' });
+      sendJson(res, 200, payload);
+      return;
+    }
+    if (pathname === '/api/github/workspace/pull') {
+      const payload = await GITHUB_WORKSPACE_DETAILS.pull({ repository: url.searchParams.get('repository') || '', number: url.searchParams.get('number') || '' });
+      sendJson(res, 200, payload);
+      return;
+    }
+    sendJson(res, 404, { error: 'NOT_FOUND' });
+  } catch (error) {
+    if (error instanceof GitHubWorkspaceDetailsError) {
+      sendJson(res, error.status, { error: error.code });
+      return;
+    }
+    sendJson(res, 502, { error: 'GITHUB_WORKSPACE_FAILED' });
+  }
+}
 
 async function handleGitHubWorkspaceExtra(pathname, url, res) {
   try {
@@ -717,6 +744,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && (url.pathname === '/api/github/workspace/directory' || url.pathname === '/api/github/workspace/compare')) {
       await handleGitHubWorkspaceExtra(url.pathname, url, res);
+      return;
+    }
+    if (req.method === 'GET' && (url.pathname === '/api/github/workspace/commit' || url.pathname === '/api/github/workspace/pull')) {
+      await handleGitHubWorkspaceDetails(url.pathname, url, res);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/models') {
