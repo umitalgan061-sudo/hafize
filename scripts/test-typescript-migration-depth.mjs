@@ -26,7 +26,7 @@ for(const file of migrated){
   if(server.includes("./lib/"+legacy))throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:legacy-import:'+legacy);
 }
 
-for(const file of browserMigrated) assert(await exists(resolve(root,'public','typed',file)),'missing-browser:'+file);
+for(const file of browserMigrated) assert(await exists(resolve(root,'public',file)),'missing-browser:'+file);
 
 assert(packageData.scripts?.['typecheck:runtime'],'missing-runtime-typecheck');
 assert(packageData.scripts?.['test:typed-core'],'missing-typed-test-script');
