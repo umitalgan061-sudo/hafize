@@ -13,7 +13,7 @@
     '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css',
     '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
     '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/message-workspace.css',
-    '/prompt-library.css', '/composer-attachments.css', '/composer-attachments-policy.js', '/composer-attachments.js', '/prompt-library-safety.js', '/prompt-library-import-preview.js', '/prompt-library-diagnostics.js', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
+    '/prompt-library.css', '/composer-attachments.css', '/composer-attachments-policy.js', '/composer-attachments-secret-scan.js', '/composer-attachments.js', '/prompt-library-safety.js', '/prompt-library-import-preview.js', '/prompt-library-diagnostics.js', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
     '/prompt-library-collections.css', '/prompt-library-revisions.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
     '/auth.js', '/app.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js',
