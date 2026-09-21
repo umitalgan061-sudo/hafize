@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const packageData=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
 const tsconfig=JSON.parse(await readFile(new URL('../tsconfig.json',import.meta.url),'utf8'));
-const server=await readFile(new URL('../server.mjs',import.meta.url),'utf8');
+const server=await readFile(new URL('../server.ts',import.meta.url),'utf8');
 const guard=await readFile(new URL('../lib/production-guard.ts',import.meta.url),'utf8');
 
 function major(spec){
@@ -27,7 +27,7 @@ const includes=Array.isArray(tsconfig.include)?tsconfig.include:[];
 assert(includes.includes('lib/**/*.ts'),'tsconfig-lib-scope');
 assert(tsconfig.compilerOptions?.rewriteRelativeImportExtensions===true,'ts-extension-rewrite');
 
-for(const path of [
+for(const path of ['prompt-library-smart-fill.ts','prompt-library-command-palette.ts','prompt-library-smart-fill-hints.ts','markdown-renderer.ts','conversation-workspace.ts',
   'agent-runtime.ts','agent-delegation.ts','agent-run-ledger.ts','context-compaction.ts',
   'model-response-contract.ts','schedule-command-boundary.ts','schedule-execution-runtime.ts',
   'schedule-worker.ts','scheduled-agent-executor.ts','server-auth.ts','session-auth.ts',
