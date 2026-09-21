@@ -176,6 +176,9 @@
     }
 
     const onAttach = () => openPanel();
+    const onChoose = () => fileInput.click();
+    const onDropClick = () => fileInput.click();
+    const onClear = () => { items = []; rootRef.clearTimeout?.(expiryTimer); render(); report('Bekleyen ekler kaldırıldı.'); };
     const onFileChange = () => { const files = [...(fileInput.files || [])]; fileInput.value = ''; addFiles(files); };
     const onDragOver = (event) => { event.preventDefault(); drop.classList.add('drag-over'); };
     const onDragLeave = () => drop.classList.remove('drag-over');
@@ -188,12 +191,12 @@
 
     attach.setAttribute('aria-expanded', 'false');
     attach.addEventListener('click', onAttach);
-    choose.addEventListener('click', () => fileInput.click());
+    choose.addEventListener('click', onChoose);
     close.addEventListener('click', closePanel);
     insert.addEventListener('click', insertSelected);
-    clear.addEventListener('click', () => { items = []; rootRef.clearTimeout?.(expiryTimer); render(); report('Bekleyen ekler kaldırıldı.'); });
+    clear.addEventListener('click', onClear);
     fileInput.addEventListener('change', onFileChange);
-    drop.addEventListener('click', () => fileInput.click());
+    drop.addEventListener('click', onDropClick);
     drop.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); } });
     drop.addEventListener('dragover', onDragOver); drop.addEventListener('dragleave', onDragLeave); drop.addEventListener('drop', onDrop);
     input.addEventListener('paste', onPaste); doc.addEventListener('keydown', onKeydown);
@@ -204,9 +207,9 @@
       getOpen: () => open, getMemoryTtlMs: () => MEMORY_TTL_MS,
       destroy: () => {
         destroyed = true; rootRef.clearTimeout?.(expiryTimer);
-        attach.removeEventListener('click', onAttach); choose.removeEventListener('click', () => fileInput.click()); close.removeEventListener('click', closePanel);
-        insert.removeEventListener('click', insertSelected); clear.removeEventListener('click', () => {}); fileInput.removeEventListener('change', onFileChange);
-        drop.removeEventListener('click', () => fileInput.click()); drop.removeEventListener('dragover', onDragOver); drop.removeEventListener('dragleave', onDragLeave); drop.removeEventListener('drop', onDrop);
+        attach.removeEventListener('click', onAttach); choose.removeEventListener('click', onChoose); close.removeEventListener('click', closePanel);
+        insert.removeEventListener('click', insertSelected); clear.removeEventListener('click', onClear); fileInput.removeEventListener('change', onFileChange);
+        drop.removeEventListener('click', onDropClick); drop.removeEventListener('dragover', onDragOver); drop.removeEventListener('dragleave', onDragLeave); drop.removeEventListener('drop', onDrop);
         input.removeEventListener('paste', onPaste); doc.removeEventListener('keydown', onKeydown); panel.remove(); fileInput.remove(); delete rootRef.HafizeComposerAttachmentsController;
       }
     });
