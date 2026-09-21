@@ -14,7 +14,7 @@
     '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
     '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/message-workspace.css',
     '/prompt-library.css', '/prompt-library-safety.js', '/prompt-library-import-preview.js', '/prompt-library-diagnostics.js', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
-    '/prompt-library-collections.css', '/prompt-library-revisions.css', '/github-workspace.css', '/github-workspace-extra.css', '/github-workspace-actions.css', '/github-workspace-extra.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
+    '/prompt-library-collections.css', '/prompt-library-revisions.css', '/github-workspace.css', '/github-workspace-extra.css', '/github-workspace-actions.css', '/github-workspace-details.css', '/github-workspace-extra.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
     '/prompt-library-smart-insert.css', '/prompt-library-smart-insert-center.css', '/prompt-library-smart-insert-history.css', '/prompt-library-smart-insert-suggestions.css', '/prompt-library-smart-insert-activity.css',
     '/typed-build/auth.js', '/typed-build/app-shell.js', '/typed-build/ui-shell.js', '/typed-build/voice-input.js', '/typed-build/voice-output.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/typed-build/conversation-workspace.js', '/typed-build/message-workspace.js', '/conversation-workspace-keyboard.js',
@@ -28,7 +28,7 @@
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
     '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
-    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-extra.js', '/typed-build/scheduled-tasks-countdown.js',
+    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/github-workspace-extra.js', '/typed-build/scheduled-tasks-countdown.js',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
