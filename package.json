@@ -7,10 +7,10 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "start": "node --import ./lib/production-guard.ts server.mjs",
+    "start": "node --import ./lib/production-guard.ts server.ts",
     "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "node --import ./lib/production-guard.ts server.mjs",
+    "dev:server": "node --import ./lib/production-guard.ts server.ts",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:modern": "vitest run",
