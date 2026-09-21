@@ -25,6 +25,7 @@
     "rewriteRelativeImportExtensions": true
   },
   "include": [
+    "server.ts",
     "public/**/*.ts",
     "src/**/*.ts",
     "lib/**/*.ts",
