@@ -1,3 +1,5 @@
+type Principal = { authenticated?: unknown; subject?: unknown; [key: string]: unknown };
+
 import { createHmac } from 'node:crypto';
 
 const SUBJECT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/+\-=]{0,199}$/;
@@ -7,14 +9,14 @@ function fail(reason) {
   throw new Error(`INVALID_CONNECTOR_PRINCIPAL:${reason}`);
 }
 
-function normalizeKey(value) {
+function normalizeKey(value: Uint8Array | Buffer): Buffer {
   if (!Buffer.isBuffer(value) && !(value instanceof Uint8Array)) fail('key');
   const key = Buffer.from(value);
   if (key.length !== 32) fail('key');
   return key;
 }
 
-function normalizePrincipal(value) {
+function normalizePrincipal(value: Principal): string {
   if (!value || Array.isArray(value) || typeof value !== 'object') fail('principal');
   for (const field of Object.keys(value)) if (!FIELDS.has(field)) fail(`principal.${field}`);
   if (value.authenticated !== true) throw new Error('CONNECTOR_AUTH_REQUIRED');
@@ -23,7 +25,7 @@ function normalizePrincipal(value) {
   return subject;
 }
 
-export function createConnectorOwnerResolver({ key } = {}) {
+export function createConnectorOwnerResolver({ key }: { key?: Uint8Array | Buffer } = {}) {
   const ownerKey = normalizeKey(key);
 
   function resolve(principal) {
