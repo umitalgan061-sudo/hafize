@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const s=fs.readFileSync('public/composer-attachments.js','utf8');
+const c=fs.readFileSync('public/composer-attachments.css','utf8');
+assert.match(s,/aria-labelledby/);
+assert.match(s,/aria-describedby/);
+assert.match(s,/aria-live/);
+assert.match(s,/aria-label/);
+assert.match(c,/focus-visible/);
+console.log('attachment accessibility contract: ok');
