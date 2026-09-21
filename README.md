@@ -71,6 +71,24 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
+## Composer Ekleri
+
+Composer Ekleri, metin ve kaynak kod dosyalarını cihaz belleğinde okuyup kontrollü biçimde composer'a ekler.
+
+- Yalnız allowlist'teki text/code uzantıları kabul edilir.
+- Tek dosya 256 KB, tek içerik 80.000, toplam bekleyen içerik 200.000 karakterdir.
+- En fazla 4 dosya ve dosya başına 400 satırlık insert aralığı tutulur.
+- Dosya seçildiğinde upload, telemetry veya storage yazımı yapılmaz.
+- Kullanıcı checkbox ve satır aralığı ile neyin ekleneceğini seçer.
+- Insert imleç/seçim konumuna yapılır; son ekleme güvenli koşullarda geri alınabilir.
+- Seçili aralık ayrıca panoya kopyalanabilir.
+- Yaygın secret/private-key/JWT desenleri yerel olarak taranır; riskli insert açık onay ister.
+- Bekleyen dosya içerikleri yaklaşık 15 dakika sonra bellekten temizlenir.
+- Ctrl / ⌘ + Shift + A paneli açar/kapatır; Escape paneli kapatır.
+- Insert mesajı otomatik göndermez.
+
+Ayrıntılar docs/COMPOSER_ATTACHMENTS*.md dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
