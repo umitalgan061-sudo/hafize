@@ -26,6 +26,7 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
         .replaceAll('/typed-build/github-workspace.js', '/github-workspace.ts');
         .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts');
+        .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts');
     }
     return html;
   }
@@ -60,6 +61,7 @@ export default defineConfig({
         'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts'),
         'github-workspace': resolve(ROOT, 'public/github-workspace.ts'),
         'github-workspace-extra': resolve(ROOT, 'public/github-workspace-extra.ts'),
+        'github-workspace-actions': resolve(ROOT, 'public/github-workspace-actions.ts'),
         'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
