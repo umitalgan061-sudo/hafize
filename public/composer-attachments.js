@@ -51,6 +51,7 @@
     title.id = 'composerAttachmentsTitle';
     const close = button(doc, 'Kapat');
     const choose = button(doc, 'Dosya seç');
+    const totalHint = make(doc, 'small', 'Her ek için en fazla 400 satırlık bölüm seçilebilir.', 'composer-attachments-range-hint');
     const headingActions = make(doc, 'div', undefined, 'composer-attachments-heading-actions');
     headingActions.append(choose, close);
     heading.append(title, headingActions);
@@ -70,7 +71,7 @@
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     panel.setAttribute('aria-describedby', status.id);
-    panel.append(heading, hint, drop, list, footer, status);
+    panel.append(heading, hint, drop, totalHint, list, footer, status);
     composer.after(panel);
     composer.append(fileInput);
 
@@ -103,7 +104,7 @@
         if (!content) { report(`${validation.name}: okunabilir metin bulunamadı.`); return false; }
         if (api.binaryScore(content) > 0.01) { report(`${validation.name}: binary içerik olarak algılandı.`); return false; }
         if (api.totalChars(items) + content.length > api.MAX_COMBINED_CHARS) { report('Bekleyen dosya toplamı 200.000 karakteri aşamaz.'); return false; }
-        items.push(Object.freeze({ id: createId(file, validation.name, validation.size), name: validation.name, size: validation.size, lastModified: Number(file.lastModified || 0), language: api.languageOf(validation.name), content, selected: true }));
+        items.push(Object.freeze({ id: createId(file, validation.name, validation.size), name: validation.name, size: validation.size, lastModified: Number(file.lastModified || 0), language: api.languageOf(validation.name), content, startLine: 1, endLine: Math.min(api.lineCount(content), api.MAX_RANGE_LINES), selected: true }));
         scheduleExpiry();
         render();
         return true;
@@ -140,7 +141,13 @@
         include.setAttribute('aria-label', `${item.name} dosyasını mesaja ekle`);
         const body = make(doc, 'div', undefined, 'composer-attachment-body');
         body.append(make(doc, 'strong', item.name, 'composer-attachment-name'));
-        body.append(make(doc, 'div', `${formatBytes(item.size)} · ${item.language} · ${item.content.length.toLocaleString('tr-TR')} karakter`, 'composer-attachment-meta'));
+        body.append(make(doc, 'div', `${formatBytes(item.size)} · ${item.language} · ${item.content.length.toLocaleString('tr-TR')} karakter · ${api.lineCount(item.content).toLocaleString('tr-TR')} satır`, 'composer-attachment-meta'));
+        const range = make(doc, 'div', undefined, 'composer-attachment-range');
+        const start = doc.createElement('input'); start.type = 'number'; start.min = '1'; start.max = String(api.MAX_LINE_NUMBER); start.value = String(item.startLine || 1); start.setAttribute('aria-label', `${item.name} başlangıç satırı`);
+        const end = doc.createElement('input'); end.type = 'number'; end.min = '1'; end.max = String(api.MAX_LINE_NUMBER); end.value = String(item.endLine || Math.min(api.lineCount(item.content), api.MAX_RANGE_LINES)); end.setAttribute('aria-label', `${item.name} bitiş satırı`);
+        const rangeInfo = make(doc, 'span', `${api.sliceLines(item.content, start.value, end.value).length.toLocaleString('tr-TR')} karakter seçili`, 'composer-attachment-range-info');
+        const syncRange = () => { const max = api.lineCount(item.content); item.startLine = Math.max(1, Math.min(Number(start.value) || 1, max)); item.endLine = Math.max(item.startLine, Math.min(Number(end.value) || max, Math.min(max, item.startLine + api.MAX_RANGE_LINES - 1))); start.value = String(item.startLine); end.value = String(item.endLine); rangeInfo.textContent = `${api.sliceLines(item.content, item.startLine, item.endLine).length.toLocaleString('tr-TR')} karakter seçili`; render(); };
+        start.addEventListener('change', syncRange); end.addEventListener('change', syncRange); range.append(make(doc, 'span', 'Satırlar'), start, make(doc, 'span', '–'), end, rangeInfo); body.append(range);
         const details = doc.createElement('details');
         const summary = make(doc, 'summary', 'Önizleme');
         const preview = make(doc, 'pre', api.previewLines(item.content).join('\n'), 'composer-attachment-preview');
@@ -155,7 +162,7 @@
     function insertSelected() {
       const selected = items.filter((item) => item.selected);
       if (!selected.length) return report('Mesaja eklenecek dosya seçilmedi.');
-      const payload = selected.map(api.formatForComposer).join('');
+      const payload = selected.map((item) => api.formatRangeForComposer(item, item.startLine, item.endLine)).join('');
       const available = Number(input.maxLength || 12000) - input.value.length;
       if (payload.length > available || payload.length > api.MAX_INSERT_CHARS) return report(`Dosya içeriği composer sınırına sığmıyor. Gereken ${payload.length.toLocaleString('tr-TR')}, uygun alan ${Math.max(0, available).toLocaleString('tr-TR')}.`);
       input.value += payload;
