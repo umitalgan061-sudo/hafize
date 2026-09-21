@@ -27,7 +27,7 @@ for(const file of migrated){
 
 assert(packageData.scripts?.['typecheck:runtime'],'missing-runtime-typecheck');
 assert(packageData.scripts?.['test:typed-core'],'missing-typed-test-script');
-assert(String(packageData.scripts?.['check:modern']||'').includes('test-typescript-migration.mjs'),'modern-check-not-wired');
+assert(String(packageData.scripts?.['check:modern']||'').includes('test-typescript-migration.ts'),'modern-check-not-wired');
 
 const config=await readFile(resolve(root,'tsconfig.runtime.json'),'utf8');
 assert(config.includes('"lib/**/*.ts"'),'runtime-config-scope');
