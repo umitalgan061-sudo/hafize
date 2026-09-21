@@ -13,7 +13,15 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
         .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
         .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
+        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts')
+        .replaceAll('/typed-build/app.js', '/app.ts')
+        .replaceAll('/typed-build/auth.js', '/auth.ts')
+        .replaceAll('/typed-build/chat-composer-features.js', '/chat-composer-features.ts')
+        .replaceAll('/typed-build/conversation-workspace.js', '/conversation-workspace.ts')
+        .replaceAll('/typed-build/conversation-workspace-keyboard.js', '/conversation-workspace-keyboard.ts')
+        .replaceAll('/typed-build/message-workspace-policy.js', '/message-workspace-policy.ts')
+        .replaceAll('/typed-build/message-workspace.js', '/message-workspace.ts')
+        .replaceAll('/typed-build/workspace-navigation.js', '/workspace-navigation.ts');
     }
     return html;
   }
@@ -37,6 +45,15 @@ export default defineConfig({
     lib: {
       entry: {
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
+        'app': resolve(ROOT, 'public/app.ts'),
+        'auth': resolve(ROOT, 'public/auth.ts'),
+        'chat-composer-features': resolve(ROOT, 'public/chat-composer-features.ts'),
+        'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
+        'conversation-workspace-keyboard': resolve(ROOT, 'public/conversation-workspace-keyboard.ts'),
+        'message-workspace-policy': resolve(ROOT, 'public/message-workspace-policy.ts'),
+        'message-workspace': resolve(ROOT, 'public/message-workspace.ts'),
+        'workspace-navigation': resolve(ROOT, 'public/workspace-navigation.ts'),
+
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
         'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
