@@ -7,6 +7,8 @@
   const MAX_INSERT_CHARS = 11_500;
   const MAX_NAME = 120;
   const MAX_PREVIEW_LINES = 12;
+  const MAX_RANGE_LINES = 400;
+  const MAX_LINE_NUMBER = 20_000;
   const ALLOWED_EXTENSIONS = Object.freeze(['txt','md','markdown','json','jsonl','csv','tsv','js','mjs','cjs','ts','tsx','jsx','css','scss','html','htm','xml','yaml','yml','toml','ini','conf','py','pyw','java','kt','kts','c','h','cpp','hpp','cc','cs','go','rs','rb','php','swift','sh','bash','zsh','fish','ps1','sql','graphql','gql','log']);
   const LANGUAGE_MAP = Object.freeze({txt:'text',md:'markdown',markdown:'markdown',json:'json',jsonl:'json',csv:'csv',tsv:'text',ts:'typescript',tsx:'tsx',js:'javascript',mjs:'javascript',cjs:'javascript',jsx:'jsx',css:'css',scss:'scss',html:'html',htm:'html',xml:'xml',yaml:'yaml',yml:'yaml',toml:'toml',ini:'ini',conf:'text',py:'python',pyw:'python',java:'java',kt:'kotlin',kts:'kotlin',c:'c',h:'c',cpp:'cpp',hpp:'cpp',cc:'cpp',cs:'csharp',go:'go',rs:'rust',rb:'ruby',php:'php',swift:'swift',sh:'shell',bash:'shell',zsh:'shell',fish:'shell',ps1:'powershell',sql:'sql',graphql:'graphql',gql:'graphql',log:'text'});
   const clampText = (value, limit = MAX_TEXT_CHARS) => String(value ?? '').replace(/\0/g, '').slice(0, limit);
@@ -31,6 +33,21 @@
   }
   function normalizeContent(text) { return clampText(text).replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/[\t ]+$/gm, '').trim(); }
   function previewLines(content) { return normalizeContent(content).split('\n').slice(0, MAX_PREVIEW_LINES); }
+  function lineCount(content) { return normalizeContent(content).split('\n').length; }
+  function clampLine(value, fallback, max) { const n = Number.parseInt(value, 10); return Number.isFinite(n) ? Math.max(1, Math.min(max, n)) : fallback; }
+  function sliceLines(content, start = 1, end = MAX_RANGE_LINES) {
+    const lines = normalizeContent(content).split('\n');
+    const first = clampLine(start, 1, Math.min(lines.length, MAX_LINE_NUMBER));
+    const last = clampLine(end, Math.min(lines.length, first + MAX_RANGE_LINES - 1), Math.min(lines.length, MAX_LINE_NUMBER));
+    const safeEnd = Math.max(first, Math.min(last, first + MAX_RANGE_LINES - 1));
+    return lines.slice(first - 1, safeEnd).join('\n');
+  }
+  function formatRangeForComposer(item, start = 1, end = MAX_RANGE_LINES) {
+    const body = sliceLines(item?.content, start, end); if (!body) return '';
+    const fence = body.includes('```') ? '````' : '```';
+    const range = lineCount(item.content) > MAX_RANGE_LINES || Number(start) > 1 || Number(end) < lineCount(item.content) ? ` · satır ${start}-${Math.min(Number(end) || 1, lineCount(item.content))}` : '';
+    return `\n\n[Dosya: ${safeName(item.name)}${range}]\n${fence}${languageOf(item.name)}\n${body}\n${fence}`;
+  }
   function formatForComposer(item) {
     const body = normalizeContent(item?.content); if (!body) return '';
     const fence = String(body).includes('```') ? '````' : '```';
@@ -38,5 +55,5 @@
   }
   function totalChars(items) { return (Array.isArray(items) ? items : []).reduce((sum, item) => sum + normalizeContent(item?.content).length, 0); }
   function insertionSize(items) { return (Array.isArray(items) ? items : []).reduce((sum, item) => sum + formatForComposer(item).length, 0); }
-  root.HafizeComposerAttachmentPolicy = Object.freeze({ MAX_FILES, MAX_BYTES, MAX_TEXT_CHARS, MAX_COMBINED_CHARS, MAX_INSERT_CHARS, MAX_NAME, MAX_PREVIEW_LINES, ALLOWED_EXTENSIONS, clampText, safeName, extensionOf, languageOf, binaryScore, validateFile, readText, normalizeContent, previewLines, formatForComposer, totalChars, insertionSize });
+  root.HafizeComposerAttachmentPolicy = Object.freeze({ MAX_FILES, MAX_BYTES, MAX_TEXT_CHARS, MAX_COMBINED_CHARS, MAX_INSERT_CHARS, MAX_NAME, MAX_PREVIEW_LINES, MAX_RANGE_LINES, MAX_LINE_NUMBER, ALLOWED_EXTENSIONS, clampText, safeName, extensionOf, languageOf, binaryScore, validateFile, readText, normalizeContent, previewLines, formatForComposer, formatRangeForComposer, lineCount, sliceLines, totalChars, insertionSize });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
