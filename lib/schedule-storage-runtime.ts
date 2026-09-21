@@ -1,8 +1,8 @@
 interface ScheduleStorageOptions { env?: Record<string,string|undefined>; storeOptions?: Record<string,unknown>; readConfig?: (...args:any[])=>any; createEncryptedAdapter?: (...args:any[])=>any; createPersistence?: (...args:any[])=>any; createMemoryStore?: (...args:any[])=>any }
-import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.mjs';
-import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.mjs';
-import { createTaskSchedulePersistence } from './task-schedule-persistence.mjs';
-import { createTaskScheduleStore } from './task-schedule-store.mjs';
+import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.ts';
+import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.ts';
+import { createTaskSchedulePersistence } from './task-schedule-persistence.ts';
+import { createTaskScheduleStore } from './task-schedule-store.ts';
 
 function requireFactory(value: unknown, label: string): (...args:any[])=>any {
   if (typeof value !== 'function') throw new Error(`INVALID_SCHEDULE_STORAGE_RUNTIME:${label}`);
