@@ -15,6 +15,9 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/voice-input.js', '/typed/voice-input.ts')
         .replaceAll('/typed-build/markdown-renderer.js', '/typed/markdown-renderer.ts')
         .replaceAll('/typed-build/conversation-workspace.js', '/typed/conversation-workspace.ts')
+        .replaceAll('/typed-build/message-workspace.js', '/typed/message-workspace.ts')
+        .replaceAll('/typed-build/prompt-library.js', '/typed/prompt-library.ts')
+        .replaceAll('/typed-build/scheduled-tasks.js', '/typed/scheduled-tasks.ts')
         .replaceAll('/typed-build/voice-output.js', '/typed/voice-output.ts')
         .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
         .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
@@ -54,7 +57,10 @@ export default defineConfig({
         'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
         'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts'),
         'markdown-renderer': resolve(ROOT, 'public/typed/markdown-renderer.ts'),
-        'conversation-workspace': resolve(ROOT, 'public/typed/conversation-workspace.ts')
+        'conversation-workspace': resolve(ROOT, 'public/typed/conversation-workspace.ts'),
+        'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
+        'prompt-library': resolve(ROOT, 'public/typed/prompt-library.ts'),
+        'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts')
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`
