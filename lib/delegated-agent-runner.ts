@@ -1,10 +1,10 @@
 export interface DelegatedRunOptions { agent?: any; task?: string; traceId?: string; parentTaskId?: string; depth?: number; registry?: any; runLedger?: { recordToolStart: (name: string, meta: Record<string, unknown>) => any; recordToolFinish: (taskId: string, result: any) => void }; model?: string; maxTokens?: number; complete?: (payload: Record<string, unknown>) => Promise<unknown>; nvidiaConfigured?: boolean; githubReadConfigured?: boolean; githubReadFile?: any; skillsRuntime?: any }
 export interface DelegatedRunResult { ok: boolean; content?: string; error?: string }
 
-import { createAgentDelegator } from './agent-delegation.mjs';
-import { buildAgentSystemMessage } from './agent-runtime.mjs';
-import { normalizeNvidiaChatCompletion } from './model-response-contract.mjs';
-import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.mjs';
+import { createAgentDelegator } from './agent-delegation.ts';
+import { buildAgentSystemMessage } from './agent-runtime.ts';
+import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
+import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.ts';
 
 function normalizeToolCalls(calls: any[]): any[] {
   if (!Array.isArray(calls)) return [];
