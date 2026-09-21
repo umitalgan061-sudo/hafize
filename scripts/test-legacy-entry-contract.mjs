@@ -31,7 +31,7 @@ const migrated = [
 for (const name of migrated) {
   assert(!html.includes(`/${name}.js\" defer`), `${name}.js is still loaded directly`);
   assert(html.includes(`/typed-build/${name}.js`), `${name} generated entry is missing`);
-  const sourcePath = ['markdown-renderer','conversation-workspace','message-workspace','prompt-library','scheduled-tasks'].includes(name) ? `public/typed/${name}.ts` : `public/${name}.ts`;
+  const sourcePath = ['message-workspace','prompt-library','scheduled-tasks'].includes(name) ? `public/typed/${name}.ts` : ['markdown-renderer','conversation-workspace'].includes(name) ? `public/${name}.ts` : `public/${name}.ts`;
   assert(await exists(sourcePath), `${name} TypeScript source is missing`);
 }
 
