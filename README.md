@@ -135,6 +135,17 @@ Production hardening için ayrıca:
 node scripts/test-production-hardening.mjs
 ```
 
+### TypeScript migration release gates
+
+Modern kontroller typed runtime ve browser girişlerini ayrıca doğrular:
+
+```bash
+node scripts/test-typescript-entrypoints-release.mjs
+node scripts/test-typescript-security-entrypoints.mjs
+```
+
+Bu gate'ler production entry'nin `server.ts` olduğunu, typed browser artifact'larının Vite üzerinden geldiğini, legacy browser girişlerinin HTML'den çıkarıldığını ve güvenlik çekirdeğinin TS kaynaklarını doğrular.
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.
