@@ -29,13 +29,15 @@ check(packageData.scripts?.['typecheck:runtime'] === 'tsc --noEmit -p tsconfig.r
 check(packageData.scripts?.['check:modern']?.includes('test-typescript-ui-wave.mjs'), 'UI wave gate is wired');
 
 for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-workspace', 'prompt-library', 'scheduled-tasks']) {
-  check(vite.includes(`'${entry}': resolve(ROOT, 'public/typed/${entry}.ts')`), `${entry} Vite entry`);
+  const sourcePath = ['markdown-renderer','conversation-workspace'].includes(entry) ? `public/${entry}.ts` : `public/typed/${entry}.ts`;
+  const vitePath = ['markdown-renderer','conversation-workspace'].includes(entry) ? `public/${entry}.ts` : `public/typed/${entry}.ts`;
+  check(vite.includes(`'${entry}': resolve(ROOT, '${vitePath}')`), `${entry} Vite entry`);
   check(vite.includes(`/typed-build/${entry}.js`), `${entry} dev transform`);
   check(html.includes(`<script type="module" src="/typed-build/${entry}.js"></script>`), `${entry} module script`);
   check(sw.includes(`/typed-build/${entry}.js`), `${entry} PWA shell asset`);
   check(!html.includes(`<script src="/${entry}.js" defer></script>`), `${entry} legacy direct script removed`);
 
-  const typed = await read(`public/typed/${entry}.ts`);
+  const typed = await read(sourcePath);
   check(typed.includes('// @ts-nocheck'), `${entry} migration status is explicit`);
   check(!typed.includes('Authorization:'), `${entry} does not embed auth headers`);
 }
