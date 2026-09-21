@@ -26,7 +26,8 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
         .replaceAll('/typed-build/github-workspace.js', '/github-workspace.ts');
         .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts');
-        .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts');
+        .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts')
+        .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts');
     }
     return html;
   }
