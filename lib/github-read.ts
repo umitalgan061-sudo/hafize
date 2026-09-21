@@ -1,4 +1,8 @@
-import { containsPlaintextCredential } from './plaintext-credential-policy.mjs';
+export interface GithubReadInput { repository?: unknown; path?: unknown; ref?: unknown; [key: string]: unknown }
+export interface GithubReadResult { repository: string; path: string; ref: string | null; sha: string | null; size: number; content: string; truncated: boolean }
+export interface GithubReadOptions { token?: string; allowedRepositories?: string[] | string; baseUrl?: string; fetchImpl?: typeof fetch; maxFileBytes?: number }
+
+import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
 const DEFAULT_GITHUB_API = 'https://api.github.com';
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024;
@@ -22,7 +26,7 @@ export class GitHubReadError extends Error {
   }
 }
 
-export function parseGitHubRepoAllowlist(value) {
+export function parseGitHubRepoAllowlist(value: string[] | string | unknown): string[] {
   if (Array.isArray(value)) {
     return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
   }
@@ -30,13 +34,13 @@ export function parseGitHubRepoAllowlist(value) {
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
 }
 
-function normalizeRepository(value) {
+function normalizeRepository(value: unknown): string {
   const repository = typeof value === 'string' ? value.trim() : '';
   if (!REPOSITORY_PATTERN.test(repository)) throw new GitHubReadError('INVALID_GITHUB_REPOSITORY');
   return repository;
 }
 
-function normalizePath(value) {
+function normalizePath(value: unknown): string {
   const path = typeof value === 'string' ? value.trim() : '';
   if (!path || path.length > 400 || path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
     throw new GitHubReadError('INVALID_GITHUB_PATH');
@@ -52,18 +56,18 @@ function normalizePath(value) {
   return path;
 }
 
-function normalizeRef(value) {
+function normalizeRef(value: unknown): string | null {
   if (value == null || value === '') return null;
   const ref = typeof value === 'string' ? value.trim() : '';
   if (!ref || ref.length > 200 || /[\u0000-\u001f\u007f]/.test(ref)) throw new GitHubReadError('INVALID_GITHUB_REF');
   return ref;
 }
 
-function encodeRepoPath(path) {
+function encodeRepoPath(path: string): string {
   return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 }
 
-function decodeGitHubContent(payload, maxFileBytes) {
+function decodeGitHubContent(payload: Record<string, any>, maxFileBytes: number): Omit<GithubReadResult, 'repository' | 'path' | 'ref'> {
   if (!payload || Array.isArray(payload) || payload.type !== 'file') throw new GitHubReadError('GITHUB_PATH_NOT_FILE', 400);
   if (payload.encoding !== 'base64' || typeof payload.content !== 'string') {
     throw new GitHubReadError('UNSUPPORTED_GITHUB_CONTENT', 502);
@@ -88,12 +92,12 @@ export function createGitHubReadFile({
   baseUrl = DEFAULT_GITHUB_API,
   fetchImpl = globalThis.fetch,
   maxFileBytes = DEFAULT_MAX_FILE_BYTES
-} = {}) {
+}: GithubReadOptions = {}): (input?: GithubReadInput) => Promise<GithubReadResult> {
   const allowlist = new Set(parseGitHubRepoAllowlist(allowedRepositories).map((item) => item.toLowerCase()));
   const apiBase = String(baseUrl || DEFAULT_GITHUB_API).replace(/\/+$/, '');
   const authToken = typeof token === 'string' ? token.trim() : '';
 
-  return async function githubReadFile(input = {}) {
+  return async function githubReadFile(input: GithubReadInput = {}) {
     if (!authToken) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
     if (typeof fetchImpl !== 'function') throw new GitHubReadError('GITHUB_FETCH_UNAVAILABLE', 503);
     if (!input || Array.isArray(input) || typeof input !== 'object') throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
@@ -122,7 +126,7 @@ export function createGitHubReadFile({
       throw new GitHubReadError('GITHUB_READ_FAILED', status);
     }
 
-    let payload;
+    let payload: Record<string, any>;
     try {
       payload = await response.json();
     } catch {
