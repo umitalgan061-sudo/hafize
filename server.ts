@@ -28,6 +28,7 @@ import { createScheduleWorker } from './lib/schedule-worker.ts';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
 import { deliverRequestFailure } from './lib/request-failure.ts';
+import { createCircuitBreaker, createRuntimeMetrics, withDeadline } from './lib/runtime-resilience.ts';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -48,6 +49,8 @@ const SCHEDULE_MODEL = (process.env.HAFIZE_SCHEDULE_MODEL || '').trim();
 const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 30_000, 5_000, 300_000);
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
+const NVIDIA_REQUEST_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_NVIDIA_REQUEST_TIMEOUT_MS, 120_000, 5_000, 300_000);
+const NVIDIA_METRICS = createRuntimeMetrics(16);
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
@@ -138,25 +141,41 @@ async function nvidiaFetch(pathname, init = {}) {
   });
 }
 
+const NVIDIA_CIRCUIT = createCircuitBreaker(
+  (init) => nvidiaFetch('/chat/completions', init),
+  { failureThreshold: 3, cooldownMs: 15_000 }
+);
+
 async function nvidiaJsonCompletion(payload, signal) {
-  const upstream = await nvidiaFetch('/chat/completions', {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    const error = new Error('NVIDIA_CHAT_ERROR');
-    error.status = upstream.status || 502;
-    error.detail = text.slice(0, 1200);
-    throw error;
-  }
+  const startedAt = Date.now();
   try {
-    return JSON.parse(text);
-  } catch {
-    const error = new Error('INVALID_NVIDIA_RESPONSE');
-    error.status = 502;
+    const upstream = await withDeadline(
+      (deadlineSignal) => NVIDIA_CIRCUIT.call({
+        method: 'POST',
+        signal: deadlineSignal,
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(payload)
+      }),
+      { timeoutMs: NVIDIA_REQUEST_TIMEOUT_MS, signal, reason: 'NVIDIA_TIMEOUT' }
+    );
+    const text = await upstream.text();
+    if (!upstream.ok) {
+      const error = new Error('NVIDIA_CHAT_ERROR');
+      error.status = upstream.status || 502;
+      error.detail = text.slice(0, 1200);
+      throw error;
+    }
+    try {
+      const parsed = JSON.parse(text);
+      NVIDIA_METRICS.record('nvidia.chat', Date.now() - startedAt);
+      return parsed;
+    } catch {
+      const error = new Error('INVALID_NVIDIA_RESPONSE');
+      error.status = 502;
+      throw error;
+    }
+  } catch (error) {
+    NVIDIA_METRICS.record('nvidia.chat', Date.now() - startedAt, error);
     throw error;
   }
 }
@@ -651,7 +670,9 @@ const server = createServer(async (req, res) => {
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         scheduleStorageDurable: SCHEDULE_STORAGE.durable,
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
-        agents: AGENT_REGISTRY.agents.length
+        agents: AGENT_REGISTRY.agents.length,
+        nvidiaCircuit: NVIDIA_CIRCUIT.snapshot(),
+        nvidiaMetrics: NVIDIA_METRICS.snapshot()
       });
       return;
     }
