@@ -7,16 +7,16 @@ const GOOGLE_OAUTH_TOKEN_PATTERN = /(?:^|[^a-z0-9._~-])ya29\.[a-z0-9._~-]{20,}(?
 const PRIVATE_KEY_PATTERN = /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i;
 const CREDENTIAL_FIELD_NAMES = new Set(['apikey', 'accesstoken', 'refreshtoken', 'authtoken', 'authorization', 'proxyauthorization', 'password', 'passwd', 'clientsecret', 'secret']);
 
-function normalizeFieldName(value) {
+function normalizeFieldName(value: unknown): string {
   return typeof value === 'string' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 }
 
-export function isPlaintextCredentialField(name, value) {
+export function isPlaintextCredentialField(name: unknown, value: unknown): boolean {
   if (!CREDENTIAL_FIELD_NAMES.has(normalizeFieldName(name))) return false;
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-export function containsPlaintextCredential(value) {
+export function containsPlaintextCredential(value: unknown): boolean {
   return typeof value === 'string' && (
     CREDENTIAL_ASSIGNMENT_PATTERN.test(value) ||
     AUTHORIZATION_VALUE_PATTERN.test(value) ||
