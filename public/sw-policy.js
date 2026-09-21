@@ -17,7 +17,7 @@
     '/prompt-library-collections.css', '/prompt-library-revisions.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
     '/prompt-library-smart-insert.css', '/prompt-library-smart-insert-center.css', '/prompt-library-smart-insert-history.css', '/prompt-library-smart-insert-suggestions.css', '/prompt-library-smart-insert-activity.css',
     '/typed-build/auth.js', '/typed-build/app-shell.js', '/typed-build/ui-shell.js', '/typed-build/voice-input.js', '/typed-build/voice-output.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
-    '/chat-history-management.js', '/chat-drafts.js', '/conversation-workspace.js', '/conversation-workspace-keyboard.js',
+    '/chat-history-management.js', '/chat-drafts.js', '/typed-build/conversation-workspace.js', '/conversation-workspace-keyboard.js',
     '/message-workspace-policy.js', '/message-workspace.js',
     '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
     '/prompt-library-usage.js', '/prompt-library-collections.js', '/prompt-library-collections-enhancements.js',
