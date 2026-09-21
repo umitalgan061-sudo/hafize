@@ -22,9 +22,11 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "rewriteRelativeImportExtensions": true
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true
   },
   "include": [
+    "server.ts",
     "public/**/*.ts",
     "src/**/*.ts",
     "lib/**/*.ts",
