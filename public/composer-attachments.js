@@ -63,6 +63,17 @@
     drop.setAttribute('aria-label', 'Dosya eklemek için sürükle bırak alanı');
     const list = make(doc, 'div', undefined, 'composer-attachments-list');
     list.setAttribute('role', 'list');
+    const quick = make(doc, 'div', undefined, 'composer-attachments-quick-actions');
+    const quickTitle = make(doc, 'span', 'Hızlı analiz', 'composer-attachments-quick-title');
+    const quickButtons = [
+      ['summary', 'Özetle'], ['review', 'Kod incele'], ['bugs', 'Hata ara'], ['requirements', 'Gereksinime dönüştür']
+    ].map(([kind, label]) => {
+      const node = button(doc, label);
+      node.dataset.attachmentQuickAction = kind;
+      node.setAttribute('aria-label', 'Seçili dosyaları ' + label.toLocaleLowerCase('tr-TR'));
+      return node;
+    });
+    quick.append(quickTitle, ...quickButtons);
     const footer = make(doc, 'div', undefined, 'composer-attachments-footer');
     const insert = button(doc, 'Seçilenleri mesaja ekle', 'soft-btn');
     const undo = button(doc, 'Son eklemeyi geri al'); undo.disabled = true;
@@ -73,7 +84,7 @@
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
     panel.setAttribute('aria-describedby', status.id);
-    panel.append(heading, hint, drop, totalHint, list, footer, status);
+    panel.append(heading, hint, drop, totalHint, quick, list, footer, status);
     composer.after(panel);
     composer.append(fileInput);
 
@@ -173,6 +184,35 @@
       });
     }
 
+    const quickPrompts = Object.freeze({
+      summary: 'Seçili dosya parçalarını kısa ve doğru bir özet halinde açıkla.',
+      review: 'Seçili kodu incele; tasarım, okunabilirlik, güvenlik ve bakım risklerini somutlaştır.',
+      bugs: 'Seçili kodu incele; olası hataları, edge case’leri ve kırılma noktalarını gerekçeleriyle belirt.',
+      requirements: 'Seçili dosya parçalarından uygulanabilir fonksiyonel ve teknik gereksinimleri çıkar.'
+    });
+    function runQuickAction(kind) {
+      const prompt = quickPrompts[kind];
+      const selected = items.filter((item) => item.selected);
+      if (!prompt || !selected.length) return report('Hızlı analiz için en az bir dosya seçin.');
+      const risky = selected.filter((item) => item.risk?.risky);
+      if (risky.length && !rootRef.confirm?.('Seçili dosyalarda olası hassas bilgi bulundu. Analiz metni composer’a eklenecek; devam etmek istiyor musun?')) return report('Hassas içerik uyarısı nedeniyle hızlı analiz iptal edildi.');
+      const payload = selected.map((item) => api.formatRangeForComposer(item, item.startLine, item.endLine)).join('');
+      const instruction = '\n\n' + prompt;
+      const available = Number(input.maxLength || 12000) - input.value.length;
+      const combined = instruction + payload;
+      if (combined.length > available || combined.length > api.MAX_INSERT_CHARS) return report('Hızlı analiz metni composer kapasitesine sığmıyor.');
+      const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+      const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+      input.value = input.value.slice(0, start) + combined + input.value.slice(end);
+      input.setSelectionRange(start + combined.length, start + combined.length);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+      items = items.filter((item) => !item.selected);
+      rootRef.clearTimeout?.(expiryTimer);
+      if (items.length) scheduleExpiry();
+      render();
+      report('Hızlı analiz hazırlandı. Gönderim otomatik yapılmadı.');
+    }
     function insertSelected() {
       const selected = items.filter((item) => item.selected);
       if (!selected.length) return report('Mesaja eklenecek dosya seçilmedi.');
@@ -203,7 +243,7 @@
       rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:composer-attachments-inserted', { detail: { count: selected.length } }));
     }
 
-    const onAttach = () => openPanel();
+    const onQuickAction = (event) => { const action = event.target?.closest?.('[data-attachment-quick-action]')?.dataset.attachmentQuickAction; if (action) runQuickAction(action); };\n    quick.addEventListener('click', onQuickAction);\n    const onAttach = () => openPanel();
     const onChoose = () => fileInput.click();
     const onDropClick = () => fileInput.click();
     const onClear = () => { items = []; rootRef.clearTimeout?.(expiryTimer); render(); report('Bekleyen ekler kaldırıldı.'); };
@@ -251,7 +291,7 @@
       getOpen: () => open, getMemoryTtlMs: () => MEMORY_TTL_MS,
       destroy: () => {
         destroyed = true; rootRef.clearTimeout?.(expiryTimer);
-        attach.removeEventListener('click', onAttach); choose.removeEventListener('click', onChoose); close.removeEventListener('click', closePanel);
+        quick.removeEventListener('click', onQuickAction); attach.removeEventListener('click', onAttach); choose.removeEventListener('click', onChoose); close.removeEventListener('click', closePanel);
         insert.removeEventListener('click', insertSelected); undo.removeEventListener('click', onUndo); clear.removeEventListener('click', onClear); fileInput.removeEventListener('change', onFileChange);
         drop.removeEventListener('click', onDropClick); drop.removeEventListener('dragover', onDragOver); drop.removeEventListener('dragleave', onDragLeave); drop.removeEventListener('drop', onDrop);
         input.removeEventListener('paste', onPaste); doc.removeEventListener('keydown', onKeydown); panel.remove(); fileInput.remove(); delete rootRef.HafizeComposerAttachmentsController;
