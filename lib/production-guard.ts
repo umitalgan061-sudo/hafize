@@ -81,7 +81,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   };
 
   function protectedPath(path: string): boolean {
-    return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/connectors/canva/status','/api/connectors/gmail/status'].includes(path);
+    return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/connectors/canva/status','/api/connectors/gmail/status','/api/github/workspace','/api/github/workspace/directory','/api/github/workspace/compare','/api/github/workspace/commit','/api/github/workspace/pull'].includes(path);
   }
   function connectorPath(path: string): boolean {
     return path === '/api/agent/run' || path === '/api/connectors/canva/status' || path === '/api/connectors/gmail/status';
