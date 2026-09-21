@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const p=fs.readFileSync('public/composer-attachments-policy.js','utf8');
+const r=fs.readFileSync('public/composer-attachments.js','utf8');
+assert.match(p,/MAX_RANGE_LINES = 400/);
+assert.match(p,/function clampLine/);
+assert.match(p,/function sliceLines/);
+assert.match(r,/startLine/);
+assert.match(r,/endLine/);
+console.log('attachment range contract: ok');
