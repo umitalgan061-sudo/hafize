@@ -8,7 +8,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SYNTAX_TARGETS = [
   { dir: '.', extensions: ['.mjs'] },
   { dir: 'lib', extensions: ['.mjs'] },
-  { dir: 'scripts', extensions: ['.mjs'] },
+  { dir: 'scripts', extensions: ['.mjs', '.ts'] },
   { dir: 'public', extensions: ['.js'] }
 ];
 const SUITE_TIMEOUT_MS = 120_000;
@@ -111,7 +111,8 @@ try {
   const options = parseArgs(process.argv.slice(2));
   const concurrency = Math.max(1, Math.min(4, os.cpus()?.length ?? 1));
   const syntaxFiles = (await Promise.all(SYNTAX_TARGETS.map(collectFiles))).flat();
-  const scriptFiles = await collectFiles({ dir: 'scripts', extensions: ['.mjs'] });
+  // Node's --check does not parse typed TypeScript syntax; TypeScript suites are executed directly under Node 24's native type stripping.
+  const scriptFiles = await collectFiles({ dir: 'scripts', extensions: ['.mjs', '.ts'] });
   const validateSuites = scriptFiles
     .filter((file) => path.basename(file).startsWith('validate-'))
     .map((file) => path.basename(file));
