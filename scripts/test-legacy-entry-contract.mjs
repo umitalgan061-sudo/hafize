@@ -20,7 +20,15 @@ const migrated = [
   'prompt-library-smart-fill',
   'prompt-library-command-palette',
   'prompt-library-smart-fill-hints',
-  'scheduled-tasks-countdown'
+  'scheduled-tasks-countdown',
+  'app',
+  'auth',
+  'chat-composer-features',
+  'conversation-workspace',
+  'conversation-workspace-keyboard',
+  'message-workspace-policy',
+  'message-workspace',
+  'workspace-navigation'
 ];
 
 for (const name of migrated) {
@@ -29,6 +37,9 @@ for (const name of migrated) {
   assert(await exists(`public/${name}.ts`), `${name}.ts source is missing`);
 }
 
+assert(await exists('server.ts'), 'typed server entry missing');
+assert(await exists('public/app.ts'), 'typed app entry missing');
+assert(await exists('public/auth.ts'), 'typed auth entry missing');
 assert(await exists('public/typed/hafize-api.ts'), 'typed API boundary missing');
 assert(await exists('public/typed/hafize-types.ts'), 'typed domain contracts missing');
 assert(await exists('public/typed/app-runtime.ts'), 'typed runtime surface missing');
