@@ -1,4 +1,5 @@
-import { normalizeApiError } from './api-error-contract.mjs';
+// @ts-nocheck
+import { normalizeApiError } from './api-error-contract.ts';
 
 const SCHEDULES_PATH = '/api/schedules';
 

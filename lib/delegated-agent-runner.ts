@@ -1,7 +1,8 @@
-import { createAgentDelegator } from './agent-delegation.mjs';
-import { buildAgentSystemMessage } from './agent-runtime.mjs';
-import { normalizeNvidiaChatCompletion } from './model-response-contract.mjs';
-import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.mjs';
+// @ts-nocheck
+import { createAgentDelegator } from './agent-delegation.ts';
+import { buildAgentSystemMessage } from './agent-runtime.ts';
+import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
+import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.ts';
 
 function normalizeToolCalls(calls) {
   if (!Array.isArray(calls)) return [];

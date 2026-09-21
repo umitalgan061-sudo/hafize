@@ -7,14 +7,14 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "start": "node --import ./lib/production-guard.ts server.mjs",
+    "start": "node --import ./lib/production-guard.ts server.ts",
     "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "node --import ./lib/production-guard.ts server.mjs",
+    "dev:server": "node --import ./lib/production-guard.ts server.ts",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:modern": "vitest run",
-    "check:modern": "npm run typecheck && npm run typecheck:runtime && npm run test:modern && npm run test:typed-core && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs && node scripts/test-typescript-migration.mjs && node scripts/test-typescript-migration-depth.mjs",
+    "check:modern": "npm run typecheck && npm run typecheck:runtime && npm run test:modern && npm run test:typed-core && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs && node scripts/test-typescript-migration.mjs && node scripts/test-typescript-migration-depth.mjs && node scripts/test-typescript-entrypoints-release.mjs && node scripts/test-typescript-security-entrypoints.mjs",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",

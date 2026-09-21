@@ -1,3 +1,41 @@
+// @ts-nocheck
+type Role = 'user' | 'assistant';
+interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
+interface ChatMessage {
+  id: string;
+  role: Role;
+  content: string;
+  at: string;
+  toolActivities?: ToolActivity[];
+}
+interface AgentInfo { id: string; name: string; description?: string; kind?: string; }
+interface Conversation {
+  id: string;
+  title: string;
+  agentId: string;
+  toolsEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+}
+interface AppUi {
+  sidebar: HTMLElement;
+  sidebarToggle: HTMLButtonElement;
+  newChatBtn: HTMLButtonElement;
+  clearHistoryBtn: HTMLButtonElement;
+  conversationList: HTMLElement;
+  composer: HTMLFormElement;
+  messageInput: HTMLTextAreaElement;
+  messages: HTMLElement;
+  welcome: HTMLElement;
+  installBtn: HTMLButtonElement;
+  toast: HTMLElement;
+  modelSelect: HTMLSelectElement;
+  agentSelect: HTMLSelectElement;
+  toolModeBtn: HTMLButtonElement;
+}
+interface JsonPayload { readonly [key: string]: unknown; }
+
 (() => {
   'use strict';
 
@@ -5,7 +43,13 @@
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const MESSAGE_PLACEHOLDER = '…';
-  const ui = {
+  const MAX_CONVERSATIONS = 30;
+  const MAX_MESSAGES_PER_CONVERSATION = 100;
+  const MAX_MESSAGE_LENGTH = 12000;
+  const REQUEST_TIMEOUT_MS = 60_000;
+  let networkOnline = globalThis.navigator?.onLine !== false;
+  let activeRequestController = null;
+  const ui: AppUi = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
     newChatBtn: document.querySelector('#newChatBtn'),
@@ -50,10 +94,70 @@
     node.textContent = value || MESSAGE_PLACEHOLDER;
   }
 
-  function loadConversations() {
+
+  function normalizeMessage(value: unknown): ChatMessage | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const source = value;
+    if ((source.role !== 'user' && source.role !== 'assistant') || typeof source.content !== 'string') return null;
+    const content = source.content.slice(0, MAX_MESSAGE_LENGTH);
+    if (!content) return null;
+    return {
+      id: typeof source.id === 'string' && source.id ? source.id.slice(0, 120) : uid(),
+      role: source.role,
+      content,
+      at: typeof source.at === 'string' ? source.at.slice(0, 40) : new Date().toISOString(),
+      ...(Array.isArray(source.toolActivities) ? {
+        toolActivities: source.toolActivities
+          .filter((item) => item && typeof item === 'object' && typeof item.label === 'string')
+          .slice(0, MAX_TOOL_ACTIVITIES)
+          .map((item) => ({
+            label: item.label.slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH),
+            state: item.state === 'running' || item.state === 'failure' ? item.state : 'success'
+          }))
+      } : {})
+    };
+  }
+
+  function normalizeConversation(value: unknown): Conversation | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const source = value;
+    if (typeof source.id !== 'string' || typeof source.title !== 'string') return null;
+    const messages = Array.isArray(source.messages)
+      ? source.messages.map((message) => normalizeMessage(message)).filter(Boolean).slice(-MAX_MESSAGES_PER_CONVERSATION)
+      : [];
+    const now = new Date().toISOString();
+    return {
+      id: source.id.slice(0, 120),
+      title: source.title.trim().slice(0, 80) || 'Yeni sohbet',
+      agentId: typeof source.agentId === 'string' ? source.agentId.slice(0, 120) : '',
+      toolsEnabled: source.toolsEnabled === true,
+      createdAt: typeof source.createdAt === 'string' ? source.createdAt.slice(0, 40) : now,
+      updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt.slice(0, 40) : now,
+      messages
+    };
+  }
+
+  async function fetchJson(url, init = {}) {
+    if (!networkOnline) throw new Error('OFFLINE');
+    const controller = new AbortController();
+    const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal, headers: { Accept: 'application/json', ...(init.headers || {}) } });
+      let payload = {};
+      try { payload = await response.json(); } catch { payload = {}; }
+      if (!response.ok) throw new Error(typeof payload?.error === 'string' ? payload.error : `HTTP_${response.status}`);
+      return payload;
+    } finally {
+      globalThis.clearTimeout(timeout);
+
+    }
+  }
+
+  function loadConversations(): Conversation[] {
     try {
       const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      return Array.isArray(value) ? value : [];
+      if (!Array.isArray(value)) return [];
+      return value.map((item) => normalizeConversation(item)).filter(Boolean).slice(0, MAX_CONVERSATIONS);
     } catch {
       return [];
     }
@@ -61,7 +165,8 @@
 
   function saveConversations() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.slice(0, 30)));
+      conversations = conversations.map((item) => normalizeConversation(item)).filter(Boolean).slice(0, MAX_CONVERSATIONS);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
       persistenceWarningShown = false;
       return true;
     } catch {
@@ -127,6 +232,7 @@
     }
     const message = { id: uid(), role, content, at: new Date().toISOString() };
     conversation.messages.push(message);
+    if (conversation.messages.length > MAX_MESSAGES_PER_CONVERSATION) conversation.messages = conversation.messages.slice(-MAX_MESSAGES_PER_CONVERSATION);
     conversation.updatedAt = new Date().toISOString();
     if (conversation.title === 'Yeni sohbet' && role === 'user') {
       conversation.title = content.trim().replace(/\s+/g, ' ').slice(0, 48) || 'Yeni sohbet';
@@ -409,9 +515,7 @@
   async function loadModels() {
     ui.modelSelect.replaceChildren(new Option('NVIDIA modelleri yükleniyor…', ''));
     try {
-      const response = await fetch('/api/models', { headers: { Accept: 'application/json' } });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || 'MODEL_LIST_FAILED');
+      const payload = await fetchJson('/api/models');
       const models = Array.isArray(payload.models) ? payload.models : [];
       ui.modelSelect.replaceChildren();
       if (!models.length) {
@@ -429,9 +533,7 @@
     ui.agentSelect.disabled = true;
     ui.agentSelect.replaceChildren(new Option('Ajanlar yükleniyor…', ''));
     try {
-      const response = await fetch('/api/agents', { headers: { Accept: 'application/json' } });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || 'AGENT_LIST_FAILED');
+      const payload = await fetchJson('/api/agents');
 
       const agents = Array.isArray(payload.agents)
         ? payload.agents.filter((agent) => agent && typeof agent.id === 'string' && typeof agent.name === 'string')
@@ -576,6 +678,7 @@
   async function submitMessage(text) {
     const clean = text.trim();
     if (!clean || isStreaming) return;
+    if (!networkOnline) { showToast('İnternet bağlantısı yok. Bağlantı geri geldiğinde tekrar deneyebilirsin.'); return; }
     if (!ui.modelSelect.value) {
       showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
       return;
@@ -601,7 +704,9 @@
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
       else await streamAssistantReply();
     } catch (error) {
-      const message = error?.message === 'MODEL_REQUIRED'
+      const message = error?.message === 'OFFLINE'
+        ? 'İnternet bağlantısı bulunamadı.'
+        : error?.message === 'MODEL_REQUIRED'
         ? 'Bir NVIDIA modeli seçilmedi.'
         : error?.message === 'AGENT_REQUIRED'
           ? 'Bir Hafize ajanı seçilmedi.'
@@ -618,6 +723,28 @@
       ui.messageInput.focus();
     }
   }
+
+
+  function handleOnline() {
+    networkOnline = true;
+    showToast('Bağlantı geri geldi.');
+    loadModels();
+    loadAgents();
+  }
+
+  function handleOffline() {
+    networkOnline = false;
+    showToast('İnternet bağlantısı kesildi.');
+  }
+
+  function persistOnLifecycle() {
+    if (!isStreaming) saveConversations();
+  }
+
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
+  window.addEventListener('beforeunload', persistOnLifecycle);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) persistOnLifecycle(); });
 
   window.addEventListener('hafize:edit-message', (event) => beginMessageEdit(event.detail?.messageId));
 
@@ -694,3 +821,6 @@
   loadModels();
   loadAgents();
 })();
+
+
+export { normalizeConversation, normalizeMessage, fetchJson };

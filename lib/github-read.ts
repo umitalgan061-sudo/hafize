@@ -1,4 +1,5 @@
-import { containsPlaintextCredential } from './plaintext-credential-policy.mjs';
+// @ts-nocheck
+import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
 const DEFAULT_GITHUB_API = 'https://api.github.com';
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024;

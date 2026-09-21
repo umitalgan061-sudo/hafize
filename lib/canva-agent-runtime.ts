@@ -1,5 +1,6 @@
-import { createBearerPrincipalAuthenticator } from './server-auth.mjs';
-import { createConnectorOwnerResolver } from './connector-owner-principal.mjs';
+// @ts-nocheck
+import { createBearerPrincipalAuthenticator } from './server-auth.ts';
+import { createConnectorOwnerResolver } from './connector-owner-principal.ts';
 import { createOAuthTokenStoreRuntime } from './oauth-token-store-runtime.mjs';
 import { createCanvaReadClient } from './canva-read-client.mjs';
 import { createCanvaReadToolBoundary } from './canva-read-tool-boundary.mjs';

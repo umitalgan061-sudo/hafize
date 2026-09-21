@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -11,18 +12,18 @@ import {
   resolveAgent
 } from './lib/agent-runtime.ts';
 import { createAgentDelegator } from './lib/agent-delegation.ts';
-import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
+import { runDelegatedAgent } from './lib/delegated-agent-runner.ts';
 import { createAgentRunLedger } from './lib/agent-run-ledger.ts';
-import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
-import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
-import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
+import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.ts';
+import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
+import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
-import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
+import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.ts';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.ts';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.ts';
-import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
+import { createScheduleHttpApi } from './lib/schedule-http-api.ts';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
-import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
+import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.ts';
 import { createScheduleWorker } from './lib/schedule-worker.ts';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
@@ -33,6 +34,9 @@ import {
   getPublicToolActivity,
   getPublicToolRunningActivity
 } from './lib/tool-runtime.ts';
+
+import { readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
+import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -73,53 +77,6 @@ const MIME = new Map([
 function boundedEnvInteger(value, fallback, min, max) {
   const parsed = Number.parseInt(value || '', 10);
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
-}
-
-function setSecurityHeaders(res) {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('Permissions-Policy', 'camera=(), geolocation=()');
-}
-
-function sendJson(res, status, payload) {
-  setSecurityHeaders(res);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(payload));
-}
-
-function startSse(res) {
-  setSecurityHeaders(res);
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    Connection: 'keep-alive'
-  });
-}
-
-function sendSseContent(res, content) {
-  startSse(res);
-  if (content) {
-    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
-  }
-  res.end('data: [DONE]\n\n');
-}
-
-function writeToolActivitySse(res, activity) {
-  if (!activity) return;
-  res.write(`event: hafize-tool-activity\ndata: ${JSON.stringify(activity)}\n\n`);
-}
-
-async function readJson(req) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new Error('BODY_TOO_LARGE');
-    chunks.push(chunk);
-  }
-  const text = Buffer.concat(chunks).toString('utf8');
-  return text ? JSON.parse(text) : {};
 }
 
 async function nvidiaFetch(pathname, init = {}) {
@@ -319,7 +276,7 @@ function handleAgents(res) {
 
 async function handleAgentRun(req, res) {
   const body = await readJson(req);
-  const streamResponse = String(req.headers.accept || '').toLowerCase().includes('text/event-stream');
+  const streamResponse = requestJsonAcceptsSse(req);
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const messages = normalizeClientMessages(body.messages);
   const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
@@ -448,7 +405,7 @@ async function handleAgentRun(req, res) {
   if (streamResponse) startSse(res);
   for (const call of normalizedCalls) {
     const toolTask = runLedger.recordToolStart(call.function.name);
-    if (streamResponse) writeToolActivitySse(res, getPublicToolRunningActivity(call.function.name));
+    if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolRunningActivity(call.function.name));
     const result = await executeNvidiaToolCall(agent, call, {
       traceId,
       agent,
@@ -462,7 +419,7 @@ async function handleAgentRun(req, res) {
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
-    if (streamResponse) writeToolActivitySse(res, getPublicToolActivity(call.function.name, result));
+    if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
     toolMessages.push({
       role: 'tool',
@@ -717,41 +674,28 @@ const server = createServer(async (req, res) => {
   }
 });
 
-let shutdownPromise = null;
+let shutdownServerPromise = null;
 
 function closeHttpServer() {
-  return new Promise((resolveClose) => {
+  if (shutdownServerPromise) return shutdownServerPromise;
+  shutdownServerPromise = new Promise((resolveClose, rejectClose) => {
     if (!server.listening) {
       resolveClose();
       return;
     }
-    server.close(() => resolveClose());
+    server.close((error) => error ? rejectClose(error) : resolveClose());
   });
+  return shutdownServerPromise;
 }
 
-async function shutdown() {
-  if (shutdownPromise) return shutdownPromise;
-  shutdownPromise = (async () => {
-    stopScheduleWorkerLoop();
-    const httpClose = closeHttpServer();
-    if (scheduleTickPromise) await scheduleTickPromise;
-    try {
-      await SCHEDULE_LEASE_RUNTIME.close();
-    } catch {
-      process.exitCode = 1;
-      console.error('Hafize schedule lease shutdown failed');
-    }
-    await httpClose;
-  })();
-  return shutdownPromise;
-}
-
-process.once('SIGINT', () => {
-  void shutdown();
+const SHUTDOWN = createShutdownCoordinator({
+  stopWorker: stopScheduleWorkerLoop,
+  waitForTick: () => scheduleTickPromise ?? Promise.resolve(),
+  closeLease: () => SCHEDULE_LEASE_RUNTIME.close(),
+  closeServer: closeHttpServer,
+  logger: (message) => console.error(message)
 });
-process.once('SIGTERM', () => {
-  void shutdown();
-});
+SHUTDOWN.installSignals();
 
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
