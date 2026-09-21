@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const packageData=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
 const tsconfig=JSON.parse(await readFile(new URL('../tsconfig.json',import.meta.url),'utf8'));
-const server=await readFile(new URL('../server.mjs',import.meta.url),'utf8');
+const server=await readFile(new URL('../server.ts',import.meta.url),'utf8');
 const guard=await readFile(new URL('../lib/production-guard.ts',import.meta.url),'utf8');
 
 function major(spec){
@@ -18,7 +18,9 @@ assert(major(deps.vite)===8,'vite-major');
 assert(major(deps.vitest)===5,'vitest-major');
 assert(String(packageData.engines?.node||'').includes('24.21.0'),'node-engine');
 assert(String(packageData.scripts?.start||'').includes('production-guard.ts'),'start-typed-guard');
+assert(String(packageData.scripts?.start||'').includes('server.ts'),'start-typed-server');
 assert(String(packageData.scripts?.['dev:server']||'').includes('production-guard.ts'),'dev-server-typed-guard');
+assert(String(packageData.scripts?.['dev:server']||'').includes('server.ts'),'dev-server-typed-server');
 assert(String(packageData.scripts?.['typecheck:runtime']||'').includes('tsconfig.runtime.json'),'runtime-typecheck');
 assert(String(packageData.scripts?.['test:typed-core']||'').includes('lib/**/*.test.ts'),'typed-test-script');
 assert(String(packageData.scripts?.['check:modern']||'').includes('test-typescript-migration.mjs'),'modern-check-integration');
@@ -37,6 +39,7 @@ for(const path of [
 }
 
 assert(server.includes('./lib/production-guard.ts'),'production-guard-entry');
+assert(!server.includes('.mjs'),'typed-server-no-mjs-imports');
 for(const path of ['session-auth.ts','server-auth.ts','rate-limit.ts','security-observability.ts','runtime-config.ts']){
   assert(guard.includes('./'+path), 'guard-import:'+path);
 }
