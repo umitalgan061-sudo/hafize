@@ -669,7 +669,7 @@
     button.addEventListener('click', () => submitMessage(button.dataset.prompt || ''));
   });
 
-  document.querySelector('#attachBtn').addEventListener('click', () => showToast('Dosya ekleme sonraki küçük geliştirme turunda etkinleştirilecek.'));
+  document.querySelector('#attachBtn').addEventListener('click', () => {\n    if (!window.HafizeComposerAttachments?.mount?.()) showToast('Dosya ekleme bileşeni henüz hazır değil.');\n  });
   document.querySelector('#micBtn').addEventListener('click', () => showToast('Sesli giriş sonraki küçük geliştirme turunda etkinleştirilecek.'));
 
   window.addEventListener('beforeinstallprompt', (event) => {
