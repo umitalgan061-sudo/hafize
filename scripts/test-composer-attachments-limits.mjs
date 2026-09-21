@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source=fs.readFileSync('public/composer-attachments-policy.js','utf8');
+assert.match(source,/MAX_FILES = 4/);
+assert.match(source,/MAX_BYTES = 256 \\* 1024/);
+assert.match(source,/MAX_TEXT_CHARS = 80_000/);
+assert.match(source,/MAX_COMBINED_CHARS = 200_000/);
+assert.match(source,/MAX_INSERT_CHARS = 11_500/);
+assert.match(source,/MAX_RANGE_LINES = 400/);
+assert.match(source,/MAX_NAME = 120/);
+console.log('composer attachment limits: ok');
