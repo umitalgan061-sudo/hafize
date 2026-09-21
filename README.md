@@ -93,6 +93,8 @@ node scripts/test-github-workspace-contract.mjs
 
 Ayrıntılar docs/GITHUB_WORKSPACE*.md dosyalarındadır.
 
+GitHub çalışma alanı ayrıca dizin listeleme, iki ref arasında salt-okunur karşılaştırma ve seçilen commit veya PR için ayrıntı okuma araçları sağlar. Hızlı işlemler son repository seçimini oturum içinde hatırlar, görünür sonucu kopyalamaya ve PR durumunu değiştirmeden filtrelemeye izin verir.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
