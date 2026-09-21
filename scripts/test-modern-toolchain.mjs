@@ -23,9 +23,9 @@ const pkg = JSON.parse(text.package);
 const tsconfig = JSON.parse(text.tsconfig);
 
 assert(pkg.engines?.node === '>=24.21.0', 'Node 24.21+ engine missing');
-assert(pkg.devDependencies?.typescript?.startsWith('^6.'), 'TypeScript 6 is not pinned');
-assert(pkg.devDependencies?.vite?.startsWith('^8.1'), 'Vite 8.1 is not pinned');
-assert(pkg.devDependencies?.vitest?.startsWith('^5.'), 'Vitest 5 is not pinned');
+assert(pkg.devDependencies?.typescript === '7.0.2', 'TypeScript 6 is not pinned');
+assert(pkg.devDependencies?.vite === '8.3.0', 'Vite 8.1 is not pinned');
+assert(pkg.devDependencies?.vitest === '5.0.1', 'Vitest 5 is not pinned');
 assert(pkg.scripts?.build === 'tsc --noEmit && vite build', 'build script must typecheck before bundling');
 assert(pkg.scripts?.prestart === 'npm run build', 'production start must build typed assets');
 assert(pkg.scripts?.typecheck === 'tsc --noEmit', 'typecheck script missing');
@@ -56,7 +56,7 @@ assert(!text.index.includes('prompt-library-smart-fill.js" defer'), 'legacy Smar
 assert(!text.index.includes('prompt-library-command-palette.js" defer'), 'legacy Command Palette script remains in HTML');
 assert(!text.index.includes('scheduled-tasks-countdown.js" defer'), 'legacy Countdown script remains in HTML');
 assert(!text.index.includes('prompt-library-smart-fill-hints.js" defer'), 'legacy Smart Fill hints remain in HTML');
-assert(text.sw.includes('hafize-shell-v35'), 'service worker cache version must be v35');
+assert(text.sw.includes('hafize-shell-v40'), 'service worker cache version must be v35');
 assert(text.sw.includes('/typed-build/app-runtime.js'), 'runtime build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-smart-fill.js'), 'Smart Fill build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-command-palette.js'), 'Command Palette build missing from PWA shell');
