@@ -148,7 +148,7 @@ Bu gate'ler production entry'nin `server.ts` olduğunu, typed browser artifact'l
 
 ## TypeScript modernizasyonu
 
-Hafize'nin üretim runtime'ı TypeScript tabanına geçirilirken browser tarafındaki büyük çalışma alanları da Vite üzerinden derlenen typed entrypoint'lere taşınıyor. Bu migration dalgasında Markdown Renderer, Conversation Workspace, Message Workspace, Prompt Library ve Scheduled Tasks kaynakları `public/typed/*.ts` altında tutuluyor; HTML üretimde `typed-build/*.js` çıktısını yüklüyor.
+Hafize'nin üretim runtime'ı TypeScript tabanına geçirilirken browser tarafındaki büyük çalışma alanları da Vite üzerinden derlenen typed entrypoint'lere taşınıyor. Bu migration dalgasında Markdown Renderer ve Conversation Workspace kaynakları `public/*.ts`, Message Workspace, Prompt Library ve Scheduled Tasks kaynakları `public/typed/*.ts` altında tutuluyor; HTML üretimde `typed-build/*.js` çıktısını yüklüyor.
 
 Toolchain TypeScript 7.0.2, Vite 8.3.0 ve Vitest 5.0.1 ile pinlenmiştir. Node.js 24.21+ LTS üretim tabanıdır. Legacy `.js` dosyaları yalnızca geriye dönük uyumluluk köprüsü olarak kalır ve yeni uygulama mantığı içermez. Migration sözleşmeleri `scripts/test-typescript-ui-wave.mjs`, `scripts/test-typescript-entrypoints-release.mjs` ve `scripts/test-legacy-entry-contract.mjs` ile korunur.
 
