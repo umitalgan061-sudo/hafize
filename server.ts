@@ -672,7 +672,7 @@ const server = createServer(async (req, res) => {
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
         agents: AGENT_REGISTRY.agents.length,
         nvidiaCircuit: NVIDIA_CIRCUIT.snapshot(),
-        nvidiaMetrics: NVIDIA_METRICS.snapshot()
+        nvidiaMetrics: NVIDIA_METRICS.snapshot().map(({ name, count, failures, totalDurationMs, lastDurationMs }) => ({ name, count, failures, totalDurationMs, lastDurationMs }))
       });
       return;
     }
