@@ -1,9 +1,12 @@
+export interface DelegatedRunOptions { agent?: any; task?: string; traceId?: string; parentTaskId?: string; depth?: number; registry?: any; runLedger?: { recordToolStart: (name: string, meta: Record<string, unknown>) => any; recordToolFinish: (taskId: string, result: any) => void }; model?: string; maxTokens?: number; complete?: (payload: Record<string, unknown>) => Promise<unknown>; nvidiaConfigured?: boolean; githubReadConfigured?: boolean; githubReadFile?: any; skillsRuntime?: any }
+export interface DelegatedRunResult { ok: boolean; content?: string; error?: string }
+
 import { createAgentDelegator } from './agent-delegation.mjs';
 import { buildAgentSystemMessage } from './agent-runtime.mjs';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.mjs';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.mjs';
 
-function normalizeToolCalls(calls) {
+function normalizeToolCalls(calls: any[]): any[] {
   if (!Array.isArray(calls)) return [];
   return calls.slice(0, 4).filter((call) => call?.id && call?.name).map((call) => ({
     id: String(call.id),
@@ -15,7 +18,7 @@ function normalizeToolCalls(calls) {
   }));
 }
 
-function normalizeCompletion(complete, payload) {
+function normalizeCompletion(complete: (payload: Record<string, unknown>) => Promise<unknown>, payload: Record<string, unknown>) {
   return complete(payload).then((response) => {
     try {
       return normalizeNvidiaChatCompletion(response);
@@ -40,7 +43,7 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime
-} = {}) {
+}: DelegatedRunOptions = {}): Promise<DelegatedRunResult> {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }
@@ -108,7 +111,7 @@ export async function runDelegatedAgent({
   const calls = normalizeToolCalls(rawCalls);
   if (!calls.length) return { ok: false, error: 'INVALID_TOOL_CALL' };
 
-  const toolMessages = [];
+  const toolMessages: Array<Record<string, string>> = [];
   let anyToolFailed = false;
   for (const call of calls) {
     const toolTask = runLedger.recordToolStart(call.function.name, {
