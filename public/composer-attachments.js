@@ -31,6 +31,7 @@
     const input = doc?.getElementById?.('messageInput');
     const attach = doc?.getElementById?.(ATTACH_BUTTON_ID);
     const api = policy();
+    const scanner = rootRef.HafizeComposerSecretScanner;
     if (!doc || !composer || !input || !attach || !api) return null;
     if (doc.getElementById(PANEL_ID)) return rootRef.HafizeComposerAttachmentsController || null;
 
@@ -106,7 +107,8 @@
         if (!content) { report(`${validation.name}: okunabilir metin bulunamadı.`); return false; }
         if (api.binaryScore(content) > 0.01) { report(`${validation.name}: binary içerik olarak algılandı.`); return false; }
         if (api.totalChars(items) + content.length > api.MAX_COMBINED_CHARS) { report('Bekleyen dosya toplamı 200.000 karakteri aşamaz.'); return false; }
-        items.push(Object.freeze({ id: createId(file, validation.name, validation.size), name: validation.name, size: validation.size, lastModified: Number(file.lastModified || 0), language: api.languageOf(validation.name), content, startLine: 1, endLine: Math.min(api.lineCount(content), api.MAX_RANGE_LINES), selected: true }));
+        const scan = scanner?.scan?.(content) || { risky: false, findings: [] };
+        items.push(Object.freeze({ id: createId(file, validation.name, validation.size), name: validation.name, size: validation.size, lastModified: Number(file.lastModified || 0), language: api.languageOf(validation.name), content, startLine: 1, endLine: Math.min(api.lineCount(content), api.MAX_RANGE_LINES), selected: true, risk: scan }));
         scheduleExpiry();
         render();
         return true;
@@ -129,12 +131,13 @@
       if (destroyed) return;
       list.replaceChildren();
       const selected = items.filter((item) => item.selected);
+      const risky = selected.filter((item) => item.risk?.risky);
       const insertion = api.insertionSize(selected);
       const available = Math.max(0, Number(input.maxLength || 12000) - input.value.length);
       insert.disabled = !selected.length || insertion > Math.min(available, api.MAX_INSERT_CHARS);
       clear.disabled = !items.length;
       if (!items.length) { list.append(make(doc, 'div', 'Bekleyen dosya yok.', 'composer-attachments-empty')); report('Henüz dosya eklenmedi.'); return; }
-      report(`${items.length}/${api.MAX_FILES} dosya · ${api.totalChars(items).toLocaleString('tr-TR')} karakter · seçili ek ${insertion.toLocaleString('tr-TR')} · composer boş alanı ${available.toLocaleString('tr-TR')}.`);
+      report(`${items.length}/${api.MAX_FILES} dosya · ${api.totalChars(items).toLocaleString('tr-TR')} karakter · seçili ek ${insertion.toLocaleString('tr-TR')} · composer boş alanı ${available.toLocaleString('tr-TR')}${risky.length ? ` · ${risky.length} dosyada hassas desen` : ''}.`);
       items.forEach((item, index) => {
         const row = make(doc, 'article', undefined, 'composer-attachment-row');
         row.setAttribute('role', 'listitem');
@@ -144,6 +147,7 @@
         const body = make(doc, 'div', undefined, 'composer-attachment-body');
         body.append(make(doc, 'strong', item.name, 'composer-attachment-name'));
         body.append(make(doc, 'div', `${formatBytes(item.size)} · ${item.language} · ${item.content.length.toLocaleString('tr-TR')} karakter · ${api.lineCount(item.content).toLocaleString('tr-TR')} satır`, 'composer-attachment-meta'));
+        if (item.risk?.risky) body.append(make(doc, 'div', `⚠ ${scanner?.summary?.(item.risk) || 'Olası hassas bilgi bulundu.'}`, 'composer-attachment-risk'));
         const range = make(doc, 'div', undefined, 'composer-attachment-range');
         const start = doc.createElement('input'); start.type = 'number'; start.min = '1'; start.max = String(api.MAX_LINE_NUMBER); start.value = String(item.startLine || 1); start.setAttribute('aria-label', `${item.name} başlangıç satırı`);
         const end = doc.createElement('input'); end.type = 'number'; end.min = '1'; end.max = String(api.MAX_LINE_NUMBER); end.value = String(item.endLine || Math.min(api.lineCount(item.content), api.MAX_RANGE_LINES)); end.setAttribute('aria-label', `${item.name} bitiş satırı`);
@@ -172,6 +176,12 @@
     function insertSelected() {
       const selected = items.filter((item) => item.selected);
       if (!selected.length) return report('Mesaja eklenecek dosya seçilmedi.');
+      const risky = selected.filter((item) => item.risk?.risky);
+      if (risky.length) {
+        const labels = risky.flatMap((item) => item.risk?.findings || []).map((finding) => finding.label).filter(Boolean);
+        const unique = [...new Set(labels)].slice(0, 8).join(', ');
+        if (!rootRef.confirm?.(`Seçili dosyalarda olası hassas bilgiler bulundu (${unique || 'desen'}). Yine de composer'a eklemek istiyor musun?`)) return report('Hassas içerik uyarısı nedeniyle ekleme iptal edildi.');
+      }
       const payload = selected.map((item) => api.formatRangeForComposer(item, item.startLine, item.endLine)).join('');
       const available = Number(input.maxLength || 12000) - input.value.length;
       if (payload.length > available || payload.length > api.MAX_INSERT_CHARS) return report(`Dosya içeriği composer sınırına sığmıyor. Gereken ${payload.length.toLocaleString('tr-TR')}, uygun alan ${Math.max(0, available).toLocaleString('tr-TR')}.`);
