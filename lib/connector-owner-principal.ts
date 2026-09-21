@@ -26,6 +26,7 @@ function normalizePrincipal(value: Principal): string {
 }
 
 export function createConnectorOwnerResolver({ key }: { key?: Uint8Array | Buffer } = {}) {
+  if (!key) fail('key');
   const ownerKey = normalizeKey(key);
 
   function resolve(principal) {
