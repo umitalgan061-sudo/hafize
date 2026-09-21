@@ -35,6 +35,8 @@ assert(tsconfig.compilerOptions?.moduleResolution === 'bundler', 'bundler module
 assert(tsconfig.include?.includes('public/**/*.ts'), 'browser TypeScript sources are not in typecheck include');
 assert(text.vite.includes("'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts')"), 'runtime entry missing from Vite');
 assert(text.vite.includes("'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts')"), 'Smart Fill entry missing');
+assert(text.vite.includes("'markdown-renderer': resolve(ROOT, 'public/typed/markdown-renderer.ts')"), 'Markdown Renderer entry missing');
+assert(text.vite.includes("'conversation-workspace': resolve(ROOT, 'public/typed/conversation-workspace.ts')"), 'Conversation Workspace entry missing');
 assert(text.vite.includes("'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts')"), 'Command Palette entry missing');
 assert(text.vite.includes("'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts')"), 'Countdown entry missing');
 assert(text.vite.includes("'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts')"), 'Smart Fill hints entry missing');
@@ -44,6 +46,8 @@ assert(text.api.includes('retryable'), 'typed API error resilience missing');
 assert(text.api.includes('TimeoutError'), 'typed API timeout boundary missing');
 assert(text.runtime.includes("'hafize:runtime-ready'"), 'runtime lifecycle event missing');
 assert(text.index.includes('/typed-build/app-runtime.js'), 'compiled runtime is not loaded by HTML');
+assert(text.index.includes('/typed-build/markdown-renderer.js'), 'compiled Markdown Renderer is not loaded by HTML');
+assert(text.index.includes('/typed-build/conversation-workspace.js'), 'compiled Conversation Workspace is not loaded by HTML');
 assert(text.index.includes('/typed-build/prompt-library-smart-fill.js'), 'compiled Smart Fill is not loaded by HTML');
 assert(text.index.includes('/typed-build/prompt-library-command-palette.js'), 'compiled Command Palette is not loaded by HTML');
 assert(text.index.includes('/typed-build/scheduled-tasks-countdown.js'), 'compiled Countdown is not loaded by HTML');
