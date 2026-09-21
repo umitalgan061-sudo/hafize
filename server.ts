@@ -18,12 +18,12 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
 import { createContextCompactor } from './lib/context-compaction.ts';
-import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mjs';
+import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.ts';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.ts';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.ts';
 import { createScheduleHttpApi } from './lib/schedule-http-api.ts';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
-import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mjs';
+import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.ts';
 import { createScheduleWorker } from './lib/schedule-worker.ts';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
