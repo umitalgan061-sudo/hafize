@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const p=fs.readFileSync('public/composer-attachments-policy.js','utf8');
+const r=fs.readFileSync('public/composer-attachments.js','utf8');
+assert.match(p,/MAX_PREVIEW_LINES = 12/);
+assert.match(p,/previewLines/);
+assert.match(r,/api.previewLines/);
+assert.match(r,/details/);
+assert.match(r,/summary/);
+console.log('attachment preview: ok');
