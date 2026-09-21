@@ -6,7 +6,7 @@ const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const server=await readFile(resolve(root,'server.ts'),'utf8');
 const packageData=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'));
 
-const migrated=['markdown-renderer.ts','conversation-workspace.ts',
+const migrated=[
   'agent-runtime.ts','agent-delegation.ts','agent-run-ledger.ts',
   'context-compaction.ts','model-response-contract.ts',
   'schedule-command-boundary.ts','schedule-execution-runtime.ts',
@@ -16,6 +16,7 @@ const migrated=['markdown-renderer.ts','conversation-workspace.ts',
   'request-failure.ts','runtime-config.ts','security-observability.ts'
 ];
 
+const browserMigrated=['markdown-renderer.ts','conversation-workspace.ts'];
 async function exists(path){try{await access(path);return true;}catch{return false;}}
 function assert(value,message){if(!value)throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:'+message);}
 
@@ -24,6 +25,8 @@ for(const file of migrated){
   const legacy=file.replace(/\.ts$/,'.mjs');
   if(server.includes("./lib/"+legacy))throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:legacy-import:'+legacy);
 }
+
+for(const file of browserMigrated) assert(await exists(resolve(root,'public','typed',file)),'missing-browser:'+file);
 
 assert(packageData.scripts?.['typecheck:runtime'],'missing-runtime-typecheck');
 assert(packageData.scripts?.['test:typed-core'],'missing-typed-test-script');
