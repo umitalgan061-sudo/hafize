@@ -17,6 +17,8 @@ function assert(condition, message) {
 }
 
 const migrated = [
+  'markdown-renderer',
+  'conversation-workspace',
   'prompt-library-smart-fill',
   'prompt-library-command-palette',
   'prompt-library-smart-fill-hints',
