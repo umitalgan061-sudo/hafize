@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const source = await readFile(new URL('../public/prompt-library-smart-insert-validation.js', import.meta.url), 'utf8');
+assert.match(source, /MAX_NAME\s*=\s*32/);
+assert.match(source, /MAX_VALUE\s*=\s*1000/);
+assert.match(source, /MAX_BODY\s*=\s*8000/);
+assert.match(source, /VARIABLE_RE/);
+assert.match(source, /inspect\(/);
+assert.match(source, /missing/);
+assert.match(source, /invalid/);
+assert.match(source, /resolve\(/);
+assert.match(source, /preview\(/);
+assert.match(source, /textContent/);
+assert.doesNotMatch(source, /innerHTML\s*=/);
+assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|WebSocket/);
+console.log('prompt-library-smart-insert-validation: ok');

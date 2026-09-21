@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const root = new URL('../', import.meta.url);
+const sw = await readFile(new URL('public/sw-policy.js', root), 'utf8');
+const enhancement = await readFile(new URL('public/prompt-library-enhancements.js', root), 'utf8');
+for (const asset of ['prompt-library-smart-insert.js','prompt-library-smart-insert-center.js','prompt-library-smart-insert-history.js','prompt-library-smart-insert-history-bridge.js','prompt-library-smart-insert-suggestions.js','prompt-library-smart-insert-shortcuts.js','prompt-library-smart-insert-presets.js','prompt-library-smart-insert.css','prompt-library-smart-insert-center.css','prompt-library-smart-insert-history.css','prompt-library-smart-insert-suggestions.css']) assert.match(sw, new RegExp(asset.replaceAll('.', '\\.'), 'g'));
+assert.match(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v38`/);
+assert.match(sw, /pathname\.startsWith\('\/api\/'\)\) return 'network-only'/);
+assert.match(sw, /SHELL_PATHS\.has\(pathname\)\) return 'shell'/);
+for (const asset of ['prompt-library-smart-insert.js','prompt-library-smart-insert-center.js','prompt-library-smart-insert-history.js','prompt-library-smart-insert-history-bridge.js','prompt-library-smart-insert-suggestions.js','prompt-library-smart-insert-shortcuts.js']) assert.match(enhancement, new RegExp(asset.replaceAll('.', '\\.'), 'g'));
+console.log('prompt-library-smart-insert-pwa: ok');
