@@ -266,7 +266,7 @@ export function fail<E>(error: E): { ok: false; error: E } {
   return Object.freeze({ ok: false, error });
 }
 
-export type Result<T, E> = ReturnType<typeof ok<T>> | ReturnType<typeof fail<E>>;
+export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
 export function freeze<T extends object>(value: T): Readonly<T> {
   return Object.freeze(value);
