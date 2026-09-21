@@ -9,6 +9,7 @@ const typedDevEntryPlugin = (): Plugin => ({
   transformIndexHtml(html, context) {
     if (context.server) {
       return html
+        .replaceAll('/typed-build/app-shell.js', '/typed/app-shell.ts')
         .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
         .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
         .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
@@ -36,6 +37,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: {
+        'app-shell': resolve(ROOT, 'public/typed/app-shell.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
