@@ -1,3 +1,6 @@
+interface RedisClientLike { isOpen?: boolean; quit?: () => Promise<unknown>; disconnect?: () => void }
+interface RedisModuleLike { createClient?: (options?: unknown) => unknown }
+interface RedisLeaseOptions { env?: Record<string,string|undefined>; loadRedisModule?: () => Promise<RedisModuleLike>; createClientRuntime?: (...args:any[])=>Promise<any>; createAdapter?: (...args:any[])=>any; createProviderRuntime?: (...args:any[])=>Promise<any> }
 import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.mjs';
 import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.mjs';
 import {
@@ -5,11 +8,11 @@ import {
   readScheduleLeaseRuntimeConfig
 } from './schedule-lease-runtime-config.mjs';
 
-async function defaultLoadRedisModule() {
+async function defaultLoadRedisModule(): Promise<RedisModuleLike> {
   return import('redis');
 }
 
-async function closeClient(client) {
+async function closeClient(client: RedisClientLike | null | undefined): Promise<void> {
   if (!client) return;
   try {
     if (typeof client.quit === 'function' && client.isOpen) await client.quit();
@@ -25,7 +28,7 @@ export async function createRedisScheduleLeaseRuntime({
   createClientRuntime = createRedisLeaseClient,
   createAdapter = createRedisScheduleLeaseAdapter,
   createProviderRuntime = createScheduleLeaseProviderRuntime
-} = {}) {
+}: RedisLeaseOptions = {}) {
   if (typeof loadRedisModule !== 'function') throw new Error('INVALID_REDIS_LEASE_RUNTIME:loadRedisModule');
   if (typeof createClientRuntime !== 'function') throw new Error('INVALID_REDIS_LEASE_RUNTIME:createClientRuntime');
   if (typeof createAdapter !== 'function') throw new Error('INVALID_REDIS_LEASE_RUNTIME:createAdapter');
@@ -41,10 +44,10 @@ export async function createRedisScheduleLeaseRuntime({
   const redisConfig = readRedisLeaseClientConfig(env);
   if (redisConfig == null) throw new Error('SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED');
 
-  let client = null;
+  let client: RedisClientLike | null = null;
   let closed = false;
   try {
-    const redisModule = await loadRedisModule();
+    const redisModule: RedisModuleLike = await loadRedisModule();
     const createClient = redisModule?.createClient;
     if (typeof createClient !== 'function') throw new Error('redis module unavailable');
 
