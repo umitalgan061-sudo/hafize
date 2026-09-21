@@ -1,12 +1,12 @@
 interface RedisClientLike { isOpen?: boolean; quit?: () => Promise<unknown>; disconnect?: () => void }
 interface RedisModuleLike { createClient?: (options?: unknown) => unknown }
 interface RedisLeaseOptions { env?: Record<string,string|undefined>; loadRedisModule?: () => Promise<RedisModuleLike>; createClientRuntime?: (...args:any[])=>Promise<any>; createAdapter?: (...args:any[])=>any; createProviderRuntime?: (...args:any[])=>Promise<any> }
-import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.mjs';
-import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.mjs';
+import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.ts';
+import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.ts';
 import {
   createScheduleLeaseProviderRuntime,
   readScheduleLeaseRuntimeConfig
-} from './schedule-lease-runtime-config.mjs';
+} from './schedule-lease-runtime-config.ts';
 
 async function defaultLoadRedisModule(): Promise<RedisModuleLike> {
   return import('redis');
