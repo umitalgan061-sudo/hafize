@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const p=fs.readFileSync('public/composer-attachments-policy.js','utf8');
+const r=fs.readFileSync('public/composer-attachments.js','utf8');
+assert.match(p,/MAX_FILES = 4/);
+assert.match(p,/MAX_BYTES = 256 \* 1024/);
+assert.match(p,/MAX_COMBINED_CHARS = 200_000/);
+assert.match(p,/MAX_RANGE_LINES = 400/);
+assert.match(p,/MAX_INSERT_CHARS = 11_500/);
+assert.match(r,/items.length >= api.MAX_FILES/);
+assert.match(r,/api.totalChars\(items\) \+ content.length > api.MAX_COMBINED_CHARS/);
+console.log('attachment final limits: ok');
