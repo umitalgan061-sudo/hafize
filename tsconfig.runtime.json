@@ -1,10 +1,16 @@
 {
   "extends": "./tsconfig.json",
   "include": [
+    "server.ts",
     "lib/**/*.ts"
   ],
   "compilerOptions": {
     "noEmit": true,
-    "rewriteRelativeImportExtensions": true
+    "rewriteRelativeImportExtensions": true,
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   }
 }
