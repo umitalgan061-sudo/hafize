@@ -3,7 +3,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const server=await readFile(resolve(root,'server.mjs'),'utf8');
+const server=await readFile(resolve(root,'server.ts'),'utf8');
 const packageData=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'));
 
 const migrated=[
@@ -25,7 +25,9 @@ for(const file of migrated){
   if(server.includes("./lib/"+legacy))throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:legacy-import:'+legacy);
 }
 
-assert(packageData.scripts?.['typecheck:runtime'],'missing-runtime-typecheck');
+assert(await exists(resolve(root,'server.ts')),'missing-server-ts');
+assert(packageData.scripts?.start?.includes('server.ts'),'start-does-not-use-server-ts');
+assert(packageData.scripts?.['typecheck'],'missing-typecheck');
 assert(packageData.scripts?.['test:typed-core'],'missing-typed-test-script');
 assert(String(packageData.scripts?.['check:modern']||'').includes('test-typescript-migration.mjs'),'modern-check-not-wired');
 
