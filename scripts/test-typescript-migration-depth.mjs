@@ -16,7 +16,7 @@ const migrated=[
   'request-failure.ts','runtime-config.ts','security-observability.ts'
 ];
 
-const browserMigrated=['markdown-renderer.ts','conversation-workspace.ts'];
+const browserMigrated=['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts'];
 async function exists(path){try{await access(path);return true;}catch{return false;}}
 function assert(value,message){if(!value)throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:'+message);}
 
