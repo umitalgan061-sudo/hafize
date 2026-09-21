@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source=fs.readFileSync('public/composer-attachments-policy.js','utf8');
+assert.match(source,/MAX_RANGE_LINES = 400/);
+assert.match(source,/function lineCount/);
+assert.match(source,/function clampLine/);
+assert.match(source,/function sliceLines/);
+assert.match(source,/function formatRangeForComposer/);
+assert.match(source,/startLine/);
+assert.match(source,/endLine/);
+console.log('composer attachment range: ok');
