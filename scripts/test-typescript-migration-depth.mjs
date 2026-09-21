@@ -3,10 +3,10 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-const server=await readFile(resolve(root,'server.mjs'),'utf8');
+const server=await readFile(resolve(root,'server.ts'),'utf8');
 const packageData=JSON.parse(await readFile(resolve(root,'package.json'),'utf8'));
 
-const migrated=[
+const migrated=['markdown-renderer.ts','conversation-workspace.ts',
   'agent-runtime.ts','agent-delegation.ts','agent-run-ledger.ts',
   'context-compaction.ts','model-response-contract.ts',
   'schedule-command-boundary.ts','schedule-execution-runtime.ts',
