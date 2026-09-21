@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const policy=fs.readFileSync('public/composer-attachments-policy.js','utf8');
+const runtime=fs.readFileSync('public/composer-attachments.js','utf8');
+assert.doesNotMatch(policy,/innerHTML|outerHTML/);
+assert.doesNotMatch(runtime,/innerHTML|outerHTML/);
+assert.doesNotMatch(runtime,/localStorage|sessionStorage|indexedDB|caches\\.open/);
+assert.doesNotMatch(runtime,/fetch\\s*\\(|XMLHttpRequest|WebSocket|sendBeacon/);
+assert.match(runtime,/MEMORY_TTL_MS/);
+assert.match(runtime,/validateFile\\(file, items\\)/);
+console.log('composer attachment security: ok');
