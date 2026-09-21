@@ -38,7 +38,7 @@ for(const path of [
 
 assert(server.includes('./lib/production-guard.ts'),'production-guard-entry');
 assert(server.includes('./lib/http-runtime.ts'),'http-runtime-entry');
-for(const browserPath of ['markdown-renderer.ts','conversation-workspace.ts']) assert(browserPath.endsWith('.ts'),'browser-migration-contract');
+for(const browserPath of ['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts']) assert(browserPath.endsWith('.ts'),'browser-migration-contract');
 for(const path of ['session-auth.ts','server-auth.ts','rate-limit.ts','security-observability.ts','runtime-config.ts']){
   assert(guard.includes('./'+path), 'guard-import:'+path);
 }
