@@ -16,7 +16,9 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts')
         .replaceAll('/typed-build/prompt-library.js', '/prompt-library.ts')
         .replaceAll('/typed-build/prompt-library-enhancements.js', '/prompt-library-enhancements.ts')
-        .replaceAll('/typed-build/prompt-library-usage.js', '/prompt-library-usage.ts');
+        .replaceAll('/typed-build/prompt-library-usage.js', '/prompt-library-usage.ts')
+        .replaceAll('/typed-build/ui-shell.js', '/ui-shell.ts')
+        .replaceAll('/typed-build/workspace-navigation.js', '/workspace-navigation.ts');
     }
     return html;
   }
@@ -46,7 +48,9 @@ export default defineConfig({
         'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts'),
         'prompt-library': resolve(ROOT, 'public/prompt-library.ts'),
         'prompt-library-enhancements': resolve(ROOT, 'public/prompt-library-enhancements.ts'),
-        'prompt-library-usage': resolve(ROOT, 'public/prompt-library-usage.ts')
+        'prompt-library-usage': resolve(ROOT, 'public/prompt-library-usage.ts'),
+        'ui-shell': resolve(ROOT, 'public/ui-shell.ts'),
+        'workspace-navigation': resolve(ROOT, 'public/workspace-navigation.ts')
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`
