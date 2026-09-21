@@ -1,6 +1,36 @@
 import { createHmac } from 'node:crypto';
-const SUBJECT=/^[A-Za-z0-9][A-Za-z0-9._:@/+\-=]{0,199}$/;
-const FIELDS=new Set(['authenticated','subject']);
-function normalizeKey(value:unknown):Buffer{if(!Buffer.isBuffer(value)&&!(value instanceof Uint8Array))throw new Error('INVALID_CONNECTOR_PRINCIPAL:key');const output=Buffer.from(value);if(output.length!==32)throw new Error('INVALID_CONNECTOR_PRINCIPAL:key');return output;}
-function normalizePrincipal(value:unknown):string{if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('INVALID_CONNECTOR_PRINCIPAL:principal');for(const field of Object.keys(value))if(!FIELDS.has(field))throw new Error('INVALID_CONNECTOR_PRINCIPAL:principal.'+field);const source=value as Record<string,unknown>;if(source.authenticated!==true)throw new Error('CONNECTOR_AUTH_REQUIRED');const owner=typeof source.subject==='string'?source.subject.trim():'';if(!SUBJECT.test(owner))throw new Error('INVALID_CONNECTOR_PRINCIPAL:principal.subject');return owner;}
-export function createConnectorOwnerResolver({key}:{readonly key:Buffer|Uint8Array}){const ownerKey=normalizeKey(key);return Object.freeze({resolve(principal:unknown){const value=normalizePrincipal(principal);const digest=createHmac('sha256',ownerKey).update('hafize:connector-owner:v1\0').update(value,'utf8').digest('base64url');return Object.freeze({ownerId:'owner_'+digest});}});}
+
+const SUBJECT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:@/+\-=]{0,199}$/;
+const FIELDS = new Set(['authenticated', 'subject']);
+
+function fail(reason) {
+  throw new Error(`INVALID_CONNECTOR_PRINCIPAL:${reason}`);
+}
+
+function normalizeKey(value) {
+  if (!Buffer.isBuffer(value) && !(value instanceof Uint8Array)) fail('key');
+  const key = Buffer.from(value);
+  if (key.length !== 32) fail('key');
+  return key;
+}
+
+function normalizePrincipal(value) {
+  if (!value || Array.isArray(value) || typeof value !== 'object') fail('principal');
+  for (const field of Object.keys(value)) if (!FIELDS.has(field)) fail(`principal.${field}`);
+  if (value.authenticated !== true) throw new Error('CONNECTOR_AUTH_REQUIRED');
+  const subject = typeof value.subject === 'string' ? value.subject.trim() : '';
+  if (!SUBJECT_PATTERN.test(subject)) fail('principal.subject');
+  return subject;
+}
+
+export function createConnectorOwnerResolver({ key } = {}) {
+  const ownerKey = normalizeKey(key);
+
+  function resolve(principal) {
+    const subject = normalizePrincipal(principal);
+    const digest = createHmac('sha256', ownerKey).update('hafize:connector-owner:v1\0', 'utf8').update(subject, 'utf8').digest('base64url');
+    return Object.freeze({ ownerId: `owner_${digest}` });
+  }
+
+  return Object.freeze({ resolve });
+}
