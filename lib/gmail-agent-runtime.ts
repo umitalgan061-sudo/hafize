@@ -1,5 +1,6 @@
-import { createBearerPrincipalAuthenticator } from './server-auth.mjs';
-import { createConnectorOwnerResolver } from './connector-owner-principal.mjs';
+interface GmailAgentRuntimeOptions { env?: Record<string,string|undefined>; fetchImpl?: typeof fetch; createAuthenticator?: (...args:any[])=>any; createOwnerResolver?: (...args:any[])=>any; createTokenStoreRuntime?: (...args:any[])=>any; createReadClient?: (...args:any[])=>any; createBoundary?: (...args:any[])=>any }
+import { createBearerPrincipalAuthenticator } from './server-auth.ts';
+import { createConnectorOwnerResolver } from './connector-owner-principal.ts';
 import { createOAuthTokenStoreRuntime } from './oauth-token-store-runtime.mjs';
 import { createGmailReadClient } from './gmail-read-client.mjs';
 import { createGmailReadToolBoundary } from './gmail-read-tool-boundary.mjs';
@@ -9,18 +10,18 @@ const AUTH_SUBJECT_ENV = 'HAFIZE_CONNECTOR_AUTH_SUBJECT';
 const OWNER_KEY_ENV = 'HAFIZE_CONNECTOR_OWNER_KEY_B64';
 const EMPTY_CONTEXT = Object.freeze({ gmailReadTool: null, gmailReadAuthenticated: false });
 
-function fail(field) { throw new Error(`INVALID_GMAIL_AGENT_RUNTIME:${field}`); }
-function envText(env, name) {
+function fail(field: string): never { throw new Error(`INVALID_GMAIL_AGENT_RUNTIME:${field}`); }
+function envText(env: Record<string,string|undefined>, name: string): string {
   const value = env[name];
   return typeof value === 'string' ? value.trim() : '';
 }
-function decodeOwnerKey(value) {
+function decodeOwnerKey(value: string): Buffer {
   if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) fail(OWNER_KEY_ENV);
   const key = Buffer.from(value, 'base64');
   if (key.length !== 32 || key.toString('base64') !== value) fail(OWNER_KEY_ENV);
   return key;
 }
-function requireFactory(value, name) {
+function requireFactory(value: unknown, name: string): (...args:any[])=>any {
   if (typeof value !== 'function') fail(name);
   return value;
 }
@@ -33,7 +34,7 @@ export function createGmailAgentRuntime({
   createTokenStoreRuntime = createOAuthTokenStoreRuntime,
   createReadClient = createGmailReadClient,
   createBoundary = createGmailReadToolBoundary
-} = {}) {
+}: GmailAgentRuntimeOptions = {}) {
   if (!env || Array.isArray(env) || typeof env !== 'object') fail('env');
   const authToken = envText(env, AUTH_TOKEN_ENV);
   const authSubject = envText(env, AUTH_SUBJECT_ENV);
@@ -58,14 +59,14 @@ export function createGmailAgentRuntime({
   if (typeof authenticator?.authenticate !== 'function') fail('authenticator');
   if (typeof boundary?.execute !== 'function') fail('boundary');
 
-  function authenticate(headers) {
+  function authenticate(headers: Record<string,any> | undefined) {
     const auth = authenticator.authenticate({ headers });
     if (!auth?.ok) return null;
     if (!auth.principal || auth.principal.authenticated !== true || typeof auth.principal.subject !== 'string') fail('principal');
     return auth.principal;
   }
 
-  function requestContext({ headers } = {}) {
+  function requestContext({ headers }: { headers?: Record<string,any> } = {}) {
     const principal = authenticate(headers);
     if (!principal) return EMPTY_CONTEXT;
     return Object.freeze({
@@ -74,7 +75,7 @@ export function createGmailAgentRuntime({
     });
   }
 
-  async function connectionStatus({ headers } = {}) {
+  async function connectionStatus({ headers }: { headers?: Record<string,any> } = {}) {
     const principal = authenticate(headers);
     if (!principal) return Object.freeze({ ok: false, error: 'AUTH_REQUIRED' });
     const ownership = ownerResolver.resolve(principal);
