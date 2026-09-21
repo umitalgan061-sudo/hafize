@@ -76,7 +76,7 @@ function mount(documentRef: Document = root.document, rootRef: GitHubWorkspaceWi
   const head = make(documentRef, 'div', undefined, 'utility-head github-workspace-head');
   const title = make(documentRef, 'span', 'GitHub çalışma alanı');
   title.id = 'githubWorkspaceTitle';
-  const badge = make(documentRef, 'span', 'salt okunur', 'github-workspace-badge');
+  const badge = make(documentRef, 'span', 'salt okunur · Ctrl/⌘+Shift+G', 'github-workspace-badge');
   head.append(title, badge);
 
   const repository = make(documentRef, 'input') as HTMLInputElement;
