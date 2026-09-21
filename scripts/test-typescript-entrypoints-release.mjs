@@ -24,8 +24,8 @@ for (const legacy of ['public/app.js', 'public/auth.js', 'public/ui-shell.js', '
 assert.equal(existsSync(join(root, 'server.mjs')), false);
 assert.equal(existsSync(join(root, 'server.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/app-shell.ts')), true);
-assert.equal(existsSync(join(root, 'public/typed/markdown-renderer.ts')), true);
-assert.equal(existsSync(join(root, 'public/typed/conversation-workspace.ts')), true);
+assert.equal(existsSync(join(root, 'public/markdown-renderer.ts')), true);
+assert.equal(existsSync(join(root, 'public/conversation-workspace.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/message-workspace.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/prompt-library.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/scheduled-tasks.ts')), true);
