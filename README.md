@@ -146,16 +146,22 @@ node scripts/test-typescript-security-entrypoints.mjs
 
 Bu gate'ler production entry'nin `server.ts` olduğunu, typed browser artifact'larının Vite üzerinden geldiğini, legacy browser girişlerinin HTML'den çıkarıldığını ve güvenlik çekirdeğinin TS kaynaklarını doğrular.
 
+## TypeScript modernizasyonu
+
+Hafize'nin üretim runtime'ı TypeScript tabanına geçirilirken browser tarafındaki büyük çalışma alanları da Vite üzerinden derlenen typed entrypoint'lere taşınıyor. Bu migration dalgasında Markdown Renderer ve Conversation Workspace kaynakları `public/*.ts`, Message Workspace, Prompt Library ve Scheduled Tasks kaynakları `public/typed/*.ts` altında tutuluyor; HTML üretimde `typed-build/*.js` çıktısını yüklüyor.
+
+Toolchain TypeScript 7.0.2, Vite 8.3.0 ve Vitest 5.0.1 ile pinlenmiştir. Node.js 24.21+ LTS üretim tabanıdır. Legacy `.js` dosyaları yalnızca geriye dönük uyumluluk köprüsü olarak kalır ve yeni uygulama mantığı içermez. Migration sözleşmeleri `scripts/test-typescript-ui-wave.mjs`, `scripts/test-typescript-entrypoints-release.mjs` ve `scripts/test-legacy-entry-contract.mjs` ile korunur.
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.
 
 ## Mimari not
 
-`server.mjs` uygulamanın HTTP/API runtime'ıdır. `lib/production-guard.mjs` public çalıştırma giriş noktasına preloaded olarak kimlik doğrulama, CSRF ve rate limit sınırlarını ekler. Tarayıcı tarafındaki `public/auth.js` yalnızca oturum akışını yönetir; erişim anahtarını kalıcı olarak saklamaz.
+`server.ts` uygulamanın HTTP/API runtime'ıdır. `lib/production-guard.ts` public çalıştırma giriş noktasına preloaded olarak kimlik doğrulama, CSRF ve rate limit sınırlarını ekler. Tarayıcı tarafında `public/typed/*.ts` kaynakları Vite ile derlenir; erişim anahtarları server-side kalır.
 ## TypeScript runtime migration
 
-Server çekirdeğinin güvenlik, agent, tool, model ve schedule sınırları TypeScript 6 strict mode ile çalışır. Node.js 24.21.0+ production hedefidir; Vite 8 ve Vitest 5 build/test zincirinin parçasıdır. Kalan .mjs modülleri güvenli kademeli migration için yaprak bağımlılık olarak korunur. Ayrıntılar: docs/TYPESCRIPT_MIGRATION.md, docs/TYPESCRIPT_ARCHITECTURE.md ve docs/TYPESCRIPT_TEST_MATRIX.md.
+Server çekirdeğinin güvenlik, agent, tool, model ve schedule sınırları TypeScript 7 strict mode ile çalışır. Node.js 24.21.0+ production hedefidir; Vite 8.3 ve Vitest 5 build/test zincirinin parçasıdır. Kalan .mjs modülleri güvenli kademeli migration için yaprak bağımlılık olarak korunur. Ayrıntılar: docs/TYPESCRIPT_MIGRATION.md, docs/TYPESCRIPT_ARCHITECTURE.md ve docs/TYPESCRIPT_TEST_MATRIX.md.
 
 ## İçe aktarma güvenliği ve kütüphane sağlığı
 

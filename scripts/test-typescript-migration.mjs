@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const packageData=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
 const tsconfig=JSON.parse(await readFile(new URL('../tsconfig.json',import.meta.url),'utf8'));
-const server=await readFile(new URL('../server.mjs',import.meta.url),'utf8');
+const server=await readFile(new URL('../server.ts',import.meta.url),'utf8');
 const guard=await readFile(new URL('../lib/production-guard.ts',import.meta.url),'utf8');
 
 function major(spec){
@@ -13,7 +13,7 @@ function assert(condition,message){
   if(!condition)throw new Error('TYPESCRIPT_MIGRATION_FAILED:'+message);
 }
 const deps=packageData.devDependencies||{};
-assert(major(deps.typescript)===6,'typescript-major');
+assert(major(deps.typescript)===7,'typescript-major');
 assert(major(deps.vite)===8,'vite-major');
 assert(major(deps.vitest)===5,'vitest-major');
 assert(String(packageData.engines?.node||'').includes('24.21.0'),'node-engine');
@@ -37,6 +37,8 @@ for(const path of [
 }
 
 assert(server.includes('./lib/production-guard.ts'),'production-guard-entry');
+assert(server.includes('./lib/http-runtime.ts'),'http-runtime-entry');
+for(const browserPath of ['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts']) assert(browserPath.endsWith('.ts'),'browser-migration-contract');
 for(const path of ['session-auth.ts','server-auth.ts','rate-limit.ts','security-observability.ts','runtime-config.ts']){
   assert(guard.includes('./'+path), 'guard-import:'+path);
 }

@@ -14,7 +14,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:modern": "vitest run",
-    "check:modern": "npm run typecheck && npm run typecheck:runtime && npm run test:modern && npm run test:typed-core && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs && node scripts/test-typescript-migration.mjs && node scripts/test-typescript-migration-depth.mjs && node scripts/test-typescript-entrypoints-release.mjs && node scripts/test-typescript-security-entrypoints.mjs",
+    "check:modern": "npm run typecheck && npm run typecheck:runtime && npm run test:modern && npm run test:typed-core && npm run format:check && node scripts/test-modern-toolchain.mjs && node scripts/test-legacy-entry-contract.mjs && node scripts/test-typescript-migration.mjs && node scripts/test-typescript-migration-depth.mjs && node scripts/test-typescript-entrypoints-release.mjs && node scripts/test-typescript-security-entrypoints.mjs && node scripts/test-typescript-ui-wave.mjs && node scripts/test-typescript-ui-syntax.mjs",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",
@@ -27,8 +27,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "^6.0.0",
-    "vite": "^8.1.0",
-    "vitest": "^5.0.0"
+    "typescript": "7.0.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
   }
 }

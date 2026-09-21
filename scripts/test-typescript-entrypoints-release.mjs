@@ -13,7 +13,7 @@ const runtime = read('tsconfig.runtime.json');
 assert.equal(pkg.scripts.start, 'node --import ./lib/production-guard.ts server.ts');
 assert.equal(pkg.scripts['dev:server'], 'node --import ./lib/production-guard.ts server.ts');
 assert.match(runtime, /server\.ts/);
-for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-output']) {
+for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-output', 'markdown-renderer', 'conversation-workspace', 'message-workspace', 'prompt-library', 'scheduled-tasks']) {
   assert.match(vite, new RegExp(entry));
   assert.match(html, new RegExp(`typed-build/${entry}\\.js`));
   assert.match(sw, new RegExp(`typed-build/${entry}\\.js`));
@@ -24,6 +24,11 @@ for (const legacy of ['public/app.js', 'public/auth.js', 'public/ui-shell.js', '
 assert.equal(existsSync(join(root, 'server.mjs')), false);
 assert.equal(existsSync(join(root, 'server.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/app-shell.ts')), true);
+assert.equal(existsSync(join(root, 'public/markdown-renderer.ts')), true);
+assert.equal(existsSync(join(root, 'public/conversation-workspace.ts')), true);
+assert.equal(existsSync(join(root, 'public/typed/message-workspace.ts')), true);
+assert.equal(existsSync(join(root, 'public/typed/prompt-library.ts')), true);
+assert.equal(existsSync(join(root, 'public/typed/scheduled-tasks.ts')), true);
 assert.doesNotMatch(html, /<script[^>]+src=["']\/app\.js["']/);
 assert.doesNotMatch(html, /<script[^>]+src=["']\/auth\.js["']/);
 console.log('TypeScript entrypoint release gate: ok');
