@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const source=fs.readFileSync('public/composer-attachments.js','utf8');
+assert.match(source,/selectionStart/);
+assert.match(source,/selectionEnd/);
+assert.match(source,/before = input\\.value\\.slice/);
+assert.match(source,/after = input\\.value\\.slice/);
+assert.match(source,/input\\.setSelectionRange/);
+assert.match(source,/lastInsertion/);
+assert.match(source,/Son dosya eklemesi geri alındı/);
+console.log('composer attachment insertion: ok');
