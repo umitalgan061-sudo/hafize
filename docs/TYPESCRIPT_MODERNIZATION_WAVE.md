@@ -27,8 +27,11 @@ TypeScript kaynakları strict modda derlenmeye devam eder. Büyük legacy browse
 
 Kaynak:
 
-`public/typed/markdown-renderer.ts`
-`public/typed/conversation-workspace.ts`
+`public/markdown-renderer.ts`
+`public/conversation-workspace.ts`
+`public/typed/message-workspace.ts`
+`public/typed/prompt-library.ts`
+`public/typed/scheduled-tasks.ts`
 
 Derlenmiş entry:
 
