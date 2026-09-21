@@ -139,9 +139,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   async function fetchJson(url, init = {}) {
     if (!networkOnline) throw new Error('OFFLINE');
-    activeRequestController?.abort();
     const controller = new AbortController();
-    activeRequestController = controller;
     const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(url, { ...init, signal: controller.signal, headers: { Accept: 'application/json', ...(init.headers || {}) } });
@@ -151,7 +149,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       return payload;
     } finally {
       globalThis.clearTimeout(timeout);
-      if (activeRequestController === controller) activeRequestController = null;
+
     }
   }
 
@@ -736,7 +734,6 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function handleOffline() {
     networkOnline = false;
-    activeRequestController?.abort();
     showToast('İnternet bağlantısı kesildi.');
   }
 
