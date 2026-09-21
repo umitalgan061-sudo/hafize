@@ -2,7 +2,7 @@ export interface ScheduleHttpResponse { matched: boolean; status?: number; body?
 export interface ScheduleHttpRequest { request?: unknown; method?: string; pathname?: string; headers?: Record<string, string | undefined> }
 export interface ScheduleHttpApiOptions { authenticator?: { authenticate(input: { headers?: Record<string, string | undefined> }): { ok: boolean; principal?: unknown } }; commands?: { create(input: { principal: unknown; input: unknown }): Promise<any>; list(input: { principal: unknown }): Promise<any>; cancel(input: { principal: unknown; scheduleId: string }): Promise<any> }; readJson?: (request: unknown) => Promise<unknown> }
 
-import { normalizeApiError } from './api-error-contract.mjs';
+import { normalizeApiError } from './api-error-contract.ts';
 
 const SCHEDULES_PATH = '/api/schedules';
 
