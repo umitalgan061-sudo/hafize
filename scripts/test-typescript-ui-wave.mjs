@@ -28,7 +28,7 @@ check(packageData.scripts?.typecheck === 'tsc --noEmit', 'typecheck script prese
 check(packageData.scripts?.['typecheck:runtime'] === 'tsc --noEmit -p tsconfig.runtime.json', 'runtime typecheck present');
 check(packageData.scripts?.['check:modern']?.includes('test-typescript-ui-wave.mjs'), 'UI wave gate is wired');
 
-for (const entry of ['markdown-renderer', 'conversation-workspace']) {
+for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-workspace', 'prompt-library', 'scheduled-tasks']) {
   check(vite.includes(`'${entry}': resolve(ROOT, 'public/typed/${entry}.ts')`), `${entry} Vite entry`);
   check(vite.includes(`/typed-build/${entry}.js`), `${entry} dev transform`);
   check(html.includes(`<script type="module" src="/typed-build/${entry}.js"></script>`), `${entry} module script`);
@@ -48,7 +48,7 @@ for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   check(!source.includes('fetch('), `${legacy} bridge has no network implementation`);
 }
 
-check(sw.includes('hafize-shell-v40'), 'PWA cache version bumped');
+check(sw.includes('hafize-shell-v41'), 'PWA cache version bumped');
 check(!html.includes('/typed-build/markdown-renderer.js" defer'), 'module entry is not marked defer-only');
 check(!html.includes('/typed-build/conversation-workspace.js" defer'), 'module entry is not marked defer-only');
 
