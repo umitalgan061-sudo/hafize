@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 
 const packageData=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
 const tsconfig=JSON.parse(await readFile(new URL('../tsconfig.json',import.meta.url),'utf8'));
-const server=await readFile(new URL('../server.mjs',import.meta.url),'utf8');
+const server=await readFile(new URL('../server.ts',import.meta.url),'utf8');
 const guard=await readFile(new URL('../lib/production-guard.ts',import.meta.url),'utf8');
 
 function major(spec){
@@ -21,7 +21,7 @@ assert(String(packageData.scripts?.start||'').includes('production-guard.ts'),'s
 assert(String(packageData.scripts?.['dev:server']||'').includes('production-guard.ts'),'dev-server-typed-guard');
 assert(String(packageData.scripts?.['typecheck:runtime']||'').includes('tsconfig.runtime.json'),'runtime-typecheck');
 assert(String(packageData.scripts?.['test:typed-core']||'').includes('lib/**/*.test.ts'),'typed-test-script');
-assert(String(packageData.scripts?.['check:modern']||'').includes('test-typescript-migration.mjs'),'modern-check-integration');
+assert(String(packageData.scripts?.['check:modern']||'').includes('test-typescript-migration.ts'),'modern-check-integration');
 
 const includes=Array.isArray(tsconfig.include)?tsconfig.include:[];
 assert(includes.includes('lib/**/*.ts'),'tsconfig-lib-scope');
