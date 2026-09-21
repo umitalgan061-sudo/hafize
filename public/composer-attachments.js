@@ -64,8 +64,9 @@
     list.setAttribute('role', 'list');
     const footer = make(doc, 'div', undefined, 'composer-attachments-footer');
     const insert = button(doc, 'Seçilenleri mesaja ekle', 'soft-btn');
+    const undo = button(doc, 'Son eklemeyi geri al'); undo.disabled = true;
     const clear = button(doc, 'Tüm ekleri kaldır');
-    footer.append(insert, clear);
+    footer.append(insert, undo, clear);
     const status = make(doc, 'div', '', 'composer-attachments-status');
     status.id = 'composerAttachmentsStatus';
     status.setAttribute('role', 'status');
@@ -79,6 +80,7 @@
     let open = false;
     let expiryTimer = 0;
     let destroyed = false;
+    let lastInsertion = null;
 
     const report = (message) => { status.textContent = String(message ?? '').slice(0, 220); };
     const scheduleExpiry = () => {
@@ -150,12 +152,20 @@
         start.addEventListener('change', syncRange); end.addEventListener('change', syncRange); range.append(make(doc, 'span', 'Satırlar'), start, make(doc, 'span', '–'), end, rangeInfo); body.append(range);
         const details = doc.createElement('details');
         const summary = make(doc, 'summary', 'Önizleme');
-        const preview = make(doc, 'pre', api.previewLines(item.content).join('\n'), 'composer-attachment-preview');
+        const preview = make(doc, 'pre', api.previewLines(api.sliceLines(item.content, item.startLine, item.endLine)).join('\n'), 'composer-attachment-preview');
         details.append(summary, preview); body.append(details);
+        const actions = make(doc, 'div', undefined, 'composer-attachment-actions');
+        const copy = button(doc, 'Kopyala'); copy.setAttribute('aria-label', `${item.name} seçili aralığını panoya kopyala`);
         const remove = button(doc, 'Sil'); remove.setAttribute('aria-label', `${item.name} ekini kaldır`);
         include.addEventListener('change', () => { item.selected = include.checked; render(); });
+        copy.addEventListener('click', async () => {
+          const text = api.sliceLines(item.content, item.startLine, item.endLine);
+          try { await rootRef.navigator?.clipboard?.writeText?.(text); report(`${item.name}: seçili aralık panoya kopyalandı.`); }
+          catch { report('Panoya kopyalama kullanılamıyor.'); }
+        });
         remove.addEventListener('click', () => { items.splice(index, 1); scheduleExpiry(); render(); });
-        row.append(include, body, remove); list.append(row);
+        actions.append(copy, remove);
+        row.append(include, body, actions); list.append(row);
       });
     }
 
@@ -165,12 +175,20 @@
       const payload = selected.map((item) => api.formatRangeForComposer(item, item.startLine, item.endLine)).join('');
       const available = Number(input.maxLength || 12000) - input.value.length;
       if (payload.length > available || payload.length > api.MAX_INSERT_CHARS) return report(`Dosya içeriği composer sınırına sığmıyor. Gereken ${payload.length.toLocaleString('tr-TR')}, uygun alan ${Math.max(0, available).toLocaleString('tr-TR')}.`);
-      input.value += payload;
+      const start = Number.isInteger(input.selectionStart) ? input.selectionStart : input.value.length;
+      const end = Number.isInteger(input.selectionEnd) ? input.selectionEnd : start;
+      const before = input.value.slice(0, start);
+      const after = input.value.slice(end);
+      lastInsertion = { before, after, selectionStart: start, selectionEnd: end, insertedLength: payload.length };
+      input.value = before + payload + after;
+      input.setSelectionRange(start + payload.length, start + payload.length);
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.focus();
+      undo.disabled = false;
       items = items.filter((item) => !item.selected);
       if (items.length) scheduleExpiry(); else rootRef.clearTimeout?.(expiryTimer);
       render();
+      undo.disabled = !lastInsertion;
       report(`${selected.length} dosya içeriği mesaja eklendi. Gönderim otomatik yapılmadı.`);
       rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:composer-attachments-inserted', { detail: { count: selected.length } }));
     }
@@ -195,6 +213,22 @@
     close.addEventListener('click', closePanel);
     insert.addEventListener('click', insertSelected);
     clear.addEventListener('click', onClear);
+    const onUndo = () => {
+      if (!lastInsertion) return;
+      const current = input.value;
+      const expected = lastInsertion.before + lastInsertion.after;
+      if (current.length < lastInsertion.insertedLength || !current.includes(lastInsertion.insertedLength ? current.slice(lastInsertion.before.length, lastInsertion.before.length + lastInsertion.insertedLength) : '')) {
+        return report('Son ekleme geri alınamadı; composer metni değişti.');
+      }
+      input.value = expected;
+      input.setSelectionRange(lastInsertion.selectionStart, lastInsertion.selectionStart);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+      lastInsertion = null;
+      undo.disabled = true;
+      report('Son dosya eklemesi geri alındı.');
+    };
+    undo.addEventListener('click', onUndo);
     fileInput.addEventListener('change', onFileChange);
     drop.addEventListener('click', onDropClick);
     drop.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); } });
@@ -208,7 +242,7 @@
       destroy: () => {
         destroyed = true; rootRef.clearTimeout?.(expiryTimer);
         attach.removeEventListener('click', onAttach); choose.removeEventListener('click', onChoose); close.removeEventListener('click', closePanel);
-        insert.removeEventListener('click', insertSelected); clear.removeEventListener('click', onClear); fileInput.removeEventListener('change', onFileChange);
+        insert.removeEventListener('click', insertSelected); undo.removeEventListener('click', onUndo); clear.removeEventListener('click', onClear); fileInput.removeEventListener('change', onFileChange);
         drop.removeEventListener('click', onDropClick); drop.removeEventListener('dragover', onDragOver); drop.removeEventListener('dragleave', onDragLeave); drop.removeEventListener('drop', onDrop);
         input.removeEventListener('paste', onPaste); doc.removeEventListener('keydown', onKeydown); panel.remove(); fileInput.remove(); delete rootRef.HafizeComposerAttachmentsController;
       }
