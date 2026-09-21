@@ -1,7 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "include": [
-    "server.ts",
     "lib/**/*.ts"
   ],
   "compilerOptions": {
