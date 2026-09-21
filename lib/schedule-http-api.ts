@@ -1,12 +1,16 @@
+export interface ScheduleHttpResponse { matched: boolean; status?: number; body?: unknown; headers?: Record<string, string> }
+export interface ScheduleHttpRequest { request?: unknown; method?: string; pathname?: string; headers?: Record<string, string | undefined> }
+export interface ScheduleHttpApiOptions { authenticator?: { authenticate(input: { headers?: Record<string, string | undefined> }): { ok: boolean; principal?: unknown } }; commands?: { create(input: { principal: unknown; input: unknown }): Promise<any>; list(input: { principal: unknown }): Promise<any>; cancel(input: { principal: unknown; scheduleId: string }): Promise<any> }; readJson?: (request: unknown) => Promise<unknown> }
+
 import { normalizeApiError } from './api-error-contract.mjs';
 
 const SCHEDULES_PATH = '/api/schedules';
 
-function response(status, body, headers = {}) {
+function response(status: number, body: unknown, headers: Record<string, string> = {}): ScheduleHttpResponse {
   return { matched: true, status, body, headers };
 }
 
-function commandErrorStatus(error) {
+function commandErrorStatus(error: string): number {
   if (error === 'AUTH_REQUIRED') return 401;
   if (error === 'INVALID_SCHEDULE_COMMAND' || error === 'INVALID_AGENT' || error === 'INVALID_SCHEDULE') return 400;
   if (error === 'SCHEDULE_NOT_FOUND') return 404;
@@ -15,12 +19,12 @@ function commandErrorStatus(error) {
   return 500;
 }
 
-function requestIdFromHeaders(headers) {
+function requestIdFromHeaders(headers: Record<string, string | undefined> | undefined): string | null {
   const value = headers?.['x-hafize-request-id'] || headers?.['X-Hafize-Request-Id'];
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function commandResponse(output, successStatus, requestId) {
+function commandResponse(output: any, successStatus: number, requestId: string | null): ScheduleHttpResponse {
   if (output?.ok) return response(successStatus, output);
   const error = typeof output?.error === 'string' ? output.error : 'SCHEDULE_COMMAND_FAILED';
   const normalized = normalizeApiError({
@@ -31,7 +35,7 @@ function commandResponse(output, successStatus, requestId) {
   return response(normalized.status, normalized, requestId ? { 'X-Hafize-Request-Id': requestId } : {});
 }
 
-function scheduleIdFromPath(pathname) {
+function scheduleIdFromPath(pathname: string): string | null {
   const prefix = `${SCHEDULES_PATH}/`;
   if (!pathname.startsWith(prefix)) return null;
   const raw = pathname.slice(prefix.length);
@@ -44,7 +48,7 @@ function scheduleIdFromPath(pathname) {
   }
 }
 
-export function createScheduleHttpApi({ authenticator, commands, readJson } = {}) {
+export function createScheduleHttpApi({ authenticator, commands, readJson }: ScheduleHttpApiOptions = {}): Readonly<{ handle: (input?: ScheduleHttpRequest) => Promise<ScheduleHttpResponse> }> {
   if (typeof authenticator?.authenticate !== 'function') throw new Error('INVALID_SCHEDULE_HTTP_API:authenticator');
   if (
     typeof commands?.create !== 'function' ||
@@ -53,7 +57,7 @@ export function createScheduleHttpApi({ authenticator, commands, readJson } = {}
   ) throw new Error('INVALID_SCHEDULE_HTTP_API:commands');
   if (typeof readJson !== 'function') throw new Error('INVALID_SCHEDULE_HTTP_API:readJson');
 
-  async function handle({ request, method, pathname, headers } = {}) {
+  async function handle({ request, method, pathname, headers }: ScheduleHttpRequest = {}): Promise<ScheduleHttpResponse> {
     const verb = typeof method === 'string' ? method.toUpperCase() : '';
     const path = typeof pathname === 'string' ? pathname : '';
     const root = path === SCHEDULES_PATH;
