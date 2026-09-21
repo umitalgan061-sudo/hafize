@@ -56,8 +56,8 @@ export default defineConfig({
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
         'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
         'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts'),
-        'markdown-renderer': resolve(ROOT, 'public/typed/markdown-renderer.ts'),
-        'conversation-workspace': resolve(ROOT, 'public/typed/conversation-workspace.ts'),
+        'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
+        'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
         'prompt-library': resolve(ROOT, 'public/typed/prompt-library.ts'),
         'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts')
