@@ -25,7 +25,10 @@
     '/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js',
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
     '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
-    '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
+    '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js',
+    '/typed-build/app.js', '/typed-build/auth.js', '/typed-build/chat-composer-features.js',
+    '/typed-build/conversation-workspace.js', '/typed-build/conversation-workspace-keyboard.js',
+    '/typed-build/message-workspace-policy.js', '/typed-build/message-workspace.js', '/typed-build/workspace-navigation.js', '/typed-build/prompt-library-command-palette.js',
     '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/scheduled-tasks-countdown.js',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
