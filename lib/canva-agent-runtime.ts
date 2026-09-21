@@ -1,9 +1,9 @@
 interface CanvaAgentRuntimeOptions { env?: Record<string,string|undefined>; fetchImpl?: typeof fetch; createAuthenticator?: (...args:any[])=>any; createOwnerResolver?: (...args:any[])=>any; createTokenStoreRuntime?: (...args:any[])=>any; createReadClient?: (...args:any[])=>any; createBoundary?: (...args:any[])=>any }
 import { createBearerPrincipalAuthenticator } from './server-auth.ts';
 import { createConnectorOwnerResolver } from './connector-owner-principal.ts';
-import { createOAuthTokenStoreRuntime } from './oauth-token-store-runtime.mjs';
-import { createCanvaReadClient } from './canva-read-client.mjs';
-import { createCanvaReadToolBoundary } from './canva-read-tool-boundary.mjs';
+import { createOAuthTokenStoreRuntime } from './oauth-token-store-runtime.ts';
+import { createCanvaReadClient } from './canva-read-client.ts';
+import { createCanvaReadToolBoundary } from './canva-read-tool-boundary.ts';
 
 const AUTH_TOKEN_ENV = 'HAFIZE_CONNECTOR_AUTH_TOKEN';
 const AUTH_SUBJECT_ENV = 'HAFIZE_CONNECTOR_AUTH_SUBJECT';
