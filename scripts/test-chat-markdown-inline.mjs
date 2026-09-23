@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+const markdown = require('../public/markdown-renderer.ts');
 
 const inline = (source) => markdown.parseInline(source);
 const shape = (source) => inline(source).map((node) => node.type);

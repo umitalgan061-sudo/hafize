@@ -94,7 +94,7 @@ function createEnv({ port, storageFile, storageKey }) {
 
 function spawnServer(env) {
   const output = { stdout: '', stderr: '' };
-  const child = spawn(process.execPath, ['server.mjs'], {
+  const child = spawn(process.execPath, ['server.ts'], {
     cwd: ROOT,
     env,
     stdio: ['ignore', 'pipe', 'pipe']

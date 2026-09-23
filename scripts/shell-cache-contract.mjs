@@ -5,7 +5,7 @@
 // This module is a helper, not a suite (run-checks only executes test-*/validate-*).
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,29 @@ export function indexHtmlAssets() {
   const html = readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
   const found = new Set();
   for (const match of html.matchAll(/(?:href|src)="(\/[^"?#]+\.(?:css|js))"/g)) found.add(match[1]);
+  return [...found];
+}
+
+/**
+ * Same-origin CSS/JS URLs a shipped module appends to the page at runtime
+ * (`inject('/x.js', …)` / `injectCss('/x.css', …)`). These are part of the page
+ * even though `index.html` never names them, so the shell caches them and the
+ * contract must not treat them as dead entries.
+ */
+export function dynamicallyInjectedAssets() {
+  const found = new Set();
+  for (const entry of readdirSync(PUBLIC_DIR, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.js')) continue;
+    const source = readFileSync(path.join(PUBLIC_DIR, entry.name), 'utf8');
+    // Loaders name the asset either inline (`inject('/x.js', …)`) or through a
+    // module constant (`const CHAT = '/chat-markdown.js'`), so any same-origin
+    // asset literal inside a file that builds <script>/<link> nodes counts as a
+    // page asset. This only relaxes the "nothing cached for free" direction;
+    // the exact checks (every cached asset exists, everything index.html loads
+    // is cached) are unaffected.
+    if (!/createElement\(\s*'(?:script|link)'/.test(source)) continue;
+    for (const match of source.matchAll(/'(\/[A-Za-z0-9._\/-]+\.(?:css|js))'/g)) found.add(match[1]);
+  }
   return [...found];
 }
 
@@ -76,9 +99,10 @@ export function assertShellCacheContract() {
   for (const asset of indexAssets) {
     assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `index.html asset ${asset} is cached by the service worker`);
   }
+  const pageAssets = new Set([...indexAssets, ...dynamicallyInjectedAssets()]);
   for (const asset of swPolicy.SHELL_ASSETS) {
     if (NON_INDEX_SHELL_ASSETS.includes(asset) || !/\.(css|js)$/.test(asset)) continue;
-    assert.ok(indexAssets.has(asset), `shell asset ${asset} is still loaded by index.html`);
+    assert.ok(pageAssets.has(asset), `shell asset ${asset} is still loaded by the page`);
   }
 
   // Every older version is cleaned up, the current one is kept and foreign caches are untouched.

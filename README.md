@@ -125,8 +125,9 @@ npm run check:modern
 Bu zincir typecheck, runtime typecheck, Vitest, format kontrolü ve TypeScript
 migration/güvenlik/UI sözleşmelerini sırayla doğrular ve uçtan uca yeşildir.
 `npm run check` içindeki eski kaynak-sözleşme paketlerinin bir bölümü hâlâ
-`public/<ad>.js` köprülerini okuduğu için başarısızdır; durum ve kalan iş
-`docs/TYPED_GATE_REPAIR.md` içinde ayrıntılı olarak yazılıdır.
+TypeScript öncesi JavaScript yazımına bakan regex'ler kullandığı için
+başarısızdır; durum ve kalan iş `docs/TYPED_GATE_REPAIR.md` içinde ayrıntılı
+olarak yazılıdır.
 
 Scheduled Tasks özel kontrolleri:
 

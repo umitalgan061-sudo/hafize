@@ -51,6 +51,9 @@ contains(presets, /PRESET_KEY/); contains(presets, /MAX_PRESETS\s*=\s*32/); cont
 contains(css, /prompt-library-variable-dialog/); contains(css, /max-width:700px/); contains(css, /forced-colors:active/); contains(css, /prefers-reduced-motion:reduce/);
 contains(historyCss, /prompt-smart-insert-history/); contains(historyCss, /forced-colors:active/); contains(suggestionsCss, /prompt-smart-insert-suggestions/); contains(suggestionsCss, /max-width:700px/);
 contains(sw, /prompt-library-smart-insert\.js/); contains(sw, /prompt-library-smart-insert-center\.js/); contains(sw, /prompt-library-smart-insert-history\.js/); contains(sw, /prompt-library-smart-insert-history-bridge\.js/); contains(sw,
-  /prompt-library-smart-insert-suggestions\.js/); contains(sw, /prompt-library-smart-insert-shortcuts\.js/); contains(sw, /prompt-library-smart-insert-presets\.js/); contains(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v38`/);
+  /prompt-library-smart-insert-suggestions\.js/);
+contains(sw, /prompt-library-smart-insert-shortcuts\.js/);
+contains(sw, /prompt-library-smart-insert-presets\.js/);
+contains(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/, 'shell cache stays versioned');
 
 console.log('prompt-library-smart-insert-integration: ok');

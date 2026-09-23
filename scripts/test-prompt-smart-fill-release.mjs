@@ -5,9 +5,9 @@ import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
 const sw = fs.readFileSync(path.join(root,'public/sw-policy.js'),'utf8');
-const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.js'),'utf8');
-const hints = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill-hints.js'),'utf8');
-const palette = fs.readFileSync(path.join(root,'public/prompt-library-command-palette.js'),'utf8');
+const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.ts'),'utf8');
+const hints = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill-hints.ts'),'utf8');
+const palette = fs.readFileSync(path.join(root,'public/prompt-library-command-palette.ts'),'utf8');
 for (const asset of ['prompt-library-smart-fill.css','prompt-library-command-palette.css','prompt-library-smart-fill.js','prompt-library-command-palette.js','prompt-library-smart-fill-hints.js']) assert.match(index,
   new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
 assertVersionedCacheDeclaration(sw);

@@ -10,11 +10,11 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (file) => readFileSync(path.join(ROOT, file), 'utf8');
 
 const html = read('public/index.html');
-const app = read('public/app.js');
+const app = read('public/typed/app-shell.ts');
 const chatMarkdown = read('public/chat-markdown.js');
 const composerFeatures = read('public/chat-composer-features.js');
-const messageWorkspace = read('public/message-workspace.js');
-const voiceOutput = read('public/voice-output.js');
+const messageWorkspace = read('public/typed/message-workspace.ts');
+const voiceOutput = read('public/typed/voice-output.ts');
 const css = read('public/chat-markdown.css');
 
 /* The page loads the three new files, in a usable order ------------------ */

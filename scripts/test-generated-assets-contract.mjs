@@ -23,7 +23,9 @@ for (const entry of entries) {
   assert(vite.includes(`'${entry}':`), `${entry} missing from Vite entry map`);
 }
 
-assert(sw.includes('hafize-shell-v35'), 'expected cache version v35');
+// The shell cache version is bumped on every shell change (docs/CHECK_GATE.md),
+// so the contract is that it stays versioned, not that it stays at one number.
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'shell cache must declare a numeric version');
 assert(!html.includes('typed-build/*.js'), 'wildcard generated entry is not allowed');
 assert(!html.includes('/public/typed'), 'source filesystem path must not appear in HTML');
 console.log(`generated-assets-contract: ${entries.length} typed entries aligned`);

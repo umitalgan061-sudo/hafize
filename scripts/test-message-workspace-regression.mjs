@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
-const app = await read('public/app.js');
-const workspace = await read('public/message-workspace.js');
+const app = await read('public/typed/app-shell.ts');
+const workspace = await read('public/typed/message-workspace.ts');
 const index = await read('public/index.html');
 const sw = await read('public/sw-policy.js');
 

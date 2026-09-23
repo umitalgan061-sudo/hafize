@@ -130,18 +130,56 @@ regex kümesiyle paralel yaşamasını da bitirdi.
 ettiği `fetch` de aynı dosyadaki `GitHubApiFetch` ile daraltıldı: çağrı yerleri
 her zaman hazır bir `URL` geçtiği için testler isteği cast olmadan gözlemliyor.
 
-## Kalan iş
+## Eski paketlerin yeniden bağlanması
 
 `npm run check` artık 390 paketin tamamını çalıştırıyor (önceden `precheck`
-adımında duruyordu). 153 başarısız paketten 129'u kaldı; yeni başarısız olan
-paket yok.
+adımında duruyordu). Başarısız paket sayısı **153'ten 60'a** indi; yeni
+başarısız olan paket yok.
 
-Kalanların büyük çoğunluğu tek bir kök nedene sahip: TypeScript dalgası
-tarayıcı modüllerini `public/typed/*.ts` altına taşıdı, ancak kaynak-sözleşme
-paketleri hâlâ `public/<ad>.js` dosyasını okuyor ve artık orada yalnızca
-uyumluluk köprüsü var. Bir sonraki tur bu paketleri tipli kaynağa yöneltmeli;
-`scripts/typed-browser-import.mjs` bunun için gereken inert `document`
-kurulumunu zaten sağlıyor.
+Bu turda kapatılan gruplar:
+
+- 81 paket `public/<ad>.js` yerine tipli kaynağa (`public/<ad>.ts` ya da
+  `public/typed/<ad>.ts`) yöneltildi; `server.mjs` okuyan beş paket
+  `server.ts`'ye çevrildi.
+- Sabit yazılmış yedi shell cache sürümü (`v35`, `v36`, `v38`) sürümlü
+  bildirim değişmezine çevrildi.
+- `public/ui-shell.js`, `public/voice-input.js`, `public/voice-output.js` gibi
+  silinmiş dosyaları `createRequire` ile yükleyen paketler
+  `scripts/typed-browser-import.mjs` üzerinden tipli kaynağı çalıştırıyor.
+  Bu yardımcı, modüller içe aktarılırken kendilerini bağladığı için her
+  mount'un ilk kontrolünde geri dönmesini sağlayan inert bir `document` kurar.
+- PWA kabuğu sözleşmesi çalışma zamanında sayfaya eklenen varlıkları
+  (`inject('/x.js', …)` ve `bootstrapChatMarkdown` gibi sabit üzerinden
+  yükleyenler) artık sayfa varlığı sayıyor. `/chat-markdown.js`,
+  `/chat-markdown.css` ve `/markdown-renderer.js` çalışma zamanında
+  yükleniyor ama hiç önbelleğe alınmıyordu; kabuk listesine eklendi.
+- Yalnızca uyumluluk köprüsü olan `/message-workspace.js` kabuk listesinden
+  çıkarıldı; diğer dört köprü zaten listede değil.
+- `lib/scheduled-agent-executor.mjs` silinmiş bir modülü import ettiği için
+  hiç yüklenemiyordu; tipli sürüme köprü oldu.
+
+## Kalan iş
+
+Kalan 60 paketin neredeyse tamamı tek bir desende: TypeScript öncesi
+JavaScript kaynağının metnine bakan regex'ler. `function openFor(prompt)`
+gibi bir kalıp, aynı davranış `const openFor = (prompt: PromptRecord)` olarak
+yazıldığında eşleşmiyor. `docs/CHECK_GATE.md` bu kırılganlığı zaten
+uyarıyor ("davranış tercih edilir, yazım değil"), bu yüzden doğru çözüm
+regex'leri TypeScript yazımına uydurmak değil, bu paketleri davranış testine
+çevirmek. Bu, kendi başına bir iş paketidir ve bu turda bilinçli olarak
+açılmadı: her paket için doğru davranış sözleşmesini seçmek, kaynak metnini
+yeniden yazmaktan farklı bir karar.
+
+Bir paket ayrıca gerçek bir çalışma zamanı gözlemiyle kırmızı:
+`test-server-startup-integration.mjs` sunucunun `stderr`'ini boş bekliyor,
+ancak `package.json` içinde `"type"` alanı olmadığı için Node her `.ts`
+modülünü `MODULE_TYPELESS_PACKAGE_JSON` uyarısıyla yeniden ayrıştırıyor.
+Uyarı gerçek (küçük) bir başlangıç maliyetini bildiriyor; susturmak yerine
+kökten çözmek gerekiyor. `"type": "module"` eklemek tek satır, ancak
+`createRequire` ile `public/*.js` yükleyen 22 paketi önce ESM'e çevirmeyi
+gerektiriyor — UMD sarmalayıcıları `module` yokken `globalThis` üzerine
+yazdığı için paylaşılan bir `requireBrowserModule` yardımcısı bunu tek yerde
+çözebilir.
 
 `lib/agent-runtime.mjs` (162 satır) ile `lib/agent-runtime.ts` (66 satır) hâlâ
 ayrı uygulamalar; `tool-runtime.ts` ve `agent-delegation.ts` çalışma zamanında

@@ -39,8 +39,8 @@ assertShellAssets([
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/app.js',
-  '/ui-shell.js',
+  '/typed-build/app-shell.js',
+  '/typed-build/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
@@ -64,7 +64,7 @@ assert.equal(
   'query strings must not prevent shell matching'
 );
 assert.equal(
-  policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
+  policy.classifyRequest(request('/typed-build/app-shell.js?cache-bust=1'), ORIGIN),
   'shell'
 );
 
