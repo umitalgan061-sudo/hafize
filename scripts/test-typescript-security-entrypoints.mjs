@@ -35,15 +35,25 @@ assert.match(packageJson.scripts.start, /server\.ts$/);
 assert.match(packageJson.scripts.typecheck, /tsc/);
 assert.match(packageJson.scripts['typecheck:runtime'], /tsconfig\.runtime\.json/);
 
+// Legacy `.mjs` names stay as one-line re-exports so existing importers keep
+// working; the re-export target is a sibling, so it is matched on the basename
+// rather than the repository path.
 const bridges = [
   'lib/oauth-pkce.mjs',
   'lib/oauth-callback-contract.mjs',
   'lib/oauth-flow-store.mjs',
   'lib/oauth-token-encryption.mjs',
-  'lib/personal-memory-encryption.mjs'
+  'lib/personal-memory-encryption.mjs',
+  'lib/plaintext-credential-policy.mjs',
+  'lib/oauth-token-store-runtime.mjs',
+  'lib/canva-read-client.mjs',
+  'lib/canva-read-tool-boundary.mjs',
+  'lib/gmail-read-client.mjs',
+  'lib/gmail-read-tool-boundary.mjs'
 ];
 for (const path of bridges) {
-  assert.equal(read(path).trim(), `export * from './${path.replace(/\.mjs$/, '.ts')}';`);
+  const typedSibling = path.slice(path.lastIndexOf('/') + 1).replace(/\.mjs$/, '.ts');
+  assert.equal(read(path).trim(), `export * from './${typedSibling}';`, `${path} is a typed re-export bridge`);
 }
 
 console.log('TypeScript security entrypoint gate: ok');

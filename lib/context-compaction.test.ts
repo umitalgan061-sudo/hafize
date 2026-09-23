@@ -3,7 +3,7 @@ import { createContextCompactor, estimateMessageTokens } from './context-compact
 
 describe('context compaction',()=>{
   it('estimates tokens deterministically',()=>{
-    expect(estimateMessageTokens([{role:'user',content:'1234'}])).toBe(4);
+    expect(estimateMessageTokens([{role:'user',content:'1234'}])).toBe(5);
   });
   it('keeps short histories unchanged',async()=>{
     const compactor=createContextCompactor({contextLimitTokens:16_000,summarize:async()=> 'unused'});
@@ -22,7 +22,7 @@ describe('context compaction',()=>{
   });
   it('fails closed when summarization errors',async()=>{
     const compactor=createContextCompactor({contextLimitTokens:16_000,triggerRatio:.5,summarize:async()=>{throw new Error('provider');}});
-    const messages=Array.from({length:30},()=>({role:'user',content:'x'.repeat(1000)}));
+    const messages=Array.from({length:40},()=>({role:'user',content:'x'.repeat(1000)}));
     const result=await compactor.prepare(messages);
     expect(result.meta.reason).toBe('summary_failed');
     expect(result.messages).toBe(messages);

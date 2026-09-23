@@ -126,7 +126,8 @@
     listSection.append(make('div', 'Planlanan görevler', 'scheduled-tasks-section-title'));
     const filter = make('div', undefined, 'scheduled-tasks-filter');
     const filterSelect = doc().createElement('select'); filterSelect.setAttribute('aria-label', 'Görev durumuna göre filtrele');
-    [['all','Tümü'],['scheduled','Planlandı'],['running','Çalışıyor'],['completed','Tamamlandı'],['failed','Başarısız'],['cancelled','İptal edildi']].forEach(([value,label]) => { const option = make('option', label); option.value = value; filterSelect.append(option); });
+    [['all','Tümü'], ['scheduled','Planlandı'], ['running','Çalışıyor'], ['completed','Tamamlandı'], ['failed','Başarısız'],
+      ['cancelled','İptal edildi']].forEach(([value,label]) => { const option = make('option', label); option.value = value; filterSelect.append(option); });
     const filterInfo = make('span', '', 'scheduled-tasks-filter-info'); filter.append(filterSelect, filterInfo);
     const list = make('div', undefined, 'scheduled-tasks-list'); list.setAttribute('role','list');
     listSection.append(filter, list);

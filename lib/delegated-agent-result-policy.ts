@@ -1,5 +1,5 @@
 // @ts-ignore Legacy credential policy remains shared during migration.
-import { containsPlaintextCredential } from './plaintext-credential-policy.mjs';
+import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 export const MAX_DELEGATED_CONTENT_CHARS=32_768;
 export const MAX_DELEGATED_ERROR_CHARS=120;
 const SUCCESS_KEYS=new Set(['ok','content']),FAILURE_KEYS=new Set(['ok','error']),ERROR_CODE=/^[A-Z][A-Z0-9_]{1,119}$/;

@@ -62,7 +62,10 @@ assert(!text.index.includes('prompt-library-smart-fill.js" defer'), 'legacy Smar
 assert(!text.index.includes('prompt-library-command-palette.js" defer'), 'legacy Command Palette script remains in HTML');
 assert(!text.index.includes('scheduled-tasks-countdown.js" defer'), 'legacy Countdown script remains in HTML');
 assert(!text.index.includes('prompt-library-smart-fill-hints.js" defer'), 'legacy Smart Fill hints remain in HTML');
-assert(text.sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v41`'), 'service worker cache version must be v41');
+// The shell cache version is bumped on every shell change, so this suite
+// asserts the invariant (a declared numeric version) instead of a literal that
+// silently goes stale — see scripts/shell-cache-contract.mjs.
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(text.sw), 'service worker must declare a versioned shell cache');
 assert(text.sw.includes('/typed-build/app-runtime.js'), 'runtime build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-smart-fill.js'), 'Smart Fill build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-command-palette.js'), 'Command Palette build missing from PWA shell');
@@ -71,5 +74,7 @@ assert(text.sw.includes('/typed-build/prompt-library-smart-fill-hints.js'), 'Sma
 assert(text.sw.includes('/typed-build/message-workspace.js'), 'Message Workspace build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library.js'), 'Prompt Library build missing from PWA shell');
 assert(text.sw.includes('/typed-build/scheduled-tasks.js'), 'Scheduled Tasks build missing from PWA shell');
+assert(text.sw.includes('/typed-build/markdown-renderer.js'), 'Markdown Renderer build missing from PWA shell');
+assert(text.sw.includes('/typed-build/conversation-workspace.js'), 'Conversation Workspace build missing from PWA shell');
 assert(!text.api.includes('Authorization'), 'browser API client must not own auth credentials');
 console.log('modern-toolchain: source contracts ok');

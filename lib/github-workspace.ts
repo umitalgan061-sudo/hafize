@@ -1,3 +1,5 @@
+import type { GitHubApiFetch } from './runtime-contracts.ts';
+
 const DEFAULT_API = 'https://api.github.com';
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const MAX_REPOSITORY = 120;
@@ -32,10 +34,75 @@ type WorkspaceReaderOptions = {
   readonly token?: string;
   readonly allowedRepositories?: readonly string[];
   readonly baseUrl?: string;
-  readonly fetchImpl?: typeof fetch;
+  readonly fetchImpl?: GitHubApiFetch;
   readonly readFile?: (input: { readonly repository: string; readonly path: string; readonly ref: string | null }) => Promise<{ readonly path: string; readonly ref: string | null; readonly sha: string | null; readonly size: number; readonly content: string; readonly truncated: boolean; }>;
 };
 type JsonRecord = Record<string, unknown>;
+
+export interface GitHubWorkspaceBranch {
+  readonly name: string;
+  readonly sha: string;
+  readonly protected: boolean;
+}
+export interface GitHubWorkspaceCommit {
+  readonly sha: string;
+  readonly shortSha: string;
+  readonly message: string;
+  readonly author: string;
+  readonly date: string;
+  readonly htmlUrl: string;
+}
+export interface GitHubWorkspacePullRequest {
+  readonly number: number;
+  readonly title: string;
+  readonly state: string;
+  readonly draft: boolean;
+  readonly author: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly htmlUrl: string;
+  readonly head: string;
+  readonly base: string;
+}
+export interface GitHubWorkspaceRepositoryResult {
+  readonly repository: string;
+  readonly name: string;
+  readonly fullName: string;
+  readonly description: string;
+  readonly defaultBranch: string;
+  readonly visibility: string;
+  readonly archived: boolean;
+  readonly htmlUrl: string;
+}
+export interface GitHubWorkspaceBranchesResult {
+  readonly repository: string;
+  readonly branches: readonly GitHubWorkspaceBranch[];
+}
+export interface GitHubWorkspaceCommitsResult {
+  readonly repository: string;
+  readonly ref: string | null;
+  readonly commits: readonly GitHubWorkspaceCommit[];
+}
+export interface GitHubWorkspacePullsResult {
+  readonly repository: string;
+  readonly state: string;
+  readonly pullRequests: readonly GitHubWorkspacePullRequest[];
+}
+export interface GitHubWorkspaceFileResult {
+  readonly repository: string;
+  readonly path: string;
+  readonly ref: string | null;
+  readonly sha: string | null;
+  readonly size: number;
+  readonly truncated: boolean;
+  readonly content: string;
+}
+export type GitHubWorkspaceResult =
+  | GitHubWorkspaceRepositoryResult
+  | GitHubWorkspaceBranchesResult
+  | GitHubWorkspaceCommitsResult
+  | GitHubWorkspacePullsResult
+  | GitHubWorkspaceFileResult;
 
 function clampString(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -119,7 +186,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     }
   }
 
-  async function repository(input: { readonly repository: unknown }): Promise<JsonRecord> {
+  async function repository(input: { readonly repository: unknown }): Promise<GitHubWorkspaceRepositoryResult> {
     const repo = normalizeRepository(input.repository);
     assertAllowed(repo, allowedRepositories);
     const payload = await requestJson('/repos/' + encodeRepositoryPath(repo));
@@ -138,7 +205,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     };
   }
 
-  async function branches(input: { readonly repository: unknown; readonly limit?: unknown }): Promise<JsonRecord> {
+  async function branches(input: { readonly repository: unknown; readonly limit?: unknown }): Promise<GitHubWorkspaceBranchesResult> {
     const repo = normalizeRepository(input.repository);
     assertAllowed(repo, allowedRepositories);
     const search = new URLSearchParams({ per_page: String(normalizeLimit(input.limit)) });
@@ -157,7 +224,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     };
   }
 
-  async function commits(input: { readonly repository: unknown; readonly ref?: unknown; readonly limit?: unknown }): Promise<JsonRecord> {
+  async function commits(input: { readonly repository: unknown; readonly ref?: unknown; readonly limit?: unknown }): Promise<GitHubWorkspaceCommitsResult> {
     const repo = normalizeRepository(input.repository);
     assertAllowed(repo, allowedRepositories);
     const search = new URLSearchParams({ per_page: String(normalizeLimit(input.limit)) });
@@ -188,7 +255,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     };
   }
 
-  async function pulls(input: { readonly repository: unknown; readonly state?: unknown; readonly limit?: unknown }): Promise<JsonRecord> {
+  async function pulls(input: { readonly repository: unknown; readonly state?: unknown; readonly limit?: unknown }): Promise<GitHubWorkspacePullsResult> {
     const repo = normalizeRepository(input.repository);
     assertAllowed(repo, allowedRepositories);
     const requestedState = clampString(input.state, 20);
@@ -224,7 +291,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     };
   }
 
-  async function file(input: { readonly repository: unknown; readonly path: unknown; readonly ref?: unknown }): Promise<JsonRecord> {
+  async function file(input: { readonly repository: unknown; readonly path?: unknown; readonly ref?: unknown }): Promise<GitHubWorkspaceFileResult> {
     const repo = normalizeRepository(input.repository);
     assertAllowed(repo, allowedRepositories);
     const path = normalizePath(input.path);
@@ -234,7 +301,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     return { repository: repo, path: result.path, ref: result.ref, sha: result.sha, size: result.size, truncated: result.truncated, content: result.content };
   }
 
-  async function inspect(input: { readonly action: unknown; readonly repository: unknown; readonly path?: unknown; readonly ref?: unknown; readonly state?: unknown; readonly limit?: unknown }): Promise<JsonRecord> {
+  async function inspect(input: { readonly action: unknown; readonly repository: unknown; readonly path?: unknown; readonly ref?: unknown; readonly state?: unknown; readonly limit?: unknown }): Promise<GitHubWorkspaceResult> {
     const action = normalizeAction(input.action);
     if (action === 'repo') return repository(input);
     if (action === 'branches') return branches(input);

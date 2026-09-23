@@ -22,7 +22,7 @@ describe('OAuth flow store', () => {
     const store = createOAuthFlowStore({ ttlMs: 100, now: () => now });
     store.issue(base);
     now = 1_101;
-    expect(() => store.consume(state)).toThrow('OAUTH_FLOW_NOT_FOUND');
+    expect(() => store.consume(state)).toThrow('OAUTH_FLOW_EXPIRED');
     expect(store.size()).toBe(0);
   });
 

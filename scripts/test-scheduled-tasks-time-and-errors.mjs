@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../public/scheduled-tasks.js', import.meta.url), 'utf8');
-const api = await readFile(new URL('../lib/schedule-http-api.mjs', import.meta.url), 'utf8');
+// The panel implementation moved to TypeScript; public/scheduled-tasks.js is
+// now only a compatibility bridge to the compiled entry.
+const source = await readFile(new URL('../public/typed/scheduled-tasks.ts', import.meta.url), 'utf8');
+const api = await readFile(new URL('../lib/schedule-http-api.ts', import.meta.url), 'utf8');
 const store = await readFile(new URL('../lib/task-schedule-store.mjs', import.meta.url), 'utf8');
 
 assert.match(source, /new Date\(value\)/);

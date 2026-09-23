@@ -423,6 +423,10 @@ async function handleAgentRun(req, res) {
 
   const tools = getAllowedNvidiaTools(agent, {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
+    // The catalogue only publishes github_read_file when the reader itself is
+    // reachable, so the same handle the execution context gets must be passed
+    // here — otherwise the tool silently disappears from the model's catalogue.
+    githubReadFile: GITHUB_READ_FILE,
     delegateAgent: delegator.delegate,
     ...connectorContext
   });

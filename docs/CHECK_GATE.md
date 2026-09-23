@@ -17,10 +17,17 @@ kaynak-sözleşme yardımcılarını sağlar: bir attribute markup ya da `setAtt
 bir sınıf seçici ya da sınıf adı olarak, CSS parçaları ise boşluktan bağımsız eşleşir.
 `browser-storage-stub.mjs` ise tarayıcı modüllerini Node içinde çalıştırmak için bellek içi
 `localStorage` ve bilinçli olarak hata fırlatan store taklitleri verir.
+`typed-browser-import.mjs`, `public/typed/*.ts` girişlerini Node içinde içe aktarmak içindir:
+bu modüller içe aktarılırken kendilerini `install(document, …)` ile bağlar, bu yüzden yardımcı
+her mount'un ilk kontrolünde (`documentElement`, `querySelector`) geri dönmesini sağlayan inert
+bir `document` kurar ve import bittiğinde önceki globalleri geri koyar.
 Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
 
 ## Paket yazarken
 
+- **Kaynak yolu tipli dosyayı göstermelidir.** Bir tarayıcı modülü
+  `public/typed/*.ts` altına taşındıysa paket artık `public/<ad>.js` dosyasını okumamalıdır;
+  orada yalnızca derlenmiş girişe yönlendiren uyumluluk köprüsü kalır.
 - **Shell cache sürümü sabit yazılmaz.** `assertVersionedCacheDeclaration(sw)` ya da
   `assertShellCacheContract()` kullanılır. `v29` gibi bir sabit, bir sonraki asset
   değişikliğinde ilgisiz paketleri kırar.

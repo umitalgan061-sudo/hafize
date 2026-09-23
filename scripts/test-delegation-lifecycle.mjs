@@ -33,14 +33,16 @@ release(); const cancelled = await pending;
 assert.deepEqual(cancelled, { ok: false, error: 'DELEGATION_CANCELLED' });
 assert.equal(lifecycle.get('delegation-1').state, 'cancelled'); assert.equal(ledgerEntries.at(-1).ok, false); assert.equal(ledgerEntries.at(-1).error, 'DELEGATION_CANCELLED');
 const successLifecycle = createAgentLifecycle({ maxConcurrent: 2 });
-const successDelegator = createAgentDelegator({ registry, traceId: 'trace-2', parentAgent: registry.agents[0], parentTaskId: 'root-2', runLedger, lifecycle: successLifecycle, async executeAgent() { return { ok: true, content: 'verified' }; } });
+const successDelegator = createAgentDelegator({ registry, traceId: 'trace-2', parentAgent: registry.agents[0], parentTaskId: 'root-2', runLedger, lifecycle: successLifecycle,
+  async executeAgent() { return { ok: true, content: 'verified' }; } });
 const succeeded = await successDelegator.delegate({ agentId: 'specialist', task: 'test sonucu üret', successCriteria: ['test çalışsın'], constraints: ['kapsam dışına çıkma'], evidenceRequired: ['exit 0'] });
 assert.equal(succeeded.ok, true); assert.equal(succeeded.value.content, 'verified'); assert.equal(successLifecycle.get('delegation-2').state, 'completed');
 assert.equal(await successDelegator.delegate({ agentId: 'specialist', task: 'x' }).then((result) => result.ok), true);
 assert.throws(() => successLifecycle.start({ runId: 'delegation-2', execute: async () => null }), /AGENT_RUN_ALREADY_EXISTS/);
 const limited = createAgentLifecycle({ maxConcurrent: 1 });
 let hold;
-const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger: createRunLedger([]), lifecycle: limited, async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
+const limitedDelegator = createAgentDelegator({ registry, traceId: 'trace-3', parentAgent: registry.agents[0], parentTaskId: 'root-3', runLedger: createRunLedger([]), lifecycle: limited,
+  async executeAgent() { await new Promise((resolve) => { hold = resolve; }); return { ok: true, content: 'held' }; } });
 const firstRun = limitedDelegator.delegate({ agentId: 'specialist', task: 'hold' });
 await new Promise((resolve) => setTimeout(resolve, 0));
 const rejected = await limitedDelegator.delegate({ agentId: 'specialist', task: 'reject' });

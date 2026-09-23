@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const voiceOutput = require('../public/voice-output.js');
+import { importTypedBrowserModule } from './typed-browser-import.mjs';
+const voiceOutput = await importTypedBrowserModule('../public/typed/voice-output.ts');
 
 assert.equal(voiceOutput.normalizeSpeechText('  **Merhaba**   _Hafize_  '), 'Merhaba Hafize');
 assert.equal(voiceOutput.normalizeSpeechText('Örnek: `const x = 1` https://example.com'), 'Örnek: const x = 1 bağlantı');

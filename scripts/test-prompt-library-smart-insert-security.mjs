@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
-const files = ['public/prompt-library-smart-insert.js','public/prompt-library-smart-insert-center.js','public/prompt-library-smart-insert-history.js','public/prompt-library-smart-insert-history-bridge.js','public/prompt-library-smart-insert-suggestions.js','public/prompt-library-smart-insert-presets.js','public/prompt-library-smart-insert-validation.js'];
+const files = ['public/prompt-library-smart-insert.js', 'public/prompt-library-smart-insert-center.js', 'public/prompt-library-smart-insert-history.js', 'public/prompt-library-smart-insert-history-bridge.js',
+  'public/prompt-library-smart-insert-suggestions.js', 'public/prompt-library-smart-insert-presets.js', 'public/prompt-library-smart-insert-validation.js'];
 for (const path of files) {
   const source = await readFile(new URL(path, root), 'utf8');
   assert.doesNotMatch(source, /fetch\s*\(|XMLHttpRequest|WebSocket|navigator\.sendBeacon/, `${path} stays local`);

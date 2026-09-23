@@ -341,8 +341,10 @@
       pruneEmptyRecord(record); saveRecords('deleted'); updateActionState(article, null); renderResults();
       return;
     }
-    if (choice === '2' && record) { record.note = ''; record.updatedAt = new Date().toISOString(); pruneEmptyRecord(record); saveRecords('note'); updateActionState(article, findRecord(currentConversationId(), article.dataset.messageId)); renderResults(); return; }
-    if (choice === '3' && record) { record.tags = []; record.updatedAt = new Date().toISOString(); pruneEmptyRecord(record); saveRecords('tag'); updateActionState(article, findRecord(currentConversationId(), article.dataset.messageId)); renderResults(); return; }
+    if (choice === '2' && record) { record.note = ''; record.updatedAt = new Date().toISOString(); pruneEmptyRecord(record); saveRecords('note'); updateActionState(article,
+      findRecord(currentConversationId(), article.dataset.messageId)); renderResults(); return; }
+    if (choice === '3' && record) { record.tags = []; record.updatedAt = new Date().toISOString(); pruneEmptyRecord(record); saveRecords('tag'); updateActionState(article,
+      findRecord(currentConversationId(), article.dataset.messageId)); renderResults(); return; }
     if (choice === '4') toggleSelection(record?.id);
   }
 
@@ -428,7 +430,8 @@
 
     const controls = document.createElement('div'); controls.className = 'message-workspace-controls';
     const filter = document.createElement('select'); filter.className = 'message-workspace-select'; filter.setAttribute('aria-label', 'Mesaj filtresi');
-    [['all','Tümü'],['saved','Kaydedilen'],['feedback','Geri bildirimli'],['notes','Notlu'],['user','Senin mesajların'],['assistant','Hafize yanıtları'],['tag','Etiketli']].forEach(([value,label]) => filter.append(new Option(label,value,false,runtime.state.filter===value)));
+    [['all','Tümü'], ['saved','Kaydedilen'], ['feedback','Geri bildirimli'], ['notes','Notlu'], ['user','Senin mesajların'], ['assistant','Hafize yanıtları'],
+      ['tag','Etiketli']].forEach(([value,label]) => filter.append(new Option(label,value,false,runtime.state.filter===value)));
     filter.addEventListener('change', () => { runtime.state.filter = filter.value; saveState(); renderResults(); });
     const sort = document.createElement('select'); sort.className = 'message-workspace-select'; sort.setAttribute('aria-label', 'Mesaj sıralaması');
     [['newest','Güncellenen'],['oldest','Eski'],['feedback','Etkileşimli'],['notes','Notlular']].forEach(([value,label]) => sort.append(new Option(label,value,false,runtime.state.sort===value)));
@@ -446,7 +449,8 @@
     const list = document.createElement('div'); list.className = 'message-workspace-results';
     panel.append(head, search, controls, batch, status, list);
     ui.rail.prepend(panel);
-    runtime.panel = panel; runtime.search = search; runtime.filter = filter; runtime.sort = sort; runtime.status = status; runtime.resultList = list; runtime.clearButton = clear; runtime.exportButton = exportButton; runtime.selectionButton = selectVisible; runtime.selectionClearButton = clear;
+    runtime.panel = panel; runtime.search = search; runtime.filter = filter; runtime.sort = sort; runtime.status = status; runtime.resultList = list; runtime.clearButton = clear; runtime.exportButton = exportButton;
+      runtime.selectionButton = selectVisible; runtime.selectionClearButton = clear;
     return panel;
   }
 
@@ -461,7 +465,8 @@
 
   function resultArticle(entry) {
     const wrap = document.createElement('article'); wrap.className='message-workspace-result';
-    const check = document.createElement('input'); check.type='checkbox'; check.checked=runtime.state.selected.includes(entry.record.id); check.setAttribute('aria-label','Mesajı dışa aktarma seçimine ekle'); check.addEventListener('change',()=>toggleSelection(entry.record.id));
+    const check = document.createElement('input'); check.type='checkbox'; check.checked=runtime.state.selected.includes(entry.record.id); check.setAttribute('aria-label',
+      'Mesajı dışa aktarma seçimine ekle'); check.addEventListener('change', ()=>toggleSelection(entry.record.id));
     const body=document.createElement('div'); body.className='message-workspace-result-body';
     const meta=document.createElement('div'); meta.className='message-workspace-result-meta'; meta.textContent=`${entry.role==='assistant'?'Hafize':'Sen'} · ${formatDate(entry.record.updatedAt)}`;
     const text=document.createElement('p'); text.className='message-workspace-result-text'; text.textContent=entry.text || 'Notlu mesaj';
@@ -510,7 +515,8 @@
     if (!entries.length) return announce('Önce en az bir mesaj seç.');
     const payload = { schema:'hafize-message-workspace/v1', exportedAt:new Date().toISOString(), records:entries.map(entry=>({ record:entry.record, role:entry.role, content:entry.text.slice(0,12000) })) };
     const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`hafize-messages-${new Date().toISOString().slice(0,10)}.json`; link.click(); URL.revokeObjectURL(url); announce(`${entries.length} mesaj dışa aktarıldı.`);
+    const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`hafize-messages-${new Date().toISOString().slice(0,10)}.json`; link.click(); URL.revokeObjectURL(url);
+      announce(`${entries.length} mesaj dışa aktarıldı.`);
   }
 
   function handleShortcut(event) {

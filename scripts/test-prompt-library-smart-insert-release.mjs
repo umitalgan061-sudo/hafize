@@ -8,5 +8,6 @@ const index = await readFile(new URL('../public/prompt-library-enhancements.js',
 assert.match(docs, /Syntax/); assert.match(docs, /PWA/); assert.match(docs, /Rollback/); assert.match(docs, /Otomatik submit/);
 assert.match(qa, /Temel akış/); assert.match(qa, /Erişilebilirlik/); assert.match(qa, /Hata senaryoları/); assert.match(qa, /Regression/);
 assert.match(ops, /Release öncesi/); assert.match(ops, /Rollback/); assert.match(ops, /Cache/); assert.match(ops, /Veri kurtarma/);
-for (const asset of ['smart-insert.js','smart-insert-center.js','smart-insert-history.js','smart-insert-suggestions.js','smart-insert-presets.js','smart-insert-validation.js','smart-insert-activity.js']) assert.match(index, new RegExp(asset.replaceAll('.', '\\.'), 'g'));
+for (const asset of ['smart-insert.js','smart-insert-center.js','smart-insert-history.js','smart-insert-suggestions.js','smart-insert-presets.js','smart-insert-validation.js','smart-insert-activity.js']) assert.match(index,
+  new RegExp(asset.replaceAll('.', '\\.'), 'g'));
 console.log('prompt-library-smart-insert-release: ok');

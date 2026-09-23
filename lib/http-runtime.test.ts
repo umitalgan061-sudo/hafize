@@ -2,23 +2,34 @@ import { describe, expect, it } from 'vitest';
 import { Readable } from 'node:stream';
 import { readJson, requestJsonAcceptsSse, sendJson, startSse, writeSseEvent } from './http-runtime.ts';
 
-function responseStub() {
+type ResponseStub = import('node:http').ServerResponse & {
+  readonly headers: Map<string, string>;
+  readonly body: string;
+  readonly status: number;
+};
+
+function responseStub(): ResponseStub {
   const headers = new Map<string, string>();
   let body = '';
   let status = 0;
-  return {
+  let ended = false;
+  const stub = {
     headers,
     get body() { return body; },
     get status() { return status; },
     headersSent: false,
-    writableEnded: false,
+    get writableEnded() { return ended; },
     destroyed: false,
     writable: true,
     setHeader(name: string, value: string) { headers.set(name, value); },
-    writeHead(value: number, _headers: Record<string, string>) { status = value; },
+    writeHead(value: number, extraHeaders: Record<string, string> = {}) {
+      status = value;
+      for (const [name, headerValue] of Object.entries(extraHeaders)) headers.set(name, headerValue);
+    },
     write(chunk: string) { body += chunk; return true; },
-    end(chunk = '') { body += chunk; this.writableEnded = true; },
-  } as unknown as import('node:http').ServerResponse;
+    end(chunk = '') { body += chunk; ended = true; }
+  };
+  return stub as unknown as ResponseStub;
 }
 
 describe('http runtime', () => {

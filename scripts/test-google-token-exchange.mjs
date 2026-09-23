@@ -46,7 +46,8 @@ const publicClient = createGoogleTokenExchange({
 await publicClient.exchange({ ownerId: 'owner1', code: '12345678', verifier: 'b'.repeat(43), redirectUri: 'https://hafize.example.test/oauth/google' });
 assert.equal(new URLSearchParams(withoutSecretRequests[0]).has('client_secret'), false);
 
-for (const invalidFactory of [{}, { clientId: '', tokenStore: { save() {} } }, { clientId: 'id', tokenStore: {} }, { clientId: 'id', tokenStore: { save() {} }, fetchImpl: null }]) assert.throws(() => createGoogleTokenExchange(invalidFactory), /INVALID_GOOGLE_TOKEN_EXCHANGE/);
+for (const invalidFactory of [{}, { clientId: '', tokenStore: { save() {} } }, { clientId: 'id', tokenStore: {} },
+  { clientId: 'id', tokenStore: { save() {} }, fetchImpl: null }]) assert.throws(() => createGoogleTokenExchange(invalidFactory), /INVALID_GOOGLE_TOKEN_EXCHANGE/);
 const badInput = createGoogleTokenExchange({ clientId: 'id', tokenStore: { async save() {} }, fetchImpl: async () => ({ ok: true, async json() { return { access_token: 'token', token_type: 'Bearer', expires_in: 3600 }; } }) });
 await assert.rejects(() => badInput.exchange({ ownerId: '../other', code: '12345678', verifier: 'c'.repeat(43), redirectUri: 'https://hafize.example.test/oauth/google' }), /INVALID_GOOGLE_TOKEN_EXCHANGE/);
 await assert.rejects(() => badInput.exchange({ ownerId: 'owner', code: 'short', verifier: 'c'.repeat(43), redirectUri: 'https://hafize.example.test/oauth/google' }), /INVALID_GOOGLE_TOKEN_EXCHANGE/);

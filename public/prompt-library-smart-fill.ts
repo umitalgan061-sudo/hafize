@@ -23,13 +23,13 @@ interface PromptLibraryApi {
   readonly saveItems?: (storage: Storage, items: PromptRecord[]) => boolean;
 }
 
-interface SmartFillRoot extends Window {
+type SmartFillRoot = Window & typeof globalThis & {
   HafizePromptLibrary?: PromptLibraryApi;
   HafizePromptLibrarySmartFill?: {
     readonly STORAGE_KEY: string;
     readonly mount: () => SmartFillController | null;
   };
-}
+};
 
 interface SmartFillController {
   readonly mounted: true;
@@ -38,7 +38,7 @@ interface SmartFillController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as SmartFillRoot;
+const root = globalThis as unknown as SmartFillRoot;
 const STORAGE_KEY = 'hafize.prompt-library.smart-fill.v1';
 const CARD_ID = 'promptLibraryCard';
 const MAX_VALUE = 1000;
@@ -238,6 +238,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     if (index < 0) return;
     const next = items.slice();
     const item = items[index];
+    if (!item) return;
     const updated = api.normalizeItem({ ...item, useCount: Number(item.useCount) + 1, updatedAt: new Date().toISOString() });
     if (!updated) return;
     next[index] = updated;
@@ -251,7 +252,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
   const insertIntoComposer = (): void => {
     if (!activePrompt) return;
     const values = currentValues();
-    const missing = activeNames.filter((name) => values[name].trim().length === 0);
+    const missing = activeNames.filter((name) => (values[name] ?? '').trim().length === 0);
     if (missing.length) return showError(`Doldurulmamış değişkenler: ${missing.map((name) => `{{${name}}}`).join(', ')}`);
     const text = core()?.replaceVariables?.(activePrompt.body, values)?.slice(0, MAX_PREVIEW) || activePrompt.body.slice(0, MAX_PREVIEW);
     const composer = documentRef.querySelector<HTMLTextAreaElement>('#messageInput');
@@ -309,6 +310,7 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     if (!focusables.length) return;
     const first = focusables[0];
     const last = focusables[focusables.length - 1];
+    if (!first || !last) return;
     if (event.shiftKey && documentRef.activeElement === first) { event.preventDefault(); last.focus(); }
     else if (!event.shiftKey && documentRef.activeElement === last) { event.preventDefault(); first.focus(); }
   };
@@ -352,6 +354,8 @@ function mount(documentRef: Document = root.document, rootRef: SmartFillRoot = r
     }
   });
 }
+
+export { readPresets, writePresets, variableNames };
 
 const api = Object.freeze({ STORAGE_KEY, mount, readPresets, writePresets, variableNames });
 root.HafizePromptLibrarySmartFill = api;

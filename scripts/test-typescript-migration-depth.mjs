@@ -16,7 +16,12 @@ const migrated=[
   'request-failure.ts','runtime-config.ts','security-observability.ts'
 ];
 
-const browserMigrated=['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts'];
+// Browser sources live either directly under public/ or in the typed/ bundle
+// directory; the contract records the real location so a moved file fails loudly.
+const browserMigrated=[
+  'markdown-renderer.ts','conversation-workspace.ts',
+  'typed/message-workspace.ts','typed/prompt-library.ts','typed/scheduled-tasks.ts'
+];
 async function exists(path){try{await access(path);return true;}catch{return false;}}
 function assert(value,message){if(!value)throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:'+message);}
 

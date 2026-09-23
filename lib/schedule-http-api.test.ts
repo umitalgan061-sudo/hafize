@@ -8,7 +8,10 @@ const commands = {
   async cancel(input: Record<string, unknown>) { return { ok: true, op: 'cancel', id: input.scheduleId }; }
 };
 const auth = {
-  authenticate: ({ headers }: { headers?: unknown }) => headers === 'ok' ? { ok: true, principal } : { ok: false }
+  authenticate: ({ headers }: { headers?: unknown }) =>
+    headers === 'ok'
+      ? ({ ok: true, principal } as const)
+      : ({ ok: false, error: 'AUTH_REQUIRED' } as const)
 };
 const readJson = async (_request: unknown) => ({ title: 'daily' });
 

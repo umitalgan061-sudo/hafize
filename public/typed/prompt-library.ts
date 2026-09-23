@@ -199,7 +199,8 @@
     const count = element(documentRef, 'span', '', 'prompt-library-count'); head.append(count);
     const search = documentRef.createElement('input'); search.type = 'search'; search.maxLength = LIMITS.maxQuery; search.placeholder = 'İstem ara…'; search.setAttribute('aria-label', 'İstem kütüphanesinde ara');
     const sort = documentRef.createElement('select'); sort.setAttribute('aria-label', 'İstemleri sırala');
-    for (const [value, label] of [['updated-desc', 'Son güncellenen'], ['favorite-first', 'Favoriler'], ['created-desc', 'Yeni oluşturulan'], ['title-asc', 'Başlığa göre']]) { const option = element(documentRef, 'option', label); option.value = value; sort.append(option); }
+    for (const [value, label] of [['updated-desc', 'Son güncellenen'], ['favorite-first', 'Favoriler'], ['created-desc', 'Yeni oluşturulan'], ['title-asc', 'Başlığa göre']]) { const option = element(documentRef, 'option',
+      label); option.value = value; sort.append(option); }
     const filterRow = element(documentRef, 'div', undefined, 'prompt-library-filters');
     const tag = documentRef.createElement('select'); tag.setAttribute('aria-label', 'Etikete göre filtrele');
     const favorite = button(documentRef, '★ Favoriler', 'mini-btn'); favorite.id = 'promptLibraryFavoriteFilter';
@@ -238,7 +239,8 @@
       body.addEventListener('input', () => { const vars = extractVariables(body.value); hint.textContent = vars.length ? `Değişkenler: ${vars.map((v) => `{{${v}}}`).join(' · ')}` : 'Değişken yok'; });
       cancel.addEventListener('click', () => { editor.hidden = true; editor.replaceChildren(); });
       save.addEventListener('click', () => {
-        const next = normalizeItem({ id: existing?.id || id(), title: title.value, body: body.value, tags: tagsInput.value.split(','), favorite: existing?.favorite === true, useCount: existing?.useCount || 0, createdAt: existing?.createdAt || timestamp(), updatedAt: timestamp() });
+        const next = normalizeItem({ id: existing?.id || id(), title: title.value, body: body.value, tags: tagsInput.value.split(','), favorite: existing?.favorite === true, useCount: existing?.useCount || 0,
+          createdAt: existing?.createdAt || timestamp(), updatedAt: timestamp() });
         if (!next) return report('İstem metni boş olamaz.');
         const index = items.findIndex((candidate) => candidate.id === next.id); if (index >= 0) items.splice(index, 1, next); else items.unshift(next);
         items = normalizeCollection(items); persist(); editor.hidden = true; editor.replaceChildren(); render(); report('İstem kaydedildi.');
@@ -260,19 +262,23 @@
         const row = element(documentRef, 'article', undefined, 'prompt-item'); row.dataset.promptId = item.id;
         const check = documentRef.createElement('input'); check.type = 'checkbox'; check.checked = selected.has(item.id); check.setAttribute('aria-label', `${item.title} seç`);
         const content = element(documentRef, 'div', undefined, 'prompt-item-content'); const header = element(documentRef, 'div', undefined, 'prompt-item-header');
-        header.append(element(documentRef, 'strong', item.title)); const star = button(documentRef, item.favorite ? '★' : '☆', 'prompt-item-star'); star.setAttribute('aria-label', item.favorite ? 'Favoriden çıkar' : 'Favoriye al'); star.setAttribute('aria-pressed', String(item.favorite)); header.append(star);
+        header.append(element(documentRef, 'strong', item.title)); const star = button(documentRef, item.favorite ? '★' : '☆', 'prompt-item-star'); star.setAttribute('aria-label',
+          item.favorite ? 'Favoriden çıkar' : 'Favoriye al'); star.setAttribute('aria-pressed', String(item.favorite)); header.append(star);
         content.append(header, element(documentRef, 'p', item.body.replace(/\s+/g, ' ').slice(0, 120)));
         const meta = element(documentRef, 'div', `${new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short' }).format(new Date(item.updatedAt))} · ${item.useCount} kullanım`, 'prompt-item-meta');
         for (const value of item.tags) meta.append(' ', element(documentRef, 'span', value, 'prompt-item-tag'));
         content.append(meta);
-        const actions = element(documentRef, 'div', undefined, 'prompt-item-actions'); const useButton = button(documentRef, 'Kullan'); const edit = button(documentRef, 'Düzenle'); const remove = button(documentRef, 'Sil'); actions.append(useButton, edit, remove); content.append(actions); row.append(check, content); list.append(row);
+        const actions = element(documentRef, 'div', undefined, 'prompt-item-actions'); const useButton = button(documentRef, 'Kullan'); const edit = button(documentRef, 'Düzenle'); const remove = button(documentRef,
+          'Sil'); actions.append(useButton, edit, remove); content.append(actions); row.append(check, content); list.append(row);
         on(check, 'change', () => { if (check.checked) { if (selected.size < LIMITS.maxSelection) selected.add(item.id); else check.checked = false; } else selected.delete(item.id); });
-        on(star, 'click', () => { const index = items.findIndex((candidate) => candidate.id === item.id); if (index < 0) return; items.splice(index, 1, normalizeItem({ ...items[index], favorite: !items[index].favorite, updatedAt: timestamp() })); persist(); render(); });
+        on(star, 'click', () => { const index = items.findIndex((candidate) => candidate.id === item.id); if (index < 0) return; items.splice(index, 1,
+          normalizeItem({ ...items[index], favorite: !items[index].favorite, updatedAt: timestamp() })); persist(); render(); });
         on(useButton, 'click', () => use(item)); on(edit, 'click', () => renderEditor(item));
         on(remove, 'click', () => { if (!rootRef.confirm?.(`“${item.title}” silinsin mi?`)) return; items = items.filter((candidate) => candidate.id !== item.id); selected.delete(item.id); persist(); render(); report('İstem silindi.'); });
       }
       if (selected.size) {
-        const bulk = element(documentRef, 'div', undefined, 'prompt-library-bulk'); const makeFavorite = button(documentRef, 'Seçilenleri favorile'); const clear = button(documentRef, `${selected.size} seçimi temizle`); bulk.append(makeFavorite, clear); list.prepend(bulk);
+        const bulk = element(documentRef, 'div', undefined, 'prompt-library-bulk'); const makeFavorite = button(documentRef, 'Seçilenleri favorile'); const clear = button(documentRef,
+          `${selected.size} seçimi temizle`); bulk.append(makeFavorite, clear); list.prepend(bulk);
         on(makeFavorite, 'click', () => { const ids = new Set(selected); items = items.map((item) => ids.has(item.id) ? normalizeItem({ ...item, favorite: true, updatedAt: timestamp() }) : item); selected.clear(); persist(); render(); });
         on(clear, 'click', () => { selected.clear(); render(); });
       }
@@ -280,7 +286,8 @@
     function doImport(fileObject) {
       if (!fileObject || fileObject.size > LIMITS.maxImport) return report('İçe aktarma dosyası 1 MB sınırını aşamaz.');
       const reader = new FileReader();
-      reader.onload = () => { try { const parsed = normalizeImportedPayload(JSON.parse(String(reader.result || ''))); const merged = mergeImportedItems(items, parsed.items); items = merged.items; persist(); render(); report(`${merged.imported} istem içe aktarıldı.`); } catch { report('Geçersiz istem yedeği.'); } };
+      reader.onload = () => { try { const parsed = normalizeImportedPayload(JSON.parse(String(reader.result || ''))); const merged = mergeImportedItems(items,
+        parsed.items); items = merged.items; persist(); render(); report(`${merged.imported} istem içe aktarıldı.`); } catch { report('Geçersiz istem yedeği.'); } };
       reader.onerror = () => report('İstem yedeği okunamadı.'); reader.readAsText(fileObject);
     }
     on(search, 'input', () => { state.query = trim(search.value, LIMITS.maxQuery); persist(); render(); });
@@ -289,16 +296,20 @@
     on(favorite, 'click', () => { state.favoriteOnly = !state.favoriteOnly; persist(); render(); });
     on(create, 'click', () => renderEditor(null));
     on(importButton, 'click', () => file.click()); on(file, 'change', () => { doImport(file.files?.[0]); file.value = ''; });
-    on(exportButton, 'click', () => { const ids = selected.size ? selected : new Set(filterItems(items, state).map((item) => item.id).slice(0, LIMITS.maxSelection)); const chosen = items.filter((item) => ids.has(item.id)); if (!chosen.length) return report('Dışa aktarılacak istem yok.'); const blob = new Blob([exportPayload(chosen)], { type: 'application/json;charset=utf-8' }); const url = URL.createObjectURL(blob); const link = element(documentRef, 'a'); link.href = url; link.download = 'hafize-prompt-library.json'; link.click(); rootRef.setTimeout?.(() => URL.revokeObjectURL(url), 0); report(`${chosen.length} istem dışa aktarıldı.`); });
+    on(exportButton, 'click', () => { const ids = selected.size ? selected : new Set(filterItems(items, state).map((item) => item.id).slice(0, LIMITS.maxSelection)); const chosen = items.filter((item) => ids.has(item.id));
+      if (!chosen.length) return report('Dışa aktarılacak istem yok.'); const blob = new Blob([exportPayload(chosen)], { type: 'application/json;charset=utf-8' }); const url = URL.createObjectURL(blob);
+      const link = element(documentRef, 'a'); link.href = url; link.download = 'hafize-prompt-library.json'; link.click(); rootRef.setTimeout?.(() => URL.revokeObjectURL(url), 0); report(`${chosen.length} istem dışa aktarıldı.`); });
     on(rootRef, 'storage', (event) => { if (event.key === STORAGE_KEY) { items = loadItems(storage); render(); } if (event.key === STATE_KEY) { state = loadState(storage); render(); } });
     on(documentRef, 'keydown', (event) => { if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'p') return; event.preventDefault(); search.focus(); search.select(); });
     render();
-    const controller = Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state), destroy: () => { destroyed = true; for (const off of listeners.splice(0)) off(); card.remove(); } });
+    const controller = Object.freeze({ mounted: true, getItems: () => items.slice(), getState: () => ({ ...state }), getVisibleItems: () => filterItems(items, state),
+      destroy: () => { destroyed = true; for (const off of listeners.splice(0)) off(); card.remove(); } });
     // The card outlives the page only through its window-level listeners, so
     // unload tears them down the same way every other Hafize surface does.
     rootRef.addEventListener?.('beforeunload', () => controller.destroy(), { once: true });
     return controller;
   }
 
-  return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems, filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });
+  return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems,
+    filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });
 });

@@ -19,7 +19,7 @@
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",
     "format:check": "node scripts/format-check.mjs",
-    "test:typed-core": "vitest run lib/**/*.test.ts",
+    "test:typed-core": "vitest run lib/",
     "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json"
   },
   "dependencies": {

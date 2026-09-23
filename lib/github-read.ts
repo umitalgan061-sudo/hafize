@@ -1,8 +1,10 @@
-// @ts-nocheck
 import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
+import type { GitHubApiFetch } from './runtime-contracts.ts';
 
 const DEFAULT_GITHUB_API = 'https://api.github.com';
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024;
+const MIN_FILE_BYTES = 1024;
+const MAX_FILE_BYTES = 256 * 1024;
 
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const ALLOWED_INPUT_KEYS = new Set(['repository', 'path', 'ref']);
@@ -14,8 +16,26 @@ const SENSITIVE_FILE_PATTERNS = [
   /\.(?:pem|key|p12|pfx)$/i
 ];
 
+export type GitHubReadErrorCode =
+  | 'GITHUB_NOT_CONFIGURED'
+  | 'GITHUB_FETCH_UNAVAILABLE'
+  | 'INVALID_GITHUB_ARGUMENTS'
+  | 'INVALID_GITHUB_REPOSITORY'
+  | 'INVALID_GITHUB_PATH'
+  | 'SENSITIVE_GITHUB_PATH_BLOCKED'
+  | 'INVALID_GITHUB_REF'
+  | 'GITHUB_REPO_NOT_ALLOWED'
+  | 'GITHUB_READ_FAILED'
+  | 'INVALID_GITHUB_RESPONSE'
+  | 'GITHUB_PATH_NOT_FILE'
+  | 'UNSUPPORTED_GITHUB_CONTENT'
+  | 'BINARY_GITHUB_FILE_BLOCKED'
+  | 'GITHUB_CONTENT_CREDENTIAL_BLOCKED';
+
 export class GitHubReadError extends Error {
-  constructor(code, status = 400) {
+  readonly code: GitHubReadErrorCode;
+  readonly status: number;
+  constructor(code: GitHubReadErrorCode, status = 400) {
     super(code);
     this.name = 'GitHubReadError';
     this.code = code;
@@ -23,7 +43,33 @@ export class GitHubReadError extends Error {
   }
 }
 
-export function parseGitHubRepoAllowlist(value) {
+export interface GitHubReadFileInput {
+  readonly repository?: unknown;
+  readonly path?: unknown;
+  readonly ref?: unknown;
+}
+
+export interface GitHubReadFileResult {
+  readonly repository: string;
+  readonly path: string;
+  readonly ref: string | null;
+  readonly sha: string | null;
+  readonly size: number;
+  readonly content: string;
+  readonly truncated: boolean;
+}
+
+export interface GitHubReadFileOptions {
+  readonly token?: unknown;
+  readonly allowedRepositories?: readonly unknown[] | string | undefined;
+  readonly baseUrl?: unknown;
+  readonly fetchImpl?: GitHubApiFetch | undefined;
+  readonly maxFileBytes?: unknown;
+}
+
+export type GitHubReadFile = (input?: GitHubReadFileInput) => Promise<GitHubReadFileResult>;
+
+export function parseGitHubRepoAllowlist(value: unknown): string[] {
   if (Array.isArray(value)) {
     return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
   }
@@ -31,13 +77,13 @@ export function parseGitHubRepoAllowlist(value) {
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
 }
 
-function normalizeRepository(value) {
+function normalizeRepository(value: unknown): string {
   const repository = typeof value === 'string' ? value.trim() : '';
   if (!REPOSITORY_PATTERN.test(repository)) throw new GitHubReadError('INVALID_GITHUB_REPOSITORY');
   return repository;
 }
 
-function normalizePath(value) {
+function normalizePath(value: unknown): string {
   const path = typeof value === 'string' ? value.trim() : '';
   if (!path || path.length > 400 || path.startsWith('/') || path.includes('\\') || path.includes('\0')) {
     throw new GitHubReadError('INVALID_GITHUB_PATH');
@@ -53,48 +99,63 @@ function normalizePath(value) {
   return path;
 }
 
-function normalizeRef(value) {
+function normalizeRef(value: unknown): string | null {
   if (value == null || value === '') return null;
   const ref = typeof value === 'string' ? value.trim() : '';
   if (!ref || ref.length > 200 || /[\u0000-\u001f\u007f]/.test(ref)) throw new GitHubReadError('INVALID_GITHUB_REF');
   return ref;
 }
 
-function encodeRepoPath(path) {
+function encodeRepoPath(path: string): string {
   return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 }
 
-function decodeGitHubContent(payload, maxFileBytes) {
-  if (!payload || Array.isArray(payload) || payload.type !== 'file') throw new GitHubReadError('GITHUB_PATH_NOT_FILE', 400);
-  if (payload.encoding !== 'base64' || typeof payload.content !== 'string') {
+function decodeGitHubContent(
+  payload: unknown,
+  maxFileBytes: number
+): Pick<GitHubReadFileResult, 'sha' | 'size' | 'content' | 'truncated'> {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new GitHubReadError('GITHUB_PATH_NOT_FILE', 400);
+  }
+  const record = payload as Record<string, unknown>;
+  if (record.type !== 'file') throw new GitHubReadError('GITHUB_PATH_NOT_FILE', 400);
+  if (record.encoding !== 'base64' || typeof record.content !== 'string') {
     throw new GitHubReadError('UNSUPPORTED_GITHUB_CONTENT', 502);
   }
 
-  const bytes = Buffer.from(payload.content.replace(/\s+/g, ''), 'base64');
+  const bytes = Buffer.from(record.content.replace(/\s+/g, ''), 'base64');
   if (bytes.includes(0)) throw new GitHubReadError('BINARY_GITHUB_FILE_BLOCKED', 415);
   const truncated = bytes.length > maxFileBytes;
   const visible = truncated ? bytes.subarray(0, maxFileBytes) : bytes;
 
   return {
-    sha: typeof payload.sha === 'string' ? payload.sha : null,
-    size: Number.isFinite(payload.size) ? payload.size : bytes.length,
+    sha: typeof record.sha === 'string' ? record.sha : null,
+    size: typeof record.size === 'number' && Number.isFinite(record.size) ? record.size : bytes.length,
     content: visible.toString('utf8'),
     truncated
   };
 }
 
-export function createGitHubReadFile({
-  token = '',
-  allowedRepositories = [],
-  baseUrl = DEFAULT_GITHUB_API,
-  fetchImpl = globalThis.fetch,
-  maxFileBytes = DEFAULT_MAX_FILE_BYTES
-} = {}) {
+function resolveMaxFileBytes(value: unknown): number {
+  const parsed = typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_MAX_FILE_BYTES;
+  return Math.max(MIN_FILE_BYTES, Math.min(parsed, MAX_FILE_BYTES));
+}
+
+export function createGitHubReadFile(options: GitHubReadFileOptions = {}): GitHubReadFile {
+  const {
+    token = '',
+    allowedRepositories = [],
+    baseUrl = DEFAULT_GITHUB_API,
+    fetchImpl = globalThis.fetch,
+    maxFileBytes = DEFAULT_MAX_FILE_BYTES
+  } = options;
+
   const allowlist = new Set(parseGitHubRepoAllowlist(allowedRepositories).map((item) => item.toLowerCase()));
   const apiBase = String(baseUrl || DEFAULT_GITHUB_API).replace(/\/+$/, '');
   const authToken = typeof token === 'string' ? token.trim() : '';
+  const byteLimit = resolveMaxFileBytes(maxFileBytes);
 
-  return async function githubReadFile(input = {}) {
+  return async function githubReadFile(input: GitHubReadFileInput = {}): Promise<GitHubReadFileResult> {
     if (!authToken) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
     if (typeof fetchImpl !== 'function') throw new GitHubReadError('GITHUB_FETCH_UNAVAILABLE', 503);
     if (!input || Array.isArray(input) || typeof input !== 'object') throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
@@ -123,14 +184,14 @@ export function createGitHubReadFile({
       throw new GitHubReadError('GITHUB_READ_FAILED', status);
     }
 
-    let payload;
+    let payload: unknown;
     try {
       payload = await response.json();
     } catch {
       throw new GitHubReadError('INVALID_GITHUB_RESPONSE', 502);
     }
 
-    const decoded = decodeGitHubContent(payload, Math.max(1024, Math.min(maxFileBytes, 256 * 1024)));
+    const decoded = decodeGitHubContent(payload, byteLimit);
     if (containsPlaintextCredential(decoded.content)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
     return { repository, path, ref, ...decoded };
   };

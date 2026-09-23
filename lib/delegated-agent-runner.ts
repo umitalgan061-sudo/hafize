@@ -26,6 +26,30 @@ function normalizeCompletion(complete, payload) {
   });
 }
 
+export interface DelegatedAgentRunInput {
+  readonly agent?: unknown;
+  readonly task?: unknown;
+  readonly traceId?: unknown;
+  readonly parentTaskId?: unknown;
+  readonly depth?: number;
+  readonly registry?: unknown;
+  readonly runLedger?: unknown;
+  readonly model?: unknown;
+  readonly maxTokens?: number;
+  readonly complete?: unknown;
+  readonly nvidiaConfigured?: boolean;
+  readonly githubReadConfigured?: boolean;
+  readonly githubReadFile?: unknown;
+  readonly skillsRuntime?: unknown;
+}
+
+export interface DelegatedAgentRunResult {
+  readonly ok: boolean;
+  readonly content?: string;
+  readonly error?: string;
+  readonly [key: string]: unknown;
+}
+
 export async function runDelegatedAgent({
   agent,
   task,
@@ -41,7 +65,7 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime
-} = {}) {
+}: DelegatedAgentRunInput = {}): Promise<DelegatedAgentRunResult> {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }
@@ -83,6 +107,9 @@ export async function runDelegatedAgent({
   const tools = getAllowedNvidiaTools(agent, {
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
+    // Availability is judged on the reader handle, not just the flag, so the
+    // published catalogue has to see the same handle the execution path uses.
+    githubReadFile,
     delegateAgent,
     skillsRuntime
   });

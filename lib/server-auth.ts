@@ -2,8 +2,8 @@ import { timingSafeEqual } from 'node:crypto';
 import type { AuthenticationResult } from './runtime-contracts.ts';
 
 export interface AuthHeaders {
-  readonly authorization?: string | string[];
-  readonly Authorization?: string;
+  readonly authorization?: string | string[] | undefined;
+  readonly Authorization?: string | undefined;
   readonly [key: string]: unknown;
 }
 

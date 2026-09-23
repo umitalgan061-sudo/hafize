@@ -88,3 +88,34 @@ export interface TaskLedgerSnapshot {
   readonly entries: readonly TaskLedgerEntry[];
   readonly [key: string]: unknown;
 }
+
+/**
+ * GitHub read boundaries always call their injected fetch with a fully built
+ * `URL` and an explicit `RequestInit`. Narrowing the injected signature keeps
+ * the call sites honest and lets tests observe the request without casting.
+ * The global `fetch` stays assignable because it accepts a wider first
+ * argument.
+ */
+export type GitHubApiFetch = (url: URL, init: RequestInit) => Promise<Response>;
+
+/**
+ * Canva and Gmail expose the same read-only tool shape: an argument validator
+ * in front of a provider client, with the owner resolved from the request
+ * principal. The contract lives here so both boundaries stay interchangeable.
+ */
+export interface ReadToolOwnerResolver {
+  readonly resolve: (principal: unknown) => { readonly ownerId?: unknown } | null | undefined;
+}
+
+export interface ReadToolClient {
+  readonly read: (request: { readonly ownerId: string; readonly operation: string; readonly params?: unknown }) => Promise<JsonRecord>;
+}
+
+export interface ReadToolBoundaryOptions {
+  readonly readClient?: ReadToolClient | undefined;
+  readonly ownerResolver?: ReadToolOwnerResolver | undefined;
+}
+
+export interface ReadToolBoundary {
+  readonly execute: (args: unknown, context?: { readonly principal?: unknown }) => Promise<JsonRecord>;
+}

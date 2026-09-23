@@ -4,7 +4,7 @@ import { createTaskLedger } from './task-ledger.mjs';
 import { createTraceContext, normalizeTaskRelation, assertTraceContinuity } from './trace-consistency.mjs';
 import type { TaskLedgerEntry, TaskLedgerSnapshot } from './runtime-contracts.ts';
 
-interface Options { readonly traceId: unknown; readonly agentId: unknown; readonly action?: unknown; readonly now?: () => number; }
+interface Options { readonly traceId: unknown; readonly agentId: unknown; readonly action?: unknown; readonly now?: () => Date; }
 export interface AgentRunLedger {
   readonly rootTaskId: string;
   readonly traceId: string;
@@ -20,7 +20,7 @@ export function createAgentRunLedger({traceId,agentId,action='agent.run',now}:Op
   const ledger=createTaskLedger({traceId:context.traceId,now});
   const root=ledger.add({agentId,action,status:'running'});
   const parent=(taskId:string):TaskLedgerEntry=>{const entry=ledger.read(taskId);if(!entry)throw new Error('TASK_PARENT_NOT_FOUND');assertTraceContinuity(context.traceId,entry.traceId);return entry;};
-  function recordToolStart(toolName:unknown,opts={}: {readonly parentTaskId?:string;readonly toolAgentId?:string}):TaskLedgerEntry{
+  function recordToolStart(toolName:unknown,opts:{readonly parentTaskId?:string;readonly toolAgentId?:string}={}):TaskLedgerEntry{
     const entryParent=parent(opts.parentTaskId||root.taskId);
     const relation=normalizeTaskRelation({traceId:context.traceId,taskId:root.taskId+':tool:'+String(toolName).replace(/[^a-zA-Z0-9._:-]/g,'_').slice(0,80),parentTaskId:entryParent.taskId});
     const entry=ledger.add({agentId:opts.toolAgentId||String(agentId),action:'tool:'+String(toolName),status:'running',parentTaskId:relation.parentTaskId});
@@ -34,7 +34,7 @@ export function createAgentRunLedger({traceId,agentId,action='agent.run',now}:Op
     const ok=value.ok===true;
     return ledger.update(entry.taskId,{status:ok?'completed':'failed',detail:ok?'ok':String(value.error||'TASK_EXECUTION_FAILED').slice(0,120)});
   }
-  function recordDelegationStart(targetAgentId:unknown,opts={}: {readonly parentTaskId?:string}):TaskLedgerEntry{
+  function recordDelegationStart(targetAgentId:unknown,opts:{readonly parentTaskId?:string}={}):TaskLedgerEntry{
     const entryParent=parent(opts.parentTaskId||root.taskId);
     const entry=ledger.add({agentId:String(targetAgentId),action:'agent.delegate',status:'running',parentTaskId:entryParent.taskId});
     assertTraceContinuity(context.traceId,entry.traceId);return entry;
@@ -44,7 +44,7 @@ export function createAgentRunLedger({traceId,agentId,action='agent.run',now}:Op
     recordToolFinish:(taskId:unknown,result:unknown)=>finishChild(taskId,result,'tool'),
     recordDelegationStart,
     recordDelegationFinish:(taskId:unknown,result:unknown)=>finishChild(taskId,result,'delegate'),
-    finish:(opts={}: {readonly ok?:boolean;readonly detail?:unknown})=>ledger.update(root.taskId,{status:opts.ok===false?'failed':'completed',detail:opts.detail==null?null:String(opts.detail).slice(0,120)}),
+    finish:(opts:{readonly ok?:boolean;readonly detail?:unknown}={})=>ledger.update(root.taskId,{status:opts.ok===false?'failed':'completed',detail:opts.detail==null?null:String(opts.detail).slice(0,120)}),
     snapshot:ledger.snapshot
   });
 }

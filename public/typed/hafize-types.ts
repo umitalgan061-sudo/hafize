@@ -41,7 +41,8 @@ export interface RuntimeSnapshot {
   readonly lastErrorCode: string | null;
 }
 
-export interface ApiRequestOptions extends RequestInit {
+export interface ApiRequestOptions extends Omit<RequestInit, 'signal'> {
+  readonly signal?: AbortSignal | null | undefined;
   readonly timeoutMs?: number;
   readonly retry?: number;
 }
@@ -78,20 +79,35 @@ export function numberValue(value: unknown, fallback = 0): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+const PROTOTYPE_LIKE_IDENTIFIERS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Agent identifiers are used as lookup keys in the UI, so a server (or a
+ * tampered response) must never hand back a name that collides with an
+ * `Object.prototype` member. Such identifiers are dropped rather than escaped.
+ */
+export function safeAgentIdentifier(value: unknown, maxLength = 160): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || PROTOTYPE_LIKE_IDENTIFIERS.has(text)) return '';
+  return text.slice(0, maxLength);
+}
+
 export function parseAgents(value: unknown): AgentsResponse {
   const source = isRecord(value) ? value : {};
   const agents = Array.isArray(source.agents)
     ? source.agents.flatMap((raw): PublicAgent[] => {
-        if (!isRecord(raw) || typeof raw.id !== 'string' || typeof raw.name !== 'string') return [];
+        if (!isRecord(raw) || typeof raw.name !== 'string') return [];
+        const id = safeAgentIdentifier(raw.id);
+        if (!id) return [];
         const description = typeof raw.description === 'string' ? raw.description.slice(0, 320) : undefined;
         const tools = Array.isArray(raw.tools)
           ? raw.tools.filter((tool): tool is string => typeof tool === 'string').slice(0, 64)
           : undefined;
-        return [{ id: raw.id.slice(0, 160), name: raw.name.slice(0, 160), ...(description ? { description } : {}), ...(tools ? { tools } : {}) }];
+        return [{ id, name: raw.name.slice(0, 160), ...(description ? { description } : {}), ...(tools ? { tools } : {}) }];
       })
     : [];
   return Object.freeze({
-    defaultAgent: stringValue(source.defaultAgent).slice(0, 160),
+    defaultAgent: safeAgentIdentifier(source.defaultAgent),
     agents: Object.freeze(agents)
   });
 }

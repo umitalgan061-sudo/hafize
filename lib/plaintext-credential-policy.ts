@@ -1,3 +1,5 @@
+// The name may be prefixed by a provider (NVIDIA_API_KEY=…, GITHUB_AUTH_TOKEN:…),
+// so an underscore before the keyword must not defeat the match the way \b does.
 const ASSIGNMENT=/((?:^|[^a-z0-9])(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|auth[_ -]?token|password|passwd|client[_ -]?secret|secret)(?![a-z0-9]))\s*(?:=|:)\s*["']?[^\s"']{6,}/i;
 const AUTHORIZATION=/\b(?:authorization|proxy-authorization)\s*:\s*(?:bearer|basic)\s+[a-z0-9._~+\/=:-]{8,}/i;
 const KNOWN=/\b(?:github_pat_[a-z0-9_]{20,}|gh[pousr]_[a-z0-9]{30,}|nvapi-[a-z0-9_-]{20,})\b/i;

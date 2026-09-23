@@ -1,6 +1,7 @@
 interface GitHubBranch { readonly name: string; readonly sha: string; readonly protected: boolean; }
 interface GitHubCommit { readonly sha: string; readonly shortSha: string; readonly message: string; readonly author: string; readonly date: string; readonly htmlUrl: string; }
-interface GitHubPullRequest { readonly number: number; readonly title: string; readonly state: string; readonly draft: boolean; readonly author: string; readonly createdAt: string; readonly updatedAt: string; readonly htmlUrl: string; readonly head: string; readonly base: string; }
+interface GitHubPullRequest { readonly number: number; readonly title: string; readonly state: string; readonly draft: boolean; readonly author: string; readonly createdAt: string; readonly updatedAt: string; readonly htmlUrl: string;
+  readonly head: string; readonly base: string; }
 interface GitHubWorkspaceWindow extends Window {
   HafizeGitHubWorkspace?: Readonly<{ mount: () => GitHubWorkspaceController | null }>;
 }
@@ -12,7 +13,7 @@ export interface GitHubWorkspaceController {
 type WorkspaceAction = 'repo' | 'branches' | 'commits' | 'pulls' | 'file';
 type ApiPayload = Record<string, unknown>;
 
-const root = globalThis as GitHubWorkspaceWindow;
+const root = globalThis as unknown as GitHubWorkspaceWindow;
 const CARD_ID = 'githubWorkspaceCard';
 const STATE_KEY = 'hafize.github-workspace.v1';
 const MAX_REPOSITORY = 120;
@@ -102,10 +103,10 @@ function mount(documentRef: Document = root.document, rootRef: GitHubWorkspaceWi
   path.autocomplete = 'off'; path.spellcheck = false; path.hidden = true;
   path.setAttribute('aria-label', 'GitHub dosya yolu');
 
-  const loadButton = make(documentRef, 'Yükle', 'soft-btn') as HTMLButtonElement;
+  const loadButton = make(documentRef, 'button', 'Yükle', 'soft-btn');
   loadButton.type = 'button';
 
-  const statusLine = make(documentRef, 'Repository ve eylemi seçip Yükle’ye bas.', 'github-workspace-status');
+  const statusLine = make(documentRef, 'p', 'Repository ve eylemi seçip Yükle’ye bas.', 'github-workspace-status');
   statusLine.setAttribute('role', 'status'); statusLine.setAttribute('aria-live', 'polite');
   const result = make(documentRef, 'div', undefined, 'github-workspace-result');
   result.setAttribute('aria-live', 'polite');

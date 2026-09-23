@@ -28,19 +28,16 @@ describe('typed GitHub read boundary', () => {
     const read = createGitHubReadFile({
       token: 'token',
       allowedRepositories: ['a/b'],
-      maxFileBytes: 5,
+      maxFileBytes: 1024,
       fetchImpl: async () => response({
         type: 'file', encoding: 'base64',
-        content: Buffer.from('hello world').toString('base64'),
-        sha: 'abc', size: 11
+        content: Buffer.from('h'.repeat(2048)).toString('base64'),
+        sha: 'abc', size: 2048
       })
     });
-    await expect(read({ repository: 'a/b', path: 'README.md' })).resolves.toMatchObject({
-      repository: 'a/b',
-      path: 'README.md',
-      content: 'hello',
-      truncated: true
-    });
+    const result = await read({ repository: 'a/b', path: 'README.md' });
+    expect(result).toMatchObject({ repository: 'a/b', path: 'README.md', truncated: true, size: 2048 });
+    expect(result.content).toHaveLength(1024);
   });
 
   it('blocks credential-bearing file content', async () => {

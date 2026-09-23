@@ -1,7 +1,7 @@
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import { createAgentRunLedger } from './agent-run-ledger.ts';
 // @ts-ignore Legacy delegated runner remains shared during migration.
-import { runDelegatedAgent } from './delegated-agent-runner.mjs';
+import { runDelegatedAgent } from './delegated-agent-runner.ts';
 // @ts-ignore Typed credential boundary is the single policy source.
 import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
