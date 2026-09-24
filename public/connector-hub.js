@@ -16,6 +16,11 @@
   const STYLE_ID = 'connectorHubStyle';
   const STYLE_PATH = '/connector-hub.css';
   const EVENT = 'hafize:connector-hub-changed';
+  const CAPABILITIES = Object.freeze({
+    github: Object.freeze(['repository.read', 'directory.read', 'compare.read', 'commit.read', 'pull.read']),
+    gmail: Object.freeze(['gmail.read']),
+    canva: Object.freeze(['profile.read', 'asset.read', 'design.meta.read', 'design.content.read'])
+  });
 
   const PROVIDERS = Object.freeze({
     github: Object.freeze({
@@ -177,15 +182,18 @@
     body.id = 'connectorHubBody';
     body.className = 'connector-hub-body';
 
+    let lastSnapshot = Object.freeze({ health: null, gmail: null, canva: null });
+
     const privacy = makeText(
       documentRef,
       'Kimlik bilgileri tarayıcıda gösterilmez; durum sorguları GET ile yapılır.',
       'connector-hub-privacy'
     );
     const refresh = makeButton(documentRef, 'Durumları yenile', 'connector-hub-btn connector-hub-refresh');
+    const diagnostics = makeButton(documentRef, 'Tanı özetini kopyala');
     const refreshRow = documentRef.createElement('div');
     refreshRow.className = 'connector-hub-summary-actions';
-    refreshRow.append(privacy, refresh);
+    refreshRow.append(privacy, refresh, diagnostics);
 
     const last = makeText(documentRef, 'Henüz yenilenmedi.', 'connector-hub-last');
     body.append(refreshRow, last);
@@ -230,9 +238,23 @@
       cardRef.badge.dataset.state = String(stateKey || value).toLowerCase();
     }
 
+    function renderCapabilities(bodyRef, key) {
+      const values = CAPABILITIES[key] || [];
+      const wrap = documentRef.createElement('div');
+      wrap.className = 'connector-hub-capabilities';
+      for (const value of values) {
+        const chip = makeText(documentRef, value, 'connector-hub-capability');
+        chip.setAttribute('role', 'note');
+        wrap.append(chip);
+      }
+      return wrap;
+    }
+
     function renderProvider(bodyRef, cardRef, key, state, detail) {
       bodyRef.replaceChildren(
-        makeStatusRow(documentRef, key, 'Bağlantı', state, detail)
+        makeStatusRow(documentRef, key, 'Bağlantı', state, detail),
+        makeText(documentRef, 'İzinli yetenekler', 'connector-hub-capability-title'),
+        renderCapabilities(bodyRef, key)
       );
       setBadge(cardRef, state, state);
     }
@@ -412,6 +434,7 @@
         renderHealth(health);
         renderGmail(gmailStatus);
         renderCanva(canvaStatus);
+        lastSnapshot = Object.freeze({ health, gmail: gmailStatus, canva: canvaStatus });
 
         const failures = [health, gmailStatus, canvaStatus].filter((item) => {
           return item?.error &&
@@ -454,8 +477,27 @@
       applyCollapse();
     }
 
+    async function copyDiagnostics() {
+      const snapshot = lastSnapshot;
+      const lines = [
+        'Hafize Bağlantılar Tanı Özeti',
+        'GitHub: ' + (snapshot.health?.githubReadConfigured === true ? 'hazır' : 'kapalı'),
+        'Google / Gmail: ' + (snapshot.gmail?.linked === true ? 'bağlı' : 'bağlı değil'),
+        'Canva: ' + (snapshot.canva?.linked === true ? 'bağlı' : 'bağlı değil'),
+        'Zaman: ' + formatTime()
+      ];
+      try {
+        if (typeof rootRef.navigator?.clipboard?.writeText !== 'function') return;
+        await rootRef.navigator.clipboard.writeText(lines.join('\\n'));
+        last.textContent = 'Tanı özeti panoya kopyalandı · ' + formatTime();
+      } catch {
+        last.textContent = 'Tanı özeti panoya kopyalanamadı · ' + formatTime();
+      }
+    }
+
     on(toggle, 'click', onToggle);
     on(refresh, 'click', () => { refreshStatus({ force: true }); });
+    on(diagnostics, 'click', () => { copyDiagnostics(); });
     on(rootRef, EVENT, () => {
       if (!destroyed) refreshStatus();
     });
@@ -490,6 +532,7 @@
     SESSION_KEY,
     CARD_IDS,
     PROVIDERS,
+    CAPABILITIES,
     createController,
     mount: function mount(documentRef, rootRef) {
       try {
