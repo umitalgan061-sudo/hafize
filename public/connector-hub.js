@@ -497,6 +497,9 @@
 
     on(toggle, 'click', onToggle);
     on(refresh, 'click', () => { refreshStatus({ force: true }); });
+    on(rootRef, 'hafize:workspace-changed', (event) => {
+      if (!destroyed && event?.detail?.workspace === 'connections') refreshStatus();
+    });
     on(diagnostics, 'click', () => { copyDiagnostics(); });
     on(rootRef, EVENT, () => {
       if (!destroyed) refreshStatus();
@@ -512,6 +515,7 @@
         collapsed,
         refreshing: refreshInFlight
       }),
+      getSnapshot: () => lastSnapshot,
       destroy: () => {
         if (destroyed) return;
         destroyed = true;
