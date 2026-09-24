@@ -95,6 +95,20 @@ Ayrıntılar docs/GITHUB_WORKSPACE*.md dosyalarındadır.
 
 GitHub çalışma alanı ayrıca dizin listeleme, iki ref arasında salt-okunur karşılaştırma ve seçilen commit veya PR için ayrıntı okuma araçları sağlar. Hızlı işlemler son repository seçimini oturum içinde hatırlar, görünür sonucu kopyalamaya ve PR durumunu değiştirmeden filtrelemeye izin verir.
 
+## Bağlantılar çalışma alanı
+
+Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'larının sunucu tarafındaki durumunu tek yerde gösterir.
+
+- GitHub salt-okunur çalışma alanının hazır olma durumunu ve izinli okuma yeteneklerini gösterir.
+- Gmail ve Canva için mevcut kullanıcı bağlantısının bağlı, bağlı değil, devre dışı veya oturum gerekli durumunu gösterir.
+- Durumlar mevcut `/api/health`, `/api/connectors/gmail/status` ve `/api/connectors/canva/status` endpoint'lerinden okunur.
+- Yenileme istekleri yalnızca same-origin GET kullanır; timeout ve refresh cooldown guard'ları vardır.
+- Connector yanıtları browser storage'a yazılmaz; gizle/göster tercihi yalnız sessionStorage'da tutulur.
+- Panel credential, OAuth secret veya token göstermez; branch/commit/PR merge gibi yazma işlemleri bu yüzeyde bulunmaz.
+- “Tanı özetini kopyala” yalnız güvenli durum metinlerini panoya aktarır.
+
+Ayrıntılar `docs/CONNECTOR_HUB*.md` dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
