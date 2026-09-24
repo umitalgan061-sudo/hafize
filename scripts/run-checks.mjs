@@ -5,22 +5,32 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const TSC_BIN = path.join(ROOT, 'node_modules', 'typescript', 'bin', 'tsc');
 const SYNTAX_TARGETS = [
   { dir: '.', extensions: ['.mjs'] },
   { dir: 'lib', extensions: ['.mjs'] },
   { dir: 'scripts', extensions: ['.mjs'] },
   { dir: 'public', extensions: ['.js'] }
 ];
+// `node --check`, ESM olarak algılanan bir `.ts` dosyasını ayrıştırmadan sessizce
+// başarılı sayar. Bu yüzden TypeScript kaynakları derleyicinin kendi projeleriyle
+// doğrulanır; aksi hâlde bozuk bir `.ts` dosyası kontrol kapısından geçer.
+const TYPESCRIPT_PROJECTS = [
+  { name: 'typecheck (browser + lib)', args: ['--noEmit'] },
+  { name: 'typecheck (server runtime)', args: ['--noEmit', '-p', 'tsconfig.runtime.json'] }
+];
 const SUITE_TIMEOUT_MS = 120_000;
 const SYNTAX_TIMEOUT_MS = 30_000;
+const TYPESCRIPT_TIMEOUT_MS = 300_000;
 const MAX_FAILURE_OUTPUT_LINES = 40;
 const MAX_CAPTURE_BYTES = 64 * 1024;
 
 function parseArgs(argv) {
-  const options = { filters: [], list: false };
+  const options = { filters: [], list: false, skipTypescript: false };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === '--list') options.list = true;
+    else if (arg === '--skip-typescript') options.skipTypescript = true;
     else if (arg === '--filter') options.filters.push(argv[++index] ?? '');
     else if (arg.startsWith('--filter=')) options.filters.push(arg.slice('--filter='.length));
     else if (!arg.startsWith('-')) options.filters.push(arg);
@@ -137,6 +147,17 @@ try {
     if (!result.ok) failures.push({ name: `syntax ${syntaxFiles[index]}`, output: result.output });
   });
   console.log(failures.length ? `syntax: ${failures.length} dosya başarısız` : `syntax: ${syntaxFiles.length} dosya tamam`);
+
+  if (options.skipTypescript) {
+    console.log('typescript: atlandı (--skip-typescript)');
+  } else {
+    console.log(`typescript: ${TYPESCRIPT_PROJECTS.length} proje derleniyor`);
+    for (const project of TYPESCRIPT_PROJECTS) {
+      const result = await run(process.execPath, [TSC_BIN, ...project.args], { timeoutMs: TYPESCRIPT_TIMEOUT_MS });
+      console.log(`${result.ok ? 'ok  ' : 'FAIL'} ${project.name} (${(result.durationMs / 1000).toFixed(1)}s)`);
+      if (!result.ok) failures.push({ name: project.name, output: result.output });
+    }
+  }
 
   console.log(`check: ${suites.length} paket çalıştırılıyor (eşzamanlılık ${concurrency})`);
   const suiteResults = await runPool(

@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v42`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v43`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
@@ -16,17 +16,17 @@
     '/prompt-library.css', '/prompt-library-safety.js', '/prompt-library-import-preview.js', '/prompt-library-diagnostics.js', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
     '/prompt-library-collections.css', '/prompt-library-revisions.css', '/github-workspace.css', '/github-workspace-extra.css', '/github-workspace-actions.css', '/github-workspace-details.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
     '/prompt-library-smart-insert.css', '/prompt-library-smart-insert-center.css', '/prompt-library-smart-insert-history.css', '/prompt-library-smart-insert-suggestions.css', '/prompt-library-smart-insert-activity.css',
-    '/typed-build/auth.js', '/typed-build/app-shell.js', '/typed-build/ui-shell.js', '/typed-build/voice-input.js', '/typed-build/voice-output.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
-    '/chat-history-management.js', '/chat-drafts.js', '/typed-build/conversation-workspace.js', '/typed-build/message-workspace.js', '/conversation-workspace-keyboard.js',
-    '/message-workspace-policy.js', '/message-workspace.js',
+    '/typed-build/auth.js', '/typed-build/app-shell.js', '/typed-build/ui-shell.js', '/typed-build/markdown-renderer.js', '/typed-build/voice-input.js', '/typed-build/voice-output.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
+    '/chat-history-management.js', '/chat-drafts.js', '/typed-build/conversation-workspace.js', '/conversation-workspace-keyboard.js',
+    '/message-workspace-policy.js', '/typed-build/message-workspace.js',
     '/typed-build/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/prompt-library-keyboard.js',
     '/prompt-library-usage.js', '/prompt-library-collections.js', '/prompt-library-collections-enhancements.js',
     '/prompt-library-revisions.js', '/prompt-library-revisions-enhancements.js', '/prompt-library-smart-insert.js', '/prompt-library-smart-insert-center.js',
     '/prompt-library-smart-insert-history.js', '/prompt-library-smart-insert-history-bridge.js', '/prompt-library-smart-insert-suggestions.js', '/prompt-library-smart-insert-shortcuts.js', '/prompt-library-smart-insert-presets.js', '/prompt-library-smart-insert-validation.js', '/prompt-library-smart-insert-activity.js',
     '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
     '/typed-build/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js',
-    '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
-    '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
+    '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
+    '/settings-workspace.js', '/workspace-navigation.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
     '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/scheduled-tasks-countdown.js',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'

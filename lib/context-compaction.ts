@@ -14,7 +14,7 @@ export interface ContextSummaryRequest {
   readonly model: string;
   readonly source: string;
   readonly messageCount: number;
-  readonly signal?: AbortSignal;
+  readonly signal?: AbortSignal | undefined;
 }
 export interface ContextMeta {
   readonly compacted: boolean;

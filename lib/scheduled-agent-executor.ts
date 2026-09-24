@@ -1,7 +1,7 @@
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import { createAgentRunLedger } from './agent-run-ledger.ts';
 // @ts-ignore Legacy delegated runner remains shared during migration.
-import { runDelegatedAgent } from './delegated-agent-runner.mjs';
+import { runDelegatedAgent } from './delegated-agent-runner.ts';
 // @ts-ignore Typed credential boundary is the single policy source.
 import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
@@ -33,7 +33,7 @@ export function createScheduledAgentExecutor(args:{
     const ledger=createAgentRunLedger({traceId:safeTraceId,agentId:canonicalAgent.id,action:'schedule.run'});
     let result:Record<string,unknown>|null=null;
     try{
-      result=await runAgentTask({agent:canonicalAgent,task:safeTask,traceId:safeTraceId,parentTaskId:ledger.rootTaskId,depth:0,registry,runLedger:ledger,model:safeModel,maxTokens:tokenLimit,complete,nvidiaConfigured:Boolean(nvidiaConfigured),githubReadConfigured:Boolean(githubReadConfigured),githubReadFile}) as Record<string,unknown>;
+      result=await runAgentTask({agent:canonicalAgent,task:safeTask,traceId:safeTraceId,parentTaskId:ledger.rootTaskId,depth:0,registry,runLedger:ledger,model:safeModel,maxTokens:tokenLimit,complete,nvidiaConfigured:Boolean(nvidiaConfigured),githubReadConfigured:Boolean(githubReadConfigured),githubReadFile}) as unknown as Record<string,unknown>;
     }catch{result={ok:false,error:'SCHEDULE_AGENT_RUN_FAILED'};}
     if(result?.ok!==true){const error=errorCode(result?.error);ledger.finish({ok:false,detail:error});return{ok:false as const,error,taskLedger:ledger.snapshot()};}
     const content=typeof result.content==='string'?result.content:'';

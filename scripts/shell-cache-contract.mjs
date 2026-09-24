@@ -5,7 +5,7 @@
 // This module is a helper, not a suite (run-checks only executes test-*/validate-*).
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,22 @@ export function indexHtmlAssets() {
   const html = readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
   const found = new Set();
   for (const match of html.matchAll(/(?:href|src)="(\/[^"?#]+\.(?:css|js))"/g)) found.add(match[1]);
+  return [...found];
+}
+
+/**
+ * Same-origin CSS/JS URLs that a loader script injects at runtime instead of
+ * index.html declaring them (`inject('/x.js', …)` / `injectCss('/x.css', …)`).
+ * They are legitimately part of the offline shell even though the page markup
+ * never mentions them.
+ */
+export function loaderInjectedAssets() {
+  const found = new Set();
+  for (const name of readdirSync(PUBLIC_DIR)) {
+    if (!name.endsWith('.js')) continue;
+    const source = readFileSync(path.join(PUBLIC_DIR, name), 'utf8');
+    for (const match of source.matchAll(/inject(?:Css)?\(\s*'(\/[^']+\.(?:css|js))'/g)) found.add(match[1]);
+  }
   return [...found];
 }
 
@@ -76,9 +92,10 @@ export function assertShellCacheContract() {
   for (const asset of indexAssets) {
     assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `index.html asset ${asset} is cached by the service worker`);
   }
+  const reachable = new Set([...indexAssets, ...loaderInjectedAssets()]);
   for (const asset of swPolicy.SHELL_ASSETS) {
     if (NON_INDEX_SHELL_ASSETS.includes(asset) || !/\.(css|js)$/.test(asset)) continue;
-    assert.ok(indexAssets.has(asset), `shell asset ${asset} is still loaded by index.html`);
+    assert.ok(reachable.has(asset), `shell asset ${asset} is still reachable from the app`);
   }
 
   // Every older version is cleaned up, the current one is kept and foreign caches are untouched.

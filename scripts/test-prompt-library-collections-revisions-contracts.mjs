@@ -103,7 +103,7 @@ for (const asset of [
   '/prompt-library-revisions-enhancements.js'
 ]) assert.ok(sw.includes(asset), `SW missing ${asset}`);
 
-assert.match(sw, /v36/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 

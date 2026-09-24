@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-command-palette.js'),'utf8');
+const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-command-palette.ts'),'utf8');
 assert.match(text,/variableCount\(item\)/);
 assert.match(text,/HafizePromptLibrarySmartFill\?\.open/);
 assert.match(text,/close\(\)/);

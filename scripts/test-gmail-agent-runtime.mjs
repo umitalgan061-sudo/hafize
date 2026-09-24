@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGmailAgentRuntime, GMAIL_AGENT_RUNTIME_ENV } from '../lib/gmail-agent-runtime.mjs';
+import { createGmailAgentRuntime, GMAIL_AGENT_RUNTIME_ENV } from '../lib/gmail-agent-runtime.ts';
 
 const key = Buffer.alloc(32, 13).toString('base64');
 const authToken = 'b'.repeat(40);

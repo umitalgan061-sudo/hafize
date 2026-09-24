@@ -4,6 +4,31 @@ import { buildAgentSystemMessage } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.ts';
 
+// Gövde henüz `@ts-nocheck` altında; dışa dönük sözleşme yine de açıkça
+// yazılır, aksi hâlde çağıranlar boş bir parametre tipi görür.
+export interface DelegatedAgentRunOptions {
+  readonly agent?: unknown;
+  readonly task?: unknown;
+  readonly traceId?: unknown;
+  readonly parentTaskId?: unknown;
+  readonly depth?: number | undefined;
+  readonly registry?: unknown;
+  readonly runLedger?: unknown;
+  readonly model?: unknown;
+  readonly maxTokens?: number | undefined;
+  readonly complete?: unknown;
+  readonly nvidiaConfigured?: boolean | undefined;
+  readonly githubReadConfigured?: boolean | undefined;
+  readonly githubReadFile?: unknown;
+  readonly skillsRuntime?: unknown;
+}
+
+export interface DelegatedAgentRunResult {
+  readonly ok: boolean;
+  readonly content?: unknown;
+  readonly error?: unknown;
+}
+
 function normalizeToolCalls(calls) {
   if (!Array.isArray(calls)) return [];
   return calls.slice(0, 4).filter((call) => call?.id && call?.name).map((call) => ({
@@ -41,7 +66,7 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime
-} = {}) {
+}: DelegatedAgentRunOptions = {}): Promise<DelegatedAgentRunResult> {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }

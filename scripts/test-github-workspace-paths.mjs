@@ -13,5 +13,8 @@ for (const source of [core, extra]) {
   assert.match(source, /startsWith\('\/'\)/);
   assert.match(source, /includes\('\\\\'\)/);
 }
-assert.match(extra, /private[._-]?keys?/i);
+// Dizin listeleme yüzeyi hassas dosya adlarını kendi örüntüsüyle eler.
+assert.match(extra, /private\[\._-\]\?keys\?/, 'dizin listesi private key adlarını elemeli');
+assert.match(extra, /pem\|key\|p12\|pfx/, 'dizin listesi anahtar dosya uzantılarını elemeli');
+assert.match(extra, /\\\.env/, 'dizin listesi .env dosyalarını elemeli');
 console.log('github-workspace-paths: ok');

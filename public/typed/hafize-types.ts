@@ -41,9 +41,13 @@ export interface RuntimeSnapshot {
   readonly lastErrorCode: string | null;
 }
 
-export interface ApiRequestOptions extends RequestInit {
-  readonly timeoutMs?: number;
-  readonly retry?: number;
+// `exactOptionalPropertyTypes` altında RequestInit.signal açıkça `undefined`
+// kabul etmez; isteğe bağlı iptal sinyalini taşıyabilmek için signal alanı
+// devralınan tipten ayrılır.
+export interface ApiRequestOptions extends Omit<RequestInit, 'signal'> {
+  readonly signal?: AbortSignal | null | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly retry?: number | undefined;
 }
 
 export class HafizeApiError extends Error {

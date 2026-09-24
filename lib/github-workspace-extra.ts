@@ -16,12 +16,46 @@ export class GitHubWorkspaceExtraError extends Error {
   }
 }
 
+export type GitHubWorkspaceExtraFetch = (url: URL, init: RequestInit) => Promise<Response>;
+
 type Options = {
-  readonly token?: string;
-  readonly allowedRepositories?: readonly string[];
-  readonly baseUrl?: string;
-  readonly fetchImpl?: typeof fetch;
+  readonly token?: string | undefined;
+  readonly allowedRepositories?: readonly string[] | undefined;
+  readonly baseUrl?: string | undefined;
+  readonly fetchImpl?: GitHubWorkspaceExtraFetch | undefined;
 };
+
+export interface GitHubDirectoryEntry {
+  readonly name: string;
+  readonly path: string;
+  readonly type: string;
+  readonly size: number;
+  readonly sha: string;
+  readonly htmlUrl: string;
+}
+export interface GitHubDirectoryResult {
+  readonly repository: string;
+  readonly path: string;
+  readonly ref: string | null;
+  readonly entries: readonly GitHubDirectoryEntry[];
+}
+export interface GitHubCompareFile {
+  readonly filename: string;
+  readonly status: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changes: number;
+}
+export interface GitHubCompareResult {
+  readonly repository: string;
+  readonly base: string;
+  readonly head: string;
+  readonly status: string;
+  readonly aheadBy: number;
+  readonly behindBy: number;
+  readonly totalCommits: number;
+  readonly files: readonly GitHubCompareFile[];
+}
 
 function clamp(value: unknown, max: number): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -77,7 +111,7 @@ export function createGitHubWorkspaceExtra(options: Options = {}) {
     try { return await response.json(); } catch { throw new GitHubWorkspaceExtraError('INVALID_GITHUB_RESPONSE', 502); }
   }
 
-  async function directory(input: { readonly repository: unknown; readonly path?: unknown; readonly ref?: unknown }): Promise<Record<string, unknown>> {
+  async function directory(input: { readonly repository: unknown; readonly path?: unknown; readonly ref?: unknown }): Promise<GitHubDirectoryResult> {
     const repo = repository(input.repository);
     allowed(repo, allowlist);
     const path = input.path ? pathValue(input.path) : '';
@@ -107,7 +141,7 @@ export function createGitHubWorkspaceExtra(options: Options = {}) {
     return { repository: repo, path, ref: branch, entries };
   }
 
-  async function compare(input: { readonly repository: unknown; readonly base: unknown; readonly head: unknown }): Promise<Record<string, unknown>> {
+  async function compare(input: { readonly repository: unknown; readonly base: unknown; readonly head: unknown }): Promise<GitHubCompareResult> {
     const repo = repository(input.repository);
     allowed(repo, allowlist);
     const base = ref(input.base);

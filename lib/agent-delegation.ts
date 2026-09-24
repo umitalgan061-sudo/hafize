@@ -3,11 +3,12 @@ import { authorizeAgentTool } from './agent-runtime.mjs';
 // @ts-ignore Legacy task handoff remains shared during migration.
 import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.mjs';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
+import type { AgentToolPolicy } from './agent-runtime.ts';
 
-interface Agent { readonly id:string; readonly name:string; readonly kind:string; }
+interface Agent { readonly id:string; readonly name:string; readonly kind:string; readonly toolPolicy?:AgentToolPolicy|undefined; }
 interface Registry { readonly agents:readonly Agent[]; readonly policy?:{readonly maxDelegationDepth?:number;readonly maxParallelAgents?:number}; }
 interface Result { readonly ok:boolean; readonly content?:unknown; readonly error?:unknown; }
-interface Lifecycle { readonly start:(input:{runId:string;parentRunId:string;parentSignal?:AbortSignal|null;execute:(input:{signal?:AbortSignal})=>Promise<Result>})=>{promise:Promise<{value?:Result}>;snapshot:()=>{state:string;error?:unknown}}; }
+interface Lifecycle { readonly start:(input:{runId:string;parentRunId:string;parentSignal?:AbortSignal|null;execute:(input:{signal?:AbortSignal|undefined})=>Promise<Result>})=>{promise:Promise<{value?:Result}>;snapshot:()=>{state:string;error?:unknown}}; }
 
 const bounded=(value:unknown,fallback:number,max:number)=>Number.isInteger(value)?Math.min(Math.max(Number(value),1),max):fallback;
 const clean=(value:unknown,max:number)=>{const text=typeof value==='string'?value.trim():'';return text&&text.length<=max?text:null;};
@@ -16,7 +17,7 @@ const count=(ledger:AgentRunLedger)=>ledger.snapshot().entries.filter((entry)=>e
 
 export function createAgentDelegator(args:{
   readonly registry:Registry;readonly traceId:unknown;readonly parentAgent:Agent;readonly parentTaskId:string;readonly runLedger:AgentRunLedger;
-  readonly executeAgent:(input:{agent:Agent;task:string;traceId:string;depth:number;parentTaskId:string;signal?:AbortSignal})=>Promise<Result>;
+  readonly executeAgent:(input:{agent:Agent;task:string;traceId:string;depth:number;parentTaskId:string;signal?:AbortSignal|undefined})=>Promise<Result>;
   readonly lifecycle?:Lifecycle|null;readonly parentSignal?:AbortSignal|null;
 }){
   const {registry,traceId,parentAgent,parentTaskId,runLedger,executeAgent,lifecycle=null,parentSignal=null}=args;

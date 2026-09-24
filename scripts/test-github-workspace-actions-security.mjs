@@ -13,5 +13,8 @@ assert.match(source, /cache: ['"]no-store['"]/);
 assert.doesNotMatch(source, /Authorization/);
 assert.doesNotMatch(source, /GITHUB_TOKEN/);
 assert.doesNotMatch(source, /method: ['"](POST|PATCH|DELETE)['"]/);
-assert.match(source, /https:\\/\\/github\\.com\\//);
+assert.ok(
+  source.includes(String.raw`/^https:\/\/github\.com\//i`),
+  'Dis baglantilar yalnizca https://github.com/ kaynagina sinirlandirilmalidir'
+);
 console.log('github-workspace-actions-security: ok');

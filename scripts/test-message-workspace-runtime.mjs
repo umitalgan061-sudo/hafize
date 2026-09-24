@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = await readFile(path.join(root, 'public/message-workspace.js'), 'utf8');
+const source = await readFile(path.join(root, 'public/typed/message-workspace.ts'), 'utf8');
 
 const requiredFunctions = [
   'loadRecords',

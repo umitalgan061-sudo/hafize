@@ -5,7 +5,9 @@ interface HintsWindow extends Window {
   }>;
 }
 
-const root = globalThis as HintsWindow;
+// Browser entrypoint: under the Node-flavoured tsconfig `globalThis` is not
+// statically a Window, so the browser root is narrowed explicitly here.
+const root = globalThis as unknown as HintsWindow;
 const CARD_ID = 'promptLibraryCard';
 const PANEL_ID = 'promptLibrarySmartFill';
 const MAX_VALUE = 1000;

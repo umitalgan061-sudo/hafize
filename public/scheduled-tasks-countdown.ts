@@ -14,7 +14,9 @@ interface CountdownWindow extends Window {
   }>;
 }
 
-const root = globalThis as CountdownWindow;
+// Browser entrypoint: under the Node-flavoured tsconfig `globalThis` is not
+// statically a Window, so the browser root is narrowed explicitly here.
+const root = globalThis as unknown as CountdownWindow;
 const PANEL_ID = 'scheduledTasksWorkspace';
 const REFRESH_MS = 1_000;
 let timer: number | undefined;

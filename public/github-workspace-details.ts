@@ -7,7 +7,9 @@ export interface GitHubWorkspaceDetailsController {
 }
 type ApiRecord = Record<string, unknown>;
 
-const root = globalThis as GitHubWorkspaceDetailsWindow;
+// Browser entrypoint: under the Node-flavoured tsconfig `globalThis` is not
+// statically a Window, so the browser root is narrowed explicitly here.
+const root = globalThis as unknown as GitHubWorkspaceDetailsWindow;
 const CARD_ID = 'githubWorkspaceCard';
 
 function make<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, text?: string, className?: string): HTMLElementTagNameMap[K] {
@@ -53,7 +55,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceDetailsCon
   const prButton = make(documentRef, 'button', 'PR ayrıntısı', 'mini-btn') as HTMLButtonElement;
   prButton.type = 'button';
 
-  const status = make(documentRef, 'Detay okumaya hazır.', 'github-workspace-details-status');
+  const status = make(documentRef, 'div', 'Detay okumaya hazır.', 'github-workspace-details-status');
   status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const result = make(documentRef, 'div', undefined, 'github-workspace-details-result');
   result.setAttribute('aria-live', 'polite');

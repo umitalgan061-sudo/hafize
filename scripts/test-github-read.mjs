@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGitHubReadFile, parseGitHubRepoAllowlist } from '../lib/github-read.mjs';
+import { createGitHubReadFile, parseGitHubRepoAllowlist } from '../lib/github-read.ts';
 
 assert.deepEqual(
   parseGitHubRepoAllowlist('umitalgan061-sudo/hafize, example/demo,umitalgan061-sudo/hafize'),

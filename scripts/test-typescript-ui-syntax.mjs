@@ -12,6 +12,8 @@ const typed = [
   'public/typed/scheduled-tasks.ts'
 ];
 
+// Legacy `.js` girişleri yalnızca typed-build çıktısına köprü kurar; uygulama
+// mantığı taşımazlar.
 const bridges = [
   'public/markdown-renderer.js',
   'public/conversation-workspace.js',

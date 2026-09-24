@@ -7,7 +7,7 @@ import { assertCssIncludes } from './source-contract.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
-const js = await read('public/message-workspace.js');
+const js = await read('public/typed/message-workspace.ts');
 const css = await read('public/message-workspace.css');
 const policy = await read('public/message-workspace-policy.js');
 const sw = await read('public/sw-policy.js');
@@ -33,7 +33,9 @@ assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
 assert.ok(sw.includes("'/message-workspace-policy.js'"));
-assert.ok(sw.includes("'/message-workspace.js'"));
+// Panel artık typed-build çıktısı üzerinden yüklenir; legacy köprü kabukta
+// taşınmaz.
+assert.ok(sw.includes("'/typed-build/message-workspace.js'"));
 
 assert.ok(js.includes("hafize.message-workspace.v1"));
 assert.ok(js.includes("hafize:message-workspace-changed"));

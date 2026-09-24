@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const renderer = fs.readFileSync('public/markdown-renderer.js', 'utf8');
+const renderer = fs.readFileSync('public/markdown-renderer.ts', 'utf8');
 const chat = fs.readFileSync('public/chat-markdown.js', 'utf8');
 const css = fs.readFileSync('public/chat-markdown.css', 'utf8');
 assert.match(renderer, /renderMarkdown|parseMarkdown/);

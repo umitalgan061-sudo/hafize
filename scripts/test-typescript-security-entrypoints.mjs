@@ -17,10 +17,19 @@ const securityFiles = [
   'lib/gmail-agent-runtime.ts'
 ];
 
+// Migration kademelidir: yaprak `.mjs` modülleri henüz taşınmadıysa typed bir
+// güvenlik girişi onları içe aktarabilir. Yasak olan, `.ts` karşılığı zaten
+// bulunan bir modülü hâlâ `.mjs` üzerinden çekmektir — bu, aynı mantığın iki
+// kopyasını çalıştırır.
 for (const path of securityFiles) {
   assert.equal(existsSync(join(root, path)), true, `missing typed security source: ${path}`);
   const source = read(path);
-  assert.doesNotMatch(source, /(?:\.\/|from ['"])[^'"]+\.mjs['"]/);
+  for (const match of source.matchAll(/from '(\.\/[^']+)\.mjs'/g)) {
+    const legacy = join(root, 'lib', `${match[1].slice(2)}.mjs`);
+    const typed = join(root, 'lib', `${match[1].slice(2)}.ts`);
+    assert.equal(existsSync(legacy), true, `${path} imports a missing module: ${match[1]}.mjs`);
+    assert.equal(existsSync(typed), false, `${path} still imports ${match[1]}.mjs although ${match[1]}.ts exists`);
+  }
 }
 
 assert.match(server, /\.\/lib\/github-read\.ts/);
@@ -43,7 +52,8 @@ const bridges = [
   'lib/personal-memory-encryption.mjs'
 ];
 for (const path of bridges) {
-  assert.equal(read(path).trim(), `export * from './${path.replace(/\.mjs$/, '.ts')}';`);
+  const typedName = path.slice('lib/'.length).replace(/\.mjs$/, '.ts');
+  assert.equal(read(path).trim(), `export * from './${typedName}';`);
 }
 
 console.log('TypeScript security entrypoint gate: ok');

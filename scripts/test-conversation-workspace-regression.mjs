@@ -5,7 +5,7 @@ import { assertAttributeDeclared, assertClassDeclared } from './source-contract.
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
+const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.ts'), 'utf8');
 const keyboard = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
 const drafts = fs.readFileSync(path.join(root, 'public', 'chat-drafts.js'), 'utf8');
 const historyManagement = fs.readFileSync(path.join(root, 'public', 'chat-history-management.js'), 'utf8');

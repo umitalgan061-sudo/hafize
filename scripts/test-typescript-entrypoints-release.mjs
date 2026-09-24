@@ -18,17 +18,26 @@ for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-outp
   assert.match(html, new RegExp(`typed-build/${entry}\\.js`));
   assert.match(sw, new RegExp(`typed-build/${entry}\\.js`));
 }
-for (const legacy of ['public/app.js', 'public/auth.js', 'public/ui-shell.js', 'public/voice-input.js', 'public/voice-output.js']) {
+// Taşınmış legacy tarayıcı girişleri ve eski sunucu girişi depodan kalkmıştır.
+for (const legacy of ['public/app.js', 'public/auth.js', 'public/ui-shell.js', 'public/voice-input.js', 'public/voice-output.js', 'server.mjs']) {
   assert.equal(existsSync(join(root, legacy)), false, `legacy entry still exists: ${legacy}`);
 }
-assert.equal(existsSync(join(root, 'server.mjs')), false);
-assert.equal(existsSync(join(root, 'server.ts')), true);
-assert.equal(existsSync(join(root, 'public/typed/app-shell.ts')), true);
-assert.equal(existsSync(join(root, 'public/markdown-renderer.ts')), true);
-assert.equal(existsSync(join(root, 'public/conversation-workspace.ts')), true);
-assert.equal(existsSync(join(root, 'public/typed/message-workspace.ts')), true);
-assert.equal(existsSync(join(root, 'public/typed/prompt-library.ts')), true);
-assert.equal(existsSync(join(root, 'public/typed/scheduled-tasks.ts')), true);
+// Typed karşılıkları yerinde olmalıdır.
+for (const typed of [
+  'server.ts',
+  'public/typed/app-shell.ts',
+  'public/typed/auth.ts',
+  'public/typed/ui-shell.ts',
+  'public/typed/voice-input.ts',
+  'public/typed/voice-output.ts',
+  'public/markdown-renderer.ts',
+  'public/conversation-workspace.ts',
+  'public/typed/message-workspace.ts',
+  'public/typed/prompt-library.ts',
+  'public/typed/scheduled-tasks.ts'
+]) {
+  assert.equal(existsSync(join(root, typed)), true, `typed entry missing: ${typed}`);
+}
 assert.doesNotMatch(html, /<script[^>]+src=["']\/app\.js["']/);
 assert.doesNotMatch(html, /<script[^>]+src=["']\/auth\.js["']/);
 console.log('TypeScript entrypoint release gate: ok');

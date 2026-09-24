@@ -25,7 +25,29 @@ describe('typed GitHub read boundary', () => {
   });
 
   it('decodes bounded text content', async () => {
+    // Okunabilir bir dosya döndürebilmek için sınırın altında 1 KiB taban
+    // uygulanır; yanlış yapılandırılmış küçük bir değer okumayı işe yaramaz
+    // hâle getirmez.
+    const body = 'x'.repeat(2048);
     const read = createGitHubReadFile({
+      token: 'token',
+      allowedRepositories: ['a/b'],
+      maxFileBytes: 1024,
+      fetchImpl: async () => response({
+        type: 'file', encoding: 'base64',
+        content: Buffer.from(body).toString('base64'),
+        sha: 'abc', size: body.length
+      })
+    });
+    await expect(read({ repository: 'a/b', path: 'README.md' })).resolves.toMatchObject({
+      repository: 'a/b',
+      path: 'README.md',
+      content: 'x'.repeat(1024),
+      truncated: true
+    });
+
+    // Taban sınırın altındaki istekler 1 KiB'a yükseltilir.
+    const tiny = createGitHubReadFile({
       token: 'token',
       allowedRepositories: ['a/b'],
       maxFileBytes: 5,
@@ -35,11 +57,9 @@ describe('typed GitHub read boundary', () => {
         sha: 'abc', size: 11
       })
     });
-    await expect(read({ repository: 'a/b', path: 'README.md' })).resolves.toMatchObject({
-      repository: 'a/b',
-      path: 'README.md',
-      content: 'hello',
-      truncated: true
+    await expect(tiny({ repository: 'a/b', path: 'README.md' })).resolves.toMatchObject({
+      content: 'hello world',
+      truncated: false
     });
   });
 
