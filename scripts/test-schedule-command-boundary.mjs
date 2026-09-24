@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
-import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mjs';
+import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mts';
+
+/**
+ * Başarılı dalı doğrular ve daraltılmış sonucu döndürür.
+ *
+ * Doğrudan `result.schedules` yazmak `ok`un gerçekten `true` olduğunu
+ * kontrol etmiyordu; başarısız bir çağrı `undefined.map` ile patlardı.
+ *
+ * @param {{ ok: boolean }} result
+ * @returns {any}
+ */
+function expectOk(result) {
+  assert.equal(result?.ok, true, `başarılı sonuç bekleniyordu: ${JSON.stringify(result)}`);
+  return result;
+}
+
 
 const now = () => new Date('2026-08-12T11:00:00.000Z');
 const store = createTaskScheduleStore({ now });
@@ -92,7 +107,7 @@ assert.deepEqual(aliceList.schedules.map((entry) => entry.scheduleId), [created.
 assert.equal(aliceList.schedules.some((entry) => 'ownerId' in entry), false);
 
 const bobList = await commands.list({ principal: bob });
-assert.deepEqual(bobList.schedules.map((entry) => entry.scheduleId), [bobCreated.schedule.scheduleId]);
+assert.deepEqual(expectOk(bobList).schedules.map((entry) => entry.scheduleId), [bobCreated.schedule.scheduleId]);
 
 assert.deepEqual(
   await commands.cancel({ principal: bob, scheduleId: created.schedule.scheduleId }),
@@ -176,11 +191,11 @@ assert.equal(asyncCreated.ok, true);
 assert.equal(asyncCreated.schedule.traceId, 'trace-async');
 assert.equal((await asyncStore.read(asyncCreated.schedule.scheduleId)).ownerId, 'user-alice');
 assert.deepEqual(
-  (await asyncCommands.list({ principal: alice })).schedules.map((entry) => entry.scheduleId),
+  expectOk(await asyncCommands.list({ principal: alice })).schedules.map((entry) => entry.scheduleId),
   [asyncCreated.schedule.scheduleId]
 );
 assert.equal(
-  (await asyncCommands.cancel({ principal: alice, scheduleId: asyncCreated.schedule.scheduleId })).schedule.status,
+  expectOk(await asyncCommands.cancel({ principal: alice, scheduleId: asyncCreated.schedule.scheduleId })).schedule.status,
   'cancelled'
 );
 

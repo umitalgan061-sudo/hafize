@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { GMAIL_SEND_LIMITS, normalizeGmailSendRequest } from '../lib/gmail-send-contract.mjs';
+import { GMAIL_SEND_LIMITS, normalizeGmailSendRequest } from '../lib/gmail-send-contract.mts';
 
 const validInput = {
   to: ['alice@example.com', 'Bob@example.org'],

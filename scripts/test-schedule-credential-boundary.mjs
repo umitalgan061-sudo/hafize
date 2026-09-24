@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mjs';
+import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mts';
 
 let addCalls = 0;
 const store = {

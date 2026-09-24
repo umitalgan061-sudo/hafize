@@ -1,20 +1,13 @@
 const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
-/**
- * @param {unknown} value
- * @param {string} label
- * @param {{ min?: number; max?: number }} [bounds]
- * @returns {string}
- */
-function text(value, label, { min = 1, max = 4096 } = {}) {
+function text(value: unknown, label: string, { min = 1, max = 4096 }: { min?: number; max?: number } = {}): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (normalized.length < min || normalized.length > max) throw new Error(`INVALID_GOOGLE_TOKEN_EXCHANGE:${label}`);
   return normalized;
 }
 
-/** @param {unknown} value */
-function redirectUri(value) {
+function redirectUri(value: unknown) {
   const raw = text(value, 'redirectUri', { max: 2048 });
   let url;
   try { url = new URL(raw); } catch { throw new Error('INVALID_GOOGLE_TOKEN_EXCHANGE:redirectUri'); }
@@ -22,8 +15,7 @@ function redirectUri(value) {
   return url.toString();
 }
 
-/** @param {Record<string, any> | null | undefined} value */
-function normalizeTokenResponse(value) {
+function normalizeTokenResponse(value: Record<string, any> | null | undefined) {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('GOOGLE_TOKEN_EXCHANGE_FAILED:response');
   const accessToken = text(value.access_token, 'accessToken');
   const tokenType = text(value.token_type, 'tokenType', { max: 32 });
@@ -35,20 +27,14 @@ function normalizeTokenResponse(value) {
   return { accessToken, refreshToken, tokenType: 'Bearer', expiresIn, scopes: [...new Set(scope)] };
 }
 
-/**
- * @param {{ clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch; now?: () => number }} [options]
- */
-export function createGoogleTokenExchange({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
+export function createGoogleTokenExchange({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch, now = () => Date.now() }: { clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch; now?: () => number } = {}) {
   const safeClientId = text(clientId, 'clientId', { max: 512 });
   const safeClientSecret = clientSecret == null ? null : text(clientSecret, 'clientSecret', { max: 2048 });
   if (typeof tokenStore?.save !== 'function') throw new Error('INVALID_GOOGLE_TOKEN_EXCHANGE:tokenStore');
   if (typeof fetchImpl !== 'function') throw new Error('INVALID_GOOGLE_TOKEN_EXCHANGE:fetch');
   if (typeof now !== 'function') throw new Error('INVALID_GOOGLE_TOKEN_EXCHANGE:now');
 
-  /**
-   * @param {{ ownerId?: string; code?: string; verifier?: string; redirectUri?: string }} [input]
-   */
-  async function exchange({ ownerId, code, verifier, redirectUri: callbackUri } = {}) {
+  async function exchange({ ownerId, code, verifier, redirectUri: callbackUri }: { ownerId?: string; code?: string; verifier?: string; redirectUri?: string } = {}) {
     const owner = text(ownerId, 'ownerId', { max: 128 });
     if (!OWNER_PATTERN.test(owner)) throw new Error('INVALID_GOOGLE_TOKEN_EXCHANGE:ownerId');
     const safeCode = text(code, 'code', { min: 8, max: 2048 });

@@ -35,7 +35,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
       if (path === '/api/auth/logout' && req.method === 'POST') return logout(req, res);
       if (required && protectedPath(path)) {
         const current = authenticateProtected(req, path);
-        if (!current.ok) {
+        if (current.ok === false) {
           security.record({ event: 'auth.denied', requestId: res.getHeader('X-Hafize-Request-Id'), route: path, method: req.method, outcome: 'blocked' });
           return deny(res);
         }
@@ -45,14 +45,14 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
         }
         const limit = (path === '/api/chat' || path === '/api/agent/run') ? chatLimit : apiLimit;
         const decision = limit.check(`${current.subject}:${path === '/api/chat' || path === '/api/agent/run' ? 'chat' : 'api'}`);
-        if (!decision.ok) {
+        if (decision.ok === false) {
           security.record({ event: 'rate.denied', requestId: res.getHeader('X-Hafize-Request-Id'), route: path, method: req.method, outcome: 'blocked', metadata: { concurrent: decision.concurrent === true } });
           return rate(res, decision.retryAfterSeconds);
         }
         res.once('close', decision.release); res.once('finish', decision.release);
         security.record({ event: 'auth.allowed', requestId: res.getHeader('X-Hafize-Request-Id'), route: path, method: req.method, outcome: current.connector ? 'connector' : 'session' });
       } else if (!required && (path === '/api/chat' || path === '/api/agent/run')) {
-        const decision = chatLimit.check(`ip:${ip(req)}`); if (!decision.ok) return rate(res, decision.retryAfterSeconds);
+        const decision = chatLimit.check(`ip:${ip(req)}`); if (decision.ok === false) return rate(res, decision.retryAfterSeconds);
         res.once('close', decision.release); res.once('finish', decision.release);
       }
       return listener(req, res);
@@ -66,12 +66,12 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   function ip(req) { const forwarded = req.headers['x-forwarded-for']; return bool(process.env.HAFIZE_TRUST_PROXY, false) && typeof forwarded === 'string' ? forwarded.split(',')[0].trim().slice(0, 200) : String(req.socket?.remoteAddress || 'unknown').slice(0, 200); }
   function authenticateProtected(req, path) {
     const current = auth?.authenticate(req.headers);
-    if (current?.ok) return { ok: true, session: true, subject: current.principal.subject, csrf: current.csrf };
+    if (current?.ok) return { ok: true as const, session: true, subject: current.principal.subject, csrf: current.csrf };
     if (connectorPath(path) && connectorAuth) {
       const connector = connectorAuth.authenticate({ headers: req.headers });
-      if (connector?.ok) return { ok: true, session: false, connector: true, subject: `connector:${connector.principal.subject}` };
+      if (connector?.ok) return { ok: true as const, session: false, connector: true, subject: `connector:${connector.principal.subject}` };
     }
-    return { ok: false };
+    return { ok: false as const };
   }
   function csrf(req, current) { const value = req.headers['x-hafize-csrf']; return typeof value === 'string' && equal(value, current.csrf); }
   function equal(a, b) { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); if (x.length !== y.length) { const z = Buffer.alloc(y.length); x.copy(z, 0, 0, Math.min(x.length, y.length)); timingSafeEqual(z, y); return false; } return timingSafeEqual(x, y); }
@@ -82,6 +82,6 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   function send(res, status, body) { res.setHeader('X-Content-Type-Options', 'nosniff'); res.setHeader('X-Frame-Options', 'DENY'); res.setHeader('Referrer-Policy', 'no-referrer'); res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(body)); }
   async function json(req, max = 8192) { const chunks = []; let size = 0; for await (const chunk of req) { size += chunk.length; if (size > max) throw new Error('BODY_TOO_LARGE'); chunks.push(chunk); } const text = Buffer.concat(chunks).toString('utf8'); return text ? JSON.parse(text) : {}; }
   function session(req, res) { if (!required) return send(res, 200, { required: false, authenticated: true, csrf: '' }); const current = auth.authenticate(req.headers); return send(res, 200, { required: true, authenticated: current.ok, csrf: current.ok ? current.csrf : '' }); }
-  async function login(req, res) { if (!auth) return send(res, 503, { error: 'AUTH_NOT_CONFIGURED' }); const decision = loginLimit.check(`login:${ip(req)}`); if (!decision.ok) return rate(res, decision.retryAfterSeconds); res.once('close', decision.release); res.once('finish', decision.release); try { const body = await json(req); const candidate = typeof body.token === 'string' ? body.token : (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); if (!auth.verifyCredential(candidate)) return deny(res); const value = auth.issueSession(), current = auth.verifySessionCookie(value); res.setHeader('Set-Cookie', auth.sessionCookieHeader(value)); return send(res, 200, { authenticated: true, csrf: current.csrf }); } catch (error) { return send(res, error?.message === 'BODY_TOO_LARGE' ? 413 : 400, { error: error?.message === 'BODY_TOO_LARGE' ? 'BODY_TOO_LARGE' : 'INVALID_JSON' }); } }
-  function logout(req, res) { const current = auth?.authenticate(req.headers); if (required && !current?.ok) return deny(res); if (current?.ok && !csrf(req, current)) return send(res, 403, { error: 'CSRF_REQUIRED' }); res.setHeader('Set-Cookie', auth?.clearCookieHeader() || ''); return send(res, 200, { ok: true }); }
+  async function login(req, res) { if (!auth) return send(res, 503, { error: 'AUTH_NOT_CONFIGURED' }); const decision = loginLimit.check(`login:${ip(req)}`); if (decision.ok === false) return rate(res, decision.retryAfterSeconds); res.once('close', decision.release); res.once('finish', decision.release); try { const body = await json(req); const candidate = typeof body.token === 'string' ? body.token : (req.headers.authorization || '').replace(/^Bearer\s+/i, ''); if (!auth.verifyCredential(candidate)) return deny(res); const value = auth.issueSession(), current = auth.verifySessionCookie(value); res.setHeader('Set-Cookie', auth.sessionCookieHeader(value)); return send(res, 200, { authenticated: true, csrf: current.csrf }); } catch (error) { return send(res, error?.message === 'BODY_TOO_LARGE' ? 413 : 400, { error: error?.message === 'BODY_TOO_LARGE' ? 'BODY_TOO_LARGE' : 'INVALID_JSON' }); } }
+  function logout(req, res) { const current = auth?.authenticate(req.headers); if (required && !current?.ok) return deny(res); if (current?.ok && !csrf(req, current)) return send(res, 403, { error: 'CSRF_REQUIRED' }); res.setHeader('Set-Cookie', auth?.clearCookieHeader() || ''); return send(res, 200, { ok: true as const }); }
 }

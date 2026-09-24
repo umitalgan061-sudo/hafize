@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { formatTaskHandoff, normalizeTaskHandoff } from '../lib/task-handoff.mjs';
+import { formatTaskHandoff, normalizeTaskHandoff } from '../lib/task-handoff.mts';
 
 const basic = normalizeTaskHandoff({ agentId: 'specialist-a', task: 'Kontrol et.' });
 assert.equal(basic.ok, true);

@@ -20,7 +20,7 @@ export type ScreenCaptureResult =
   | { readonly ok: false; readonly error: string }
   | { readonly ok: true; readonly metadata: ScreenCaptureMetadata };
 
-function fail(error: string): ScreenCaptureResult { return { ok: false, error }; }
+function fail(error: string): ScreenCaptureResult { return { ok: false as const, error }; }
 
 // Girdi bir sınır değeridir: çağıran taraf ne verirse versin fonksiyon kendi
 // doğrulamasını yapar, bu yüzden imza `unknown` alır. Şekil kontrolünden
@@ -42,7 +42,7 @@ export function normalizeScreenCaptureMetadata(value: unknown): ScreenCaptureRes
   if (!Number.isInteger(input.height) || input.height < 1 || input.height > LIMITS.height) {
     return fail('SCREEN_CAPTURE_INVALID_DIMENSIONS');
   }
-  return { ok: true, metadata: Object.freeze({
+  return { ok: true as const, metadata: Object.freeze({
     mimeType: 'image/jpeg',
     byteLength: input.byteLength,
     width: input.width,

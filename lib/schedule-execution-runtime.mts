@@ -1,4 +1,4 @@
-import { createScheduleLeaseGuardedExecutor } from './schedule-lease-executor.mjs';
+import { createScheduleLeaseGuardedExecutor } from './schedule-lease-executor.mts';
 
 const WORKER_RESULT_KEYS = new Set(['ok', 'error', 'retryAt']);
 const INTERNAL_RESULT_METADATA_KEYS = new Set(['content', 'taskLedger', 'leaseStatus', 'deduplicated']);
@@ -22,9 +22,9 @@ function projectWorkerResult(value) {
   if (keys.some((key) => !WORKER_RESULT_KEYS.has(key) && !INTERNAL_RESULT_METADATA_KEYS.has(key))) return value;
   if (keys.some((key) => !Object.prototype.hasOwnProperty.call(descriptors[key], 'value'))) return value;
   const ok = descriptors.ok?.value;
-  if (ok === true) return Object.freeze({ ok: true });
+  if (ok === true) return Object.freeze({ ok: true as const });
   if (ok !== false) return value;
-  const projected: { ok: false; error?: unknown; retryAt?: unknown } = { ok: false, error: descriptors.error?.value };
+  const projected: { ok: false; error?: unknown; retryAt?: unknown } = { ok: false as const, error: descriptors.error?.value };
   if (Object.prototype.hasOwnProperty.call(descriptors, 'retryAt')) projected.retryAt = descriptors.retryAt.value;
   return Object.freeze(projected);
 }

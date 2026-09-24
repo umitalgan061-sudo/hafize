@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createAgentDelegator } from '../lib/agent-delegation.mjs';
+import { createAgentDelegator } from '../lib/agent-delegation.mts';
 import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
 
 const registry = { policy: { maxDelegationDepth: 2, maxParallelAgents: 3 }, agents: [

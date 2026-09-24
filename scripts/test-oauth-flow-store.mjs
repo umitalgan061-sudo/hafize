@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createOAuthFlowStore } from '../lib/oauth-flow-store.mjs';
+import { createOAuthFlowStore } from '../lib/oauth-flow-store.mts';
 
 let clock = 1_000;
 const store = createOAuthFlowStore({ ttlMs: 500, maxFlows: 2, now: () => clock });

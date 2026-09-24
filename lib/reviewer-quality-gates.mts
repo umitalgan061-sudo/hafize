@@ -8,35 +8,20 @@ const SECRET_PATTERNS = [
 const MAX_FINDINGS = 100;
 const SEVERITIES = new Set(['blocker', 'high', 'medium', 'low', 'info']);
 
-/**
- * @param {unknown} value
- * @param {number} [max]
- * @returns {string}
- */
-function clean(value, max = 500) {
+function clean(value: unknown, max: number = 500): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
-/**
- * @param {string} severity
- * @param {string} code
- * @param {string} message
- * @param {string} [location]
- */
-function finding(severity, code, message, location = '') {
+function finding(severity: string, code: string, message: string, location: string = '') {
   if (!SEVERITIES.has(severity)) throw new Error('INVALID_QUALITY_SEVERITY');
   return Object.freeze({ severity, code: clean(code, 80), message: clean(message, 1_000), location: clean(location, 300) });
 }
 
-/** @param {unknown} text */
-function hasSecret(text) {
+function hasSecret(text: unknown) {
   return typeof text === 'string' && SECRET_PATTERNS.some((pattern) => pattern.test(text));
 }
 
-/**
- * @param {{ path?: unknown; content?: unknown }[]} [files]
- */
-export function checkCredentialHygiene(files = []) {
+export function checkCredentialHygiene(files: { path?: unknown; content?: unknown }[] = []) {
   if (!Array.isArray(files)) throw new Error('INVALID_QUALITY_FILES');
   const findings = [];
   for (const file of files) {
@@ -51,10 +36,7 @@ export function checkCredentialHygiene(files = []) {
   return Object.freeze(findings.slice(0, MAX_FINDINGS));
 }
 
-/**
- * @param {Record<string, any>} [result]
- */
-export function checkEvidenceContract(result = {}) {
+export function checkEvidenceContract(result: Record<string, any> = {}) {
   const findings = [];
   if (!result || typeof result !== 'object') throw new Error('INVALID_QUALITY_RESULT');
   const evidence = Array.isArray(result.evidence) ? result.evidence : [];
@@ -67,10 +49,7 @@ export function checkEvidenceContract(result = {}) {
   return Object.freeze(findings.slice(0, MAX_FINDINGS));
 }
 
-/**
- * @param {Record<string, any>} [report]
- */
-export function checkUiFinishContract(report = {}) {
+export function checkUiFinishContract(report: Record<string, any> = {}) {
   if (!report || typeof report !== 'object') throw new Error('INVALID_QUALITY_UI_REPORT');
   const checks = {
     responsive: report.responsive === true,
@@ -87,10 +66,7 @@ export function checkUiFinishContract(report = {}) {
   return Object.freeze(findings);
 }
 
-/**
- * @param {{ files?: { path?: unknown; content?: unknown }[]; result?: Record<string, any>; ui?: Record<string, any> }} [input]
- */
-export function evaluateQualityGates({ files = [], result = {}, ui = {} } = {}) {
+export function evaluateQualityGates({ files = [], result = {}, ui = {} }: { files?: { path?: unknown; content?: unknown }[]; result?: Record<string, any>; ui?: Record<string, any> } = {}) {
   const findings = [
     ...checkCredentialHygiene(files),
     ...checkEvidenceContract(result),

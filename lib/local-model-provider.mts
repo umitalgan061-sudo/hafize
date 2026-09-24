@@ -34,7 +34,13 @@ function normalizeRequest(payload) {
   for (const key of Object.keys(payload)) if (!allowed.has(key)) invalid('payload.field');
   const model = typeof payload.model === 'string' ? payload.model.trim() : '';
   if (!MODEL_PATTERN.test(model)) invalid('model');
-  const request = { model, messages: normalizeMessages(payload.messages), stream: false };
+  // `options` yalnızca çağıran bir örnekleme parametresi verdiğinde oluşur.
+  const request: {
+    model: string;
+    messages: unknown;
+    stream: false;
+    options?: { temperature?: number; top_p?: number; num_predict?: number };
+  } = { model, messages: normalizeMessages(payload.messages), stream: false };
   if (typeof payload.temperature === 'number') request.options = { temperature: Math.min(Math.max(payload.temperature, 0), 2) };
   if (typeof payload.top_p === 'number') request.options = { ...(request.options || {}), top_p: Math.min(Math.max(payload.top_p, 0), 1) };
   if (Number.isInteger(payload.max_tokens)) {
@@ -43,12 +49,11 @@ function normalizeRequest(payload) {
   return request;
 }
 
-/** @param {{ baseUrl?: string; fetchImpl?: HafizeFetch }} [options] */
-export function createLocalModelProvider({ baseUrl = 'http://127.0.0.1:11434', fetchImpl = globalThis.fetch } = {}) {
+export function createLocalModelProvider({ baseUrl = 'http://127.0.0.1:11434', fetchImpl = globalThis.fetch }: { baseUrl?: string; fetchImpl?: HafizeFetch } = {}) {
   const origin = normalizeBaseUrl(baseUrl);
   if (typeof fetchImpl !== 'function') invalid('fetch');
 
-  async function complete(payload, signal) {
+  async function complete(payload: UnvalidatedInput, signal?: AbortSignal) {
     const body = normalizeRequest(payload);
     let response;
     try {
@@ -63,7 +68,7 @@ export function createLocalModelProvider({ baseUrl = 'http://127.0.0.1:11434', f
       throw new Error('LOCAL_PROVIDER_UNAVAILABLE');
     }
     const text = await response.text();
-    if (!response.ok) throw new Error('LOCAL_PROVIDER_ERROR');
+    if (response.ok === false) throw new Error('LOCAL_PROVIDER_ERROR');
     let data;
     try { data = JSON.parse(text); } catch { throw new Error('INVALID_LOCAL_PROVIDER_RESPONSE'); }
     const content = data?.message?.content;

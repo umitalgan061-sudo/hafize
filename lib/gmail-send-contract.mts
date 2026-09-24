@@ -5,7 +5,7 @@ const MAX_SUBJECT_LENGTH = 180;
 const MAX_TEXT_LENGTH = 50_000;
 
 function fail(code) {
-  const error = /** @type {HafizeCodedError} */ (new Error(code));
+  const error = (new Error(code) as HafizeCodedError);
   error.code = code;
   throw error;
 }
@@ -46,11 +46,7 @@ function normalizeText(value) {
   return text;
 }
 
-/**
- * @param {UnvalidatedInput} [input]
- * @param {{ approvalGranted?: boolean }} [options]
- */
-export function normalizeGmailSendRequest(input = {}, { approvalGranted = false } = {}) {
+export function normalizeGmailSendRequest(input: UnvalidatedInput = {}, { approvalGranted = false }: { approvalGranted?: boolean } = {}) {
   if (!input || Array.isArray(input) || typeof input !== 'object') fail('INVALID_GMAIL_SEND_REQUEST');
   rejectUnknownFields(input);
   if (input.explicitUserIntent !== true) fail('GMAIL_SEND_EXPLICIT_INTENT_REQUIRED');

@@ -1,5 +1,5 @@
 import { containsPlaintextCredential } from './plaintext-credential-policy.mts';
-import { PERSONAL_MEMORY_CONTRACT } from './personal-memory-contract.mjs';
+import { PERSONAL_MEMORY_CONTRACT } from './personal-memory-contract.mts';
 
 const MAX_RECORDS = 5;
 const MEMORY_ID_PATTERN = /^memory_[a-zA-Z0-9_-]{8,80}$/;
@@ -39,9 +39,9 @@ export function normalizeMemoryRetrieval({ ownerId, records }: { ownerId?: strin
   try {
     const safeOwnerId = text(ownerId, 'ownerId', 200);
     if (!Array.isArray(records) || records.length > MAX_RECORDS) throw new Error('INVALID_MEMORY_RETRIEVAL:records');
-    return { ok: true, records: records.map((record) => normalizeRecord(record, safeOwnerId)) };
+    return { ok: true as const, records: records.map((record) => normalizeRecord(record, safeOwnerId)) };
   } catch (error) {
-    return { ok: false, error: error.message };
+    return { ok: false as const, error: error.message };
   }
 }
 

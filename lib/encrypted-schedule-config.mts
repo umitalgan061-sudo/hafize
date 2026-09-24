@@ -37,15 +37,11 @@ function cleanFilePath(value) {
 
 /**
  * Şifreli görev deposu yapılandırmasını ortamdan okur.
- *
  * `key`, sayılmayan bir getter olarak tanımlanır: kaydın kopyası her erişimde
  * üretilir ve `JSON.stringify` çıktısına düşmez. Bu yüzden dönüş tipi elle
  * yazılır; çıkarım sayılmayan özelliği göremez.
- *
- * @param {{ env?: Record<string, string | undefined> }} [options]
- * @returns {Readonly<{ filePath: string; key: Buffer }> | null}
  */
-export function readEncryptedScheduleStorageConfig({ env = process.env } = {}) {
+export function readEncryptedScheduleStorageConfig({ env = process.env }: { env?: Record<string, string | undefined> } = {}): Readonly<{ filePath: string; key: Buffer }> | null {
   if (!env || Array.isArray(env) || typeof env !== 'object') invalid();
 
   const fileValue = cleanEnvValue(env[FILE_ENV]);
@@ -60,7 +56,7 @@ export function readEncryptedScheduleStorageConfig({ env = process.env } = {}) {
     enumerable: false,
     configurable: false
   });
-  return /** @type {Readonly<{ filePath: string; key: Buffer }>} */ (Object.freeze(config));
+  return (Object.freeze(config) as Readonly<{ filePath: string; key: Buffer }>);
 }
 
 export const ENCRYPTED_SCHEDULE_STORAGE_ENV = Object.freeze({

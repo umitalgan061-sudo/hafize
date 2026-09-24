@@ -29,8 +29,7 @@ function serialize(value, maxFileBytes) {
   return content;
 }
 
-/** @param {{ filePath?: string; maxFileBytes?: number }} [options] */
-export function createPersonalMemoryFileAdapter({ filePath, maxFileBytes } = {}) {
+export function createPersonalMemoryFileAdapter({ filePath, maxFileBytes }: { filePath?: string; maxFileBytes?: number } = {}) {
   const target = normalizePath(filePath);
   const maxBytes = normalizeMaxBytes(maxFileBytes);
   const directory = dirname(target);
@@ -61,8 +60,7 @@ export function createPersonalMemoryFileAdapter({ filePath, maxFileBytes } = {})
     }
   }
 
-  /** @param {unknown} value */
-  async function save(value) {
+  async function save(value: unknown) {
     const content = serialize(value, maxBytes);
     const tempPath = `${target}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
     let handle = null;

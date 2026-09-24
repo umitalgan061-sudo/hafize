@@ -12,7 +12,7 @@ const MAX_KINDS = 4;
 const MAX_LIMIT = 20;
 
 function fail(error) {
-  return { ok: false, error };
+  return { ok: false as const, error };
 }
 
 function cleanText(value, label, maxLength) {
@@ -64,7 +64,7 @@ export function normalizeMemoryWrite(input) {
     if (input.sensitivity !== 'personal') throw new Error('MEMORY_SENSITIVITY_NOT_ALLOWED');
     const content = cleanText(input.content, 'content', MAX_CONTENT);
     if (containsPlaintextCredential(content)) throw new Error('MEMORY_CONTENT_CREDENTIAL_NOT_ALLOWED');
-    return { ok: true, command: { ownerId: normalizeOwnerId(input.ownerId), kind: normalizeKind(input.kind), content, sourceType: normalizeSourceType(input.sourceType), sourceRef: normalizeSourceRef(input.sourceRef), sensitivity: 'personal' } };
+    return { ok: true as const, command: { ownerId: normalizeOwnerId(input.ownerId), kind: normalizeKind(input.kind), content, sourceType: normalizeSourceType(input.sourceType), sourceRef: normalizeSourceRef(input.sourceRef), sensitivity: 'personal' } };
   } catch (error) {
     return fail(error.message);
   }
@@ -77,7 +77,7 @@ export function normalizeMemoryRead(input) {
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_LIMIT) throw new Error('INVALID_MEMORY_COMMAND:limit');
     const query = cleanText(input.query, 'query', MAX_QUERY);
     if (containsPlaintextCredential(query)) throw new Error('MEMORY_QUERY_CREDENTIAL_NOT_ALLOWED');
-    return { ok: true, command: { ownerId: normalizeOwnerId(input.ownerId), query, kinds: normalizeKinds(input.kinds), limit } };
+    return { ok: true as const, command: { ownerId: normalizeOwnerId(input.ownerId), query, kinds: normalizeKinds(input.kinds), limit } };
   } catch (error) {
     return fail(error.message);
   }
@@ -89,7 +89,7 @@ export function normalizeMemoryDelete(input) {
     const memoryId = cleanText(input.memoryId, 'memoryId', 100);
     if (!MEMORY_ID_PATTERN.test(memoryId)) throw new Error('INVALID_MEMORY_COMMAND:memoryId');
     if (input.exactMatch !== true) throw new Error('MEMORY_DELETE_REQUIRES_EXACT_MATCH');
-    return { ok: true, command: { ownerId: normalizeOwnerId(input.ownerId), memoryId } };
+    return { ok: true as const, command: { ownerId: normalizeOwnerId(input.ownerId), memoryId } };
   } catch (error) {
     return fail(error.message);
   }

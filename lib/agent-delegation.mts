@@ -1,50 +1,25 @@
 import { authorizeAgentTool } from './agent-runtime.mjs';
-import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.mjs';
+import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.mts';
 
-/**
- * @param {number | undefined} value
- * @param {number} fallback
- * @param {number} max
- * @returns {number}
- */
-function boundedPolicyInteger(value, fallback, max) { return Number.isInteger(value) ? Math.min(Math.max(value, 1), max) : fallback; }
-/**
- * @param {unknown} value
- * @param {number} maxLength
- * @returns {string | null}
- */
-function cleanText(value, maxLength) { const text = typeof value === 'string' ? value.trim() : ''; return text && text.length <= maxLength ? text : null; }
-/** @param {string} error */
-function failed(error) { return { ok: false, error }; }
-/** @param {{ snapshot: () => any }} runLedger */
-function countDelegations(runLedger) { const snapshot = runLedger.snapshot(); return Array.isArray(snapshot?.entries) ? snapshot.entries.filter((entry) => entry?.action === 'agent.delegate').length : 0; }
-/** @param {Record<string, any> | null | undefined} args */
-function prepareHandoff(args) {
+function boundedPolicyInteger(value: number | undefined, fallback: number, max: number): number { return Number.isInteger(value) ? Math.min(Math.max(value, 1), max) : fallback; }
+function cleanText(value: unknown, maxLength: number): string | null { const text = typeof value === 'string' ? value.trim() : ''; return text && text.length <= maxLength ? text : null; }
+function failed(error: string) { return { ok: false as const, error }; }
+function countDelegations(runLedger: { snapshot: () => any }) { const snapshot = runLedger.snapshot(); return Array.isArray(snapshot?.entries) ? snapshot.entries.filter((entry) => entry?.action === 'agent.delegate').length : 0; }
+function prepareHandoff(args: Record<string, any> | null | undefined) {
   const normalized = normalizeTaskHandoff(args);
-  if (!normalized.ok) return null;
+  if (normalized.ok === false) return null;
   const handoff = normalized.handoff;
   const structured = handoff.successCriteria.length || handoff.constraints.length || handoff.evidenceRequired.length;
   if (!structured) return handoff;
   const formatted = formatTaskHandoff(handoff);
-  if (!formatted.ok) return null;
+  if (formatted.ok === false) return null;
   return { ...handoff, task: formatted.task };
 }
 
 /**
  * Ana ajanın uzman ajanlara dar kapsamlı görev devretmesini yönetir.
- *
- * @param {{
- *   registry?: any;
- *   traceId?: string;
- *   parentAgent?: any;
- *   parentTaskId?: string;
- *   runLedger?: any;
- *   executeAgent?: Function;
- *   lifecycle?: any;
- *   parentSignal?: AbortSignal | null;
- * }} [options]
  */
-export function createAgentDelegator({ registry, traceId, parentAgent, parentTaskId, runLedger, executeAgent, lifecycle = null, parentSignal = null } = {}) {
+export function createAgentDelegator({ registry, traceId, parentAgent, parentTaskId, runLedger, executeAgent, lifecycle = null, parentSignal = null }: { registry?: any; traceId?: string; parentAgent?: any; parentTaskId?: string; runLedger?: any; executeAgent?: Function; lifecycle?: any; parentSignal?: AbortSignal | null; } = {}) {
   if (!registry || !Array.isArray(registry.agents)) throw new Error('INVALID_DELEGATION_RUNTIME:registry');
   if (!parentAgent?.id) throw new Error('INVALID_DELEGATION_RUNTIME:parentAgent');
   if (typeof traceId !== 'string' || !traceId.trim()) throw new Error('INVALID_DELEGATION_RUNTIME:traceId');
@@ -57,11 +32,7 @@ export function createAgentDelegator({ registry, traceId, parentAgent, parentTas
   const maxDepth = boundedPolicyInteger(registry.policy?.maxDelegationDepth, 1, 8);
   const maxFanOut = boundedPolicyInteger(registry.policy?.maxParallelAgents, 1, 16);
 
-  /**
-   * @param {Record<string, any>} args
-   * @param {{ depth?: number }} [context]
-   */
-  async function delegate(args, { depth = 0 } = {}) {
+  async function delegate(args: Record<string, any>, { depth = 0 }: { depth?: number } = {}) {
     const authorization = authorizeAgentTool(parentAgent, 'agent.delegate');
     if (!authorization.allowed) return failed('DELEGATION_NOT_AUTHORIZED');
     if (!Number.isInteger(depth) || depth < 0) return failed('INVALID_DELEGATION_DEPTH');
@@ -104,11 +75,11 @@ export function createAgentDelegator({ registry, traceId, parentAgent, parentTas
 
     if (!result?.ok) {
       const safeError = cleanText(result?.error, 120) || 'DELEGATED_AGENT_FAILED';
-      runLedger.recordDelegationFinish(delegationTask.taskId, { ok: false, error: safeError });
+      runLedger.recordDelegationFinish(delegationTask.taskId, { ok: false as const, error: safeError });
       return failed(safeError);
     }
-    runLedger.recordDelegationFinish(delegationTask.taskId, { ok: true });
-    return { ok: true, value: { agentId: targetAgent.id, agentName: targetAgent.name, content: typeof result.content === 'string' ? result.content : '' } };
+    runLedger.recordDelegationFinish(delegationTask.taskId, { ok: true as const });
+    return { ok: true as const, value: { agentId: targetAgent.id, agentName: targetAgent.name, content: typeof result.content === 'string' ? result.content : '' } };
   }
 
   return Object.freeze({ delegate });

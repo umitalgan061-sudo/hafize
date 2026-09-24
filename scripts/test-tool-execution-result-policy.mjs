@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assertSafeToolExecutionValue, projectSafeToolExecutionResult, ToolExecutionResultPolicyError } from '../lib/tool-execution-result-policy.mjs';
+import { assertSafeToolExecutionValue, projectSafeToolExecutionResult, ToolExecutionResultPolicyError } from '../lib/tool-execution-result-policy.mts';
 
 assert.doesNotThrow(() => assertSafeToolExecutionValue({ content: 'README text', nested: { count: 2 }, list: ['safe', 'text'] }));
 assert.doesNotThrow(() => assertSafeToolExecutionValue({ authorization: '', secret: null, password: undefined }));

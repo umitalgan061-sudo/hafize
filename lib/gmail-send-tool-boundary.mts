@@ -1,25 +1,22 @@
-import { normalizeGmailSendRequest } from './gmail-send-contract.mjs';
+import { normalizeGmailSendRequest } from './gmail-send-contract.mts';
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,256}$/;
 
 /**
  * Fırlatılmaya hazır, kod taşıyan bir hata üretir.
- *
- * @param {string} reason
- * @returns {HafizeCodedError}
  */
-function invalid(reason) {
-  const error = /** @type {HafizeCodedError} */ (new Error(`INVALID_GMAIL_SEND_TOOL:${reason}`));
+function invalid(reason: string): HafizeCodedError {
+  const error = (new Error(`INVALID_GMAIL_SEND_TOOL:${reason}`) as HafizeCodedError);
   error.code = 'INVALID_GMAIL_SEND_TOOL';
   return error;
 }
 
-/** @param {Record<string, any> | null | undefined} value */
-function sanitizeReceipt(value) {
+function sanitizeReceipt(value: Record<string, any> | null | undefined) {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw invalid('receipt');
   const messageId = typeof value.messageId === 'string' ? value.messageId.trim() : '';
   if (!ID_PATTERN.test(messageId)) throw invalid('receipt.messageId');
-  const receipt = { sent: true, messageId };
+  // `threadId` yalnızca sağlayıcı döndürdüğünde makbuza girer.
+  const receipt: { sent: true; messageId: string; threadId?: string } = { sent: true, messageId };
   if (value.threadId !== undefined) {
     const threadId = typeof value.threadId === 'string' ? value.threadId.trim() : '';
     if (!ID_PATTERN.test(threadId)) throw invalid('receipt.threadId');
@@ -30,18 +27,12 @@ function sanitizeReceipt(value) {
 
 /**
  * Gönderme her zaman açık kullanıcı onayı gerektirir.
- *
- * @param {{ sendClient?: any; ownerResolver?: any }} [options]
  */
-export function createGmailSendToolBoundary({ sendClient, ownerResolver } = {}) {
+export function createGmailSendToolBoundary({ sendClient, ownerResolver }: { sendClient?: any; ownerResolver?: any } = {}) {
   if (typeof sendClient?.send !== 'function') throw invalid('sendClient');
   if (typeof ownerResolver?.resolve !== 'function') throw invalid('ownerResolver');
 
-  /**
-   * @param {Record<string, any>} args
-   * @param {{ principal?: unknown; approvalGranted?: boolean }} [context]
-   */
-  async function execute(args, { principal, approvalGranted = false } = {}) {
+  async function execute(args: Record<string, any>, { principal, approvalGranted = false }: { principal?: unknown; approvalGranted?: boolean } = {}) {
     const command = normalizeGmailSendRequest(args, { approvalGranted });
     const ownership = ownerResolver.resolve(principal);
     if (!ownership || typeof ownership.ownerId !== 'string' || !ownership.ownerId) throw invalid('owner');

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { rankMemoryRecords, measureRetrievalQuality, scoreMemoryRecord } from '../lib/memory-quality.mts';
-import { createPersonalMemoryStore } from '../lib/personal-memory-store.mjs';
+import { createPersonalMemoryStore } from '../lib/personal-memory-store.mts';
 
 const now = Date.parse('2026-09-07T12:00:00.000Z');
 const records = [

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPersonalMemoryRuntime } from '../lib/personal-memory-runtime.mjs';
+import { createPersonalMemoryRuntime } from '../lib/personal-memory-runtime.mts';
 
 const key = Buffer.alloc(32, 4);
 const calls = [];

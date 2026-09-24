@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createAgentRunLedger } from '../lib/agent-run-ledger.mjs';
+import { createAgentRunLedger } from '../lib/agent-run-ledger.mts';
 
 let tick = 0;
 const now = () => new Date(Date.UTC(2026, 7, 12, 8, 0, tick++));

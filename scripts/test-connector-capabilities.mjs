@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CONNECTOR_CAPABILITY_NAMES, createConnectorCapabilityMatrix, enforceCapabilityImplication } from '../lib/connector-capabilities.mjs';
+import { CONNECTOR_CAPABILITY_NAMES, createConnectorCapabilityMatrix, enforceCapabilityImplication } from '../lib/connector-capabilities.mts';
 
 const matrix = createConnectorCapabilityMatrix({ githubRead: true, gmailRead: true, canvaRead: false, calendarRead: true, reminderRead: true });
 assert.equal(matrix.has('github.read'), true);

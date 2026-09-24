@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { API_ERROR_CONTRACT, isRetryableApiError, mapToolFailureToApiError, normalizeApiError } from '../lib/api-error-contract.mjs';
+import { API_ERROR_CONTRACT, isRetryableApiError, mapToolFailureToApiError, normalizeApiError } from '../lib/api-error-contract.mts';
 
 assert.deepEqual(normalizeApiError({ code: 'AUTH_REQUIRED', status: 401, message: ' giriş gerekli ', requestId: 'req-1' }), { error: 'AUTH_REQUIRED', status: 401, message: 'giriş gerekli', requestId: 'req-1' });
 assert.equal(normalizeApiError({ code: 'UNKNOWN', status: 700 }).error, 'INTERNAL_ERROR');

@@ -4,7 +4,7 @@ import {
   normalizeMemoryRead,
   normalizeMemoryWrite,
   PERSONAL_MEMORY_CONTRACT
-} from './personal-memory-contract.mjs';
+} from './personal-memory-contract.mts';
 import {
   MEMORY_RETRIEVAL_LIMIT,
   normalizeMemoryRetrieval
@@ -26,7 +26,7 @@ function clone(record) {
 }
 
 function failure(error) {
-  return { ok: false, error };
+  return { ok: false as const, error };
 }
 
 function toIso(value, label) {
@@ -48,7 +48,7 @@ function validateRestoredRecord(raw) {
   for (const key of Object.keys(raw)) if (!RECORD_FIELDS.has(key)) throw new Error('INVALID_MEMORY_STORE_SNAPSHOT:field');
   if (typeof raw.memoryId !== 'string' || !MEMORY_ID_PATTERN.test(raw.memoryId)) throw new Error('INVALID_MEMORY_STORE_SNAPSHOT:memoryId');
   const normalized = normalizeMemoryWrite({ ownerId: raw.ownerId, kind: raw.kind, content: raw.content, sourceType: raw.sourceType, sourceRef: raw.sourceRef, sensitivity: raw.sensitivity, explicitUserIntent: true });
-  if (!normalized.ok) throw new Error('INVALID_MEMORY_STORE_SNAPSHOT:record');
+  if (normalized.ok === false) throw new Error('INVALID_MEMORY_STORE_SNAPSHOT:record');
   return { memoryId: raw.memoryId, ...normalized.command, createdAt: toIso(raw.createdAt, 'createdAt'), updatedAt: raw.updatedAt == null ? null : toIso(raw.updatedAt, 'updatedAt') };
 }
 
@@ -67,10 +67,7 @@ function restoreSnapshot(snapshot, capacity) {
   });
 }
 
-/**
- * @param {{ maxEntries?: number; now?: () => Date; createId?: () => string; initialSnapshot?: Record<string, any> | null }} [options]
- */
-export function createPersonalMemoryStore({ maxEntries = DEFAULT_MAX_ENTRIES, now = () => new Date(), createId = randomUUID, initialSnapshot = null } = {}) {
+export function createPersonalMemoryStore({ maxEntries = DEFAULT_MAX_ENTRIES, now = () => new Date(), createId = randomUUID, initialSnapshot = null }: { maxEntries?: number; now?: () => Date; createId?: () => string; initialSnapshot?: Record<string, any> | null } = {}) {
   const capacity = Number.isInteger(maxEntries) ? Math.min(Math.max(maxEntries, 1), MAX_ENTRIES) : DEFAULT_MAX_ENTRIES;
   if (typeof now !== 'function') throw new Error('INVALID_MEMORY_STORE:now');
   if (typeof createId !== 'function') throw new Error('INVALID_MEMORY_STORE:createId');
@@ -89,18 +86,18 @@ export function createPersonalMemoryStore({ maxEntries = DEFAULT_MAX_ENTRIES, no
 
   function write(input) {
     const normalized = normalizeMemoryWrite(input);
-    if (!normalized.ok) return normalized;
+    if (normalized.ok === false) return normalized;
     if (entries.length >= capacity) return failure('MEMORY_STORE_FULL');
     try {
       const record = { memoryId: nextMemoryId(), ...normalized.command, createdAt: currentIso(), updatedAt: null };
       entries.push(record);
-      return { ok: true, record: clone(record) };
+      return { ok: true as const, record: clone(record) };
     } catch (error) { return failure(error.message); }
   }
 
   function read(input) {
     const normalized = normalizeMemoryRead(input);
-    if (!normalized.ok) return normalized;
+    if (normalized.ok === false) return normalized;
     const { ownerId, query, kinds, limit } = normalized.command;
     const safeQuery = normalizeSearch(query);
     const allowedKinds = kinds.length ? new Set(kinds) : null;
@@ -111,24 +108,24 @@ export function createPersonalMemoryStore({ maxEntries = DEFAULT_MAX_ENTRIES, no
     const relevant = safeQuery ? ranked.filter(({ metrics }) => metrics.lexical > 0) : ranked;
     const byId = new Map(candidates.map((entry) => [entry.memoryId, entry]));
     const records = relevant.map(({ memoryId }) => clone(byId.get(memoryId))).filter(Boolean);
-    return { ok: true, records };
+    return { ok: true as const, records };
   }
 
   function readForContext(input) {
     const requestedLimit = Number.isInteger(input?.limit) ? Math.min(input.limit, MEMORY_RETRIEVAL_LIMIT) : MEMORY_RETRIEVAL_LIMIT;
     const result = read({ ...input, limit: requestedLimit });
-    if (!result.ok) return result;
+    if (result.ok === false) return result;
     return normalizeMemoryRetrieval({ ownerId: input.ownerId, records: result.records });
   }
 
   function remove(input) {
     const normalized = normalizeMemoryDelete(input);
-    if (!normalized.ok) return normalized;
+    if (normalized.ok === false) return normalized;
     const { ownerId, memoryId } = normalized.command;
     const index = entries.findIndex((entry) => entry.ownerId === ownerId && entry.memoryId === memoryId);
     if (index < 0) return failure('MEMORY_NOT_FOUND');
     entries.splice(index, 1);
-    return { ok: true, memoryId };
+    return { ok: true as const, memoryId };
   }
 
   return Object.freeze({ write, read, readForContext, remove, snapshot });

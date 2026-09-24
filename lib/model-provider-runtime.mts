@@ -1,4 +1,4 @@
-import { createLocalModelProvider } from './local-model-provider.mjs';
+import { createLocalModelProvider } from './local-model-provider.mts';
 import { createModelProviderRouter } from './model-provider-router.mts';
 
 function parseEnabled(value) {

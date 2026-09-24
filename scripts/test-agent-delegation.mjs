@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createAgentDelegator } from '../lib/agent-delegation.mjs';
-import { createAgentRunLedger } from '../lib/agent-run-ledger.mjs';
+import { createAgentDelegator } from '../lib/agent-delegation.mts';
+import { createAgentRunLedger } from '../lib/agent-run-ledger.mts';
 
 const primary = {
   id: 'hafize-general',

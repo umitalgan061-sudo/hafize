@@ -2,7 +2,33 @@ import assert from 'node:assert/strict';
 import {
   createPersonalMemoryStore,
   PERSONAL_MEMORY_STORE_SCHEMA_VERSION
-} from '../lib/personal-memory-store.mjs';
+} from '../lib/personal-memory-store.mts';
+
+/**
+ * Başarılı dalı doğrular ve daraltılmış sonucu döndürür.
+ *
+ * Doğrudan `result.records` yazmak iki şeyi kaçırıyordu: `ok`un gerçekten
+ * `true` olduğunu ve başarısız dalın alanının yanlışlıkla okunmadığını.
+ *
+ * @param {{ ok: boolean }} result
+ * @returns {any}
+ */
+function expectOk(result) {
+  assert.equal(result?.ok, true, `başarılı sonuç bekleniyordu: ${JSON.stringify(result)}`);
+  return result;
+}
+
+/**
+ * Başarısız dalı doğrular ve hata kodunu döndürür.
+ *
+ * @param {{ ok: boolean }} result
+ * @returns {unknown}
+ */
+function expectError(result) {
+  assert.equal(result?.ok, false, `başarısız sonuç bekleniyordu: ${JSON.stringify(result)}`);
+  return /** @type {any} */ (result).error;
+}
+
 
 let clock = new Date('2026-08-13T13:30:00.000Z');
 let idNo = 0;
@@ -72,9 +98,9 @@ const aliceTennis = store.read({
   kinds: ['preference'],
   limit: 5
 });
-assert.deepEqual(aliceTennis.records.map((record) => record.memoryId), [second.record.memoryId]);
+assert.deepEqual(expectOk(aliceTennis).records.map((record) => record.memoryId), [second.record.memoryId]);
 assert.deepEqual(
-  store.read({ ownerId: 'user-alice', query: 'tenis', kinds: ['project'] }).records,
+  expectOk(store.read({ ownerId: 'user-alice', query: 'tenis', kinds: ['project'] })).records,
   []
 );
 
@@ -94,7 +120,7 @@ const foreignDelete = store.remove({
   exactMatch: true
 });
 assert.deepEqual(foreignDelete, { ok: false, error: 'MEMORY_NOT_FOUND' });
-assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 1);
+assert.equal(expectOk(store.read({ ownerId: 'user-alice', query: 'ankara' })).records.length, 1);
 
 assert.deepEqual(
   store.remove({ ownerId: 'user-alice', memoryId: first.record.memoryId, exactMatch: false }),
@@ -104,7 +130,7 @@ assert.deepEqual(
   store.remove({ ownerId: 'user-alice', memoryId: first.record.memoryId, exactMatch: true }),
   { ok: true, memoryId: first.record.memoryId }
 );
-assert.equal(store.read({ ownerId: 'user-alice', query: 'ankara' }).records.length, 0);
+assert.equal(expectOk(store.read({ ownerId: 'user-alice', query: 'ankara' })).records.length, 0);
 
 const snapshot = store.snapshot();
 assert.equal(snapshot.schemaVersion, PERSONAL_MEMORY_STORE_SCHEMA_VERSION);
@@ -120,10 +146,10 @@ const restored = createPersonalMemoryStore({
 });
 assert.equal(restored.snapshot().entries.length, 2);
 assert.deepEqual(
-  restored.read({ ownerId: 'user-alice', query: 'tenis' }).records.map((record) => record.memoryId),
+  expectOk(restored.read({ ownerId: 'user-alice', query: 'tenis' })).records.map((record) => record.memoryId),
   [second.record.memoryId]
 );
-assert.equal(restored.read({ ownerId: 'user-bob', query: 'ankara' }).records[0].memoryId, third.record.memoryId);
+assert.equal(expectOk(restored.read({ ownerId: 'user-bob', query: 'ankara' })).records[0].memoryId, third.record.memoryId);
 
 for (const invalidSnapshot of [
   { schemaVersion: 2, entries: [] },
@@ -197,7 +223,7 @@ for (const [kind, content] of [['preference', 'Kahvemi sütlü içerim.'], ['not
 const coffee = store.read({ ownerId: searchOwner, query: 'kahve' });
 assert.equal(coffee.ok, true);
 assert.deepEqual(coffee.records.map((record) => record.content), ['Kahvemi sütlü içerim.']);
-assert.equal(store.read({ ownerId: searchOwner, query: 'bulunmayan-terim' }).records.length, 0);
+assert.equal(expectOk(store.read({ ownerId: searchOwner, query: 'bulunmayan-terim' })).records.length, 0);
 assert.deepEqual(store.read({ ownerId: searchOwner }), { ok: false, error: 'INVALID_MEMORY_COMMAND:query' }, 'a read always carries a query');
 
 console.log('personal memory store tests passed');

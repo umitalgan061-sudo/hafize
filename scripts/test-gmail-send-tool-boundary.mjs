@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { GMAIL_SEND_TOOL_DEFINITION, createGmailSendToolBoundary } from '../lib/gmail-send-tool-boundary.mjs';
+import { GMAIL_SEND_TOOL_DEFINITION, createGmailSendToolBoundary } from '../lib/gmail-send-tool-boundary.mts';
 
 const principal = { authenticated: true, subject: 'user:123@example.com' };
 const calls = [];

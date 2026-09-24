@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { evaluateConfigReadiness } from '../lib/config-readiness.mjs';
+import { evaluateConfigReadiness } from '../lib/config-readiness.mts';
 
 const ready = evaluateConfigReadiness({ NODE_ENV: 'production', HOST: '127.0.0.1', HAFIZE_AUTH_TOKEN: 'x'.repeat(64), HAFIZE_COOKIE_SECURE: 'true' });
 assert.equal(ready.state, 'ready');

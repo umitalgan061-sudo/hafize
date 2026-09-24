@@ -1,5 +1,5 @@
 import { buildOAuthAuthorizationUrl, createOAuthState, createPkceChallenge, createPkceVerifier } from './oauth-pkce.mjs';
-import { createOAuthFlowStore } from './oauth-flow-store.mjs';
+import { createOAuthFlowStore } from './oauth-flow-store.mts';
 import { normalizeOAuthCallback } from './oauth-callback-contract.mts';
 
 /**
@@ -30,10 +30,10 @@ export function createOAuthFlowRuntime({ store = createOAuthFlowStore() }: { sto
     const callback = normalizeOAuthCallback(input);
     const flow = store.consume(callback.state);
     if (callback.ok === false) {
-      return Object.freeze({ ok: false, provider: flow.provider, error: callback.error, errorDescription: callback.errorDescription });
+      return Object.freeze({ ok: false as const, provider: flow.provider, error: callback.error, errorDescription: callback.errorDescription });
     }
     return Object.freeze({
-      ok: true,
+      ok: true as const,
       provider: flow.provider,
       code: callback.code,
       verifier: flow.verifier,

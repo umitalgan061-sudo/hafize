@@ -13,26 +13,7 @@ function normalizeCapability(value) {
   return CAPABILITY_NAMES.includes(capability) ? capability : null;
 }
 
-/**
- * @param {{
- *   githubRead?: boolean;
- *   gmailRead?: boolean;
- *   canvaRead?: boolean;
- *   calendarRead?: boolean;
- *   calendarWrite?: boolean;
- *   reminderRead?: boolean;
- *   reminderWrite?: boolean;
- * }} [options]
- */
-export function createConnectorCapabilityMatrix({
-  githubRead = false,
-  gmailRead = false,
-  canvaRead = false,
-  calendarRead = false,
-  calendarWrite = false,
-  reminderRead = false,
-  reminderWrite = false
-} = {}) {
+export function createConnectorCapabilityMatrix({ githubRead = false, gmailRead = false, canvaRead = false, calendarRead = false, calendarWrite = false, reminderRead = false, reminderWrite = false }: { githubRead?: boolean; gmailRead?: boolean; canvaRead?: boolean; calendarRead?: boolean; calendarWrite?: boolean; reminderRead?: boolean; reminderWrite?: boolean; } = {}) {
   const matrix = Object.freeze({
     'github.read': githubRead === true,
     'gmail.read': gmailRead === true,
@@ -57,8 +38,7 @@ export function createConnectorCapabilityMatrix({
   });
 }
 
-/** @param {UnvalidatedInput} matrix */
-export function enforceCapabilityImplication(matrix) {
+export function enforceCapabilityImplication(matrix: UnvalidatedInput) {
   if (!matrix || typeof matrix !== 'object') throw new Error('INVALID_CONNECTOR_CAPABILITY_MATRIX');
   const issues = [];
   if (matrix['calendar.write'] === true && matrix['calendar.read'] !== true) issues.push('CALENDAR_WRITE_REQUIRES_READ');

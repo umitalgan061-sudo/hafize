@@ -8,7 +8,7 @@ const FAILURE_KEYS = new Set(['ok', 'error']);
 const ERROR_CODE_PATTERN = /^[A-Z][A-Z0-9_]{1,119}$/;
 
 function invalid(reason) {
-  return Object.freeze({ ok: false, error: 'DELEGATED_RESULT_INVALID', reason });
+  return Object.freeze({ ok: false as const, error: 'DELEGATED_RESULT_INVALID', reason });
 }
 
 function inspectDataRecord(value) {
@@ -25,7 +25,7 @@ function inspectDataRecord(value) {
   for (const descriptor of Object.values(descriptors)) {
     if (!Object.prototype.hasOwnProperty.call(descriptor, 'value')) return invalid('accessor');
   }
-  return Object.freeze({ ok: true, descriptors });
+  return Object.freeze({ ok: true as const, descriptors });
 }
 
 function descriptorValue(descriptors, key) {
@@ -39,7 +39,7 @@ function exactKeys(descriptors, allowed) {
 
 export function normalizeDelegatedAgentResult(value: UnvalidatedInput | null | undefined) {
   const inspected = inspectDataRecord(value);
-  if (!inspected.ok) return inspected;
+  if (inspected.ok === false) return inspected;
   const { descriptors } = inspected;
   const ok = descriptorValue(descriptors, 'ok');
   if (ok === true) {
@@ -48,14 +48,14 @@ export function normalizeDelegatedAgentResult(value: UnvalidatedInput | null | u
     if (typeof content !== 'string') return invalid('content_type');
     if (content.length > MAX_DELEGATED_CONTENT_CHARS) return invalid('content_size');
     if (containsPlaintextCredential(content)) return invalid('content_credential');
-    return Object.freeze({ ok: true, result: Object.freeze({ ok: true, content }) });
+    return Object.freeze({ ok: true as const, result: Object.freeze({ ok: true as const, content }) });
   }
   if (ok === false) {
     if (!exactKeys(descriptors, FAILURE_KEYS)) return invalid('failure_shape');
     const error = descriptorValue(descriptors, 'error');
     if (typeof error !== 'string' || error.length < 2 || error.length > MAX_DELEGATED_ERROR_CHARS) return invalid('error_size');
     if (!ERROR_CODE_PATTERN.test(error)) return invalid('error_format');
-    return Object.freeze({ ok: true, result: Object.freeze({ ok: false, error }) });
+    return Object.freeze({ ok: true as const, result: Object.freeze({ ok: false as const, error }) });
   }
   return invalid('ok');
 }

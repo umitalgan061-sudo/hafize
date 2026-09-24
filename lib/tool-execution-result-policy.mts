@@ -5,6 +5,11 @@ const MAX_NODES = 2_000;
 const MAX_STRING_LENGTH = 256 * 1024;
 
 export class ToolExecutionResultPolicyError extends Error {
+  // Alanlar açıkça bildirilir: `.mts` içinde yalnızca yapıcıda atama yapmak
+  // sınıfın yüzeyini tanımlamaz.
+  readonly code: string;
+  readonly status: number;
+
   constructor(code = 'TOOL_RESULT_UNSAFE') {
     super(code);
     this.name = 'ToolExecutionResultPolicyError';
@@ -35,8 +40,8 @@ function inspectValue(value, state, depth = 0) {
     for (const item of value) inspectValue(item, state, depth + 1);
     return;
   }
-  let prototype;
-  let descriptors;
+  let prototype: unknown;
+  let descriptors: Record<string, PropertyDescriptor>;
   try {
     prototype = Object.getPrototypeOf(value);
     descriptors = Object.getOwnPropertyDescriptors(value);
@@ -62,8 +67,8 @@ export function projectSafeToolExecutionResult(result) {
   try {
     assertSafeToolExecutionValue(result.value);
   } catch (error) {
-    if (error instanceof ToolExecutionResultPolicyError) return { ok: false, error: error.code };
-    return { ok: false, error: 'TOOL_RESULT_UNSAFE' };
+    if (error instanceof ToolExecutionResultPolicyError) return { ok: false as const, error: error.code };
+    return { ok: false as const, error: 'TOOL_RESULT_UNSAFE' };
   }
   return result;
 }

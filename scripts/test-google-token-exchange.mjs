@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGoogleTokenExchange, GOOGLE_TOKEN_ENDPOINT } from '../lib/google-token-exchange.mjs';
+import { createGoogleTokenExchange, GOOGLE_TOKEN_ENDPOINT } from '../lib/google-token-exchange.mts';
 
 const saved = [];
 const requests = [];

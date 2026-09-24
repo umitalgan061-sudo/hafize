@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { ENCRYPTED_SCHEDULE_STORAGE_ENV, readEncryptedScheduleStorageConfig } from '../lib/encrypted-schedule-config.mjs';
+import { ENCRYPTED_SCHEDULE_STORAGE_ENV, readEncryptedScheduleStorageConfig } from '../lib/encrypted-schedule-config.mts';
 
 const key = Buffer.alloc(32, 7);
 const base64 = key.toString('base64');

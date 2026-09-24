@@ -42,18 +42,18 @@ export function createBearerPrincipalAuthenticator({ token, subject }: { token?:
   function authenticate({ headers }: { headers?: Record<string, any> } = {}) {
     const authorization = readAuthorization(headers);
     const match = /^Bearer ([^\s]+)$/i.exec(authorization);
-    if (!match) return { ok: false, error: 'AUTH_REQUIRED' };
+    if (!match) return { ok: false as const, error: 'AUTH_REQUIRED' };
 
     let valid = false;
     try {
       valid = constantTimeTokenEquals(match[1], expectedToken);
     } catch {
-      return { ok: false, error: 'AUTH_REQUIRED' };
+      return { ok: false as const, error: 'AUTH_REQUIRED' };
     }
-    if (!valid) return { ok: false, error: 'AUTH_REQUIRED' };
+    if (!valid) return { ok: false as const, error: 'AUTH_REQUIRED' };
 
     return {
-      ok: true,
+      ok: true as const,
       principal: Object.freeze({ authenticated: true, subject: principalSubject })
     };
   }

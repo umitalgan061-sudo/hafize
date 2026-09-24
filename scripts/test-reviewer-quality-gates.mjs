@@ -4,7 +4,7 @@ import {
   checkEvidenceContract,
   checkUiFinishContract,
   evaluateQualityGates
-} from '../lib/reviewer-quality-gates.mjs';
+} from '../lib/reviewer-quality-gates.mts';
 
 assert.deepEqual(checkCredentialHygiene([{ path: 'lib/a.mjs', content: 'const value = 1;' }]), []);
 const secretFindings = checkCredentialHygiene([{ path: 'config.js', content: 'api_key = "sk-abcdefghijklmnopqrstuvwxyz"' }]);

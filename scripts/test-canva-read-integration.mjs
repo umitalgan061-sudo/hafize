@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createCanvaReadClient } from '../lib/canva-read-client.mjs';
-import { createCanvaReadToolBoundary } from '../lib/canva-read-tool-boundary.mjs';
+import { createCanvaReadToolBoundary } from '../lib/canva-read-tool-boundary.mts';
 import { createConnectorOwnerResolver } from '../lib/connector-owner-principal.mts';
 
 const now = 2_000_000_000_000;

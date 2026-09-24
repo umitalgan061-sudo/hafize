@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CANVA_READ_TOOL_DEFINITION, createCanvaReadToolBoundary } from '../lib/canva-read-tool-boundary.mjs';
+import { CANVA_READ_TOOL_DEFINITION, createCanvaReadToolBoundary } from '../lib/canva-read-tool-boundary.mts';
 
 const calls = [];
 const ownerResolver = {

@@ -3,21 +3,14 @@ import { normalizeGoogleOAuthRequest } from './google-oauth-policy.mts';
 
 const GOOGLE_AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 
-/**
- * @param {unknown} value
- * @param {string} label
- * @param {number} [max]
- * @returns {string}
- */
-function requiredText(value, label, max = 2048) {
+function requiredText(value: unknown, label: string, max: number = 2048): string {
   if (typeof value !== 'string') throw new Error(`INVALID_GOOGLE_OAUTH_RUNTIME:${label}`);
   const normalized = value.trim();
   if (!normalized || normalized.length > max) throw new Error(`INVALID_GOOGLE_OAUTH_RUNTIME:${label}`);
   return normalized;
 }
 
-/** @param {unknown} value */
-function normalizeRedirectUri(value) {
+function normalizeRedirectUri(value: unknown) {
   const raw = requiredText(value, 'redirectUri');
   let url;
   try { url = new URL(raw); } catch { throw new Error('INVALID_GOOGLE_OAUTH_RUNTIME:redirectUri'); }
@@ -27,18 +20,14 @@ function normalizeRedirectUri(value) {
   return url.toString();
 }
 
-/**
- * @param {{ clientId?: string; redirectUri?: string; flowRuntime?: any }} [options]
- */
-export function createGoogleOAuthRuntime({ clientId, redirectUri, flowRuntime = createOAuthFlowRuntime() } = {}) {
+export function createGoogleOAuthRuntime({ clientId, redirectUri, flowRuntime = createOAuthFlowRuntime() }: { clientId?: string; redirectUri?: string; flowRuntime?: any } = {}) {
   const safeClientId = requiredText(clientId, 'clientId', 512);
   const safeRedirectUri = normalizeRedirectUri(redirectUri);
   if (typeof flowRuntime?.start !== 'function' || typeof flowRuntime?.finish !== 'function') {
     throw new Error('INVALID_GOOGLE_OAUTH_RUNTIME:flowRuntime');
   }
 
-  /** @param {Record<string, any>} input */
-  function start(input) {
+  function start(input: Record<string, any>) {
     const policy = normalizeGoogleOAuthRequest(input);
     const started = flowRuntime.start({
       provider: 'google',
@@ -56,8 +45,7 @@ export function createGoogleOAuthRuntime({ clientId, redirectUri, flowRuntime = 
     });
   }
 
-  /** @param {Record<string, any>} callback */
-  function finish(callback) {
+  function finish(callback: Record<string, any>) {
     const result = flowRuntime.finish(callback);
     if (result.provider !== 'google') throw new Error('GOOGLE_OAUTH_FLOW_PROVIDER_MISMATCH');
     return result;

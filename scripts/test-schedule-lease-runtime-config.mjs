@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   createScheduleLeaseProviderRuntime,
   readScheduleLeaseRuntimeConfig
-} from '../lib/schedule-lease-runtime-config.mjs';
+} from '../lib/schedule-lease-runtime-config.mts';
 
 assert.equal(readScheduleLeaseRuntimeConfig({}), null);
 assert.throws(

@@ -5,7 +5,7 @@ const OPERATIONS = new Set(['branch.create', 'pr.create', 'pr.merge']);
 const COMMON_FIELDS = new Set(['operation', 'repository', 'approvalGranted']);
 
 function fail(code) {
-  const error = /** @type {HafizeCodedError} */ (new Error(code));
+  const error = (new Error(code) as HafizeCodedError);
   error.code = code;
   throw error;
 }
@@ -35,11 +35,7 @@ function rejectUnknownFields(input, allowed) {
   for (const key of Object.keys(input)) if (!allowed.has(key)) fail('INVALID_GITHUB_WRITE_FIELD');
 }
 
-/**
- * @param {Record<string, any> | null | undefined} input
- * @param {{ allowedRepositories?: string[] | ReadonlySet<string> }} [options]
- */
-export function normalizeGitHubWriteRequest(input, { allowedRepositories } = {}) {
+export function normalizeGitHubWriteRequest(input: Record<string, any> | null | undefined, { allowedRepositories }: { allowedRepositories?: string[] | ReadonlySet<string> } = {}) {
   if (!input || Array.isArray(input) || typeof input !== 'object') fail('INVALID_GITHUB_WRITE_REQUEST');
   const operation = typeof input.operation === 'string' ? input.operation.trim() : '';
   if (!OPERATIONS.has(operation)) fail('INVALID_GITHUB_WRITE_OPERATION');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createPersonalMemoryFileAdapter } from '../lib/personal-memory-file-adapter.mjs';
+import { createPersonalMemoryFileAdapter } from '../lib/personal-memory-file-adapter.mts';
 
 const root = await mkdtemp(join(tmpdir(), 'hafize-memory-file-'));
 try {

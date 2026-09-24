@@ -21,30 +21,23 @@ function hasLeaseContract(lease) {
 
 /**
  * Ajan çalışırken kirayı yenileyen sarmalayıcı.
- *
- * @param {{ lease?: any; executeAgentTask?: Function; renewIntervalMs?: number }} [options]
  */
-export function createScheduleLeaseGuardedExecutor({
-  lease,
-  executeAgentTask,
-  renewIntervalMs
-} = {}) {
+export function createScheduleLeaseGuardedExecutor({ lease, executeAgentTask, renewIntervalMs }: { lease?: any; executeAgentTask?: Function; renewIntervalMs?: number } = {}) {
   if (!hasLeaseContract(lease)) throw new Error('INVALID_SCHEDULE_LEASE_EXECUTOR:lease');
   if (typeof executeAgentTask !== 'function') throw new Error('INVALID_SCHEDULE_LEASE_EXECUTOR:executeAgentTask');
 
   const renewEveryMs = cleanInterval(renewIntervalMs, lease.leaseMs);
 
-  /** @param {Record<string, any>} [input] */
-  async function execute(input = {}) {
+  async function execute(input: Record<string, any> = {}) {
     const scheduleId = typeof input?.scheduleId === 'string' ? input.scheduleId.trim() : '';
-    if (!scheduleId) return { ok: false, error: 'INVALID_SCHEDULE_AGENT_TASK' };
+    if (!scheduleId) return { ok: false as const, error: 'INVALID_SCHEDULE_AGENT_TASK' };
 
     const acquired = await lease.acquire(scheduleId);
     if (acquired.status === 'busy') {
-      return { ok: false, error: LEASE_BUSY_ERROR, retryAt: acquired.retryAt };
+      return { ok: false as const, error: LEASE_BUSY_ERROR, retryAt: acquired.retryAt };
     }
     if (acquired.status === 'completed') {
-      return { ok: true, deduplicated: true, leaseStatus: 'completed' };
+      return { ok: true as const, deduplicated: true, leaseStatus: 'completed' };
     }
 
     const fence = acquired.fence;
@@ -76,18 +69,18 @@ export function createScheduleLeaseGuardedExecutor({
     try {
       result = await executeAgentTask(input);
     } catch {
-      result = { ok: false, error: DEFAULT_EXECUTION_ERROR };
+      result = { ok: false as const, error: DEFAULT_EXECUTION_ERROR };
     } finally {
       stopped = true;
       clearInterval(timer);
       if (renewing) await renewing;
     }
 
-    if (leaseLost) return { ok: false, error: LEASE_LOST_ERROR };
+    if (leaseLost) return { ok: false as const, error: LEASE_LOST_ERROR };
 
     if (result?.ok) {
       const completion = await lease.complete({ scheduleId, fence });
-      if (completion.status === 'stale') return { ok: false, error: LEASE_LOST_ERROR };
+      if (completion.status === 'stale') return { ok: false as const, error: LEASE_LOST_ERROR };
       return {
         ...result,
         leaseStatus: completion.status,
@@ -96,13 +89,13 @@ export function createScheduleLeaseGuardedExecutor({
     }
 
     const release = await lease.release({ scheduleId, fence });
-    if (release.status === 'stale') return { ok: false, error: LEASE_LOST_ERROR };
+    if (release.status === 'stale') return { ok: false as const, error: LEASE_LOST_ERROR };
     if (release.status === 'completed') {
-      return { ok: true, deduplicated: true, leaseStatus: 'completed' };
+      return { ok: true as const, deduplicated: true, leaseStatus: 'completed' };
     }
     return result && typeof result === 'object'
       ? result
-      : { ok: false, error: DEFAULT_EXECUTION_ERROR };
+      : { ok: false as const, error: DEFAULT_EXECUTION_ERROR };
   }
 
   return Object.freeze({ renewIntervalMs: renewEveryMs, executeAgentTask: execute });

@@ -12,13 +12,9 @@ function normalizeStatus(value) {
   return STATUS.has(status) ? status : 'unknown';
 }
 
-/**
- * @param {UnvalidatedInput} [report]
- * @returns {Readonly<Record<string, { status: string; detail: string; checkedAt: string }>>}
- */
-export function normalizeReadinessReport(report = {}) {
+export function normalizeReadinessReport(report: UnvalidatedInput = {}): Readonly<Record<string, { status: string; detail: string; checkedAt: string }>> {
   if (!report || typeof report !== 'object' || Array.isArray(report)) throw new Error('INVALID_RUNTIME_READINESS_REPORT');
-  /** @type {Record<string, { status: string; detail: string; checkedAt: string }>} */
+  /* @type Record<string, { status: string; detail: string; checkedAt: string }> */
   const components = {};
   for (const component of DEFAULT_COMPONENTS) {
     const raw = report[component];
@@ -31,8 +27,7 @@ export function normalizeReadinessReport(report = {}) {
   return Object.freeze(components);
 }
 
-/** @param {UnvalidatedInput} [report] */
-export function evaluateRuntimeReadiness(report = {}) {
+export function evaluateRuntimeReadiness(report: UnvalidatedInput = {}) {
   const components = normalizeReadinessReport(report);
   const blocked = DEFAULT_COMPONENTS.filter((name) => components[name].status === 'blocked');
   const warnings = DEFAULT_COMPONENTS.filter((name) => components[name].status === 'warning');
@@ -49,14 +44,7 @@ export function evaluateRuntimeReadiness(report = {}) {
   });
 }
 
-/**
- * @param {UnvalidatedInput} report
- * @param {string} component
- * @param {string} status
- * @param {string} [detail]
- * @param {string} [checkedAt]
- */
-export function updateReadinessComponent(report, component, status, detail = '', checkedAt = '') {
+export function updateReadinessComponent(report: UnvalidatedInput, component: string, status: string, detail: string = '', checkedAt: string = '') {
   const name = normalizeComponent(component);
   const current = normalizeReadinessReport(report);
   return Object.freeze({

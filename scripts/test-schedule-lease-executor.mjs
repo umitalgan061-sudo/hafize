@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleLeaseGuardedExecutor } from '../lib/schedule-lease-executor.mjs';
+import { createScheduleLeaseGuardedExecutor } from '../lib/schedule-lease-executor.mts';
 
 function createLease(overrides = {}) {
   return {

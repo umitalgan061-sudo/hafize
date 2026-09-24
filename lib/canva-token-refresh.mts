@@ -1,23 +1,13 @@
 const TOKEN_ENDPOINT = 'https://api.canva.com/rest/v1/oauth/token';
 const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
-/**
- * @param {unknown} value
- * @param {string} field
- * @param {{ min?: number; max?: number }} [bounds]
- * @returns {string}
- */
-function text(value, field, { min = 1, max = 4096 } = {}) {
+function text(value: unknown, field: string, { min = 1, max = 4096 }: { min?: number; max?: number } = {}): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (normalized.length < min || normalized.length > max) throw new Error(`INVALID_CANVA_TOKEN_REFRESH:${field}`);
   return normalized;
 }
 
-/**
- * @param {Record<string, any> | null | undefined} value
- * @param {string[]} previousScopes
- */
-function normalizeResponse(value, previousScopes) {
+function normalizeResponse(value: Record<string, any> | null | undefined, previousScopes: string[]) {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('CANVA_TOKEN_REFRESH_FAILED:response');
   const accessToken = text(value.access_token, 'accessToken', { max: 4096 });
   const refreshToken = text(value.refresh_token, 'refreshToken', { max: 4096 });
@@ -29,10 +19,7 @@ function normalizeResponse(value, previousScopes) {
   return Object.freeze({ accessToken, refreshToken, tokenType: 'Bearer', expiresIn, scopes: Object.freeze([...new Set(scopes)]) });
 }
 
-/**
- * @param {{ clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch; now?: () => number }} [options]
- */
-export function createCanvaTokenRefresh({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
+export function createCanvaTokenRefresh({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch, now = () => Date.now() }: { clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch; now?: () => number } = {}) {
   const safeClientId = text(clientId, 'clientId', { max: 512 });
   const safeClientSecret = text(clientSecret, 'clientSecret', { max: 2048 });
   if (typeof tokenStore?.load !== 'function' || typeof tokenStore?.save !== 'function') throw new Error('INVALID_CANVA_TOKEN_REFRESH:tokenStore');
@@ -40,8 +27,7 @@ export function createCanvaTokenRefresh({ clientId, clientSecret, tokenStore, fe
   if (typeof now !== 'function') throw new Error('INVALID_CANVA_TOKEN_REFRESH:now');
   const authorization = `Basic ${Buffer.from(`${safeClientId}:${safeClientSecret}`, 'utf8').toString('base64')}`;
 
-  /** @param {{ ownerId?: string }} [input] */
-  async function refresh({ ownerId } = {}) {
+  async function refresh({ ownerId }: { ownerId?: string } = {}) {
     const owner = text(ownerId, 'ownerId', { max: 128 });
     if (!OWNER_PATTERN.test(owner)) throw new Error('INVALID_CANVA_TOKEN_REFRESH:ownerId');
     const current = await tokenStore.load({ ownerId: owner, provider: 'canva' });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGoogleOAuthRuntime, GOOGLE_AUTHORIZATION_ENDPOINT } from '../lib/google-oauth-runtime.mjs';
+import { createGoogleOAuthRuntime, GOOGLE_AUTHORIZATION_ENDPOINT } from '../lib/google-oauth-runtime.mts';
 
 const starts = [];
 const finishes = [];

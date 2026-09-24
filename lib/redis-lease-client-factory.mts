@@ -18,15 +18,14 @@ function cleanUrl(value) {
   return raw;
 }
 
-/** @param {Record<string, string | undefined>} [env] */
-export function readRedisLeaseClientConfig(env = process.env) {
+export function readRedisLeaseClientConfig(env: Record<string, string | undefined> = process.env) {
   if (!env || Array.isArray(env) || typeof env !== 'object') throw invalidConfig();
   const raw = typeof env.HAFIZE_SCHEDULE_REDIS_URL === 'string'
     ? env.HAFIZE_SCHEDULE_REDIS_URL.trim()
     : '';
   if (!raw) return null;
   const url = cleanUrl(raw);
-  const config = {};
+  const config = {} as { readonly url: string };
   Object.defineProperty(config, 'url', {
     enumerable: false,
     configurable: false,
@@ -45,10 +44,7 @@ async function closeQuietly(client) {
   }
 }
 
-/**
- * @param {{ env?: Record<string, string | undefined>; createClient?: Function }} [options]
- */
-export async function createRedisLeaseClient({ env = process.env, createClient } = {}) {
+export async function createRedisLeaseClient({ env = process.env, createClient }: { env?: Record<string, string | undefined>; createClient?: Function } = {}) {
   const config = readRedisLeaseClientConfig(env);
   if (config == null) return Object.freeze({ configured: false, client: null });
   if (typeof createClient !== 'function') throw new Error('REDIS_LEASE_CLIENT_UNAVAILABLE');

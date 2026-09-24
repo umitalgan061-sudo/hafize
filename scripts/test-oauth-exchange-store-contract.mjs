@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createGoogleTokenExchange } from '../lib/google-token-exchange.mjs';
-import { createCanvaTokenExchange } from '../lib/canva-token-exchange.mjs';
+import { createGoogleTokenExchange } from '../lib/google-token-exchange.mts';
+import { createCanvaTokenExchange } from '../lib/canva-token-exchange.mts';
 
 function strictStore(saved) {
   return {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { assertTraceContinuity, createTraceContext, normalizeTaskRelation } from '../lib/trace-consistency.mts';
-import { createAgentRunLedger } from '../lib/agent-run-ledger.mjs';
+import { createAgentRunLedger } from '../lib/agent-run-ledger.mts';
 
 const context = createTraceContext('trace-12345678', 'task_1234');
 assert.equal(context.traceId, 'trace-12345678');

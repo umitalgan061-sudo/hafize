@@ -35,13 +35,13 @@ export function createSessionAuth({ secret, subject, ttlSeconds, secureCookie = 
     const payload = Buffer.from(JSON.stringify(data)).toString('base64url'); return `${payload}.${sign(expected, payload)}`;
   };
   const verifySessionCookie = (value) => {
-    if (typeof value !== 'string') return { ok: false, error: 'AUTH_REQUIRED' };
-    const i = value.lastIndexOf('.'); if (i <= 0 || i === value.length - 1) return { ok: false, error: 'AUTH_REQUIRED' };
-    const payload = value.slice(0, i); if (!equal(value.slice(i + 1), sign(expected, payload))) return { ok: false, error: 'AUTH_REQUIRED' };
-    let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { ok: false, error: 'AUTH_REQUIRED' }; }
-    if (!data || data.sub !== owner || typeof data.csrf !== 'string') return { ok: false, error: 'AUTH_REQUIRED' };
-    if (!Number.isInteger(data.exp) || data.exp <= Math.floor(Date.now() / 1000)) return { ok: false, error: 'AUTH_EXPIRED' };
-    return { ok: true, principal: Object.freeze({ authenticated: true, subject: data.sub }), csrf: data.csrf, expiresAt: data.exp };
+    if (typeof value !== 'string') return { ok: false as const, error: 'AUTH_REQUIRED' };
+    const i = value.lastIndexOf('.'); if (i <= 0 || i === value.length - 1) return { ok: false as const, error: 'AUTH_REQUIRED' };
+    const payload = value.slice(0, i); if (!equal(value.slice(i + 1), sign(expected, payload))) return { ok: false as const, error: 'AUTH_REQUIRED' };
+    let data; try { data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { ok: false as const, error: 'AUTH_REQUIRED' }; }
+    if (!data || data.sub !== owner || typeof data.csrf !== 'string') return { ok: false as const, error: 'AUTH_REQUIRED' };
+    if (!Number.isInteger(data.exp) || data.exp <= Math.floor(Date.now() / 1000)) return { ok: false as const, error: 'AUTH_EXPIRED' };
+    return { ok: true as const, principal: Object.freeze({ authenticated: true, subject: data.sub }), csrf: data.csrf, expiresAt: data.exp };
   };
   const authenticate = (headers) => verifySessionCookie(decodeCookies(headers?.cookie ?? headers?.Cookie)[cookieName]);
   const suffix = secureCookie ? '; Secure' : '';

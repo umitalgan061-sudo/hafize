@@ -17,12 +17,12 @@ export function normalizeOAuthCallback(input) {
   if (hasCode === hasError) throw new Error('INVALID_OAUTH_CALLBACK:result');
   if (hasError) {
     return Object.freeze({
-      ok: false,
+      ok: false as const,
       state,
       error: text(input.error, 'error', 1, 128),
       errorDescription: input.error_description == null ? null : text(input.error_description, 'errorDescription', 1, 512)
     });
   }
   if (input.error_description != null) throw new Error('INVALID_OAUTH_CALLBACK:errorDescription');
-  return Object.freeze({ ok: true, state, code: text(input.code, 'code', 8, 2048) });
+  return Object.freeze({ ok: true as const, state, code: text(input.code, 'code', 8, 2048) });
 }

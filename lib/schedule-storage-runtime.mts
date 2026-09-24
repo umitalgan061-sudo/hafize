@@ -1,5 +1,5 @@
 import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.mjs';
-import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.mjs';
+import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.mts';
 import { createTaskSchedulePersistence } from './task-schedule-persistence.mjs';
 import { createTaskScheduleStore } from './task-schedule-store.mjs';
 

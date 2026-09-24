@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createLocalModelProvider } from '../lib/local-model-provider.mjs';
+import { createLocalModelProvider } from '../lib/local-model-provider.mts';
 
 let captured;
 const provider = createLocalModelProvider({

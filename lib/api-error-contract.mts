@@ -37,15 +37,12 @@ function cleanMessage(value) {
 /**
  * API hatasını tek ve makine tarafından okunabilir bir şekle indirger.
  * Gövdede asla yığın izi, dosya yolu veya secret bulunmaz.
- *
- * @param {{ code?: unknown; status?: number; message?: unknown; requestId?: string | null }} [input]
- * @returns {Readonly<{ error: string; status: number; message: string; requestId?: string }>}
  */
-export function normalizeApiError({ code, status = 500, message = '', requestId = null } = {}) {
+export function normalizeApiError({ code, status = 500, message = '', requestId = null }: { code?: unknown; status?: number; message?: unknown; requestId?: string | null } = {}): Readonly<{ error: string; status: number; message: string; requestId?: string }> {
   const normalizedStatus = Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
   const normalizedRequestId = typeof requestId === 'string' && requestId.trim() ? requestId.trim().slice(0, 120) : null;
-  /** @type {{ error: string; status: number; message: string; requestId?: string }} */
-  const payload = {
+  // `requestId` yalnızca çağıran verdiğinde eklenir, bu yüzden isteğe bağlı.
+  const payload: { error: string; status: number; message: string; requestId?: string } = {
     error: cleanCode(code),
     status: normalizedStatus,
     message: cleanMessage(message)
@@ -54,20 +51,12 @@ export function normalizeApiError({ code, status = 500, message = '', requestId 
   return Object.freeze(payload);
 }
 
-/**
- * @param {{ code?: unknown; status?: number; message?: unknown; requestId?: string | null }} error
- * @returns {boolean}
- */
-export function isRetryableApiError(error) {
+export function isRetryableApiError(error: { code?: unknown; status?: number; message?: unknown; requestId?: string | null }): boolean {
   const normalized = normalizeApiError(error);
   return normalized.status === 408 || normalized.status === 425 || normalized.status === 429 || normalized.status >= 500;
 }
 
-/**
- * @param {{ error?: unknown; status?: number } | null | undefined} result
- * @param {string | null} [requestId]
- */
-export function mapToolFailureToApiError(result, requestId = null) {
+export function mapToolFailureToApiError(result: { error?: unknown; status?: number } | null | undefined, requestId: string | null = null) {
   const code = typeof result?.error === 'string' ? result.error : 'TOOL_EXECUTION_FAILED';
   const status = Number.isInteger(result?.status) ? result.status : (code === 'TOOL_NOT_AUTHORIZED' ? 403 : 502);
   return normalizeApiError({ code, status, requestId });

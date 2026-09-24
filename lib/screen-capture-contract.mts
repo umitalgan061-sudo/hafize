@@ -4,7 +4,7 @@ const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_WIDTH = 1280;
 const MAX_HEIGHT = 720;
 
-function fail(error) { return { ok: false, error }; }
+function fail(error) { return { ok: false as const, error }; }
 
 function requireObject(input) {
   if (!input || Array.isArray(input) || typeof input !== 'object') throw new Error('INVALID_SCREEN_CAPTURE_METADATA:input');
@@ -22,7 +22,7 @@ export function normalizeScreenCaptureMetadata(input) {
     if (input.explicitUserIntent !== true) throw new Error('SCREEN_CAPTURE_REQUIRES_EXPLICIT_USER_INTENT');
     if (!ALLOWED_MIME_TYPES.has(input.mimeType)) throw new Error('INVALID_SCREEN_CAPTURE_METADATA:mimeType');
     return {
-      ok: true,
+      ok: true as const,
       metadata: {
         mimeType: input.mimeType,
         byteLength: positiveInt(input.byteLength, 'byteLength', MAX_BYTES),

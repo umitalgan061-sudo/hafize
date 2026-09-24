@@ -3,30 +3,20 @@ import { createTraceContext, normalizeTaskRelation, assertTraceContinuity } from
 
 /**
  * Tek bir ajan çalışmasını, araç çağrılarını ve delegasyonlarını izleyen defter.
- *
- * @param {{ traceId?: string; agentId?: string; action?: string; now?: () => Date }} [options]
  */
-export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', now } = {}) {
+export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', now }: { traceId?: string; agentId?: string; action?: string; now?: () => Date } = {}) {
   const context = createTraceContext(traceId);
   const ledger = createTaskLedger({ traceId: context.traceId, now });
   const root = ledger.add({ agentId, action, status: 'running' });
 
-  /**
-   * @param {string} parentTaskId
-   * @returns {import('./task-ledger.mjs').TaskLedgerEntry}
-   */
-  function resolveParent(parentTaskId) {
+  function resolveParent(parentTaskId: string): import('./task-ledger.mjs').TaskLedgerEntry {
     const parent = ledger.read(parentTaskId);
     if (!parent) throw new Error('TASK_PARENT_NOT_FOUND');
     assertTraceContinuity(context.traceId, parent.traceId);
     return parent;
   }
 
-  /**
-   * @param {string} toolName
-   * @param {{ parentTaskId?: string; toolAgentId?: string }} [options]
-   */
-  function recordToolStart(toolName, options = {}) {
+  function recordToolStart(toolName: string, options: { parentTaskId?: string; toolAgentId?: string } = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('INVALID_TOOL_TASK_OPTIONS');
     const { parentTaskId = root.taskId, toolAgentId = agentId } = options;
     const parent = resolveParent(parentTaskId);
@@ -36,11 +26,7 @@ export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', n
     return entry;
   }
 
-  /**
-   * @param {string} taskId
-   * @param {{ ok?: boolean; error?: unknown; [key: string]: any } | null} [result]
-   */
-  function recordToolFinish(taskId, result) {
+  function recordToolFinish(taskId: string, result?: { ok?: boolean; error?: unknown; [key: string]: any } | null) {
     const entry = ledger.read(taskId);
     if (!entry || entry.taskId === root.taskId || !entry.action.startsWith('tool:')) throw new Error('INVALID_TOOL_TASK_ID');
     assertTraceContinuity(context.traceId, entry.traceId);
@@ -48,11 +34,7 @@ export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', n
     return ledger.update(taskId, { status: ok ? 'completed' : 'failed', detail: ok ? 'ok' : String(result?.error || 'TOOL_EXECUTION_FAILED').slice(0, 120) });
   }
 
-  /**
-   * @param {string} targetAgentId
-   * @param {{ parentTaskId?: string }} [options]
-   */
-  function recordDelegationStart(targetAgentId, options = {}) {
+  function recordDelegationStart(targetAgentId: string, options: { parentTaskId?: string } = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('INVALID_DELEGATION_OPTIONS');
     const { parentTaskId = root.taskId } = options;
     const parent = resolveParent(parentTaskId);
@@ -61,11 +43,7 @@ export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', n
     return entry;
   }
 
-  /**
-   * @param {string} taskId
-   * @param {{ ok?: boolean; error?: unknown; [key: string]: any } | null} [result]
-   */
-  function recordDelegationFinish(taskId, result) {
+  function recordDelegationFinish(taskId: string, result?: { ok?: boolean; error?: unknown; [key: string]: any } | null) {
     const entry = ledger.read(taskId);
     if (!entry || entry.action !== 'agent.delegate') throw new Error('INVALID_DELEGATION_TASK_ID');
     assertTraceContinuity(context.traceId, entry.traceId);
@@ -73,10 +51,7 @@ export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', n
     return ledger.update(taskId, { status: ok ? 'completed' : 'failed', detail: ok ? 'ok' : String(result?.error || 'DELEGATED_AGENT_FAILED').slice(0, 120) });
   }
 
-  /**
-   * @param {{ ok?: boolean; detail?: unknown }} [options]
-   */
-  function finish(options = {}) {
+  function finish(options: { ok?: boolean; detail?: unknown } = {}) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) throw new Error('INVALID_FINISH_OPTIONS');
     const { ok = true, detail = null } = options;
     return ledger.update(root.taskId, { status: ok ? 'completed' : 'failed', detail: detail == null ? null : String(detail).slice(0, 120) });

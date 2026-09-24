@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGmailReadToolBoundary, GMAIL_READ_TOOL_DEFINITION } from '../lib/gmail-read-tool-boundary.mjs';
+import { createGmailReadToolBoundary, GMAIL_READ_TOOL_DEFINITION } from '../lib/gmail-read-tool-boundary.mts';
 
 const calls = [];
 const ownerResolver = {

@@ -4,7 +4,7 @@ import {
   normalizeConsolidationApproval,
   planMemoryConsolidation
 } from '../lib/memory-consolidation.mjs';
-import { createPersonalMemoryStore } from '../lib/personal-memory-store.mjs';
+import { createPersonalMemoryStore } from '../lib/personal-memory-store.mts';
 
 function record(memoryId, content, extra = {}) {
   return {

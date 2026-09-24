@@ -1,20 +1,13 @@
 const TOKEN_ENDPOINT = 'https://api.canva.com/rest/v1/oauth/token';
 const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 
-/**
- * @param {unknown} value
- * @param {string} field
- * @param {{ min?: number; max?: number }} [bounds]
- * @returns {string}
- */
-function text(value, field, { min = 1, max = 4096 } = {}) {
+function text(value: unknown, field: string, { min = 1, max = 4096 }: { min?: number; max?: number } = {}): string {
   const normalized = typeof value === 'string' ? value.trim() : '';
   if (normalized.length < min || normalized.length > max) throw new Error(`INVALID_CANVA_TOKEN_EXCHANGE:${field}`);
   return normalized;
 }
 
-/** @param {unknown} value */
-function redirectUri(value) {
+function redirectUri(value: unknown) {
   const raw = text(value, 'redirectUri', { max: 2048 });
   let url;
   try { url = new URL(raw); } catch { throw new Error('INVALID_CANVA_TOKEN_EXCHANGE:redirectUri'); }
@@ -22,8 +15,7 @@ function redirectUri(value) {
   return url.toString();
 }
 
-/** @param {Record<string, any> | null | undefined} value */
-function tokenResponse(value) {
+function tokenResponse(value: Record<string, any> | null | undefined) {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error('CANVA_TOKEN_EXCHANGE_FAILED:response');
   const accessToken = text(value.access_token, 'accessToken', { max: 4096 });
   const refreshToken = text(value.refresh_token, 'refreshToken', { max: 4096 });
@@ -35,10 +27,7 @@ function tokenResponse(value) {
   return Object.freeze({ accessToken, refreshToken, tokenType: 'Bearer', expiresIn, scopes: Object.freeze([...new Set(scopes)]) });
 }
 
-/**
- * @param {{ clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch; now?: () => number }} [options]
- */
-export function createCanvaTokenExchange({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch, now = () => Date.now() } = {}) {
+export function createCanvaTokenExchange({ clientId, clientSecret, tokenStore, fetchImpl = globalThis.fetch, now = () => Date.now() }: { clientId?: string; clientSecret?: string; tokenStore?: any; fetchImpl?: HafizeFetch; now?: () => number } = {}) {
   const safeClientId = text(clientId, 'clientId', { max: 512 });
   const safeClientSecret = text(clientSecret, 'clientSecret', { max: 2048 });
   if (typeof tokenStore?.save !== 'function') throw new Error('INVALID_CANVA_TOKEN_EXCHANGE:tokenStore');
@@ -46,10 +35,7 @@ export function createCanvaTokenExchange({ clientId, clientSecret, tokenStore, f
   if (typeof now !== 'function') throw new Error('INVALID_CANVA_TOKEN_EXCHANGE:now');
   const authorization = `Basic ${Buffer.from(`${safeClientId}:${safeClientSecret}`, 'utf8').toString('base64')}`;
 
-  /**
-   * @param {{ ownerId?: string; code?: string; verifier?: string; redirectUri?: string }} [input]
-   */
-  async function exchange({ ownerId, code, verifier, redirectUri: callbackUri } = {}) {
+  async function exchange({ ownerId, code, verifier, redirectUri: callbackUri }: { ownerId?: string; code?: string; verifier?: string; redirectUri?: string } = {}) {
     const owner = text(ownerId, 'ownerId', { max: 128 });
     if (!OWNER_PATTERN.test(owner)) throw new Error('INVALID_CANVA_TOKEN_EXCHANGE:ownerId');
     const safeCode = text(code, 'code', { min: 8, max: 4096 });

@@ -7,32 +7,17 @@ const HANDOFF_FIELDS = new Set([
   'evidenceRequired'
 ]);
 
-/**
- * @param {unknown} value
- * @param {string} label
- * @param {number} maxLength
- * @returns {string}
- */
-function cleanText(value, label, maxLength) {
+function cleanText(value: unknown, label: string, maxLength: number): string {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text || text.length > maxLength) throw new Error(`INVALID_TASK_HANDOFF:${label}`);
   return text;
 }
 
-/**
- * @param {unknown} value
- * @param {string} label
- */
-function cleanListItem(value, label) {
+function cleanListItem(value: unknown, label: string) {
   return cleanText(value, label, 500).replace(/\s+/g, ' ');
 }
 
-/**
- * @param {unknown} value
- * @param {string} label
- * @returns {string[]}
- */
-function cleanTextList(value, label) {
+function cleanTextList(value: unknown, label: string): string[] {
   if (value == null) return [];
   if (!Array.isArray(value) || value.length > MAX_ITEMS) {
     throw new Error(`INVALID_TASK_HANDOFF:${label}`);
@@ -42,13 +27,12 @@ function cleanTextList(value, label) {
   return items;
 }
 
-/** @param {Record<string, any>} [input] */
-export function normalizeTaskHandoff(input = {}) {
+export function normalizeTaskHandoff(input: Record<string, any> = {}) {
   if (!input || Array.isArray(input) || typeof input !== 'object') {
-    return { ok: false, error: 'INVALID_TASK_HANDOFF:input' };
+    return { ok: false as const, error: 'INVALID_TASK_HANDOFF:input' };
   }
   for (const key of Object.keys(input)) {
-    if (!HANDOFF_FIELDS.has(key)) return { ok: false, error: 'INVALID_TASK_HANDOFF:field' };
+    if (!HANDOFF_FIELDS.has(key)) return { ok: false as const, error: 'INVALID_TASK_HANDOFF:field' };
   }
 
   try {
@@ -59,16 +43,15 @@ export function normalizeTaskHandoff(input = {}) {
       constraints: cleanTextList(input.constraints, 'constraints'),
       evidenceRequired: cleanTextList(input.evidenceRequired, 'evidenceRequired')
     };
-    return { ok: true, handoff };
+    return { ok: true as const, handoff };
   } catch (error) {
-    return { ok: false, error: error.message };
+    return { ok: false as const, error: error.message };
   }
 }
 
-/** @param {Record<string, any>} handoff */
-export function formatTaskHandoff(handoff) {
+export function formatTaskHandoff(handoff: Record<string, any>) {
   const normalized = normalizeTaskHandoff(handoff);
-  if (!normalized.ok) return normalized;
+  if (normalized.ok === false) return normalized;
   const value = normalized.handoff;
   const lines = [`Görev: ${value.task}`];
   if (value.successCriteria.length) {
@@ -80,5 +63,5 @@ export function formatTaskHandoff(handoff) {
   if (value.evidenceRequired.length) {
     lines.push('', 'Beklenen kanıt:', ...value.evidenceRequired.map((item) => `- ${item}`));
   }
-  return { ok: true, task: lines.join('\n') };
+  return { ok: true as const, task: lines.join('\n') };
 }

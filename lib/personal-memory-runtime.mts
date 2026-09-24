@@ -1,11 +1,10 @@
 import { resolve } from 'node:path';
-import { createPersonalMemoryFileAdapter } from './personal-memory-file-adapter.mjs';
+import { createPersonalMemoryFileAdapter } from './personal-memory-file-adapter.mts';
 import { createPersonalMemoryPersistence } from './personal-memory-persistence.mjs';
 
 const FILE_NAME = 'personal-memory.enc.json';
 
-/** @param {string | undefined} value */
-function decodeKey(value) {
+function decodeKey(value: string | undefined) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text || !/^[A-Za-z0-9+/]+={0,2}$/.test(text) || text.length % 4 !== 0) {
     throw new Error('INVALID_MEMORY_RUNTIME:key');
@@ -17,15 +16,13 @@ function decodeKey(value) {
   return key;
 }
 
-/** @param {string | undefined} value */
-function storagePath(value) {
+function storagePath(value: string | undefined) {
   const text = typeof value === 'string' ? value.trim() : '';
   if (!text || text.includes('\0')) throw new Error('INVALID_MEMORY_RUNTIME:storageDir');
   return resolve(text, FILE_NAME);
 }
 
-/** @param {string | undefined} value */
-function maxFileBytes(value) {
+function maxFileBytes(value: string | undefined) {
   if (value == null || value === '') return undefined;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 1024 || parsed > 64 * 1024 * 1024) {
@@ -36,20 +33,8 @@ function maxFileBytes(value) {
 
 /**
  * Kişisel belleği ortam değişkenlerinden yapılandırır.
- *
- * @param {{
- *   env?: Record<string, string | undefined>;
- *   storeOptions?: Record<string, any>;
- *   createAdapter?: Function;
- *   createPersistence?: Function;
- * }} [options]
  */
-export function createPersonalMemoryRuntime({
-  env = process.env,
-  storeOptions = {},
-  createAdapter = createPersonalMemoryFileAdapter,
-  createPersistence = createPersonalMemoryPersistence
-} = {}) {
+export function createPersonalMemoryRuntime({ env = process.env, storeOptions = {}, createAdapter = createPersonalMemoryFileAdapter, createPersistence = createPersonalMemoryPersistence }: { env?: Record<string, string | undefined>; storeOptions?: Record<string, any>; createAdapter?: Function; createPersistence?: Function; } = {}) {
   if (!env || Array.isArray(env) || typeof env !== 'object') throw new Error('INVALID_MEMORY_RUNTIME:env');
   if (typeof createAdapter !== 'function') throw new Error('INVALID_MEMORY_RUNTIME:createAdapter');
   if (typeof createPersistence !== 'function') throw new Error('INVALID_MEMORY_RUNTIME:createPersistence');

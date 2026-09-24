@@ -22,8 +22,7 @@ function problem(code, field) {
   return Object.freeze({ code, field });
 }
 
-/** @param {Record<string, string | undefined>} [env] */
-export function evaluateConfigReadiness(env = process.env) {
+export function evaluateConfigReadiness(env: Record<string, string | undefined> = process.env) {
   if (!env || typeof env !== 'object' || Array.isArray(env)) {
     return Object.freeze({
       state: 'blocked',

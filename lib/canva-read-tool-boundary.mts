@@ -1,21 +1,18 @@
-const OPERATIONS = Object.freeze(['profile.get', 'message.list', 'message.get']);
+const OPERATIONS = Object.freeze(['user.get', 'user.profile', 'user.capabilities', 'design.list', 'design.get']);
 const OPERATION_SET = new Set(OPERATIONS);
 const TOP_FIELDS = new Set(['operation', 'params']);
-const PARAM_FIELDS = new Set(['query', 'pageToken', 'maxResults', 'includeSpamTrash', 'messageId', 'format']);
+const PARAM_FIELDS = new Set(['query', 'continuation', 'ownership', 'sortBy', 'limit', 'designId']);
 
 /**
  * Fırlatılmaya hazır, kod taşıyan bir hata üretir.
- *
- * @param {string} reason
- * @returns {HafizeCodedError}
  */
-function invalid(reason) {
-  const error = /** @type {HafizeCodedError} */ (new Error(`INVALID_GMAIL_READ_TOOL:${reason}`));
-  error.code = 'INVALID_GMAIL_READ_TOOL';
+function invalid(reason: string): HafizeCodedError {
+  const error = (new Error(`INVALID_CANVA_READ_TOOL:${reason}`) as HafizeCodedError);
+  error.code = 'INVALID_CANVA_READ_TOOL';
   return error;
 }
-/** @param {Record<string, any> | null | undefined} value */
-function normalizeArgs(value) {
+
+function normalizeArgs(value: Record<string, any> | null | undefined) {
   if (!value || Array.isArray(value) || typeof value !== 'object') throw invalid('args');
   for (const field of Object.keys(value)) if (!TOP_FIELDS.has(field)) throw invalid(`unknown_field:${field}`);
   if (typeof value.operation !== 'string' || !OPERATION_SET.has(value.operation)) throw invalid('operation');
@@ -26,30 +23,25 @@ function normalizeArgs(value) {
   return { operation: value.operation, params: value.params === undefined ? undefined : structuredClone(value.params) };
 }
 
-/**
- * @param {{ readClient?: any; ownerResolver?: any }} [options]
- */
-export function createGmailReadToolBoundary({ readClient, ownerResolver } = {}) {
+export function createCanvaReadToolBoundary({ readClient, ownerResolver }: { readClient?: any; ownerResolver?: any } = {}) {
   if (typeof readClient?.read !== 'function') throw invalid('readClient');
   if (typeof ownerResolver?.resolve !== 'function') throw invalid('ownerResolver');
-  /**
-   * @param {Record<string, any>} args
-   * @param {{ principal?: unknown }} [context]
-   */
-  async function execute(args, { principal } = {}) {
+
+  async function execute(args: Record<string, any>, { principal }: { principal?: unknown } = {}) {
     const normalized = normalizeArgs(args);
     const ownership = ownerResolver.resolve(principal);
     if (!ownership || typeof ownership.ownerId !== 'string' || !ownership.ownerId) throw invalid('owner');
     return readClient.read({ ownerId: ownership.ownerId, operation: normalized.operation, params: normalized.params });
   }
+
   return Object.freeze({ execute });
 }
 
-export const GMAIL_READ_TOOL_DEFINITION = Object.freeze({
+export const CANVA_READ_TOOL_DEFINITION = Object.freeze({
   type: 'function',
   function: Object.freeze({
-    name: 'gmail_read',
-    description: 'Bağlı Gmail hesabından salt-okunur profil veya mesaj bilgisi getirir. Gönderme, silme, etiket değiştirme ya da serbest URL çağrısı yapmaz.',
+    name: 'canva_read',
+    description: 'Bağlı Canva hesabından salt-okunur kullanıcı veya tasarım bilgisini getirir. Yazma, silme, paylaşma veya serbest URL çağrısı yapmaz.',
     parameters: Object.freeze({
       type: 'object',
       properties: Object.freeze({
@@ -57,12 +49,12 @@ export const GMAIL_READ_TOOL_DEFINITION = Object.freeze({
         params: Object.freeze({
           type: 'object',
           properties: Object.freeze({
-            query: Object.freeze({ type: 'string', maxLength: 512 }),
-            pageToken: Object.freeze({ type: 'string', maxLength: 2048 }),
-            maxResults: Object.freeze({ type: 'integer', minimum: 1, maximum: 100 }),
-            includeSpamTrash: Object.freeze({ type: 'boolean' }),
-            messageId: Object.freeze({ type: 'string', maxLength: 256 }),
-            format: Object.freeze({ type: 'string', enum: Object.freeze(['minimal', 'metadata', 'full']) })
+            query: Object.freeze({ type: 'string', maxLength: 255 }),
+            continuation: Object.freeze({ type: 'string', maxLength: 2048 }),
+            ownership: Object.freeze({ type: 'string', enum: Object.freeze(['any', 'owned', 'shared']) }),
+            sortBy: Object.freeze({ type: 'string', enum: Object.freeze(['relevance', 'modified_descending', 'modified_ascending', 'title_descending', 'title_ascending']) }),
+            limit: Object.freeze({ type: 'integer', minimum: 1, maximum: 100 }),
+            designId: Object.freeze({ type: 'string', maxLength: 256 })
           }),
           additionalProperties: false
         })

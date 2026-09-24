@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CANVA_REFRESH_TOKEN_ENDPOINT, createCanvaTokenRefresh } from '../lib/canva-token-refresh.mjs';
+import { CANVA_REFRESH_TOKEN_ENDPOINT, createCanvaTokenRefresh } from '../lib/canva-token-refresh.mts';
 
 const loads = [];
 const saves = [];

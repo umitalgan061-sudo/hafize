@@ -23,8 +23,7 @@ function parseInteger(value, fallback, min, max) {
   return parsed;
 }
 
-/** @param {Record<string, string | undefined>} [env] */
-export function readScheduleLeaseRuntimeConfig(env = process.env) {
+export function readScheduleLeaseRuntimeConfig(env: Record<string, string | undefined> = process.env) {
   if (!env || Array.isArray(env) || typeof env !== 'object') throw invalidConfig();
 
   const provider = text(env.HAFIZE_SCHEDULE_LEASE_PROVIDER);
@@ -46,21 +45,10 @@ export function readScheduleLeaseRuntimeConfig(env = process.env) {
 
 /**
  * Kira sağlayıcısını ortam yapılandırmasından kurar.
- *
  * Fabrikalar `Function` olarak yazılır; kontrol paketleri yerlerine yalnızca
  * sınadıkları yüzeyi uygulayan ikizler geçirir.
- *
- * @param {{
- *   env?: Record<string, string | undefined>;
- *   providerFactories?: Record<string, Function>;
- *   createBoundary?: Function;
- * }} [options]
  */
-export async function createScheduleLeaseProviderRuntime({
-  env = process.env,
-  providerFactories = {},
-  createBoundary = createScheduleExecutionLeaseBoundary
-} = {}) {
+export async function createScheduleLeaseProviderRuntime({ env = process.env, providerFactories = {}, createBoundary = createScheduleExecutionLeaseBoundary }: { env?: Record<string, string | undefined>; providerFactories?: Record<string, Function>; createBoundary?: Function; } = {}) {
   const config = readScheduleLeaseRuntimeConfig(env);
   if (config == null) {
     return Object.freeze({ configured: false, provider: null, lease: null, renewIntervalMs: null });

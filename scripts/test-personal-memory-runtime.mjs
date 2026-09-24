@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
-import { createPersonalMemoryRuntime, PERSONAL_MEMORY_FILE_NAME } from '../lib/personal-memory-runtime.mjs';
+import { createPersonalMemoryRuntime, PERSONAL_MEMORY_FILE_NAME } from '../lib/personal-memory-runtime.mts';
 
 const key = Buffer.alloc(32, 9);
 const env = {

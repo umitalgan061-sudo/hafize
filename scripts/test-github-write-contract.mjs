@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { GITHUB_WRITE_OPERATIONS, normalizeGitHubWriteRequest } from '../lib/github-write-contract.mjs';
+import { GITHUB_WRITE_OPERATIONS, normalizeGitHubWriteRequest } from '../lib/github-write-contract.mts';
 
 const allowedRepositories = new Set(['umitalgan061-sudo/hafize']);
 

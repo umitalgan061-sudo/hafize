@@ -1,5 +1,31 @@
 import assert from 'node:assert/strict';
-import { PERSONAL_MEMORY_CONTRACT, normalizeMemoryDelete, normalizeMemoryRead, normalizeMemoryWrite } from '../lib/personal-memory-contract.mjs';
+import { PERSONAL_MEMORY_CONTRACT, normalizeMemoryDelete, normalizeMemoryRead, normalizeMemoryWrite } from '../lib/personal-memory-contract.mts';
+
+/**
+ * Başarılı dalı doğrular ve daraltılmış sonucu döndürür.
+ *
+ * Doğrudan `result.records` yazmak iki şeyi kaçırıyordu: `ok`un gerçekten
+ * `true` olduğunu ve başarısız dalın alanının yanlışlıkla okunmadığını.
+ *
+ * @param {{ ok: boolean }} result
+ * @returns {any}
+ */
+function expectOk(result) {
+  assert.equal(result?.ok, true, `başarılı sonuç bekleniyordu: ${JSON.stringify(result)}`);
+  return result;
+}
+
+/**
+ * Başarısız dalı doğrular ve hata kodunu döndürür.
+ *
+ * @param {{ ok: boolean }} result
+ * @returns {unknown}
+ */
+function expectError(result) {
+  assert.equal(result?.ok, false, `başarısız sonuç bekleniyordu: ${JSON.stringify(result)}`);
+  return /** @type {any} */ (result).error;
+}
+
 
 assert.deepEqual(PERSONAL_MEMORY_CONTRACT.kinds, ['identity', 'preference', 'project', 'note']);
 assert.deepEqual(PERSONAL_MEMORY_CONTRACT.sourceTypes, ['user_statement', 'user_note', 'user_import']);
@@ -33,15 +59,15 @@ const credentialExamples = [
   '-----BEGIN PRIVATE KEY-----\nplaintext-private-material'
 ];
 for (const content of credentialExamples) {
-  assert.equal(normalizeMemoryWrite({ ...validWrite, content }).error, 'MEMORY_CONTENT_CREDENTIAL_NOT_ALLOWED');
+  assert.equal(expectError(normalizeMemoryWrite({ ...validWrite, content })), 'MEMORY_CONTENT_CREDENTIAL_NOT_ALLOWED');
 }
 for (const sourceRef of ['import:access_token=abcdef123456', 'Authorization: Bearer abcdefghijklmnop', 'github_pat_1234567890abcdefghijABCDEFGHIJ', 'ya29.A0ARrdaM_exampleGoogleOauthToken123456789']) {
-  assert.equal(normalizeMemoryWrite({ ...validWrite, sourceRef }).error, 'MEMORY_SOURCE_REF_CREDENTIAL_NOT_ALLOWED');
+  assert.equal(expectError(normalizeMemoryWrite({ ...validWrite, sourceRef })), 'MEMORY_SOURCE_REF_CREDENTIAL_NOT_ALLOWED');
 }
 
 assert.deepEqual(normalizeMemoryRead({ ownerId: ' user-123 ', query: ' projelerim ', kinds: ['project', 'note'], limit: 8 }), { ok: true, command: { ownerId: 'user-123', query: 'projelerim', kinds: ['project', 'note'], limit: 8 } });
 assert.deepEqual(normalizeMemoryRead({ ownerId: 'owner', query: 'tercihler' }), { ok: true, command: { ownerId: 'owner', query: 'tercihler', kinds: [], limit: 5 } });
-for (const query of [...credentialExamples.slice(0, 6), 'api_key=abcdef123456']) assert.equal(normalizeMemoryRead({ ownerId: 'owner', query }).error, 'MEMORY_QUERY_CREDENTIAL_NOT_ALLOWED');
+for (const query of [...credentialExamples.slice(0, 6), 'api_key=abcdef123456']) assert.equal(expectError(normalizeMemoryRead({ ownerId: 'owner', query })), 'MEMORY_QUERY_CREDENTIAL_NOT_ALLOWED');
 assert.equal(normalizeMemoryRead({ ownerId: 'owner', query: 'GitHub PAT güvenliği hakkında notlar.' }).ok, true);
 
 assert.deepEqual(normalizeMemoryRead({ ownerId: 'owner', query: 'x', kinds: ['note', 'note'] }), { ok: false, error: 'INVALID_MEMORY_COMMAND:kinds.duplicate' });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { classifyRequestFailure, deliverRequestFailure, REQUEST_FAILURE_CONTRACT } from '../lib/request-failure.mjs';
+import { classifyRequestFailure, deliverRequestFailure, REQUEST_FAILURE_CONTRACT } from '../lib/request-failure.mts';
 
 class FakeResponse extends EventEmitter {
   constructor({ headersSent = false, destroyed = false } = {}) {

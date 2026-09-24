@@ -1,12 +1,12 @@
-import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.mjs';
+import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.mts';
 import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.mjs';
 import {
   createScheduleLeaseProviderRuntime,
   readScheduleLeaseRuntimeConfig
-} from './schedule-lease-runtime-config.mjs';
+} from './schedule-lease-runtime-config.mts';
 
 async function defaultLoadRedisModule() {
-  return /** @type {Promise<any>} */ (import('redis'));
+  return (import('redis') as Promise<any>);
 }
 
 async function closeClient(client) {

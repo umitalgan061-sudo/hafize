@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createRedisLeaseClient, readRedisLeaseClientConfig } from '../lib/redis-lease-client-factory.mjs';
+import { createRedisLeaseClient, readRedisLeaseClientConfig } from '../lib/redis-lease-client-factory.mts';
 
 assert.equal(readRedisLeaseClientConfig({}), null);
 assert.throws(() => readRedisLeaseClientConfig({ HAFIZE_SCHEDULE_REDIS_URL: 'https://example.com' }), /INVALID_REDIS_LEASE_CLIENT_CONFIG/);

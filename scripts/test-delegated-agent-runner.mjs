@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createAgentRunLedger } from '../lib/agent-run-ledger.mjs';
+import { createAgentRunLedger } from '../lib/agent-run-ledger.mts';
 import { runDelegatedAgent } from '../lib/delegated-agent-runner.mjs';
 
 const reviewer = {

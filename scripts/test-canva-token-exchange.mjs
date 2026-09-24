@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CANVA_TOKEN_ENDPOINT, createCanvaTokenExchange } from '../lib/canva-token-exchange.mjs';
+import { CANVA_TOKEN_ENDPOINT, createCanvaTokenExchange } from '../lib/canva-token-exchange.mts';
 
 const saves = [];
 const requests = [];

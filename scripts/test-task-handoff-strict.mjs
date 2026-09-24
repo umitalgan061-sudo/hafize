@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { normalizeTaskHandoff } from '../lib/task-handoff.mjs';
+import { normalizeTaskHandoff } from '../lib/task-handoff.mts';
 
 assert.deepEqual(
   normalizeTaskHandoff({ agentId: 'specialist-a', task: 'Kontrol et.', extraField: 'x' }),
