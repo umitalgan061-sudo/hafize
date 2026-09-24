@@ -461,6 +461,7 @@
     });
 
     applyCollapse();
+    refreshStatus({ force: true });
 
     return Object.freeze({
       mount: true,
