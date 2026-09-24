@@ -1,4 +1,4 @@
-import { createOAuthTokenFileStore } from './oauth-token-file-store.mjs';
+import { createOAuthTokenFileStore } from './oauth-token-file-store.mts';
 
 const KEY_ENV = 'HAFIZE_OAUTH_TOKEN_KEY_B64';
 const DIR_ENV = 'HAFIZE_OAUTH_TOKEN_STORAGE_DIR';

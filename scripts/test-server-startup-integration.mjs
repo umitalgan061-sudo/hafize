@@ -5,7 +5,7 @@ import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createEncryptedFileScheduleAdapter } from '../lib/encrypted-file-schedule-adapter.mjs';
+import { createEncryptedFileScheduleAdapter } from '../lib/encrypted-file-schedule-adapter.mts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createTaskLedger } from '../lib/task-ledger.mjs';
+import { createTaskLedger } from '../lib/task-ledger.mts';
 
 let tick = 0;
 const ledger = createTaskLedger({

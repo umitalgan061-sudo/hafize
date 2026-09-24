@@ -3,7 +3,7 @@ import {
   SKILL_MANIFEST_LIMITS,
   containsSecretMaterial,
   normalizeSkillManifest
-} from '../lib/skills-manifest.mjs';
+} from '../lib/skills-manifest.mts';
 
 const base = {
   name: 'repo-triage',

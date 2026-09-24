@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createOAuthTokenFileStore } from '../lib/oauth-token-file-store.mjs';
+import { createOAuthTokenFileStore } from '../lib/oauth-token-file-store.mts';
 
 const root = await mkdtemp(join(tmpdir(), 'hafize-oauth-store-'));
 const key = Buffer.alloc(32, 9);

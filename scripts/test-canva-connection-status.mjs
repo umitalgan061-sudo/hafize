@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createCanvaAgentRuntime } from '../lib/canva-agent-runtime.mjs';
+import { createCanvaAgentRuntime } from '../lib/canva-agent-runtime.mts';
 
 const authToken = 's'.repeat(40);
 const principal = Object.freeze({ authenticated: true, subject: 'user:status@example.com' });

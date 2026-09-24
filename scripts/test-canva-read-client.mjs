@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createCanvaReadClient, CANVA_READ_OPERATIONS } from '../lib/canva-read-client.mjs';
+import { createCanvaReadClient, CANVA_READ_OPERATIONS } from '../lib/canva-read-client.mts';
 
 const future = 2_000_000_000_000;
 const accessToken = 'canva_access_token_1234567890';

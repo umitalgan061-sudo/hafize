@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createSecurityEventLogger, SECURITY_OBSERVABILITY_LIMITS } from '../lib/security-observability.mjs';
+import { createSecurityEventLogger, SECURITY_OBSERVABILITY_LIMITS } from '../lib/security-observability.mts';
 
 const events = [];
 const logger = createSecurityEventLogger({ sink: (line) => events.push(line), now: () => Date.parse('2026-09-07T12:00:00.000Z') });

@@ -1,31 +1,6 @@
 import assert from 'node:assert/strict';
 import { PERSONAL_MEMORY_CONTRACT, normalizeMemoryDelete, normalizeMemoryRead, normalizeMemoryWrite } from '../lib/personal-memory-contract.mts';
-
-/**
- * Başarılı dalı doğrular ve daraltılmış sonucu döndürür.
- *
- * Doğrudan `result.records` yazmak iki şeyi kaçırıyordu: `ok`un gerçekten
- * `true` olduğunu ve başarısız dalın alanının yanlışlıkla okunmadığını.
- *
- * @param {{ ok: boolean }} result
- * @returns {any}
- */
-function expectOk(result) {
-  assert.equal(result?.ok, true, `başarılı sonuç bekleniyordu: ${JSON.stringify(result)}`);
-  return result;
-}
-
-/**
- * Başarısız dalı doğrular ve hata kodunu döndürür.
- *
- * @param {{ ok: boolean }} result
- * @returns {unknown}
- */
-function expectError(result) {
-  assert.equal(result?.ok, false, `başarısız sonuç bekleniyordu: ${JSON.stringify(result)}`);
-  return /** @type {any} */ (result).error;
-}
-
+import { expectError, expectOk } from './expect-result.mjs';
 
 assert.deepEqual(PERSONAL_MEMORY_CONTRACT.kinds, ['identity', 'preference', 'project', 'note']);
 assert.deepEqual(PERSONAL_MEMORY_CONTRACT.sourceTypes, ['user_statement', 'user_note', 'user_import']);

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const api = await readFile(new URL('../lib/schedule-http-api.mjs', import.meta.url), 'utf8');
+const api = await readFile(new URL('../lib/schedule-http-api.mts', import.meta.url), 'utf8');
 const boundary = await readFile(new URL('../lib/schedule-command-boundary.mts', import.meta.url), 'utf8');
-const store = await readFile(new URL('../lib/task-schedule-store.mjs', import.meta.url), 'utf8');
+const store = await readFile(new URL('../lib/task-schedule-store.mts', import.meta.url), 'utf8');
 
 assert.match(api, /\/api\/schedules/);
 // The handler upper-cases the verb once and then dispatches on it.

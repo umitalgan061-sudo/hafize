@@ -1,4 +1,4 @@
-import { normalizeCalendarItems, normalizeCalendarRead } from './calendar-contract.mjs';
+import { normalizeCalendarItems, normalizeCalendarRead } from './calendar-contract.mts';
 
 const MAX_CACHED_ITEMS = 1_000;
 

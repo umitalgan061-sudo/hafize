@@ -4,7 +4,10 @@ import { readFile } from 'node:fs/promises';
 const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 
-assert.match(server, /import \{ createCanvaAgentRuntime \} from '\.\/lib\/canva-agent-runtime\.mjs';/);
+// Uzantı sabitlenmez: modül `.mjs` ya da `.mts` olabilir ve ikisi de
+// aynı bağlantıdır. Sabitlenen şey, sunucunun bu çalışma zamanını
+// gerçekten içe aktardığıdır.
+assert.match(server, /import \{ createCanvaAgentRuntime \} from '\.\/lib\/canva-agent-runtime\.m[jt]s';/);
 assert.match(server, /const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime\(\);/);
 assert.match(server, /CANVA_AGENT_RUNTIME\.requestContext\(\{ headers: req\.headers \}\)/);
 assert.match(server, /canvaReadConfigured: CANVA_AGENT_RUNTIME\.configured/);

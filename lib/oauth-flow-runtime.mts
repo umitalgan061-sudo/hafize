@@ -1,4 +1,4 @@
-import { buildOAuthAuthorizationUrl, createOAuthState, createPkceChallenge, createPkceVerifier } from './oauth-pkce.mjs';
+import { buildOAuthAuthorizationUrl, createOAuthState, createPkceChallenge, createPkceVerifier } from './oauth-pkce.mts';
 import { createOAuthFlowStore } from './oauth-flow-store.mts';
 import { normalizeOAuthCallback } from './oauth-callback-contract.mts';
 

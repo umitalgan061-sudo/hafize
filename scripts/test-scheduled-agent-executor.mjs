@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduledAgentExecutor } from '../lib/scheduled-agent-executor.mjs';
+import { createScheduledAgentExecutor } from '../lib/scheduled-agent-executor.mts';
 
 const registry = {
   agents: [

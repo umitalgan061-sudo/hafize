@@ -4,7 +4,10 @@ import { readFile } from 'node:fs/promises';
 const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 
-assert.match(server, /import \{ createGmailAgentRuntime \} from '\.\/lib\/gmail-agent-runtime\.mjs';/);
+// Uzantı sabitlenmez: modül `.mjs` ya da `.mts` olabilir ve ikisi de
+// aynı bağlantıdır. Sabitlenen şey, sunucunun bu çalışma zamanını
+// gerçekten içe aktardığıdır.
+assert.match(server, /import \{ createGmailAgentRuntime \} from '\.\/lib\/gmail-agent-runtime\.m[jt]s';/);
 assert.match(server, /const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime\(\);/);
 assert.match(server, /gmailReadConfigured: GMAIL_AGENT_RUNTIME\.configured/);
 assert.match(server, /url\.pathname === '\/api\/connectors\/gmail\/status'/);

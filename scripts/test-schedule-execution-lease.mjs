@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleExecutionLeaseBoundary } from '../lib/schedule-execution-lease.mjs';
+import { createScheduleExecutionLeaseBoundary } from '../lib/schedule-execution-lease.mts';
 
 const state = new Map();
 let nextFence = 1;

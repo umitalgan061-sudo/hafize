@@ -3,7 +3,7 @@ import {
   CONTEXT_COMPACTION_DEFAULTS,
   createContextCompactor,
   estimateMessageTokens
-} from '../lib/context-compaction.mjs';
+} from '../lib/context-compaction.mts';
 
 assert.equal(estimateMessageTokens([{ role: 'user', content: '12345678' }]) > 0, true);
 assert.throws(() => estimateMessageTokens(null), /INVALID_CONTEXT_COMPACTOR:messages/);

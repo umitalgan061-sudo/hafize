@@ -16,8 +16,8 @@ if (!/^rediss?:\/\//i.test(redisUrl)) {
 
 const [redisModule, adapterModule, leaseModule] = await Promise.all([
   import('redis'),
-  import('../lib/redis-schedule-lease-adapter.mjs'),
-  import('../lib/schedule-execution-lease.mjs')
+  import('../lib/redis-schedule-lease-adapter.mts'),
+  import('../lib/schedule-execution-lease.mts')
 ]);
 const { createClient } = redisModule;
 const { createRedisScheduleLeaseAdapter } = adapterModule;

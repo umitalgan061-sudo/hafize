@@ -3,7 +3,7 @@ import { timingSafeEqual } from 'node:crypto';
 import { createSessionAuth } from './session-auth.mts';
 import { createBearerPrincipalAuthenticator } from './server-auth.mts';
 import { createRateLimiter } from './rate-limit.mts';
-import { createSecurityEventLogger } from './security-observability.mjs';
+import { createSecurityEventLogger } from './security-observability.mts';
 const http = createRequire(import.meta.url)('node:http');
 
 if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {

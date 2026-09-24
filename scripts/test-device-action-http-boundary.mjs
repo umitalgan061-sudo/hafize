@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createDeviceActionHttpBoundary, DEVICE_ACTION_HTTP_CONTRACT } from '../lib/device-action-http-boundary.mjs';
+import { createDeviceActionHttpBoundary, DEVICE_ACTION_HTTP_CONTRACT } from '../lib/device-action-http-boundary.mts';
+import { expectError, expectOk } from './expect-result.mjs';
 
 const calls = [];
 const runtime = {
@@ -44,11 +45,11 @@ assert.deepEqual(calls[0][3], { principal, traceId });
 
 const unauthenticated = await api.handle({ method: 'POST', pathname: '/api/device/system-info', body: {} }, { agent, traceId });
 assert.equal(unauthenticated.status, 403);
-assert.equal(unauthenticated.body.error, 'DEVICE_ACTION_OWNER_REQUIRED');
+assert.equal(expectError(unauthenticated.body), 'DEVICE_ACTION_OWNER_REQUIRED');
 
 const beginBrowser = await api.handle({ method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'browser.open', url: 'https://example.com/private?token=never-return' }, ttlMs: 1000 } }, { agent, principal, traceId });
 assert.equal(beginBrowser.status, 201);
-assert.equal(beginBrowser.body.review.target, 'https://example.com/private');
+assert.equal(expectOk(beginBrowser.body).review.target, 'https://example.com/private');
 assert.equal(JSON.stringify(beginBrowser.body).includes('never-return'), false);
 assert.equal(JSON.stringify(beginBrowser.body).includes('approvalToken'), false);
 assert.equal(calls[2][3].principal, principal);
@@ -64,21 +65,21 @@ assert.deepEqual(confirmApp, { status: 200, body: { ok: true, action: 'app.open'
 
 const ownerMismatch = await api.handle({ method: 'POST', pathname: '/api/device/reviews/review-123/confirm', body: { request: { action: 'app.open', appId: 'browser.chrome' } } }, { agent, principal: { ownerId: 'other' }, traceId });
 assert.equal(ownerMismatch.status, 403);
-assert.equal(ownerMismatch.body.error, 'DEVICE_REVIEW_OWNER_MISMATCH');
+assert.equal(expectError(ownerMismatch.body), 'DEVICE_REVIEW_OWNER_MISMATCH');
 
 const limited = await api.handle({ method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'app.open', appId: 'browser.chrome' } } }, { agent, principal: { ownerId: 'limited' }, traceId });
 assert.equal(limited.status, 429);
-assert.equal(limited.body.error, 'DEVICE_REVIEW_OWNER_LIMIT_REACHED');
+assert.equal(expectError(limited.body), 'DEVICE_REVIEW_OWNER_LIMIT_REACHED');
 
 const deniedApp = await api.handle({ method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'app.open', appId: 'terminal' } } }, { agent, principal, traceId });
 assert.equal(deniedApp.status, 400);
-assert.equal(deniedApp.body.error, 'DEVICE_BRIDGE_APP_NOT_ALLOWED');
+assert.equal(expectError(deniedApp.body), 'DEVICE_BRIDGE_APP_NOT_ALLOWED');
 
 const cancelled = await api.handle({ method: 'DELETE', pathname: '/api/device/reviews/review-123', body: {} }, { agent, principal, traceId });
 assert.deepEqual(cancelled, { status: 204, body: null });
 const missing = await api.handle({ method: 'DELETE', pathname: '/api/device/reviews/missing', body: {} }, { agent, principal, traceId });
 assert.equal(missing.status, 404);
-assert.equal(missing.body.error, 'DEVICE_REVIEW_NOT_FOUND');
+assert.equal(expectError(missing.body), 'DEVICE_REVIEW_NOT_FOUND');
 
 for (const invalid of [
   { method: 'POST', pathname: '/api/device/reviews', body: { request: { action: 'shell.run' } } },
@@ -89,7 +90,7 @@ for (const invalid of [
 ]) {
   const response = await api.handle(invalid, { agent, principal, traceId });
   assert.equal(response.status, 400);
-  assert.match(response.body.error, /^INVALID_DEVICE_HTTP_/);
+  assert.match(expectError(response.body), /^INVALID_DEVICE_HTTP_/);
 }
 
 const route = await api.handle({ method: 'GET', pathname: '/api/device/reviews', body: {} }, { agent, principal, traceId });

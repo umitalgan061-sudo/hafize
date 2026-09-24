@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mjs';
-import { createDeviceBridge, DEVICE_BRIDGE_CONTRACT, normalizeDeviceBridgeCommand, normalizeSystemInfo } from '../lib/device-bridge-contract.mjs';
-import { authorizeDeviceToolRequest, DEVICE_TOOL_BOUNDARY, executeDeviceToolRequest, listDeviceToolPermissions } from '../lib/device-bridge-tool-boundary.mjs';
-import { createDeviceApprovalLeaseStore, DEVICE_APPROVAL_LEASE_CONTRACT, deviceApprovalTargetForRequest } from '../lib/device-approval-lease.mjs';
-import { createDeviceApprovalReviewStore, DEVICE_APPROVAL_REVIEW_CONTRACT } from '../lib/device-approval-review.mjs';
+import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mts';
+import { createDeviceBridge, DEVICE_BRIDGE_CONTRACT, normalizeDeviceBridgeCommand, normalizeSystemInfo } from '../lib/device-bridge-contract.mts';
+import { authorizeDeviceToolRequest, DEVICE_TOOL_BOUNDARY, executeDeviceToolRequest, listDeviceToolPermissions } from '../lib/device-bridge-tool-boundary.mts';
+import { createDeviceApprovalLeaseStore, DEVICE_APPROVAL_LEASE_CONTRACT, deviceApprovalTargetForRequest } from '../lib/device-approval-lease.mts';
+import { createDeviceApprovalReviewStore, DEVICE_APPROVAL_REVIEW_CONTRACT } from '../lib/device-approval-review.mts';
 import { createDeviceApprovalAuditEvent, DEVICE_APPROVAL_AUDIT_CONTRACT } from '../lib/device-approval-audit.mts';
+import { expectOk } from './expect-result.mjs';
 
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'system.info' }), { ok: true, command: { action: 'system.info' } });
 assert.deepEqual(normalizeDeviceBridgeCommand({ action: 'browser.open', explicitUserIntent: true, url: 'https://example.com/path?q=1' }), { ok: true, command: { action: 'browser.open', url: 'https://example.com/path?q=1' } });
@@ -67,16 +68,16 @@ assert.equal(deviceApprovalTargetForRequest({ action: 'app.open', appId: 'Browse
 assert.equal(deviceApprovalTargetForRequest({ action: 'browser.open', url: 'https://example.com/a' }), 'https://example.com/a');
 const issued = approvalStore.issue({ traceId, action: 'browser.open', target: 'https://example.com/a', ttlMs: 1000 });
 assert.equal(issued.ok, true);
-assert.equal((await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, { traceId, approvalToken: issued.lease.token, approvalStore, deviceBridge: boundaryBridge })).ok, true);
-assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, { traceId, approvalToken: issued.lease.token, approvalStore, deviceBridge: boundaryBridge }), { ok: false, error: 'DEVICE_APPROVAL_NOT_FOUND', reason: 'approval_required' });
+assert.equal((await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, { traceId, approvalToken: expectOk(issued).lease.token, approvalStore, deviceBridge: boundaryBridge })).ok, true);
+assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'browser.open', url: 'https://example.com/a' }, { traceId, approvalToken: expectOk(issued).lease.token, approvalStore, deviceBridge: boundaryBridge }), { ok: false, error: 'DEVICE_APPROVAL_NOT_FOUND', reason: 'approval_required' });
 const wrongTarget = approvalStore.issue({ traceId, action: 'app.open', target: 'browser.chrome', ttlMs: 1000 });
-assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'app.open', appId: 'editor.vscode' }, { traceId, approvalToken: wrongTarget.lease.token, approvalStore, deviceBridge: boundaryBridge }), { ok: false, error: 'DEVICE_APPROVAL_TARGET_MISMATCH', reason: 'approval_required' });
+assert.deepEqual(await executeDeviceToolRequest(hafize, { action: 'app.open', appId: 'editor.vscode' }, { traceId, approvalToken: expectOk(wrongTarget).lease.token, approvalStore, deviceBridge: boundaryBridge }), { ok: false, error: 'DEVICE_APPROVAL_TARGET_MISMATCH', reason: 'approval_required' });
 const expiring = approvalStore.issue({ traceId, action: 'browser.open', target: 'https://example.com/expire', ttlMs: 5 });
 clock += 6;
-assert.deepEqual(approvalStore.consume({ token: expiring.lease.token, traceId, action: 'browser.open', target: 'https://example.com/expire' }), { ok: false, error: 'DEVICE_APPROVAL_EXPIRED' });
+assert.deepEqual(approvalStore.consume({ token: expectOk(expiring).lease.token, traceId, action: 'browser.open', target: 'https://example.com/expire' }), { ok: false, error: 'DEVICE_APPROVAL_EXPIRED' });
 const revoked = approvalStore.issue({ traceId, action: 'app.open', target: 'browser.chrome' });
-assert.equal(approvalStore.revoke(revoked.lease.token), true);
-assert.equal(approvalStore.revoke(revoked.lease.token), false);
+assert.equal(approvalStore.revoke(expectOk(revoked).lease.token), true);
+assert.equal(approvalStore.revoke(expectOk(revoked).lease.token), false);
 
 assert.equal(DEVICE_APPROVAL_AUDIT_CONTRACT.includesApprovalToken, false);
 assert.equal(DEVICE_APPROVAL_AUDIT_CONTRACT.includesRawQueryOrFragment, false);

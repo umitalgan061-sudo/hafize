@@ -3,7 +3,7 @@ import {
   createDeviceBridgePolicy,
   DEVICE_BRIDGE_OPERATIONS,
   DEVICE_BRIDGE_SYSTEM_INFO_FIELDS
-} from '../lib/device-bridge-policy.mjs';
+} from '../lib/device-bridge-policy.mts';
 
 assert.deepEqual(DEVICE_BRIDGE_OPERATIONS, ['system.info', 'browser.open', 'app.open']);
 assert.equal(DEVICE_BRIDGE_SYSTEM_INFO_FIELDS.includes('hostname'), false);

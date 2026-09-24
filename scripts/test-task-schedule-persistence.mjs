@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
-import { createTaskSchedulePersistence } from '../lib/task-schedule-persistence.mjs';
+import { createTaskScheduleStore } from '../lib/task-schedule-store.mts';
+import { createTaskSchedulePersistence } from '../lib/task-schedule-persistence.mts';
 
 let clock = new Date('2026-08-12T11:00:00.000Z');
 const now = () => new Date(clock);

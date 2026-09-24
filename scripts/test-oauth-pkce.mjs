@@ -4,7 +4,7 @@ import {
   createOAuthState,
   createPkceChallenge,
   createPkceVerifier
-} from '../lib/oauth-pkce.mjs';
+} from '../lib/oauth-pkce.mts';
 
 const verifier = createPkceVerifier({ random: () => Buffer.alloc(48, 7) });
 assert.equal(verifier.length, 64);

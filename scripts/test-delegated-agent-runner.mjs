@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createAgentRunLedger } from '../lib/agent-run-ledger.mts';
-import { runDelegatedAgent } from '../lib/delegated-agent-runner.mjs';
+import { runDelegatedAgent } from '../lib/delegated-agent-runner.mts';
 
 const reviewer = {
   id: 'agency-code-reviewer',

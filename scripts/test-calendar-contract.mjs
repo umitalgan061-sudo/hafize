@@ -4,7 +4,7 @@ import {
   calendarWriteApproval,
   normalizeCalendarItems,
   normalizeCalendarRead
-} from '../lib/calendar-contract.mjs';
+} from '../lib/calendar-contract.mts';
 import { createCalendarReadRuntime } from '../lib/calendar-read-runtime.mts';
 
 const read = normalizeCalendarRead({ ownerId: 'u1', query: { from: '2026-09-01', to: '2026-09-30', kind: 'event', query: 'toplantı' } });

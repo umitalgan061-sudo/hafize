@@ -1,4 +1,4 @@
-import { createScheduleExecutionLeaseBoundary } from './schedule-execution-lease.mjs';
+import { createScheduleExecutionLeaseBoundary } from './schedule-execution-lease.mts';
 
 const PROVIDER_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const HOLDER_PATTERN = /^[A-Za-z0-9._:-]{1,200}$/;

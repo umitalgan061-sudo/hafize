@@ -1,4 +1,4 @@
-import { createTaskLedger } from './task-ledger.mjs';
+import { createTaskLedger } from './task-ledger.mts';
 import { createTraceContext, normalizeTaskRelation, assertTraceContinuity } from './trace-consistency.mts';
 
 /**
@@ -9,7 +9,7 @@ export function createAgentRunLedger({ traceId, agentId, action = 'agent.run', n
   const ledger = createTaskLedger({ traceId: context.traceId, now });
   const root = ledger.add({ agentId, action, status: 'running' });
 
-  function resolveParent(parentTaskId: string): import('./task-ledger.mjs').TaskLedgerEntry {
+  function resolveParent(parentTaskId: string): import('./task-ledger.mts').TaskLedgerEntry {
     const parent = ledger.read(parentTaskId);
     if (!parent) throw new Error('TASK_PARENT_NOT_FOUND');
     assertTraceContinuity(context.traceId, parent.traceId);

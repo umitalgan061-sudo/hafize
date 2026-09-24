@@ -1,21 +1,7 @@
 import assert from 'node:assert/strict';
-import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
+import { createTaskScheduleStore } from '../lib/task-schedule-store.mts';
 import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mts';
-
-/**
- * Başarılı dalı doğrular ve daraltılmış sonucu döndürür.
- *
- * Doğrudan `result.schedules` yazmak `ok`un gerçekten `true` olduğunu
- * kontrol etmiyordu; başarısız bir çağrı `undefined.map` ile patlardı.
- *
- * @param {{ ok: boolean }} result
- * @returns {any}
- */
-function expectOk(result) {
-  assert.equal(result?.ok, true, `başarılı sonuç bekleniyordu: ${JSON.stringify(result)}`);
-  return result;
-}
-
+import { expectOk } from './expect-result.mjs';
 
 const now = () => new Date('2026-08-12T11:00:00.000Z');
 const store = createTaskScheduleStore({ now });

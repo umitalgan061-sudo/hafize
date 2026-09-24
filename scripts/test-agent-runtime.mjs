@@ -10,7 +10,7 @@ import {
   loadAgentRegistry,
   normalizeClientMessages,
   resolveAgent
-} from '../lib/agent-runtime.mjs';
+} from '../lib/agent-runtime.mts';
 
 const registry = await loadAgentRegistry();
 assert.equal(registry.defaultAgent, 'hafize-general');

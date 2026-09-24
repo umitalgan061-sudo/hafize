@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createPersonalMemoryPersistence } from '../lib/personal-memory-persistence.mjs';
+import { createPersonalMemoryPersistence } from '../lib/personal-memory-persistence.mts';
 
 const key = Buffer.alloc(32, 4);
 const initial = {

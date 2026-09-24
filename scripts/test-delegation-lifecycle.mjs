@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createAgentDelegator } from '../lib/agent-delegation.mts';
-import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
+import { createAgentLifecycle } from '../lib/agent-lifecycle.mts';
 
 const registry = { policy: { maxDelegationDepth: 2, maxParallelAgents: 3 }, agents: [
   { id: 'parent', name: 'Parent', kind: 'primary', toolPolicy: { default: 'deny', allow: ['agent.delegate'], approvalRequired: [] } },

@@ -1,0 +1,186 @@
+export type AgentRunState = 'running' | 'completed' | 'failed' | 'cancelled';
+
+/**
+ * Çalışan bir ajan koşusunun değiştirilebilir hâli.
+ *
+ * `AgentRun` dışarıya okunur olarak verilir, ama kayıt haritada yerinde
+ * güncellenir (durum geçişi, iptal, sayaçlar). İki ayrı ad, hangi tarafın
+ * yazabildiğini açık tutar.
+ */
+export type MutableAgentRun = { -readonly [K in keyof AgentRun]: AgentRun[K] };
+
+export type AgentRun = Readonly<{
+  runId: string;
+  parentRunId: string;
+  state: AgentRunState;
+  startedAt: number;
+  finishedAt: number | null;
+  messages: unknown[];
+  acceptedMessages: number;
+  rejectedMessages: number;
+  error: string | null;
+  controller: AbortController;
+  detachParent: (() => void) | null;
+}>;
+
+
+const STATES = Object.freeze({ running: 'running', completed: 'completed', failed: 'failed', cancelled: 'cancelled' } as const);
+/* @type ReadonlySet<AgentRunState> */
+const TERMINAL: ReadonlySet<AgentRunState> = new Set([STATES.completed, STATES.failed, STATES.cancelled]);
+const DEFAULT_MAX_CONCURRENT = 2;
+const MAX_MAX_CONCURRENT = 8;
+const DEFAULT_INBOX_LIMIT = 32;
+
+function fail(code: string): never {
+  const error = (new Error(code) as HafizeCodedError);
+  error.code = code;
+  throw error;
+}
+
+function cleanText(value: unknown, max: number, code: string): string {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (!text || text.length > max || text.includes('\0')) fail(code);
+  return text;
+}
+
+function normalizeMaxConcurrent(value: number | undefined): number {
+  const result = value === undefined ? DEFAULT_MAX_CONCURRENT : value;
+  if (!Number.isInteger(result) || result < 1 || result > MAX_MAX_CONCURRENT) fail('INVALID_AGENT_CONCURRENCY_LIMIT');
+  return result;
+}
+
+function normalizeInboxLimit(value: number | undefined): number {
+  const result = value === undefined ? DEFAULT_INBOX_LIMIT : value;
+  if (!Number.isInteger(result) || result < 1 || result > 256) fail('INVALID_AGENT_INBOX_LIMIT');
+  return result;
+}
+
+/**
+ * Ajan çalışmalarının yaşam döngüsünü, iptalini ve mesaj kutusunu yönetir.
+ */
+export function createAgentLifecycle({ maxConcurrent = DEFAULT_MAX_CONCURRENT, inboxLimit = DEFAULT_INBOX_LIMIT }: { maxConcurrent?: number; inboxLimit?: number } = {}) {
+  const concurrentLimit = normalizeMaxConcurrent(maxConcurrent);
+  const queueLimit = normalizeInboxLimit(inboxLimit);
+  // `AgentRun` okunur bir kayıt olarak bildirildi ama kayıtlar yerinde
+  // güncelleniyor; harita bu yüzden değiştirilebilir bir görünüm tutar.
+  const runs = new Map<string, MutableAgentRun>();
+
+  function liveCount() {
+    let count = 0;
+    for (const run of runs.values()) if (run.state === STATES.running) count += 1;
+    return count;
+  }
+
+  function snapshot(run: AgentRun) {
+    return Object.freeze({
+      runId: run.runId, state: run.state, startedAt: run.startedAt, finishedAt: run.finishedAt,
+      parentRunId: run.parentRunId, messages: run.messages.length, acceptedMessages: run.acceptedMessages,
+      rejectedMessages: run.rejectedMessages, error: run.error
+    });
+  }
+
+  function start({ runId, parentRunId = '', parentSignal, execute }: { runId?: string; parentRunId?: string; parentSignal?: AbortSignal; execute?: (context: { runId: string; signal: AbortSignal }) => unknown } = {}) {
+    const id = cleanText(runId, 120, 'INVALID_AGENT_RUN_ID');
+    if (runs.has(id)) fail('AGENT_RUN_ALREADY_EXISTS');
+    if (typeof execute !== 'function') fail('INVALID_AGENT_EXECUTOR');
+    if (liveCount() >= concurrentLimit) fail('AGENT_CONCURRENCY_EXCEEDED');
+    const controller = new AbortController();
+    // `state`, aşağıdaki iptal yolu tarafından değiştirilebilir; bu yüzden tek
+    // bir literal olarak değil, durum birleşimi olarak yazılır.
+    const run: MutableAgentRun = {
+      runId: id,
+      parentRunId: typeof parentRunId === 'string' ? parentRunId.slice(0, 120) : '',
+      state: STATES.running,
+      startedAt: Date.now(),
+      finishedAt: null,
+      messages: [],
+      acceptedMessages: 0,
+      rejectedMessages: 0,
+      error: null,
+      controller,
+      detachParent: null
+    };
+    runs.set(id, run);
+
+    if (parentSignal) {
+      if (typeof parentSignal.addEventListener !== 'function') fail('INVALID_PARENT_SIGNAL');
+      const abort = () => cancel(id, 'PARENT_ABORTED');
+      if (parentSignal.aborted) abort();
+      else {
+        parentSignal.addEventListener('abort', abort, { once: true });
+        run.detachParent = () => parentSignal.removeEventListener('abort', abort);
+      }
+    }
+
+    const promise = run.state === STATES.cancelled
+      ? Promise.resolve(Object.freeze({ value: undefined, snapshot: snapshot(run) }))
+      : Promise.resolve()
+        // A run cancelled between start() and the first microtask never executes.
+        .then(() => (runs.get(id)?.state === STATES.cancelled
+          ? undefined
+          : execute({ runId: id, signal: controller.signal })))
+        .then((value) => finish(id, STATES.completed, null, value))
+        .catch((error) => {
+          if (runs.get(id)?.state === STATES.cancelled) return finish(id, STATES.cancelled, runs.get(id).error, undefined);
+          return finish(id, STATES.failed, sanitizeError(error), undefined);
+        });
+    return Object.freeze({ runId: id, signal: controller.signal, promise, snapshot: () => snapshot(run), cancel: (reason) => cancel(id, reason) });
+  }
+
+  function sanitizeError(error: HafizeCodedError | null | undefined) {
+    const code = typeof error?.code === 'string' ? error.code : 'AGENT_RUN_FAILED';
+    return code.slice(0, 120);
+  }
+
+  function finish(runId: string, state: AgentRunState, error: string | null = null, value?: unknown) {
+    const run = runs.get(runId);
+    if (!run || TERMINAL.has(run.state)) return undefined;
+    if (!TERMINAL.has(state)) fail('INVALID_AGENT_TERMINAL_STATE');
+    run.state = state;
+    run.error = typeof error === 'string' ? error : null;
+    run.finishedAt = Date.now();
+    run.controller.abort();
+    run.detachParent?.();
+    return Object.freeze({ value, snapshot: snapshot(run) });
+  }
+
+  function cancel(runId: string, reason: string = 'AGENT_CANCELLED') {
+    const run = runs.get(runId);
+    if (!run) return false;
+    if (TERMINAL.has(run.state)) return false;
+    run.state = STATES.cancelled;
+    run.error = cleanText(String(reason || 'AGENT_CANCELLED'), 120, 'INVALID_CANCEL_REASON');
+    run.finishedAt = Date.now();
+    run.controller.abort();
+    run.detachParent?.();
+    return true;
+  }
+
+  function sendMessage(runId: string, message: unknown) {
+    const run = runs.get(runId);
+    if (!run || run.state !== STATES.running) {
+      if (run) run.rejectedMessages += 1;
+      fail('AGENT_RUN_NOT_ACCEPTING_MESSAGES');
+    }
+    if (run.messages.length >= queueLimit) {
+      run.rejectedMessages += 1;
+      fail('AGENT_INBOX_FULL');
+    }
+    const text = cleanText(message, 8_000, 'INVALID_AGENT_MESSAGE');
+    const item = Object.freeze({ id: `${run.runId}:${run.messages.length + 1}`, content: text, receivedAt: Date.now() });
+    run.messages.push(item);
+    run.acceptedMessages += 1;
+    return item;
+  }
+
+  function get(runId: string) {
+    const run = runs.get(typeof runId === 'string' ? runId : '');
+    return run ? snapshot(run) : null;
+  }
+
+  function list() {
+    return Object.freeze([...runs.values()].map(snapshot));
+  }
+
+  return Object.freeze({ start, cancel, sendMessage, get, list, liveCount: () => liveCount(), limits: Object.freeze({ maxConcurrent: concurrentLimit, inboxLimit: queueLimit }), states: STATES });
+}

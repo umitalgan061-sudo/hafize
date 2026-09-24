@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createSkillsRegistry } from '../lib/skills-registry.mjs';
+import { createSkillsRegistry } from '../lib/skills-registry.mts';
 
 const agent = {
   id: 'hafize-general',

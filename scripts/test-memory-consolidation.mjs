@@ -3,8 +3,9 @@ import {
   MEMORY_CONSOLIDATION_CONTRACT,
   normalizeConsolidationApproval,
   planMemoryConsolidation
-} from '../lib/memory-consolidation.mjs';
+} from '../lib/memory-consolidation.mts';
 import { createPersonalMemoryStore } from '../lib/personal-memory-store.mts';
+import { expectError, expectOk } from './expect-result.mjs';
 
 function record(memoryId, content, extra = {}) {
   return {
@@ -56,11 +57,11 @@ const exact = planMemoryConsolidation({
   ]
 });
 assert.equal(exact.ok, true);
-assert.equal(exact.plan.groups.length, 1);
-assert.equal(exact.plan.groups[0].keepMemoryId, 'memory_new00001');
-assert.deepEqual(exact.plan.groups[0].duplicates.map((item) => item.memoryId), ['memory_old00001']);
-assert.equal(exact.plan.groups[0].duplicates[0].similarity, 1);
-assert.deepEqual(exact.plan.stats, { records: 3, groups: 1, duplicateCandidates: 1, recordsAfterApproval: 2 });
+assert.equal(expectOk(exact).plan.groups.length, 1);
+assert.equal(expectOk(exact).plan.groups[0].keepMemoryId, 'memory_new00001');
+assert.deepEqual(expectOk(exact).plan.groups[0].duplicates.map((item) => item.memoryId), ['memory_old00001']);
+assert.equal(expectOk(exact).plan.groups[0].duplicates[0].similarity, 1);
+assert.deepEqual(expectOk(exact).plan.stats, { records: 3, groups: 1, duplicateCandidates: 1, recordsAfterApproval: 2 });
 
 const near = {
   ownerId: 'owner_1',
@@ -69,10 +70,10 @@ const near = {
     record('memory_near0002', 'Bildirimleri akşam 22 den sonra kapatalım', { createdAt: '2026-02-01T00:00:00.000Z' })
   ]
 };
-assert.equal(planMemoryConsolidation({ ...near, similarityThreshold: 0.99 }).plan.groups.length, 0);
+assert.equal(expectOk(planMemoryConsolidation({ ...near, similarityThreshold: 0.99 })).plan.groups.length, 0);
 const loose = planMemoryConsolidation({ ...near, similarityThreshold: 0.7 });
-assert.equal(loose.plan.groups.length, 1);
-assert.equal(loose.plan.groups[0].duplicates[0].similarity < 1, true);
+assert.equal(expectOk(loose).plan.groups.length, 1);
+assert.equal(expectOk(loose).plan.groups[0].duplicates[0].similarity < 1, true);
 
 const mixedKinds = planMemoryConsolidation({
   ownerId: 'owner_1',
@@ -81,7 +82,7 @@ const mixedKinds = planMemoryConsolidation({
     record('memory_kind0002', 'İsmim Ümit', { kind: 'note' })
   ]
 });
-assert.equal(mixedKinds.plan.groups.length, 0);
+assert.equal(expectOk(mixedKinds).plan.groups.length, 0);
 
 const { plan } = exact;
 const groupId = plan.groups[0].groupId;
@@ -124,14 +125,14 @@ for (const content of ['Kahveyi sade içerim', 'Kahveyi sade içerim', 'Haftalı
   }).ok, true);
 }
 const live = planMemoryConsolidation({ ownerId: 'owner_1', records: store.snapshot().entries });
-assert.equal(live.plan.stats.duplicateCandidates, 1);
+assert.equal(expectOk(live).plan.stats.duplicateCandidates, 1);
 const liveApproval = normalizeConsolidationApproval({
-  ownerId: 'owner_1', plan: live.plan, approvedGroupIds: live.plan.groups.map((group) => group.groupId), explicitUserIntent: true
+  ownerId: 'owner_1', plan: expectOk(live).plan, approvedGroupIds: expectOk(live).plan.groups.map((group) => group.groupId), explicitUserIntent: true
 });
-for (const command of liveApproval.commands) assert.equal(store.remove(command).ok, true);
+for (const command of expectOk(liveApproval).commands) assert.equal(store.remove(command).ok, true);
 const left = store.snapshot().entries;
 assert.equal(left.length, 2);
-assert.equal(left.some((entry) => entry.memoryId === live.plan.groups[0].keepMemoryId), true);
+assert.equal(left.some((entry) => entry.memoryId === expectOk(live).plan.groups[0].keepMemoryId), true);
 
 assert.equal(MEMORY_CONSOLIDATION_CONTRACT.requiresExplicitApproval, true);
 assert.equal(Object.isFrozen(MEMORY_CONSOLIDATION_CONTRACT), true);

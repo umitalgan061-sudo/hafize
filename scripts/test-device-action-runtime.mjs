@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mjs';
-import { createDeviceBridge } from '../lib/device-bridge-contract.mjs';
-import { createDeviceApprovalLeaseStore } from '../lib/device-approval-lease.mjs';
-import { createDeviceApprovalReviewStore } from '../lib/device-approval-review.mjs';
-import { createDeviceActionRuntime, DEVICE_ACTION_RUNTIME_CONTRACT } from '../lib/device-action-runtime.mjs';
+import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mts';
+import { createDeviceBridge } from '../lib/device-bridge-contract.mts';
+import { createDeviceApprovalLeaseStore } from '../lib/device-approval-lease.mts';
+import { createDeviceApprovalReviewStore } from '../lib/device-approval-review.mts';
+import { createDeviceActionRuntime, DEVICE_ACTION_RUNTIME_CONTRACT } from '../lib/device-action-runtime.mts';
 
 const registry = await loadAgentRegistry();
 const hafize = resolveAgent(registry, 'hafize-general');

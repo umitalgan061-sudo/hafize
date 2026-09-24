@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { createBuiltinSkillsRuntimeSync, createSkillsRuntime } from '../lib/skills-runtime.mjs';
-import { getAllowedNvidiaTools } from '../lib/tool-runtime.mjs';
-import { resolveAgent, loadAgentRegistry } from '../lib/agent-runtime.mjs';
+import { createBuiltinSkillsRuntimeSync, createSkillsRuntime } from '../lib/skills-runtime.mts';
+import { getAllowedNvidiaTools } from '../lib/tool-runtime.mts';
+import { resolveAgent, loadAgentRegistry } from '../lib/agent-runtime.mts';
 
 const registry = await loadAgentRegistry();
 const general = resolveAgent(registry, 'hafize-general');

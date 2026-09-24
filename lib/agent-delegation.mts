@@ -1,4 +1,4 @@
-import { authorizeAgentTool } from './agent-runtime.mjs';
+import { authorizeAgentTool } from './agent-runtime.mts';
 import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.mts';
 
 function boundedPolicyInteger(value: number | undefined, fallback: number, max: number): number { return Number.isInteger(value) ? Math.min(Math.max(value, 1), max) : fallback; }

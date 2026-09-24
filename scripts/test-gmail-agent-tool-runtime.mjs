@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { executeNvidiaToolCall, getAllowedNvidiaTools, listToolPermissions } from '../lib/tool-runtime.mjs';
+import { executeNvidiaToolCall, getAllowedNvidiaTools, listToolPermissions } from '../lib/tool-runtime.mts';
 
 const agent = {
   id: 'hafize-general',

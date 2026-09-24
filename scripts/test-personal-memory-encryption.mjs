@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { decryptPersonalMemorySnapshot, encryptPersonalMemorySnapshot } from '../lib/personal-memory-encryption.mts';
-import { createPersonalMemoryPersistence } from '../lib/personal-memory-persistence.mjs';
+import { createPersonalMemoryPersistence } from '../lib/personal-memory-persistence.mts';
 
 const key = Buffer.alloc(32, 7);
 const snapshot = { schemaVersion: 1, entries: [{ memoryId: 'memory_testid01', content: 'Ankara' }] };

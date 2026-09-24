@@ -4,7 +4,7 @@ import {
   decryptMemorySnapshot,
   encryptMemorySnapshot,
   ENCRYPTED_MEMORY_PERSISTENCE
-} from '../lib/encrypted-memory-persistence.mjs';
+} from '../lib/encrypted-memory-persistence.mts';
 
 const key = Buffer.alloc(32, 7);
 const otherKey = Buffer.alloc(32, 8);

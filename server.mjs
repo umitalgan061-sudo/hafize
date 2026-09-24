@@ -9,30 +9,30 @@ import {
   loadAgentRegistry,
   normalizeClientMessages,
   resolveAgent
-} from './lib/agent-runtime.mjs';
+} from './lib/agent-runtime.mts';
 import { createAgentDelegator } from './lib/agent-delegation.mts';
-import { runDelegatedAgent } from './lib/delegated-agent-runner.mjs';
+import { runDelegatedAgent } from './lib/delegated-agent-runner.mts';
 import { createAgentRunLedger } from './lib/agent-run-ledger.mts';
-import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mjs';
-import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mjs';
-import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mjs';
-import { createContextCompactor } from './lib/context-compaction.mjs';
+import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.mts';
+import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.mts';
+import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.mts';
+import { createContextCompactor } from './lib/context-compaction.mts';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.mts';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.mts';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.mts';
-import { createScheduleHttpApi } from './lib/schedule-http-api.mjs';
+import { createScheduleHttpApi } from './lib/schedule-http-api.mts';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.mts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.mts';
-import { createScheduleWorker } from './lib/schedule-worker.mjs';
-import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mjs';
-import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mjs';
+import { createScheduleWorker } from './lib/schedule-worker.mts';
+import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.mts';
+import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.mts';
 import { deliverRequestFailure } from './lib/request-failure.mts';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
   getPublicToolActivity,
   getPublicToolRunningActivity
-} from './lib/tool-runtime.mjs';
+} from './lib/tool-runtime.mts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');

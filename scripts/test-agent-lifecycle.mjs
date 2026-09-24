@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createAgentLifecycle } from '../lib/agent-lifecycle.mjs';
+import { createAgentLifecycle } from '../lib/agent-lifecycle.mts';
 
 const lifecycle = createAgentLifecycle({ maxConcurrent: 2, inboxLimit: 2 });
 const parent = new AbortController();

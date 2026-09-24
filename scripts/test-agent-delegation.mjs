@@ -126,7 +126,7 @@ assert.deepEqual(
 
 console.log('agent delegation tests passed');
 
-const { getAllowedNvidiaTools, executeNvidiaToolCall } = await import('../lib/tool-runtime.mjs');
+const { getAllowedNvidiaTools, executeNvidiaToolCall } = await import('../lib/tool-runtime.mts');
 const primaryTools = getAllowedNvidiaTools(primary, { delegateAgent: async () => ({ ok: true, value: {} }) });
 assert.equal(primaryTools.some((tool) => tool.function.name === 'agent_delegate'), true);
 const delegateTool = primaryTools.find((tool) => tool.function.name === 'agent_delegate');

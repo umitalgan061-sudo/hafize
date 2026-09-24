@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildUiState, evaluateUiStateTransition, normalizeUiState } from '../lib/ui-state-contract.mjs';
+import { buildUiState, evaluateUiStateTransition, normalizeUiState } from '../lib/ui-state-contract.mts';
 
 assert.equal(buildUiState({ loading: true }).state, 'loading');
 assert.equal(buildUiState({ dataCount: 0 }).state, 'empty');

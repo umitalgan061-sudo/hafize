@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createGmailReadClient, GMAIL_READ_OPERATIONS } from '../lib/gmail-read-client.mjs';
+import { createGmailReadClient, GMAIL_READ_OPERATIONS } from '../lib/gmail-read-client.mts';
 
 const accessToken = 'g'.repeat(48);
 const now = 1_800_000_000_000;

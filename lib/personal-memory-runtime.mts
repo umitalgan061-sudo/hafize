@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { createPersonalMemoryFileAdapter } from './personal-memory-file-adapter.mts';
-import { createPersonalMemoryPersistence } from './personal-memory-persistence.mjs';
+import { createPersonalMemoryPersistence } from './personal-memory-persistence.mts';
 
 const FILE_NAME = 'personal-memory.enc.json';
 

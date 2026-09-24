@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createCanvaReadClient } from '../lib/canva-read-client.mjs';
+import { createCanvaReadClient } from '../lib/canva-read-client.mts';
 import { createCanvaReadToolBoundary } from '../lib/canva-read-tool-boundary.mts';
 import { createConnectorOwnerResolver } from '../lib/connector-owner-principal.mts';
 

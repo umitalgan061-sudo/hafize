@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../public/scheduled-tasks.js', import.meta.url), 'utf8');
-const api = await readFile(new URL('../lib/schedule-http-api.mjs', import.meta.url), 'utf8');
-const store = await readFile(new URL('../lib/task-schedule-store.mjs', import.meta.url), 'utf8');
+const api = await readFile(new URL('../lib/schedule-http-api.mts', import.meta.url), 'utf8');
+const store = await readFile(new URL('../lib/task-schedule-store.mts', import.meta.url), 'utf8');
 
 assert.match(source, /new Date\(value\)/);
 assert.match(source, /toISOString\(\)/);

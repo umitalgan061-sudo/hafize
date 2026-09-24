@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { normalizeNvidiaChatCompletion } from '../lib/model-response-contract.mjs';
+import { normalizeNvidiaChatCompletion } from '../lib/model-response-contract.mts';
 
 function normalizeRootCompletion(response) {
   try {

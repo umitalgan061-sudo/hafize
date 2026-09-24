@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mjs';
+import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mts';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
   getPublicToolActivity,
   getPublicToolRunningActivity,
   listToolPermissions
-} from '../lib/tool-runtime.mjs';
+} from '../lib/tool-runtime.mts';
 
 const registry = await loadAgentRegistry();
 const hafize = resolveAgent(registry, 'hafize-general');

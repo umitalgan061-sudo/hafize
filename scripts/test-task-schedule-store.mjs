@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
+import { createTaskScheduleStore } from '../lib/task-schedule-store.mts';
 
 let current = new Date('2026-08-12T09:00:00.000Z');
 const now = () => new Date(current.getTime());

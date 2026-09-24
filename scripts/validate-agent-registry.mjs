@@ -1,4 +1,4 @@
-import { loadAgentRegistry } from '../lib/agent-runtime.mjs';
+import { loadAgentRegistry } from '../lib/agent-runtime.mts';
 
 const registry = await loadAgentRegistry();
 

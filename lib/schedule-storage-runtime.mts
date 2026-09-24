@@ -1,7 +1,7 @@
-import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.mjs';
+import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.mts';
 import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.mts';
-import { createTaskSchedulePersistence } from './task-schedule-persistence.mjs';
-import { createTaskScheduleStore } from './task-schedule-store.mjs';
+import { createTaskSchedulePersistence } from './task-schedule-persistence.mts';
+import { createTaskScheduleStore } from './task-schedule-store.mts';
 
 function requireFactory(value, label) {
   if (typeof value !== 'function') throw new Error(`INVALID_SCHEDULE_STORAGE_RUNTIME:${label}`);

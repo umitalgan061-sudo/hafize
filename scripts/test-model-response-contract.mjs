@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { MODEL_RESPONSE_CONTRACT, isTerminalModelResponse, normalizeModelResponse, normalizeNvidiaChatCompletion } from '../lib/model-response-contract.mjs';
+import { MODEL_RESPONSE_CONTRACT, isTerminalModelResponse, normalizeModelResponse, normalizeNvidiaChatCompletion } from '../lib/model-response-contract.mts';
 
 const response = normalizeModelResponse({ content: 'hazır', finishReason: 'stop', model: 'test-model', responseId: 'resp-1', usage: { prompt_tokens: 10, completion_tokens: 4, total_tokens: 14 }, toolCalls: [] });
 assert.equal(response.content, 'hazır');

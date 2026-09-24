@@ -1,5 +1,5 @@
 import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.mts';
-import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.mjs';
+import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.mts';
 import {
   createScheduleLeaseProviderRuntime,
   readScheduleLeaseRuntimeConfig
