@@ -450,11 +450,14 @@
           ? 'Bazı durumlar okunamadı · ' + formatTime()
           : 'Son yenileme · ' + formatTime();
 
-        rootRef.dispatchEvent?.(
-          new rootRef.CustomEvent(EVENT, {
-            detail: { connected, failures: failures.length }
-          })
-        );
+        const EventImpl = rootRef.CustomEvent || globalThis.CustomEvent;
+        if (typeof EventImpl === 'function') {
+          rootRef.dispatchEvent?.(
+            new EventImpl(EVENT, {
+              detail: { connected, failures: failures.length }
+            })
+          );
+        }
         return failures.length === 0;
       } finally {
         if (!destroyed) {
@@ -504,6 +507,9 @@
     on(rootRef, EVENT, () => {
       if (!destroyed) refreshStatus();
     });
+
+    applyCollapse();
+    refreshStatus({ force: true });
 
     applyCollapse();
     refreshStatus({ force: true });
