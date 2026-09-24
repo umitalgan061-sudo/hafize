@@ -50,7 +50,8 @@ assert.ok(checked.length >= 4, `en az dört betik yolu denetlenmeliydi, bulunan:
 {
   const start = String(pkg.scripts?.start ?? '');
   assert.match(start, /production-guard\.(?:mjs|mts)/, 'start üretim koruyucusunu yüklemeli');
-  assert.match(start, /server\.mjs/, 'start sunucuyu açmalı');
+  // Uzantı sabitlenmez: sunucu `.mjs` ya da `.mts` olabilir.
+  assert.match(start, /server\.m[jt]s/, 'start sunucuyu açmalı');
   for (const file of referencedFiles(start)) {
     assert.ok(existsSync(path.join(ROOT, file)), `start girişi eksik: ${file}`);
   }
@@ -65,7 +66,7 @@ assert.ok(checked.length >= 4, `en az dört betik yolu denetlenmeliydi, bulunan:
   const sources = [
     ...globSync('lib/*.{mjs,mts}', { cwd: ROOT }),
     ...globSync('scripts/*.mjs', { cwd: ROOT }),
-    'server.mjs'
+    'server.mts'
   ];
   const missing = [];
   for (const relative of sources) {

@@ -25,7 +25,7 @@ Node sürümü `package.json` içindeki `engines` alanında belirtilir. Uygulama
 
 ## Neden tam rewrite yok?
 
-`server.mjs` üretim API boundary'sini, schedule worker'ı, connector runtime'larını ve auth guard'larını aynı anda değiştirmek yüksek regresyon riski taşır. Bu nedenle her migration adımı aynı davranışı koruyan küçük bir sınır oluşturur.
+`server.mts` üretim API boundary'sini, schedule worker'ı, connector runtime'larını ve auth guard'larını aynı anda değiştirmek yüksek regresyon riski taşır. Bu nedenle her migration adımı aynı davranışı koruyan küçük bir sınır oluşturur.
 
 Her yeni typed modül:
 
@@ -118,11 +118,11 @@ TypeScript güvenlik kontrolü değildir. Güvenlik boundary'leri runtime'da kal
 
 Migration modülü ayrı bir generated entry olarak yüklenir. Sorun olması halinde ilgili HTML entry satırı ve source module birlikte revert edilebilir.
 
-`server.mjs` ile generated browser code arasında zorunlu bir runtime import bağı kurulmamıştır. Bu nedenle browser migration rollback'i backend deployment rollback'inden bağımsız tutulabilir.
+`server.mts` ile generated browser code arasında zorunlu bir runtime import bağı kurulmamıştır. Bu nedenle browser migration rollback'i backend deployment rollback'inden bağımsız tutulabilir.
 
 ## Sonraki migration sırası
 
-En güvenli sıra browser tarafında tekrar kullanılan pure helpers, domain modelleri, state adapters ve API clients'tır. Daha sonra server domain modules, ardından `server.mjs` composition root ve connector runtime'ları taşınabilir.
+En güvenli sıra browser tarafında tekrar kullanılan pure helpers, domain modelleri, state adapters ve API clients'tır. Daha sonra server domain modules, ardından `server.mts` composition root ve connector runtime'ları taşınabilir.
 
 Her aşamada önce type surface, sonra implementation, sonra integration entry ve son olarak legacy JavaScript kaldırılmalıdır.
 

@@ -49,5 +49,5 @@ Bilinmeyen üst alan, bilinmeyen argüman alanı veya tekrarlı ad doğrudan red
 
 `node scripts/test-skills-manifest.mjs` ve `node scripts/test-skills-registry.mjs` (ikisi de
 `npm run check` kapısındadır). Registry henüz HTTP yüzeyine bağlı değildir; sıradaki tur
-doğrulanmış skill'leri `server.mjs` tool listesine ve `fork` yürütmesini mevcut delegation
+doğrulanmış skill'leri `server.mts` tool listesine ve `fork` yürütmesini mevcut delegation
 runner'ına bağlar.

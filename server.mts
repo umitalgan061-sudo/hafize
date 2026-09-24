@@ -122,9 +122,9 @@ async function readJson(req) {
   return text ? JSON.parse(text) : {};
 }
 
-async function nvidiaFetch(pathname, init = {}) {
+async function nvidiaFetch(pathname: string, init: RequestInit = {}) {
   if (!NVIDIA_API_KEY) {
-    const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_NOT_CONFIGURED'));
+    const error = (new Error('NVIDIA_NOT_CONFIGURED') as HafizeCodedError);
     error.status = 503;
     throw error;
   }
@@ -145,8 +145,8 @@ async function nvidiaJsonCompletion(payload, signal) {
     body: JSON.stringify(payload)
   });
   const text = await upstream.text();
-  if (!upstream.ok) {
-    const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_CHAT_ERROR'));
+  if (upstream.ok === false) {
+    const error = (new Error('NVIDIA_CHAT_ERROR') as HafizeCodedError);
     error.status = upstream.status || 502;
     error.detail = text.slice(0, 1200);
     throw error;
@@ -154,7 +154,7 @@ async function nvidiaJsonCompletion(payload, signal) {
   try {
     return JSON.parse(text);
   } catch {
-    const error = /** @type {HafizeCodedError} */ (new Error('INVALID_NVIDIA_RESPONSE'));
+    const error = (new Error('INVALID_NVIDIA_RESPONSE') as HafizeCodedError);
     error.status = 502;
     throw error;
   }
@@ -164,7 +164,7 @@ function normalizeRootCompletion(response) {
   try {
     return normalizeNvidiaChatCompletion(response);
   } catch (error) {
-    const normalized = /** @type {HafizeCodedError} */ (new Error('INVALID_NVIDIA_RESPONSE'));
+    const normalized = (new Error('INVALID_NVIDIA_RESPONSE') as HafizeCodedError);
     normalized.code = error?.message || 'INVALID_NVIDIA_RESPONSE';
     normalized.status = 502;
     throw normalized;
@@ -291,7 +291,7 @@ startScheduleWorkerLoop();
 async function handleModels(res) {
   const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
   const text = await upstream.text();
-  if (!upstream.ok) {
+  if (upstream.ok === false) {
     sendJson(res, upstream.status, { error: 'NVIDIA_MODELS_ERROR', detail: text.slice(0, 1000) });
     return;
   }
@@ -379,7 +379,17 @@ async function handleAgentRun(req, res) {
     delegateAgent: delegator.delegate,
     ...connectorContext
   });
-  const firstPayload = {
+  // Araç alanları yalnızca ajanın aracı varsa eklenir.
+  const firstPayload: {
+    model: string;
+    messages: unknown[];
+    stream: boolean;
+    max_tokens: number;
+    tools?: unknown[];
+    tool_choice?: string;
+    temperature?: number;
+    top_p?: number;
+  } = {
     model,
     messages: conversation,
     stream: false,
@@ -394,7 +404,7 @@ async function handleAgentRun(req, res) {
   try {
     first = normalizeRootCompletion(await nvidiaJsonCompletion(firstPayload, controller.signal));
   } catch (error) {
-    runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
+    runLedger.finish({ ok: false as const, detail: 'INVALID_NVIDIA_RESPONSE' });
     deliverRequestFailure(res, error);
     return;
   }
@@ -410,7 +420,7 @@ async function handleAgentRun(req, res) {
   };
   const toolCalls = assistant.tool_calls;
   if (!toolCalls.length) {
-    runLedger.finish({ ok: true });
+    runLedger.finish({ ok: true as const });
     if (streamResponse) {
       sendSseContent(res, first.content);
       return;
@@ -437,7 +447,7 @@ async function handleAgentRun(req, res) {
       }
     }));
   if (!normalizedCalls.length) {
-    runLedger.finish({ ok: false, detail: 'INVALID_TOOL_CALL' });
+    runLedger.finish({ ok: false as const, detail: 'INVALID_TOOL_CALL' });
     sendJson(res, 502, { error: 'INVALID_TOOL_CALL', taskLedger: runLedger.snapshot() });
     return;
   }
@@ -461,7 +471,7 @@ async function handleAgentRun(req, res) {
       ...connectorContext
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
-    if (!result.ok) anyToolFailed = true;
+    if (result.ok === false) anyToolFailed = true;
     if (streamResponse) writeToolActivitySse(res, getPublicToolActivity(call.function.name, result));
     toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
     toolMessages.push({
@@ -495,15 +505,15 @@ async function handleAgentRun(req, res) {
         body: JSON.stringify(secondPayload)
       });
     } catch (error) {
-      runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
+      runLedger.finish({ ok: false as const, detail: 'NVIDIA_CHAT_ERROR' });
       deliverRequestFailure(res, error);
       return;
     }
     if (!upstream.ok || !upstream.body) {
       await upstream.text();
-      const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_CHAT_ERROR'));
+      const error = (new Error('NVIDIA_CHAT_ERROR') as HafizeCodedError);
       error.status = upstream.status || 502;
-      runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
+      runLedger.finish({ ok: false as const, detail: 'NVIDIA_CHAT_ERROR' });
       deliverRequestFailure(res, error);
       return;
     }
@@ -528,7 +538,7 @@ async function handleAgentRun(req, res) {
   try {
     second = normalizeRootCompletion(await nvidiaJsonCompletion(secondPayload, controller.signal));
   } catch (error) {
-    runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
+    runLedger.finish({ ok: false as const, detail: 'INVALID_NVIDIA_RESPONSE' });
     deliverRequestFailure(res, error);
     return;
   }
@@ -565,7 +575,17 @@ async function handleChat(req, res) {
     res
   );
 
-  const payload = {
+  // Örnekleme parametreleri yalnızca çağıran verdiğinde eklenir.
+  const payload: {
+    model: string;
+    messages: unknown[];
+    stream: boolean;
+    max_tokens: number;
+    tools?: unknown[];
+    tool_choice?: string;
+    temperature?: number;
+    top_p?: number;
+  } = {
     model,
     messages: preparedConversation.messages,
     stream: true,
@@ -589,7 +609,7 @@ async function handleChat(req, res) {
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text();
-    const error = /** @type {HafizeCodedError} */ (new Error('NVIDIA_CHAT_ERROR'));
+    const error = (new Error('NVIDIA_CHAT_ERROR') as HafizeCodedError);
     error.status = upstream.status || 502;
     error.detail = detail.slice(0, 1200);
     deliverRequestFailure(res, error);
@@ -719,15 +739,16 @@ const server = createServer(async (req, res) => {
 
 let shutdownPromise = null;
 
-/** @returns {Promise<void>} */
-function closeHttpServer() {
-  return new Promise(/** @type {(resolve: () => void) => void} */ ((resolveClose) => {
+function closeHttpServer(): Promise<void> {
+  // Tip parametresi yürütücüyü dönüştürmekten daha okunur: `new Promise(...)`
+  // aksi hâlde `Promise<unknown>` çıkarırdı.
+  return new Promise<void>((resolveClose) => {
     if (!server.listening) {
       resolveClose();
       return;
     }
     server.close(() => resolveClose());
-  }));
+  });
 }
 
 async function shutdown() {

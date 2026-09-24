@@ -49,7 +49,7 @@ döner.
 
 - Redis veya Postgres istemcisi eklemez.
 - Credential/secret formatı tanımlamaz.
-- `server.mjs` wiring yapmaz.
+- `server.mts` wiring yapmaz.
 - Distributed lease'in atomik provider implementasyonunu taklit eden local/in-memory adapter sunmaz.
 - Yeni ajan veya tool permission eklemez.
 

@@ -45,6 +45,6 @@ Aynı schedule'a ait lease, fence ve completed key'leri `{scheduleId}` hash tag'
 ## Bu PR'ın yapmadıkları
 
 - Redis bağlantı factory'si / secret config eklemez.
-- `server.mjs` wiring yapmaz.
+- `server.mts` wiring yapmaz.
 - Redis schema migration veya completed-marker garbage collection eklemez.
 - Redis failover'ın altyapı seviyesindeki durability garantilerini taklit etmez; production Redis deployment'ın kendi HA/persistence politikası ayrıca seçilmelidir.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+const server = await readFile(new URL('../server.mts', import.meta.url), 'utf8');
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 
 // Uzantı sabitlenmez: modül `.mjs` ya da `.mts` olabilir ve ikisi de

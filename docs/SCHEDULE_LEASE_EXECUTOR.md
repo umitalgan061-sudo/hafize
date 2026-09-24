@@ -32,7 +32,7 @@ Heartbeat sırasında lease kaybı underlying agent çalışmasını anında ipt
 ## Bu PR'ın özellikle yapmadıkları
 
 - Redis/Postgres lease provider eklemez.
-- `server.mjs` wiring yapmaz.
+- `server.mts` wiring yapmaz.
 - Ajan registry veya tool permission değiştirmez.
 - `.env`, secret, credential veya workflow dosyalarına dokunmaz.
 - Worker retry politikasını değiştirmez; `SCHEDULE_LEASE_BUSY` sonucu mevcut worker failure/retry yolundan geçebilir.

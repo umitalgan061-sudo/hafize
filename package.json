@@ -7,9 +7,9 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "start": "node --import ./lib/production-guard.mts server.mjs",
+    "start": "node --import ./lib/production-guard.mts server.mts",
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "node --import ./lib/production-guard.mts server.mjs",
+    "dev:server": "node --import ./lib/production-guard.mts server.mts",
     "build": "node scripts/run-typecheck.mjs && vite build",
     "typecheck": "node scripts/run-typecheck.mjs",
     "format:check": "node scripts/format-check.mjs",

@@ -22,6 +22,6 @@ Bu katman, encrypted schedule file adapter'ın ihtiyaç duyduğu dosya yolu ve 3
 
 ## Bu PR'ın yapmadıkları
 
-Bu katman encrypted file adapter'ı `server.mjs` içine bağlamaz ve schedule command/worker akışını async persistence'a dönüştürmez. Bu geçiş ayrı testlerle küçük bir sonraki PR olarak yapılmalıdır.
+Bu katman encrypted file adapter'ı `server.mts` içine bağlamaz ve schedule command/worker akışını async persistence'a dönüştürmez. Bu geçiş ayrı testlerle küçük bir sonraki PR olarak yapılmalıdır.
 
 Bu modül secret manager yerine geçmez. Production deployment'ta key environment/platform secret manager üzerinden sağlanmalı; source control'a commit edilmemelidir.

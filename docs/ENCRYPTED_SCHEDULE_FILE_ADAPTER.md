@@ -18,7 +18,7 @@ Bu adapter, `task-schedule-persistence` katmanının `load()` / `save(envelope)`
 
 ## Kullanım sınırı
 
-Bu PR adapter'ı `server.mjs` içine bağlamaz. Böylece secret adı, persistence dosya yolu, cloud disk modeli ve async worker/HTTP geçişi ayrı incelemelerde tutulur.
+Bu PR adapter'ı `server.mts` içine bağlamaz. Böylece secret adı, persistence dosya yolu, cloud disk modeli ve async worker/HTTP geçişi ayrı incelemelerde tutulur.
 
 Dosya yolu public/PWA static dizini dışında olmalıdır. Şifreleme erişim kontrolünün yerine geçmez; deployment ortamında dosya sistemi ve secret erişimi ayrıca sınırlandırılmalıdır.
 

@@ -34,4 +34,4 @@ Runtime production yolu resmi `redis` npm paketini kullanır. Paket yükleme din
 
 ## Bu PR'ın özellikle yapmadıkları
 
-Bu katman `server.mjs` wiring yapmaz, Redis instance sağlamaz ve deployment secret'ı tanımlamaz. Bir sonraki adım server startup'ta bu runtime'ı oluşturup lease'i schedule execution runtime'a vermek ve shutdown sırasında `close()` çağırmaktır.
+Bu katman `server.mts` wiring yapmaz, Redis instance sağlamaz ve deployment secret'ı tanımlamaz. Bir sonraki adım server startup'ta bu runtime'ı oluşturup lease'i schedule execution runtime'a vermek ve shutdown sırasında `close()` çağırmaktır.

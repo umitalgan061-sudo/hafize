@@ -57,4 +57,4 @@ Persisted `running` kayıtlar restart sırasında otomatik olarak `scheduled` du
 
 ## Bu PR'ın yapmadıkları
 
-Bu katman henüz `server.mjs` içinde etkin değildir; mevcut server schedule store'u in-memory çalışmaya devam eder. Cloud database seçimi, async command/worker wiring, distributed lease ve crash recovery sonraki küçük PR'lara bırakılmıştır.
+Bu katman henüz `server.mts` içinde etkin değildir; mevcut server schedule store'u in-memory çalışmaya devam eder. Cloud database seçimi, async command/worker wiring, distributed lease ve crash recovery sonraki küçük PR'lara bırakılmıştır.

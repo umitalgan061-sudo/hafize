@@ -1,6 +1,6 @@
 # Redis Schedule Lease Server Wiring
 
-`server.mjs` now composes the optional Redis schedule lease runtime before the schedule worker starts.
+`server.mts` now composes the optional Redis schedule lease runtime before the schedule worker starts.
 
 ## Startup order
 

@@ -3,7 +3,7 @@
 // Projede iki ayrı TypeScript rejimi vardır ve bu paket ikisinin de
 // sınırlarını sabitler:
 //
-//   • `lib/`, `server.mjs`, `scripts/` ve `public/*.js` — Node'un yerel tip
+//   • `lib/`, `server.mts`, `scripts/` ve `public/*.js` — Node'un yerel tip
 //     sıyırması ve `checkJs` ile **derlenmeden** denetlenir.
 //   • `public/**/*.mts` — tarayıcı `.mts` yükleyemediği için vite ile
 //     `public/typed-build/` altına derlenir.
@@ -73,7 +73,7 @@ const base = JSON.parse(baseRaw);
 // --- Başlatma derleme adımı beklemez ---------------------------------------
 {
   assert.equal(pkg.scripts?.prestart, undefined, 'npm start temiz bir kopyada derleme beklemeden çalışmalı');
-  assert.match(pkg.scripts?.start ?? '', /^node .*server\.mjs$/, 'start doğrudan sunucuyu açar');
+  assert.match(pkg.scripts?.start ?? '', /^node .*server\.m[jt]s$/, 'start doğrudan sunucuyu açar');
   assert.equal(pkg.scripts?.typecheck, 'node scripts/run-typecheck.mjs');
   assert.match(pkg.scripts?.build ?? '', /run-typecheck\.mjs.*vite build/, 'build önce tip denetler, sonra paketler');
 }

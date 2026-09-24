@@ -28,6 +28,6 @@ Bearer token principal nesnesine eklenmez.
 
 ## Bu PR'ın özellikle yapmadıkları
 
-Bu adapter henüz OAuth/OIDC/JWT doğrulaması, session cookie, refresh token, login UI veya public schedule endpoint'i eklemez. `server.mjs` bu turda değişmez. Böylece auth yapılandırılmadan schedule create/cancel yüzeyi yanlışlıkla public hale gelmez.
+Bu adapter henüz OAuth/OIDC/JWT doğrulaması, session cookie, refresh token, login UI veya public schedule endpoint'i eklemez. `server.mts` bu turda değişmez. Böylece auth yapılandırılmadan schedule create/cancel yüzeyi yanlışlıkla public hale gelmez.
 
 İleride Google/Firebase/OIDC gibi bir kimlik sağlayıcı seçildiğinde aynı `{ authenticated, subject }` principal sözleşmesi korunabilir ve bearer adapter daha güçlü provider adapter'ıyla değiştirilebilir.

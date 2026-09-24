@@ -29,7 +29,7 @@ URL boşsa Redis lease client devre dışı kabul edilir. URL tanımlanmış anc
 - `eval()`
 - `isReady`
 
-sözleşmesini sağlamalıdır. Bu PR `redis` npm paketini veya `server.mjs` wiring'ini eklemez. Böylece connection/secret boundary ayrı test edilir; gerçek paket importu ve lease runtime wiring bir sonraki küçük turda yapılabilir.
+sözleşmesini sağlamalıdır. Bu PR `redis` npm paketini veya `server.mts` wiring'ini eklemez. Böylece connection/secret boundary ayrı test edilir; gerçek paket importu ve lease runtime wiring bir sonraki küçük turda yapılabilir.
 
 ## Hata davranışı
 

@@ -19,7 +19,7 @@ Runtime kendisi Redis/Postgres bağlantısı, credential veya lease state saklam
 
 ## Bu PR'ın yapmadıkları
 
-- `server.mjs` içine lease provider bağlamaz.
+- `server.mts` içine lease provider bağlamaz.
 - Redis/Postgres adapter eklemez.
 - Secret veya `.env` değişikliği yapmaz.
 - Worker'ın external write/send/merge approval kurallarını değiştirmez.
