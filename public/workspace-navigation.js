@@ -16,7 +16,7 @@
   const NAV_INDEX = Object.freeze({ chat: 0, tasks: 1, connections: 2 });
   const CARD_IDS = Object.freeze({
     tasks: Object.freeze(['scheduleRuntimeCard', 'scheduleListCard']),
-    connections: Object.freeze(['accountConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard'])
+    connections: Object.freeze(['accountConnectionCard', 'gmailConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard'])
   });
   const INTRO_ID = 'workspaceNavigationIntro';
   const STYLE_ID = 'workspaceNavigationStyle';
