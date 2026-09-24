@@ -823,4 +823,6 @@ interface JsonPayload { readonly [key: string]: unknown; }
 })();
 
 
-export { normalizeConversation, normalizeMessage, fetchJson };
+// Kabuk tek parça bir giriş noktasıdır: yardımcıları IIFE dışına sızdırmaz.
+// `export {}` yalnızca dosyayı modül olarak işaretler.
+export {};

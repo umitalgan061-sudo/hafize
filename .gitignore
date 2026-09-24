@@ -19,3 +19,6 @@ coverage/
 *.crt
 runtime/
 data/
+
+# Vite ile üretilen tarayıcı çıktısı
+public/typed-build/

@@ -1,11 +1,6 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 
-const require = createRequire(import.meta.url);
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const voice = require(path.join(ROOT, 'public/voice-input.js'));
+const voice = await import('../public/typed/voice-input.ts');
 
 assert.equal(voice.normalizeTranscript('  merhaba   dünya  '), 'merhaba dünya');
 assert.equal(voice.normalizeTranscript(null), '');

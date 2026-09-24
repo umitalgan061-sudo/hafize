@@ -7,8 +7,9 @@ const DEFAULT_TTL = 7 * 86400;
 const MAX_TTL = 30 * 86400;
 
 interface SessionHeaders {
-  readonly cookie?: string | string[];
-  readonly Cookie?: string;
+  readonly cookie?: string | string[] | undefined;
+  readonly Cookie?: string | string[] | undefined;
+  readonly [key: string]: unknown;
 }
 
 interface SessionOptions {

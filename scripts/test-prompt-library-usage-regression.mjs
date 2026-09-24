@@ -33,8 +33,10 @@ assert.match(usage, /observer\?\.observe/);
 assert.match(usage, /observer\?\.disconnect/);
 assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /mounted: true/);
-assert.match(enhancements, /prompt-library-usage\.js/);
-assert.match(enhancements, /data-hafize-prompt-usage/);
+// Kullanım paneli artık index.html tarafından doğrudan yüklenir; enhancements
+// betiğinin script enjeksiyonu kaldırıldı. Sözleşme yükleme biçimi değil,
+// modülün sayfaya girmesi ve çevrimdışı kabukta bulunmasıdır.
+assert.match(index, /<script src="\/prompt-library-usage\.js" defer><\/script>/);
 assert.match(sw, /\/prompt-library-usage\.js/);
 assert.match(index, /\/prompt-library\.js/);
 assert.match(index, /\/prompt-library-enhancements\.js/);

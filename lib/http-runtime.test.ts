@@ -2,11 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { Readable } from 'node:stream';
 import { readJson, requestJsonAcceptsSse, sendJson, startSse, writeSseEvent } from './http-runtime.ts';
 
-function responseStub() {
+type ResponseStub = import('node:http').ServerResponse & {
+  readonly headers: Map<string, string>;
+  readonly body: string;
+  readonly status: number;
+};
+
+function responseStub(): ResponseStub {
   const headers = new Map<string, string>();
   let body = '';
   let status = 0;
-  return {
+  const stub = {
     headers,
     get body() { return body; },
     get status() { return status; },
@@ -15,10 +21,16 @@ function responseStub() {
     destroyed: false,
     writable: true,
     setHeader(name: string, value: string) { headers.set(name, value); },
-    writeHead(value: number, _headers: Record<string, string>) { status = value; },
+    // `sendJson`/`startSse` bazı başlıkları `writeHead`'in ikinci argümanıyla
+    // yazar; stub ikisini de aynı haritada toplar.
+    writeHead(value: number, writeHeaders: Record<string, string> = {}) {
+      status = value;
+      for (const [name, headerValue] of Object.entries(writeHeaders)) headers.set(name, String(headerValue));
+    },
     write(chunk: string) { body += chunk; return true; },
-    end(chunk = '') { body += chunk; this.writableEnded = true; },
-  } as unknown as import('node:http').ServerResponse;
+    end(chunk = '') { body += chunk; stub.writableEnded = true; }
+  };
+  return stub as unknown as ResponseStub;
 }
 
 describe('http runtime', () => {

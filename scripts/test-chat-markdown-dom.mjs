@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { createContainer, createDocument, find, findAll, findAllByClass, findByClass, outline } from './markdown-dom-harness.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+const markdown = require('../public/markdown-renderer.ts');
 
 function render(source) {
   const documentRef = createDocument();

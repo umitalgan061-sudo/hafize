@@ -116,6 +116,13 @@ npm run precheck
 npm run check
 ```
 
+`npm run check` artık `node --check` syntax taramasının yanında iki TypeScript
+projesini de derler (`tsconfig.json` ve `tsconfig.runtime.json`). Bunun nedeni
+`node --check`'in ESM olarak algılanan bir `.ts` dosyasını ayrıştırmadan sessizce
+başarılı saymasıdır; bu boşluk yüzünden bozuk bir `vite.config.ts` kontrol
+kapısından geçip üretim derlemesini kırabiliyordu. Hızlı geri bildirim için
+`npm run precheck` bu aşamayı `--skip-typescript` ile atlar.
+
 Scheduled Tasks özel kontrolleri:
 
 ```bash
@@ -211,3 +218,39 @@ node scripts/test-prompt-library-repair-checkpoint.mjs
 node scripts/test-prompt-library-quarantine.mjs
 
 İçe aktarma önizlemesi normal JSON yedeklerinin yanında recovery snapshot içindeki prompts alanını da tanır. Diagnostics paneli repair öncesi etki özeti gösterir; güvenli repair checkpoint üretir, geçersiz kayıtları karantinaya taşıyabilir ve son repair'i geri alabilir. Rapor ve repair planı prompt metinlerini içermeyen özet biçimde panoya kopyalanabilir.
+
+## Tarayıcı girişlerinin test edilebilirliği
+
+`public/typed/ui-shell.ts`, `public/typed/voice-input.ts` ve
+`public/typed/voice-output.ts` otomatik kurulumlarını `globalThis.document`
+varlığına bağlar. Modüller bu sayede Node altında yan etkisiz olarak içe
+aktarılabilir ve davranış testleri derlenmiş çıktıya değil doğrudan TypeScript
+kaynağına karşı çalışır:
+
+```bash
+node scripts/test-ui-shell.mjs
+node scripts/test-sidebar-accessibility.mjs
+node scripts/test-voice-input.mjs
+node scripts/test-voice-output.mjs
+```
+
+Platform bağımlılıkları (`SpeechRecognition`, `speechSynthesis`,
+`MutationObserver`, `setTimeout`, `localStorage`, `matchMedia`) global olarak
+okunmaz; `installVoiceInput(documentRef, root)` gibi kurulum fonksiyonlarına
+parametre olarak verilir. Testler yapay bir `root` nesnesi geçirerek gerçek
+davranışı doğrular.
+
+## PWA kabuk önbelleği sözleşmesi
+
+Service worker `cache.addAll(SHELL_ASSETS)` kullanır; bu çağrı tek bir 404'te
+bütünüyle reddedilir ve çevrimdışı kabuğu tamamen devre dışı bırakır. Bu yüzden
+`public/sw-policy.js` içindeki her varlık diskte bulunmak, `index.html` tarafından
+yüklenen her varlık da listede yer almak zorundadır. Sözleşme
+`scripts/shell-cache-contract.mjs` üzerinden iki yönlü doğrulanır; bir yükleyici
+betiğin çalışma zamanında enjekte ettiği dosyalar (`inject('/x.js', …)`) da
+erişilebilir sayılır.
+
+Özellik kapıları kabuk önbelleğinin **sürümlendiğini** doğrular, belirli bir
+sürüm numarasını değil. Sabitlenen sürüm bir sonraki bump'ta o kapıyı kırıyordu
+ve tek bir kaynak aynı anda `v36` ile `v38` olamayacağı için kapılar birbirini
+dışlıyordu.

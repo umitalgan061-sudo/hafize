@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CANVA_AGENT_RUNTIME_ENV, createCanvaAgentRuntime } from '../lib/canva-agent-runtime.mjs';
+import { CANVA_AGENT_RUNTIME_ENV, createCanvaAgentRuntime } from '../lib/canva-agent-runtime.ts';
 
 const key = Buffer.alloc(32, 7).toString('base64');
 const authToken = 'a'.repeat(40);

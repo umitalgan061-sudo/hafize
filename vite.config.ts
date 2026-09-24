@@ -23,9 +23,9 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
         .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
         .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
-        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
-        .replaceAll('/typed-build/github-workspace.js', '/github-workspace.ts');
-        .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts');
+        .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts')
+        .replaceAll('/typed-build/github-workspace.js', '/github-workspace.ts')
+        .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts')
         .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts')
         .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts');
     }

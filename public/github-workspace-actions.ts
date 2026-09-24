@@ -7,7 +7,9 @@ export interface GitHubWorkspaceActionsController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as GitHubWorkspaceActionsWindow;
+// Browser entrypoint: under the Node-flavoured tsconfig `globalThis` is not
+// statically a Window, so the browser root is narrowed explicitly here.
+const root = globalThis as unknown as GitHubWorkspaceActionsWindow;
 const CARD_ID = 'githubWorkspaceCard';
 const HISTORY_KEY = 'hafize.github-workspace.history.v1';
 const MAX_HISTORY = 6;
@@ -78,7 +80,8 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceActionsCon
 
   const state = make(documentRef, 'select', undefined, 'github-workspace-state') as HTMLSelectElement;
   state.setAttribute('aria-label', 'PR durum filtresi');
-  for (const [value, label] of [['open', 'Açık PR'], ['closed', 'Kapalı PR'], ['all', 'Tüm PR']]) {
+  const stateOptions: readonly (readonly [string, string])[] = [['open', 'Açık PR'], ['closed', 'Kapalı PR'], ['all', 'Tüm PR']];
+  for (const [value, label] of stateOptions) {
     const option = make(documentRef, 'option', label);
     option.value = value;
     state.append(option);
@@ -158,9 +161,8 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceActionsCon
     }).then(async (response) => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(clamp((payload as Record<string, unknown>).error, 100) || 'GITHUB_WORKSPACE_FAILED');
-      const pulls = Array.isArray((payload as Record<string, unknown>).pullRequests)
-        ? (payload as Record<string, unknown>).pullRequests
-        : [];
+      const rawPulls = (payload as Record<string, unknown>).pullRequests;
+      const pulls: readonly unknown[] = Array.isArray(rawPulls) ? rawPulls : [];
       result.replaceChildren();
       const list = make(documentRef, 'div', undefined, 'github-workspace-list');
       if (!pulls.length) list.append(make(documentRef, 'span', 'PR bulunamadı.', 'github-workspace-empty'));

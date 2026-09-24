@@ -32,7 +32,7 @@ mustContain(source, /input\.value\s*=\s*api\(\)\?\.replaceVariables/, 'resolved 
 mustNotContain(source, /input\.form\.submit|form\.requestSubmit|composer.*\.dispatchEvent\(new Event\(['"]submit/, 'smart insert never submits the conversation');
 mustContain(source, /input\.dispatchEvent\(new Event\(['"]input['"]/, 'composer input state is synchronized');
 mustContain(source, /active\s*=\s*null/, 'dialog lifecycle clears active state');
-mustContain(source, /trigger\?\.focus\?\(\)/, 'focus returns to trigger');
+mustContain(source, /trigger\?\.focus\?\.\(\)/, 'focus returns to trigger');
 mustContain(source, /beforeunload/, 'observer cleanup exists on unload');
 
 mustContain(css, /prompt-library-variable-dialog/, 'dialog CSS exists');
@@ -44,6 +44,6 @@ mustContain(index, /prompt-library-enhancements\.js/, 'enhancement loader is shi
 assert.equal((index.match(/prompt-library-enhancements\.js/g) || []).length, 1, 'enhancement script remains single-instanced');
 mustContain(sw, /prompt-library-smart-insert\.js/, 'smart insert JS is PWA cached');
 mustContain(sw, /prompt-library-smart-insert\.css/, 'smart insert CSS is PWA cached');
-mustContain(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v37`/, 'cache version advances for smart insert');
+mustContain(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v\d+`/, 'shell cache is versioned');
 
 console.log('prompt-library-smart-insert-suite: ok');

@@ -7,19 +7,20 @@ import { assertCssIncludes } from './source-contract.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
-const app = await read('public/app.js');
-const workspace = await read('public/message-workspace.js');
+const app = await read('public/typed/app-shell.ts');
+const workspace = await read('public/typed/message-workspace.ts');
 const policy = await read('public/message-workspace-policy.js');
 const css = await read('public/message-workspace.css');
 const sw = await read('public/sw-policy.js');
 
-// The shell references the stylesheet and both scripts once each; the panel
-// itself is injected by the module at runtime.
+// Kabuk stylesheet'i ve iki betiği birer kez referanslar; panelin kendisi
+// modül tarafından çalışma zamanında enjekte edilir. Panel modülü TypeScript'e
+// taşındığı için üretimde typed-build çıktısı yüklenir.
 assert.equal((html.match(/message-workspace/g) || []).length, 3);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
-assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));
-assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/message-workspace.js'));
+assert.ok(html.includes('<script type="module" src="/typed-build/message-workspace.js"></script>'));
+assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/typed-build/message-workspace.js'));
 
 assert.ok(app.includes("const STORAGE_KEY = 'hafize.conversations.v1'"));
 assert.equal(app.includes('hafize.message-workspace.v1'), false);

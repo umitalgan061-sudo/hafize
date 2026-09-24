@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/typed/app-shell.ts', import.meta.url), 'utf8');
 
 assert.match(source, /let persistenceWarningShown = false;/);
 assert.match(source, /function saveConversations\(\) \{\n    try \{/);
-assert.match(source, /localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(conversations\.slice\(0, 30\)\)\);/);
+// Kayıt sınırı artık `MAX_CONVERSATIONS` üzerinden, yazmadan hemen önce
+// uygulanır; depolamaya sınırlandırılmış liste yazılır.
+assert.match(source, /const MAX_CONVERSATIONS = 30;/);
+assert.match(source, /conversations = conversations[^\n]*\.slice\(0, MAX_CONVERSATIONS\);/);
+assert.match(source, /localStorage\.setItem\(STORAGE_KEY, JSON\.stringify\(conversations\)\);/);
 assert.match(source, /persistenceWarningShown = false;/);
 assert.match(source, /showToast\('Yerel sohbet geçmişi bu cihazda kalıcı olarak kaydedilemedi\.'\);/);
 assert.match(source, /return true;/);

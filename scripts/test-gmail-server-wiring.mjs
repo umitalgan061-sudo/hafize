@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+const server = await readFile(new URL('../server.ts', import.meta.url), 'utf8');
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 
-assert.match(server, /import \{ createGmailAgentRuntime \} from '\.\/lib\/gmail-agent-runtime\.mjs';/);
+assert.match(server, /import \{ createGmailAgentRuntime \} from '\.\/lib\/gmail-agent-runtime\.ts';/);
 assert.match(server, /const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime\(\);/);
 assert.match(server, /gmailReadConfigured: GMAIL_AGENT_RUNTIME\.configured/);
 assert.match(server, /url\.pathname === '\/api\/connectors\/gmail\/status'/);

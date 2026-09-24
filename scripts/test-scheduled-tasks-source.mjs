@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../public/scheduled-tasks.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/typed/scheduled-tasks.ts', import.meta.url), 'utf8');
 assert.match(source, /credentials:\s*'same-origin'/);
 assert.match(source, /\/api\/schedules/);
 assert.match(source, /method:\s*'POST'/);

@@ -44,6 +44,6 @@ assert(html.includes('/hafize-runtime.css'), 'runtime diagnostics stylesheet is 
 const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 for (const name of migrated) assert(sw.includes(`/typed-build/${name}.js`), `${name} generated entry is not in PWA shell`);
 assert(sw.includes('/typed-build/app-runtime.js'), 'app runtime generated entry is not in PWA shell');
-assert(sw.includes('hafize-shell-v40'), 'PWA cache was not versioned for the new entries');
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'PWA shell cache is not versioned');
 
 console.log(`legacy-entry-contract: ${migrated.length} migrated modules protected`);

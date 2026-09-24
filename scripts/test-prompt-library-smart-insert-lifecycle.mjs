@@ -18,7 +18,8 @@ for (const path of [
   assert.doesNotMatch(source, /while\s*\(\s*true\s*\)/, `${path} has no unbounded loop`);
 }
 const center = await readFile(new URL('public/prompt-library-smart-insert-center.js', root), 'utf8');
-assert.match(center, /addEventListener\(['"]hafize:prompt-library-variable-profiles-changed/);
+// Dinleyiciler opsiyonel zincirleme ile bağlanır (`addEventListener?.(...)`).
+assert.match(center, /addEventListener\?\.\(['"]hafize:prompt-library-variable-profiles-changed/);
 assert.match(center, /beforeunload/);
 const history = await readFile(new URL('public/prompt-library-smart-insert-history.js', root), 'utf8');
 assert.match(history, /removeEventListener/);

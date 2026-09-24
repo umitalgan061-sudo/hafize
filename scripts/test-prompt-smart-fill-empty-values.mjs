@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill.js'),'utf8');
+const text = fs.readFileSync(path.join(process.cwd(),'public/prompt-library-smart-fill.ts'),'utf8');
 assert.match(text,/activeNames\.some/);
 assert.match(text,/values\[name\]\.trim\(\)\.length === 0/);
 assert.match(text,/Tüm değişken alanlarını doldur/);

@@ -12,7 +12,9 @@ export interface GitHubWorkspaceController {
 type WorkspaceAction = 'repo' | 'branches' | 'commits' | 'pulls' | 'file';
 type ApiPayload = Record<string, unknown>;
 
-const root = globalThis as GitHubWorkspaceWindow;
+// Browser entrypoint: under the Node-flavoured tsconfig `globalThis` is not
+// statically a Window, so the browser root is narrowed explicitly here.
+const root = globalThis as unknown as GitHubWorkspaceWindow;
 const CARD_ID = 'githubWorkspaceCard';
 const STATE_KEY = 'hafize.github-workspace.v1';
 const MAX_REPOSITORY = 120;
@@ -102,10 +104,10 @@ function mount(documentRef: Document = root.document, rootRef: GitHubWorkspaceWi
   path.autocomplete = 'off'; path.spellcheck = false; path.hidden = true;
   path.setAttribute('aria-label', 'GitHub dosya yolu');
 
-  const loadButton = make(documentRef, 'Yükle', 'soft-btn') as HTMLButtonElement;
+  const loadButton = make(documentRef, 'button', 'Yükle', 'soft-btn');
   loadButton.type = 'button';
 
-  const statusLine = make(documentRef, 'Repository ve eylemi seçip Yükle’ye bas.', 'github-workspace-status');
+  const statusLine = make(documentRef, 'div', 'Repository ve eylemi seçip Yükle’ye bas.', 'github-workspace-status');
   statusLine.setAttribute('role', 'status'); statusLine.setAttribute('aria-live', 'polite');
   const result = make(documentRef, 'div', undefined, 'github-workspace-result');
   result.setAttribute('aria-live', 'polite');

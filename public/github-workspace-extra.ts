@@ -8,7 +8,9 @@ export interface GitHubWorkspaceExtraController {
 type ExtraAction = 'directory' | 'compare';
 type RecordValue = Record<string, unknown>;
 
-const root = globalThis as WorkspaceExtraWindow;
+// Browser entrypoint: under the Node-flavoured tsconfig `globalThis` is not
+// statically a Window, so the browser root is narrowed explicitly here.
+const root = globalThis as unknown as WorkspaceExtraWindow;
 const CARD_ID = 'githubWorkspaceCard';
 const MAX_TEXT = 400;
 const MAX_QUERY = 120;
@@ -81,9 +83,9 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceExtraContr
   dirPath.autocomplete = 'off'; dirPath.spellcheck = false;
   dirPath.setAttribute('aria-label', 'GitHub dizin yolu');
 
-  const directoryButton = make(documentRef, 'Dizin listele', 'mini-btn') as HTMLButtonElement;
-  const compareButton = make(documentRef, 'Ref karşılaştır', 'mini-btn') as HTMLButtonElement;
-  const status = make(documentRef, 'Dizin veya iki ref ile karşılaştırma seç.', 'github-workspace-extra-status');
+  const directoryButton = make(documentRef, 'button', 'Dizin listele', 'mini-btn');
+  const compareButton = make(documentRef, 'button', 'Ref karşılaştır', 'mini-btn');
+  const status = make(documentRef, 'div', 'Dizin veya iki ref ile karşılaştırma seç.', 'github-workspace-extra-status');
   status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const result = make(documentRef, 'div', undefined, 'github-workspace-extra-result');
   result.setAttribute('aria-live', 'polite');

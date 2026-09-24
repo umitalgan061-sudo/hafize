@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
-const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
+const sourcePath = path.join(root, 'public', 'conversation-workspace.ts');
 const cssPath = path.join(root, 'public', 'conversation-workspace.css');
 const indexPath = path.join(root, 'public', 'index.html');
 const swPath = path.join(root, 'public', 'sw-policy.js');

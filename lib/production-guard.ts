@@ -11,10 +11,10 @@ declare global { var __HAFIZE_PRODUCTION_GUARD__: boolean | undefined; }
 
 type RequestAuth = {
   readonly ok: boolean;
-  readonly session?: boolean;
-  readonly connector?: boolean;
-  readonly subject?: string;
-  readonly csrf?: string;
+  readonly session?: boolean | undefined;
+  readonly connector?: boolean | undefined;
+  readonly subject?: string | undefined;
+  readonly csrf?: string | undefined;
 };
 
 if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {

@@ -8,7 +8,7 @@ const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.cs
 const keyboardCss = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
 const keyboard = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
+const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.ts'), 'utf8');
 
 const responsiveContracts = [
   ['@media (max-width: 760px)', 'tablet/mobile layout breakpoint'],

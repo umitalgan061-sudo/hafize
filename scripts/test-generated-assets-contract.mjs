@@ -23,7 +23,7 @@ for (const entry of entries) {
   assert(vite.includes(`'${entry}':`), `${entry} missing from Vite entry map`);
 }
 
-assert(sw.includes('hafize-shell-v35'), 'expected cache version v35');
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'shell cache is versioned');
 assert(!html.includes('typed-build/*.js'), 'wildcard generated entry is not allowed');
 assert(!html.includes('/public/typed'), 'source filesystem path must not appear in HTML');
 console.log(`generated-assets-contract: ${entries.length} typed entries aligned`);

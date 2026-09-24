@@ -5,12 +5,12 @@ import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const smart = read('public/prompt-library-smart-fill.js');
-const palette = read('public/prompt-library-command-palette.js');
-const hints = read('public/prompt-library-smart-fill-hints.js');
+const smart = read('public/prompt-library-smart-fill.ts');
+const palette = read('public/prompt-library-command-palette.ts');
+const hints = read('public/prompt-library-smart-fill-hints.ts');
 const sw = read('public/sw-policy.js');
 const index = read('public/index.html');
-const core = read('public/prompt-library.js');
+const core = read('public/typed/prompt-library.ts');
 
 assert.match(core, /HafizePromptLibrary/);
 assert.match(core, /extractVariables/);
