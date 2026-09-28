@@ -125,6 +125,13 @@ Ayrıntılar `docs/SCHEDULED_TASK_PREVIEW*.md` dosyalarındadır.
 
 Planlanmış, tamamlanmış, başarısız veya iptal edilmiş görevlerde Tekrar planla eylemi bulunur. Ajan, görev metni, deneme sayısı ve en az 5 dakika ileri alınmış yeni çalışma zamanı forma aktarılır; form otomatik gönderilmez ve doğrudan ağ isteği yapılmaz. Ardından aynı görev planlama önizlemesi açılır.\n\nAyrıntılar `docs/SCHEDULED_TASK_DUPLICATE*.md` dosyalarındadır.\n\n## Görev Şablonları ve Hızlı Planlama
 
+## Planlama Yedekleme ve Durum Özeti
+
+Görev şablonları için açıkça tetiklenen Yedeği indir/Yedeği içe aktar akışı vardır; en fazla 12 şablon korunur ve 200 KB üstü dosyalar reddedilir. Görev listesinde Planlandı, Çalışıyor, Tamamlandı, Başarısız ve İptal edildi sayaçları görünür. Preview içinde son işlemler yalnız sayfa belleğinde tutulur; kalıcı activity log oluşturulmaz.
+
+Ayrıntılar `docs/SCHEDULED_TASK_TEMPLATES_BACKUP*.md`, `docs/SCHEDULED_TASK_STATUS_SUMMARY.md` ve `docs/SCHEDULED_TASK_PREVIEW_ACTIVITY*.md` dosyalarındadır.
+
+
 Görevler panelinde kullanıcı tarafından açıkça kaydedilen yerel görev şablonları bulunur. En fazla 12 şablon; ad, görev metni, ajan ID'si ve maksimum deneme sayısını içerir. Uygula yalnız formu doldurur; POST başlatmaz.
 
 Hızlı zaman seçenekleri 5 dakika, 30 dakika, 1 saat ve yarın 09:00 değerlerini forma taşır. Görev listesinde yerel arama ve yakın/uzak tarih, durum ve göreve göre sıralama da bulunur. Bu yardımcı yüzeyler schedule API'sine yeni endpoint eklemez ve preview/onay akışını devre dışı bırakmaz.
