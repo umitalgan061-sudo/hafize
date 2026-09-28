@@ -57,7 +57,9 @@
       const option = make('option', entry[1]); option.value = entry[0]; sort.append(option);
     });
     const info = make('span', '', 'scheduled-task-list-info');
-    controls.append(search, sort, info);
+    const clear = make('button', 'Filtreyi temizle', 'mini-btn scheduled-task-list-clear');
+    clear.type = 'button';
+    controls.append(search, sort, clear, info);
     section.insertBefore(controls, list);
 
     function apply() {
@@ -82,6 +84,7 @@
     }
     search.addEventListener('input', apply);
     sort.addEventListener('change', apply);
+    clear.addEventListener('click', function () { search.value = ''; sort.value = 'run-asc'; apply(); search.focus(); });
     apply();
   }
   function enhance() {
