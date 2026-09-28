@@ -38,6 +38,10 @@ describe('schedule recurrence contract',()=>{
   it('calculates weekly occurrence on the next configured day',()=>{
     expect(nextOccurrence('2026-09-28T08:30:00Z',{frequency:'weekly',interval:1,daysOfWeek:[3]},{now:'2026-09-28T08:31:00Z'})).toBe('2026-09-30T08:30:00.000Z');
   });
+  it('supports a two-week interval without leaking into the off week',()=>{
+    const results=nextOccurrences('2026-09-28T08:30:00Z',{frequency:'weekly',interval:2,daysOfWeek:[1,5]},{now:'2026-09-28T08:31:00Z',limit:4});
+    expect(results).toEqual(['2026-10-02T08:30:00.000Z','2026-10-12T08:30:00.000Z','2026-10-16T08:30:00.000Z','2026-10-26T08:30:00.000Z']);
+  });
   it('supports several weekly days in the same cycle',()=>{
     const results=nextOccurrences('2026-09-28T08:30:00Z',{frequency:'weekly',interval:1,daysOfWeek:[1,5]},{now:'2026-09-28T08:31:00Z',limit:3});
     expect(results).toEqual(['2026-10-02T08:30:00.000Z','2026-10-05T08:30:00.000Z','2026-10-09T08:30:00.000Z']);
