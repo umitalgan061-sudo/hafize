@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
+const now=new Date('2026-09-28T12:00:00Z');
+const store=createTaskScheduleStore({now:()=>now});
+const entry=store.add({traceId:'t',ownerId:'u',agentId:'a',task:'x',runAt:'2026-09-29T12:00:00Z',maxAttempts:1,recurrence:{frequency:'daily',interval:1}});
+assert.equal(store.pause(entry.scheduleId).status,'paused');
+assert.equal(store.claimDue({limit:1}).length,0);
+assert.equal(store.resume(entry.scheduleId).status,'scheduled');
+assert.equal(store.cancel(entry.scheduleId).status,'cancelled');
+assert.throws(()=>store.resume(entry.scheduleId));
+console.log('pause resume lifecycle: ok');
