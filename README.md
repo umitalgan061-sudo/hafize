@@ -121,7 +121,9 @@ Ayrıntılar `docs/CONNECTOR_HUB*.md` dosyalarındadır.
 
 Ayrıntılar `docs/SCHEDULED_TASK_PREVIEW*.md` dosyalarındadır.
 
-## Zamanlanmış Görevler
+## Tekrar Planlama
+
+Planlanmış, tamamlanmış, başarısız veya iptal edilmiş görevlerde Tekrar planla eylemi bulunur. Ajan, görev metni, deneme sayısı ve en az 5 dakika ileri alınmış yeni çalışma zamanı forma aktarılır; form otomatik gönderilmez ve doğrudan ağ isteği yapılmaz. Ardından aynı görev planlama önizlemesi açılır.\n\nAyrıntılar `docs/SCHEDULED_TASK_DUPLICATE*.md` dosyalarındadır.\n\n## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
 
