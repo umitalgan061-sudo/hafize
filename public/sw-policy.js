@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v42`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v43`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
@@ -28,7 +28,7 @@
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
     '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
-    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/scheduled-tasks-countdown.js',
+    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-presets.js', '/scheduled-tasks-presets.css', '/scheduled-tasks-insights.js', '/scheduled-tasks-insights.css',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
