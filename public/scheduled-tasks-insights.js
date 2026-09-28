@@ -41,6 +41,8 @@
     if(values){values.querySelector('[data-metric="matching"]').textContent=String(matching);values.querySelector('[data-metric="recurring"]').textContent=String(recurring);values.querySelector('[data-metric="paused"]').textContent=String(paused);values.querySelector('[data-metric="history"]').textContent=String(failedRuns);}
     const info=panel.querySelector('.scheduled-task-insights-status');if(info)info.textContent=matching+' görev ölçütlere uyuyor.';
   };
+  const exportSchedules=(panel)=>{const rows=[...panel.querySelectorAll('.scheduled-task-row')];const items=rows.map(row=>({scheduleId:row.dataset.scheduleId||'',status:row.dataset.status||'',nextRunAt:row.dataset.runAt||'',createdAt:row.dataset.createdAt||'',recurrenceFrequency:row.dataset.recurrenceFrequency||null,task:(rowTask(row)||'').slice(0,240)}));const text=JSON.stringify({version:1,source:'hafize-scheduled-task-plan',exportedAt:new Date().toISOString(),items},null,2);if(text.length>MAX_EXPORT)return status(panel,'Görev planı 256 KB sınırını aşıyor.');const blob=new Blob([text],{type:'application/json;charset=utf-8'});const url=root.URL.createObjectURL(blob);const link=make('a');link.href=url;link.download='hafize-scheduled-task-plan.json';link.click();root.setTimeout?.(()=>root.URL.revokeObjectURL(url),0);status(panel,'Görev planı dışa aktarıldı.');};
+
   const exportHistory=(panel)=>{
     const rows=[...panel.querySelectorAll('.scheduled-task-row')];
     const items=rows.map(row=>({scheduleId:row.dataset.scheduleId||'',status:row.dataset.status||'',recurrenceFrequency:row.dataset.recurrenceFrequency||null,nextRunAt:row.dataset.runAt||'',history:[...row.querySelectorAll('.scheduled-task-history-row')].map(line=>line.textContent?.trim()||'')})).filter(item=>item.history.length||item.recurrenceFrequency);
@@ -53,7 +55,7 @@
     if(panel.querySelector('.scheduled-task-insights'))return;
     const state=readState();
     const section=make('section',undefined,'scheduled-task-insights');section.setAttribute('aria-label','Görev istatistikleri ve filtreleri');
-    const head=make('div',undefined,'scheduled-task-insights-head');head.append(make('strong','Görev görünümü','scheduled-tasks-section-title'),button('Sıfırla','reset'),button('Geçmişi dışa aktar','export'));
+    const head=make('div',undefined,'scheduled-task-insights-head');head.append(make('strong','Görev görünümü','scheduled-tasks-section-title'),button('Sıfırla','reset'),button('Planı dışa aktar','export-plan'),button('Geçmişi dışa aktar','export'));
     const values=make('div',undefined,'scheduled-task-insights-values');
     [['matching','0','Eşleşen'],['recurring','0','Tekrarlı'],['paused','0','Duraklatılan'],['history','0','Geçmiş satırı']].forEach(([key,value,label])=>{const item=make('div',undefined,'scheduled-task-insight-metric');item.append(make('strong',value));item.firstChild.dataset.metric=key;item.append(make('span',label));values.append(item);});
     const controls=make('div',undefined,'scheduled-task-insights-controls');
@@ -67,7 +69,7 @@
     const update=()=>{const next={query:search.value.slice(0,MAX_QUERY),frequency:frequency.value,recurringOnly:recurring.getAttribute('aria-pressed')==='true',sort:sort.value};writeState(next);apply(panel,next);};
     search.addEventListener('input',update);frequency.addEventListener('change',update);sort.addEventListener('change',update);
     recurring.addEventListener('click',()=>{recurring.setAttribute('aria-pressed',String(recurring.getAttribute('aria-pressed')!=='true'));update();});
-    head.addEventListener('click',event=>{const action=event.target?.closest?.('[data-schedule-insight-action]')?.dataset.scheduleInsightAction;if(action==='reset'){search.value='';frequency.value='all';sort.value='next';recurring.setAttribute('aria-pressed','false');update();status(panel,'Görev filtreleri sıfırlandı.');}if(action==='export')exportHistory(panel);});
+    head.addEventListener('click',event=>{const action=event.target?.closest?.('[data-schedule-insight-action]')?.dataset.scheduleInsightAction;if(action==='reset'){search.value='';frequency.value='all';sort.value='next';recurring.setAttribute('aria-pressed','false');update();status(panel,'Görev filtreleri sıfırlandı.');}if(action==='export-plan')exportSchedules(panel);if(action==='export')exportHistory(panel);});
     panel.querySelector('.scheduled-tasks-filter select')?.addEventListener('change',()=>apply(panel,readState()));
     apply(panel,state);
   };
