@@ -1,4 +1,12 @@
 // @ts-nocheck
+import {
+  MAX_RESPONSE_ALTERNATES,
+  canRegenerateResponse,
+  createGenerationSnapshot,
+  normalizeResponseAlternates,
+  rememberResponseAlternate,
+  restoreLatestResponseAlternate
+} from './response-variants.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -54,7 +62,6 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 100;
   const MAX_MESSAGE_LENGTH = 12000;
-  const MAX_RESPONSE_ALTERNATES = 3;
   const REQUEST_TIMEOUT_MS = 60_000;
   let networkOnline = globalThis.navigator?.onLine !== false;
   let activeRequestController = null;
@@ -110,13 +117,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if ((source.role !== 'user' && source.role !== 'assistant') || typeof source.content !== 'string') return null;
     const content = source.content.slice(0, MAX_MESSAGE_LENGTH);
     if (!content) return null;
-    const alternates = Array.isArray(source.alternates)
-      ? source.alternates
-        .filter((value) => typeof value === 'string' && value.trim())
-        .map((value) => value.slice(0, MAX_MESSAGE_LENGTH))
-        .filter((value, index, values) => values.indexOf(value) === index)
-        .slice(0, MAX_RESPONSE_ALTERNATES)
-      : [];
+    const alternates = normalizeResponseAlternates(source.alternates);
     const generation = source.generation && typeof source.generation === 'object'
       ? {
         model: typeof source.generation.model === 'string' ? source.generation.model.slice(0, 160) : '',
@@ -788,14 +789,6 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
   }
 
-  function rememberAlternate(message, previousContent) {
-    const value = typeof previousContent === 'string' ? previousContent.trim() : '';
-    if (!value) return;
-    const current = Array.isArray(message.alternates) ? message.alternates : [];
-    const next = [value, ...current.filter((candidate) => candidate !== value)].slice(-MAX_RESPONSE_ALTERNATES);
-    message.alternates = next;
-  }
-
   async function regenerateAssistantMessage(messageId) {
     if (isStreaming) return;
     if (!networkOnline) return showToast('İnternet bağlantısı yok; yanıt yeniden üretilemez.');
@@ -803,7 +796,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (!conversation) return;
     const index = conversation.messages.findIndex((message) => message.id === messageId && message.role === 'assistant');
     if (index < 0) return showToast('Yeniden üretilecek asistan yanıtı bulunamadı.');
-    if (index !== conversation.messages.length - 1) return showToast('Yalnızca konuşmadaki son asistan yanıtı yeniden üretilebilir.');
+    if (!canRegenerateResponse(conversation.messages, index)) return showToast('Yalnızca konuşmadaki son asistan yanıtı yeniden üretilebilir.');
     const model = ui.modelSelect.value;
     if (!model) return showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
     const agentId = getConversationAgentId(conversation);
@@ -835,14 +828,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
           : 'NVIDIA modeli boş bir yanıt döndürdü.'
       );
-      rememberAlternate(message, previousContent);
-      message.generation = {
+      message.alternates = rememberResponseAlternate(message.alternates, previousContent);
+      message.generation = createGenerationSnapshot(
         model,
         agentId,
-        toolsEnabled: conversation.toolsEnabled,
-        generatedAt: new Date().toISOString(),
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
-      };
+        conversation.toolsEnabled,
+        performance.now() - startedAt
+      );
       saveConversations();
       render();
       showToast('Yeni asistan yanıtı üretildi. Önceki yanıt geri alınabilir.');
@@ -864,13 +856,16 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const conversation = getActiveConversation();
     const message = conversation?.messages.find((candidate) => candidate.id === messageId && candidate.role === 'assistant');
     if (!message || !Array.isArray(message.alternates) || !message.alternates.length) return;
-    const previous = message.alternates.shift();
-    rememberAlternate(message, message.content);
-    message.content = previous;
-    message.generation = {
-      ...(message.generation || { model: '', agentId: '', toolsEnabled: false, generatedAt: new Date().toISOString(), durationMs: null }),
-      generatedAt: new Date().toISOString()
-    };
+    const rotated = restoreLatestResponseAlternate(message.content, message.alternates);
+    if (!rotated) return;
+    message.content = rotated.current;
+    message.alternates = rotated.alternates;
+    message.generation = createGenerationSnapshot(
+      message.generation?.model || '',
+      message.generation?.agentId || '',
+      message.generation?.toolsEnabled === true,
+      message.generation?.durationMs ?? null
+    );
     saveConversations();
     render();
     showToast('Önceki asistan yanıtı geri getirildi.');
