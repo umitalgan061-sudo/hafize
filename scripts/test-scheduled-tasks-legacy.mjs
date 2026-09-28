@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
+const now=new Date('2026-09-28T12:00:00Z');
+const store=createTaskScheduleStore({now:()=>now});
+const legacy=store.add({traceId:'t',ownerId:'u',agentId:'a',task:'legacy',runAt:'2026-09-29T12:00:00Z',maxAttempts:1});
+assert.equal(legacy.recurrence,null);
+assert.equal(legacy.seriesId,null);
+assert.equal(legacy.seriesStartAt,null);
+assert.equal(legacy.occurrenceCount,0);
+assert.deepEqual(legacy.history,[]);
+console.log('legacy one-shot compatibility: ok');
