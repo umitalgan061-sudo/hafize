@@ -20,7 +20,11 @@ assertShellAssets([
   '/scheduled-tasks.js',
   '/scheduled-tasks-enhancements.js',
   '/scheduled-tasks-keyboard.js',
-  '/scheduled-tasks-countdown.js'
+  '/scheduled-tasks-countdown.js',
+  '/scheduled-tasks-presets.js',
+  '/scheduled-tasks-presets.css',
+  '/scheduled-tasks-insights.js',
+  '/scheduled-tasks-insights.css'
 ], 'scheduled tasks asset');
 assertVersionedCacheDeclaration(sw);
 
