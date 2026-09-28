@@ -7,6 +7,7 @@ import {
   rememberResponseAlternate,
   restoreLatestResponseAlternate
 } from './response-variants.ts';
+import { openResponseVariantDialog } from './response-variants-ui.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -547,6 +548,27 @@ interface JsonPayload { readonly [key: string]: unknown; }
         });
         actions.append(copy);
         if (message.alternates?.length) {
+          const variants = document.createElement('button');
+          variants.type = 'button';
+          variants.className = 'message-action';
+          variants.textContent = 'Varyantlar';
+          variants.setAttribute('aria-label', 'Yanıt varyantlarını görüntüle');
+          variants.disabled = isStreaming;
+          variants.addEventListener('click', () => {
+            openResponseVariantDialog({
+              current: message.content,
+              alternates: message.alternates,
+              trigger: variants,
+              onSelect: (current, alternates) => {
+                message.content = current;
+                message.alternates = alternates;
+                saveConversations();
+                render();
+                showToast('Seçilen yanıt mevcut cevap yapıldı.');
+              }
+            });
+          });
+          actions.append(variants);
           const restore = document.createElement('button');
           restore.type = 'button';
           restore.className = 'message-action';
