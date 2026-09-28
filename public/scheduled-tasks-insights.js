@@ -12,6 +12,7 @@
   const rowTask=(row)=>row.querySelector('.scheduled-task-row-head strong')?.textContent?.trim()||'';
   const rowHistoryCount=(row)=>row.querySelectorAll('.scheduled-task-history-row').length;
   const apply=(panel,state)=>{
+    const statusSelect=panel.querySelector('.scheduled-tasks-filter select');
     const rows=[...panel.querySelectorAll('.scheduled-task-row')];
     const q=state.query.toLocaleLowerCase('tr-TR');
     let matching=0,recurring=0,paused=0,failedRuns=0;
@@ -22,8 +23,9 @@
       const matchQuery=!q||task.includes(q);
       const matchFrequency=state.frequency==='all'||frequency===state.frequency;
       const matchRecurring=!state.recurringOnly||Boolean(frequency);
-      const baseHidden=row.dataset.coreHidden==='true';
-      const visible=matchQuery&&matchFrequency&&matchRecurring&&!baseHidden;
+      const selectedStatus=statusSelect?.value||'all';
+      const matchStatus=selectedStatus==='all'||status===selectedStatus;
+      const visible=matchQuery&&matchFrequency&&matchRecurring&&matchStatus;
       row.hidden=!visible;
       row.dataset.insightsHidden=visible?'false':'true';
       if(matchQuery&&matchFrequency&&matchRecurring){matching+=1;if(frequency)recurring+=1;if(status==='paused')paused+=1;failedRuns+=rowHistoryCount(row);}
@@ -66,7 +68,7 @@
     search.addEventListener('input',update);frequency.addEventListener('change',update);sort.addEventListener('change',update);
     recurring.addEventListener('click',()=>{recurring.setAttribute('aria-pressed',String(recurring.getAttribute('aria-pressed')!=='true'));update();});
     head.addEventListener('click',event=>{const action=event.target?.closest?.('[data-schedule-insight-action]')?.dataset.scheduleInsightAction;if(action==='reset'){search.value='';frequency.value='all';sort.value='next';recurring.setAttribute('aria-pressed','false');update();status(panel,'Görev filtreleri sıfırlandı.');}if(action==='export')exportHistory(panel);});
-    panel.querySelector('.scheduled-tasks-list-section')?.addEventListener('click',event=>{if(event.target?.closest?.('.scheduled-task-row'))apply(panel,readState());});
+    panel.querySelector('.scheduled-tasks-filter select')?.addEventListener('change',()=>apply(panel,readState()));
     apply(panel,state);
   };
   const boot=()=>{if(!root.document)return;const observer=new MutationObserver(()=>{const panel=root.document.getElementById(PANEL_ID);if(panel)render(panel);});observer.observe(root.document.documentElement,{childList:true,subtree:true});const panel=root.document.getElementById(PANEL_ID);if(panel)render(panel);root.addEventListener('beforeunload',()=>observer.disconnect(),{once:true});};
