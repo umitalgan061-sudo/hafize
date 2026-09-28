@@ -100,3 +100,41 @@ export function rotateResponseAlternate(
 ): ResponseAlternateState | null {
   return restoreLatestResponseAlternate(state.current, state.alternates, maxItems, maxLength);
 }
+
+export interface ResponseVariant {
+  index: number;
+  kind: 'current' | 'previous';
+  content: string;
+}
+
+export function listResponseVariants(
+  current: unknown,
+  history: unknown,
+  maxLength = MAX_RESPONSE_LENGTH
+): ResponseVariant[] {
+  const cleanCurrent = typeof current === 'string' ? current.trim().slice(0, maxLength) : '';
+  const previous = normalizeResponseAlternates(history, MAX_RESPONSE_ALTERNATES, maxLength);
+  const output: ResponseVariant[] = [];
+  if (cleanCurrent) output.push({ index: 0, kind: 'current', content: cleanCurrent });
+  previous.forEach((content, offset) => output.push({ index: output.length, kind: 'previous', content }));
+  return output;
+}
+
+export function selectResponseVariant(
+  current: unknown,
+  history: unknown,
+  variantIndex: unknown,
+  maxLength = MAX_RESPONSE_LENGTH
+): ResponseAlternateState | null {
+  const variants = listResponseVariants(current, history, maxLength);
+  if (!Number.isInteger(variantIndex) || variantIndex <= 0 || variantIndex >= variants.length) return null;
+  const selected = variants[variantIndex];
+  if (!selected) return null;
+  const remaining = variants
+    .filter((_variant, index) => index !== 0 && index !== variantIndex)
+    .map((variant) => variant.content);
+  return {
+    current: selected.content,
+    alternates: normalizeResponseAlternates([variants[0]?.content || '', ...remaining], MAX_RESPONSE_ALTERNATES, maxLength)
+  };
+}
