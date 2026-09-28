@@ -16,6 +16,7 @@ interface ChatMessage {
   at: string;
   toolActivities?: ToolActivity[];
   alternates?: string[];
+  feedback?: 'positive' | 'negative';
   generation?: {
     model: string;
     agentId: string;
@@ -118,6 +119,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const content = source.content.slice(0, MAX_MESSAGE_LENGTH);
     if (!content) return null;
     const alternates = normalizeResponseAlternates(source.alternates);
+    const feedback = source.feedback === 'positive' || source.feedback === 'negative' ? source.feedback : undefined;
     const generation = source.generation && typeof source.generation === 'object'
       ? {
         model: typeof source.generation.model === 'string' ? source.generation.model.slice(0, 160) : '',
@@ -135,6 +137,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       content,
       at: typeof source.at === 'string' ? source.at.slice(0, 40) : new Date().toISOString(),
       ...(alternates.length ? { alternates } : {}),
+      ...(feedback ? { feedback } : {}),
       ...(generation ? { generation } : {}),
       ...(Array.isArray(source.toolActivities) ? {
         toolActivities: source.toolActivities
@@ -511,6 +514,23 @@ interface JsonPayload { readonly [key: string]: unknown; }
         regenerate.title = message.id === messages.at(-1)?.id ? 'Bu yanıt için yeni bir varyant üret' : 'Yalnızca son yanıt yeniden üretilebilir';
         regenerate.addEventListener('click', () => regenerateAssistantMessage(message.id));
         actions.append(regenerate);
+        const positive = document.createElement('button');
+        positive.type = 'button';
+        positive.className = 'message-action' + (message.feedback === 'positive' ? ' selected' : '');
+        positive.textContent = '👍';
+        positive.setAttribute('aria-label', 'Yanıtı beğenildi olarak işaretle');
+        positive.setAttribute('aria-pressed', String(message.feedback === 'positive'));
+        positive.disabled = isStreaming;
+        positive.addEventListener('click', () => setAssistantFeedback(message.id, message.feedback === 'positive' ? undefined : 'positive'));
+        const negative = document.createElement('button');
+        negative.type = 'button';
+        negative.className = 'message-action' + (message.feedback === 'negative' ? ' selected' : '');
+        negative.textContent = '👎';
+        negative.setAttribute('aria-label', 'Yanıtı beğenilmedi olarak işaretle');
+        negative.setAttribute('aria-pressed', String(message.feedback === 'negative'));
+        negative.disabled = isStreaming;
+        negative.addEventListener('click', () => setAssistantFeedback(message.id, message.feedback === 'negative' ? undefined : 'negative'));
+        actions.append(positive, negative);
         const copy = document.createElement('button');
         copy.type = 'button';
         copy.className = 'message-action';
@@ -777,6 +797,18 @@ interface JsonPayload { readonly [key: string]: unknown; }
       };
       saveConversations();
     }
+  }
+
+  function setAssistantFeedback(messageId, feedback) {
+    if (isStreaming) return;
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((candidate) => candidate.id === messageId && candidate.role === 'assistant');
+    if (!message) return;
+    if (feedback === 'positive' || feedback === 'negative') message.feedback = feedback;
+    else delete message.feedback;
+    saveConversations();
+    render();
+    showToast(feedback === 'positive' ? 'Yanıt beğenildi.' : feedback === 'negative' ? 'Yanıt beğenilmedi.' : 'Yanıt geri bildirim etiketi kaldırıldı.');
   }
 
   function setGenerationUi(disabled) {
