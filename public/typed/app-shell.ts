@@ -8,6 +8,8 @@ import {
   restoreLatestResponseAlternate
 } from './response-variants.ts';
 import { openResponseVariantDialog } from './response-variants-ui.ts';
+import { openRegenerationOptions } from './response-regeneration-options-ui.ts';
+import { buildRegenerationMessages } from './response-regeneration-options.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -515,6 +517,20 @@ interface JsonPayload { readonly [key: string]: unknown; }
         regenerate.title = message.id === messages.at(-1)?.id ? 'Bu yanıt için yeni bir varyant üret' : 'Yalnızca son yanıt yeniden üretilebilir';
         regenerate.addEventListener('click', () => regenerateAssistantMessage(message.id));
         actions.append(regenerate);
+        const options = document.createElement('button');
+        options.type = 'button';
+        options.className = 'message-action';
+        options.textContent = 'Yönergeyle yeniden üret';
+        options.setAttribute('aria-label', 'Özel yönergeyle bu asistan yanıtını yeniden üret');
+        options.disabled = isStreaming || message.id !== messages.at(-1)?.id;
+        options.title = options.disabled ? 'Yalnızca son yanıt için kullanılabilir' : 'Yeni yanıtın yönünü seç';
+        options.addEventListener('click', () => {
+          openRegenerationOptions({
+            trigger: options,
+            onSelect: (instruction) => { void regenerateAssistantMessage(message.id, instruction); }
+          });
+        });
+        actions.append(options);
         const positive = document.createElement('button');
         positive.type = 'button';
         positive.className = 'message-action' + (message.feedback === 'positive' ? ' selected' : '');
@@ -843,7 +859,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
   }
 
-  async function regenerateAssistantMessage(messageId) {
+  async function regenerateAssistantMessage(messageId, instruction = '') {
     if (isStreaming) return;
     if (!networkOnline) return showToast('İnternet bağlantısı yok; yanıt yeniden üretilemez.');
     const conversation = getActiveConversation();
@@ -858,9 +874,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
     const message = conversation.messages[index];
     const previousContent = message.content;
-    const requestMessages = conversation.messages.slice(0, index)
-      .filter((entry) => entry && entry.content)
-      .map(({ role, content }) => ({ role, content }));
+    const requestMessages = buildRegenerationMessages(
+      conversation.messages.slice(0, index),
+      instruction
+    );
     const startedAt = performance.now();
     message.content = '';
     message.toolActivities = [];
