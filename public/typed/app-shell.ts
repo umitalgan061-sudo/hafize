@@ -115,7 +115,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         .filter((value) => typeof value === 'string' && value.trim())
         .map((value) => value.slice(0, MAX_MESSAGE_LENGTH))
         .filter((value, index, values) => values.indexOf(value) === index)
-        .slice(-MAX_RESPONSE_ALTERNATES)
+        .slice(0, MAX_RESPONSE_ALTERNATES)
       : [];
     const generation = source.generation && typeof source.generation === 'object'
       ? {
@@ -825,7 +825,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const conversation = getActiveConversation();
     const message = conversation?.messages.find((candidate) => candidate.id === messageId && candidate.role === 'assistant');
     if (!message || !Array.isArray(message.alternates) || !message.alternates.length) return;
-    const previous = message.alternates.pop();
+    const previous = message.alternates.shift();
     rememberAlternate(message, message.content);
     message.content = previous;
     message.generation = {
