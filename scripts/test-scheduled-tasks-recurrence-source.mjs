@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const store=await readFile(new URL('../lib/task-schedule-store.mjs',import.meta.url),'utf8');
+const boundary=await readFile(new URL('../lib/schedule-command-boundary.ts',import.meta.url),'utf8');
+const api=await readFile(new URL('../lib/schedule-http-api.ts',import.meta.url),'utf8');
+const ui=await readFile(new URL('../public/typed/scheduled-tasks.ts',import.meta.url),'utf8');
+for(const token of ['normalizeRecurrence','nextOccurrence','recordOccurrence','occurrenceCount','history','pause','resume']) assert.match(store,new RegExp(token));
+for(const token of ['recurrence','normalizeRecurrence','SCHEDULE_CAPACITY_REACHED']) assert.match(boundary,new RegExp(token));
+for(const token of ['PATCH','commands.pause','commands.resume']) assert.match(api,new RegExp(token.replace('.','\\.')));
+for(const token of ['scheduledTaskRecurrence','daysOfWeek','dayOfMonth','Geçmişi göster','Duraklat','Sürdür']) assert.match(ui,new RegExp(token));
+assert.doesNotMatch(ui,/method:\s*['"]POST['"].*recurrence.*history/);
+console.log('scheduled recurrence source contract: ok');
