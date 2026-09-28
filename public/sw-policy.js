@@ -28,7 +28,7 @@
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
     '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
-    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-presets.js', '/scheduled-tasks-presets.css', '/scheduled-tasks-insights.js', '/scheduled-tasks-insights.css',
+    '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-presets.js', '/scheduled-tasks-presets.css', '/scheduled-tasks-insights.js', '/scheduled-tasks-insights.css', '/scheduled-tasks-draft.js',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
