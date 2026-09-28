@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const source=await readFile(new URL('../public/scheduled-tasks-presets.js',import.meta.url),'utf8');
+assert.match(source,/hafize\.scheduled-task-presets\.v1/);
+assert.match(source,/MAX_PRESETS=40/);
+assert.match(source,/MAX_TITLE=80/);
+assert.match(source,/MAX_TASK=6000/);
+assert.match(source,/MAX_JSON=256000/);
+assert.match(source,/scheduledTaskRecurrence/);
+assert.match(source,/FileReader/);
+assert.match(source,/Blob/);
+assert.match(source,/confirm/);
+assert.doesNotMatch(source,/fetch\(/);
+assert.doesNotMatch(source,/XMLHttpRequest/);
+assert.doesNotMatch(source,/WebSocket/);
+console.log('task preset contract: ok');
