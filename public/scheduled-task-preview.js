@@ -214,10 +214,14 @@
     });
     const countdown = make('div', '', 'scheduled-task-preview-countdown');
     countdown.setAttribute('aria-live', 'polite');
+    const timezone = make('div', '', 'scheduled-task-preview-timezone');
+    timezone.setAttribute('aria-live', 'polite');
+    timezone.textContent = 'Zaman dilimi: ' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'yerel');
     const payload = make('pre', '', 'scheduled-task-preview-payload');
     payload.hidden = true;
+    const payloadToggle = button('İstek ayrıntılarını göster', 'toggle-payload', 'mini-btn');
     const copyPayload = button('Güvenli özeti kopyala', 'copy', 'mini-btn');
-    summary.append(taskBox, meta, countdown, payload, copyPayload);
+    summary.append(taskBox, meta, countdown, timezone, payloadToggle, payload, copyPayload);
 
     const status = make('div', '', 'scheduled-task-preview-status');
     status.setAttribute('role', 'status');
@@ -236,7 +240,12 @@
       const action = target && target.dataset.previewAction;
       if (action === 'close' || action === 'back') closePreview();
       else if (action === 'confirm') confirmPreview();
-      else if (action === 'copy') {
+      else if (action === 'toggle-payload') {
+        const payloadNode = dialog.querySelector('.scheduled-task-preview-payload');
+        const toggleNode = dialog.querySelector('[data-preview-action="toggle-payload"]');
+        if (payloadNode) payloadNode.hidden = !payloadNode.hidden;
+        if (toggleNode) toggleNode.textContent = payloadNode?.hidden ? 'İstek ayrıntılarını göster' : 'İstek ayrıntılarını gizle';
+      } else if (action === 'copy') {
         const payloadNode = dialog.querySelector('.scheduled-task-preview-payload');
         try {
           await root.navigator?.clipboard?.writeText?.(payloadNode?.textContent || '');
