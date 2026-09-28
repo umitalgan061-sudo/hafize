@@ -103,6 +103,8 @@
     countdownTimer = 0;
   }
 
+  function activity(label) { try { root.dispatchEvent?.(new root.CustomEvent('hafize:scheduled-preview-activity', { detail: { label: String(label).slice(0, 120) } })); } catch {} }
+
   function report(message, tone) {
     const status = dialog && dialog.querySelector('.scheduled-task-preview-status');
     if (!status) return;
@@ -130,6 +132,7 @@
     if (!dialog) return;
     dialog.hidden = true;
     stopCountdown();
+    activity('Önizleme kapatıldı.');
     const focusTarget = previousFocus;
     previousFocus = null;
     lastSubmit = null;
@@ -147,6 +150,7 @@
       return;
     }
     form.setAttribute(BYPASS_FLAG, 'true');
+    activity('Planlama onaylandı.');
     const originalFocus = doc().activeElement;
     closePreview();
     try {
@@ -238,7 +242,7 @@
     dialog.addEventListener('click', async function (event) {
       const target = event.target && event.target.closest ? event.target.closest('[data-preview-action]') : null;
       const action = target && target.dataset.previewAction;
-      if (action === 'close' || action === 'back') closePreview();
+      if (action === 'close' || action === 'back') { activity(action === 'back' ? 'Düzenlemeye dönüldü.' : 'Önizleme kapatıldı.'); closePreview(); }
       else if (action === 'confirm') confirmPreview();
       else if (action === 'toggle-payload') {
         const payloadNode = dialog.querySelector('.scheduled-task-preview-payload');
@@ -283,6 +287,7 @@
     render(data);
     dialog.hidden = false;
     startCountdown(data.localWhen);
+    activity('Önizleme açıldı.');
     const errors = validate(data);
     report(errors.length ? errors[0] : 'Onaydan önce görev özetini kontrol et.', errors.length ? 'error' : 'info');
     const confirm = dialog.querySelector('[data-preview-action="confirm"]');
