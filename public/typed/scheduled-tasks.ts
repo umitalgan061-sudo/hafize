@@ -33,7 +33,7 @@
     return node;
   };
   const clamp = (value, limit) => String(value ?? '').slice(0, limit);
-  const statusText = (value) => ({ scheduled: 'Planlandı', running: 'Çalışıyor', completed: 'Tamamlandı', failed: 'Başarısız', cancelled: 'İptal edildi' })[value] || 'Bilinmiyor';
+  const statusText = (value) => ({ scheduled: 'Planlandı', paused: 'Duraklatıldı', running: 'Çalışıyor', completed: 'Tamamlandı', failed: 'Başarısız', cancelled: 'İptal edildi' })[value] || 'Bilinmiyor';
   const safeJson = async (response) => { try { return await response.json(); } catch { return null; } };
 
   async function request(path = API_PATH, options = {}) {
@@ -144,7 +144,7 @@
     listSection.append(make('div', 'Planlanan görevler', 'scheduled-tasks-section-title'));
     const filter = make('div', undefined, 'scheduled-tasks-filter');
     const filterSelect = doc().createElement('select'); filterSelect.setAttribute('aria-label', 'Görev durumuna göre filtrele');
-    [['all','Tümü'],['scheduled','Planlandı'],['running','Çalışıyor'],['completed','Tamamlandı'],['failed','Başarısız'],['cancelled','İptal edildi']].forEach(([value,label]) => { const option = make('option', label); option.value = value; filterSelect.append(option); });
+    [['all','Tümü'],['scheduled','Planlandı'],['paused','Duraklatıldı'],['running','Çalışıyor'],['completed','Tamamlandı'],['failed','Başarısız'],['cancelled','İptal edildi']].forEach(([value,label]) => { const option = make('option', label); option.value = value; filterSelect.append(option); });
     const filterInfo = make('span', '', 'scheduled-tasks-filter-info'); filter.append(filterSelect, filterInfo);
     const list = make('div', undefined, 'scheduled-tasks-list'); list.setAttribute('role','list');
     listSection.append(filter, list);
@@ -195,7 +195,7 @@
     const meta = make('div', `${formattedDate(entry.runAt)} · ${clamp(entry.agentId, 80)} · deneme ${entry.attempts}/${entry.maxAttempts}`, 'scheduled-task-meta');
     const detail = make('p', entry.lastError ? `Son hata: ${clamp(entry.lastError, 120)}` : entry.status === 'completed' ? 'Başarıyla tamamlandı.' : entry.recurrence ? `Tekrar: ${entry.recurrence.frequency} · ${entry.recurrence.interval} aralık · ${entry.occurrenceCount || 0} tamamlanan tur` : '');
     const actions = make('div', undefined, 'scheduled-task-actions');
-    if (entry.status === 'scheduled') actions.append(button('İptal et','cancel','mini-btn'));
+    if(entry.recurrence && entry.status==='scheduled') actions.append(button('Duraklat','pause','mini-btn')); if(entry.recurrence && entry.status==='paused') actions.append(button('Sürdür','resume','mini-btn')); if (entry.status === 'scheduled' || entry.status === 'paused') actions.append(button('İptal et','cancel','mini-btn'));
     if(entry.recurrence && Array.isArray(entry.history) && entry.history.length) actions.append(button('Geçmişi göster','history','mini-btn'));
     const trace = button('Trace ID','trace','mini-btn'); trace.title = clamp(entry.traceId, 128); trace.setAttribute('aria-label', `Trace ID: ${clamp(entry.traceId, 40)}`); actions.append(trace);
     item.append(head, meta, detail, actions);
@@ -231,6 +231,14 @@
     }
   }
 
+  async function setRecurrenceState(id, action) {
+    if(!id) return;
+    try {
+      const safeAction=action==='pause'?'pause':'resume';
+      await request(API_PATH+'/'+encodeURIComponent(id), { method:'PATCH', body:JSON.stringify({ action:safeAction }) });
+      status(safeAction==='pause'?'Tekrar duraklatıldı.':'Tekrar sürdürüldü.','success'); await refresh();
+    } catch(error) { status(error.status===409?'Görev bu durumda değiştirilemez.':'Tekrar durumu değiştirilemedi.','error'); await refresh(); }
+  }
   async function cancelTask(id) {
     if (!id || !root.confirm?.('Bu planlanmış görev iptal edilsin mi?')) return;
     try { await request(`${API_PATH}/${encodeURIComponent(id)}`, { method: 'DELETE' }); status('Görev iptal edildi.','success'); await refresh(); }
@@ -242,7 +250,7 @@
     const action = target.dataset.taskAction;
     if (action === 'close') return close();
     if (action === 'refresh') return refresh();
-    if (action === 'cancel') return cancelTask(target.closest('.scheduled-task-row')?.dataset.scheduleId);
+    if (action === 'cancel') return cancelTask(target.closest('.scheduled-task-row')?.dataset.scheduleId); if(action==='pause' || action==='resume') return setRecurrenceState(target.closest('.scheduled-task-row')?.dataset.scheduleId,action);
     if (action === 'trace') return status(`Trace ID: ${target.title}`,'info');
     if(action==='history'){const history=target.closest('.scheduled-task-row')?.querySelector('.scheduled-task-history'); if(history){history.hidden=!history.hidden; target.textContent=history.hidden?'Geçmişi göster':'Geçmişi gizle';} return;}
   }
