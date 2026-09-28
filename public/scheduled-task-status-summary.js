@@ -32,9 +32,17 @@
     });
     section.replaceChildren();
     statuses.forEach(function (entry) {
-      const item = make('span', undefined, 'scheduled-task-status-summary-item');
+      const item = make('button', undefined, 'scheduled-task-status-summary-item');
+      item.type = 'button';
+      item.dataset.summaryStatus = entry[0];
       item.dataset.status = entry[0];
       item.append(make('strong', String(counts.get(entry[0]) || 0)), make('span', entry[1]));
+      item.addEventListener('click', function () {
+        const filter = panel.querySelector('.scheduled-tasks-filter select');
+        if (!filter) return;
+        filter.value = entry[0];
+        filter.dispatchEvent(new Event('change', { bubbles: true }));
+      });
       section.append(item);
     });
   }
