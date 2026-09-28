@@ -10,6 +10,8 @@
   const MAX_LIST = 128;
   const MAX_ATTEMPTS = 5;
   const REFRESH_MS = 30_000;
+  const MAX_RECURRENCE_INTERVAL = 30;
+  const RECURRENCE_DAYS = Object.freeze([['1','Pzt'],['2','Sal'],['3','Çar'],['4','Per'],['5','Cum'],['6','Cmt'],['0','Paz']]);
   let panel = null;
   let mounted = false;
   let refreshTimer = 0;
@@ -117,9 +119,25 @@
     for (let i = 1; i <= MAX_ATTEMPTS; i += 1) { const option = make('option', i); option.value = String(i); attempts.append(option); }
     attemptsLabel.append(attempts);
 
-    const grid = make('div', undefined, 'scheduled-tasks-form-grid'); grid.append(agentLabel, whenLabel, attemptsLabel);
+    const recurrenceLabel = make('label', 'Tekrar');
+    const recurrence = doc().createElement('select'); recurrence.id = 'scheduledTaskRecurrence'; recurrence.setAttribute('aria-label', 'Görev tekrar sıklığı');
+    [['once','Tek sefer'],['daily','Günlük'],['weekly','Haftalık'],['monthly','Aylık']].forEach(([value,label])=>{const option=make('option',label);option.value=value;recurrence.append(option);});
+    recurrenceLabel.append(recurrence);
+    const intervalLabel = make('label','Aralık');
+    const interval = doc().createElement('input'); interval.type='number'; interval.min='1'; interval.max=String(MAX_RECURRENCE_INTERVAL); interval.value='1'; interval.inputMode='numeric'; interval.setAttribute('aria-label','Tekrar aralığı');
+    intervalLabel.append(interval);
+    const dayLabel = make('label','Haftanın günleri');
+    const dayPicker = make('div',undefined,'scheduled-tasks-weekdays'); dayPicker.hidden=true; dayPicker.setAttribute('role','group'); dayPicker.setAttribute('aria-label','Haftalık görev günleri');
+    RECURRENCE_DAYS.forEach(([value,label])=>{const wrap=make('label',label,'scheduled-task-weekday');const checkbox=doc().createElement('input');checkbox.type='checkbox';checkbox.value=value;checkbox.dataset.recurrenceDay='true';wrap.prepend(checkbox);dayPicker.append(wrap);});
+    dayLabel.append(dayPicker);
+    const monthLabel = make('label','Ayın günü');
+    const monthDay = doc().createElement('input'); monthDay.type='number'; monthDay.min='1'; monthDay.max='31'; monthDay.value='1'; monthDay.inputMode='numeric'; monthDay.hidden=true; monthDay.setAttribute('aria-label','Ayın çalışma günü');
+    monthLabel.append(monthDay);
+    const grid = make('div', undefined, 'scheduled-tasks-form-grid'); grid.append(agentLabel, whenLabel, attemptsLabel, recurrenceLabel, intervalLabel, dayLabel, monthLabel);
     const submit = button('Görevi planla', 'create'); submit.classList.add('primary');
     create.append(heading, taskLabel, grid, submit);
+    const syncRecurrenceControls = () => { const value=recurrence.value; dayPicker.hidden=value!=='weekly'; monthDay.hidden=value!=='monthly'; interval.disabled=value==='once'; if(value==='weekly' && ![...dayPicker.querySelectorAll('input')].some((node)=>node.checked)){const weekday=new Date(when.value||Date.now()).getDay(); const target=dayPicker.querySelector(`input[value="${weekday}"]`); if(target) target.checked=true;} if(value==='monthly') monthDay.value=String(Math.min(31,Math.max(1,new Date(when.value||Date.now()).getDate()))); };
+    recurrence.addEventListener('change',syncRecurrenceControls); when.addEventListener('change',syncRecurrenceControls); syncRecurrenceControls();
 
     const listSection = make('section', undefined, 'scheduled-tasks-list-section');
     listSection.setAttribute('aria-label', 'Planlanmış görevler listesi');
@@ -140,10 +158,22 @@
       if (!agent.value) return status('Geçerli bir ajan seçmelisin.', 'error');
       if (!taskText) return status('Görev metni boş olamaz.', 'error');
       if (!runAt || Date.parse(runAt) <= Date.now()) return status('Çalıştırma zamanı gelecekte olmalı.', 'error');
+      const recurrenceValue=recurrence.value;
+      let recurrencePayload=null;
+      if(recurrenceValue!=='once'){
+        const recurrenceInterval=Math.min(MAX_RECURRENCE_INTERVAL,Math.max(1,Number(interval.value)||1));
+        if(recurrenceValue==='weekly'){
+          const days=[...dayPicker.querySelectorAll('input[data-recurrence-day]:checked')].map((node)=>Number(node.value));
+          if(!days.length) return status('Haftalık görev için en az bir gün seçmelisin.','error');
+          recurrencePayload={frequency:'weekly',interval:recurrenceInterval,daysOfWeek:days};
+        } else if(recurrenceValue==='monthly') {
+          const day=Math.min(31,Math.max(1,Number(monthDay.value)||1)); recurrencePayload={frequency:'monthly',interval:recurrenceInterval,dayOfMonth:day};
+        } else recurrencePayload={frequency:'daily',interval:recurrenceInterval};
+      }
       submit.disabled = true;
       try {
-        await request(API_PATH, { method: 'POST', body: JSON.stringify({ agentId: agent.value, task: taskText, runAt, maxAttempts: Number(attempts.value) }) });
-        task.value = ''; when.value = localDateTimeValue(); status('Görev planlandı.', 'success'); await refresh();
+        await request(API_PATH, { method: 'POST', body: JSON.stringify({ agentId: agent.value, task: taskText, runAt, maxAttempts: Number(attempts.value), ...(recurrencePayload?{recurrence:recurrencePayload}:{}) }) });
+        task.value = ''; when.value = localDateTimeValue(); recurrence.value='once'; interval.value='1'; dayPicker.querySelectorAll('input').forEach((node)=>{node.checked=false;}); syncRecurrenceControls(); status('Görev planlandı.', 'success'); await refresh();
       } catch (error) {
         status(error.status === 401 ? 'Oturum açılması gerekiyor.' : error.message === 'SCHEDULE_CAPACITY_REACHED' ? 'Görev kapasitesi dolu.' : 'Görev planlanamadı.', 'error');
       } finally { submit.disabled = false; }
@@ -163,11 +193,17 @@
     const title = make('strong', clamp(entry.task, 120));
     const badge = make('span', statusText(entry.status), `scheduled-task-status status-${entry.status}`); head.append(title, badge);
     const meta = make('div', `${formattedDate(entry.runAt)} · ${clamp(entry.agentId, 80)} · deneme ${entry.attempts}/${entry.maxAttempts}`, 'scheduled-task-meta');
-    const detail = make('p', entry.lastError ? `Son hata: ${clamp(entry.lastError, 120)}` : entry.status === 'completed' ? 'Başarıyla tamamlandı.' : '');
+    const detail = make('p', entry.lastError ? `Son hata: ${clamp(entry.lastError, 120)}` : entry.status === 'completed' ? 'Başarıyla tamamlandı.' : entry.recurrence ? `Tekrar: ${entry.recurrence.frequency} · ${entry.recurrence.interval} aralık · ${entry.occurrenceCount || 0} tamamlanan tur` : '');
     const actions = make('div', undefined, 'scheduled-task-actions');
     if (entry.status === 'scheduled') actions.append(button('İptal et','cancel','mini-btn'));
+    if(entry.recurrence && Array.isArray(entry.history) && entry.history.length) actions.append(button('Geçmişi göster','history','mini-btn'));
     const trace = button('Trace ID','trace','mini-btn'); trace.title = clamp(entry.traceId, 128); trace.setAttribute('aria-label', `Trace ID: ${clamp(entry.traceId, 40)}`); actions.append(trace);
     item.append(head, meta, detail, actions);
+    if(entry.recurrence && Array.isArray(entry.history) && entry.history.length){
+      const history=make('div',undefined,'scheduled-task-history'); history.hidden=true; history.setAttribute('aria-label','Görev çalışma geçmişi');
+      entry.history.slice(0,8).forEach((run,index)=>{const line=make('div',undefined,'scheduled-task-history-row'); line.append(make('span',`${index+1}. ${formattedDate(run.finishedAt)}`),make('strong',run.status==='completed'?'Tamamlandı':'Başarısız'),make('span',`${run.attempts}/${run.maxAttempts} deneme`)); if(run.lastError) line.append(make('small',clamp(run.lastError,80))); history.append(line);});
+      item.append(history);
+    }
     return item;
   }
 
@@ -208,6 +244,7 @@
     if (action === 'refresh') return refresh();
     if (action === 'cancel') return cancelTask(target.closest('.scheduled-task-row')?.dataset.scheduleId);
     if (action === 'trace') return status(`Trace ID: ${target.title}`,'info');
+    if(action==='history'){const history=target.closest('.scheduled-task-row')?.querySelector('.scheduled-task-history'); if(history){history.hidden=!history.hidden; target.textContent=history.hidden?'Geçmişi göster':'Geçmişi gizle';} return;}
   }
 
   function open() {
