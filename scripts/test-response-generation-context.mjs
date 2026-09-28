@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const helper=fs.readFileSync('public/typed/response-variants.ts','utf8');
+const app=fs.readFileSync('public/typed/app-shell.ts','utf8');
+assert.match(helper,/createGenerationSnapshot/);
+assert.match(helper,/MAX_GENERATION_MODEL/);
+assert.match(helper,/MAX_GENERATION_AGENT/);
+assert.match(app,/generatedAt/);
+assert.match(app,/durationMs/);
+console.log('generation context contract ok');
