@@ -510,6 +510,21 @@ interface JsonPayload { readonly [key: string]: unknown; }
         regenerate.title = message.id === messages.at(-1)?.id ? 'Bu yanıt için yeni bir varyant üret' : 'Yalnızca son yanıt yeniden üretilebilir';
         regenerate.addEventListener('click', () => regenerateAssistantMessage(message.id));
         actions.append(regenerate);
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'message-action';
+        copy.textContent = 'Kopyala';
+        copy.setAttribute('aria-label', 'Asistan yanıtını panoya kopyala');
+        copy.disabled = !message.content || isStreaming;
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard?.writeText?.(message.content || '');
+            showToast('Asistan yanıtı panoya kopyalandı.');
+          } catch {
+            showToast('Yanıt panoya kopyalanamadı.');
+          }
+        });
+        actions.append(copy);
         if (message.alternates?.length) {
           const restore = document.createElement('button');
           restore.type = 'button';
@@ -707,6 +722,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const agentId = getConversationAgentId(conversation);
     if (!agentId) throw new Error('AGENT_REQUIRED');
     const requestMessages = getRequestMessages(conversation);
+    const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
     const response = await fetch('/api/chat', {
@@ -715,6 +731,17 @@ interface JsonPayload { readonly [key: string]: unknown; }
       body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
     });
     await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    const generated = conversation.messages.find((entry) => entry.id === assistantId);
+    if (generated) {
+      generated.generation = {
+        model,
+        agentId,
+        toolsEnabled: false,
+        generatedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+      };
+      saveConversations();
+    }
   }
 
   async function runAssistantWithTools() {
@@ -725,6 +752,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const agentId = getConversationAgentId(conversation);
     if (!agentId) throw new Error('AGENT_REQUIRED');
     const requestMessages = getRequestMessages(conversation);
+    const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
     const response = await fetch('/api/agent/run', {
@@ -737,6 +765,17 @@ interface JsonPayload { readonly [key: string]: unknown; }
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
     );
+    const generated = conversation.messages.find((entry) => entry.id === assistantId);
+    if (generated) {
+      generated.generation = {
+        model,
+        agentId,
+        toolsEnabled: true,
+        generatedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+      };
+      saveConversations();
+    }
   }
 
   function setGenerationUi(disabled) {
