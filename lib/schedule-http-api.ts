@@ -9,7 +9,7 @@ function response(status, body, headers = {}) {
 
 function commandErrorStatus(error) {
   if (error === 'AUTH_REQUIRED') return 401;
-  if (error === 'INVALID_SCHEDULE_COMMAND' || error === 'INVALID_AGENT' || error === 'INVALID_SCHEDULE') return 400;
+  if (error === 'INVALID_SCHEDULE_COMMAND' || error === 'INVALID_AGENT' || error === 'INVALID_SCHEDULE' || error === 'INVALID_SCHEDULE_RECURRENCE') return 400;
   if (error === 'SCHEDULE_NOT_FOUND') return 404;
   if (error === 'SCHEDULE_NOT_CANCELLABLE') return 409;
   if (error === 'SCHEDULE_CAPACITY_REACHED') return 503;
