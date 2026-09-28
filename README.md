@@ -127,6 +127,13 @@ Planlanmış, tamamlanmış, başarısız veya iptal edilmiş görevlerde Tekrar
 
 ## Planlama Yedekleme ve Durum Özeti
 
+## Görev Taslakları ve Başlangıç Seti
+
+Görev formunda açık kullanıcı eylemiyle yerel taslak kaydedilip geri yüklenebilir. Taslak 24 saat sonra geçersiz olur ve çalıştırma zamanı bilinçli olarak saklanmaz. Ctrl / ⌘ + Alt + S kısayolu yalnız form dışındayken çalışır. Ayrıca seçili ajanla kullanılabilen altı başlangıç görev şablonu vardır; bu seçenekler otomatik kayıt oluşturmaz.
+
+Şablonlar 200 KB sınırıyla JSON olarak yedeklenebilir ve geri yüklenebilir. Tüm bu yardımcılar doğrudan schedule API çağrısı yapmaz; gerçek planlama Preview onayı üzerinden mevcut workspace'e bırakılır.
+
+
 Görev şablonları için açıkça tetiklenen Yedeği indir/Yedeği içe aktar akışı vardır; en fazla 12 şablon korunur ve 200 KB üstü dosyalar reddedilir. Görev listesinde Planlandı, Çalışıyor, Tamamlandı, Başarısız ve İptal edildi sayaçları görünür. Preview içinde son işlemler yalnız sayfa belleğinde tutulur; kalıcı activity log oluşturulmaz.
 
 Ayrıntılar `docs/SCHEDULED_TASK_TEMPLATES_BACKUP*.md`, `docs/SCHEDULED_TASK_STATUS_SUMMARY.md` ve `docs/SCHEDULED_TASK_PREVIEW_ACTIVITY*.md` dosyalarındadır.
