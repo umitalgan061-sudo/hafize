@@ -87,6 +87,59 @@
     if (select && info) filterRows(panel, select.value, info);
   }
 
+  function addBulk(panel) {
+    const list=panel.querySelector('.scheduled-tasks-list'); if(!list||list.querySelector('.scheduled-tasks-bulk')) return;
+    const rows=[...list.querySelectorAll('.scheduled-task-row')];
+    rows.forEach(row=>{
+      if(row.querySelector('[data-schedule-select]')) return;
+      const box=root.document.createElement('input'); box.type='checkbox'; box.dataset.scheduleSelect=row.dataset.scheduleId||''; box.setAttribute('aria-label','Görevi seç');
+      row.prepend(box);
+      box.addEventListener('change',()=>updateBulk(panel));
+    });
+    updateBulk(panel);
+  }
+
+  function selected(panel){return [...panel.querySelectorAll('[data-schedule-select]:checked')].slice(0,40);}
+
+  function updateBulk(panel){
+    const old=panel.querySelector('.scheduled-tasks-bulk'); old?.remove();
+    const chosen=selected(panel); if(!chosen.length) return;
+    const bar=make('div',undefined,'scheduled-tasks-bulk');
+    const label=make('span',chosen.length+' görev seçildi','scheduled-tasks-bulk-count');
+    const pause=make('button','Duraklat','mini-btn'); pause.type='button'; pause.dataset.bulkAction='pause';
+    const resume=make('button','Sürdür','mini-btn'); resume.type='button'; resume.dataset.bulkAction='resume';
+    const cancel=make('button','İptal et','mini-btn'); cancel.type='button'; cancel.dataset.bulkAction='cancel';
+    const clear=make('button','Seçimi temizle','mini-btn'); clear.type='button'; clear.dataset.bulkAction='clear';
+    bar.append(label,pause,resume,cancel,clear);
+    list.prepend(bar);
+    bar.addEventListener('click',event=>runBulk(panel,event));
+  }
+
+  async function runBulk(panel,event){
+    const action=event.target?.closest?.('[data-bulk-action]')?.dataset.bulkAction; if(!action) return;
+    if(action==='clear'){panel.querySelectorAll('[data-schedule-select]').forEach(node=>{node.checked=false;}); updateBulk(panel); return;}
+    const chosen=selected(panel); if(!chosen.length) return;
+    if(action==='cancel'&&!root.confirm?.(chosen.length+' seçili görev iptal edilsin mi?')) return;
+    let changed=0,failed=0;
+    for(const node of chosen){
+      const id=node.dataset.scheduleSelect; if(!id) continue;
+      const row=node.closest('.scheduled-task-row'); const frequency=row?.dataset.recurrenceFrequency||''; const statusValue=row?.dataset.status||'';
+      if((action==='pause'||action==='resume')&&!frequency){failed++;continue;}
+      if(action==='pause'&&statusValue!=='scheduled'){failed++;continue;}
+      if(action==='resume'&&statusValue!=='paused'){failed++;continue;}
+      if(action==='cancel'&&statusValue!=='scheduled'&&statusValue!=='paused'){failed++;continue;}
+      try{
+        if(action==='cancel') await root.fetch('/api/schedules/'+encodeURIComponent(id),{method:'DELETE',credentials:'same-origin',headers:{Accept:'application/json'}});
+        else await root.fetch('/api/schedules/'+encodeURIComponent(id),{method:'PATCH',credentials:'same-origin',headers:{Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify({action})});
+        changed++;
+      }catch{failed++;}
+    }
+    status(changed+' görev güncellendi.'+(failed?' '+failed+' görev güncellenemedi.':''),failed?'error':'success');
+    if(root.ScheduledTasksWorkspace?.refresh) await root.ScheduledTasksWorkspace.refresh();
+  }
+
+  const oldEnhance=enhance;
+  enhance=function(panel){oldEnhance(panel);addBulk(panel);};
   function boot() {
     if (!root.document) return;
     const observer = new MutationObserver(() => {
