@@ -9,7 +9,7 @@
   const CURRENT_CACHE = `${CACHE_PREFIX}v44`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
-    '/scheduled-task-preview.css', '/scheduled-task-duplicate.css', '/scheduled-task-templates.css', '/scheduled-task-planning.css', '/scheduled-task-templates-backup.css', '/scheduled-task-status-summary.css', '/scheduled-task-preview-activity.css',
+    '/scheduled-task-preview.css', '/scheduled-task-duplicate.css', '/scheduled-task-templates.css', '/scheduled-task-planning.css', '/scheduled-task-templates-backup.css', '/scheduled-task-status-summary.css', '/scheduled-task-preview-activity.css', '/scheduled-task-template-presets.css', '/scheduled-task-draft.css', '/scheduled-task-templates-backup.css',
     '/styles.css', '/premium.css', '/voice-output.css', '/screen-share.css', '/hands-free.css',
     '/workspace-navigation.css', '/chat-composer-features.css', '/chat-history-search.css', '/chat-history-export.css',
     '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
@@ -25,7 +25,7 @@
     '/prompt-library-revisions.js', '/prompt-library-revisions-enhancements.js', '/prompt-library-smart-insert.js', '/prompt-library-smart-insert-center.js',
     '/prompt-library-smart-insert-history.js', '/prompt-library-smart-insert-history-bridge.js', '/prompt-library-smart-insert-suggestions.js', '/prompt-library-smart-insert-shortcuts.js', '/prompt-library-smart-insert-presets.js', '/prompt-library-smart-insert-validation.js', '/prompt-library-smart-insert-activity.js',
     '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
-    '/typed-build/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js', '/scheduled-task-preview.js', '/scheduled-task-duplicate.js', '/scheduled-task-templates.js', '/scheduled-task-planning.js', '/scheduled-task-templates-backup.js', '/scheduled-task-status-summary.js', '/scheduled-task-preview-activity.js',
+    '/typed-build/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js', '/scheduled-task-preview.js', '/scheduled-task-duplicate.js', '/scheduled-task-templates.js', '/scheduled-task-planning.js', '/scheduled-task-templates-backup.js', '/scheduled-task-status-summary.js', '/scheduled-task-preview-activity.js', '/scheduled-task-template-presets.js', '/scheduled-task-draft.js', '/scheduled-task-templates-backup.js',
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
     '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
