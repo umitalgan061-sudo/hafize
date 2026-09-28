@@ -123,6 +123,23 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
+## Zamanlanmış görev tekrarları ve presetler
+
+Zamanlanmış Görevler artık tek seferlik görevlerin yanında günlük, haftalık ve aylık tekrar planlarını destekler. Tek seferlik eski kayıtlar aynı veri şekliyle okunmaya devam eder.
+
+- Günlük görevler 1–30 arası gün aralığıyla tekrarlanabilir.
+- Haftalık görevler 1–30 haftalık aralıkta bir veya birden fazla gün seçebilir.
+- Aylık görevler 1–30 aylık aralıkla ayın 1–31. gününe göre planlanabilir; kısa aylarda son geçerli gün kullanılır.
+- Her tekrarlanan kayıt son 20 çalışmanın durum, deneme, zaman ve güvenli hata kodu özetini tutar.
+- Başarılı veya son denemede başarısız olan bir tekrar otomatik olarak sonraki oluşuma alınır; bekleyen retry davranışı korunur.
+- Kullanıcı mevcut planı iptal ettiğinde yeni oluşum üretilmez; geçmiş kayıtları saklanır.
+- Görev presetleri cihaz üzerinde hafize.scheduled-task-presets.v1 anahtarında tutulur ve sunucuya gönderilmez.
+- Presetler 40 kayıtla, 256 KB JSON yedeğiyle sınırlıdır; içe aktarma mevcut presetleri silmeden başlıkla birleştirir.
+- “Geçmişi göster” tekrarlanan görevlerin son koşularını görünür kılar; görev çıktısı veya secret saklanmaz.
+- Service worker yalnızca uygulama kabuğu asset'lerini cache'ler; /api/schedules yanıtları cache'lenmez.
+
+Ayrıntılar docs/SCHEDULED_TASKS_RECURRENCE*.md ve docs/SCHEDULED_TASKS_PRESET*.md dosyalarındadır.
+
 ## Test
 
 ```bash
