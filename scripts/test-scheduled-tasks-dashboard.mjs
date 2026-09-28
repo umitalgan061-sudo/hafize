@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const js=await readFile(new URL('../public/scheduled-tasks-insights.js',import.meta.url),'utf8');
+const css=await readFile(new URL('../public/scheduled-tasks-insights.css',import.meta.url),'utf8');
+assert.match(js,/scheduled-task-insights/);
+assert.match(js,/scheduled-tasks-insights-controls/);
+assert.match(js,/scheduled-task-insights-values/);
+assert.match(js,/MAX_EXPORT=256000/);
+assert.doesNotMatch(js,/fetch\(/);
+assert.doesNotMatch(js,/XMLHttpRequest/);
+assert.doesNotMatch(js,/WebSocket/);
+assert.match(css,/prefers-reduced-motion/);
+assert.match(css,/forced-colors/);
+console.log('task dashboard contract: ok');
