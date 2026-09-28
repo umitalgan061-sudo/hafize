@@ -50,7 +50,7 @@ export function createScheduleHttpApi({ authenticator, commands, readJson } = {}
   if (
     typeof commands?.create !== 'function' ||
     typeof commands?.list !== 'function' ||
-    typeof commands?.cancel !== 'function'
+    typeof commands?.cancel !== 'function' || typeof commands?.pause !== 'function' || typeof commands?.resume !== 'function'
   ) throw new Error('INVALID_SCHEDULE_HTTP_API:commands');
   if (typeof readJson !== 'function') throw new Error('INVALID_SCHEDULE_HTTP_API:readJson');
 
@@ -90,10 +90,18 @@ export function createScheduleHttpApi({ authenticator, commands, readJson } = {}
     if (!root && verb === 'DELETE') {
       return commandResponse(await commands.cancel({ principal: auth.principal, scheduleId }), 200, requestId);
     }
+    if (!root && verb === 'PATCH') {
+      const input = await readJson(request);
+      const action = input?.action;
+      if (action === 'pause') return commandResponse(await commands.pause({ principal: auth.principal, scheduleId }), 200, requestId);
+      if (action === 'resume') return commandResponse(await commands.resume({ principal: auth.principal, scheduleId }), 200, requestId);
+      const invalid = normalizeApiError({ code: 'INVALID_SCHEDULE_COMMAND', status: 400, requestId });
+      return response(400, invalid, requestId ? { 'X-Hafize-Request-Id': requestId } : {});
+    }
     const normalized = normalizeApiError({ code: 'INVALID_SCHEDULE_COMMAND', status: 405, requestId });
     return response(405, normalized, {
       ...(requestId ? { 'X-Hafize-Request-Id': requestId } : {}),
-      Allow: root ? 'GET, POST' : 'DELETE'
+      Allow: root ? 'GET, POST' : 'DELETE, PATCH'
     });
   }
 
