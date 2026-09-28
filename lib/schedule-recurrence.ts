@@ -79,29 +79,16 @@ function addMonths(date,months,preferredDay){
   return next;
 }
 function nextWeekly(date, rule){
-  const candidates=[];
-  for(const day of rule.daysOfWeek){
-    let delta=(day-date.getUTCDay()+7)%7;
-    if(delta===0) delta=7;
-    candidates.push(addDays(date,delta));
+  const baseWeek = addDays(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())), -date.getUTCDay());
+  let cursor = new Date(date.getTime());
+  for(let dayOffset=1; dayOffset<=rule.interval*7+7; dayOffset+=1){
+    cursor=addDays(date,dayOffset);
+    const weekStart=addDays(new Date(Date.UTC(cursor.getUTCFullYear(),cursor.getUTCMonth(),cursor.getUTCDate())),-cursor.getUTCDay());
+    const diffWeeks=Math.round((weekStart.getTime()-baseWeek.getTime())/604800000);
+    if(diffWeeks%rule.interval!==0) continue;
+    if(rule.daysOfWeek.includes(cursor.getUTCDay())) return cursor;
   }
-  candidates.sort((a,b)=>a.getTime()-b.getTime());
-  let next=candidates[0];
-  if(rule.interval>1 && next){
-    const weekStart=new Date(date.getTime());
-    const currentDay=weekStart.getUTCDay();
-    const normalizedCurrent=addDays(weekStart,-currentDay);
-    const nextWeekStart=addDays(normalizedCurrent,7*rule.interval);
-    const minCandidate=rule.daysOfWeek[0];
-    next=new Date(nextWeekStart.getTime());
-    next.setUTCDate(nextWeekStart.getUTCDate()+minCandidate);
-    for(const day of rule.daysOfWeek){
-      const candidate=new Date(nextWeekStart.getTime());
-      candidate.setUTCDate(nextWeekStart.getUTCDate()+day);
-      if(candidate.getTime()>date.getTime()){ next=candidate; break; }
-    }
-  }
-  return next;
+  throw new Error('INVALID_SCHEDULE_RECURRENCE:weeklyWindow');
 }
 export function nextOccurrence(runAt, recurrence, { now=runAt } = {}){
   const base=isoDate(runAt,'runAt');
