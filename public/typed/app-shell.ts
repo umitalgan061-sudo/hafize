@@ -7,6 +7,14 @@ interface ChatMessage {
   content: string;
   at: string;
   toolActivities?: ToolActivity[];
+  alternates?: string[];
+  generation?: {
+    model: string;
+    agentId: string;
+    toolsEnabled: boolean;
+    generatedAt: string;
+    durationMs: number | null;
+  };
 }
 interface AgentInfo { id: string; name: string; description?: string; kind?: string; }
 interface Conversation {
@@ -46,6 +54,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 100;
   const MAX_MESSAGE_LENGTH = 12000;
+  const MAX_RESPONSE_ALTERNATES = 3;
   const REQUEST_TIMEOUT_MS = 60_000;
   let networkOnline = globalThis.navigator?.onLine !== false;
   let activeRequestController = null;
@@ -101,11 +110,31 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if ((source.role !== 'user' && source.role !== 'assistant') || typeof source.content !== 'string') return null;
     const content = source.content.slice(0, MAX_MESSAGE_LENGTH);
     if (!content) return null;
+    const alternates = Array.isArray(source.alternates)
+      ? source.alternates
+        .filter((value) => typeof value === 'string' && value.trim())
+        .map((value) => value.slice(0, MAX_MESSAGE_LENGTH))
+        .filter((value, index, values) => values.indexOf(value) === index)
+        .slice(-MAX_RESPONSE_ALTERNATES)
+      : [];
+    const generation = source.generation && typeof source.generation === 'object'
+      ? {
+        model: typeof source.generation.model === 'string' ? source.generation.model.slice(0, 160) : '',
+        agentId: typeof source.generation.agentId === 'string' ? source.generation.agentId.slice(0, 120) : '',
+        toolsEnabled: source.generation.toolsEnabled === true,
+        generatedAt: typeof source.generation.generatedAt === 'string' ? source.generation.generatedAt.slice(0, 40) : '',
+        durationMs: Number.isFinite(source.generation.durationMs) && source.generation.durationMs >= 0
+          ? Math.min(600_000, Math.floor(source.generation.durationMs))
+          : null
+      }
+      : undefined;
     return {
       id: typeof source.id === 'string' && source.id ? source.id.slice(0, 120) : uid(),
       role: source.role,
       content,
       at: typeof source.at === 'string' ? source.at.slice(0, 40) : new Date().toISOString(),
+      ...(alternates.length ? { alternates } : {}),
+      ...(generation ? { generation } : {}),
       ...(Array.isArray(source.toolActivities) ? {
         toolActivities: source.toolActivities
           .filter((item) => item && typeof item === 'object' && typeof item.label === 'string')
@@ -468,6 +497,41 @@ interface JsonPayload { readonly [key: string]: unknown; }
         article.append(activities);
       }
       article.append(content);
+      if (message.role === 'assistant') {
+        const actions = document.createElement('div');
+        actions.className = 'assistant-message-actions';
+        actions.setAttribute('aria-label', 'Yanıt işlemleri');
+        const regenerate = document.createElement('button');
+        regenerate.type = 'button';
+        regenerate.className = 'message-action';
+        regenerate.textContent = 'Yeniden üret';
+        regenerate.setAttribute('aria-label', 'Bu asistan yanıtını yeniden üret');
+        regenerate.disabled = isStreaming || message.id !== messages.at(-1)?.id;
+        regenerate.title = message.id === messages.at(-1)?.id ? 'Bu yanıt için yeni bir varyant üret' : 'Yalnızca son yanıt yeniden üretilebilir';
+        regenerate.addEventListener('click', () => regenerateAssistantMessage(message.id));
+        actions.append(regenerate);
+        if (message.alternates?.length) {
+          const restore = document.createElement('button');
+          restore.type = 'button';
+          restore.className = 'message-action';
+          restore.textContent = 'Önceki yanıtı getir (' + message.alternates.length + ')';
+          restore.setAttribute('aria-label', 'Önceki asistan yanıtını geri getir');
+          restore.disabled = isStreaming;
+          restore.addEventListener('click', () => restorePreviousAssistantMessage(message.id));
+          actions.append(restore);
+        }
+        const generation = message.generation;
+        if (generation?.model || generation?.agentId) {
+          const context = document.createElement('span');
+          context.className = 'assistant-message-generation';
+          const modelLabel = generation.model || 'Model bilinmiyor';
+          const agentLabel = generation.agentId || 'Ajan bilinmiyor';
+          context.textContent = modelLabel + ' · ' + agentLabel + (generation.toolsEnabled ? ' · araçlar' : '');
+          context.title = generation.durationMs === null ? 'Üretim bağlamı' : 'Üretim süresi: ' + generation.durationMs + ' ms';
+          actions.append(context);
+        }
+        article.append(actions);
+      }
       ui.messages.append(article);
     }
 
@@ -675,6 +739,103 @@ interface JsonPayload { readonly [key: string]: unknown; }
     );
   }
 
+  function setGenerationUi(disabled) {
+    ui.messageInput.disabled = disabled;
+    ui.agentSelect.disabled = disabled;
+    ui.toolModeBtn.disabled = disabled;
+    if (!disabled) {
+      syncAgentSelect();
+      syncToolMode();
+    }
+  }
+
+  function rememberAlternate(message, previousContent) {
+    const value = typeof previousContent === 'string' ? previousContent.trim() : '';
+    if (!value) return;
+    const current = Array.isArray(message.alternates) ? message.alternates : [];
+    const next = [value, ...current.filter((candidate) => candidate !== value)].slice(-MAX_RESPONSE_ALTERNATES);
+    message.alternates = next;
+  }
+
+  async function regenerateAssistantMessage(messageId) {
+    if (isStreaming) return;
+    if (!networkOnline) return showToast('İnternet bağlantısı yok; yanıt yeniden üretilemez.');
+    const conversation = getActiveConversation();
+    if (!conversation) return;
+    const index = conversation.messages.findIndex((message) => message.id === messageId && message.role === 'assistant');
+    if (index < 0) return showToast('Yeniden üretilecek asistan yanıtı bulunamadı.');
+    if (index !== conversation.messages.length - 1) return showToast('Yalnızca konuşmadaki son asistan yanıtı yeniden üretilebilir.');
+    const model = ui.modelSelect.value;
+    if (!model) return showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
+    const agentId = getConversationAgentId(conversation);
+    if (!agentId) return showToast('Önce Hafize ajan listesinin hazır olması gerekiyor.');
+
+    const message = conversation.messages[index];
+    const previousContent = message.content;
+    const requestMessages = conversation.messages.slice(0, index)
+      .filter((entry) => entry && entry.content)
+      .map(({ role, content }) => ({ role, content }));
+    const startedAt = performance.now();
+    message.content = '';
+    message.toolActivities = [];
+    isStreaming = true;
+    setGenerationUi(true);
+    render();
+
+    try {
+      const endpoint = conversation.toolsEnabled ? '/api/agent/run' : '/api/chat';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      });
+      await consumeAssistantStream(
+        response,
+        message.id,
+        conversation.toolsEnabled
+          ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
+          : 'NVIDIA modeli boş bir yanıt döndürdü.'
+      );
+      rememberAlternate(message, previousContent);
+      message.generation = {
+        model,
+        agentId,
+        toolsEnabled: conversation.toolsEnabled,
+        generatedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+      };
+      saveConversations();
+      render();
+      showToast('Yeni asistan yanıtı üretildi. Önceki yanıt geri alınabilir.');
+    } catch (error) {
+      message.content = previousContent;
+      message.toolActivities = [];
+      saveConversations();
+      render();
+      showToast('Yanıt yeniden üretilemedi: ' + (error?.message || 'bilinmeyen hata'));
+    } finally {
+      isStreaming = false;
+      setGenerationUi(false);
+      ui.messageInput.focus();
+    }
+  }
+
+  function restorePreviousAssistantMessage(messageId) {
+    if (isStreaming) return;
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((candidate) => candidate.id === messageId && candidate.role === 'assistant');
+    if (!message || !Array.isArray(message.alternates) || !message.alternates.length) return;
+    const previous = message.alternates.pop();
+    rememberAlternate(message, message.content);
+    message.content = previous;
+    message.generation = {
+      ...(message.generation || { model: '', agentId: '', toolsEnabled: false, generatedAt: new Date().toISOString(), durationMs: null }),
+      generatedAt: new Date().toISOString()
+    };
+    saveConversations();
+    render();
+    showToast('Önceki asistan yanıtı geri getirildi.');
+  }
   async function submitMessage(text) {
     const clean = text.trim();
     if (!clean || isStreaming) return;
@@ -696,9 +857,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;
-    ui.messageInput.disabled = true;
-    ui.agentSelect.disabled = true;
-    ui.toolModeBtn.disabled = true;
+    setGenerationUi(true);
 
     try {
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
@@ -717,9 +876,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       else addMessage('assistant', message);
     } finally {
       isStreaming = false;
-      ui.messageInput.disabled = false;
-      syncAgentSelect();
-      syncToolMode();
+      setGenerationUi(false);
       ui.messageInput.focus();
     }
   }
@@ -823,4 +980,4 @@ interface JsonPayload { readonly [key: string]: unknown; }
 })();
 
 
-export { normalizeConversation, normalizeMessage, fetchJson };
+export { normalizeConversation, normalizeMessage, fetchJson, MAX_RESPONSE_ALTERNATES };
