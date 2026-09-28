@@ -5,7 +5,9 @@ const principal = { authenticated: true as const, subject: 'user-1' };
 const commands = {
   async list(input: Record<string, unknown>) { return { ok: true, op: 'list', subject: (input.principal as typeof principal).subject }; },
   async create(input: Record<string, unknown>) { return { ok: true, op: 'create', input: input.input }; },
-  async cancel(input: Record<string, unknown>) { return { ok: true, op: 'cancel', id: input.scheduleId }; }
+  async cancel(input: Record<string, unknown>) { return { ok: true, op: 'cancel', id: input.scheduleId }; },
+  async pause(input: Record<string, unknown>) { return { ok: true, op: 'pause', id: input.scheduleId }; },
+  async resume(input: Record<string, unknown>) { return { ok: true, op: 'resume', id: input.scheduleId }; }
 };
 const auth = {
   authenticate: ({ headers }: { headers?: unknown }) => headers === 'ok' ? { ok: true, principal } : { ok: false }
@@ -25,6 +27,7 @@ describe('typed schedule HTTP API', () => {
     await expect(api.handle({ method: 'GET', pathname: '/api/schedules', headers: 'ok' })).resolves.toMatchObject({ status: 200, body: { op: 'list' } });
     await expect(api.handle({ method: 'POST', pathname: '/api/schedules', headers: 'ok', request: {} })).resolves.toMatchObject({ status: 201, body: { op: 'create' } });
     await expect(api.handle({ method: 'DELETE', pathname: '/api/schedules/abc', headers: 'ok' })).resolves.toMatchObject({ status: 200, body: { op: 'cancel', id: 'abc' } });
+    await expect(api.handle({ method: 'PATCH', pathname: '/api/schedules/abc', headers: 'ok', request: {} })).resolves.toMatchObject({ status: 400 });
   });
 
   it('returns 404 for malformed schedule paths and 405 for invalid methods', async () => {
