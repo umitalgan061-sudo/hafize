@@ -78,8 +78,8 @@ function addMonths(date,months,preferredDay){
   next.setUTCDate(Math.min(day,daysInMonth(next.getUTCFullYear(),next.getUTCMonth())));
   return next;
 }
-function nextWeekly(date, rule){
-  const baseWeek = addDays(new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())), -date.getUTCDay());
+function nextWeekly(date, rule, anchor=date){
+  const baseWeek = addDays(new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), anchor.getUTCDate())), -anchor.getUTCDay());
   let cursor = new Date(date.getTime());
   for(let dayOffset=1; dayOffset<=rule.interval*7+7; dayOffset+=1){
     cursor=addDays(date,dayOffset);
@@ -90,19 +90,19 @@ function nextWeekly(date, rule){
   }
   throw new Error('INVALID_SCHEDULE_RECURRENCE:weeklyWindow');
 }
-export function nextOccurrence(runAt, recurrence, { now=runAt } = {}){
+export function nextOccurrence(runAt, recurrence, { now=runAt, anchorAt=runAt } = {}){
   const base=isoDate(runAt,'runAt');
   const rule=normalizeRecurrence(recurrence,{allowNull:false});
   const current=isoDate(now,'now');
   let next;
   if(rule.frequency==='daily') next=addDays(base,rule.interval);
   else if(rule.frequency==='monthly') next=addMonths(base,rule.interval,rule.dayOfMonth);
-  else next=nextWeekly(base,rule);
+  else next=nextWeekly(base,rule,isoDate(anchorAt,'anchorAt'));
   let guard=0;
   while(next.getTime()<=current.getTime() && guard<366){
     if(rule.frequency==='daily') next=addDays(next,rule.interval);
     else if(rule.frequency==='monthly') next=addMonths(next,rule.interval,rule.dayOfMonth);
-    else next=nextOccurrence(next,rule,{now:current});
+    else next=nextOccurrence(next,rule,{now:current,anchorAt});
     guard+=1;
   }
   if(guard>=366) throw new Error('INVALID_SCHEDULE_RECURRENCE:runaway');
@@ -116,7 +116,7 @@ export function nextOccurrences(runAt, recurrence, { now=runAt, limit=10 } = {})
   let cursor=isoDate(runAt,'runAt');
   const rule=normalizeRecurrence(recurrence,{allowNull:false});
   for(let i=0;i<safeLimit;i+=1){
-    const next=nextOccurrence(cursor,rule,{now:current});
+    const next=nextOccurrence(cursor,rule,{now:current,anchorAt:runAt});
     result.push(next);
     cursor=next;
     current=new Date(cursor);
