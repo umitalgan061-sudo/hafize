@@ -36,6 +36,11 @@
     });
   }
 
+  function onActivity(event) {
+    const label = event.detail?.label;
+    if (typeof label === 'string' && label.trim()) push(label);
+  }
+
   function scan() {
     const dialog = doc()?.getElementById?.(PANEL_ID);
     if (!dialog || dialog.dataset.activityReady === 'true') return;
@@ -48,12 +53,14 @@
     mounted = true;
     observer = typeof MutationObserver === 'function' ? new MutationObserver(scan) : null;
     observer?.observe(doc().documentElement, { childList: true, subtree: true });
+    root.addEventListener?.('hafize:scheduled-preview-activity', onActivity);
     root.addEventListener?.('beforeunload', destroy, { once: true });
     scan();
   }
 
   function destroy() {
     observer?.disconnect();
+    root.removeEventListener?.('hafize:scheduled-preview-activity', onActivity);
     observer = null;
     events = [];
     mounted = false;
