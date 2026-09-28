@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('public/typed/app-shell.ts','utf8');
+assert.match(source,/Yeniden üret/);
+assert.match(source,/Önceki yanıtı getir/);
+assert.match(source,/navigator\.clipboard/);
+assert.match(source,/canRegenerateResponse/);
+assert.match(source,/createGenerationSnapshot/);
+assert.doesNotMatch(source,/window\.location\.reload/);
+console.log('response regeneration source contract ok');

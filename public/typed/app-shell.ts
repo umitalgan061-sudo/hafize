@@ -1,4 +1,15 @@
 // @ts-nocheck
+import {
+  MAX_RESPONSE_ALTERNATES,
+  canRegenerateResponse,
+  createGenerationSnapshot,
+  normalizeResponseAlternates,
+  rememberResponseAlternate,
+  restoreLatestResponseAlternate
+} from './response-variants.ts';
+import { openResponseVariantDialog } from './response-variants-ui.ts';
+import { openRegenerationOptions } from './response-regeneration-options-ui.ts';
+import { buildRegenerationMessages } from './response-regeneration-options.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -7,6 +18,15 @@ interface ChatMessage {
   content: string;
   at: string;
   toolActivities?: ToolActivity[];
+  alternates?: string[];
+  feedback?: 'positive' | 'negative';
+  generation?: {
+    model: string;
+    agentId: string;
+    toolsEnabled: boolean;
+    generatedAt: string;
+    durationMs: number | null;
+  };
 }
 interface AgentInfo { id: string; name: string; description?: string; kind?: string; }
 interface Conversation {
@@ -101,11 +121,27 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if ((source.role !== 'user' && source.role !== 'assistant') || typeof source.content !== 'string') return null;
     const content = source.content.slice(0, MAX_MESSAGE_LENGTH);
     if (!content) return null;
+    const alternates = normalizeResponseAlternates(source.alternates);
+    const feedback = source.feedback === 'positive' || source.feedback === 'negative' ? source.feedback : undefined;
+    const generation = source.generation && typeof source.generation === 'object'
+      ? {
+        model: typeof source.generation.model === 'string' ? source.generation.model.slice(0, 160) : '',
+        agentId: typeof source.generation.agentId === 'string' ? source.generation.agentId.slice(0, 120) : '',
+        toolsEnabled: source.generation.toolsEnabled === true,
+        generatedAt: typeof source.generation.generatedAt === 'string' ? source.generation.generatedAt.slice(0, 40) : '',
+        durationMs: Number.isFinite(source.generation.durationMs) && source.generation.durationMs >= 0
+          ? Math.min(600_000, Math.floor(source.generation.durationMs))
+          : null
+      }
+      : undefined;
     return {
       id: typeof source.id === 'string' && source.id ? source.id.slice(0, 120) : uid(),
       role: source.role,
       content,
       at: typeof source.at === 'string' ? source.at.slice(0, 40) : new Date().toISOString(),
+      ...(alternates.length ? { alternates } : {}),
+      ...(feedback ? { feedback } : {}),
+      ...(generation ? { generation } : {}),
       ...(Array.isArray(source.toolActivities) ? {
         toolActivities: source.toolActivities
           .filter((item) => item && typeof item === 'object' && typeof item.label === 'string')
@@ -468,6 +504,108 @@ interface JsonPayload { readonly [key: string]: unknown; }
         article.append(activities);
       }
       article.append(content);
+      if (message.role === 'assistant') {
+        const actions = document.createElement('div');
+        actions.className = 'assistant-message-actions';
+        actions.setAttribute('aria-label', 'Yanıt işlemleri');
+        const regenerate = document.createElement('button');
+        regenerate.type = 'button';
+        regenerate.className = 'message-action';
+        regenerate.textContent = 'Yeniden üret';
+        regenerate.setAttribute('aria-label', 'Bu asistan yanıtını yeniden üret');
+        regenerate.disabled = isStreaming || message.id !== messages.at(-1)?.id;
+        regenerate.title = message.id === messages.at(-1)?.id ? 'Bu yanıt için yeni bir varyant üret' : 'Yalnızca son yanıt yeniden üretilebilir';
+        regenerate.addEventListener('click', () => regenerateAssistantMessage(message.id));
+        actions.append(regenerate);
+        const options = document.createElement('button');
+        options.type = 'button';
+        options.className = 'message-action';
+        options.textContent = 'Yönergeyle yeniden üret';
+        options.setAttribute('aria-label', 'Özel yönergeyle bu asistan yanıtını yeniden üret');
+        options.disabled = isStreaming || message.id !== messages.at(-1)?.id;
+        options.title = options.disabled ? 'Yalnızca son yanıt için kullanılabilir' : 'Yeni yanıtın yönünü seç';
+        options.addEventListener('click', () => {
+          openRegenerationOptions({
+            trigger: options,
+            onSelect: (instruction) => { void regenerateAssistantMessage(message.id, instruction); }
+          });
+        });
+        actions.append(options);
+        const positive = document.createElement('button');
+        positive.type = 'button';
+        positive.className = 'message-action' + (message.feedback === 'positive' ? ' selected' : '');
+        positive.textContent = '👍';
+        positive.setAttribute('aria-label', 'Yanıtı beğenildi olarak işaretle');
+        positive.setAttribute('aria-pressed', String(message.feedback === 'positive'));
+        positive.disabled = isStreaming;
+        positive.addEventListener('click', () => setAssistantFeedback(message.id, message.feedback === 'positive' ? undefined : 'positive'));
+        const negative = document.createElement('button');
+        negative.type = 'button';
+        negative.className = 'message-action' + (message.feedback === 'negative' ? ' selected' : '');
+        negative.textContent = '👎';
+        negative.setAttribute('aria-label', 'Yanıtı beğenilmedi olarak işaretle');
+        negative.setAttribute('aria-pressed', String(message.feedback === 'negative'));
+        negative.disabled = isStreaming;
+        negative.addEventListener('click', () => setAssistantFeedback(message.id, message.feedback === 'negative' ? undefined : 'negative'));
+        actions.append(positive, negative);
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'message-action';
+        copy.textContent = 'Kopyala';
+        copy.setAttribute('aria-label', 'Asistan yanıtını panoya kopyala');
+        copy.disabled = !message.content || isStreaming;
+        copy.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard?.writeText?.(message.content || '');
+            showToast('Asistan yanıtı panoya kopyalandı.');
+          } catch {
+            showToast('Yanıt panoya kopyalanamadı.');
+          }
+        });
+        actions.append(copy);
+        if (message.alternates?.length) {
+          const variants = document.createElement('button');
+          variants.type = 'button';
+          variants.className = 'message-action';
+          variants.textContent = 'Varyantlar';
+          variants.setAttribute('aria-label', 'Yanıt varyantlarını görüntüle');
+          variants.disabled = isStreaming;
+          variants.addEventListener('click', () => {
+            openResponseVariantDialog({
+              current: message.content,
+              alternates: message.alternates,
+              trigger: variants,
+              onSelect: (current, alternates) => {
+                message.content = current;
+                message.alternates = alternates;
+                saveConversations();
+                render();
+                showToast('Seçilen yanıt mevcut cevap yapıldı.');
+              }
+            });
+          });
+          actions.append(variants);
+          const restore = document.createElement('button');
+          restore.type = 'button';
+          restore.className = 'message-action';
+          restore.textContent = 'Önceki yanıtı getir (' + message.alternates.length + ')';
+          restore.setAttribute('aria-label', 'Önceki asistan yanıtını geri getir');
+          restore.disabled = isStreaming;
+          restore.addEventListener('click', () => restorePreviousAssistantMessage(message.id));
+          actions.append(restore);
+        }
+        const generation = message.generation;
+        if (generation?.model || generation?.agentId) {
+          const context = document.createElement('span');
+          context.className = 'assistant-message-generation';
+          const modelLabel = generation.model || 'Model bilinmiyor';
+          const agentLabel = generation.agentId || 'Ajan bilinmiyor';
+          context.textContent = modelLabel + ' · ' + agentLabel + (generation.toolsEnabled ? ' · araçlar' : '');
+          context.title = generation.durationMs === null ? 'Üretim bağlamı' : 'Üretim süresi: ' + generation.durationMs + ' ms';
+          actions.append(context);
+        }
+        article.append(actions);
+      }
       ui.messages.append(article);
     }
 
@@ -643,6 +781,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const agentId = getConversationAgentId(conversation);
     if (!agentId) throw new Error('AGENT_REQUIRED');
     const requestMessages = getRequestMessages(conversation);
+    const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
     const response = await fetch('/api/chat', {
@@ -651,6 +790,17 @@ interface JsonPayload { readonly [key: string]: unknown; }
       body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
     });
     await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    const generated = conversation.messages.find((entry) => entry.id === assistantId);
+    if (generated) {
+      generated.generation = {
+        model,
+        agentId,
+        toolsEnabled: false,
+        generatedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+      };
+      saveConversations();
+    }
   }
 
   async function runAssistantWithTools() {
@@ -661,6 +811,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const agentId = getConversationAgentId(conversation);
     if (!agentId) throw new Error('AGENT_REQUIRED');
     const requestMessages = getRequestMessages(conversation);
+    const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
     const response = await fetch('/api/agent/run', {
@@ -673,8 +824,123 @@ interface JsonPayload { readonly [key: string]: unknown; }
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
     );
+    const generated = conversation.messages.find((entry) => entry.id === assistantId);
+    if (generated) {
+      generated.generation = {
+        model,
+        agentId,
+        toolsEnabled: true,
+        generatedAt: new Date().toISOString(),
+        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+      };
+      saveConversations();
+    }
   }
 
+  function setAssistantFeedback(messageId, feedback) {
+    if (isStreaming) return;
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((candidate) => candidate.id === messageId && candidate.role === 'assistant');
+    if (!message) return;
+    if (feedback === 'positive' || feedback === 'negative') message.feedback = feedback;
+    else delete message.feedback;
+    saveConversations();
+    render();
+    showToast(feedback === 'positive' ? 'Yanıt beğenildi.' : feedback === 'negative' ? 'Yanıt beğenilmedi.' : 'Yanıt geri bildirim etiketi kaldırıldı.');
+  }
+
+  function setGenerationUi(disabled) {
+    ui.messageInput.disabled = disabled;
+    ui.agentSelect.disabled = disabled;
+    ui.toolModeBtn.disabled = disabled;
+    if (!disabled) {
+      syncAgentSelect();
+      syncToolMode();
+    }
+  }
+
+  async function regenerateAssistantMessage(messageId, instruction = '') {
+    if (isStreaming) return;
+    if (!networkOnline) return showToast('İnternet bağlantısı yok; yanıt yeniden üretilemez.');
+    const conversation = getActiveConversation();
+    if (!conversation) return;
+    const index = conversation.messages.findIndex((message) => message.id === messageId && message.role === 'assistant');
+    if (index < 0) return showToast('Yeniden üretilecek asistan yanıtı bulunamadı.');
+    if (!canRegenerateResponse(conversation.messages, index)) return showToast('Yalnızca konuşmadaki son asistan yanıtı yeniden üretilebilir.');
+    const model = ui.modelSelect.value;
+    if (!model) return showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
+    const agentId = getConversationAgentId(conversation);
+    if (!agentId) return showToast('Önce Hafize ajan listesinin hazır olması gerekiyor.');
+
+    const message = conversation.messages[index];
+    const previousContent = message.content;
+    const requestMessages = buildRegenerationMessages(
+      conversation.messages.slice(0, index),
+      instruction
+    );
+    const startedAt = performance.now();
+    message.content = '';
+    message.toolActivities = [];
+    isStreaming = true;
+    setGenerationUi(true);
+    render();
+
+    try {
+      const endpoint = conversation.toolsEnabled ? '/api/agent/run' : '/api/chat';
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
+      });
+      await consumeAssistantStream(
+        response,
+        message.id,
+        conversation.toolsEnabled
+          ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
+          : 'NVIDIA modeli boş bir yanıt döndürdü.'
+      );
+      message.alternates = rememberResponseAlternate(message.alternates, previousContent);
+      message.generation = createGenerationSnapshot(
+        model,
+        agentId,
+        conversation.toolsEnabled,
+        performance.now() - startedAt
+      );
+      saveConversations();
+      render();
+      showToast('Yeni asistan yanıtı üretildi. Önceki yanıt geri alınabilir.');
+    } catch (error) {
+      message.content = previousContent;
+      message.toolActivities = [];
+      saveConversations();
+      render();
+      showToast('Yanıt yeniden üretilemedi: ' + (error?.message || 'bilinmeyen hata'));
+    } finally {
+      isStreaming = false;
+      setGenerationUi(false);
+      ui.messageInput.focus();
+    }
+  }
+
+  function restorePreviousAssistantMessage(messageId) {
+    if (isStreaming) return;
+    const conversation = getActiveConversation();
+    const message = conversation?.messages.find((candidate) => candidate.id === messageId && candidate.role === 'assistant');
+    if (!message || !Array.isArray(message.alternates) || !message.alternates.length) return;
+    const rotated = restoreLatestResponseAlternate(message.content, message.alternates);
+    if (!rotated) return;
+    message.content = rotated.current;
+    message.alternates = rotated.alternates;
+    message.generation = createGenerationSnapshot(
+      message.generation?.model || '',
+      message.generation?.agentId || '',
+      message.generation?.toolsEnabled === true,
+      message.generation?.durationMs ?? null
+    );
+    saveConversations();
+    render();
+    showToast('Önceki asistan yanıtı geri getirildi.');
+  }
   async function submitMessage(text) {
     const clean = text.trim();
     if (!clean || isStreaming) return;
@@ -696,9 +962,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;
-    ui.messageInput.disabled = true;
-    ui.agentSelect.disabled = true;
-    ui.toolModeBtn.disabled = true;
+    setGenerationUi(true);
 
     try {
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
@@ -717,9 +981,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       else addMessage('assistant', message);
     } finally {
       isStreaming = false;
-      ui.messageInput.disabled = false;
-      syncAgentSelect();
-      syncToolMode();
+      setGenerationUi(false);
       ui.messageInput.focus();
     }
   }
@@ -823,4 +1085,4 @@ interface JsonPayload { readonly [key: string]: unknown; }
 })();
 
 
-export { normalizeConversation, normalizeMessage, fetchJson };
+export { normalizeConversation, normalizeMessage, fetchJson, MAX_RESPONSE_ALTERNATES };

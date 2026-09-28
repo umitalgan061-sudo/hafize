@@ -190,6 +190,25 @@ Hafize'nin üretim runtime'ı TypeScript tabanına geçirilirken browser tarafı
 
 Toolchain TypeScript 7.0.2, Vite 8.3.0 ve Vitest 5.0.1 ile pinlenmiştir. Node.js 24.21+ LTS üretim tabanıdır. Legacy `.js` dosyaları yalnızca geriye dönük uyumluluk köprüsü olarak kalır ve yeni uygulama mantığı içermez. Migration sözleşmeleri `scripts/test-typescript-ui-wave.mjs`, `scripts/test-typescript-entrypoints-release.mjs` ve `scripts/test-legacy-entry-contract.mjs` ile korunur.
 
+
+## Asistan yanıtı kontrolü
+
+Sohbet içindeki son Hafize yanıtı için Yeniden üret, Kopyala ve yerel geri bildirim eylemleri bulunur.
+
+- Yeniden üret yalnız konuşmanın son assistant yanıtında etkinleşir ve aynı kullanıcı/ajan/model bağlamını kullanır.
+- Yönergeyle yeniden üret, Daha kısa / Daha detaylı / Daha resmi / Madde madde preset'leri veya en fazla 600 karakterlik özel yönerge kullanabilir.
+- Başarılı yeni yanıt, önceki yanıtı en fazla 3 alternatiften oluşan yerel geçmişte saklar.
+- Varyantlar paneli önceki cevapları incelemeye ve herhangi birini mevcut cevap yapmaya izin verir.
+- Önceki yanıtı getir son saklanan alternatifi geri alır; eski içerik kaybolmaz.
+- 👍 / 👎 işaretleri yalnız cihazdaki conversation kaydına yazılır; telemetry gönderilmez.
+- Yanıt altında model, ajan, araç modu ve üretim süresi gibi güvenli metadata gösterilebilir.
+- Regeneration başarısız olursa mevcut yanıt geri yüklenir.
+- Hiçbir yanıt eylemi composer formunu otomatik göndermez.
+- Alternatif geçmişi API requestMessages içine dahil edilmez.
+- Service worker response içeriğini cache'lemez.
+
+Ayrıntılar docs/CHAT_RESPONSE_REGENERATION*.md dosyalarındadır.
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.
