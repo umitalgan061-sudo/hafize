@@ -137,6 +137,8 @@ export function nextOccurrences(runAt, recurrence, { now=runAt, limit=10 } = {})
   return result;
 }
 
+const HISTORY_STATUSES = new Set(['completed','failed','running','cancelled']);
+
 export function recordOccurrence(history, occurrence){
   const current=Array.isArray(history)?history.slice():[];
   const allowed=new Set(['scheduleId','status','attempts','maxAttempts','runAt','finishedAt','lastError']);
@@ -144,7 +146,7 @@ export function recordOccurrence(history, occurrence){
   if(occurrence && typeof occurrence==='object'){
     for(const key of Object.keys(occurrence)) if(allowed.has(key)) safe[key]=occurrence[key];
   }
-  safe.status=typeof safe.status==='string'?safe.status:'completed';
+  safe.status=typeof safe.status==='string'&&HISTORY_STATUSES.has(safe.status)?safe.status:'completed';
   safe.attempts=clampInt(safe.attempts,0,9999,0);
   safe.maxAttempts=clampInt(safe.maxAttempts,1,5,1);
   safe.runAt=isoDate(safe.runAt??new Date(),'historyRunAt').toISOString();
