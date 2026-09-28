@@ -165,13 +165,17 @@
         const parsed=JSON.parse(String(reader.result||'')); const raw=Array.isArray(parsed)?parsed:parsed?.items;
         if(!Array.isArray(raw)) throw new Error('INVALID_PRESETS');
         const incoming=raw.map(normalize).filter(Boolean);
+        const existing=read(); const existingKeys=new Set(existing.map(item=>item.title.toLocaleLowerCase('tr-TR')));
+        const newCount=incoming.filter(item=>!existingKeys.has(item.title.toLocaleLowerCase('tr-TR'))).length;
+        const capacity=Math.max(0,MAX_PRESETS-existing.length); const accepted=Math.min(newCount,capacity);
+        if(!root.confirm?.(incoming.length+' preset bulundu. '+accepted+' yeni preset eklenecek; mevcut presetler korunacak.')) return status('Preset içe aktarma iptal edildi.');
         const merged=[];const seen=new Set();
-        for(const item of [...incoming,...read()]){
+        for(const item of [...incoming,...existing]){
           const key=item.title.toLocaleLowerCase('tr-TR');
           if(seen.has(key)) continue;seen.add(key);merged.push(item);if(merged.length>=MAX_PRESETS)break;
         }
         if(!write(merged)) throw new Error('WRITE_FAILED');
-        refresh(panel);status(incoming.length+' preset değerlendirildi; mevcutlar korunarak birleştirildi.');
+        refresh(panel);status(incoming.length+' preset değerlendirildi; '+accepted+' yeni kayıt eklendi.');
       }catch{status('Geçersiz preset yedeği.');}
     };
     reader.onerror=()=>status('Preset dosyası okunamadı.');
