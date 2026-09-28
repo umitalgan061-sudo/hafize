@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const source=await readFile(new URL('../public/scheduled-tasks-enhancements.js',import.meta.url),'utf8');
+assert.match(source,/data-schedule-select/);
+assert.match(source,/data-bulk-action/);
+assert.match(source,/method:'PATCH'/);
+assert.match(source,/method:'DELETE'/);
+assert.match(source,/credentials:'same-origin'/);
+assert.match(source,/root\.confirm/);
+assert.match(source,/ScheduledTasksWorkspace.*refresh/);
+console.log('bulk task action contract: ok');
