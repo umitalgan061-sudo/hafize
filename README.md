@@ -129,6 +129,11 @@ Planlanmış, tamamlanmış, başarısız veya iptal edilmiş görevlerde Tekrar
 
 ## Görev Taslakları ve Başlangıç Seti
 
+## Görev Özeti ve Hızlı Eylemler
+
+Görev panelinde toplam, yaklaşan, çalışan ve başarısız görevlerin yerel özeti ile en yakın üç planlı görev gösterilir. Satırlardan görev metni veya Trace ID açık kullanıcı eylemiyle panoya kopyalanabilir. Bu yardımcılar yeni HTTP isteği oluşturmaz.
+
+
 Görev formunda açık kullanıcı eylemiyle yerel taslak kaydedilip geri yüklenebilir. Taslak 24 saat sonra geçersiz olur ve çalıştırma zamanı bilinçli olarak saklanmaz. Ctrl / ⌘ + Alt + S kısayolu yalnız form dışındayken çalışır. Ayrıca seçili ajanla kullanılabilen altı başlangıç görev şablonu vardır; bu seçenekler otomatik kayıt oluşturmaz.
 
 Şablonlar 200 KB sınırıyla JSON olarak yedeklenebilir ve geri yüklenebilir. Tüm bu yardımcılar doğrudan schedule API çağrısı yapmaz; gerçek planlama Preview onayı üzerinden mevcut workspace'e bırakılır.
