@@ -13,6 +13,7 @@
   let lastSubmit = null;
   let previousFocus = null;
   let destroyed = false;
+  let countdownTimer = 0;
   const cleanups = [];
 
   const doc = function () { return root.document; };
@@ -67,6 +68,41 @@
     return errors;
   }
 
+  function payloadFor(data) {
+    return { agentId: data.agentId, task: data.task, runAt: new Date(data.localWhen).toISOString(), maxAttempts: data.attempts };
+  }
+
+  function countdownText(value) {
+    const target = Date.parse(value || '');
+    if (!Number.isFinite(target)) return 'Zaman hesaplanamadı';
+    const left = Math.max(0, target - Date.now());
+    const total = Math.floor(left / 1000);
+    const days = Math.floor(total / 86400);
+    const hours = Math.floor((total % 86400) / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const seconds = total % 60;
+    if (days) return 'T-' + days + ' gün ' + hours + ' saat';
+    if (hours) return 'T-' + hours + ' saat ' + minutes + ' dk';
+    if (minutes) return 'T-' + minutes + ' dk ' + seconds + ' sn';
+    return 'T-' + seconds + ' sn';
+  }
+
+  function updateCountdown(value) {
+    const node = dialog && dialog.querySelector('.scheduled-task-preview-countdown');
+    if (node) node.textContent = countdownText(value);
+  }
+
+  function startCountdown(value) {
+    clearInterval(countdownTimer);
+    updateCountdown(value);
+    countdownTimer = root.setInterval ? root.setInterval(function () { updateCountdown(value); }, 1000) : 0;
+  }
+
+  function stopCountdown() {
+    clearInterval(countdownTimer);
+    countdownTimer = 0;
+  }
+
   function report(message, tone) {
     const status = dialog && dialog.querySelector('.scheduled-task-preview-status');
     if (!status) return;
@@ -93,6 +129,7 @@
   function closePreview() {
     if (!dialog) return;
     dialog.hidden = true;
+    stopCountdown();
     const focusTarget = previousFocus;
     previousFocus = null;
     lastSubmit = null;
@@ -139,6 +176,8 @@
       const node = dialog && dialog.querySelector('[data-preview-field="' + key + '"]');
       if (node) node.textContent = values[key];
     });
+    const payloadNode = dialog && dialog.querySelector('.scheduled-task-preview-payload');
+    if (payloadNode) payloadNode.textContent = JSON.stringify(payloadFor(data), null, 2);
     const errors = validate(data);
     const confirm = dialog && dialog.querySelector('[data-preview-action="confirm"]');
     if (confirm) confirm.disabled = errors.length > 0;
@@ -173,7 +212,12 @@
     [['Ajan', 'agent'], ['Çalıştırma', 'when'], ['Maksimum deneme', 'attempts']].forEach(function (entry) {
       meta.append(make('dt', entry[0]), make('dd', '', 'scheduled-task-preview-' + entry[1]));
     });
-    summary.append(taskBox, meta);
+    const countdown = make('div', '', 'scheduled-task-preview-countdown');
+    countdown.setAttribute('aria-live', 'polite');
+    const payload = make('pre', '', 'scheduled-task-preview-payload');
+    payload.hidden = true;
+    const copyPayload = button('Güvenli özeti kopyala', 'copy', 'mini-btn');
+    summary.append(taskBox, meta, countdown, payload, copyPayload);
 
     const status = make('div', '', 'scheduled-task-preview-status');
     status.setAttribute('role', 'status');
@@ -187,12 +231,20 @@
     dialog.append(shell);
     doc().body.append(dialog);
 
-    dialog.addEventListener('click', function (event) {
+    dialog.addEventListener('click', async function (event) {
       const target = event.target && event.target.closest ? event.target.closest('[data-preview-action]') : null;
       const action = target && target.dataset.previewAction;
       if (action === 'close' || action === 'back') closePreview();
       else if (action === 'confirm') confirmPreview();
-      else if (event.target === dialog) closePreview();
+      else if (action === 'copy') {
+        const payloadNode = dialog.querySelector('.scheduled-task-preview-payload');
+        try {
+          await root.navigator?.clipboard?.writeText?.(payloadNode?.textContent || '');
+          report('Güvenli görev özeti panoya kopyalandı.', 'info');
+        } catch {
+          report('Özet panoya kopyalanamadı.', 'error');
+        }
+      } else if (event.target === dialog) closePreview();
     });
 
     dialog.addEventListener('keydown', function (event) {
@@ -221,6 +273,7 @@
     ensureDialog();
     render(data);
     dialog.hidden = false;
+    startCountdown(data.localWhen);
     const errors = validate(data);
     report(errors.length ? errors[0] : 'Onaydan önce görev özetini kontrol et.', errors.length ? 'error' : 'info');
     const confirm = dialog.querySelector('[data-preview-action="confirm"]');
@@ -258,6 +311,7 @@
     destroyed = true;
     observer && observer.disconnect();
     observer = null;
+    stopCountdown();
     closePreview();
     cleanups.splice(0).forEach(function (cleanup) { cleanup(); });
     mountedForm = null;
