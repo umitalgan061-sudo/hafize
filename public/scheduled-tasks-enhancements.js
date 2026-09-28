@@ -111,7 +111,7 @@
     const cancel=make('button','İptal et','mini-btn'); cancel.type='button'; cancel.dataset.bulkAction='cancel';
     const clear=make('button','Seçimi temizle','mini-btn'); clear.type='button'; clear.dataset.bulkAction='clear';
     bar.append(label,pause,resume,cancel,clear);
-    list.prepend(bar);
+    panel.querySelector('.scheduled-tasks-list')?.prepend(bar);
     bar.addEventListener('click',event=>runBulk(panel,event));
   }
 
@@ -144,10 +144,9 @@
     if (!root.document) return;
     const observer = new MutationObserver(() => {
       const panel = root.document.getElementById(PANEL_ID);
-      if (!panel || panel.dataset.enhanced === 'true') return;
-      panel.dataset.enhanced = 'true';
+      if (!panel) return;
+      if (panel.dataset.enhanced !== 'true') { panel.dataset.enhanced = 'true'; panel.addEventListener('click', onTemplate); }
       enhance(panel);
-      panel.addEventListener('click', onTemplate);
     });
     observer.observe(root.document.documentElement, { childList: true, subtree: true });
     root.addEventListener('beforeunload', () => observer.disconnect(), { once: true });
