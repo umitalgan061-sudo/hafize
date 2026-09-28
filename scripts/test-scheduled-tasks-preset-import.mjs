@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const source=await readFile(new URL('../public/scheduled-tasks-presets.js',import.meta.url),'utf8');
+assert.match(source,/incoming\.length/);
+assert.match(source,/existingKeys/);
+assert.match(source,/const accepted/);
+assert.match(source,/root\.confirm/);
+assert.match(source,/Preset içe aktarma iptal edildi/);
+assert.match(source,/if\(!write\(merged\)\)/);
+console.log('preset import confirmation contract: ok');
