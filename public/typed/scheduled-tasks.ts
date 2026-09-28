@@ -173,7 +173,7 @@
       submit.disabled = true;
       try {
         await request(API_PATH, { method: 'POST', body: JSON.stringify({ agentId: agent.value, task: taskText, runAt, maxAttempts: Number(attempts.value), ...(recurrencePayload?{recurrence:recurrencePayload}:{}) }) });
-        task.value = ''; when.value = localDateTimeValue(); recurrence.value='once'; interval.value='1'; dayPicker.querySelectorAll('input').forEach((node)=>{node.checked=false;}); syncRecurrenceControls(); status('Görev planlandı.', 'success'); await refresh();
+        task.value = ''; when.value = localDateTimeValue(); recurrence.value='once'; interval.value='1'; root.dispatchEvent?.(new CustomEvent('hafize:scheduled-task-created')); dayPicker.querySelectorAll('input').forEach((node)=>{node.checked=false;}); syncRecurrenceControls(); status('Görev planlandı.', 'success'); await refresh();
       } catch (error) {
         status(error.status === 401 ? 'Oturum açılması gerekiyor.' : error.message === 'SCHEDULE_CAPACITY_REACHED' ? 'Görev kapasitesi dolu.' : 'Görev planlanamadı.', 'error');
       } finally { submit.disabled = false; }
