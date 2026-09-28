@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const boundary=await readFile(new URL('../lib/schedule-command-boundary.ts',import.meta.url),'utf8');
+const store=await readFile(new URL('../lib/task-schedule-store.mjs',import.meta.url),'utf8');
+const preset=await readFile(new URL('../public/scheduled-tasks-presets.js',import.meta.url),'utf8');
+assert.match(boundary,/containsPlaintextCredential/);
+assert.match(boundary,/CREATE_FIELDS/);
+assert.match(boundary,/normalizeRecurrence/);
+assert.match(store,/recordOccurrence/);
+assert.match(store,/history/);
+assert.match(preset,/MAX_PRESETS=40/);
+assert.match(preset,/MAX_JSON=256000/);
+assert.match(preset,/readFile|FileReader/);
+assert.doesNotMatch(preset,/fetch\(/);
+assert.doesNotMatch(preset,/XMLHttpRequest/);
+assert.doesNotMatch(preset,/WebSocket/);
+assert.doesNotMatch(preset,/innerHTML/);
+console.log('scheduled recurrence security contract: ok');
