@@ -187,7 +187,7 @@
 
   function row(entry) {
     const item = make('article', undefined, 'scheduled-task-row');
-    item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status; item.dataset.runAt = clamp(entry.runAt, 40);
+    item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status; item.dataset.runAt = clamp(entry.runAt, 40); item.dataset.createdAt = clamp(entry.createdAt, 40); item.dataset.recurrenceFrequency = entry.recurrence?.frequency || '';
     item.setAttribute('role','listitem');
     const head = make('div', undefined, 'scheduled-task-row-head');
     const title = make('strong', clamp(entry.task, 120));
@@ -196,12 +196,14 @@
     const detail = make('p', entry.lastError ? `Son hata: ${clamp(entry.lastError, 120)}` : entry.status === 'completed' ? 'Başarıyla tamamlandı.' : entry.recurrence ? `Tekrar: ${entry.recurrence.frequency} · ${entry.recurrence.interval} aralık · ${entry.occurrenceCount || 0} tamamlanan tur` : '');
     const actions = make('div', undefined, 'scheduled-task-actions');
     if(entry.recurrence && entry.status==='scheduled') actions.append(button('Duraklat','pause','mini-btn')); if(entry.recurrence && entry.status==='paused') actions.append(button('Sürdür','resume','mini-btn')); if (entry.status === 'scheduled' || entry.status === 'paused') actions.append(button('İptal et','cancel','mini-btn'));
+    actions.append(button('Görevi doldur','clone','mini-btn'));
+    actions.append(button('Metni kopyala','copy-task','mini-btn'));
     if(entry.recurrence && Array.isArray(entry.history) && entry.history.length) actions.append(button('Geçmişi göster','history','mini-btn'));
     const trace = button('Trace ID','trace','mini-btn'); trace.title = clamp(entry.traceId, 128); trace.setAttribute('aria-label', `Trace ID: ${clamp(entry.traceId, 40)}`); actions.append(trace);
     item.append(head, meta, detail, actions);
     if(entry.recurrence && Array.isArray(entry.history) && entry.history.length){
       const history=make('div',undefined,'scheduled-task-history'); history.hidden=true; history.setAttribute('aria-label','Görev çalışma geçmişi');
-      entry.history.slice(0,8).forEach((run,index)=>{const line=make('div',undefined,'scheduled-task-history-row'); line.append(make('span',`${index+1}. ${formattedDate(run.finishedAt)}`),make('strong',run.status==='completed'?'Tamamlandı':'Başarısız'),make('span',`${run.attempts}/${run.maxAttempts} deneme`)); if(run.lastError) line.append(make('small',clamp(run.lastError,80))); history.append(line);});
+      entry.history.slice(0,8).forEach((run,index)=>{const line=make('div',undefined,'scheduled-task-history-row'); const label=run.status==='completed'?'Tamamlandı':run.status==='failed'?'Başarısız':run.status==='running'?'Çalışıyor':'İptal edildi'; line.append(make('span',`${index+1}. ${formattedDate(run.finishedAt)}`),make('strong',label),make('span',`${run.attempts}/${run.maxAttempts} deneme`)); if(run.lastError) line.append(make('small',clamp(run.lastError,80))); history.append(line);});
       item.append(history);
     }
     return item;
@@ -220,6 +222,7 @@
     try {
       const payload = await request(API_PATH);
       const entries = Array.isArray(payload.schedules) ? payload.schedules.slice(0, MAX_LIST) : [];
+      panel._entries = entries;
       entries.sort((a,b) => String(a.runAt).localeCompare(String(b.runAt)) || String(a.scheduleId).localeCompare(String(b.scheduleId)));
       list.replaceChildren();
       if (!entries.length) list.append(make('div','Henüz planlanmış görev yok.','scheduled-tasks-empty'));
@@ -245,6 +248,20 @@
     catch (error) { status(error.message === 'SCHEDULE_NOT_CANCELLABLE' ? 'Görev artık iptal edilemez.' : 'Görev iptal edilemedi.','error'); await refresh(); }
   }
 
+  function fillFromExisting(entry){
+    const currentPanel=panel; if(!currentPanel||!entry)return;
+    const task=currentPanel.querySelector('.scheduled-tasks-create textarea'); const agent=currentPanel.querySelector('#scheduledTaskAgent'); const attempts=currentPanel.querySelector('.scheduled-tasks-create select[aria-label="Maksimum deneme sayısı"]');
+    const recurrence=currentPanel.querySelector('#scheduledTaskRecurrence'); const interval=currentPanel.querySelector('.scheduled-tasks-create input[aria-label="Tekrar aralığı"]'); const monthDay=currentPanel.querySelector('.scheduled-tasks-create input[aria-label="Ayın çalışma günü"]');
+    if(task)task.value=clamp(entry.task,MAX_TASK); if(agent)agent.value=entry.agentId||''; if(attempts)attempts.value=String(Math.min(MAX_ATTEMPTS,Math.max(1,Number(entry.maxAttempts)||1)));
+    if(recurrence){recurrence.value=entry.recurrence?.frequency||'once';recurrence.dispatchEvent(new Event('change',{bubbles:true}));}
+    if(interval)interval.value=String(entry.recurrence?.interval||1); if(monthDay&&entry.recurrence?.frequency==='monthly')monthDay.value=String(entry.recurrence.dayOfMonth||1);
+    currentPanel.querySelectorAll('input[data-recurrence-day]').forEach((node)=>{node.checked=entry.recurrence?.frequency==='weekly'&&(entry.recurrence.daysOfWeek||[]).includes(Number(node.value));});
+    task?.focus?.(); status('Görev ayarları yeni plan için forma dolduruldu.','info');
+  }
+
+  async function copyTask(entry){
+    try{await root.navigator?.clipboard?.writeText?.(String(entry.task||'').slice(0,MAX_TASK));status('Görev metni panoya kopyalandı.','info');}catch{status('Görev metni panoya kopyalanamadı.','error');}
+  }
   function onClick(event) {
     const target = event.target?.closest?.('[data-task-action]'); if (!target) return;
     const action = target.dataset.taskAction;
@@ -252,6 +269,10 @@
     if (action === 'refresh') return refresh();
     if (action === 'cancel') return cancelTask(target.closest('.scheduled-task-row')?.dataset.scheduleId); if(action==='pause' || action==='resume') return setRecurrenceState(target.closest('.scheduled-task-row')?.dataset.scheduleId,action);
     if (action === 'trace') return status(`Trace ID: ${target.title}`,'info');
+    if(action==='clone' || action==='copy-task'){
+      const id=target.closest('.scheduled-task-row')?.dataset.scheduleId; const current=(panel?._entries||[]).find((entry)=>entry.scheduleId===id);
+      if(current && action==='clone') fillFromExisting(current); else if(current) void copyTask(current); return;
+    }
     if(action==='history'){const history=target.closest('.scheduled-task-row')?.querySelector('.scheduled-task-history'); if(history){history.hidden=!history.hidden; target.textContent=history.hidden?'Geçmişi göster':'Geçmişi gizle';} return;}
   }
 
