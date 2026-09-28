@@ -109,6 +109,18 @@ Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'ların�
 
 Ayrıntılar `docs/CONNECTOR_HUB*.md` dosyalarındadır.
 
+## Zamanlanmış Görev Önizlemesi
+
+“Görevi planla” eylemi artık önce yerel bir önizleme penceresi açar. Ajan, görev metni, çalıştırma zamanı ve maksimum deneme sayısı onaylanana kadar schedule API'ye gönderilmez.
+
+- Önizleme ilk submit olayını capture aşamasında durdurur; mevcut typed workspace POST handler'ı korunur.
+- “Düzenle” form değerlerini değiştirmeden önizlemeyi kapatır.
+- “Onayla ve planla” tek kullanımlık submit bypass ile mevcut API akışını bir kez çalıştırır.
+- `Escape` kapatır, `Tab` odağı dialog içinde tutar, `Ctrl / ⌘ + Enter` onaylar.
+- Preview modülü kendi network isteğini, storage kaydını veya credential erişimini yapmaz.
+
+Ayrıntılar `docs/SCHEDULED_TASK_PREVIEW*.md` dosyalarındadır.
+
 ## Zamanlanmış Görevler
 
 Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated kullanıcıya tek seferlik görev planlama, listeleme ve iptal etme yüzeyi sağlar.
