@@ -4,7 +4,7 @@ import { normalizeRecurrence } from './schedule-recurrence.ts';
 const CREATE_FIELDS=new Set(['agentId','task','runAt','maxAttempts','recurrence']);
 interface Principal{readonly authenticated?:boolean;readonly subject?:unknown;}
 interface Entry{readonly ownerId:string;readonly scheduleId:string;readonly traceId:string;readonly agentId:string;readonly task:string;readonly runAt:unknown;readonly status:string;readonly attempts:number;readonly maxAttempts:number;readonly lastError:unknown;readonly createdAt:string;readonly updatedAt:string;}
-interface Store{readonly add:(input:Record<string,unknown>)=>Promise<Entry>;readonly read:(id:string)=>Promise<Entry|null>;readonly snapshot:()=>Promise<{entries:readonly Entry[]}>;readonly cancel:(id:string)=>Promise<Entry>;}
+interface Store{readonly add:(input:Record<string,unknown>)=>Promise<Entry>;readonly read:(id:string)=>Promise<Entry|null>;readonly snapshot:()=>Promise<{entries:readonly Entry[]}>;readonly cancel:(id:string)=>Promise<Entry>;readonly pause?:(id:string)=>Promise<Entry>;readonly resume?:(id:string)=>Promise<Entry>;}
 const subject=(principal:Principal|undefined)=>{if(principal?.authenticated!==true)return null;const value=typeof principal.subject==='string'?principal.subject.trim():'';return value&&value.length<=200?value:null;};
 const fail=(error:string)=>({ok:false as const,error});
 const publicEntry=(entry:Entry)=>{const{ownerId:_owner,...value}=entry;return value;};
@@ -34,5 +34,8 @@ export function createScheduleCommandBoundary(args:{readonly store:Store;readonl
     if(!current||current.ownerId!==ownerId)return fail('SCHEDULE_NOT_FOUND');if(current.status!=='scheduled')return fail('SCHEDULE_NOT_CANCELLABLE');
     try{return{ok:true as const,schedule:publicEntry(await store.cancel(id))};}catch{return fail('SCHEDULE_COMMAND_FAILED');}
   }
-  return Object.freeze({create,list,cancel});
+  async function setRecurrenceState(action:'pause'|'resume', input:{readonly principal?:Principal;readonly scheduleId?:unknown}={}){const ownerId=subject(input.principal);if(!ownerId)return fail('AUTH_REQUIRED');const id=typeof input.scheduleId==='string'?input.scheduleId.trim():'';if(!id)return fail('INVALID_SCHEDULE_COMMAND');let current:Entry|null;try{current=await store.read(id);}catch{return fail('SCHEDULE_COMMAND_FAILED');}if(!current||current.ownerId!==ownerId)return fail('SCHEDULE_NOT_FOUND');if(typeof store[action]!=='function')return fail('SCHEDULE_COMMAND_FAILED');try{return{ok:true as const,schedule:publicEntry(await store[action](id))};}catch(error){return fail(storeError(error));}}
+  const pause=(input:{readonly principal?:Principal;readonly scheduleId?:unknown}={})=>setRecurrenceState('pause',input);
+  const resume=(input:{readonly principal?:Principal;readonly scheduleId?:unknown}={})=>setRecurrenceState('resume',input);
+  return Object.freeze({create,list,cancel,pause,resume});
 }
