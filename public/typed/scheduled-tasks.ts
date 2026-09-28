@@ -157,7 +157,7 @@
 
   function row(entry) {
     const item = make('article', undefined, 'scheduled-task-row');
-    item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status; item.dataset.runAt = clamp(entry.runAt, 40);
+    item.dataset.scheduleId = clamp(entry.scheduleId, 120); item.dataset.status = entry.status; item.dataset.runAt = clamp(entry.runAt, 40); item.dataset.agentId = clamp(entry.agentId, 120); item.dataset.maxAttempts = String(Math.max(1, Math.min(MAX_ATTEMPTS, Number(entry.maxAttempts) || 1)));
     item.setAttribute('role','listitem');
     const head = make('div', undefined, 'scheduled-task-row-head');
     const title = make('strong', clamp(entry.task, 120));
