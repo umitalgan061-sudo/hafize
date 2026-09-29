@@ -217,6 +217,7 @@
       baseRest = query.rest;
       render();
       setMenuState(true);
+      rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:composer-slash-menu-opened'));
     }
 
     function choose(index) {
