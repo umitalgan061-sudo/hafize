@@ -92,8 +92,8 @@ describe('conversation fork core', () => {
   });
 
   it('trims unsafe null bytes and enforces fork title bounds', () => {
-    const value = cleanForkText('  abc\\0def  ', 5);
-    expect(value).toBe('abc\\0d'.replace('\\0', ''));
+    const value = cleanForkText('  abc' + String.fromCharCode(0) + 'def  ', 5);
+    expect(value).toBe('abcde');
     const source = conversation('root', [message('m1')]);
     const result = createFork(source, 'm1', [source], {
       title: 'x'.repeat(500),
