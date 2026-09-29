@@ -200,6 +200,14 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 
 Composer alanında `/özet`, `/yaz`, `/düzenle`, `/araştır`, `/kod`, `/plan`, `/toplantı`, `/mail`, `/test`, `/karar`, `/öğret` ve `/fikir` komutları yazarken seçim menüsü açılır. Ok tuşlarıyla gezip Enter ile komutu uygulayabilirsin; Escape menüyü kapatır. Komut yalnızca mesaj alanını dönüştürür, otomatik gönderim yapmaz.
 
+## Composer Slash Komutları
+
+Composer mesaj alanında slash ile hızlı komut seçilebilir. Yerleşik komutlar arasında /özet, /yaz, /düzenle, /araştır, /kod, /plan, /toplantı, /mail, /test, /karar, /öğret ve /fikir bulunur. Türkçe komutların ASCII kısaltmaları da desteklenir.
+
+Özel slash komutları cihazda yerel olarak oluşturulabilir, düzenlenebilir, silinebilir ve JSON ile yedeklenebilir. Şablonlarda {{konu}} kullanıldığında komuttan sonra yazılan metin bu alana yerleşir.
+
+Slash komutları yalnızca mesaj alanını dönüştürür; seçim kullanıcı tarafından Enter ile onaylanır ve otomatik sohbet gönderimi yapmaz.
+
 ## Test
 
 ```bash
