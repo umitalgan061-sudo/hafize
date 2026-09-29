@@ -81,6 +81,28 @@ describe('conversation fork core', () => {
     expect(getConversationDepth(a, [a, b])).toBeGreaterThan(FORK_LIMITS.maxDepth);
   });
 
+  it('accepts a bounded custom branch title', () => {
+    const source = conversation('root', [message('m1')]);
+    const result = createFork(source, 'm1', [source], {
+      title: '  Özel araştırma dalı  ',
+      idFactory: () => 'fork-id',
+      now: () => '2026-09-29T03:00:00Z'
+    });
+    expect(result.conversation.title).toBe('Özel araştırma dalı');
+  });
+
+  it('trims unsafe null bytes and enforces fork title bounds', () => {
+    const value = cleanForkText('  abc\\0def  ', 5);
+    expect(value).toBe('abc\\0d'.replace('\\0', ''));
+    const source = conversation('root', [message('m1')]);
+    const result = createFork(source, 'm1', [source], {
+      title: 'x'.repeat(500),
+      idFactory: () => 'fork-id',
+      now: () => '2026-09-29T03:00:00Z'
+    });
+    expect(result.conversation.title.length).toBeLessThanOrEqual(FORK_LIMITS.maxTitle);
+  });
+
   it('returns updated direct children and lineage root-to-current', () => {
     const root = conversation('root', [message('m1')]);
     const older = conversation('older', [message('m1')], { forkOf: 'root', updatedAt: '2026-09-28T00:00:00Z' });
