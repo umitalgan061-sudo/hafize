@@ -42,6 +42,7 @@ interface Conversation {
   forkOf?: string;
   forkMessageId?: string;
   forkDepth?: number;
+  forkNote?: string;
 }
 interface AppUi {
   sidebar: HTMLElement;
@@ -178,7 +179,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       messages,
       ...(typeof source.forkOf === 'string' && source.forkOf ? { forkOf: source.forkOf.slice(0, 120) } : {}),
       ...(typeof source.forkMessageId === 'string' && source.forkMessageId ? { forkMessageId: source.forkMessageId.slice(0, 120) } : {}),
-      ...(Number.isFinite(source.forkDepth) && source.forkDepth >= 1 ? { forkDepth: Math.min(4, Math.floor(source.forkDepth)) } : {})
+      ...(Number.isFinite(source.forkDepth) && source.forkDepth >= 1 ? { forkDepth: Math.min(4, Math.floor(source.forkDepth)) } : {}),
+      ...(typeof source.forkNote === 'string' && source.forkNote ? { forkNote: source.forkNote.slice(0, 400) } : {})
     };
   }
 
