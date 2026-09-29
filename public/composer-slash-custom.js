@@ -124,6 +124,12 @@
     const close = button(documentRef, 'Kapat');
     header.append(title, close);
 
+    const search = documentRef.createElement('input');
+    search.type = 'search';
+    search.maxLength = MAX_LABEL;
+    search.placeholder = 'Özel komut ara…';
+    search.setAttribute('aria-label', 'Özel komutlarda ara');
+
     const listNode = documentRef.createElement('div');
     listNode.className = 'composer-slash-custom-list';
     listNode.setAttribute('role', 'list');
@@ -149,7 +155,7 @@
     file.accept = 'application/json,.json';
     file.hidden = true;
 
-    panel.append(header, listNode, actionBar, editor, file, status);
+    panel.append(header, search, listNode, actionBar, editor, file, status);
     composer.append(panel);
 
     let editing = null;
@@ -166,7 +172,8 @@
     }
 
     function renderList() {
-      const items = list();
+      const query = clean(search.value, MAX_LABEL).toLocaleLowerCase('tr-TR');
+      const items = list().filter((item) => !query || [item.key, item.label, item.description].join(' ').toLocaleLowerCase('tr-TR').includes(query));
       listNode.replaceChildren();
       if (!items.length) {
         listNode.append(text(documentRef, 'Henüz özel komut yok.', 'composer-slash-custom-empty'));
@@ -209,6 +216,13 @@
       template.value = item?.templateText || '';
       template.setAttribute('aria-label', 'Komut şablonu');
       const hint = text(documentRef, '{{konu}} kullanırsan komuttan sonra yazılan ifade bu değişkene yerleşir.', 'composer-slash-custom-hint');
+      const preview = text(documentRef, '', 'composer-slash-custom-preview');
+      const updatePreview = () => {
+        const sample = template.value.replace(/\\{\\{\\s*konu\\s*\\}\\}/gi, 'örnek konu');
+        preview.textContent = `Önizleme: ${sample.slice(0, 220)}`;
+      };
+      template.addEventListener('input', updatePreview);
+      updatePreview();
       const saveButton = button(documentRef, item ? 'Güncelle' : 'Kaydet', 'soft-btn');
       const cancel = button(documentRef, 'Vazgeç');
       const fields = documentRef.createElement('div');
@@ -218,7 +232,8 @@
         text(documentRef, 'Etiket'), label,
         text(documentRef, 'Açıklama'), description,
         text(documentRef, 'Şablon'), template,
-        hint
+        hint,
+        preview
       );
       const actions = documentRef.createElement('div');
       actions.className = 'composer-slash-custom-editor-actions';
@@ -300,6 +315,7 @@
     });
     close.addEventListener('click', () => { panel.hidden = true; });
     add.addEventListener('click', () => openEditor(null));
+    search.addEventListener('input', renderList);
     exportButton.addEventListener('click', exportCommands);
     importButton.addEventListener('click', () => file.click());
     file.addEventListener('change', () => { const selected = file.files?.[0]; file.value = ''; importCommands(selected); });
