@@ -6,6 +6,8 @@ import {
   loadModelPreferences,
   rankProfiles,
   removeProfile,
+  renameProfile,
+  duplicateProfile,
   rememberSelection,
   saveModelPreferences,
   touchProfile,
@@ -109,6 +111,8 @@ function renderProfiles(
   current: Selection,
   choices: { models: Choice[]; agents: Choice[] },
   onApply: (profile: ModelPreferenceProfile) => void,
+  onRename: (profile: ModelPreferenceProfile) => void,
+  onDuplicate: (profile: ModelPreferenceProfile) => void,
   onDelete: (profile: ModelPreferenceProfile) => void
 ): void {
   body.replaceChildren();
@@ -163,10 +167,16 @@ function renderProfiles(
       && current.agentId === profile.agentId
       && current.toolsEnabled === profile.toolsEnabled;
     apply.addEventListener('click', () => onApply(profile));
+    const rename = button('Adlandır', 'mini-btn');
+    rename.setAttribute('aria-label', `${profile.name} profilini yeniden adlandır`);
+    rename.addEventListener('click', () => onRename(profile));
+    const duplicate = button('Çoğalt', 'mini-btn');
+    duplicate.setAttribute('aria-label', `${profile.name} profilini çoğalt`);
+    duplicate.addEventListener('click', () => onDuplicate(profile));
     const remove = button('Sil', 'mini-btn');
     remove.setAttribute('aria-label', `${profile.name} profilini sil`);
     remove.addEventListener('click', () => onDelete(profile));
-    actions.append(apply, remove);
+    actions.append(apply, rename, duplicate, remove);
     row.append(main, actions);
     list.append(row);
   }
@@ -218,6 +228,21 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
       saveModelPreferences(state);
       render();
       status(`“${profile.name}” uygulandı.`);
+    },
+    (profile) => {
+      const nextName = globalThis.prompt('Yeni profil adı:', profile.name);
+      if (nextName === null || !nextName.trim()) return;
+      state = renameProfile(state, profile.id, nextName);
+      saveModelPreferences(state);
+      render();
+      status('Profil yeniden adlandırıldı.');
+    },
+    (profile) => {
+      if (state.profiles.length >= MODEL_PREFERENCES_LIMITS.maxProfiles) return status('En fazla 6 profil kaydedebilirsin.');
+      state = duplicateProfile(state, profile.id);
+      saveModelPreferences(state);
+      render();
+      status('Profil çoğaltıldı.');
     },
     (profile) => {
       if (!globalThis.confirm(`“${profile.name}” profili silinsin mi?`)) return;
@@ -292,6 +317,12 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
       const text = await selectedFile.text();
       const parsed = JSON.parse(text);
       const result = importModelPreferences(state, parsed);
+      const approved = globalThis.confirm(
+        result.imported
+          ? `${result.imported} profil alınacak; ${result.rejected} kayıt reddedilecek. Mevcut tercihlerin üzerine yazılmaz. Devam edilsin mi?`
+          : 'Geçerli profil bulunamadı. Import iptal edilsin mi?'
+      );
+      if (!approved) return status('Import iptal edildi.');
       state = result.state;
       saveModelPreferences(state);
       render();
