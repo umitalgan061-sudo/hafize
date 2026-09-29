@@ -84,6 +84,14 @@ node scripts/test-message-workspace-export.mjs
 node scripts/test-message-workspace-regression.mjs
 ```
 
+Koleksiyon özel kontrolleri:
+
+```bash
+node scripts/test-prompt-library-collections-gate.mjs
+```
+
+Koleksiyon testleri `scripts/test-prompt-library-collections-*.mjs` adıyla `npm run check` tarafından otomatik keşfedilir.
+
 Production hardening için ayrıca:
 
 ```bash
