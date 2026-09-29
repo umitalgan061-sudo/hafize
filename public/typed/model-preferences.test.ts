@@ -12,6 +12,8 @@ import {
   rankProfiles,
   rememberSelection,
   removeProfile,
+  renameProfile,
+  duplicateProfile,
   saveModelPreferences,
   touchProfile,
   upsertProfile,
@@ -225,7 +227,7 @@ describe('model-preferences profile management', () => {
   it('renames an existing profile and preserves its settings', () => {
     const original = profile({ id: 'rename-me', name: 'Eski', model: 'model-x', agentId: 'writer', toolsEnabled: true, useCount: 7 })!;
     const result = normalizeState({ ...state(), profiles: [original] });
-    const renamed = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).renameProfile(result, 'rename-me', 'Yeni ad');
+    const renamed = renameProfile(result, 'rename-me', 'Yeni ad');
     expect(renamed.profiles[0].name).toBe('Yeni ad');
     expect(renamed.profiles[0].model).toBe('model-x');
     expect(renamed.profiles[0].toolsEnabled).toBe(true);
@@ -241,7 +243,7 @@ describe('model-preferences profile management', () => {
 
   it('duplicates a profile with a fresh identity and reset usage', () => {
     const original = profile({ id: 'copy-me', name: 'Kod', model: 'model-x', agentId: 'coder', toolsEnabled: true, useCount: 9 })!;
-    const result = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).duplicateProfile(
+    const result = duplicateProfile(
       normalizeState({ ...state(), profiles: [original] }),
       'copy-me'
     );
