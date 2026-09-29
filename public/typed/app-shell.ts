@@ -39,6 +39,9 @@ interface Conversation {
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
+  forkOf?: string;
+  forkMessageId?: string;
+  forkDepth?: number;
 }
 interface AppUi {
   sidebar: HTMLElement;
@@ -172,7 +175,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
       toolsEnabled: source.toolsEnabled === true,
       createdAt: typeof source.createdAt === 'string' ? source.createdAt.slice(0, 40) : now,
       updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt.slice(0, 40) : now,
-      messages
+      messages,
+      ...(typeof source.forkOf === 'string' && source.forkOf ? { forkOf: source.forkOf.slice(0, 120) } : {}),
+      ...(typeof source.forkMessageId === 'string' && source.forkMessageId ? { forkMessageId: source.forkMessageId.slice(0, 120) } : {}),
+      ...(Number.isFinite(source.forkDepth) && source.forkDepth >= 1 ? { forkDepth: Math.min(4, Math.floor(source.forkDepth)) } : {})
     };
   }
 
@@ -481,6 +487,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   function renderMessages() {
     ui.messages.replaceChildren();
     const conversation = getActiveConversation();
+    ui.messages.dataset.conversationId = conversation?.id ?? '';
+    ui.messages.setAttribute('aria-busy', String(isStreaming));
     const messages = conversation?.messages ?? [];
     ui.welcome.classList.toggle('hidden', messages.length > 0);
 
@@ -862,6 +870,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   function setGenerationUi(disabled) {
+    ui.messages.setAttribute('aria-busy', String(disabled));
     ui.messageInput.disabled = disabled;
     ui.agentSelect.disabled = disabled;
     ui.toolModeBtn.disabled = disabled;
@@ -1021,6 +1030,16 @@ interface JsonPayload { readonly [key: string]: unknown; }
   document.addEventListener('visibilitychange', () => { if (document.hidden) persistOnLifecycle(); });
 
   window.addEventListener('hafize:edit-message', (event) => beginMessageEdit(event.detail?.messageId));
+  window.addEventListener('hafize:open-conversation', (event) => {
+    if (isStreaming) return showToast('Yanıt sürerken sohbet değiştirilemez.');
+    const conversationId = typeof event.detail?.conversationId === 'string' ? event.detail.conversationId : '';
+    if (!conversationId || !conversations.some((conversation) => conversation.id === conversationId)) return;
+    if (editingMessageId) cancelMessageEdit();
+    activeConversationId = conversationId;
+    render();
+    if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
+    ui.messageInput.focus();
+  });
 
   ui.sidebarToggle.addEventListener('click', () => ui.sidebar.classList.toggle('open'));
   ui.newChatBtn.addEventListener('click', () => {
