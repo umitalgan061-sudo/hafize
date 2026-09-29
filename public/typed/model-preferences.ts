@@ -208,6 +208,50 @@ export function exportModelPreferences(state: ModelPreferenceState): string {
     : JSON.stringify({ ...payload, profiles: payload.profiles.slice(0, 3) }, null, 2);
 }
 
+export interface ModelPreferenceImportPreview {
+  candidateCount: number;
+  validCount: number;
+  rejectedCount: number;
+  collisionCount: number;
+  capacityRemaining: number;
+  willImport: number;
+}
+
+export function previewModelPreferenceImport(
+  current: ModelPreferenceState,
+  payload: unknown
+): ModelPreferenceImportPreview {
+  const source = payload && typeof payload === 'object' && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : {};
+  const incoming = Array.isArray(payload)
+    ? payload
+    : Array.isArray(source.profiles) ? source.profiles : [];
+  const existing = normalizeState(current);
+  const ids = new Set(existing.profiles.map((profile) => profile.id));
+  let validCount = 0;
+  let rejectedCount = 0;
+  let collisionCount = 0;
+  for (const raw of incoming) {
+    const profile = normalizeProfile(raw);
+    if (!profile) {
+      rejectedCount += 1;
+      continue;
+    }
+    validCount += 1;
+    if (ids.has(profile.id)) collisionCount += 1;
+  }
+  const capacityRemaining = Math.max(0, MODEL_PREFERENCES_LIMITS.maxProfiles - existing.profiles.length);
+  return {
+    candidateCount: incoming.length,
+    validCount,
+    rejectedCount,
+    collisionCount,
+    capacityRemaining,
+    willImport: Math.min(validCount, capacityRemaining)
+  };
+}
+
 export function importModelPreferences(
   current: ModelPreferenceState,
   payload: unknown
