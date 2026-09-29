@@ -277,7 +277,8 @@
           const keys = new Set(current.map((item) => item.key));
           let imported = 0;
           for (const item of incoming) {
-            if (merged.length >= MAX_ITEMS || keys.has(item.key) || slash.commandByKey(item.key)?.custom !== true) continue;
+            const existing = slash.commandByKey(item.key);
+            if (merged.length >= MAX_ITEMS || keys.has(item.key) || (existing && existing.custom !== true)) continue;
             merged.push(item);
             keys.add(item.key);
             imported += 1;
