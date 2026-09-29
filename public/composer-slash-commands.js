@@ -115,7 +115,7 @@
 
   function registerRuntimeCommand(input) {
     if (!input || typeof input !== 'object' || typeof input.key !== 'string' || typeof input.template !== 'function') return null;
-    const key = clean(input.key, MAX_KEY).toLocaleLowerCase('tr-TR').replace(/[^a-z0-9_-öğüşçıİĞÜŞÇÖ]/gi, '');
+    const key = clean(input.key, MAX_KEY).toLocaleLowerCase('tr-TR').replace(/[^a-z0-9_-]/gi, '');
     const label = clean(input.label, MAX_LABEL);
     if (!key || !label || COMMANDS.some((command) => command.key === key)) return null;
     const command = Object.freeze({
