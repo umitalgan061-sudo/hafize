@@ -48,6 +48,10 @@ Desteklenen akış:
 - 1 MB sınırlandırılmış JSON import/export,
 - 10 güvenli başlangıç istemi ve eksik starter'ları geri yükleme,
 - `Ctrl / ⌘ + Shift + P` arama ve `Ctrl / ⌘ + Shift + N` yeni istem kısayolları.
+- koleksiyon oluşturma, yeniden adlandırma, silme ve istemleri koleksiyona atama,
+- koleksiyon filtresi, koleksiyonsuz görünümü ve ayrı koleksiyon JSON yedeği.
+
+Koleksiyon verisi `hafize.prompt-library.collections.v1` ve `hafize.prompt-library.collections.map.v1` altında yerel tutulur; bir koleksiyonu silmek içindeki istemleri silmez.
 
 `Kullan` yalnızca `#messageInput` değerini değiştirir; otomatik gönderim yapmaz. Prompt verisi `hafize.prompt-library.v1` altında tutulur ve conversation history ile paylaşılmaz. Ayrıntılar `docs/PROMPT_LIBRARY*.md` dosyalarındadır.
 
