@@ -105,7 +105,7 @@ const lineageOf = conversationLineage;
     previousFocus = null;
   }
 
-  function openDialog(source, target, onConfirm) {
+  function openDialog(source, target, suggestedTitle, onConfirm) {
     closeDialog();
     previousFocus = document.activeElement;
 
@@ -130,6 +130,16 @@ const lineageOf = conversationLineage;
     const snippet = cleanText(target.content, MAX_SNIPPET).replace(/\s+/g, ' ');
     description.textContent = count + ' mesaj yeni sohbetin başlangıcı olacak. Seçilen mesaj: ' + snippet;
 
+    const label = document.createElement('label');
+    label.className = 'conversation-fork-label';
+    label.textContent = 'Dal adı';
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.maxLength = MAX_TITLE;
+    titleInput.value = cleanText(suggestedTitle, MAX_TITLE);
+    titleInput.setAttribute('aria-label', 'Yeni konuşma dalının adı');
+    titleInput.className = 'conversation-fork-title-input';
+
     const note = document.createElement('p');
     note.className = 'conversation-fork-note';
     note.textContent = 'Yeni dal yerel sohbette ayrı bir kayıt olur. Şimdilik hiçbir ağ isteği gönderilmez.';
@@ -146,13 +156,13 @@ const lineageOf = conversationLineage;
     confirm.textContent = 'Yeni dal oluştur';
     actions.append(cancel, confirm);
 
-    panel.append(title, description, note, actions);
+    panel.append(title, description, label, titleInput, note, actions);
     overlay.append(panel);
     document.body.append(overlay);
     activeDialog = overlay;
 
     const finish = (confirmed) => {
-      if (confirmed) onConfirm();
+      if (confirmed) onConfirm(cleanText(titleInput.value, MAX_TITLE));
       else closeDialog();
     };
     cancel.addEventListener('click', () => finish(false));
@@ -171,7 +181,110 @@ const lineageOf = conversationLineage;
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     });
 
-    confirm.focus();
+    titleInput.focus();
+    titleInput.select();
+  }
+
+  function comparisonData(parent, child) {
+    const parentMessages = Array.isArray(parent?.messages) ? parent.messages : [];
+    const childMessages = Array.isArray(child?.messages) ? child.messages : [];
+    const forkId = cleanText(child?.forkMessageId, 120);
+    const parentIndex = parentMessages.findIndex((message) => message?.id === forkId);
+    const childIndex = childMessages.findIndex((message) => message?.id === forkId);
+    const commonCount = parentIndex >= 0 ? parentIndex + 1 : Math.min(childMessages.length, parentMessages.length);
+    const divergent = childIndex >= 0 ? childMessages.slice(childIndex + 1) : childMessages.slice(commonCount);
+    return {
+      parentTitle: cleanText(parent?.title, MAX_TITLE) || 'Üst sohbet',
+      childTitle: cleanText(child?.title, MAX_TITLE) || 'Dal',
+      commonCount,
+      parentCount: parentMessages.length,
+      childCount: childMessages.length,
+      divergent: divergent.filter((message) => message?.role && typeof message.content === 'string').slice(0, 5)
+    };
+  }
+
+  function openComparison(parent, child, trigger) {
+    closeDialog();
+    previousFocus = trigger || document.activeElement;
+    const overlay = document.createElement('div');
+    overlay.id = DIALOG_ID;
+    overlay.className = 'conversation-fork-overlay';
+
+    const panel = document.createElement('section');
+    panel.className = 'conversation-fork-dialog conversation-fork-comparison';
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'true');
+    panel.setAttribute('aria-labelledby', DIALOG_ID + 'CompareTitle');
+
+    const heading = document.createElement('h2');
+    heading.id = DIALOG_ID + 'CompareTitle';
+    heading.textContent = 'Dal karşılaştırması';
+
+    const summary = comparisonData(parent, child);
+    const copy = document.createElement('p');
+    copy.textContent = 'Ortak başlangıç ' + summary.commonCount + ' mesaj. Üst sohbet ' + summary.parentCount + ', dal ' + summary.childCount + ' mesaj içeriyor.';
+
+    const names = document.createElement('div');
+    names.className = 'conversation-fork-compare-names';
+    const left = document.createElement('div');
+    left.className = 'conversation-fork-compare-side';
+    const leftTitle = document.createElement('strong');
+    leftTitle.textContent = summary.parentTitle;
+    left.append(leftTitle);
+    const right = document.createElement('div');
+    right.className = 'conversation-fork-compare-side';
+    const rightTitle = document.createElement('strong');
+    rightTitle.textContent = summary.childTitle;
+    right.append(rightTitle);
+    names.append(left, right);
+
+    const list = document.createElement('div');
+    list.className = 'conversation-fork-compare-list';
+    list.setAttribute('role', 'list');
+    if (!summary.divergent.length) {
+      const empty = document.createElement('p');
+      empty.className = 'conversation-fork-empty';
+      empty.textContent = 'Bu dalda henüz parent’tan sonra yeni mesaj yok.';
+      list.append(empty);
+    } else {
+      for (const message of summary.divergent) {
+        const row = document.createElement('div');
+        row.className = 'conversation-fork-compare-row';
+        row.setAttribute('role', 'listitem');
+        const role = document.createElement('span');
+        role.className = 'conversation-fork-compare-role';
+        role.textContent = message.role === 'assistant' ? 'Hafize' : 'Sen';
+        const content = document.createElement('span');
+        content.className = 'conversation-fork-compare-content';
+        content.textContent = cleanText(message.content, 240);
+        row.append(role, content);
+        list.append(row);
+      }
+    }
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'soft-btn conversation-fork-primary';
+    close.textContent = 'Kapat';
+    close.addEventListener('click', closeDialog);
+
+    panel.append(heading, copy, names, list, close);
+    overlay.append(panel);
+    document.body.append(overlay);
+    activeDialog = overlay;
+
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) closeDialog(); });
+    overlay.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
+      if (event.key !== 'Tab') return;
+      const nodes = focusable(panel);
+      if (!nodes.length) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    close.focus();
   }
 
   function createFork(messageId) {
@@ -193,11 +306,12 @@ const lineageOf = conversationLineage;
     const preview = makeFork(source, messageId, all);
     if (preview.error) return showToast(errors[preview.error] || 'Yeni dal oluşturulamadı.');
 
-    openDialog(source, target, () => {
+    const suggestedTitle = ('↳ ' + (cleanText(source.title, MAX_TITLE) || 'Sohbet') + ' · Dal ' + (branchCount(source.id, all) + 1)).slice(0, MAX_TITLE);
+    openDialog(source, target, suggestedTitle, (titleOverride) => {
       const latest = readConversations();
       const freshSource = latest.find((item) => item.id === source.id);
       if (!freshSource) return showToast('Kaynak sohbet değişti; işlem iptal edildi.');
-      const created = makeFork(freshSource, messageId, latest);
+      const created = makeFork(freshSource, messageId, latest, { title: titleOverride });
       if (created.error) return showToast(errors[created.error] || 'Yeni dal oluşturulamadı.');
       const next = [created.conversation, ...latest].slice(0, MAX_CONVERSATIONS);
       if (!writeConversations(next)) return showToast('Yeni dal cihazda kalıcı olarak kaydedilemedi.');
@@ -318,6 +432,16 @@ const lineageOf = conversationLineage;
       meta.textContent = (Array.isArray(child.messages) ? child.messages.length : 0) + ' mesaj';
       info.append(name, meta);
 
+      const compare = document.createElement('button');
+      compare.type = 'button';
+      compare.className = 'mini-btn';
+      compare.textContent = 'Karşılaştır';
+      compare.setAttribute('aria-label', (cleanText(child.title, MAX_TITLE) || 'Yeni dal') + ' dalını üst sohbetle karşılaştır');
+      compare.addEventListener('click', () => {
+        const parent = all.find((item) => item.id === child.forkOf);
+        if (parent) openComparison(parent, child, compare);
+      });
+
       const open = document.createElement('button');
       open.type = 'button';
       open.className = 'mini-btn';
@@ -325,7 +449,10 @@ const lineageOf = conversationLineage;
       open.setAttribute('aria-label', (cleanText(child.title, MAX_TITLE) || 'Yeni dal') + ' dalını aç');
       open.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: child.id } })));
 
-      row.append(info, open);
+      const rowActions = document.createElement('div');
+      rowActions.className = 'conversation-fork-row-actions';
+      rowActions.append(compare, open);
+      row.append(info, rowActions);
       list.append(row);
     });
     body.append(list);
