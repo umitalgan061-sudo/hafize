@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = 'hafize.prompt-library.collections.v1';
   const MAP_KEY = 'hafize.prompt-library.collections.map.v1';
+  const DEFAULT_KEY = 'hafize.prompt-library.collections.default.v1';
   const CARD_ID = 'promptLibraryCard';
   const MAX_COLLECTIONS = 24;
   const MAX_NAME = 36;
@@ -80,6 +81,16 @@
     return output;
   }
   function saveMap(map) { return writeJson(MAP_KEY, loadMapFrom(map)); }
+
+  function loadDefaultCollection() {
+    const value = readJson(DEFAULT_KEY, NONE);
+    return typeof value === 'string' ? clean(value, 120) || NONE : NONE;
+  }
+
+  function saveDefaultCollection(collectionId) {
+    const value = clean(collectionId, 120) || NONE;
+    return writeJson(DEFAULT_KEY, value);
+  }
   function loadMapFrom(map) {
     const output = {};
     for (const [promptId, collectionId] of Object.entries(map || {}).slice(0, 1000)) {
@@ -228,14 +239,26 @@
     let collections = loadCollections();
     let map = loadMap();
     let activeFilter = ALL;
+    let defaultCollection = loadDefaultCollection();
+    let knownPromptIds = new Set((api?.loadItems?.(rootRef.localStorage) || []).map((item) => item.id));
 
     function syncPromptIds() {
       const items = api?.loadItems?.(rootRef.localStorage) || [];
       const promptIds = items.map((item) => item.id);
       const next = pruneMap(collections, map, promptIds);
-      if (JSON.stringify(next) !== JSON.stringify(map)) {
-        map = next;
-        saveMap(map);
+      const validDefault = defaultCollection !== NONE && findCollection(collections, defaultCollection);
+      if (validDefault) {
+        for (const item of items) {
+          if (!knownPromptIds.has(item.id) && !next[item.id]) next[item.id] = defaultCollection;
+        }
+      }
+      knownPromptIds = new Set(promptIds);
+      const changed = JSON.stringify(next) !== JSON.stringify(map);
+      map = next;
+      if (changed) saveMap(map);
+      if (defaultCollection !== NONE && !findCollection(collections, defaultCollection)) {
+        defaultCollection = NONE;
+        saveDefaultCollection(NONE);
       }
       return items;
     }
@@ -267,6 +290,8 @@
     filter.id = 'promptLibraryCollectionFilter';
     const bulkDestination = select(documentRef, 'Seçili istemlerin hedef koleksiyonu');
     bulkDestination.id = 'promptLibraryCollectionBulkDestination';
+    const defaultPicker = select(documentRef, 'Yeni istemler için varsayılan koleksiyon');
+    defaultPicker.id = 'promptLibraryCollectionDefault';
     const bulkAssign = button(documentRef, 'Seçilenleri ata', 'soft-btn');
     const create = button(documentRef, '＋ Koleksiyon', 'soft-btn');
     const exportButton = button(documentRef, 'Yedeği dışa aktar', 'soft-btn');
@@ -275,7 +300,7 @@
     file.type = 'file';
     file.accept = 'application/json,.json';
     file.hidden = true;
-    toolbar.append(filter, bulkDestination, bulkAssign, create, exportButton, importButton);
+    toolbar.append(filter, bulkDestination, bulkAssign, defaultPicker, create, exportButton, importButton);
 
     const list = documentRef.createElement('div');
     list.className = 'prompt-library-collections-list';
@@ -332,6 +357,7 @@
       }
       filter.value = [...filter.options].some((option) => option.value === previous) ? previous : ALL;
       const destination = bulkDestination.value || NONE;
+      const previousDefault = defaultCollection;
       bulkDestination.replaceChildren();
       const destinationNone = documentRef.createElement('option');
       destinationNone.value = NONE;
@@ -344,6 +370,18 @@
         bulkDestination.append(option);
       }
       bulkDestination.value = [...bulkDestination.options].some((option) => option.value === destination) ? destination : NONE;
+      defaultPicker.replaceChildren();
+      const defaultNone = documentRef.createElement('option');
+      defaultNone.value = NONE;
+      defaultNone.textContent = 'Otomatik atama kapalı';
+      defaultPicker.append(defaultNone);
+      for (const item of collections) {
+        const option = documentRef.createElement('option');
+        option.value = item.id;
+        option.textContent = item.name;
+        defaultPicker.append(option);
+      }
+      defaultPicker.value = [...defaultPicker.options].some((option) => option.value === previousDefault) ? previousDefault : NONE;
       count.textContent = `${collections.length}/${MAX_COLLECTIONS}`;
     }
 
@@ -510,6 +548,13 @@
 
     on(filter, 'change', () => setFilter(filter.value));
     on(bulkAssign, 'click', bulkAssignPrompts);
+    on(defaultPicker, 'change', () => {
+      const value = defaultPicker.value === NONE || findCollection(collections, defaultPicker.value) ? defaultPicker.value : NONE;
+      defaultCollection = value;
+      saveDefaultCollection(value);
+      knownPromptIds = new Set((api?.loadItems?.(rootRef.localStorage) || []).map((item) => item.id));
+      report(value === NONE ? 'Yeni istemler otomatik atanmayacak.' : 'Varsayılan koleksiyon kaydedildi.');
+    });
     on(create, 'click', () => renderEditor(null));
     on(manage, 'click', () => {
       editor.hidden = !editor.hidden;
@@ -570,6 +615,7 @@
       mounted: true,
       getCollections: () => loadCollections(),
       getAssignments: () => ({ ...loadMap() }),
+      getDefaultCollection: () => loadDefaultCollection(),
       summarize: () => summarize(loadCollections(), loadMap(), api?.loadItems?.(rootRef.localStorage) || []),
       getCollectionForPrompt: (promptId) => getCollectionForPrompt(loadMap(), promptId),
       collectionMatches: (promptId, filterId) => collectionMatches(loadMap(), promptId, filterId),
@@ -585,12 +631,15 @@
   const exported = Object.freeze({
     STORAGE_KEY,
     MAP_KEY,
+    DEFAULT_KEY,
     MAX_COLLECTIONS,
     MAX_NAME,
     loadCollections,
     loadMap,
+    loadDefaultCollection,
     saveCollections,
     saveMap,
+    saveDefaultCollection,
     summarize,
     exportPayload,
     normalizeImported,
