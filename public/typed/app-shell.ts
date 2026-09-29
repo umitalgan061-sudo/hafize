@@ -10,6 +10,8 @@ import {
 import { openResponseVariantDialog } from './response-variants-ui.ts';
 import { openRegenerationOptions } from './response-regeneration-options-ui.ts';
 import { buildRegenerationMessages } from './response-regeneration-options.ts';
+import { mountModelPreferences, type ModelPreferencesUiController } from './model-preferences-ui.ts';
+import { loadModelPreferences } from './model-preferences.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -94,6 +96,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let availableAgents = [];
   let defaultAgentId = '';
   let editingMessageId = null;
+  let modelPreferencesController: ModelPreferencesUiController | null = null;
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -661,6 +664,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
         return;
       }
       for (const model of models) ui.modelSelect.append(new Option(model, model));
+      const preference = loadModelPreferences();
+      if (preference.selectedModel && models.includes(preference.selectedModel)) ui.modelSelect.value = preference.selectedModel;
+      modelPreferencesController?.refresh();
     } catch (error) {
       ui.modelSelect.replaceChildren(new Option('NVIDIA NIM bağlantısı bekleniyor', ''));
       if (error?.message !== 'NVIDIA_NOT_CONFIGURED') showToast('NVIDIA model listesi alınamadı.');
@@ -697,8 +703,14 @@ interface JsonPayload { readonly [key: string]: unknown; }
         }
       }
       if (migrated) saveConversations();
+      const preference = loadModelPreferences();
+      if (!getActiveConversation()?.agentId && preference.selectedAgentId && allowedIds.has(preference.selectedAgentId)) {
+        const active = getActiveConversation();
+        if (active) active.agentId = preference.selectedAgentId;
+      }
       syncAgentSelect();
       syncToolMode();
+      modelPreferencesController?.refresh();
     } catch {
       availableAgents = [];
       defaultAgentId = '';
@@ -1080,6 +1092,41 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   if (!activeConversationId) createConversation();
   else render();
+
+  modelPreferencesController = mountModelPreferences({
+    modelSelect: ui.modelSelect,
+    agentSelect: ui.agentSelect,
+    toolModeButton: ui.toolModeBtn,
+    getCurrent: () => ({
+      model: ui.modelSelect.value,
+      agentId: getConversationAgentId(),
+      toolsEnabled: Boolean(getActiveConversation()?.toolsEnabled)
+    }),
+    getChoices: () => ({
+      models: [...ui.modelSelect.options]
+        .filter((option) => option.value)
+        .map((option) => ({ id: option.value, label: option.textContent || option.value })),
+      agents: availableAgents.map((agent) => ({ id: agent.id, label: agent.name }))
+    }),
+    apply: (selection) => {
+      if (isStreaming) return showToast('Yanıt sürerken model veya ajan profili uygulanamaz.');
+      if (selection.model && [...ui.modelSelect.options].some((option) => option.value === selection.model)) {
+        ui.modelSelect.value = selection.model;
+      }
+      const active = getActiveConversation();
+      if (!active) createConversation();
+      const conversation = getActiveConversation();
+      if (conversation && availableAgents.some((agent) => agent.id === selection.agentId)) {
+        conversation.agentId = selection.agentId;
+        conversation.toolsEnabled = selection.toolsEnabled === true;
+        saveConversations();
+        syncAgentSelect();
+        syncToolMode();
+        renderMessages();
+      }
+    }
+  });
+
   loadModels();
   loadAgents();
 })();
