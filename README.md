@@ -71,6 +71,20 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
+## Model ve ajan tercihleri
+
+Composer içindeki model ve ajan seçimleri cihaz üzerinde hatırlanabilir ve sık kullanılan kombinasyonlar profil olarak kaydedilebilir.
+
+- Son geçerli model ve ajan seçimi yeniden açılışta geri yüklenir.
+- En fazla 6 profil tutulur; profil adı, model, ajan ve araç modu birlikte saklanır.
+- Profiller uygulanabilir, yeniden adlandırılabilir, çoğaltılabilir veya onayla silinebilir.
+- Tercihler paneli Ctrl / ⌘ + Shift + M ile açılır; Escape ve Tab odak yönetimi desteklenir.
+- JSON dışa aktarma ve içe aktarma 200 KB ile sınırlıdır; import açık onaydan önce mevcut state'i değiştirmez.
+- Veriler hafize.model-preferences.v1 altında tutulur; yeni network, telemetry veya credential saklama alanı yoktur.
+- Profil uygulamak yalnız seçimleri değiştirir; sohbet mesajı göndermez.
+
+Ayrıntılar docs/MODEL_PREFERENCES*.md dosyalarındadır.
+
 ## GitHub çalışma alanı
 
 GitHub çalışma alanı, sunucu tarafındaki allowlist ile izin verilen repository'leri Hafize içinden salt-okunur incelemek için kullanılır.
