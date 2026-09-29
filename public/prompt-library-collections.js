@@ -94,11 +94,27 @@
     return collections.find((item) => item.id === collectionId) || null;
   }
 
-  function pruneMap(collections, map) {
-    const valid = new Set(collections.map((item) => item.id));
+  function pruneMap(collections, map, promptIds = null) {
+    const validCollections = new Set(collections.map((item) => item.id));
+    const validPrompts = promptIds ? new Set(promptIds) : null;
     const output = {};
-    for (const [promptId, collectionId] of Object.entries(map)) if (valid.has(collectionId)) output[promptId] = collectionId;
+    for (const [promptId, collectionId] of Object.entries(map)) {
+      if (!validCollections.has(collectionId)) continue;
+      if (validPrompts && !validPrompts.has(promptId)) continue;
+      output[promptId] = collectionId;
+    }
     return output;
+  }
+
+  function getCollectionForPrompt(map, promptId) {
+    const idValue = clean(promptId, 120);
+    return idValue ? (map?.[idValue] || NONE) : NONE;
+  }
+
+  function collectionMatches(map, promptId, filterId) {
+    if (!filterId || filterId === ALL) return true;
+    const assigned = getCollectionForPrompt(map, promptId);
+    return filterId === NONE ? assigned === NONE : assigned === filterId;
   }
 
   function requestRefresh() {
@@ -210,8 +226,21 @@
     if (!documentRef || !card || documentRef.getElementById('promptLibraryCollections')) return null;
 
     let collections = loadCollections();
-    let map = pruneMap(collections, loadMap());
+    let map = loadMap();
     let activeFilter = ALL;
+
+    function syncPromptIds() {
+      const items = api?.loadItems?.(rootRef.localStorage) || [];
+      const promptIds = items.map((item) => item.id);
+      const next = pruneMap(collections, map, promptIds);
+      if (JSON.stringify(next) !== JSON.stringify(map)) {
+        map = next;
+        saveMap(map);
+      }
+      return items;
+    }
+
+    syncPromptIds();
     const ensurePersisted = () => {
       const ok = saveCollections(collections) && saveMap(map);
       if (!ok) report('Koleksiyon bilgileri cihazda kalıcı kaydedilemedi.');
@@ -279,12 +308,13 @@
       documentRef.querySelectorAll('#promptLibraryList .prompt-item').forEach((row) => {
         const promptId = row.dataset.promptId;
         const collectionId = promptId ? map[promptId] : undefined;
-        row.hidden = activeFilter !== ALL && (activeFilter === NONE ? Boolean(collectionId) : collectionId !== activeFilter);
+        row.hidden = !collectionMatches(map, promptId, activeFilter);
       });
     }
 
     function renderFilter() {
-      const previous = filter.value || ALL;
+      const previous = filter.value || activeFilter || ALL;
+      const currentItems = syncPromptIds();
       filter.replaceChildren();
       const all = documentRef.createElement('option');
       all.value = ALL;
@@ -294,7 +324,7 @@
       none.value = NONE;
       none.textContent = 'Koleksiyonsuz';
       filter.append(none);
-      for (const item of summarize(collections, map, api?.loadItems?.(rootRef.localStorage) || [])) {
+      for (const item of summarize(collections, map, currentItems)) {
         const option = documentRef.createElement('option');
         option.value = item.id;
         option.textContent = `${item.name} (${item.count})`;
@@ -329,7 +359,7 @@
         row.dataset.collectionId = item.id;
         row.setAttribute('role', 'listitem');
         const title = text(documentRef, item.name, 'prompt-library-collection-name');
-        const usage = text(documentRef, `${summarize(collections, map, api?.loadItems?.(rootRef.localStorage) || []).find((entry) => entry.id === item.id)?.count || 0} istem`, 'prompt-library-collection-count');
+        const usage = text(documentRef, `${summarize(collections, map, syncPromptIds()).find((entry) => entry.id === item.id)?.count || 0} istem`, 'prompt-library-collection-count');
         const rename = button(documentRef, 'Adını değiştir');
         const remove = button(documentRef, 'Sil');
         row.append(title, usage, rename, remove);
@@ -522,7 +552,8 @@
 
     function render() {
       collections = loadCollections();
-      map = pruneMap(collections, loadMap());
+      map = loadMap();
+      syncPromptIds();
       renderFilter();
       if (!editor.hidden) renderList();
       applyFilterVisibility();
@@ -540,6 +571,8 @@
       getCollections: () => loadCollections(),
       getAssignments: () => ({ ...loadMap() }),
       summarize: () => summarize(loadCollections(), loadMap(), api?.loadItems?.(rootRef.localStorage) || []),
+      getCollectionForPrompt: (promptId) => getCollectionForPrompt(loadMap(), promptId),
+      collectionMatches: (promptId, filterId) => collectionMatches(loadMap(), promptId, filterId),
       assign: assignPrompt,
       destroy: () => {
         observer?.disconnect();
