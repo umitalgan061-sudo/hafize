@@ -105,7 +105,7 @@ const lineageOf = conversationLineage;
     previousFocus = null;
   }
 
-  function openDialog(source, target, suggestedTitle, onConfirm) {
+  function openDialog(source, target, suggestedTitle, suggestedNote, onConfirm) {
     closeDialog();
     previousFocus = document.activeElement;
 
@@ -140,6 +140,16 @@ const lineageOf = conversationLineage;
     titleInput.setAttribute('aria-label', 'Yeni konuşma dalının adı');
     titleInput.className = 'conversation-fork-title-input';
 
+    const noteLabel = document.createElement('label');
+    noteLabel.className = 'conversation-fork-label';
+    noteLabel.textContent = 'Dal notu (isteğe bağlı)';
+    const noteInput = document.createElement('textarea');
+    noteInput.maxLength = FORK_LIMITS.maxForkNote;
+    noteInput.rows = 3;
+    noteInput.value = cleanText(suggestedNote, FORK_LIMITS.maxForkNote);
+    noteInput.className = 'conversation-fork-note-input';
+    noteInput.setAttribute('aria-label', 'Yeni konuşma dalının amacı veya notu');
+
     const note = document.createElement('p');
     note.className = 'conversation-fork-note';
     note.textContent = 'Yeni dal yerel sohbette ayrı bir kayıt olur. Şimdilik hiçbir ağ isteği gönderilmez.';
@@ -156,13 +166,13 @@ const lineageOf = conversationLineage;
     confirm.textContent = 'Yeni dal oluştur';
     actions.append(cancel, confirm);
 
-    panel.append(title, description, label, titleInput, note, actions);
+    panel.append(title, description, label, titleInput, noteLabel, noteInput, note, actions);
     overlay.append(panel);
     document.body.append(overlay);
     activeDialog = overlay;
 
     const finish = (confirmed) => {
-      if (confirmed) onConfirm(cleanText(titleInput.value, MAX_TITLE));
+      if (confirmed) onConfirm(cleanText(titleInput.value, MAX_TITLE), cleanText(noteInput.value, FORK_LIMITS.maxForkNote));
       else closeDialog();
     };
     cancel.addEventListener('click', () => finish(false));
@@ -307,11 +317,11 @@ const lineageOf = conversationLineage;
     if (preview.error) return showToast(errors[preview.error] || 'Yeni dal oluşturulamadı.');
 
     const suggestedTitle = ('↳ ' + (cleanText(source.title, MAX_TITLE) || 'Sohbet') + ' · Dal ' + (branchCount(source.id, all) + 1)).slice(0, MAX_TITLE);
-    openDialog(source, target, suggestedTitle, (titleOverride) => {
+    openDialog(source, target, suggestedTitle, '', (titleOverride, noteOverride) => {
       const latest = readConversations();
       const freshSource = latest.find((item) => item.id === source.id);
       if (!freshSource) return showToast('Kaynak sohbet değişti; işlem iptal edildi.');
-      const created = makeFork(freshSource, messageId, latest, { title: titleOverride });
+      const created = makeFork(freshSource, messageId, latest, { title: titleOverride, note: noteOverride });
       if (created.error) return showToast(errors[created.error] || 'Yeni dal oluşturulamadı.');
       const next = [created.conversation, ...latest].slice(0, MAX_CONVERSATIONS);
       if (!writeConversations(next)) return showToast('Yeni dal cihazda kalıcı olarak kaydedilemedi.');
@@ -427,6 +437,9 @@ const lineageOf = conversationLineage;
       meta.textContent = (parent ? cleanText(parent.title, 42) : 'Üst sohbet yok')
         + ' · Seviye ' + (Number(item.forkDepth) || 1)
         + ' · ' + (Array.isArray(item.messages) ? item.messages.length : 0) + ' mesaj';
+      if (typeof item.forkNote === 'string' && item.forkNote.trim()) {
+        meta.textContent += ' · ' + cleanText(item.forkNote, 90);
+      }
       info.append(name, meta);
 
       const open = document.createElement('button');
@@ -564,8 +577,14 @@ const lineageOf = conversationLineage;
       const name = document.createElement('strong');
       name.textContent = cleanText(child.title, MAX_TITLE) || 'Yeni dal';
       const meta = document.createElement('span');
-      meta.textContent = (Array.isArray(child.messages) ? child.messages.length : 0) + ' mesaj';
+      meta.textContent = (Array.isArray(child.messages) ? child.messages.length : 0) + ' mesaj · Seviye ' + (Number(child.forkDepth) || 1);
       info.append(name, meta);
+      if (typeof child.forkNote === 'string' && child.forkNote.trim()) {
+        const reason = document.createElement('span');
+        reason.className = 'conversation-fork-note-preview';
+        reason.textContent = cleanText(child.forkNote, 120);
+        info.append(reason);
+      }
 
       const compare = document.createElement('button');
       compare.type = 'button';
