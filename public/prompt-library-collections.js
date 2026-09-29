@@ -236,6 +236,9 @@
     toolbar.className = 'prompt-library-collections-toolbar';
     const filter = select(documentRef, 'Prompt koleksiyonuna göre filtrele');
     filter.id = 'promptLibraryCollectionFilter';
+    const bulkDestination = select(documentRef, 'Seçili istemlerin hedef koleksiyonu');
+    bulkDestination.id = 'promptLibraryCollectionBulkDestination';
+    const bulkAssign = button(documentRef, 'Seçilenleri ata', 'soft-btn');
     const create = button(documentRef, '＋ Koleksiyon', 'soft-btn');
     const exportButton = button(documentRef, 'Yedeği dışa aktar', 'soft-btn');
     const importButton = button(documentRef, 'Yedeği içe aktar', 'soft-btn');
@@ -243,7 +246,7 @@
     file.type = 'file';
     file.accept = 'application/json,.json';
     file.hidden = true;
-    toolbar.append(filter, create, exportButton, importButton);
+    toolbar.append(filter, bulkDestination, bulkAssign, create, exportButton, importButton);
 
     const list = documentRef.createElement('div');
     list.className = 'prompt-library-collections-list';
@@ -281,6 +284,7 @@
     }
 
     function renderFilter() {
+      const previous = filter.value || ALL;
       filter.replaceChildren();
       const all = documentRef.createElement('option');
       all.value = ALL;
@@ -296,7 +300,20 @@
         option.textContent = `${item.name} (${item.count})`;
         filter.append(option);
       }
-      filter.value = filter.value && [...filter.options].some((option) => option.value === filter.value) ? filter.value : ALL;
+      filter.value = [...filter.options].some((option) => option.value === previous) ? previous : ALL;
+      const destination = bulkDestination.value || NONE;
+      bulkDestination.replaceChildren();
+      const destinationNone = documentRef.createElement('option');
+      destinationNone.value = NONE;
+      destinationNone.textContent = 'Koleksiyonsuz';
+      bulkDestination.append(destinationNone);
+      for (const item of collections) {
+        const option = documentRef.createElement('option');
+        option.value = item.id;
+        option.textContent = item.name;
+        bulkDestination.append(option);
+      }
+      bulkDestination.value = [...bulkDestination.options].some((option) => option.value === destination) ? destination : NONE;
       count.textContent = `${collections.length}/${MAX_COLLECTIONS}`;
     }
 
@@ -388,6 +405,30 @@
       report('Koleksiyon silindi; istemler korunuyor.');
     }
 
+
+    function selectedPromptIds() {
+      return [...documentRef.querySelectorAll('#promptLibraryList .prompt-item')]
+        .filter((row) => row.querySelector('input[type="checkbox"]')?.checked)
+        .map((row) => row.dataset.promptId)
+        .filter(Boolean)
+        .slice(0, MAX_SELECTED);
+    }
+
+    function bulkAssignPrompts() {
+      const ids = selectedPromptIds();
+      if (!ids.length) return report('Önce istemleri seçin.');
+      const destination = bulkDestination.value || NONE;
+      for (const promptId of ids) {
+        if (destination === NONE || !findCollection(collections, destination)) delete map[promptId];
+        else map[promptId] = destination;
+      }
+      map = loadMapFrom(map);
+      ensurePersisted();
+      render();
+      requestRefresh();
+      report(`${ids.length} istem koleksiyonu güncellendi.`);
+    }
+
     function assignPrompt(promptId, collectionId) {
       const cleanPromptId = clean(promptId, 120);
       if (!cleanPromptId) return;
@@ -438,6 +479,7 @@
     observer?.observe(documentRef.getElementById('promptLibraryList') || card, { childList: true, subtree: true });
 
     on(filter, 'change', () => setFilter(filter.value));
+    on(bulkAssign, 'click', bulkAssignPrompts);
     on(create, 'click', () => renderEditor(null));
     on(manage, 'click', () => {
       editor.hidden = !editor.hidden;
