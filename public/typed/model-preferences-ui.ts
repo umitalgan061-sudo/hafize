@@ -1,9 +1,7 @@
 import {
   MODEL_PREFERENCES_LIMITS,
-  MODEL_PREFERENCES_STORAGE_KEY,
   createProfile,
   exportModelPreferences,
-  findProfile,
   importModelPreferences,
   loadModelPreferences,
   rankProfiles,
@@ -303,10 +301,30 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
     }
   });
 
+  const focusables = (): HTMLElement[] => Array.from(
+    dialog.panel.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )
+  );
+
   const keyboard = (event: KeyboardEvent): void => {
     if (event.key === 'Escape' && !dialog.panel.hidden) {
       event.preventDefault();
       close();
+      return;
+    }
+    if (event.key === 'Tab' && !dialog.panel.hidden) {
+      const nodes = focusables();
+      if (!nodes.length) return;
+      const first = nodes[0];
+      const last = nodes[nodes.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
       return;
     }
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'm') return;
@@ -326,6 +344,7 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
   options.modelSelect.addEventListener('change', onModelOrAgentChange);
   options.agentSelect.addEventListener('change', onModelOrAgentChange);
   options.toolModeButton.addEventListener('click', onModelOrAgentChange);
+  document.addEventListener('keydown', keyboard);
 
   return Object.freeze({
     refresh: (): void => {
@@ -353,4 +372,3 @@ const boot = (): void => {
 if (document.readyState !== 'loading') boot();
 else document.addEventListener('DOMContentLoaded', boot, { once: true });
 
-export { MODEL_PREFERENCES_STORAGE_KEY };
