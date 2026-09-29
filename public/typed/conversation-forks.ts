@@ -351,6 +351,98 @@ const lineageOf = conversationLineage;
     return children.reduce((sum, child) => sum + 1 + descendantCount(child.id, all, visited), 0);
   }
 
+  function renderGlobalBranchHub() {
+    const all = readConversations();
+    let panel = document.getElementById('hafizeConversationForkHub');
+    const branches = all.filter((item) => item?.forkOf).sort((a, b) =>
+      String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))
+    ).slice(0, 20);
+
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'hafizeConversationForkHub';
+      panel.className = 'conversation-fork-hub utility-card';
+      panel.setAttribute('aria-labelledby', 'hafizeConversationForkHubTitle');
+
+      const header = document.createElement('div');
+      header.className = 'utility-head';
+      const heading = document.createElement('span');
+      heading.id = 'hafizeConversationForkHubTitle';
+      heading.textContent = 'Tüm dallar';
+      const count = document.createElement('span');
+      count.className = 'conversation-fork-hub-count';
+      header.append(heading, count);
+
+      const search = document.createElement('input');
+      search.type = 'search';
+      search.maxLength = 80;
+      search.className = 'conversation-fork-hub-search';
+      search.placeholder = 'Dallarda ara…';
+      search.setAttribute('aria-label', 'Tüm konuşma dallarında ara');
+
+      const list = document.createElement('div');
+      list.className = 'conversation-fork-hub-list';
+      list.setAttribute('role', 'list');
+      panel.append(header, search, list);
+      ui.historyBlock.before(panel);
+
+      search.addEventListener('input', () => renderGlobalBranchHub());
+    }
+
+    const search = panel.querySelector('.conversation-fork-hub-search');
+    const list = panel.querySelector('.conversation-fork-hub-list');
+    const query = cleanText(search?.value || '', 80).toLocaleLowerCase('tr-TR');
+    const visible = branches.filter((item) => {
+      const parent = all.find((candidate) => candidate.id === item.forkOf);
+      return !query || [
+        item.title,
+        parent?.title || '',
+        item.forkMessageId || ''
+      ].join(' ').toLocaleLowerCase('tr-TR').includes(query);
+    });
+
+    const count = panel.querySelector('.conversation-fork-hub-count');
+    count.textContent = String(branches.length);
+    list.replaceChildren();
+
+    if (!visible.length) {
+      const empty = document.createElement('div');
+      empty.className = 'conversation-fork-empty';
+      empty.textContent = query ? 'Aramaya uyan dal yok.' : 'Henüz konuşma dalı yok.';
+      list.append(empty);
+      return;
+    }
+
+    visible.slice(0, 12).forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'conversation-fork-hub-row';
+      row.setAttribute('role', 'listitem');
+
+      const info = document.createElement('div');
+      info.className = 'conversation-fork-hub-info';
+      const name = document.createElement('strong');
+      name.textContent = cleanText(item.title, MAX_TITLE) || 'Yeni dal';
+      const parent = all.find((candidate) => candidate.id === item.forkOf);
+      const meta = document.createElement('span');
+      meta.textContent = (parent ? cleanText(parent.title, 42) : 'Üst sohbet yok')
+        + ' · Seviye ' + (Number(item.forkDepth) || 1)
+        + ' · ' + (Array.isArray(item.messages) ? item.messages.length : 0) + ' mesaj';
+      info.append(name, meta);
+
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.className = 'mini-btn';
+      open.textContent = 'Aç';
+      open.setAttribute('aria-label', (cleanText(item.title, MAX_TITLE) || 'Yeni dal') + ' dalını aç');
+      open.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
+        detail: { conversationId: item.id }
+      })));
+
+      row.append(info, open);
+      list.append(row);
+    });
+  }
+
   function focusForkPoint(conversation) {
     const id = cleanText(conversation?.forkMessageId, 120);
     if (!id) return showToast('Bu sohbetin kayıtlı fork noktası yok.');
@@ -504,6 +596,7 @@ const lineageOf = conversationLineage;
   function onRefresh() {
     decorateMessages();
     renderBranchPanel();
+    renderGlobalBranchHub();
   }
 
   function onStorage(event) {
