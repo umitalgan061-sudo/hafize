@@ -196,6 +196,10 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
+## Composer Slash Komutları
+
+Composer alanında `/özet`, `/yaz`, `/düzenle`, `/araştır`, `/kod`, `/plan`, `/toplantı`, `/mail`, `/test`, `/karar`, `/öğret` ve `/fikir` komutları yazarken seçim menüsü açılır. Ok tuşlarıyla gezip Enter ile komutu uygulayabilirsin; Escape menüyü kapatır. Komut yalnızca mesaj alanını dönüştürür, otomatik gönderim yapmaz.
+
 ## Test
 
 ```bash
