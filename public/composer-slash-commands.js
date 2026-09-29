@@ -6,20 +6,26 @@
   const MENU_ID = 'composerSlashMenu';
   const MAX_QUERY = 48;
   const MAX_INPUT = 12000;
+  const MAX_CUSTOM = 30;
+  const MAX_KEY = 32;
+  const MAX_LABEL = 64;
+  const MAX_DESCRIPTION = 160;
+  const MAX_TEMPLATE = 6000;
+  const USAGE_KEY = 'hafize.composer.slash.usage.v1';
 
   const COMMANDS = Object.freeze([
-    Object.freeze({ key: 'özet', label: 'Kısa özet', description: 'Metni kısa ve anlaşılır biçimde özetle.', template: (rest) => rest ? `Şu konuyu kısa ve anlaşılır biçimde özetle: ${rest}` : 'Bir sonraki metni kısa ve anlaşılır biçimde özetle.' }),
-    Object.freeze({ key: 'yaz', label: 'Metin yaz', description: 'Taslak ve içerik oluştur.', template: (rest) => rest ? `Şu konu için iyi yapılandırılmış bir metin taslağı yaz: ${rest}` : 'Bir sonraki isteğim için iyi yapılandırılmış bir metin taslağı yaz.' }),
-    Object.freeze({ key: 'düzenle', label: 'Metni düzenle', description: 'Metni daha açık ve profesyonel hale getir.', template: (rest) => rest ? `Şu metni anlamını koruyarak daha açık ve profesyonel biçimde düzenle: ${rest}` : 'Bir sonraki metni anlamını koruyarak daha açık ve profesyonel biçimde düzenle.' }),
-    Object.freeze({ key: 'araştır', label: 'Araştır', description: 'Araştırma sorusunu çerçevele ve kaynak ihtiyacını belirle.', template: (rest) => rest ? `Şu konu için araştırma planı oluştur ve hangi kaynakların gerekli olduğunu belirt: ${rest}` : 'Bir sonraki konu için araştırma planı oluştur ve gerekli kaynak türlerini belirt.' }),
-    Object.freeze({ key: 'kod', label: 'Kod incele', description: 'Kodu analiz et, hata ve iyileştirme noktalarını çıkar.', template: (rest) => rest ? `Şu kodu incele; hataları, riskleri ve iyileştirme önerilerini sırala: ${rest}` : 'Bir sonraki kod parçasını incele; hataları, riskleri ve iyileştirme önerilerini çıkar.' }),
-    Object.freeze({ key: 'plan', label: 'Planla', description: 'İşi adımlara böl ve uygulanabilir bir plan çıkar.', template: (rest) => rest ? `Şu iş için öncelikli, uygulanabilir bir adım planı hazırla: ${rest}` : 'Bir sonraki işi öncelikli ve uygulanabilir adımlara böl.' }),
-    Object.freeze({ key: 'toplantı', label: 'Toplantı notu', description: 'Toplantı notlarını düzenli karar ve aksiyonlara çevir.', template: (rest) => rest ? `Şu toplantı içeriğini kararlar, aksiyonlar ve sorumlular halinde düzenle: ${rest}` : 'Bir sonraki toplantı notunu kararlar, aksiyonlar ve sorumlular halinde düzenle.' }),
-    Object.freeze({ key: 'mail', label: 'E-posta', description: 'Profesyonel ve uygun tonda e-posta taslağı oluştur.', template: (rest) => rest ? `Şu konu için profesyonel bir e-posta taslağı hazırla: ${rest}` : 'Bir sonraki konu için profesyonel bir e-posta taslağı hazırla.' }),
-    Object.freeze({ key: 'test', label: 'Test senaryosu', description: 'Kod için test senaryoları ve uç durumlar öner.', template: (rest) => rest ? `Şu özellik için birim, entegrasyon ve uç durum test senaryoları çıkar: ${rest}` : 'Bir sonraki özellik için birim, entegrasyon ve uç durum test senaryoları çıkar.' }),
-    Object.freeze({ key: 'karar', label: 'Karar matrisi', description: 'Seçenekleri ölçütlere ayır ve tarafsız bir karar matrisi kur.', template: (rest) => rest ? `Şu konu için seçenekleri ölçütlere ayıran tarafsız bir karar matrisi oluştur: ${rest}` : 'Bir sonraki konu için seçenekleri ve ölçütleri ayıran tarafsız bir karar matrisi oluştur.' }),
-    Object.freeze({ key: 'öğret', label: 'Öğret', description: 'Konuyu sade, aşamalı ve örnekli biçimde anlat.', template: (rest) => rest ? `Şu konuyu temel düzeyden başlayarak aşamalı ve örnekli biçimde öğret: ${rest}` : 'Bir sonraki konuyu temel düzeyden başlayarak aşamalı ve örnekli biçimde öğret.' }),
-    Object.freeze({ key: 'fikir', label: 'Fikir üret', description: 'Alternatif fikirler üret ve kısa gerekçeler ekle.', template: (rest) => rest ? `Şu konu için birbirinden farklı fikirler üret ve her birine kısa gerekçe ekle: ${rest}` : 'Bir sonraki konu için birbirinden farklı fikirler üret ve kısa gerekçeler ekle.' })
+    Object.freeze({ key: 'özet', aliases: ['ozet', 'summary'], label: 'Kısa özet', description: 'Metni kısa ve anlaşılır biçimde özetle.', template: (rest) => rest ? `Şu konuyu kısa ve anlaşılır biçimde özetle: ${rest}` : 'Bir sonraki metni kısa ve anlaşılır biçimde özetle.' }),
+    Object.freeze({ key: 'yaz', aliases: ['write'], label: 'Metin yaz', description: 'Taslak ve içerik oluştur.', template: (rest) => rest ? `Şu konu için iyi yapılandırılmış bir metin taslağı yaz: ${rest}` : 'Bir sonraki isteğim için iyi yapılandırılmış bir metin taslağı yaz.' }),
+    Object.freeze({ key: 'düzenle', aliases: ['duzenle', 'rewrite'], label: 'Metni düzenle', description: 'Metni daha açık ve profesyonel hale getir.', template: (rest) => rest ? `Şu metni anlamını koruyarak daha açık ve profesyonel biçimde düzenle: ${rest}` : 'Bir sonraki metni anlamını koruyarak daha açık ve profesyonel biçimde düzenle.' }),
+    Object.freeze({ key: 'araştır', aliases: ['arastir', 'research'], label: 'Araştır', description: 'Araştırma sorusunu çerçevele ve kaynak ihtiyacını belirle.', template: (rest) => rest ? `Şu konu için araştırma planı oluştur ve hangi kaynakların gerekli olduğunu belirt: ${rest}` : 'Bir sonraki konu için araştırma planı oluştur ve gerekli kaynak türlerini belirt.' }),
+    Object.freeze({ key: 'kod', aliases: ['code'], label: 'Kod incele', description: 'Kodu analiz et, hata ve iyileştirme noktalarını çıkar.', template: (rest) => rest ? `Şu kodu incele; hataları, riskleri ve iyileştirme önerilerini sırala: ${rest}` : 'Bir sonraki kod parçasını incele; hataları, riskleri ve iyileştirme önerilerini çıkar.' }),
+    Object.freeze({ key: 'plan', aliases: ['planner'], label: 'Planla', description: 'İşi adımlara böl ve uygulanabilir bir plan çıkar.', template: (rest) => rest ? `Şu iş için öncelikli, uygulanabilir bir adım planı hazırla: ${rest}` : 'Bir sonraki işi öncelikli ve uygulanabilir adımlara böl.' }),
+    Object.freeze({ key: 'toplantı', aliases: ['toplanti', 'meeting'], label: 'Toplantı notu', description: 'Toplantı notlarını düzenli karar ve aksiyonlara çevir.', template: (rest) => rest ? `Şu toplantı içeriğini kararlar, aksiyonlar ve sorumlular halinde düzenle: ${rest}` : 'Bir sonraki toplantı notunu kararlar, aksiyonlar ve sorumlular halinde düzenle.' }),
+    Object.freeze({ key: 'mail', aliases: ['email'], label: 'E-posta', description: 'Profesyonel ve uygun tonda e-posta taslağı oluştur.', template: (rest) => rest ? `Şu konu için profesyonel bir e-posta taslağı hazırla: ${rest}` : 'Bir sonraki konu için profesyonel bir e-posta taslağı hazırla.' }),
+    Object.freeze({ key: 'test', aliases: ['tests'], label: 'Test senaryosu', description: 'Kod için test senaryoları ve uç durumlar öner.', template: (rest) => rest ? `Şu özellik için birim, entegrasyon ve uç durum test senaryoları çıkar: ${rest}` : 'Bir sonraki özellik için birim, entegrasyon ve uç durum test senaryoları çıkar.' }),
+    Object.freeze({ key: 'karar', aliases: ['decision'], label: 'Karar matrisi', description: 'Seçenekleri ölçütlere ayır ve tarafsız bir karar matrisi kur.', template: (rest) => rest ? `Şu konu için seçenekleri ölçütlere ayıran tarafsız bir karar matrisi oluştur: ${rest}` : 'Bir sonraki konu için seçenekleri ve ölçütleri ayıran tarafsız bir karar matrisi oluştur.' }),
+    Object.freeze({ key: 'öğret', aliases: ['ogret', 'teach'], label: 'Öğret', description: 'Konuyu sade, aşamalı ve örnekli biçimde anlat.', template: (rest) => rest ? `Şu konuyu temel düzeyden başlayarak aşamalı ve örnekli biçimde öğret: ${rest}` : 'Bir sonraki konuyu temel düzeyden başlayarak aşamalı ve örnekli biçimde öğret.' }),
+    Object.freeze({ key: 'fikir', aliases: ['fikirler', 'ideas'], label: 'Fikir üret', description: 'Alternatif fikirler üret ve kısa gerekçeler ekle.', template: (rest) => rest ? `Şu konu için birbirinden farklı fikirler üret ve her birine kısa gerekçe ekle: ${rest}` : 'Bir sonraki konu için birbirinden farklı fikirler üret ve kısa gerekçeler ekle.' })
   ]);
 
   function editableTarget(target) {
@@ -35,15 +41,76 @@
     return { token: match[1].toLocaleLowerCase('tr-TR'), rest: String(match[2] ?? '').trimStart() };
   }
 
+  let runtimeCommands = COMMANDS.slice();
+
+  function clean(value, limit) {
+    return typeof value === 'string' ? value.trim().replace(/[\\u0000\\r\\n]/g, ' ').slice(0, limit) : '';
+  }
+
+  function readUsage(rootRef = root) {
+    try {
+      const value = JSON.parse(rootRef.localStorage?.getItem(USAGE_KEY) || '{}');
+      return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    } catch { return {}; }
+  }
+
+  function writeUsage(usage, rootRef = root) {
+    try { rootRef.localStorage?.setItem(USAGE_KEY, JSON.stringify(usage)); return true; } catch { return false; }
+  }
+
+  function recordUsage(key, rootRef = root) {
+    const normalized = clean(key, MAX_KEY).toLocaleLowerCase('tr-TR');
+    if (!normalized) return;
+    const usage = readUsage(rootRef);
+    usage[normalized] = Number.isFinite(usage[normalized]) ? Math.min(9999, Math.floor(usage[normalized]) + 1) : 1;
+    const entries = Object.entries(usage).sort((a, b) => b[1] - a[1]).slice(0, 60);
+    writeUsage(Object.fromEntries(entries), rootRef);
+  }
+
+  function usageOf(command, rootRef = root) {
+    return Number(readUsage(rootRef)[command.key] || 0);
+  }
+
+  function aliasesOf(command) { return Array.isArray(command.aliases) ? command.aliases : []; }
+
   function matchCommands(token) {
     const query = String(token ?? '').toLocaleLowerCase('tr-TR').slice(0, MAX_QUERY);
-    if (!query) return COMMANDS.slice(0, 8);
-    return COMMANDS.filter((command) => command.key.startsWith(query) || command.label.toLocaleLowerCase('tr-TR').includes(query)).slice(0, 8);
+    if (!query) return runtimeCommands.slice().sort((a, b) => usageOf(b) - usageOf(a)).slice(0, 8);
+    return runtimeCommands.filter((command) => command.key.startsWith(query) || aliasesOf(command).some((alias) => alias.startsWith(query)) || command.label.toLocaleLowerCase('tr-TR').includes(query)).slice(0, 8);
   }
 
   function commandByKey(key) {
     const normalized = String(key ?? '').toLocaleLowerCase('tr-TR');
-    return COMMANDS.find((command) => command.key === normalized) || null;
+    return runtimeCommands.find((command) => command.key === normalized || aliasesOf(command).includes(normalized)) || null;
+  }
+
+  function normalizeCustomCommand(input) {
+    if (!input || typeof input !== 'object') return null;
+    const key = clean(input.key, MAX_KEY).toLocaleLowerCase('tr-TR').replace(/[^a-z0-9_-]/g, '');
+    const label = clean(input.label, MAX_LABEL);
+    const description = clean(input.description, MAX_DESCRIPTION);
+    const template = typeof input.templateText === 'string' ? input.templateText.replace(/\\0/g, '').slice(0, MAX_TEMPLATE) : '';
+    if (!key || !label || !template) return null;
+    return Object.freeze({ id: clean(input.id, 120) || `custom-${key}`, key, aliases: [], label, description: description || 'Özel slash komutu', templateText: template, custom: true });
+  }
+
+  function registerCommand(input) {
+    const command = normalizeCustomCommand(input);
+    if (!command || runtimeCommands.some((entry) => entry.key === command.key && !entry.custom)) return null;
+    runtimeCommands = [...runtimeCommands.filter((entry) => entry.key !== command.key), Object.freeze({ ...command, template: (rest) => {
+      const safeRest = String(rest ?? '').slice(0, MAX_INPUT);
+      const rendered = command.templateText.replace(/\\{\\{\\s*konu\\s*\\}\\}/gi, safeRest);
+      return normalizeInput(rendered.includes(safeRest) || !safeRest ? rendered : `${rendered} ${safeRest}`);
+    } })];
+    return command;
+  }
+
+  function unregisterCommand(key) {
+    const normalized = clean(key, MAX_KEY).toLocaleLowerCase('tr-TR');
+    if (COMMANDS.some((command) => command.key === normalized)) return false;
+    const before = runtimeCommands.length;
+    runtimeCommands = runtimeCommands.filter((command) => command.key !== normalized);
+    return runtimeCommands.length !== before;
   }
 
   function normalizeInput(value) {
@@ -121,7 +188,10 @@
         label.textContent = command.label;
         const description = documentRef.createElement('small');
         description.textContent = command.description;
-        option.append(key, label, description);
+        const usage = documentRef.createElement('small');
+        usage.className = 'composer-slash-usage';
+        usage.textContent = usageOf(command, rootRef) ? `${usageOf(command, rootRef)} kullanım` : '';
+        option.append(key, label, description, usage);
         option.addEventListener('click', () => choose(index));
         list.append(option);
       });
@@ -153,8 +223,9 @@
       const command = matches[index];
       if (!command) return;
       input.value = applyCommand(command, baseRest);
+      recordUsage(command.key, rootRef);
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:composer-slash-command', { detail: { command: command.key } }));
+      rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:composer-slash-command', { detail: { command: command.key, custom: command.custom === true } }));
       hide();
       input.focus();
       input.selectionStart = input.selectionEnd = input.value.length;
@@ -227,11 +298,24 @@
 
   root.HafizeComposerSlashCommands = Object.freeze({
     COMMANDS,
+    USAGE_KEY,
+    MAX_CUSTOM,
+    MAX_KEY,
+    MAX_LABEL,
+    MAX_DESCRIPTION,
+    MAX_TEMPLATE,
     parseQuery,
     matchCommands,
     commandByKey,
     applyCommand,
     normalizeInput,
+    readUsage,
+    recordUsage,
+    usageOf,
+    normalizeCustomCommand,
+    registerCommand,
+    unregisterCommand,
+    listCommands: () => runtimeCommands.slice(),
     mount
   });
 
