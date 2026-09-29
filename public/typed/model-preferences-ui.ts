@@ -4,6 +4,7 @@ import {
   exportModelPreferences,
   importModelPreferences,
   loadModelPreferences,
+  previewModelPreferenceImport,
   rankProfiles,
   removeProfile,
   renameProfile,
@@ -313,25 +314,36 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
     const selectedFile = dialog.file.files?.[0];
     dialog.file.value = '';
     if (!selectedFile) return;
-    if (selectedFile.size > MODEL_PREFERENCES_LIMITS.maxImport) return status('Tercih yedeği 200 KB sınırını aşamaz.');
+    if (selectedFile.size > MODEL_PREFERENCES_LIMITS.maxImport) {
+      return status('Tercih yedeği 200 KB sınırını aşamaz.');
+    }
     try {
       const text = await selectedFile.text();
       const parsed = JSON.parse(text);
-      const result = importModelPreferences(state, parsed);
+      const preview = previewModelPreferenceImport(state, parsed);
+      if (!preview.willImport) {
+        return status(
+          preview.candidateCount
+            ? 'Import için kullanılabilir kapasite veya geçerli profil yok.'
+            : 'Import dosyasında profil bulunamadı.'
+        );
+      }
       const approved = globalThis.confirm(
-        result.imported
-          ? `${result.imported} profil alınacak; ${result.rejected} kayıt reddedilecek. Mevcut tercihlerin üzerine yazılmaz. Devam edilsin mi?`
-          : 'Geçerli profil bulunamadı. Import iptal edilsin mi?'
+        preview.willImport + ' profil alınacak; ' +
+        preview.rejectedCount + ' kayıt reddedilecek; ' +
+        preview.collisionCount + ' ID çakışması yeni ID ile korunacak. ' +
+        preview.capacityRemaining + ' kapasite mevcut. Devam edilsin mi?'
       );
       if (!approved) return status('Import iptal edildi.');
+      const result = importModelPreferences(state, parsed);
       state = result.state;
       saveModelPreferences(state);
       render();
-      status(`${result.imported} profil içe aktarıldı; ${result.rejected} kayıt reddedildi.`);
+      status(result.imported + ' profil içe aktarıldı; ' + result.rejected + ' kayıt reddedildi.');
     } catch {
       status('Geçersiz model tercihleri yedeği.');
     }
-  });
+  });;
 
   const focusables = (): HTMLElement[] => Array.from(
     dialog.panel.querySelectorAll<HTMLElement>(
