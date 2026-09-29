@@ -24,8 +24,9 @@ const typedDevEntryPlugin = (): Plugin => ({
         .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
         .replaceAll('/typed-build/scheduled-tasks-countdown.js', '/scheduled-tasks-countdown.ts')
         .replaceAll('/typed-build/prompt-library-smart-fill-hints.js', '/prompt-library-smart-fill-hints.ts');
-        .replaceAll('/typed-build/github-workspace.js', '/github-workspace.ts');
-        .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts');
+        .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts')
+        .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts')
+        .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts');
         .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts')
         .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts');
     }
@@ -60,6 +61,7 @@ export default defineConfig({
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
         'scheduled-tasks-countdown': resolve(ROOT, 'public/scheduled-tasks-countdown.ts'),
         'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts'),
+        'conversation-forks': resolve(ROOT, 'public/typed/conversation-forks.ts'),
         'github-workspace': resolve(ROOT, 'public/github-workspace.ts'),
         'github-workspace-extra': resolve(ROOT, 'public/github-workspace-extra.ts'),
         'github-workspace-actions': resolve(ROOT, 'public/github-workspace-actions.ts'),
