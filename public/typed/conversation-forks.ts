@@ -344,6 +344,22 @@ const lineageOf = conversationLineage;
     });
   }
 
+  function descendantCount(conversationId, all, visited = new Set()) {
+    if (visited.has(conversationId)) return 0;
+    visited.add(conversationId);
+    const children = directChildren(conversationId, all);
+    return children.reduce((sum, child) => sum + 1 + descendantCount(child.id, all, visited), 0);
+  }
+
+  function focusForkPoint(conversation) {
+    const id = cleanText(conversation?.forkMessageId, 120);
+    if (!id) return showToast('Bu sohbetin kayıtlı fork noktası yok.');
+    const node = ui.messages.querySelector('[data-message-id="' + CSS.escape(id) + '"]');
+    if (!node) return showToast('Fork noktası bu konuşmada bulunamadı.');
+    node.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+    node.querySelector?.('button')?.focus?.();
+  }
+
   function renderBranchPanel() {
     const all = readConversations();
     const active = currentConversation(all);
@@ -385,9 +401,32 @@ const lineageOf = conversationLineage;
     } else {
       context.textContent = 'Bu sohbetin yerel dalları';
     }
+    const lineage = lineageOf(active, all);
+    const breadcrumbRow = document.createElement('div');
+    breadcrumbRow.className = 'conversation-fork-lineage';
+    breadcrumbRow.setAttribute('aria-label', 'Konuşma dalı soyu');
+    lineage.forEach((item, index) => {
+      const crumb = document.createElement('button');
+      crumb.type = 'button';
+      crumb.className = 'mini-btn conversation-fork-crumb';
+      crumb.textContent = cleanText(item.title, MAX_TITLE) || 'Sohbet';
+      crumb.setAttribute('aria-label', (cleanText(item.title, MAX_TITLE) || 'Sohbet') + ' sohbetine geç');
+      crumb.disabled = item.id === active.id;
+      crumb.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: item.id } })));
+      breadcrumbRow.append(crumb);
+      if (index < lineage.length - 1) breadcrumbRow.append(document.createTextNode('›'));
+    });
     const tools = document.createElement('div');
     tools.className = 'conversation-fork-panel-actions';
     if (active.forkOf) {
+      const pointButton = document.createElement('button');
+      pointButton.type = 'button';
+      pointButton.className = 'mini-btn';
+      pointButton.textContent = 'Fork noktası';
+      pointButton.setAttribute('aria-label', 'Bu dalın fork noktasına git');
+      pointButton.addEventListener('click', () => focusForkPoint(active));
+      tools.append(pointButton);
+
       const parentButton = document.createElement('button');
       parentButton.type = 'button';
       parentButton.className = 'mini-btn';
@@ -405,7 +444,11 @@ const lineageOf = conversationLineage;
     exportButton.setAttribute('aria-label', 'Bu konuşma dalını JSON olarak dışa aktar');
     exportButton.addEventListener('click', () => downloadConversation(active));
     tools.append(exportButton);
-    body.append(context, tools);
+    const descendants = descendantCount(active.id, all);
+    const stats = document.createElement('p');
+    stats.className = 'conversation-fork-context';
+    stats.textContent = descendants + ' alt dal' + (descendants === 1 ? '' : 'ı') + ' · ' + lineage.length + ' seviye bağlam';
+    body.append(context, breadcrumbRow, stats, tools);
 
     if (!children.length) {
       const empty = document.createElement('div');
