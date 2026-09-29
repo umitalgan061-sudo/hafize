@@ -219,3 +219,85 @@ describe('model-preferences import/export', () => {
     expect(result.state.profiles[0].id).toBe('array-item');
   });
 });
+
+
+describe('model-preferences profile management', () => {
+  it('renames an existing profile and preserves its settings', () => {
+    const original = profile({ id: 'rename-me', name: 'Eski', model: 'model-x', agentId: 'writer', toolsEnabled: true, useCount: 7 })!;
+    const result = normalizeState({ ...state(), profiles: [original] });
+    const renamed = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).renameProfile(result, 'rename-me', 'Yeni ad');
+    expect(renamed.profiles[0].name).toBe('Yeni ad');
+    expect(renamed.profiles[0].model).toBe('model-x');
+    expect(renamed.profiles[0].toolsEnabled).toBe(true);
+    expect(renamed.profiles[0].useCount).toBe(7);
+  });
+
+  it('ignores empty profile names during rename', () => {
+    const original = profile({ id: 'rename-me', name: 'Eski' })!;
+    const result = normalizeState({ ...state(), profiles: [original] });
+    const renamed = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).renameProfile(result, 'rename-me', '   ');
+    expect(renamed.profiles[0].name).toBe('Eski');
+  });
+
+  it('duplicates a profile with a fresh identity and reset usage', () => {
+    const original = profile({ id: 'copy-me', name: 'Kod', model: 'model-x', agentId: 'coder', toolsEnabled: true, useCount: 9 })!;
+    const result = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).duplicateProfile(
+      normalizeState({ ...state(), profiles: [original] }),
+      'copy-me'
+    );
+    expect(result.profiles).toHaveLength(2);
+    expect(result.profiles[0].id).not.toBe('copy-me');
+    expect(result.profiles[0].name).toBe('Kod kopyası');
+    expect(result.profiles[0].useCount).toBe(0);
+    expect(result.profiles[0].toolsEnabled).toBe(true);
+  });
+
+  it('does not duplicate at capacity', () => {
+    const profiles = Array.from({ length: MODEL_PREFERENCES_LIMITS.maxProfiles }, (_, index) =>
+      profile({ id: 'p-' + index, name: 'Profil ' + index })!
+    );
+    const result = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).duplicateProfile(
+      normalizeState({ ...state(), profiles }),
+      'p-0'
+    );
+    expect(result.profiles).toHaveLength(MODEL_PREFERENCES_LIMITS.maxProfiles);
+  });
+
+  it('uses explicit duplicate names but still bounds them', () => {
+    const original = profile({ id: 'copy-me' })!;
+    const longName = 'x'.repeat(200);
+    const result = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).duplicateProfile(
+      normalizeState({ ...state(), profiles: [original] }),
+      'copy-me',
+      longName
+    );
+    expect(result.profiles[0].name.length).toBe(MODEL_PREFERENCES_LIMITS.maxName);
+  });
+});
+
+describe('model-preferences edge behavior', () => {
+  it('does not let selected values expand without normalization', () => {
+    const result = rememberSelection(state(), {
+      model: 'm'.repeat(500),
+      agentId: 'a'.repeat(500)
+    });
+    expect(result.selectedModel.length).toBe(MODEL_PREFERENCES_LIMITS.maxModel);
+    expect(result.selectedAgentId.length).toBe(MODEL_PREFERENCES_LIMITS.maxAgentId);
+  });
+
+  it('keeps unrelated state fields out of exported profiles', () => {
+    const payload = JSON.parse(exportModelPreferences(state({
+      profiles: [profile({ id: 'safe', secret: 'should-not-export' }) as never]
+    })));
+    expect(JSON.stringify(payload)).not.toContain('should-not-export');
+    expect(payload.profiles[0]).not.toHaveProperty('secret');
+  });
+
+  it('keeps export free of conversation storage data', () => {
+    const payload = exportModelPreferences(state({
+      profiles: [profile({ id: 'safe', name: 'Prompt' })!]
+    }));
+    expect(payload).not.toContain('conversation');
+    expect(payload).not.toContain('messageInput');
+  });
+});
