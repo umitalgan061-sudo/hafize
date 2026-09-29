@@ -181,7 +181,8 @@ const lineageOf = conversationLineage;
 
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
-      if (event.key === 'Enter' && event.target !== cancel) { event.preventDefault(); finish(true); return; }
+      const tagName = event.target?.tagName;
+      if (event.key === 'Enter' && tagName !== 'INPUT' && tagName !== 'TEXTAREA' && event.target !== cancel) { event.preventDefault(); finish(true); return; }
       if (event.key !== 'Tab') return;
       const nodes = focusable(panel);
       if (!nodes.length) return;
