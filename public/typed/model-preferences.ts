@@ -45,8 +45,9 @@ export function normalizeProfile(value: unknown): ModelPreferenceProfile | null 
   if (!model || !agentId) return null;
   const createdAt = trim(source.createdAt, 40) || now();
   const updatedAt = trim(source.updatedAt, 40) || createdAt;
-  const useCount = Number.isFinite(source.useCount) && Number(source.useCount) >= 0
-    ? Math.min(9999, Math.floor(Number(source.useCount)))
+  const numericUseCount = Number(source.useCount);
+  const useCount = Number.isFinite(numericUseCount) && numericUseCount >= 0
+    ? Math.min(9999, Math.floor(numericUseCount))
     : 0;
   return Object.freeze({
     id: trim(source.id, 120) || uid(),
@@ -161,16 +162,13 @@ export function touchProfile(
   state: ModelPreferenceState,
   profileId: string
 ): ModelPreferenceState {
-  return upsertProfile(
-    state,
-    state.profiles.find((item) => item.id === profileId)
-      ? Object.freeze({
-          ...state.profiles.find((item) => item.id === profileId)!,
-          useCount: Math.min(9999, state.profiles.find((item) => item.id === profileId)!.useCount + 1),
-          updatedAt: now()
-        })
-      : (null as never)
-  );
+  const profile = state.profiles.find((item) => item.id === profileId);
+  if (!profile) return normalizeState(state);
+  return upsertProfile(state, {
+    ...profile,
+    useCount: Math.min(9999, profile.useCount + 1),
+    updatedAt: now()
+  });
 }
 
 export function findProfile(
