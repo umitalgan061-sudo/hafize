@@ -113,6 +113,24 @@
     return runtimeCommands.length !== before;
   }
 
+  function registerRuntimeCommand(input) {
+    if (!input || typeof input !== 'object' || typeof input.key !== 'string' || typeof input.template !== 'function') return null;
+    const key = clean(input.key, MAX_KEY).toLocaleLowerCase('tr-TR').replace(/[^a-z0-9_-öğüşçıİĞÜŞÇÖ]/gi, '');
+    const label = clean(input.label, MAX_LABEL);
+    if (!key || !label || COMMANDS.some((command) => command.key === key)) return null;
+    const command = Object.freeze({
+      id: clean(input.id, 120) || `runtime-${key}`,
+      key,
+      aliases: Array.isArray(input.aliases) ? input.aliases.map((alias) => clean(alias, MAX_KEY).toLocaleLowerCase('tr-TR')).filter(Boolean).slice(0, 8) : [],
+      label,
+      description: clean(input.description, MAX_DESCRIPTION) || 'Hızlı komut',
+      template: (rest) => normalizeInput(input.template(String(rest ?? ''))),
+      runtime: true
+    });
+    runtimeCommands = [...runtimeCommands.filter((entry) => entry.key !== command.key), command];
+    return command;
+  }
+
   function normalizeInput(value) {
     return String(value ?? '').slice(0, MAX_INPUT);
   }
@@ -315,6 +333,7 @@
     usageOf,
     normalizeCustomCommand,
     registerCommand,
+    registerRuntimeCommand,
     unregisterCommand,
     listCommands: () => runtimeCommands.slice(),
     mount
