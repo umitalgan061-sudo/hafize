@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const state = fs.readFileSync(path.join(root, 'public/typed/model-preferences.ts'), 'utf8');
+const ui = fs.readFileSync(path.join(root, 'public/typed/model-preferences-ui.ts'), 'utf8');
+const shell = fs.readFileSync(path.join(root, 'public/typed/app-shell.ts'), 'utf8');
+
+assert.match(state, /MODEL_PREFERENCES_STORAGE_KEY = 'hafize\.model-preferences\.v1'/);
+assert.match(state, /maxProfiles: 6/);
+assert.match(state, /maxImport: 200_000/);
+assert.match(state, /maxExport: 200_000/);
+assert.match(state, /normalizeProfile/);
+assert.match(state, /normalizeState/);
+assert.match(state, /rememberSelection/);
+assert.match(state, /touchProfile/);
+assert.match(state, /rankProfiles/);
+assert.match(state, /importModelPreferences/);
+assert.match(state, /exportModelPreferences/);
+assert.match(ui, /role', 'dialog'/);
+assert.match(ui, /aria-labelledby/);
+assert.match(ui, /aria-expanded/);
+assert.match(ui, /event\.key === 'Tab'/);
+assert.match(ui, /event\.key\.toLowerCase\(\) !== 'm'/);
+assert.match(ui, /document\.addEventListener\('keydown', keyboard\)/);
+assert.match(ui, /document\.removeEventListener\('keydown', keyboard\)/);
+assert.match(shell, /mountModelPreferences/);
+assert.match(shell, /loadModelPreferences/);
+assert.match(shell, /modelPreferencesController/);
+assert.match(shell, /selectedModel/);
+assert.match(shell, /selectedAgentId/);
+console.log('model preferences contract ok');
