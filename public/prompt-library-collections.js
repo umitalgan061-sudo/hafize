@@ -211,6 +211,7 @@
 
     let collections = loadCollections();
     let map = pruneMap(collections, loadMap());
+    let activeFilter = ALL;
     const ensurePersisted = () => {
       const ok = saveCollections(collections) && saveMap(map);
       if (!ok) report('Koleksiyon bilgileri cihazda kalıcı kaydedilemedi.');
@@ -265,8 +266,18 @@
     const report = (message) => { status.textContent = clean(message, 180); };
 
     function setFilter(collectionId) {
-      const detail = { collectionId: collectionId || ALL };
+      activeFilter = collectionId || ALL;
+      const detail = { collectionId: activeFilter };
       rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:prompt-library-collection-filter', { detail }));
+      applyFilterVisibility();
+    }
+
+    function applyFilterVisibility() {
+      documentRef.querySelectorAll('#promptLibraryList .prompt-item').forEach((row) => {
+        const promptId = row.dataset.promptId;
+        const collectionId = promptId ? map[promptId] : undefined;
+        row.hidden = activeFilter !== ALL && (activeFilter === NONE ? Boolean(collectionId) : collectionId !== activeFilter);
+      });
     }
 
     function renderFilter() {
@@ -420,6 +431,7 @@
     function enhanceItems() {
       documentRef.querySelectorAll('#promptLibraryList .prompt-item').forEach(populateRow);
       renderFilter();
+      applyFilterVisibility();
     }
 
     const observer = typeof rootRef.MutationObserver === 'function' ? new rootRef.MutationObserver(enhanceItems) : null;
@@ -471,6 +483,7 @@
       map = pruneMap(collections, loadMap());
       renderFilter();
       if (!editor.hidden) renderList();
+      applyFilterVisibility();
       enhanceItems();
     }
 
