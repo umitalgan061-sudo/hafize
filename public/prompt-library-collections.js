@@ -401,8 +401,8 @@
         const rename = button(documentRef, 'Adını değiştir');
         const remove = button(documentRef, 'Sil');
         row.append(title, usage, rename, remove);
-        on(rename, 'click', () => editCollection(item));
-        on(remove, 'click', () => deleteCollection(item));
+        rename.addEventListener('click', () => editCollection(item));
+        remove.addEventListener('click', () => deleteCollection(item));
         list.append(row);
       }
     }
