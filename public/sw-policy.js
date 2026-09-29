@@ -20,7 +20,7 @@
     '/typed-build/auth.js', '/typed-build/app-shell.js', '/typed-build/ui-shell.js', '/typed-build/voice-input.js', '/typed-build/voice-output.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/typed-build/conversation-workspace.js', '/typed-build/conversation-forks.js', '/typed-build/message-workspace.js', '/conversation-workspace-keyboard.js',
     '/message-workspace-policy.js', '/message-workspace.js',
-    '/typed-build/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/composer-slash-commands.js', '/composer-slash-custom.js', '/composer-slash-prompt-library.js', '/prompt-library-keyboard.js',
+    '/typed-build/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js', '/composer-slash-commands.js', '/composer-slash-custom.js', '/composer-slash-prompt-library.js', '/composer-slash-recent.js', '/prompt-library-keyboard.js',
     '/prompt-library-usage.js', '/prompt-library-collections.js', '/prompt-library-collections-enhancements.js',
     '/prompt-library-revisions.js', '/prompt-library-revisions-enhancements.js', '/prompt-library-smart-insert.js', '/prompt-library-smart-insert-center.js',
     '/prompt-library-smart-insert-history.js', '/prompt-library-smart-insert-history-bridge.js', '/prompt-library-smart-insert-suggestions.js', '/prompt-library-smart-insert-shortcuts.js', '/prompt-library-smart-insert-presets.js', '/prompt-library-smart-insert-validation.js', '/prompt-library-smart-insert-activity.js',
