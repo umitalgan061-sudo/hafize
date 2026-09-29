@@ -40,6 +40,24 @@ Mesaj Çalışma Alanı, mevcut sohbet içindeki tek tek mesajları yerel olarak
 
 Kontroller `node scripts/test-message-workspace-policy.mjs` ve `node scripts/test-message-workspace-adversarial.mjs` ile çalıştırılır. Ayrıntılar `docs/MESSAGE_WORKSPACE*.md` dosyalarındadır.
 
+## Konuşma dalları
+
+Sohbet içindeki herhangi bir user veya assistant mesajından **Buradan dallandır** ile yeni bir yerel konuşma açılabilir.
+
+- Onay penceresi taşınacak mesaj sayısı, kısa mesaj önizlemesi, özel dal adı ve isteğe bağlı dal notunu gösterir.
+- Aktif dal için soy ağacı, üst sohbete dönüş, fork noktası, karşılaştırma ve yerel dal yedeği eylemleri bulunur.
+- Tüm dallar merkezi, cihazdaki child dalları arayıp doğrudan açmayı sağlar.
+- Yeni dal parent sohbeti değiştirmez; seçilen noktaya kadar mesajların bounded bir kopyasını oluşturur.
+- Sidebar altındaki **Konuşma dalları** paneli mevcut sohbetin doğrudan çocuk dallarını gösterir ve tek tıkla açar.
+- Ctrl / ⌘ + Shift + F, düzenlenebilir bir alanın dışındayken son mesajdan fork akışını başlatır.
+- Fork işlemi kendi başına network isteği yapmaz; ilk API çağrısı kullanıcı yeni mesaj gönderdiğinde mevcut chat akışından gelir.
+- Yerel sınırlar: 30 konuşma, parent başına 8 doğrudan dal, 4 dal derinliği ve fork başına 100 mesaj.
+- Fork metadata'sı `forkOf`, `forkMessageId` ve `forkDepth` alanlarıyla bounded tutulur.
+- Dialog Escape/Tab/Enter erişilebilirlik davranışını destekler.
+- Fork verisi `hafize.conversations.v1` içinde tutulur; ayrı network veya telemetry kaydı oluşturulmaz.
+
+Ayrıntılar `docs/CONVERSATION_FORKS*.md` dosyalarındadır.
+
 ## İstem Kütüphanesi
 
 İstem Kütüphanesi, tekrar kullanılan prompt'ları cihaz üzerinde saklayıp sohbet composer alanına aktaran yerel yardımcı araçtır.
