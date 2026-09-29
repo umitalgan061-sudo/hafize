@@ -237,6 +237,36 @@ export function importModelPreferences(
   return { state, imported, rejected };
 }
 
+export function renameProfile(
+  state: ModelPreferenceState,
+  profileId: string,
+  name: string
+): ModelPreferenceState {
+  const profile = state.profiles.find((item) => item.id === profileId);
+  if (!profile) return normalizeState(state);
+  const normalizedName = trim(name, MODEL_PREFERENCES_LIMITS.maxName);
+  if (!normalizedName) return normalizeState(state);
+  return upsertProfile(state, { ...profile, name: normalizedName, updatedAt: now() });
+}
+
+export function duplicateProfile(
+  state: ModelPreferenceState,
+  profileId: string,
+  requestedName = ''
+): ModelPreferenceState {
+  const profile = state.profiles.find((item) => item.id === profileId);
+  if (!profile || state.profiles.length >= MODEL_PREFERENCES_LIMITS.maxProfiles) {
+    return normalizeState(state);
+  }
+  const copy = createProfile(
+    requestedName || (profile.name + ' kopyası').slice(0, MODEL_PREFERENCES_LIMITS.maxName),
+    profile.model,
+    profile.agentId,
+    profile.toolsEnabled
+  );
+  return copy ? upsertProfile(state, copy) : normalizeState(state);
+}
+
 export function clearModelPreferences(
   storage: Storage | null | undefined = globalThis.localStorage
 ): boolean {
