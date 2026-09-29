@@ -300,6 +300,39 @@
       .slice(0, MAX_BRANCHES_PER_PARENT);
   }
 
+  function lineageOf(conversation, all) {
+    const chain = [];
+    const seen = new Set();
+    let cursor = conversation;
+    while (cursor && !seen.has(cursor.id) && chain.length <= MAX_FORK_DEPTH + 1) {
+      chain.unshift(cursor);
+      seen.add(cursor.id);
+      cursor = cursor.forkOf ? all.find((item) => item.id === cursor.forkOf) || null : null;
+    }
+    return chain;
+  }
+
+  function downloadConversation(conversation) {
+    const snapshot = {
+      version: 1,
+      type: 'hafize-conversation-fork',
+      exportedAt: new Date().toISOString(),
+      conversation
+    };
+    try {
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hafize-' + (cleanText(conversation.title, 48) || 'sohbet') + '.json';
+      link.click();
+      globalThis.setTimeout?.(() => URL.revokeObjectURL(url), 0);
+      showToast('Dal yedeği indirildi.');
+    } catch {
+      showToast('Dal yedeği oluşturulamadı.');
+    }
+  }
+
   function renderBranchPanel() {
     const all = readConversations();
     const active = currentConversation(all);
@@ -337,11 +370,31 @@
     context.className = 'conversation-fork-context';
     if (active.forkOf) {
       const parent = all.find((item) => item.id === active.forkOf);
-      context.textContent = parent ? 'Bu dal: ' + cleanText(parent.title, MAX_TITLE) : 'Bu dalın üst sohbeti bulunamıyor.';
+      context.textContent = parent ? 'Bu dal: ' + cleanText(parent.title, MAX_TITLE) + ' · Seviye ' + (Number(active.forkDepth) || 1) : 'Bu dalın üst sohbeti bulunamıyor.';
     } else {
       context.textContent = 'Bu sohbetin yerel dalları';
     }
-    body.append(context);
+    const tools = document.createElement('div');
+    tools.className = 'conversation-fork-panel-actions';
+    if (active.forkOf) {
+      const parentButton = document.createElement('button');
+      parentButton.type = 'button';
+      parentButton.className = 'mini-btn';
+      parentButton.textContent = 'Üst sohbet';
+      parentButton.setAttribute('aria-label', 'Bu dalın üst sohbetini aç');
+      parentButton.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
+        detail: { conversationId: active.forkOf }
+      })));
+      tools.append(parentButton);
+    }
+    const exportButton = document.createElement('button');
+    exportButton.type = 'button';
+    exportButton.className = 'mini-btn';
+    exportButton.textContent = 'Dal yedeği';
+    exportButton.setAttribute('aria-label', 'Bu konuşma dalını JSON olarak dışa aktar');
+    exportButton.addEventListener('click', () => downloadConversation(active));
+    tools.append(exportButton);
+    body.append(context, tools);
 
     if (!children.length) {
       const empty = document.createElement('div');
@@ -430,6 +483,8 @@
     MAX_FORK_DEPTH,
     makeFork: (conversation, messageId, all = [conversation]) => makeFork(conversation, messageId, all),
     childrenOf,
+    lineageOf,
+    downloadConversation,
     createFork
   });
 
