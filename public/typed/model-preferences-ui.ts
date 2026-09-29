@@ -43,6 +43,7 @@ interface Options {
 
 const PANEL_ID = 'modelPreferencesPanel';
 const OPEN_BUTTON_ID = 'modelPreferencesButton';
+const STORAGE_KEY = 'hafize.model-preferences.v1';
 
 function button(label: string, className = 'mini-btn'): HTMLButtonElement {
   const node = document.createElement('button');
@@ -375,7 +376,13 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
   options.modelSelect.addEventListener('change', onModelOrAgentChange);
   options.agentSelect.addEventListener('change', onModelOrAgentChange);
   options.toolModeButton.addEventListener('click', onModelOrAgentChange);
+  const onStorage = (event: StorageEvent): void => {
+    if (event.key !== STORAGE_KEY) return;
+    state = loadModelPreferences();
+    if (!dialog.panel.hidden) render();
+  };
   document.addEventListener('keydown', keyboard);
+  globalThis.addEventListener('storage', onStorage);
 
   return Object.freeze({
     refresh: (): void => {
@@ -389,6 +396,7 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
       options.agentSelect.removeEventListener('change', onModelOrAgentChange);
       options.toolModeButton.removeEventListener('click', onModelOrAgentChange);
       document.removeEventListener('keydown', keyboard);
+      globalThis.removeEventListener('storage', onStorage);
     }
   });
 }
