@@ -1152,5 +1152,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
   loadAgents();
 })();
 
-
-export { normalizeConversation, normalizeMessage, fetchJson, MAX_RESPONSE_ALTERNATES };
+// `normalizeConversation`, `normalizeMessage` and `fetchJson` are private to the
+// shell IIFE above, and `MAX_RESPONSE_ALTERNATES` belongs to
+// `./response-variants.ts`, where consumers import it from. Re-exporting the
+// four names from module scope made the entry fail to link outright
+// ("Export 'fetchJson' is not defined in module"), so the browser never ran the
+// app shell at all.
