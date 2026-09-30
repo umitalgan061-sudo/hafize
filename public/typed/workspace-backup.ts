@@ -19,6 +19,7 @@ export interface WorkspaceBackupPayload {
   source: 'local-device';
   sections: WorkspaceBackupSection[];
   integrity: { algorithm: 'SHA-256'; digest: string } | null;
+  skipped?: string[];
 }
 
 export interface WorkspaceBackupInspection {
@@ -176,7 +177,8 @@ function backupWithoutIntegrity(payload: WorkspaceBackupPayload): string {
     version: payload.version,
     exportedAt: payload.exportedAt,
     source: payload.source,
-    sections: payload.sections
+    sections: payload.sections,
+    ...(payload.skipped?.length ? { skipped: payload.skipped.slice(0, 24) } : {})
   });
 }
 
@@ -189,6 +191,7 @@ export async function createBackup(storageInput?: Storage): Promise<WorkspaceBac
     exportedAt: now(),
     source: 'local-device',
     sections,
+    ...(skipped.length ? { skipped: skipped.slice(0, 24) } : {}),
     integrity: null
   };
   const digest = await sha256(backupWithoutIntegrity(base));
@@ -264,6 +267,7 @@ export async function inspectBackup(rawText: string): Promise<WorkspaceBackupIns
     exportedAt: text(parsed.exportedAt, 40),
     source: 'local-device',
     sections,
+    ...(Array.isArray(parsed.skipped) ? { skipped: parsed.skipped.filter((entry): entry is string => typeof entry === 'string').slice(0, 24).map((entry) => text(entry, 180)) } : {}),
     integrity: isRecord(parsed.integrity) && parsed.integrity.algorithm === 'SHA-256' && typeof parsed.integrity.digest === 'string'
       ? { algorithm: 'SHA-256', digest: text(parsed.integrity.digest, 128) } : null
   };
@@ -561,6 +565,16 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   });
   on(rootRef, 'storage', (event: StorageEvent) => { if (event.key === null || allowedStorageKey(event.key)) renderSummary(); });
   on(rootRef, 'hafize:workspace-backup-restored', () => renderSummary());
+  for (const eventName of [
+    'hafize:prompt-library-changed',
+    'hafize:prompt-library-collections-changed',
+    'hafize:message-workspace-changed',
+    'hafize:composer-history-changed',
+    'hafize:composer-history-settings-changed',
+    'hafize:model-preferences-changed',
+    'hafize:scheduled-task-templates-changed',
+    'hafize:conversation-forks-changed'
+  ]) on(rootRef, eventName, () => renderSummary());
   on(documentRef, 'keydown', (event: KeyboardEvent) => {
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'y') return;
     if ((event.target as HTMLElement | null)?.closest?.('input,textarea,select,button,[contenteditable="true"]')) return;
