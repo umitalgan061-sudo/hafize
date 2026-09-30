@@ -1,0 +1,58 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const root = process.cwd();
+const read = (p) => fs.readFileSync(path.join(root,p),'utf8');
+const smart = read('public/prompt-library-smart-fill.js');
+const palette = read('public/prompt-library-command-palette.js');
+const hints = read('public/prompt-library-smart-fill-hints.js');
+const docs = read('docs/PROMPT_SMART_FILL_STATE_MACHINE.md');
+
+assert.match(smart,/function openFor\(prompt\)/);
+assert.match(smart,/activePrompt = prompt/);
+assert.match(smart,/activeNames = variableNames\(prompt\.body\)/);
+assert.match(smart,/renderPresetBar\(\)/);
+assert.match(smart,/renderPreview\(\)/);
+assert.match(smart,/insertIntoComposer\(\)/);
+assert.match(smart,/closeDialog\(\)/);
+assert.match(smart,/dialog\.hidden = true/);
+assert.match(smart,/fields\.replaceChildren\(\)/);
+assert.match(smart,/presetBar\.replaceChildren\(\)/);
+assert.match(smart,/errors\.textContent = ''/);
+assert.match(smart,/values\[name\] = clamp/);
+assert.match(smart,/String\(value \?\? ''\)/);
+assert.match(smart,/if \(!writePresets/);
+assert.match(smart,/readPresets\(activePrompt\.id\)/);
+
+assert.match(palette,/function open\(start\)/);
+assert.match(palette,/triggerStart = start/);
+assert.match(palette,/query\.value = ''/);
+assert.match(palette,/current = results\(query\.value\)/);
+assert.match(palette,/list\.replaceChildren\(\)/);
+assert.match(palette,/role', 'option'/);
+assert.match(palette,/aria-selected/);
+assert.match(palette,/scrollIntoView/);
+assert.match(palette,/event\.key === 'Enter'/);
+assert.match(palette,/event\.key === 'Escape'/);
+
+assert.match(hints,/function paint\(panel\)/);
+assert.match(hints,/nextElementSibling/);
+assert.match(hints,/prompt-smart-fill-count/);
+assert.match(hints,/prompt-smart-fill-preview-count/);
+assert.match(hints,/requestAnimationFrame/);
+
+for (const source of [smart,palette,hints]) {
+  assert.doesNotMatch(source,/fetch\s*\(/);
+  assert.doesNotMatch(source,/XMLHttpRequest/);
+  assert.doesNotMatch(source,/WebSocket/);
+  assert.doesNotMatch(source,/document\.cookie/);
+  assert.doesNotMatch(source,/innerHTML\s*=/);
+}
+assert.match(docs,/closed/);
+assert.match(docs,/open/);
+assert.match(docs,/editing/);
+assert.match(docs,/Focus invariant/);
+assert.match(docs,/Submit invariant/);
+assert.match(docs,/Lifecycle invariant/);
+console.log('prompt smart-fill advanced regression: ok');
