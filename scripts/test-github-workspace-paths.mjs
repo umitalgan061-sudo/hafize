@@ -13,5 +13,9 @@ for (const source of [core, extra]) {
   assert.match(source, /startsWith\('\/'\)/);
   assert.match(source, /includes\('\\\\'\)/);
 }
-assert.match(extra, /private[._-]?keys?/i);
+// The sensitive-name denylist is one regex literal, so the contract is that
+// pattern rather than a plain mention of the words.
+for (const fragment of ['private[._-]?keys?', '\\.env', 'credentials?', 'secrets?', 'tokens?', '.(pem|key|p12|pfx)$']) {
+  assert.ok(extra.includes(fragment), `sensitive-name denylist covers ${fragment}`);
+}
 console.log('github-workspace-paths: ok');

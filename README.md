@@ -139,6 +139,15 @@ Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'ların�
 - Panel credential, OAuth secret veya token göstermez; branch/commit/PR merge gibi yazma işlemleri bu yüzeyde bulunmaz.
 - “Tanı özetini kopyala” yalnız güvenli durum metinlerini panoya aktarır.
 
+Yüzey `public/connector-hub.js` ve `public/connector-hub.css` dosyalarındadır;
+çalışma alanı geçişini `public/workspace-navigation.js` yönetir.
+
+Kontroller:
+
+```bash
+node scripts/run-checks.mjs --filter=connector-hub
+```
+
 Ayrıntılar `docs/CONNECTOR_HUB*.md` dosyalarındadır.
 
 ## Zamanlanmış Görev Önizlemesi
