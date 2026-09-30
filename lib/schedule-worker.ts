@@ -1,7 +1,7 @@
 export interface ScheduleWorkerStore {
   readonly claimDue:(input:{readonly limit:number})=>Promise<readonly ScheduleEntry[]>;
-  readonly complete:(id:string)=>Promise<unknown>;
-  readonly fail:(id:string,input:{readonly error:string;readonly retryAt?:string})=>Promise<unknown>;
+  readonly complete:(id:string,input?:{readonly summary?:string|null})=>Promise<unknown>;
+  readonly fail:(id:string,input:{readonly error:string;readonly retryAt?:string;readonly summary?:string|null})=>Promise<unknown>;
   readonly defer?:(id:string,input:{readonly error:string;readonly runAt:string})=>Promise<unknown>;
 }
 export interface ScheduleEntry {readonly scheduleId:string;readonly traceId:string;readonly agentId:string;readonly task:string;readonly attempts:number;readonly maxAttempts:number;}
@@ -22,11 +22,11 @@ export function createScheduleWorker({store,registry,executeAgentTask,now=()=>ne
       if(!agent){await store.fail(schedule.scheduleId,{error:'SCHEDULE_AGENT_NOT_FOUND'});results.push({scheduleId:schedule.scheduleId,ok:false,error:'SCHEDULE_AGENT_NOT_FOUND'});continue;}
       let result:{readonly ok?:boolean;readonly error?:unknown;readonly retryAt?:unknown};
       try{result=await executeAgentTask({scheduleId:schedule.scheduleId,traceId:schedule.traceId,agent,task:schedule.task,attempt:schedule.attempts});}catch{result={ok:false,error:'SCHEDULE_EXECUTION_FAILED'};}
-      if(result?.ok){await store.complete(schedule.scheduleId);results.push({scheduleId:schedule.scheduleId,ok:true});continue;}
+      if(result?.ok){await store.complete(schedule.scheduleId,{summary:typeof result.resultSummary==='string'?result.resultSummary:null});results.push({scheduleId:schedule.scheduleId,ok:true});continue;}
       const error=clean(result?.error);
       if(error==='SCHEDULE_LEASE_BUSY'&&store.defer){const at=retryAt(result.retryAt);await store.defer(schedule.scheduleId,{error,runAt:at});results.push({scheduleId:schedule.scheduleId,ok:false,error,retryScheduled:true,retryAt:at,attemptRefunded:true});continue;}
       const canRetry=schedule.attempts<schedule.maxAttempts;
-      if(canRetry)await store.fail(schedule.scheduleId,{error,retryAt:new Date(date().getTime()+delay).toISOString()});else await store.fail(schedule.scheduleId,{error});
+      if(canRetry)await store.fail(schedule.scheduleId,{error,retryAt:new Date(date().getTime()+delay).toISOString(),summary:typeof result.resultSummary==='string'?result.resultSummary:null});else await store.fail(schedule.scheduleId,{error,summary:typeof result.resultSummary==='string'?result.resultSummary:null});
       results.push({scheduleId:schedule.scheduleId,ok:false,error,retryScheduled:canRetry});
     }
     return {claimed:claimed.length,results};
