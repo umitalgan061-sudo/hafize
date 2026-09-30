@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const server = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+const server = await readFile(new URL('../server.ts', import.meta.url), 'utf8');
 const registry = JSON.parse(await readFile(new URL('../agents/registry.json', import.meta.url), 'utf8'));
 
-assert.match(server, /import \{ createCanvaAgentRuntime \} from '\.\/lib\/canva-agent-runtime\.mjs';/);
+assert.match(server, /import \{ createCanvaAgentRuntime \} from '\.\/lib\/canva-agent-runtime\.ts';/);
 assert.match(server, /const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime\(\);/);
 assert.match(server, /CANVA_AGENT_RUNTIME\.requestContext\(\{ headers: req\.headers \}\)/);
 assert.match(server, /canvaReadConfigured: CANVA_AGENT_RUNTIME\.configured/);

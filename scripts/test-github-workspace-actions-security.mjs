@@ -13,5 +13,11 @@ assert.match(source, /cache: ['"]no-store['"]/);
 assert.doesNotMatch(source, /Authorization/);
 assert.doesNotMatch(source, /GITHUB_TOKEN/);
 assert.doesNotMatch(source, /method: ['"](POST|PATCH|DELETE)['"]/);
-assert.match(source, /https:\\/\\/github\\.com\\//);
+// The module gates every rendered link through one host test, written as a
+// regex literal, so the contract is asserted against that exact guard.
+assert.match(source, /function safeGithubUrl/);
+assert.ok(
+  source.includes(String.raw`/^https:\/\/github\.com\//i`),
+  'rendered links stay restricted to https://github.com/'
+);
 console.log('github-workspace-actions-security: ok');

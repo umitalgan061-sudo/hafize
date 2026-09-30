@@ -80,12 +80,23 @@ export async function runDelegatedAgent({
     })
   });
   const delegateAgent = (args) => nestedDelegator.delegate(args, { depth });
-  const tools = getAllowedNvidiaTools(agent, {
+
+  // One context for both halves of the tool contract. A tool is advertised only
+  // when `available(context)` passes, so advertising from a narrower context
+  // than the one used to execute hides tools the agent is allowed to call:
+  // `github_read_file` needs `githubReadFile` present, not just configured.
+  const toolContext = {
+    traceId,
+    agent,
+    registry,
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
+    githubReadFile,
     delegateAgent,
+    approvalGranted: false,
     skillsRuntime
-  });
+  };
+  const tools = getAllowedNvidiaTools(agent, toolContext);
   const messages = [buildAgentSystemMessage(agent, traceId), { role: 'user', content: task }];
   const firstPayload = {
     model,
@@ -116,17 +127,7 @@ export async function runDelegatedAgent({
       parentTaskId,
       toolAgentId: agent.id
     });
-    const result = await executeNvidiaToolCall(agent, call, {
-      traceId,
-      agent,
-      registry,
-      nvidiaConfigured: Boolean(nvidiaConfigured),
-      githubReadConfigured: Boolean(githubReadConfigured),
-      githubReadFile,
-      delegateAgent,
-      approvalGranted: false,
-      skillsRuntime
-    });
+    const result = await executeNvidiaToolCall(agent, call, toolContext);
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
     toolMessages.push({

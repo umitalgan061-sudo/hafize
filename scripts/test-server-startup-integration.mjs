@@ -92,9 +92,27 @@ function createEnv({ port, storageFile, storageKey }) {
   };
 }
 
+// Node prints its own advisory warnings (for example
+// MODULE_TYPELESS_PACKAGE_JSON while the runtime is loaded as TypeScript) on
+// stderr. Those are not server output, so they are stripped before asserting
+// that a healthy start stays silent — the assertion is about the server, and
+// secret leaks are checked against the raw text separately.
+function serverStderr(text) {
+  const lines = String(text || '').split('\n');
+  const kept = [];
+  let insideWarning = false;
+  for (const line of lines) {
+    if (/^\(node:\d+\) /.test(line)) { insideWarning = true; continue; }
+    if (insideWarning && (line === '' || /^(Reparsing|To eliminate|\(Use )/.test(line))) continue;
+    insideWarning = false;
+    kept.push(line);
+  }
+  return kept.join('\n').trim();
+}
+
 function spawnServer(env) {
   const output = { stdout: '', stderr: '' };
-  const child = spawn(process.execPath, ['server.mjs'], {
+  const child = spawn(process.execPath, ['--import', './lib/production-guard.ts', 'server.ts'], {
     cwd: ROOT,
     env,
     stdio: ['ignore', 'pipe', 'pipe']
@@ -146,7 +164,8 @@ try {
     assert.equal(health.body.scheduleLeaseConfigured, false);
     assert.equal(Number.isInteger(health.body.agents), true);
     assert.equal(health.body.agents > 0, true);
-    assert.equal(success.output.stderr, '');
+    assert.equal(serverStderr(success.output.stderr), '', 'a healthy start writes nothing to stderr');
+    assert.equal(success.output.stderr.includes(successStorageKey), false, 'the storage key never reaches stderr');
     assert.equal(success.output.stdout.includes(successStorageKey), false);
     assert.equal(JSON.stringify(health.body).includes(successStorageKey), false);
   } finally {
