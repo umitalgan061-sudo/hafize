@@ -2,13 +2,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const app = fs.readFileSync('public/app.js', 'utf8');
+const app = fs.readFileSync('public/typed/app-shell.ts', 'utf8');
 const renderer = fs.readFileSync('public/markdown-renderer.ts', 'utf8');
 const chat = fs.readFileSync('public/chat-markdown.js', 'utf8');
 
 assert.match(app, /updateMessage\(assistantId, content\)/);
 assert.match(chat, /HafizeMarkdown/);
-assert.match(chat, /MutationObserver/);
+// Copy buttons survive a re-render through one delegated listener on the
+// container, and streaming deltas coalesce into a frame: no observer needed.
+assert.match(chat, /\[data-md-copy="code"\]/);
+assert.match(chat, /node\.addEventListener\('click', handleCopyClick\)/);
+assert.match(chat, /requestAnimationFrame/);
 assert.match(renderer, /createElement/);
 assert.match(renderer, /textContent/);
 assert.doesNotMatch(renderer, /innerHTML\s*=/);

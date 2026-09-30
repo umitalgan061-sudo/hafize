@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
-const app = await read('public/app.js');
+const app = await read('public/typed/app-shell.ts');
 const workspace = await read('public/typed/message-workspace.ts');
 const index = await read('public/index.html');
 const sw = await read('public/sw-policy.js');
@@ -24,10 +24,13 @@ assert.ok(workspace.includes('conversationId'));
 
 assert.ok(index.includes('id="messages"'));
 assert.ok(index.includes('class="utility-rail"'));
-assert.ok(index.indexOf('/message-workspace.js') > index.indexOf('/app.js'));
-assert.ok(index.indexOf('/message-workspace-policy.js') < index.indexOf('/message-workspace.js'));
+assert.ok(index.indexOf('/typed-build/message-workspace.js') > index.indexOf('/typed-build/app-shell.js'));
+assert.ok(index.indexOf('/message-workspace-policy.js') < index.indexOf('/typed-build/message-workspace.js'));
 
-assert.ok(sw.indexOf("'/message-workspace-policy.js'") < sw.indexOf("'/message-workspace.js'"));
+// Load order is an index.html concern (asserted above); `cache.addAll()` is
+// unordered, so the shell list only has to carry both files plus the sheet.
+assert.ok(sw.includes("'/message-workspace-policy.js'"));
+assert.ok(sw.includes("'/typed-build/message-workspace.js'"));
 assert.ok(sw.includes("'/message-workspace.css'"));
 
 for (const token of [

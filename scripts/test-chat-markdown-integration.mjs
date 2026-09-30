@@ -10,7 +10,7 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (file) => readFileSync(path.join(ROOT, file), 'utf8');
 
 const html = read('public/index.html');
-const app = read('public/app.js');
+const app = read('public/typed/app-shell.ts');
 const chatMarkdown = read('public/chat-markdown.js');
 const composerFeatures = read('public/chat-composer-features.js');
 const messageWorkspace = read('public/typed/message-workspace.ts');
@@ -19,36 +19,40 @@ const css = read('public/chat-markdown.css');
 
 /* The page loads the three new files, in a usable order ------------------ */
 
-for (const asset of ['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
+for (const asset of ['/typed-build/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
   assert.ok(html.includes(asset), `index.html loads ${asset}`);
 }
 
-const scriptOrder = [...html.matchAll(/<script src="(\/[^"]+)"/g)].map((match) => match[1]);
-const rendererAt = scriptOrder.indexOf('/markdown-renderer.js');
-const chatAt = scriptOrder.indexOf('/chat-markdown.js');
-const appAt = scriptOrder.indexOf('/app.js');
-assert.ok(rendererAt >= 0 && chatAt >= 0 && appAt >= 0);
+// The renderer is a module entry and the chat layer a classic deferred script.
+// Both run in the deferred phase in document order, so the chat layer sees
+// `HafizeMarkdown` by the time it paints; it must still come after the entry.
+const deferredOrder = [...html.matchAll(/<script (?:type="module" )?src="(\/[^"]+)"/g)].map((match) => match[1]);
+const rendererAt = deferredOrder.indexOf('/typed-build/markdown-renderer.js');
+const chatAt = deferredOrder.indexOf('/chat-markdown.js');
+const appAt = deferredOrder.indexOf('/typed-build/app-shell.js');
+assert.ok(rendererAt >= 0 && chatAt >= 0 && appAt >= 0, 'all three entries are loaded');
 assert.ok(rendererAt < chatAt, 'the renderer is defined before the chat layer that uses it');
-assert.ok(
-  chatAt < appAt,
-  'both are defined before app.js, so the very first render already paints markdown'
-);
-for (const match of html.matchAll(/<script src="\/(?:markdown-renderer|chat-markdown)\.js"([^>]*)>/g)) {
-  assert.ok(match[1].includes('defer'), 'the new scripts are deferred like the rest');
+for (const match of html.matchAll(/<script src="\/chat-markdown\.js"([^>]*)>/g)) {
+  assert.ok(match[1].includes('defer'), 'the chat layer is deferred like the rest');
 }
+
+// The app shell resolves the painter at paint time rather than at load time, so
+// its position relative to the markdown scripts cannot break rendering.
+assert.match(app, /const painter = window\.HafizeChatMarkdown;/, 'the painter is looked up per paint');
+assert.match(app, /if \(painter\?\.paint\)/, 'a missing painter degrades to plain text');
 
 /* They survive offline --------------------------------------------------- */
 
 assertShellCacheContract();
-assertShellAssets(['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css'], 'markdown asset');
+assertShellAssets(['/typed-build/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css'], 'markdown asset');
 const indexAssets = new Set(indexHtmlAssets());
-for (const asset of ['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
+for (const asset of ['/typed-build/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
   assert.ok(indexAssets.has(asset), `${asset} is discovered from index.html`);
 }
 
-/* app.js paints through the markdown layer ------------------------------- */
+/* the app shell paints through the markdown layer ------------------------------- */
 
-assert.match(app, /function paintContent\(/, 'app.js has a single painting entry point');
+assert.match(app, /function paintContent\(/, 'app shell has a single painting entry point');
 assert.match(app, /window\.HafizeChatMarkdown/, 'it goes through the chat markdown layer');
 assert.match(app, /paintContent\(content, message\.content, \{ role: message\.role \}\)/, 'renderMessages paints');
 assert.match(app, /paintContent\(node, content, \{ role: message\.role, streaming: !persist \}\)/, 'stream deltas paint');
@@ -80,7 +84,7 @@ assert.match(
 );
 assert.match(
   voiceOutput,
-  /HafizeChatMarkdown\?\.sourceFor\?\.\(node\)/,
+  /HafizeChatMarkdown\?\.sourceFor\?\.\(node!?\)/,
   'voice output keeps reading markdown, which it already knows how to strip'
 );
 

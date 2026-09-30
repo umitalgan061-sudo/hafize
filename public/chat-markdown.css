@@ -200,3 +200,36 @@ ol.md-list { list-style: decimal; }
   .md-heading-1 { font-size: 1.3em; }
   .md-table th, .md-table td { padding: 7px 9px; }
 }
+
+/* Forced-colors mode replaces the palette with the system one. The sheet
+ * carries no motion, so there is nothing for prefers-reduced-motion to turn
+ * off; what does need help is every border and background that encodes
+ * meaning here — code blocks, the copy button, quotes, tables and links. */
+@media (forced-colors: active) {
+  .message.assistant .content[data-md] .md-code,
+  .message.assistant .content[data-md] .md-code-head,
+  .message.assistant .content[data-md] .md-code-body,
+  .message.assistant .content[data-md] .md-quote,
+  .message.assistant .content[data-md] .md-table,
+  .message.assistant .content[data-md] .md-table th,
+  .message.assistant .content[data-md] .md-table td,
+  .message.assistant .content[data-md] .md-inline-code {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+  .md-code-copy {
+    border-color: ButtonText;
+    background: ButtonFace;
+    color: ButtonText;
+    forced-color-adjust: none;
+  }
+  .md-code-copy:hover { border-color: Highlight; color: Highlight; }
+  .md-code-copy:focus-visible { outline: 2px solid Highlight; outline-offset: 1px; }
+  .md-code-copy[data-state="copied"] { color: Highlight; }
+  .md-code-copy[data-state="failed"] { color: LinkText; }
+  .md-link { color: LinkText; }
+  .md-divider { border-color: CanvasText; }
+  .md-code[data-streaming="true"] .md-code-head { border-bottom-color: Highlight; }
+}

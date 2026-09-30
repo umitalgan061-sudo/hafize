@@ -10,5 +10,7 @@ assert.match(chat, /requestAnimationFrame/);
 assert.match(chat, /aria-busy/);
 assert.match(chat, /navigator\.clipboard/);
 assert.match(css, /message\.assistant/);
-assert.doesNotMatch(css, /body\s*\{/);
+// A bare `body { … }` rule would leak out of the answer scope. `.md-code-body`
+// ends in the same four letters, so the selector start is anchored.
+assert.doesNotMatch(css, /(?:^|[\s,>+~])body\s*\{/m);
 console.log('chat markdown protocol contract: ok');

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const app = read('public/app.js');
+const app = read('public/typed/app-shell.ts');
 const features = read('public/chat-composer-features.js');
 const css = read('public/chat-composer-features.css');
 const html = read('public/index.html');
@@ -15,7 +15,7 @@ assert.match(app, /function beginMessageEdit\(id\)/);
 assert.match(app, /function cancelMessageEdit\(\)/);
 assert.match(app, /function replaceEditedTurn\(id, content\)/);
 assert.match(app, /messages = target\.conversation\.messages\.slice\(0, target\.index\)/);
-// app.js consumes the event; chat-composer-features.js is the only dispatcher.
+// the app shell consumes the event; chat-composer-features.js is the only dispatcher.
 assert.match(app, /window\.addEventListener\('hafize:edit-message'/);
 assert.match(app, /event\.detail\?\.messageId/);
 assert.match(features, /detail: \{ messageId \}/);
