@@ -4,7 +4,7 @@ import path from 'node:path';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
-const smartFill = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.js'), 'utf8');
+const smartFill = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.ts'), 'utf8');
 const smartCss = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.css'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
 const sw = fs.readFileSync(path.join(root, 'public/sw-policy.js'), 'utf8');
@@ -28,7 +28,7 @@ assert.match(smartFill, /MAX_PREVIEW = 8000/);
 assert.match(smartFill, /Object\.entries\(preset\.values/);
 assert.match(smartFill, /slice\(0, MAX_VARIABLES\)/);
 // Values go through the shared clamp helper rather than an inline slice.
-assert.match(smartFill, /clamp = \(value, limit\) => String\(value \?\? ''\)\.slice\(0, limit\)/);
+assert.match(smartFill, /clamp = \(value: unknown, limit: number\): string => String\(value \?\? ''\)\.slice\(0, limit\)/);
 assert.match(smartFill, /clamp\([^)]*, MAX_VALUE\)/);
 assert.match(smartFill, /localStorage/);
 assert.match(smartFill, /hafize\.prompt-library\.smart-fill\.v1/);

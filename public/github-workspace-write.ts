@@ -170,7 +170,9 @@ function renderWriteHistory(
   heading.id = 'githubWriteHistoryTitle';
   head.append(
     heading,
-    make(documentRef, 'span', 'İçerik saklanmaz', 'github-write-history-note')
+    // Names exactly what the session history leaves out, matching
+    // docs/GITHUB_WRITE_AUDIT.md, instead of a vague "content is not stored".
+    make(documentRef, 'span', 'Geçmişte file content, commit body, token ve Authorization saklanmaz', 'github-write-history-note')
   );
 
   const filter = make(documentRef, 'select', undefined, 'github-write-history-filter') as HTMLSelectElement;

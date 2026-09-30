@@ -100,6 +100,7 @@ Prompt Library içindeki arama, etiket, favori ve sıralama durumları isimlendi
 - Son kullanılan görünümler tek tıkla yeniden uygulanabilir.
 - Görünüm sağlığı paneli bozuk/duplicate kayıtları tarar; güvenli onarım öncesinde checkpoint oluşturur ve son onarım geri alınabilir.
 - Tüm görünüm ve geçmiş verileri cihazdaki local storage alanında tutulur; yeni backend, telemetry veya credential storage eklenmez.
+- Görünümler `hafize.prompt-library.smart-views.v1` anahtarında saklanır.
 
 Ayrıntılar `docs/PROMPT_SMART_VIEWS*.md` dosyalarındadır.
 
@@ -167,6 +168,15 @@ Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'ların�
 - Panel credential, OAuth secret veya token göstermez; branch/commit/PR merge gibi yazma işlemleri bu yüzeyde bulunmaz.
 - “Tanı özetini kopyala” yalnız güvenli durum metinlerini panoya aktarır.
 
+Yüzey `public/connector-hub.js` ve `public/connector-hub.css` dosyalarındadır;
+çalışma alanı geçişini `public/workspace-navigation.js` yönetir.
+
+Kontroller:
+
+```bash
+node scripts/run-checks.mjs --filter=connector-hub
+```
+
 Ayrıntılar `docs/CONNECTOR_HUB*.md` dosyalarındadır.
 
 ## Zamanlanmış Görev Önizlemesi
@@ -225,6 +235,34 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
 ## Test
+
+Tüm kontrol kapısı tek komutla çalışır ve harici bağımlılık gerektirmez:
+
+```bash
+node scripts/run-checks.mjs
+```
+
+Koşucu `public/`, `lib/`, `scripts/` ve kök dizindeki dosyalara syntax kontrolü
+uygular, ardından `scripts/validate-*` ve `scripts/test-*` paketlerini çalıştırır.
+Tek bir alan üzerinde çalışırken `--filter` kullanılabilir:
+
+```bash
+node scripts/run-checks.mjs --filter=conversation-forks,pwa
+node scripts/run-checks.mjs --list
+```
+
+Yapı ve çalışma zamanı bütünlüğü için üç kapı ayrıca vardır:
+
+| Paket | Kapsam |
+|---|---|
+| `scripts/test-vite-entry-link.mjs` | Her Vite entry'si parse edilir ve link olur |
+| `scripts/test-runtime-import-graph.mjs` | `server.ts` erişim grafiğindeki her relative import çözülür; her `lib/*.ts` Node altında yüklenir |
+| `scripts/test-pwa-shell-integrity.mjs` | Offline shell listesinde eksik, yinelenen veya üretilmeyen yol bulunmaz |
+
+Kaynak sözleşmesi paketleri yazım biçimini değil davranışı doğrular; paylaşılan
+yardımcılar `scripts/source-contract.mjs` ve `scripts/shell-cache-contract.mjs`
+dosyalarındadır. Service worker cache sürümü hiçbir pakette literal olarak
+sabitlenmez; `assertMinimumCacheVersion` ile alt sınır doğrulanır.
 
 ```bash
 npm run precheck

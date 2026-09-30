@@ -37,3 +37,7 @@
   .workspace-backup-choice-copy small,.workspace-backup-choice-size,.workspace-backup-status,.workspace-backup-integrity{color:CanvasText}
   .workspace-backup-panel button:focus-visible,.workspace-backup-panel input:focus-visible{outline-color:Highlight}
 }
+/* The header carries the panel's keyboard shortcut as a quiet hint. */
+.workspace-backup-shortcut{margin-left:auto;margin-right:6px;color:var(--muted);font-size:9px;white-space:nowrap}
+@media (max-width:700px){.workspace-backup-shortcut{display:none}}
+@media (forced-colors:active){.workspace-backup-shortcut{color:CanvasText}}

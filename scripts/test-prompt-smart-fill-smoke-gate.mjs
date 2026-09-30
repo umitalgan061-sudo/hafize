@@ -4,9 +4,9 @@ import path from 'node:path';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const files = [
-  'public/prompt-library-smart-fill.js',
-  'public/prompt-library-command-palette.js',
-  'public/prompt-library-smart-fill-hints.js',
+  'public/prompt-library-smart-fill.ts',
+  'public/prompt-library-command-palette.ts',
+  'public/prompt-library-smart-fill-hints.ts',
   'public/prompt-library-smart-fill.css',
   'public/prompt-library-command-palette.css'
 ];

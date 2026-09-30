@@ -4,7 +4,7 @@ import { assertShellAssets, assertVersionedCacheDeclaration } from './shell-cach
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
-const workspace = await readFile(new URL('../public/scheduled-tasks.js', import.meta.url), 'utf8');
+const workspace = await readFile(new URL('../public/typed/scheduled-tasks.ts', import.meta.url), 'utf8');
 
 assert.match(index, /scheduled-tasks\.css/);
 assert.match(index, /scheduled-tasks\.js/);
@@ -15,12 +15,14 @@ assert.match(index, /scheduled-tasks-enhancements\.js/);
 assert.match(workspace, /PANEL_ID = 'scheduledTasksWorkspace'/);
 assert.match(workspace, /panel\.id = PANEL_ID/);
 
+// The workspace and the countdown are built TypeScript entries now; the two
+// enhancement layers are still plain scripts.
 assertShellAssets([
   '/scheduled-tasks.css',
-  '/scheduled-tasks.js',
+  '/typed-build/scheduled-tasks.js',
   '/scheduled-tasks-enhancements.js',
   '/scheduled-tasks-keyboard.js',
-  '/scheduled-tasks-countdown.js'
+  '/typed-build/scheduled-tasks-countdown.js'
 ], 'scheduled tasks asset');
 assertVersionedCacheDeclaration(sw);
 

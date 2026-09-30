@@ -95,7 +95,9 @@ assert.equal(plan.invalidCount, 1);
 assert.equal(plan.acceptedCount, 2);
 assert.ok(plan.collisions >= 1);
 
-api.saveItems(storage, current);
+// Persisting prompts belongs to the library module; the safety module reads
+// them back through it and never exposes its own writer.
+root.HafizePromptLibrary.saveItems(storage, current);
 const applied = api.applyImportPlan(plan, storage);
 assert.equal(applied.ok, true);
 assert.equal(root.HafizePromptLibrary.loadItems(storage).length, 3);

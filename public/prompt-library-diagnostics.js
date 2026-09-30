@@ -5,6 +5,9 @@
   const CARD_ID = 'promptLibraryCard';
   const MAX_ORPHANS = 240;
   const safety = function () { return root.HafizePromptLibrarySafety; };
+  const orphanCount = function (report) {
+    return Number(report?.collections?.orphanMembers || 0) + Number(report?.revisions?.orphanPromptRefs || 0);
+  };
   const library = function () { return root.HafizePromptLibrary; };
   const normalizeItem = function (item) { return library()?.normalizeItem?.(item); };
   const normalizeCollection = function (items) { return library()?.normalizeCollection?.(items) || []; };
@@ -59,7 +62,7 @@
     const backup = button(documentRef, 'Yedek indir');
     const repair = button(documentRef, 'Güvenli onarımı uygula');
     repair.dataset.diagnosticsRepair = 'true';
-    const destructive = button(documentRef, 'Geçersiz kayıtları kaldır', 'mini-btn prompt-library-diagnostics-danger');
+    const destructive = button(documentRef, 'Karantinaya al', 'mini-btn prompt-library-diagnostics-danger');
     const restore = button(documentRef, 'Karantinayı geri al');
     const undo = button(documentRef, 'Son onarımı geri al');
     const copyReport = button(documentRef, 'Raporu kopyala');
@@ -241,7 +244,17 @@
     refresh.addEventListener('click', scan);
     repair.addEventListener('click', function () {
       if (!lastReport) scan();
-      if (!lastReport || !rootRef.confirm || !rootRef.confirm('Normalize edilebilir kayıtlar ve yetim ilişkiler güvenli biçimde onarılsın mı?')) return;
+      if (!lastReport) return;
+      // Automatic repair rewrites every orphan relation in one pass. Past a
+      // bounded count that is no longer a safe automatic action, so the gate
+      // stops and hands the decision back instead of rewriting silently.
+      if (orphanCount(lastReport) > MAX_ORPHANS) {
+        status.textContent = 'Yetim ilişki sayısı güvenli otomatik onarım sınırını aşıyor ('
+          + String(orphanCount(lastReport)) + ' > ' + String(MAX_ORPHANS)
+          + '). Önce yedek indir, sonra kayıtları elle gözden geçir.';
+        return;
+      }
+      if (!rootRef.confirm || !rootRef.confirm('Normalize edilebilir kayıtlar ve yetim ilişkiler güvenli biçimde onarılsın mı?')) return;
       const result = safety().applySafeRepair(rootRef.localStorage);
       status.textContent = result.ok ? 'Güvenli onarım tamamlandı.' : 'Onarım başarısız: ' + result.reason;
       scan();

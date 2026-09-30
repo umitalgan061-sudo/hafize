@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertMinimumCacheVersion } from './shell-cache-contract.mjs';
 
 const root=process.cwd();
 const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
@@ -54,7 +55,7 @@ assert.match(shell,/saveConversations/);
 
 assert.match(html,/model-preferences\.css/);
 assert.match(html,/typed-build\/app-shell\.js/);
-assert.match(sw,/v45/);
+assertMinimumCacheVersion(45, 'model preferences shell cache');
 assert.match(sw,/model-preferences\.css/);
 assert.match(css,/prefers-reduced-motion/);
 assert.match(css,/forced-colors/);

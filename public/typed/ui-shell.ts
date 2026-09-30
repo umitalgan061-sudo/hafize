@@ -8,7 +8,7 @@ export interface UiShellController {
   readonly sidebarDisclosure: SidebarDisclosure | null;
   readonly destroy:()=>void;
 }
-const THEME_KEY='hafize.theme.v1';
+export const THEME_KEY='hafize.theme.v1';
 export const WEEKDAYS=Object.freeze(['Pzt','Sal','Çar','Per','Cum','Cmt','Paz']);
 export function resolveTheme(stored:unknown,prefersDark:boolean):Theme{return stored==='light'||stored==='dark'?stored:(prefersDark?'dark':'light');}
 export function createMonthCells(year:number,month:number,selectedDay:number):readonly CalendarCell[]{
@@ -70,5 +70,9 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
 }
 const api=Object.freeze({THEME_KEY,WEEKDAYS,resolveTheme,createMonthCells,moveCalendarDate,installSidebarDisclosure,installChatAccessibility,install});
 (globalThis as typeof globalThis & {HafizeUiShell?:unknown}).HafizeUiShell=api;
-const start=()=>install(document,globalThis);
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+// Only the pure helpers above are reachable without a DOM, so the bootstrap
+// is guarded: importing the module in a non-browser context (a suite, a
+// worker) must not throw on a missing `document`.
+const doc=(globalThis as typeof globalThis & {document?:Document}).document;
+const start=()=>{if(doc)install(doc,globalThis);};
+if(doc){if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',start,{once:true});else start();}

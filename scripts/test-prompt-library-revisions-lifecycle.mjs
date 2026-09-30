@@ -6,11 +6,16 @@ assert.match(source, /function mount\(/);
 assert.match(source, /MutationObserver/);
 assert.match(source, /observer\?\.observe/);
 assert.match(source, /observer\?\.disconnect/);
-assert.match(source, /addEventListener\?\.'?storage/);
-assert.match(source, /removeEventListener\?\.'?storage/);
+// Optional-call form: `addEventListener?.('storage', onStorage)`. The previous
+// pattern left out the call parenthesis, so it never matched the real source.
+assert.match(source, /addEventListener\?\.\('storage', onStorage\)/);
+assert.match(source, /removeEventListener\?\.\('storage', onStorage\)/);
 assert.match(source, /destroy:/);
 assert.match(source, /section\.remove\(\)/);
-assert.match(source, /clearTimeout/);
+// The transient status timer is cancelled on destroy, so a detached panel
+// leaves no pending callback behind.
+assert.match(source, /statusTimer = rootRef\.setTimeout\?\./);
+assert.match(source, /rootRef\.clearTimeout\?\.\(statusTimer\)/);
 assert.match(source, /replaceChildren/);
 assert.doesNotMatch(source, /setInterval/);
 assert.doesNotMatch(source, /setInterval\(/);

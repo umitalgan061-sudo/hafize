@@ -16,7 +16,12 @@ const migrated=[
   'request-failure.ts','runtime-config.ts','security-observability.ts'
 ];
 
-const browserMigrated=['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts'];
+// Resolved through the Vite entry map: three of these entries live under
+// `public/typed/`, so `public/<name>` is not where they are.
+const viteConfig=await readFile(resolve(root,'vite.config.ts'),'utf8');
+const entryBlock=/entry:\s*\{([\s\S]*?)\n\s*\},/.exec(viteConfig)?.[1]||'';
+const entrySources=new Map([...entryBlock.matchAll(/'([^']+)':\s*resolve\(ROOT,\s*'([^']+)'\)/g)].map((match)=>[match[1],match[2]]));
+const browserMigrated=['markdown-renderer','conversation-workspace','message-workspace','prompt-library','scheduled-tasks'];
 async function exists(path){try{await access(path);return true;}catch{return false;}}
 function assert(value,message){if(!value)throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:'+message);}
 
@@ -26,7 +31,11 @@ for(const file of migrated){
   if(server.includes("./lib/"+legacy))throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:legacy-import:'+legacy);
 }
 
-for(const file of browserMigrated) assert(await exists(resolve(root,'public',file)),'missing-browser:'+file);
+for(const entry of browserMigrated){
+  const source=entrySources.get(entry);
+  assert(Boolean(source)&&source.endsWith('.ts'),'missing-browser-entry:'+entry);
+  assert(await exists(resolve(root,source)),'missing-browser:'+source);
+}
 
 assert(packageData.scripts?.['typecheck:runtime'],'missing-runtime-typecheck');
 assert(packageData.scripts?.['test:typed-core'],'missing-typed-test-script');

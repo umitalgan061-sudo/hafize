@@ -6,7 +6,9 @@ const root = path.resolve(process.cwd());
 const source = fs.readFileSync(path.join(root, 'lib/github-workspace.ts'), 'utf8');
 const server = fs.readFileSync(path.join(root, 'server.ts'), 'utf8');
 
-for (const action of ['repo', 'branches', 'commits', 'pulls', 'file']) assert.match(source, new RegExp(`'\\${action}'`));
+// The action names need no escaping; `'\\${action}'` turned 'repo' into a
+// regex matching a carriage return.
+for (const action of ['repo', 'branches', 'commits', 'pulls', 'file']) assert.ok(source.includes(`'${action}'`), `action ${action} is handled`);
 assert.match(source, /per_page/);
 assert.match(source, /X-GitHub-Api-Version/);
 assert.match(source, /GITHUB_REPO_NOT_ALLOWED/);
