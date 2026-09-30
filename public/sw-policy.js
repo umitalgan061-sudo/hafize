@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v50`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v51`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/scheduled-task-preview.css', '/scheduled-task-duplicate.css', '/scheduled-task-templates.css', '/scheduled-task-planning.css', '/scheduled-task-templates-backup.css', '/scheduled-task-status-summary.css', '/scheduled-task-preview-activity.css', '/scheduled-task-template-presets.css', '/scheduled-task-draft.css', '/scheduled-task-insights.css', '/scheduled-task-actions.css', '/scheduled-task-detail.css', '/scheduled-task-templates-backup.css',
@@ -30,7 +30,7 @@
     '/typed-build/legacy-settings-workspace.js', '/typed-build/legacy-workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
     '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/workspace-backup.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/github-workspace-write.js', '/typed-build/scheduled-tasks-countdown.js',
-    '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+    '/typed-build/sw.js', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
   ]);
   const SHELL_PATHS = new Set(SHELL_ASSETS);
   function readHeader(headers, name) {
