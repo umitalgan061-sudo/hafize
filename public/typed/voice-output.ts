@@ -1,5 +1,8 @@
 export interface VoiceOutputController { readonly isSupported:boolean; readonly isEnabled:()=>boolean; readonly isSpeaking:()=>boolean; readonly setEnabled:(next:boolean)=>boolean; readonly speak:(value:string)=>boolean; readonly cancel:()=>void; readonly syncStreamState:()=>void; readonly destroy:()=>void; }
-const STORAGE_KEY='hafize.voiceOutput.v1',MAX_SPEECH_LENGTH=2400,MAX_CHUNK_LENGTH=240;
+// Exported as well as published on the browser global, so the module surface
+// and `HafizeVoiceOutput` agree on what is public.
+export const STORAGE_KEY='hafize.voiceOutput.v1';
+const MAX_SPEECH_LENGTH=2400,MAX_CHUNK_LENGTH=240;
 export function normalizeSpeechText(value:unknown):string{if(typeof value!=='string')return'';return value.replace(/\`\`\`[\s\S]*?\`\`\`/g,' Kod bloğu atlandı. ').replace(/\`([^\`]+)\`/g,'$1').replace(/https?:\/\/\S+/gi,' bağlantı ').replace(/[*_#>|~]+/g,' ').replace(/\s+/g,' ').trim().slice(0,MAX_SPEECH_LENGTH);}
 export function splitSpeechText(value:string,maxLength=MAX_CHUNK_LENGTH):string[]{const text=normalizeSpeechText(value);if(!text)return[];const limit=Number.isInteger(maxLength)&&maxLength>=80?maxLength:MAX_CHUNK_LENGTH;const sentences=text.match(/[^.!?…]+[.!?…]?/g)||[text];const chunks:string[]=[];let current='';for(const sentence of sentences){const clean=sentence.trim();if(!clean)continue;const candidate=current?`${current} ${clean}`:clean;if(candidate.length<=limit){current=candidate;continue;}if(current)chunks.push(current);if(clean.length<=limit){current=clean;continue;}let fragment='';for(const word of clean.split(' ')){const next=fragment?`${fragment} ${word}`:word;if(next.length>limit&&fragment){chunks.push(fragment);fragment=word;}else fragment=next;}current=fragment;}if(current)chunks.push(current);return chunks;}
 function readEnabled(storage:Storage|null):boolean{try{return storage?.getItem(STORAGE_KEY)==='true';}catch{return false;}}
@@ -23,4 +26,7 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
 }
 const api=Object.freeze({STORAGE_KEY,normalizeSpeechText,splitSpeechText,installVoiceOutput});
 (globalThis as typeof globalThis & {HafizeVoiceOutput?:unknown}).HafizeVoiceOutput=api;
-const start=()=>installVoiceOutput(document,globalThis);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+// Guarded so the exported speech-text helpers can be imported without a DOM.
+const doc=(globalThis as typeof globalThis & {document?:Document}).document;
+const start=()=>{if(doc)installVoiceOutput(doc,globalThis);};
+if(doc){if(doc.readyState==='loading')doc.addEventListener('DOMContentLoaded',start,{once:true});else start();}
