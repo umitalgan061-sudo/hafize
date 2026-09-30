@@ -110,6 +110,11 @@
     const form = node(documentRef, 'form', undefined, 'prompt-smart-fill-form');
     const fields = node(documentRef, 'div', undefined, 'prompt-smart-fill-fields');
     const tools = node(documentRef, 'div', undefined, 'prompt-smart-fill-tools');
+    const insertMode = documentRef.createElement('select');
+    insertMode.setAttribute('aria-label', 'İstemi mesaj alanına aktarma biçimi');
+    const replaceMode = node(documentRef, 'option', 'Mesajı değiştir'); replaceMode.value = 'replace';
+    const appendMode = node(documentRef, 'option', 'Mesajın sonuna ekle'); appendMode.value = 'append';
+    insertMode.append(replaceMode, appendMode);
     const presetName = documentRef.createElement('input');
     presetName.type = 'text';
     presetName.maxLength = MAX_NAME;
@@ -121,7 +126,7 @@
     const deletePreset = button(documentRef, 'Seti sil', 'mini-btn');
     const restoreLast = button(documentRef, 'Son değerler', 'mini-btn');
     const clearValues = button(documentRef, 'Temizle', 'mini-btn');
-    tools.append(presetName, presetSelect, savePreset, deletePreset, restoreLast, clearValues);
+    tools.append(insertMode, presetName, presetSelect, savePreset, deletePreset, restoreLast, clearValues);
 
     const previewLabel = node(documentRef, 'div', 'Önizleme', 'prompt-smart-fill-preview-label');
     const preview = node(documentRef, 'pre', '', 'prompt-smart-fill-preview');
@@ -191,6 +196,7 @@
       names = [];
       inputs = new Map();
       activePresetId = '';
+      insertMode.value = 'replace';
       if (lastFocus instanceof HTMLElement) lastFocus.focus();
       lastFocus = null;
     };
@@ -275,7 +281,8 @@
       const composer = documentRef.querySelector('#messageInput');
       if (!composer) return report('Mesaj alanı bulunamadı.');
       writeLast(activePrompt.id, current);
-      composer.value = message;
+      const existing = String(composer.value || '').trim();
+      composer.value = insertMode.value === 'append' && existing ? `${existing}\n\n${message}`.slice(0, 12000) : message;
       composer.dispatchEvent(new Event('input', { bubbles: true }));
       composer.focus();
       const id = activePrompt.id;
