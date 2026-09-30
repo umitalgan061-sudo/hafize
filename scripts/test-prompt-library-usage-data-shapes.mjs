@@ -4,6 +4,7 @@ import fs from 'node:fs';
 // at runtime, which Node cannot statically analyse into named exports, so the
 // suite takes the default (CommonJS) export.
 import promptLibrary from '../public/typed/prompt-library.ts';
+import { assertFunctionDeclared } from './source-contract.mjs';
 
 const core = fs.readFileSync('public/typed/prompt-library.ts', 'utf8');
 const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
@@ -19,12 +20,12 @@ assert.equal(promptLibrary.normalizeItem({ body: 'x', useCount: -5 }).useCount, 
 assert.equal(promptLibrary.normalizeItem({ body: 'x', useCount: 'çok' }).useCount, 0);
 assert.equal(promptLibrary.normalizeItem({ body: 'x', useCount: 12.7 }).useCount, 12);
 assert.equal(promptLibrary.normalizeItem({ body: 'x', useCount: 1e9 }).useCount, 9999);
-assert.match(usage, /function usageOf\(item\)/);
+assertFunctionDeclared(usage, 'usageOf');
 assert.match(usage, /const value = Number\(item\.useCount\)/);
 assert.match(usage, /value >= 0/);
 assert.match(usage, /Math\.floor\(value\)/);
 assert.match(usage, /Math\.min\(9999/);
-assert.match(usage, /function summarize\(items\)/);
+assertFunctionDeclared(usage, 'summarize');
 assert.match(usage, /const totalUses = valid\.reduce/);
 assert.match(usage, /const used = valid\.filter/);
 assert.match(usage, /usageOf\(b\) - usageOf\(a\)/);

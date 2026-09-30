@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-command-palette.ts'), 'utf8');
-assert.match(text, /match = before\.match\(\/\(\^\|\\s\)\\\/prompt/);
-assert.match(text, /match\[2\] \|\| ''/);
+// The trigger is read from the text before the caret by one shared helper.
+assert.match(text, /const readTrigger = \(\)/);
+assert.match(text, /input\.value\.slice\(0, cursor\)\.match\(\/\(\^\|\\s\)\\\/prompt\(\?:\\s\+\(\[\^\\n\]\*\)\)\?\$\/i\)/);
+assert.match(text, /\(match\[2\] \|\| ''\)/);
 assert.match(text, /query\.value = \(match\[2\]/);
 assert.match(text, /if \(!match\) \{ if \(!palette\.hidden\) close\(\); return; \}/);
 assert.match(text, /cursor - match\[0\]\.length/);
-assert.match(text, /slice\(0, MAX_QUERY\)/);
+assert.match(text, /\)\.slice\(0, MAX_QUERY\)/);
 console.log('prompt command syntax: ok');

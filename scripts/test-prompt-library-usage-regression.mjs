@@ -33,8 +33,11 @@ assert.match(usage, /observer\?\.observe/);
 assert.match(usage, /observer\?\.disconnect/);
 assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /mounted: true/);
-assert.match(enhancements, /prompt-library-usage\.js/);
-assert.match(enhancements, /data-hafize-prompt-usage/);
+// The usage panel is no longer injected by `prompt-library-enhancements.js`:
+// index.html loads `/prompt-library-usage.js` as a deferred script, and the
+// module mounts itself. The contract is the static load plus that bootstrap.
+assert.match(index, /<script src="\/prompt-library-usage\.js" defer><\/script>/);
+assert.match(usage, /root\.HafizePromptLibraryUsage = api/);
 assert.match(sw, /\/prompt-library-usage\.js/);
 assert.match(index, /\/prompt-library\.js/);
 assert.match(index, /\/prompt-library-enhancements\.js/);

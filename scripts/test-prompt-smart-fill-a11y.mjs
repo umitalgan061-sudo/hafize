@@ -15,5 +15,7 @@ assert.match(text, /event\.key !== 'Tab'/);
 assert.match(text, /focus\(\)/);
 // Focus returns to whatever opened the dialog once it closes.
 assert.match(text, /lastFocus = documentRef\.activeElement/);
-assert.match(text, /lastFocus\?\.focus\?\.\(\)/);
+// Typed migration replaced the optional-call chain with an instance check
+// before focusing; the restore itself is unchanged.
+assert.match(text, /lastFocus instanceof HTMLElement\) lastFocus\.focus\(\)/);
 console.log('prompt smart-fill accessibility contracts: ok');

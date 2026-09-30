@@ -12,7 +12,8 @@ assert.match(text, /JSON\.stringify/);
 assert.match(text, /Object\.fromEntries/);
 assert.match(text, /MAX_PRESETS/);
 assert.match(text, /name: clamp\(preset\.name, MAX_NAME\)/);
-assert.match(text, /values: Object\.fromEntries/);
+// Values are frozen around the same `Object.fromEntries` projection.
+assert.match(text, /values: Object\.freeze\(\s*\n\s*Object\.fromEntries\(/);
 assert.doesNotMatch(text, /sessionStorage/);
 assert.doesNotMatch(text, /indexedDB/);
 console.log('prompt smart-fill presets: ok');

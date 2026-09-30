@@ -131,3 +131,26 @@ export function assertFunctionSource(source, name) {
   assert.ok(body, `function ${name} is declared`);
   return body;
 }
+
+/**
+ * True when `source` declares `name` as a callable, in any of the spellings
+ * used across this codebase.
+ *
+ * The TypeScript migration turned inner `function x() {}` declarations into
+ * `const x = (…) => …` bindings without changing behaviour, so a suite
+ * asserting "this function exists" must not depend on which form was kept.
+ */
+export function functionDeclared(source, name) {
+  if (typeof source !== 'string') return false;
+  const escaped = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(
+    `(?:^|[^\\w$.])(?:(?:async\\s+)?function\\s*\\*?\\s*${escaped}\\s*[(<]`
+    + `|(?:const|let|var)\\s+${escaped}\\s*(?::[^=;\\n]+)?=\\s*(?:async\\s*)?(?:function\\b|[(<]|[\\w$]+\\s*=>)`
+    + `|${escaped}\\s*[(:]\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*(?::[^=>;\\n]+)?=>))`,
+    'm'
+  ).test(source);
+}
+
+export function assertFunctionDeclared(source, name, label = `function ${name} is declared`) {
+  assert.ok(functionDeclared(source, name), label);
+}

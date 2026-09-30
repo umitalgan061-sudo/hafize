@@ -208,9 +208,11 @@
     let selectedPrompt = '';
     let hidden = false;
 
+    let statusTimer = null;
     function setStatus(value) {
       status.textContent = clip(value, 160);
-      rootRef.setTimeout?.(() => { if (status.textContent === value) status.textContent = ''; }, 2600);
+      rootRef.clearTimeout?.(statusTimer);
+      statusTimer = rootRef.setTimeout?.(() => { if (status.textContent === value) status.textContent = ''; }, 2600);
     }
 
     function updatePromptOptions() {
@@ -316,6 +318,8 @@
       export: (id) => exportPromptRevisions(id, rootRef.localStorage),
       destroy: () => {
         observer?.disconnect();
+        rootRef.clearTimeout?.(statusTimer);
+        statusTimer = null;
         rootRef.removeEventListener?.('storage', onStorage);
         section.remove();
       }

@@ -6,7 +6,10 @@ const core = fs.readFileSync(path.join(process.cwd(), 'public/typed/prompt-libra
 assert.match(smart, /hafize\.prompt-library\.smart-fill\.v1/);
 assert.match(core, /hafize\.prompt-library\.v1/);
 assert.doesNotMatch(smart, /hafize\.prompt-library\.v1'\s*=/);
-assert.doesNotMatch(smart, /saveItems\(/);
+// Bumping `useCount` is smart-fill's job, but it must go through the library
+// API rather than writing the prompt store's key itself.
+assert.match(smart, /api\.saveItems\(store, next\)/);
+assert.doesNotMatch(smart, /setItem\('hafize\.prompt-library\.v1'/);
 assert.doesNotMatch(smart, /exportPayload\(/);
 assert.match(smart, /keyForPrompt\(promptId\)/);
 assert.match(smart, /localStorage/);

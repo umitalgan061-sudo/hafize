@@ -18,7 +18,10 @@ assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /return Object\.freeze\(\{/);
 assert.match(usage, /refresh: render/);
 assert.match(usage, /summarize: \(\) => summarize\(readItems\(rootRef\)\)/);
-assert.match(enhancements, /root\.HafizePromptLibraryUsage\) return/);
-assert.match(enhancements, /existing = root\.document\.querySelector\('script\[data-hafize-prompt-usage\]'\)/);
-assert.match(enhancements, /script\.dataset\.hafizePromptUsage = 'true'/);
+// The usage panel is no longer injected by `prompt-library-enhancements.js`:
+// index.html loads `/prompt-library-usage.js` as a deferred script, and the
+// module mounts itself. The contract is the static load plus that bootstrap.
+assert.match(usage, /root\.HafizePromptLibraryUsage = api/);
+assert.match(usage, /if \(root\.document\?\.readyState === 'loading'\)/);
+assert.match(enhancements, /function inject\(src, attr, value\)/);
 console.log('prompt-library usage lifecycle contracts: ok');
