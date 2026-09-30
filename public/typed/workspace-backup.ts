@@ -479,12 +479,14 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
 
   function renderExportChoices(): void {
     const snapshot = localSections();
+    const hadChoices = exportList.querySelectorAll<HTMLInputElement>('input[data-backup-export-section]').length > 0;
+    const previous = hadChoices ? new Set(selectedExportIds()) : null;
     exportList.replaceChildren();
     for (const sectionInfo of snapshot.sections) {
       const label = make(documentRef, 'label', '', 'workspace-backup-choice');
       const check = documentRef.createElement('input');
       check.type = 'checkbox';
-      check.checked = true;
+      check.checked = previous ? previous.has(sectionInfo.id) : true;
       check.value = sectionInfo.id;
       check.dataset.backupExportSection = sectionInfo.id;
       const copy = make(documentRef, 'span', '', 'workspace-backup-choice-copy');
