@@ -344,3 +344,10 @@ node scripts/test-prompt-library-repair-checkpoint.mjs
 node scripts/test-prompt-library-quarantine.mjs
 
 İçe aktarma önizlemesi normal JSON yedeklerinin yanında recovery snapshot içindeki prompts alanını da tanır. Diagnostics paneli repair öncesi etki özeti gösterir; güvenli repair checkpoint üretir, geçersiz kayıtları karantinaya taşıyabilir ve son repair'i geri alabilir. Rapor ve repair planı prompt metinlerini içermeyen özet biçimde panoya kopyalanabilir.
+## Modern TypeScript frontend
+
+Aktif tarayıcı runtime'ı TypeScript canonical kaynaklardan Vite ile üretilir. Taşınmış root .js yolları yalnız küçük compatibility bridge olarak korunur; uygulama mantığı public/typed ve public/typed/legacy altında tutulur.
+
+Vite, public/typed/legacy girişlerini otomatik keşfeder. Production build bunları public/typed-build altında bundle eder. PWA service worker canonical olarak public/sw.ts üzerinden üretilir; production /sw.js yolu bu bundle'a bağlanır.
+
+Migration bütünlüğü scripts/test-typescript-frontend-complete-wave.mjs ile denetlenir ve check:modern akışına bağlıdır.
