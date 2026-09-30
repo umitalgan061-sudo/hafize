@@ -38,7 +38,8 @@ for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-wor
   check(!html.includes(`<script src="/${entry}.js" defer></script>`), `${entry} legacy direct script removed`);
 
   const typed = await read(sourcePath);
-  check(typed.includes('// @ts-nocheck'), `${entry} migration status is explicit`);
+  if (entry === 'workspace-backup') check(typed.includes('interface WorkspaceBackupPayload'), `${entry} keeps explicit backup types`);
+  else check(typed.includes('// @ts-nocheck'), `${entry} migration status is explicit`);
   check(!typed.includes('Authorization:'), `${entry} does not embed auth headers`);
 }
 
