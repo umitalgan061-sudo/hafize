@@ -459,7 +459,6 @@ async function handleAgentRun(req, res) {
         model,
         maxTokens: boundedMaxTokens(body),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
-        githubWriteConfigured: GITHUB_WRITE_CONFIGURED,
         githubReadFile: GITHUB_READ_FILE,
         complete: (payload) => nvidiaJsonCompletion(payload, controller.signal)
       });
@@ -735,6 +734,7 @@ const server = createServer(async (req, res) => {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
+        githubWriteConfigured: GITHUB_WRITE_CONFIGURED,
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         contextCompactionConfigured: true,
