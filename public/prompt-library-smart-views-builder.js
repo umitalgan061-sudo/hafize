@@ -277,7 +277,7 @@
       const state = api.loadState(rootRef.localStorage);
       api.saveState({ ...state, activeId: next.id }, rootRef.localStorage);
       report('Akıllı görünüm kaydedildi.');
-      rootRef.dispatchEvent?.(new rootRef.StorageEvent('storage', {
+      if (typeof rootRef.StorageEvent === 'function') rootRef.dispatchEvent?.(new rootRef.StorageEvent('storage', {
         key: api.STATE_KEY,
         newValue: rootRef.localStorage?.getItem?.(api.STATE_KEY) || null,
         storageArea: rootRef.localStorage
