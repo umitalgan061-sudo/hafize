@@ -20,7 +20,8 @@
     "test": "node scripts/run-checks.mjs",
     "format:check": "node scripts/format-check.mjs",
     "test:typed-core": "vitest run lib/**/*.test.ts",
-    "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json"
+    "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json",
+    "test:workspace-backup": "vitest run public/typed/workspace-backup.test.ts && node scripts/test-workspace-backup-core.mjs && node scripts/test-workspace-backup-security.mjs && node scripts/test-workspace-backup-integrity.mjs && node scripts/test-workspace-backup-restore.mjs && node scripts/test-workspace-backup-pwa.mjs && node scripts/test-workspace-backup-limits.mjs && node scripts/test-workspace-backup-events.mjs && node scripts/test-workspace-backup-format.mjs && node scripts/test-workspace-backup-storage.mjs"
   },
   "dependencies": {
     "redis": "^6.1.0"
