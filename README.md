@@ -127,6 +127,20 @@ Ayrıntılar docs/GITHUB_WORKSPACE*.md dosyalarındadır.
 
 GitHub çalışma alanı ayrıca dizin listeleme, iki ref arasında salt-okunur karşılaştırma ve seçilen commit veya PR için ayrıntı okuma araçları sağlar. Hızlı işlemler son repository seçimini oturum içinde hatırlar, görünür sonucu kopyalamaya ve PR durumunu değiştirmeden filtrelemeye izin verir.
 
+## GitHub güvenli yazma
+
+GitHub workspace içinde ayrı bir güvenli yazma paneli branch oluşturma, non-default branch üzerinde dosya commit etme ve pull request açma işlemlerini açık kullanıcı onayıyla destekler.
+
+- Yazma allowlist'i HAFIZE_GITHUB_WRITE_REPOS ile read allowlist'ten ayrı tutulur.
+- Onaydan önce yalnız plan/önizleme hazırlanır; gerçek GitHub write çağrısı yapılmaz.
+- Server iki dakikalık, tek kullanımlık ve payload fingerprint'ine bağlı bir approval ticket üretir.
+- Varsayılan branch'e doğrudan commit, secret/credential yolları ve .github/workflows yazımı engellenir.
+- Commit içeriği ve mesajında plaintext credential tespiti uygulanır.
+- Merge, force-push ve destructive delete işlemleri bu yüzeyde yoktur.
+- Son başarılı write işlemleri yalnız sessionStorage içinde repository/target/zaman/reference metadata'sı olarak tutulur; içerik ve token saklanmaz.
+
+Ayrıntılar docs/GITHUB_WRITE*.md dosyalarındadır.
+
 ## Bağlantılar çalışma alanı
 
 Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'larının sunucu tarafındaki durumunu tek yerde gösterir.
