@@ -12,7 +12,10 @@ const required = [
   /slice\(0, MAX_MEMBERS\)/,
   /slice\(0, MAX_NAME\)|MAX_NAME\)/,
   /slice\(0, MAX_DESCRIPTION\)|MAX_DESCRIPTION\)/,
-  /slice\(0, MAX_QUERY\)/,
+  // The search box is bounded twice: the input refuses longer text and the
+  // read path clips whatever arrives.
+  /search\.maxLength = MAX_QUERY/,
+  /clip\(search\.value, MAX_QUERY\)/,
   /500_000/,
   /filter\(\(id\) => typeof id === 'string'/,
   /new Set\(/,

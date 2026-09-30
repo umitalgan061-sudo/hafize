@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { assertDataAttributeDeclared } from './source-contract.mjs';
 
 const files = await Promise.all([
   fs.readFile('public/prompt-library-safety.js', 'utf8'),
@@ -32,7 +33,7 @@ assert.match(preview, /StorageEvent/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /buildRepairPreview/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assertDataAttributeDeclared(diagnostics, 'data-diagnostics-repair');
 assert.match(diagnostics, /quarantineInvalidItems/);
 assert.match(diagnostics, /restoreQuarantine/);
 assert.match(diagnostics, /undoLastRepair/);

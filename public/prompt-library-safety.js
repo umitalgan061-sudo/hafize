@@ -7,6 +7,7 @@
   const QUARANTINE_KEY = 'hafize.prompt-library.quarantine.v1';
   const REPAIR_BACKUP_KEY = 'hafize.prompt-library.repair-backup.v1';
   const MAX_IMPORT_BYTES = 1_000_000;
+  const MAX_PREVIEW_INVALID = 6;
   const MAX_ITEMS = 120;
   const MAX_PREVIEW = 8;
   const MAX_ID = 120;
@@ -75,7 +76,7 @@
         ids.add(item.id);
       }
     }
-    return { sourceCount: source.length, normalized, invalidCount: invalid.length, duplicateIds };
+    return { sourceCount: source.length, normalized, invalidCount: invalid.length, invalidSamples: invalid.slice(0, MAX_PREVIEW_INVALID), duplicateIds };
   }
 
   function normalizeRecoveryPayload(payload) {
@@ -147,6 +148,7 @@
       sourceCount: incoming.sourceCount,
       validCount: incoming.normalized.length,
       invalidCount: incoming.invalidCount,
+      invalidSamples: incoming.invalidSamples,
       duplicateIds: incoming.duplicateIds,
       collisions,
       acceptedCount: accepted.length,
@@ -208,12 +210,20 @@
     const ids = new Set();
     const duplicateIds = [];
     const invalidIndexes = [];
+    const invalidSamples = [];
     let invalidBodies = 0;
     let invalidUseCounts = 0;
+
+    // Samples carry the same `{ index, reason }` shape the import preview
+    // renders, so the reader is told which record was skipped and why.
+    const sample = (index, reason) => {
+      if (invalidSamples.length < MAX_PREVIEW_INVALID) invalidSamples.push({ index, reason });
+    };
 
     rawItems.forEach((rawItem, index) => {
       if (!rawItem || typeof rawItem !== 'object') {
         invalidIndexes.push(index);
+        sample(index, 'nesne değil');
         return;
       }
       const itemId = typeof rawItem.id === 'string' ? rawItem.id : '';
@@ -221,7 +231,10 @@
       if (itemId) ids.add(itemId);
       if (typeof rawItem.body !== 'string' || !rawItem.body) invalidBodies += 1;
       if (!Number.isFinite(rawItem.useCount) || rawItem.useCount < 0) invalidUseCounts += 1;
-      if (!api?.normalizeItem?.(rawItem)) invalidIndexes.push(index);
+      if (!api?.normalizeItem?.(rawItem)) {
+        invalidIndexes.push(index);
+        sample(index, !rawItem.body ? 'body boş' : 'model sınırlarına uymuyor');
+      }
     });
 
     const promptIds = new Set(normalized.map((item) => item.id));
@@ -235,7 +248,7 @@
       normalizedCount: normalized.length,
       overCapacity: rawItems.length > MAX_ITEMS,
       duplicateIds,
-      invalidSamples: invalid.slice(0, 6),
+      invalidSamples,
       invalidIndexes: [...new Set(invalidIndexes)],
       invalidBodies,
       invalidUseCounts,
