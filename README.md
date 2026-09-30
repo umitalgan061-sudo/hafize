@@ -93,3 +93,16 @@ Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. 
 ## Mimari not
 
 `server.mjs` uygulamanın HTTP/API runtime'ıdır. `lib/production-guard.mjs` public çalıştırma giriş noktasına preloaded olarak kimlik doğrulama, CSRF ve rate limit sınırlarını ekler. Tarayıcı tarafındaki `public/auth.js` yalnızca oturum akışını yönetir; erişim anahtarını kalıcı olarak saklamaz.
+
+## Akıllı istem doldurma
+
+Değişken içeren istemlerde **Kullan** düğmesi yerel bir doldurma paneli açar.
+
+- `{{konu}}` gibi değişkenler ayrı alanlarda doldurulur.
+- Canlı önizleme ve karakter sınırı gösterilir.
+- Son kullanılan yerel değerler geri yüklenebilir.
+- Değişken değerleri isimlendirilmiş set olarak cihazda saklanabilir veya silinebilir.
+- Hazır metin mevcut mesajın yerine yazılabilir veya mesajın sonuna eklenebilir.
+- Önizleme panoya kopyalanabilir.
+
+Panel gönderim yapmaz; yalnızca composer değerini hazırlar. Değişken setleri ve son değerler `hafize.prompt-library.smart-fill.v1` altında cihazda tutulur. Sunucuya analytics, telemetry veya prompt içeriği gönderilmez.
