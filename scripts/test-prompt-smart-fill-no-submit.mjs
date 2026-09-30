@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
+assert.doesNotMatch(text, /form\.submit\(/);
+assert.doesNotMatch(text, /requestSubmit\(/);
+assert.doesNotMatch(text, /\.submit\(\)/);
+assert.match(text, /composer\.value = text/);
+assert.match(text, /composer\.dispatchEvent\(new Event\('input'/);
+assert.match(text, /composer\.focus\(\)/);
+console.log('prompt smart-fill no-submit contract: ok');
