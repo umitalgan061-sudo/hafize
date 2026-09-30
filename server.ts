@@ -18,6 +18,7 @@ import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-rea
 import { createGitHubWorkspaceReader, GitHubWorkspaceError } from './lib/github-workspace.ts';
 import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/github-workspace-extra.ts';
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
+import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -55,7 +56,9 @@ const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
+const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
+const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
   token: GITHUB_TOKEN,
   allowedRepositories: GITHUB_ALLOWED_REPOS
@@ -72,6 +75,10 @@ const GITHUB_WORKSPACE_EXTRA = createGitHubWorkspaceExtra({
 const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
   token: GITHUB_TOKEN,
   allowedRepositories: GITHUB_ALLOWED_REPOS
+});
+const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
+  token: GITHUB_TOKEN,
+  allowedRepositories: GITHUB_WRITE_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
@@ -342,6 +349,39 @@ async function handleGitHubWorkspaceExtra(pathname, url, res) {
     sendJson(res, 502, { error: 'GITHUB_WORKSPACE_FAILED' });
   }
 }
+async function handleGitHubWorkspaceWrite(req, url, res) {
+  try {
+    const body = await readJson(req, 160 * 1024);
+    const action = typeof body.action === 'string' ? body.action.trim() : '';
+    if (url.pathname === '/api/github/workspace/write/approval') {
+      if (body.approved !== true) {
+        sendJson(res, 428, { error: 'GITHUB_WRITE_APPROVAL_REQUIRED' });
+        return;
+      }
+      sendJson(res, 200, GITHUB_WORKSPACE_WRITER.issueApproval(action as any, body.payload));
+      return;
+    }
+    if (url.pathname !== '/api/github/workspace/write') {
+      sendJson(res, 404, { error: 'NOT_FOUND' });
+      return;
+    }
+    const ticket = typeof body.ticket === 'string' ? body.ticket : '';
+    const payload = body.payload;
+    let result;
+    if (action === 'branch') result = await GITHUB_WORKSPACE_WRITER.createBranch(ticket, payload);
+    else if (action === 'file') result = await GITHUB_WORKSPACE_WRITER.commitFile(ticket, payload);
+    else if (action === 'pull') result = await GITHUB_WORKSPACE_WRITER.createPullRequest(ticket, payload);
+    else { sendJson(res, 400, { error: 'INVALID_GITHUB_ARGUMENTS' }); return; }
+    sendJson(res, 200, result);
+  } catch (error) {
+    if (error instanceof GitHubWorkspaceWriteError) {
+      sendJson(res, error.status, { error: error.code });
+      return;
+    }
+    sendJson(res, 502, { error: 'GITHUB_WRITE_FAILED' });
+  }
+}
+
 async function handleGitHubWorkspace(url, res) {
   const action = url.searchParams.get('action') || '';
   const repository = url.searchParams.get('repository') || '';
@@ -415,6 +455,7 @@ async function handleAgentRun(req, res) {
         model,
         maxTokens: boundedMaxTokens(body),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
+        githubWriteConfigured: GITHUB_WRITE_CONFIGURED,
         githubReadFile: GITHUB_READ_FILE,
         complete: (payload) => nvidiaJsonCompletion(payload, controller.signal)
       });
@@ -736,6 +777,10 @@ const server = createServer(async (req, res) => {
       }
       for (const [name, value] of Object.entries(scheduleResponse.headers || {})) res.setHeader(name, value);
       sendJson(res, scheduleResponse.status, scheduleResponse.body);
+      return;
+    }
+    if (req.method === 'POST' && (url.pathname === '/api/github/workspace/write/approval' || url.pathname === '/api/github/workspace/write')) {
+      await handleGitHubWorkspaceWrite(req, url, res);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/github/workspace') {
