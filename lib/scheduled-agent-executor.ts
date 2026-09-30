@@ -38,7 +38,9 @@ export function createScheduledAgentExecutor(args:{
     if(result?.ok!==true){const error=errorCode(result?.error);ledger.finish({ok:false,detail:error});return{ok:false as const,error,taskLedger:ledger.snapshot()};}
     const content=typeof result.content==='string'?result.content:'';
     if(containsPlaintextCredential(content)){ledger.finish({ok:false,detail:'SCHEDULE_AGENT_RESULT_CREDENTIAL_BLOCKED'});return{ok:false as const,error:'SCHEDULE_AGENT_RESULT_CREDENTIAL_BLOCKED',taskLedger:ledger.snapshot()};}
-    ledger.finish({ok:true});return{ok:true as const,content,taskLedger:ledger.snapshot()};
+    ledger.finish({ok:true});
+    const resultSummary=content.slice(0,1200);
+    return{ok:true as const,content, resultSummary, taskLedger:ledger.snapshot()};
   }
   return Object.freeze({configured:Boolean(safeModel),executeAgentTask});
 }
