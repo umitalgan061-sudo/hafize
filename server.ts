@@ -39,7 +39,7 @@ import {
   getPublicToolRunningActivity
 } from './lib/tool-runtime.ts';
 
-import { readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
+import { HttpRuntimeError, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -375,6 +375,10 @@ async function handleGitHubWorkspaceWrite(req, url, res) {
     sendJson(res, 200, result);
   } catch (error) {
     if (error instanceof GitHubWorkspaceWriteError) {
+      sendJson(res, error.status, { error: error.code });
+      return;
+    }
+    if (error instanceof HttpRuntimeError) {
       sendJson(res, error.status, { error: error.code });
       return;
     }
