@@ -18,7 +18,7 @@ const typedDevEntryPlugin = (): Plugin => ({
   name: 'hafize-typed-dev-entries',
   transformIndexHtml(html, context) {
     if (!context.server) return html;
-    return html
+    html = html
       .replaceAll('/typed-build/auth.js', '/typed/auth.ts')
       .replaceAll('/typed-build/app-shell.js', '/typed/app-shell.ts')
       .replaceAll('/typed-build/ui-shell.js', '/typed/ui-shell.ts')
@@ -42,7 +42,7 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/github-workspace-write.js', '/github-workspace-write.ts')
       .replaceAll('/typed-build/workspace-backup.js', '/typed/workspace-backup.ts');
     for (const [entry] of Object.entries(LEGACY_TYPED_ENTRIES)) {
-      const source = entry.replace(/^legacy-/, '/typed/legacy/').replace(/\\.ts$/, '.ts');
+      const source = entry.replace(/^legacy-/, '/typed/legacy/') + '.ts';
       html = html.replaceAll(`/typed-build/${entry}.js`, source);
     }
     return html;
