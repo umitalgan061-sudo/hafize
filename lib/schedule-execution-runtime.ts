@@ -1,7 +1,7 @@
 // @ts-ignore Legacy lease executor remains a compatibility dependency.
 import { createScheduleLeaseGuardedExecutor } from './schedule-lease-executor.ts';
 
-const WORKER_KEYS=new Set(['ok','error','retryAt','content','taskLedger','leaseStatus','deduplicated']);
+const WORKER_KEYS=new Set(['ok','error','retryAt','content','resultSummary','taskLedger','leaseStatus','deduplicated']);
 export interface ScheduleTaskExecutor { readonly configured?:boolean; readonly executeAgentTask:(input:unknown)=>Promise<unknown>; }
 function projected(value:unknown):unknown{
   if(!value||typeof value!=='object'||Array.isArray(value))return value;
@@ -11,7 +11,7 @@ function projected(value:unknown):unknown{
   if(keys.some(key=>!WORKER_KEYS.has(key)))return value;
   if(keys.some(key=>!Object.prototype.hasOwnProperty.call(descriptors[key]!, 'value')))return value;
   const ok=descriptors.ok?.value;
-  if(ok===true)return Object.freeze({ok:true});
+  if(ok===true)return Object.freeze({ok:true,...(typeof descriptors.resultSummary?.value==='string'?{resultSummary:String(descriptors.resultSummary.value).slice(0,1200)}:{})});
   if(ok!==false)return value;
   return Object.freeze({ok:false,error:descriptors.error?.value,...(Object.prototype.hasOwnProperty.call(descriptors,'retryAt')?{retryAt:descriptors.retryAt?.value}: {})});
 }
