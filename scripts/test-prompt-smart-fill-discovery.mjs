@@ -1,4 +1,4 @@
-import assert from 'node:fs/promises';
+import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile('public/prompt-library-smart-fill-hints.js', 'utf8');
