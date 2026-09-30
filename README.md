@@ -207,6 +207,34 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 
 ## Test
 
+Tüm kontrol kapısı tek komutla çalışır ve harici bağımlılık gerektirmez:
+
+```bash
+node scripts/run-checks.mjs
+```
+
+Koşucu `public/`, `lib/`, `scripts/` ve kök dizindeki dosyalara syntax kontrolü
+uygular, ardından `scripts/validate-*` ve `scripts/test-*` paketlerini çalıştırır.
+Tek bir alan üzerinde çalışırken `--filter` kullanılabilir:
+
+```bash
+node scripts/run-checks.mjs --filter=conversation-forks,pwa
+node scripts/run-checks.mjs --list
+```
+
+Yapı ve çalışma zamanı bütünlüğü için üç kapı ayrıca vardır:
+
+| Paket | Kapsam |
+|---|---|
+| `scripts/test-vite-entry-link.mjs` | Her Vite entry'si parse edilir ve link olur |
+| `scripts/test-runtime-import-graph.mjs` | `server.ts` erişim grafiğindeki her relative import çözülür; her `lib/*.ts` Node altında yüklenir |
+| `scripts/test-pwa-shell-integrity.mjs` | Offline shell listesinde eksik, yinelenen veya üretilmeyen yol bulunmaz |
+
+Kaynak sözleşmesi paketleri yazım biçimini değil davranışı doğrular; paylaşılan
+yardımcılar `scripts/source-contract.mjs` ve `scripts/shell-cache-contract.mjs`
+dosyalarındadır. Service worker cache sürümü hiçbir pakette literal olarak
+sabitlenmez; `assertMinimumCacheVersion` ile alt sınır doğrulanır.
+
 ```bash
 npm run precheck
 npm run check

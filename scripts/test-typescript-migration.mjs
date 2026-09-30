@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
 const packageData=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
@@ -30,15 +31,39 @@ assert(tsconfig.compilerOptions?.rewriteRelativeImportExtensions===true,'ts-exte
 for(const path of [
   'agent-runtime.ts','agent-delegation.ts','agent-run-ledger.ts','context-compaction.ts',
   'model-response-contract.ts','schedule-command-boundary.ts','schedule-execution-runtime.ts',
-  'schedule-worker.ts','scheduled-agent-executor.ts','server-auth.ts','session-auth.ts',
-  'tool-runtime.ts','tool-call-boundary.ts','tool-execution-result-policy.ts','request-failure.ts'
+  'schedule-worker.ts','scheduled-agent-executor.ts','server-auth.ts',
+  'tool-runtime.ts','request-failure.ts'
 ]){
   assert(server.includes('./lib/'+path), 'server-import:'+path);
 }
+// Three migrated modules are reached through another one rather than imported
+// by `server.ts` directly, so each is asserted against its real consumer:
+// `session-auth.ts` through the production guard (the loop below), and the two
+// tool boundaries through `tool-runtime.ts`.
+const toolRuntime=await readFile(new URL('../lib/tool-runtime.ts',import.meta.url),'utf8');
+for(const path of ['tool-call-boundary.ts','tool-execution-result-policy.ts']){
+  assert(toolRuntime.includes('./'+path), 'tool-runtime-import:'+path);
+}
 
-assert(server.includes('./lib/production-guard.ts'),'production-guard-entry');
+// The guard is a `--import` preload (asserted against the npm scripts above),
+// not a server import: it has to run before the server's module graph is
+// evaluated, which an import inside `server.ts` cannot guarantee.
+assert(!server.includes('./lib/production-guard.ts'),'production-guard-must-stay-a-preload');
+assert(String(packageData.scripts?.start||'').includes('--import ./lib/production-guard.ts'),'production-guard-preload');
 assert(server.includes('./lib/http-runtime.ts'),'http-runtime-entry');
-for(const browserPath of ['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts']) assert(browserPath.endsWith('.ts'),'browser-migration-contract');
+// The browser modules are asserted through the Vite entry map, which is the
+// only place that knows whether an entry lives in `public/` or `public/typed/`.
+// The previous form checked that a literal string ends in `.ts`, which is
+// always true and therefore asserted nothing.
+const viteConfig=await readFile(new URL('../vite.config.ts',import.meta.url),'utf8');
+const entryBlock=/entry:\s*\{([\s\S]*?)\n\s*\},/.exec(viteConfig)?.[1]||'';
+const entrySources=new Map([...entryBlock.matchAll(/'([^']+)':\s*resolve\(ROOT,\s*'([^']+)'\)/g)].map((match)=>[match[1],match[2]]));
+for(const entry of ['markdown-renderer','conversation-workspace','message-workspace','prompt-library','scheduled-tasks']){
+  const source=entrySources.get(entry);
+  assert(Boolean(source),'browser-entry-missing:'+entry);
+  assert(source.endsWith('.ts'),'browser-entry-not-typescript:'+entry);
+  assert(existsSync(new URL('../'+source,import.meta.url)),'browser-entry-source-missing:'+source);
+}
 for(const path of ['session-auth.ts','server-auth.ts','rate-limit.ts','security-observability.ts','runtime-config.ts']){
   assert(guard.includes('./'+path), 'guard-import:'+path);
 }

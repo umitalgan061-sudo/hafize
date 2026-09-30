@@ -17,10 +17,30 @@ const securityFiles = [
   'lib/gmail-agent-runtime.ts'
 ];
 
+// Five connector read modules are still `.mjs`, and the two connector runtimes
+// import them across that boundary on purpose. Naming the remaining surface
+// keeps the gate honest: everything else must be `.ts`-only, and anything that
+// leaves this list can never come back.
+const PENDING_MJS_DEPENDENCIES = Object.freeze({
+  'lib/canva-agent-runtime.ts': [
+    './oauth-token-store-runtime.mjs', './canva-read-client.mjs', './canva-read-tool-boundary.mjs'
+  ],
+  'lib/gmail-agent-runtime.ts': [
+    './oauth-token-store-runtime.mjs', './gmail-read-client.mjs', './gmail-read-tool-boundary.mjs'
+  ]
+});
+
 for (const path of securityFiles) {
   assert.equal(existsSync(join(root, path)), true, `missing typed security source: ${path}`);
   const source = read(path);
-  assert.doesNotMatch(source, /(?:\.\/|from ['"])[^'"]+\.mjs['"]/);
+  const allowed = PENDING_MJS_DEPENDENCIES[path] ?? [];
+  const found = [...source.matchAll(/from '(\.\/[^']+\.mjs)'/g)].map((match) => match[1]).sort();
+  assert.deepEqual(found, [...allowed].sort(), `unexpected .mjs imports in ${path}`);
+  for (const dependency of allowed) {
+    const name = dependency.replace(/^\.\//, '').replace(/\.mjs$/, '');
+    assert.equal(existsSync(join(root, 'lib', `${name}.ts`)), false,
+      `${name} now has a .ts source, so ${path} must import that instead`);
+  }
 }
 
 assert.match(server, /\.\/lib\/github-read\.ts/);
@@ -42,8 +62,11 @@ const bridges = [
   'lib/oauth-token-encryption.mjs',
   'lib/personal-memory-encryption.mjs'
 ];
+// The bridge sits inside `lib/`, so its specifier is a sibling: the expected
+// string was built from the repo-relative path and carried a stray `lib/`.
 for (const path of bridges) {
-  assert.equal(read(path).trim(), `export * from './${path.replace(/\.mjs$/, '.ts')}';`);
+  const sibling = path.replace(/^lib\//, '').replace(/\.mjs$/, '.ts');
+  assert.equal(read(path).trim(), `export * from './${sibling}';`, `bridge ${path} re-exports ./${sibling}`);
 }
 
 console.log('TypeScript security entrypoint gate: ok');
