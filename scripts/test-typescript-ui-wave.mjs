@@ -43,6 +43,9 @@ for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-wor
   check(!typed.includes('Authorization:'), `${entry} does not embed auth headers`);
 }
 
+check(await read('public/sw.ts').then((source) => source.includes('from \'./sw-policy.ts\'')), 'typed root service worker source');
+check(!(await read('public/sw.ts')).includes('importScripts('), 'service worker avoids importScripts');
+
 for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   const source = await read(`public/${legacy}.js`);
   check(source.length < 500, `${legacy} legacy file is only a compatibility bridge`);
@@ -51,7 +54,7 @@ for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   check(!source.includes('fetch('), `${legacy} bridge has no network implementation`);
 }
 
-check(sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v41`'), 'PWA cache version bumped');
+check(sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v51`'), 'PWA cache version bumped');
 check(!html.includes('/typed-build/markdown-renderer.js" defer'), 'module entry is not marked defer-only');
 check(!html.includes('/typed-build/conversation-workspace.js" defer'), 'module entry is not marked defer-only');
 
