@@ -358,7 +358,7 @@ async function handleGitHubWorkspaceWrite(req, url, res) {
         sendJson(res, 428, { error: 'GITHUB_WRITE_APPROVAL_REQUIRED' });
         return;
       }
-      sendJson(res, 200, GITHUB_WORKSPACE_WRITER.issueApproval(action as any, body.payload));
+      sendJson(res, 200, GITHUB_WORKSPACE_WRITER.issueApproval(action as any, body.payload, body.approved === true));
       return;
     }
     if (url.pathname !== '/api/github/workspace/write') {
