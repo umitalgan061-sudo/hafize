@@ -28,8 +28,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
-      approved: false
-    })).toThrowError(new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_REQUIRED', 428));
+    }, false)).toThrowError(new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_REQUIRED', 428));
   });
 
   it('does not call upstream while creating an approval ticket', () => {
@@ -42,8 +41,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
-      approved: true
-    });
+    }, true);
     expect(ticket.ticket).toMatch(/^[0-9a-f]{48}$/);
     expect(calls).toBe(0);
   });
@@ -54,8 +52,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
-      approved: true
-    });
+    }, true);
     expect(() => writer.createBranch(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'feature/changed',
@@ -74,8 +71,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
-      approved: true
-    });
+    }, true);
     await expect(writer.createBranch(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'feature/x',
@@ -98,8 +94,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
-      approved: true
-    })).toThrowError(new GitHubWorkspaceWriteError('GITHUB_REPO_NOT_ALLOWED', 403));
+    }, true)).toThrowError(new GitHubWorkspaceWriteError('GITHUB_REPO_NOT_ALLOWED', 403));
   });
 
   it('accepts branch refs with slashes but rejects unsafe ref syntax', () => {
@@ -185,8 +180,7 @@ describe('github workspace safe write core', () => {
       path: 'src/example.ts',
       message: 'feat: example',
       content: 'export const value = 1;',
-      approved: true
-    });
+    }, true);
     await expect(writer.commitFile(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'main',
@@ -210,8 +204,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/demo',
       fromRef: 'main',
-      approved: true
-    });
+    }, true);
     const result = await writer.createBranch(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'feature/demo',
@@ -244,8 +237,7 @@ describe('github workspace safe write core', () => {
       path: 'src/example.ts',
       message: 'feat: add example',
       content: 'export const value = 1;',
-      approved: true
-    });
+    }, true);
     const result = await writer.commitFile(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'feature/write',
@@ -277,8 +269,7 @@ describe('github workspace safe write core', () => {
       message: 'fix: update example',
       content: 'export const value = 2;',
       existingSha,
-      approved: true
-    });
+    }, true);
     const result = await writer.commitFile(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'feature/write',
@@ -309,8 +300,7 @@ describe('github workspace safe write core', () => {
       title: 'feat: demo',
       body: 'Adds a safe example.',
       draft: true,
-      approved: true
-    });
+    }, true);
     await expect(writer.createPullRequest(ticket.ticket, {
       repository: 'owner/repo',
       head: 'feature/write',
@@ -353,8 +343,7 @@ describe('github workspace safe write core', () => {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
-      approved: true
-    })).toThrowError(new GitHubWorkspaceWriteError('GITHUB_NOT_CONFIGURED', 503));
+    }, true)).toThrowError(new GitHubWorkspaceWriteError('GITHUB_NOT_CONFIGURED', 503));
   });
 
   it('returns bounded limits for client and server contracts', () => {
