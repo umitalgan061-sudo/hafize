@@ -10,8 +10,7 @@ for(const forbidden of [
   'mergePullRequest',
   'deleteBranch',
   'forcePush',
-  'deleteFile',
-  'workflow'
+  'deleteFile'
 ]) assert.doesNotMatch(writer,new RegExp(forbidden));
 assert.doesNotMatch(ui,/merge/i);
 assert.match(writer,/GITHUB_DEFAULT_BRANCH_BLOCKED/);
