@@ -148,8 +148,7 @@ function safeHistoryJson(values: readonly WriteHistoryEntry[]): string {
   })), null, 2);
 }
 
-async function copyWriteHistory(): Promise<boolean> {
-  const values = readWriteHistory();
+async function copyWriteHistory(values: readonly WriteHistoryEntry[]): Promise<boolean> {
   if (!values.length) return false;
   try {
     await root.navigator?.clipboard?.writeText?.(safeHistoryJson(values));
@@ -196,7 +195,7 @@ function renderWriteHistory(
   copy.type = 'button';
   copy.disabled = !visible.length;
   copy.addEventListener('click', () => {
-    void copyWriteHistory().then((ok) => {
+    void copyWriteHistory(visible).then((ok) => {
       reportWriteHistoryStatus(host, ok ? 'Güvenli işlem geçmişi panoya kopyalandı.' : 'İşlem geçmişi panoya kopyalanamadı.');
     });
   });
