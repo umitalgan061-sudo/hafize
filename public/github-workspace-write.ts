@@ -21,6 +21,19 @@ const MAX_CONTENT = 96 * 1024;
 const MAX_MESSAGE = 180;
 const MAX_TITLE = 240;
 const MAX_BODY = 4000;
+const HISTORY_KEY = 'hafize.github-workspace-write.v1';
+const HISTORY_MAX = 12;
+const HISTORY_REPOSITORY = 120;
+const HISTORY_TARGET = 240;
+
+interface WriteHistoryEntry {
+  readonly action: WriteAction;
+  readonly repository: string;
+  readonly target: string;
+  readonly status: 'ok';
+  readonly at: string;
+  readonly reference?: string;
+}
 
 function make<K extends keyof HTMLElementTagNameMap>(
   doc: Document,
@@ -60,6 +73,109 @@ function control<T extends HTMLInputElement | HTMLTextAreaElement | HTMLSelectEl
 
 function safeGithubUrl(value: string): boolean {
   return /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\/.*)?$/i.test(value);
+}
+
+function readWriteHistory(): WriteHistoryEntry[] {
+  try {
+    const raw = sessionStorage.getItem(HISTORY_KEY) || '[]';
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item): WriteHistoryEntry[] => {
+      if (!item || typeof item !== 'object') return [];
+      const value = item as Record<string, unknown>;
+      const action = value.action === 'branch' || value.action === 'file' || value.action === 'pull'
+        ? value.action
+        : null;
+      const repository = clamp(value.repository, HISTORY_REPOSITORY);
+      const target = clamp(value.target, HISTORY_TARGET);
+      const at = clamp(value.at, 40);
+      const status = value.status === 'ok' ? 'ok' : null;
+      if (!action || !repository || !target || !at || !status) return [];
+      const reference = clamp(value.reference, 500);
+      return [{ action, repository, target, status, at, ...(reference ? { reference } : {}) }];
+    }).slice(0, HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function saveWriteHistory(entries: readonly WriteHistoryEntry[]): void {
+  try {
+    sessionStorage.setItem(HISTORY_KEY, JSON.stringify(entries.slice(0, HISTORY_MAX)));
+  } catch {}
+}
+
+function actionLabel(action: WriteAction): string {
+  return action === 'branch' ? 'Branch' : action === 'file' ? 'Commit' : 'PR';
+}
+
+function historyTarget(action: WriteAction, data: ApiRecord): string {
+  if (action === 'branch') return clamp(data.branch, HISTORY_TARGET) || 'branch';
+  if (action === 'file') return clamp(data.path, HISTORY_TARGET) || 'dosya';
+  const number = typeof data.number === 'number' ? String(data.number) : '';
+  return number ? '#' + number : clamp(data.title, HISTORY_TARGET) || 'PR';
+}
+
+function appendWriteHistory(action: WriteAction, data: ApiRecord): void {
+  const repository = clamp(data.repository, HISTORY_REPOSITORY);
+  const target = historyTarget(action, data);
+  if (!repository || !target) return;
+  const reference = action === 'branch'
+    ? clamp(data.htmlUrl, 500)
+    : action === 'file'
+      ? clamp(data.commitUrl, 500)
+      : clamp(data.htmlUrl, 500);
+  const entry: WriteHistoryEntry = {
+    action,
+    repository,
+    target,
+    status: 'ok',
+    at: new Date().toISOString(),
+    ...(reference ? { reference } : {})
+  };
+  saveWriteHistory([entry, ...readWriteHistory()
+    .filter((item) => !(item.action === action && item.repository === repository && item.target === target))]);
+}
+
+function renderWriteHistory(documentRef: Document, host: HTMLElement, onClear: () => void): void {
+  host.replaceChildren();
+  const head = make(documentRef, 'div', undefined, 'github-write-history-head');
+  head.append(
+    make(documentRef, 'strong', 'Son başarılı işlemler'),
+    make(documentRef, 'span', 'İçerik saklanmaz', 'github-write-history-note')
+  );
+  const values = readWriteHistory();
+  const clear = make(documentRef, 'button', 'Temizle', 'mini-btn') as HTMLButtonElement;
+  clear.type = 'button';
+  clear.disabled = !values.length;
+  clear.addEventListener('click', onClear);
+  head.append(clear);
+  host.append(head);
+  const list = make(documentRef, 'div', undefined, 'github-write-history-list');
+  if (!values.length) {
+    list.append(make(documentRef, 'span', 'Bu oturumda başarılı yazma işlemi yok.', 'github-write-history-empty'));
+    host.append(list);
+    return;
+  }
+  values.forEach((item) => {
+    const row = make(documentRef, 'div', undefined, 'github-write-history-row');
+    const top = make(documentRef, 'div', undefined, 'github-write-history-top');
+    top.append(
+      make(documentRef, 'strong', actionLabel(item.action) + ' · ' + item.target),
+      make(documentRef, 'time', new Date(item.at).toLocaleString('tr-TR'), 'github-write-history-time')
+    );
+    const repo = make(documentRef, 'div', item.repository, 'github-write-history-repo');
+    row.append(top, repo);
+    if (item.reference && safeGithubUrl(item.reference)) {
+      const link = make(documentRef, 'a', 'GitHub’da aç', 'github-write-result-link') as HTMLAnchorElement;
+      link.href = item.reference;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      row.append(link);
+    }
+    list.append(row);
+  });
+  host.append(list);
 }
 
 function syncRepository(card: HTMLElement, input: HTMLInputElement): void {
@@ -238,16 +354,24 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
 
   const actions = make(documentRef, 'div', undefined, 'github-write-actions');
   actions.append(execute, cancel);
-  panel.append(heading, intro, actionSelect, form, planHost, approvalLabel, actions, status, result);
+  panel.append(heading, intro, actionSelect, form, planHost, approvalLabel, actions, status, result, historyHost);
   card.append(panel);
 
   let destroyed = false;
   let fieldValues: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement> = {};
+  let refreshPlan: () => void = () => {};
+
+  const historyHost = make(documentRef, 'section', undefined, 'github-write-history');
+  historyHost.setAttribute('aria-labelledby', 'githubWriteHistoryTitle');
+  const historyHeading = make(documentRef, 'strong', 'Son başarılı işlemler');
+  historyHeading.id = 'githubWriteHistoryTitle';
+  historyHost.append(historyHeading);
 
   const report = (message: string): void => {
     status.textContent = clamp(message, 260);
   };
 
+  approval.addEventListener('change', () => refreshPlan());
   const buildFields = (): void => {
     form.replaceChildren();
     planHost.replaceChildren();
@@ -367,7 +491,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
 
     Object.values(fieldValues).forEach((field) => field.addEventListener('input', updatePlan));
     Object.values(fieldValues).forEach((field) => field.addEventListener('change', updatePlan));
-    approval.addEventListener('change', updatePlan);
+    refreshPlan = updatePlan;
     updatePlan();
     repository.focus();
   };
@@ -433,6 +557,11 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
       });
       if (destroyed) return;
       renderResult(action, written);
+      appendWriteHistory(action, written);
+      renderWriteHistory(documentRef, historyHost, () => {
+        saveWriteHistory([]);
+        renderWriteHistory(documentRef, historyHost, () => {});
+      });
       report('GitHub yazma işlemi tamamlandı.');
       approval.checked = false;
     } catch (error) {
@@ -514,6 +643,10 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   execute.addEventListener('click', () => void executeWrite());
   cancel.addEventListener('click', reset);
   buildFields();
+  renderWriteHistory(documentRef, historyHost, () => {
+    saveWriteHistory([]);
+    renderWriteHistory(documentRef, historyHost, () => {});
+  });
 
   return Object.freeze({
     mounted: true,
