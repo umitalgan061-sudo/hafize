@@ -282,6 +282,19 @@ Sohbet içindeki son Hafize yanıtı için Yeniden üret, Kopyala ve yerel geri 
 
 Ayrıntılar docs/CHAT_RESPONSE_REGENERATION*.md dosyalarındadır.
 
+## Çalışma alanı yedeği
+
+Yerel çalışma alanındaki kullanıcı verilerini seçmeli olarak JSON yedeğine çıkarabilir ve section bazında geri yükleyebilirsin. Sohbetler, mesaj workspace'i, prompt library, collections, revisions, Smart Fill değerleri, model tercihleri, composer history ve yerel görev şablonları desteklenir.
+
+Yedek dosyası cihazda oluşturulur; server task kayıtları, API/OAuth token'ları, session state ve credential alanları dışarıda tutulur. Export 2 MB ile sınırlıdır ve SHA-256 bütünlük bilgisi taşır. Import önce preview ve integrity kontrolünden geçer, ardından açık kullanıcı onayıyla seçilen alanları geri yükler. Restore hatasında mevcut raw localStorage değerleri için rollback denenir.
+
+Kısayol: Ctrl / ⌘ + Shift + Y.
+
+Özel doğrulama:
+```bash
+npm run test:workspace-backup
+```
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.
