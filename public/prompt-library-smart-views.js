@@ -127,7 +127,7 @@
 
   function readCoreState(card) {
     return {
-      query: clean(card.querySelector('#promptLibrarySearch')?.value || '', MAX_QUERY),
+      query: clean((card.querySelector('#promptLibrarySearch') || card.querySelector('.prompt-library-toolbar input[type="search"]') || card.querySelector('input[type="search"]'))?.value || '', MAX_QUERY),
       tag: card.querySelector('.prompt-library-filters select')?.value || 'all',
       favoriteOnly: card.querySelector('#promptLibraryFavoriteFilter')?.getAttribute('aria-pressed') === 'true',
       sort: card.querySelector('.prompt-library-toolbar select')?.value || 'updated-desc'
