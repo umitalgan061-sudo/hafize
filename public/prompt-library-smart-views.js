@@ -319,19 +319,22 @@
 
   function applyView(view, card) {
     if (!view || !card) return;
+    const spec = parseQuery(view.query || '');
     const search = card.querySelector('#promptLibrarySearch') || card.querySelector('input[type="search"]');
     const tag = card.querySelector('.prompt-library-filters select');
     const favorite = card.querySelector('#promptLibraryFavoriteFilter');
     const sort = card.querySelector('.prompt-library-toolbar select');
+    const plainText = spec.text.join(' ');
     if (search) {
-      search.value = view.query || '';
+      search.value = plainText;
       search.dispatchEvent(new Event('input', { bubbles: true }));
     }
     if (tag && view.tag) {
       tag.value = view.tag;
       tag.dispatchEvent(new Event('change', { bubbles: true }));
     }
-    if (favorite && favorite.getAttribute('aria-pressed') !== String(view.favoriteOnly === true)) {
+    const favoriteState = spec.favorite !== null ? spec.favorite : view.favoriteOnly === true;
+    if (favorite && favorite.getAttribute('aria-pressed') !== String(favoriteState)) {
       favorite.click();
     }
     if (sort && view.sort) {
@@ -604,6 +607,7 @@
           applyView(view, card);
           renderActive(view, card);
           report(`“${view.name}” görünümü uygulandı.`);
+          rootRef.dispatchEvent?.(new rootRef.CustomEvent('hafize:prompt-library-smart-view-applied', { detail: { id: view.id, name: view.name } }));
           render();
         });
         edit.addEventListener('click', () => { editingId = view.id; renderEditor(view); });
