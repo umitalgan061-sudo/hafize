@@ -166,8 +166,10 @@ function renderWriteHistory(
 ): void {
   host.replaceChildren();
   const head = make(documentRef, 'div', undefined, 'github-write-history-head');
+  const heading = make(documentRef, 'strong', 'Son başarılı işlemler');
+  heading.id = 'githubWriteHistoryTitle';
   head.append(
-    make(documentRef, 'strong', 'Son başarılı işlemler'),
+    heading,
     make(documentRef, 'span', 'İçerik saklanmaz', 'github-write-history-note')
   );
 
