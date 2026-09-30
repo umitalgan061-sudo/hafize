@@ -7,7 +7,7 @@ const writer=fs.readFileSync(path.join(root,'lib/github-workspace-write.ts'),'ut
 const server=fs.readFileSync(path.join(root,'server.ts'),'utf8');
 const env=fs.readFileSync(path.join(root,'.env.example'),'utf8');
 
-for(const action of ['branch','file','pull']) assert.match(writer,new RegExp("['"]"+action+"['"]"));
+for(const action of ['branch','file','pull']) assert.match(writer, new RegExp(`['"]${action}['"]`));
 assert.match(writer,/\/git\/refs/);
 assert.match(writer,/\/contents\//);
 assert.match(writer,/\/pulls/);
