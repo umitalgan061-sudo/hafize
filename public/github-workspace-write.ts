@@ -137,27 +137,93 @@ function appendWriteHistory(action: WriteAction, data: ApiRecord): void {
     .filter((item) => !(item.action === action && item.repository === repository && item.target === target))]);
 }
 
-function renderWriteHistory(documentRef: Document, host: HTMLElement, onClear: () => void): void {
+function safeHistoryJson(values: readonly WriteHistoryEntry[]): string {
+  return JSON.stringify(values.map((item) => ({
+    action: item.action,
+    repository: item.repository,
+    target: item.target,
+    status: item.status,
+    at: item.at,
+    ...(item.reference ? { reference: item.reference } : {})
+  })), null, 2);
+}
+
+async function copyWriteHistory(): Promise<boolean> {
+  const values = readWriteHistory();
+  if (!values.length) return false;
+  try {
+    await root.navigator?.clipboard?.writeText?.(safeHistoryJson(values));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderWriteHistory(
+  documentRef: Document,
+  host: HTMLElement,
+  onClear: () => void,
+  selectedAction: 'all' | WriteAction = 'all'
+): void {
   host.replaceChildren();
   const head = make(documentRef, 'div', undefined, 'github-write-history-head');
   head.append(
     make(documentRef, 'strong', 'Son başarılı işlemler'),
     make(documentRef, 'span', 'İçerik saklanmaz', 'github-write-history-note')
   );
+
+  const filter = make(documentRef, 'select', undefined, 'github-write-history-filter') as HTMLSelectElement;
+  filter.setAttribute('aria-label', 'Write geçmişi eylem filtresi');
+  for (const [value, label] of [
+    ['all', 'Tümü'],
+    ['branch', 'Branch'],
+    ['file', 'Commit'],
+    ['pull', 'PR']
+  ] as const) {
+    const option = make(documentRef, 'option', label);
+    option.value = value;
+    filter.append(option);
+  }
+  filter.value = selectedAction;
+  head.append(filter);
+
   const values = readWriteHistory();
+  const visible = selectedAction === 'all'
+    ? values
+    : values.filter((item) => item.action === selectedAction);
+
+  const copy = make(documentRef, 'button', 'Kopyala', 'mini-btn') as HTMLButtonElement;
+  copy.type = 'button';
+  copy.disabled = !visible.length;
+  copy.addEventListener('click', () => {
+    void copyWriteHistory().then((ok) => {
+      reportWriteHistoryStatus(host, ok ? 'Güvenli işlem geçmişi panoya kopyalandı.' : 'İşlem geçmişi panoya kopyalanamadı.');
+    });
+  });
+
   const clear = make(documentRef, 'button', 'Temizle', 'mini-btn') as HTMLButtonElement;
   clear.type = 'button';
   clear.disabled = !values.length;
   clear.addEventListener('click', onClear);
-  head.append(clear);
+  head.append(copy, clear);
   host.append(head);
+
+  filter.addEventListener('change', () => {
+    renderWriteHistory(documentRef, host, onClear, filter.value as 'all' | WriteAction);
+  });
+
   const list = make(documentRef, 'div', undefined, 'github-write-history-list');
-  if (!values.length) {
-    list.append(make(documentRef, 'span', 'Bu oturumda başarılı yazma işlemi yok.', 'github-write-history-empty'));
+  if (!visible.length) {
+    list.append(make(
+      documentRef,
+      'span',
+      values.length ? 'Bu filtrede başarılı işlem yok.' : 'Bu oturumda başarılı yazma işlemi yok.',
+      'github-write-history-empty'
+    ));
     host.append(list);
     return;
   }
-  values.forEach((item) => {
+  visible.forEach((item) => {
     const row = make(documentRef, 'div', undefined, 'github-write-history-row');
     const top = make(documentRef, 'div', undefined, 'github-write-history-top');
     top.append(
@@ -176,6 +242,16 @@ function renderWriteHistory(documentRef: Document, host: HTMLElement, onClear: (
     list.append(row);
   });
   host.append(list);
+}
+
+function reportWriteHistoryStatus(host: HTMLElement, message: string): void {
+  const note = host.querySelector<HTMLElement>('.github-write-history-note');
+  if (!note) return;
+  const previous = note.textContent || 'İçerik saklanmaz';
+  note.textContent = message;
+  root.setTimeout?.(() => {
+    if (note.isConnected) note.textContent = previous;
+  }, 2600);
 }
 
 function syncRepository(card: HTMLElement, input: HTMLInputElement): void {
