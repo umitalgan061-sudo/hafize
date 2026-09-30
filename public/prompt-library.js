@@ -181,9 +181,9 @@
     card.setAttribute('aria-labelledby', 'promptLibraryTitle');
     const head = element(documentRef, 'div', undefined, 'utility-head prompt-library-head');
     head.append(element(documentRef, 'span', '✎', 'mini-icon'));
-    head.append(element(documentRef, 'span', 'İstem kütüphanesi', 'prompt-library-title'));
+    const heading = element(documentRef, 'span', 'İstem kütüphanesi', 'prompt-library-title'); heading.id = 'promptLibraryTitle'; head.append(heading);
     const count = element(documentRef, 'span', '', 'prompt-library-count'); head.append(count);
-    const search = documentRef.createElement('input'); search.type = 'search'; search.maxLength = LIMITS.maxQuery; search.placeholder = 'İstem ara…'; search.setAttribute('aria-label', 'İstem kütüphanesinde ara');
+    const search = documentRef.createElement('input'); search.id = 'promptLibrarySearch'; search.type = 'search'; search.maxLength = LIMITS.maxQuery; search.placeholder = 'İstem ara…'; search.setAttribute('aria-label', 'İstem kütüphanesinde ara');
     const sort = documentRef.createElement('select'); sort.setAttribute('aria-label', 'İstemleri sırala');
     for (const [value, label] of [['updated-desc', 'Son güncellenen'], ['favorite-first', 'Favoriler'], ['created-desc', 'Yeni oluşturulan'], ['title-asc', 'Başlığa göre']]) { const option = element(documentRef, 'option', label); option.value = value; sort.append(option); }
     const filterRow = element(documentRef, 'div', undefined, 'prompt-library-filters');
@@ -236,7 +236,7 @@
       for (const name of names) { const value = rootRef.prompt?.(`${name} değerini gir:`, '') ?? ''; if (value === null) return; values[name] = String(value).slice(0, LIMITS.maxVariableValue); }
       composer.value = replaceVariables(existing.body, values); composer.dispatchEvent(new Event('input', { bubbles: true })); composer.focus();
       const index = items.findIndex((candidate) => candidate.id === existing.id); if (index >= 0) items.splice(index, 1, normalizeItem({ ...items[index], useCount: items[index].useCount + 1, updatedAt: timestamp() }));
-      persist(); report('İstem mesaj alanına aktarıldı.');
+      persist(); rootRef.dispatchEvent?.(new CustomEvent('hafize:prompt-library-used', { detail: { promptId: existing.id } })); report('İstem mesaj alanına aktarıldı.');
     }
     function render() {
       if (destroyed) return; search.value = state.query; sort.value = state.sort; favorite.setAttribute('aria-pressed', String(state.favoriteOnly)); updateTagOptions();
@@ -251,7 +251,7 @@
         const meta = element(documentRef, 'div', `${new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: 'short' }).format(new Date(item.updatedAt))} · ${item.useCount} kullanım`, 'prompt-item-meta');
         for (const value of item.tags) meta.append(' ', element(documentRef, 'span', value, 'prompt-item-tag'));
         content.append(meta);
-        const actions = element(documentRef, 'div', undefined, 'prompt-item-actions'); const useButton = button(documentRef, 'Kullan'); const edit = button(documentRef, 'Düzenle'); const remove = button(documentRef, 'Sil'); actions.append(useButton, edit, remove); content.append(actions); row.append(check, content); list.append(row);
+        const actions = element(documentRef, 'div', undefined, 'prompt-item-actions'); const useButton = button(documentRef, 'Kullan'); useButton.dataset.promptUse = 'true'; const edit = button(documentRef, 'Düzenle'); const remove = button(documentRef, 'Sil'); actions.append(useButton, edit, remove); content.append(actions); row.append(check, content); list.append(row);
         on(check, 'change', () => { if (check.checked) { if (selected.size < LIMITS.maxSelection) selected.add(item.id); else check.checked = false; } else selected.delete(item.id); });
         on(star, 'click', () => { const index = items.findIndex((candidate) => candidate.id === item.id); if (index < 0) return; items.splice(index, 1, normalizeItem({ ...items[index], favorite: !items[index].favorite, updatedAt: timestamp() })); persist(); render(); });
         on(useButton, 'click', () => use(item)); on(edit, 'click', () => renderEditor(item));
