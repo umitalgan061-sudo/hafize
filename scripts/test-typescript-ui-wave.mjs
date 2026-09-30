@@ -28,7 +28,7 @@ check(packageData.scripts?.typecheck === 'tsc --noEmit', 'typecheck script prese
 check(packageData.scripts?.['typecheck:runtime'] === 'tsc --noEmit -p tsconfig.runtime.json', 'runtime typecheck present');
 check(packageData.scripts?.['check:modern']?.includes('test-typescript-ui-wave.mjs'), 'UI wave gate is wired');
 
-for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-workspace', 'prompt-library', 'scheduled-tasks']) {
+for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-workspace', 'prompt-library', 'scheduled-tasks', 'workspace-backup']) {
   const sourcePath = ['markdown-renderer','conversation-workspace'].includes(entry) ? `public/${entry}.ts` : `public/typed/${entry}.ts`;
   const vitePath = ['markdown-renderer','conversation-workspace'].includes(entry) ? `public/${entry}.ts` : `public/typed/${entry}.ts`;
   check(vite.includes(`'${entry}': resolve(ROOT, '${vitePath}')`), `${entry} Vite entry`);
