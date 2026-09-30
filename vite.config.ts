@@ -83,7 +83,7 @@ export default defineConfig({
         'github-workspace-details': resolve(ROOT, 'public/github-workspace-details.ts'),
         'github-workspace-write': resolve(ROOT, 'public/github-workspace-write.ts'),
         'workspace-backup': resolve(ROOT, 'public/typed/workspace-backup.ts'),
-        'sw': resolve(ROOT, 'public/typed/sw.ts'),
+        'sw': resolve(ROOT, 'public/sw.ts'),
         'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
