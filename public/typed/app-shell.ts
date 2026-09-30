@@ -1108,7 +1108,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   });
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register(import.meta.env.DEV ? '/typed/sw.ts' : '/sw.js', { type: 'module' }).catch(() => undefined));
+    window.addEventListener('load', () => navigator.serviceWorker.register(import.meta.env.DEV ? '/sw.ts' : '/sw.js', { type: 'module' }).catch(() => undefined));
   }
 
   if (!activeConversationId) createConversation();
