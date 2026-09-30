@@ -182,8 +182,12 @@ function backupWithoutIntegrity(payload: WorkspaceBackupPayload): string {
   });
 }
 
-export async function createBackup(storageInput?: Storage): Promise<WorkspaceBackupPayload> {
-  const { sections, skipped, totalBytes } = collectSections(storageInput);
+export async function createBackup(storageInput?: Storage, ids?: readonly string[]): Promise<WorkspaceBackupPayload> {
+  const collected = collectSections(storageInput);
+  const { sections: allSections, skipped } = collected;
+  const wanted = ids && ids.length ? new Set(ids.slice(0, MAX_SECTIONS)) : null;
+  const sections = wanted ? allSections.filter((section) => wanted.has(section.id)) : allSections;
+  const totalBytes = sections.reduce((sum, section) => sum + section.bytes, 0);
   if (!sections.length) throw new Error(skipped.length ? 'NO_EXPORTABLE_DATA' : 'NO_LOCAL_DATA');
   const base: WorkspaceBackupPayload = {
     format: BACKUP_FORMAT,
@@ -422,6 +426,16 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   const summaryTitle = make(documentRef, 'strong', 'Yerel veriler');
   const summaryText = make(documentRef, '');
   summary.append(summaryTitle, summaryText);
+  const exportScope = make(documentRef, 'div', '', 'workspace-backup-export-scope');
+  const exportScopeTitle = make(documentRef, 'strong', 'Yedek kapsamı');
+  const exportScopeHint = make(documentRef, 'Hangi yerel yüzeylerin yedeğe gireceğini seçebilirsin.', '', 'workspace-backup-export-hint');
+  const exportScopeActions = make(documentRef, 'div', '', 'workspace-backup-select-actions');
+  const exportAll = button(documentRef, 'Tümünü seç');
+  const exportNone = button(documentRef, 'Seçimleri temizle');
+  exportScopeActions.append(exportAll, exportNone);
+  const exportList = make(documentRef, 'div', '', 'workspace-backup-export-list');
+  exportList.setAttribute('role', 'group');
+  exportScope.append(exportScopeTitle, exportScopeHint, exportScopeActions, exportList);
   const actions = make(documentRef, 'div', '', 'workspace-backup-actions');
   const exportButton = button(documentRef, 'Yedeği indir', 'soft-btn');
   const importButton = button(documentRef, 'Yedekten geri yükle', 'soft-btn');
@@ -449,7 +463,7 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   const restore = button(documentRef, 'Seçilenleri geri yükle', 'soft-btn');
   previewActions.append(cancel, restore);
   preview.append(previewTitle, integrity, selectActions, list, previewActions);
-  body.append(summary, actions, fileInput, status, preview);
+  body.append(summary, exportScope, actions, fileInput, status, preview);
   section.append(header, body);
   rail.append(section);
 
@@ -463,9 +477,32 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   const report = (message: string) => { status.textContent = text(message, 220); };
   const localSections = () => collectSections(rootRef.localStorage);
 
+  function renderExportChoices(): void {
+    const snapshot = localSections();
+    exportList.replaceChildren();
+    for (const sectionInfo of snapshot.sections) {
+      const label = make(documentRef, 'label', '', 'workspace-backup-choice');
+      const check = documentRef.createElement('input');
+      check.type = 'checkbox';
+      check.checked = true;
+      check.value = sectionInfo.id;
+      check.dataset.backupExportSection = sectionInfo.id;
+      const copy = make(documentRef, 'span', '', 'workspace-backup-choice-copy');
+      copy.append(make(documentRef, 'strong', sectionInfo.label), make(documentRef, 'small', sectionInfo.description));
+      label.append(check, copy, make(documentRef, 'span', formatBytes(sectionInfo.bytes), 'workspace-backup-choice-size'));
+      exportList.append(label);
+    }
+    if (!snapshot.sections.length) exportList.append(make(documentRef, 'small', 'Yedeklenebilir yerel yüzey bulunmuyor.', 'workspace-backup-export-empty'));
+  }
+
+  function selectedExportIds(): string[] {
+    return Array.from(exportList.querySelectorAll<HTMLInputElement>('input[data-backup-export-section]:checked')).map((input) => input.value).slice(0, MAX_SECTIONS);
+  }
+
   function renderSummary(): void {
     if (destroyed) return;
     const snapshot = localSections();
+    renderExportChoices();
     const meta = backupMetadata(rootRef.localStorage);
     summaryText.textContent = snapshot.sections.length
       ? snapshot.sections.length + ' yüzey · ' + formatBytes(snapshot.totalBytes) + (meta?.exportedAt ? ' · son yedek ' + new Date(meta.exportedAt).toLocaleString('tr-TR') : '')
@@ -495,7 +532,9 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
     try {
       exportButton.disabled = true;
       report('Yedek hazırlanıyor…');
-      const payload = await createBackup(rootRef.localStorage);
+      const ids = selectedExportIds();
+      if (!ids.length) throw new Error('NO_EXPORT_SELECTION');
+      const payload = await createBackup(rootRef.localStorage, ids);
       const textPayload = JSON.stringify(payload, null, 2);
       if (byteLength(textPayload) > MAX_BACKUP_BYTES) throw new Error('BACKUP_TOO_LARGE');
       const blob = new Blob([textPayload], { type: 'application/json;charset=utf-8' });
@@ -509,7 +548,7 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
       renderSummary();
       report(payload.sections.length + ' yüzey yedeklendi · ' + formatBytes(byteLength(textPayload)));
     } catch (error) {
-      report(error instanceof Error && error.message === 'BACKUP_TOO_LARGE' ? 'Yedek 2 MB sınırını aşamaz.' : 'Yedek oluşturulamadı.');
+      report(error instanceof Error && error.message === 'BACKUP_TOO_LARGE' ? 'Yedek 2 MB sınırını aşamaz.' : error instanceof Error && error.message === 'NO_EXPORT_SELECTION' ? 'En az bir yedek yüzeyi seçmelisin.' : 'Yedek oluşturulamadı.');
     } finally { exportButton.disabled = false; }
   }
 
@@ -556,6 +595,8 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   on(exportButton, 'click', () => { void handleExport(); });
   on(importButton, 'click', openImport as EventListener);
   on(fileInput, 'change', () => { void handleFile(); });
+  on(exportAll, 'click', () => exportList.querySelectorAll<HTMLInputElement>('input[data-backup-export-section]').forEach((input) => { input.checked = true; }));
+  on(exportNone, 'click', () => exportList.querySelectorAll<HTMLInputElement>('input[data-backup-export-section]').forEach((input) => { input.checked = false; }));
   on(all, 'click', () => list.querySelectorAll<HTMLInputElement>('input[data-backup-section]').forEach((input) => { input.checked = true; }));
   on(none, 'click', () => list.querySelectorAll<HTMLInputElement>('input[data-backup-section]').forEach((input) => { input.checked = false; }));
   on(cancel, 'click', () => { preview.hidden = true; (previousFocus as HTMLElement | null)?.focus?.(); previousFocus = null; });
