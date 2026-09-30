@@ -28,7 +28,8 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/github-workspace.js', '/github-workspace.ts')
       .replaceAll('/typed-build/github-workspace-extra.js', '/github-workspace-extra.ts')
       .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts')
-      .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts');
+      .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts')
+      .replaceAll('/typed-build/workspace-backup.js', '/typed/workspace-backup.ts');
   }
 });
 
@@ -64,6 +65,7 @@ export default defineConfig({
         'github-workspace-extra': resolve(ROOT, 'public/github-workspace-extra.ts'),
         'github-workspace-actions': resolve(ROOT, 'public/github-workspace-actions.ts'),
         'github-workspace-details': resolve(ROOT, 'public/github-workspace-details.ts'),
+        'workspace-backup': resolve(ROOT, 'public/typed/workspace-backup.ts'),
         'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),

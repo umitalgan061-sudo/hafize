@@ -29,6 +29,7 @@ assert.equal(existsSync(join(root, 'public/conversation-workspace.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/message-workspace.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/prompt-library.ts')), true);
 assert.equal(existsSync(join(root, 'public/typed/scheduled-tasks.ts')), true);
+assert.equal(existsSync(join(root, 'public/typed/workspace-backup.ts')), true);
 assert.doesNotMatch(html, /<script[^>]+src=["']\/app\.js["']/);
 assert.doesNotMatch(html, /<script[^>]+src=["']\/auth\.js["']/);
 console.log('TypeScript entrypoint release gate: ok');

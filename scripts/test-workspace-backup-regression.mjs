@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const root = new URL('../', import.meta.url);
+const source = await readFile(new URL('public/typed/workspace-backup.ts', root), 'utf8');
+const html = await readFile(new URL('public/index.html', root), 'utf8');
+assert.ok(source.includes('Object.freeze'));
+assert.ok(source.includes('stableJson'));
+assert.ok(source.includes('formatBytes'));
+assert.ok(source.includes('Ctrl'));
+assert.ok(html.includes('/workspace-backup.css'));
+assert.ok(html.includes('/typed-build/workspace-backup.js'));
+console.log('workspace-backup-regression: OK');

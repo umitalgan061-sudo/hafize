@@ -10,7 +10,8 @@ const entries = [
   'prompt-library-smart-fill',
   'prompt-library-command-palette',
   'scheduled-tasks-countdown',
-  'prompt-library-smart-fill-hints'
+  'prompt-library-smart-fill-hints',
+  'workspace-backup'
 ];
 
 function assert(condition, message) {
@@ -23,7 +24,8 @@ for (const entry of entries) {
   assert(vite.includes(`'${entry}':`), `${entry} missing from Vite entry map`);
 }
 
-assert(sw.includes('hafize-shell-v35'), 'expected cache version v35');
+assert(sw.match(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/), 'cache version must remain versioned');
+assert(sw.includes('/workspace-backup.css'), 'workspace backup CSS cached');
 assert(!html.includes('typed-build/*.js'), 'wildcard generated entry is not allowed');
 assert(!html.includes('/public/typed'), 'source filesystem path must not appear in HTML');
 console.log(`generated-assets-contract: ${entries.length} typed entries aligned`);

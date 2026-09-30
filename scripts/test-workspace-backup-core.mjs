@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+const root = new URL('../', import.meta.url);
+const source = await readFile(new URL('public/typed/workspace-backup.ts', root), 'utf8');
+assert.ok(source.includes("format: 'hafize-workspace-backup'"));
+assert.ok(source.includes("source: 'local-device'"));
+for (const key of ['hafize.conversations.v1','hafize.message-workspace.v1','hafize.prompt-library.v1','hafize.prompt-library.v1.state','hafize.prompt-library.collections.v1','hafize.prompt-library.revisions.v1','hafize.model-preferences.v1','hafize.composer-history.v1','hafize.composer-history.settings.v1','hafize.scheduled-task-templates.v1','hafize.scheduled-task-draft.v1']) assert.ok(source.includes(key), 'missing allowlisted surface ' + key);
+for (const fn of ['collectSections','createBackup','inspectBackup','restoreSelected','mountWorkspaceBackup']) assert.ok(source.includes('function ' + fn), fn + ' must exist');
+assert.ok(source.includes('new TextEncoder()'));
+assert.ok(source.includes('crypto.subtle'));
+console.log('workspace-backup-core: OK');
