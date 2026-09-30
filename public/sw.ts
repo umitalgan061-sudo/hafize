@@ -1,7 +1,21 @@
-/// <reference lib="webworker" />
 import { CURRENT_CACHE, SHELL_ASSETS, classifyRequest, shouldDeleteCache } from './sw-policy.ts';
 
-const scope = self as unknown as ServiceWorkerGlobalScope;
+interface WorkerClients {
+  claim(): Promise<void>;
+}
+
+interface WorkerScope {
+  addEventListener(type: string, listener: (event: {
+    request?: Request;
+    waitUntil(promise: Promise<unknown>): void;
+    respondWith(response: Promise<Response> | Response): void;
+  }) => void): void;
+  skipWaiting(): Promise<void>;
+  clients: WorkerClients;
+  location: { origin: string };
+}
+
+const scope = self as unknown as WorkerScope;
 
 async function matchShell(request: Request): Promise<Response> {
   const cache = await caches.open(CURRENT_CACHE);
@@ -19,19 +33,29 @@ async function navigateWithOfflineFallback(request: Request): Promise<Response> 
 }
 
 scope.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CURRENT_CACHE).then((cache) => cache.addAll(SHELL_ASSETS)).then(() => scope.skipWaiting()));
+  event.waitUntil(
+    caches.open(CURRENT_CACHE)
+      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then(() => scope.skipWaiting())
+  );
 });
 
 scope.addEventListener('activate', (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter(shouldDeleteCache).map((key) => caches.delete(key)))));
+  event.waitUntil(
+    caches.keys().then((keys) => Promise.all(
+      keys.filter(shouldDeleteCache).map((key) => caches.delete(key))
+    ))
+  );
   scope.clients.claim();
 });
 
 scope.addEventListener('fetch', (event) => {
-  const strategy = classifyRequest(event.request, scope.location.origin);
+  const request = event.request;
+  if (!request) return;
+  const strategy = classifyRequest(request, scope.location.origin);
   if (strategy === 'navigation') {
-    event.respondWith(navigateWithOfflineFallback(event.request));
+    event.respondWith(navigateWithOfflineFallback(request));
     return;
   }
-  if (strategy === 'shell') event.respondWith(matchShell(event.request));
+  if (strategy === 'shell') event.respondWith(matchShell(request));
 });
