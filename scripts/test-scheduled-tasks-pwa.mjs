@@ -15,12 +15,14 @@ assert.match(index, /scheduled-tasks-enhancements\.js/);
 assert.match(workspace, /PANEL_ID = 'scheduledTasksWorkspace'/);
 assert.match(workspace, /panel\.id = PANEL_ID/);
 
+// The workspace and the countdown are built TypeScript entries now; the two
+// enhancement layers are still plain scripts.
 assertShellAssets([
   '/scheduled-tasks.css',
-  '/scheduled-tasks.js',
+  '/typed-build/scheduled-tasks.js',
   '/scheduled-tasks-enhancements.js',
   '/scheduled-tasks-keyboard.js',
-  '/scheduled-tasks-countdown.js'
+  '/typed-build/scheduled-tasks-countdown.js'
 ], 'scheduled tasks asset');
 assertVersionedCacheDeclaration(sw);
 

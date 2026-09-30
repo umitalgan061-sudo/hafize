@@ -18,13 +18,13 @@ function count(text, needle) {
 
 assert.equal(count(html, '/message-workspace.css'), 1);
 assert.equal(count(html, '/message-workspace-policy.js'), 1);
-assert.equal(count(html, '/message-workspace.js'), 1);
-assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/message-workspace.js'));
+assert.equal(count(html, '/typed-build/message-workspace.js'), 1);
+assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/typed-build/message-workspace.js'));
 
 for (const asset of [
   '/message-workspace.css',
   '/message-workspace-policy.js',
-  '/message-workspace.js'
+  '/typed-build/message-workspace.js'
 ]) {
   assert.equal(count(sw, asset), 1, `shell asset missing exactly once: ${asset}`);
 }
@@ -33,7 +33,7 @@ assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
 assert.ok(sw.includes("'/message-workspace-policy.js'"));
-assert.ok(sw.includes("'/message-workspace.js'"));
+assert.ok(sw.includes("'/typed-build/message-workspace.js'"));
 
 assert.ok(js.includes("hafize.message-workspace.v1"));
 assert.ok(js.includes("hafize:message-workspace-changed"));

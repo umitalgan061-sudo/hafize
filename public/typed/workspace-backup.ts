@@ -415,10 +415,15 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   const header = make(documentRef, 'div', '', 'workspace-backup-head');
   const title = make(documentRef, 'strong', 'Çalışma alanı yedeği', 'workspace-backup-title');
   title.id = 'workspaceBackupTitle';
+  // The keyboard shortcut is bound below but was only written down in the
+  // README, so nothing in the app told the reader it exists. Other panels
+  // surface theirs the same way.
+  const shortcut = make(documentRef, 'span', 'Ctrl / ⌘ + Shift + Y', 'workspace-backup-shortcut');
+  shortcut.setAttribute('aria-hidden', 'true');
   const collapse = button(documentRef, 'Gizle');
   collapse.setAttribute('aria-expanded', 'true');
   collapse.setAttribute('aria-controls', 'workspaceBackupBody');
-  header.append(title, collapse);
+  header.append(title, shortcut, collapse);
   const body = make(documentRef, 'div');
   body.id = 'workspaceBackupBody';
   body.className = 'workspace-backup-body';
@@ -438,6 +443,7 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   exportScope.append(exportScopeTitle, exportScopeHint, exportScopeActions, exportList);
   const actions = make(documentRef, 'div', '', 'workspace-backup-actions');
   const exportButton = button(documentRef, 'Yedeği indir', 'soft-btn');
+  exportButton.setAttribute('aria-keyshortcuts', 'Control+Shift+Y Meta+Shift+Y');
   const importButton = button(documentRef, 'Yedekten geri yükle', 'soft-btn');
   const fileInput = documentRef.createElement('input');
   fileInput.type = 'file'; fileInput.accept = 'application/json,.json'; fileInput.hidden = true;

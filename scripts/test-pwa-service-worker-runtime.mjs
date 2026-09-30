@@ -28,7 +28,7 @@ const cache = {
     const path = pathOf(input);
     if (path === '/index.html') return { source: 'cached-index' };
     if (path === '/offline.html') return { source: 'cached-offline' };
-    if (path === '/app.js') return { source: 'cached-app' };
+    if (path === '/typed-build/app-shell.js') return { source: 'cached-app' };
     return null;
   }
 };
@@ -108,7 +108,7 @@ fetchImpl = async () => { throw new Error('offline'); };
 assert.deepEqual(await dispatchFetch('/chat', { mode: 'navigate' }), { source: 'cached-index' });
 
 fetchCalls = 0;
-assert.deepEqual(await dispatchFetch('/app.js'), { source: 'cached-app' });
+assert.deepEqual(await dispatchFetch('/typed-build/app-shell.js'), { source: 'cached-app' });
 assert.equal(fetchCalls, 0);
 
 assert.equal(await dispatchFetch('/api/agent/run'), null);
