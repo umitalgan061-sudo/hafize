@@ -706,7 +706,8 @@ async function serveStatic(pathname, res) {
     sendJson(res, 400, { error: 'INVALID_PATH' });
     return;
   }
-  const filePath = resolve(PUBLIC_DIR, `.${decoded}`);
+  const effectivePath = decoded === '/sw.js' ? '/typed-build/sw.js' : decoded;
+  const filePath = resolve(PUBLIC_DIR, `.${effectivePath}`);
   if (filePath !== PUBLIC_DIR && !filePath.startsWith(`${PUBLIC_DIR}${sep}`)) {
     sendJson(res, 400, { error: 'INVALID_PATH' });
     return;
@@ -718,7 +719,7 @@ async function serveStatic(pathname, res) {
     setSecurityHeaders(res);
     res.writeHead(200, {
       'Content-Type': MIME.get(extname(filePath).toLowerCase()) || 'application/octet-stream',
-      'Cache-Control': relative === 'index.html' ? 'no-cache' : 'public, max-age=300'
+      'Cache-Control': relative === 'index.html' || effectivePath === '/typed-build/sw.js' ? 'no-cache' : 'public, max-age=300'
     });
     res.end(content);
   } catch {
