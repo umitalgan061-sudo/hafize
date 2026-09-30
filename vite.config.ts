@@ -1,8 +1,18 @@
 import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { readdirSync } from 'node:fs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
+const LEGACY_TYPED_ENTRIES = Object.freeze(Object.fromEntries(
+  readdirSync(resolve(ROOT, 'public/typed/legacy'), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts'))
+    .map((entry) => [
+      `legacy-${entry.name.slice(0, -3)}`,
+      resolve(ROOT, `public/typed/legacy/${entry.name}`)
+    ])
+));
+
 
 const typedDevEntryPlugin = (): Plugin => ({
   name: 'hafize-typed-dev-entries',
@@ -31,6 +41,11 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts')
       .replaceAll('/typed-build/github-workspace-write.js', '/github-workspace-write.ts')
       .replaceAll('/typed-build/workspace-backup.js', '/typed/workspace-backup.ts');
+    for (const [entry] of Object.entries(LEGACY_TYPED_ENTRIES)) {
+      const source = entry.replace(/^legacy-/, '/typed/legacy/').replace(/\\.ts$/, '.ts');
+      html = html.replaceAll(`/typed-build/${entry}.js`, source);
+    }
+    return html;
   }
 });
 
@@ -72,7 +87,8 @@ export default defineConfig({
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
         'prompt-library': resolve(ROOT, 'public/typed/prompt-library.ts'),
-        'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts')
+        'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts'),
+        ...LEGACY_TYPED_ENTRIES
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`
