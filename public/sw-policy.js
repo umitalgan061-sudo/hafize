@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v46`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v47`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/scheduled-task-preview.css', '/scheduled-task-duplicate.css', '/scheduled-task-templates.css', '/scheduled-task-planning.css', '/scheduled-task-templates-backup.css', '/scheduled-task-status-summary.css', '/scheduled-task-preview-activity.css', '/scheduled-task-template-presets.css', '/scheduled-task-draft.css', '/scheduled-task-insights.css', '/scheduled-task-actions.css', '/scheduled-task-detail.css', '/scheduled-task-templates-backup.css',
