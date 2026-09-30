@@ -381,7 +381,8 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   const title = make(documentRef, 'strong', 'GitHub güvenli yazma');
   title.id = 'githubWriteTitle';
   const badge = make(documentRef, 'span', 'kullanıcı onayı + PR odaklı', 'github-write-badge');
-  heading.append(title, badge);
+  const readiness = make(documentRef, 'span', 'yazma durumu kontrol ediliyor…', 'github-write-readiness');
+  heading.append(title, badge, readiness);
 
   const intro = make(
     documentRef,
@@ -433,6 +434,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   card.append(panel);
 
   let destroyed = false;
+  let writeConfigured = true;
   let fieldValues: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement> = {};
   let refreshPlan: () => void = () => {};
 
@@ -602,6 +604,10 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
 
   const executeWrite = async (): Promise<void> => {
     const action = actionSelect.value as WriteAction;
+    if (!writeConfigured) {
+      report('Sunucuda GitHub yazma yetkisi etkin değil.');
+      return;
+    }
     const payload = buildPayload(action, fieldValues);
     if (!payloadIsUseful(action, fieldValues)) {
       report('Zorunlu alanları doldurun.');
@@ -717,7 +723,38 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   actionSelect.addEventListener('change', buildFields);
   execute.addEventListener('click', () => void executeWrite());
   cancel.addEventListener('click', reset);
+  const checkWriteReadiness = async (): Promise<void> => {
+    try {
+      const response = await fetch('/api/health', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store'
+      });
+      const payload = record(await response.json().catch(() => ({})));
+      if (destroyed) return;
+      writeConfigured = response.ok && payload.githubWriteConfigured === true;
+      readiness.textContent = writeConfigured ? 'yazma hazır' : 'yazma kapalı';
+      readiness.setAttribute('aria-label', writeConfigured
+        ? 'GitHub yazma bağlantısı hazır'
+        : 'GitHub yazma bağlantısı yapılandırılmamış');
+      if (!writeConfigured) {
+        execute.disabled = true;
+        report('GitHub yazma allowlist’i etkin değil. Read-only çalışma alanı kullanılabilir.');
+      } else {
+        syncControlState();
+      }
+    } catch {
+      if (destroyed) return;
+      readiness.textContent = 'durum alınamadı';
+      readiness.setAttribute('aria-label', 'GitHub yazma durumu alınamadı');
+      writeConfigured = true;
+      report('Yazma durumu doğrulanamadı; server isteği ayrıca doğrulayacaktır.');
+    }
+  };
+
   buildFields();
+  void checkWriteReadiness();
   renderWriteHistory(documentRef, historyHost, () => {
     saveWriteHistory([]);
     renderWriteHistory(documentRef, historyHost, () => {});
