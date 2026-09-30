@@ -89,6 +89,20 @@ Değişken içeren bir istemde `Kullan`, doğrudan aktarım yerine Akıllı dold
 
 Değişken değerleri ve setleri yalnızca cihazda tutulur; sunucuya gönderilmez. Ayrıntılar `docs/PROMPT_SMART_FILL*.md` dosyalarındadır.
 
+## Akıllı görünümler
+
+Prompt Library içindeki arama, etiket, favori ve sıralama durumları isimlendirilmiş yerel görünümler olarak saklanabilir.
+
+- `tag:`, `-tag:`, `is:favorite`, `has:variable` ve `used:>=3` gibi sorgu operatörleri desteklenir.
+- En fazla 24 görünüm, 20 kullanım geçmişi ve 300 KB görünüm yedeği tutulur.
+- Görünüm sabitlenebilir, çoğaltılabilir, yeniden adlandırılabilir, dışa aktarılabilir ve geri yüklenebilir.
+- Hızlı sorgu oluşturucu filtreleri form üzerinden üretir; Ctrl / ⌘ + Shift + Q ile odaklanabilir.
+- Son kullanılan görünümler tek tıkla yeniden uygulanabilir.
+- Görünüm sağlığı paneli bozuk/duplicate kayıtları tarar; güvenli onarım öncesinde checkpoint oluşturur ve son onarım geri alınabilir.
+- Tüm görünüm ve geçmiş verileri cihazdaki local storage alanında tutulur; yeni backend, telemetry veya credential storage eklenmez.
+
+Ayrıntılar `docs/PROMPT_SMART_VIEWS*.md` dosyalarındadır.
+
 ## Model ve ajan tercihleri
 
 Composer içindeki model ve ajan seçimleri cihaz üzerinde hatırlanabilir ve sık kullanılan kombinasyonlar profil olarak kaydedilebilir.
