@@ -1,0 +1,10 @@
+.github-workspace-actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding-top:8px;border-top:1px solid var(--line)}
+.github-workspace-actions .mini-btn{flex:0 1 auto}
+.github-workspace-state{border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:6px 8px;font:inherit;font-size:10px}
+.github-workspace-state:disabled{opacity:.6;cursor:progress}
+.github-workspace-state:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.github-workspace-history{display:flex;flex-wrap:wrap;gap:4px;flex:1 1 100%}
+.github-workspace-history-item{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.github-workspace-history-empty{color:var(--muted);font-size:10px}
+@media (max-width:700px){.github-workspace-actions{display:grid;grid-template-columns:1fr}.github-workspace-history{display:flex}}
+@media (forced-colors:active){.github-workspace-actions{border-top-color:CanvasText}.github-workspace-state{border-color:CanvasText;background:Canvas;color:CanvasText}.github-workspace-state:focus-visible{outline-color:Highlight}}

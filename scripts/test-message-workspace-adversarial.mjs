@@ -7,7 +7,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const policy = require(path.join(root, 'public/message-workspace-policy.js'));
-const source = await readFile(path.join(root, 'public/message-workspace.js'), 'utf8');
+const source = await readFile(path.join(root, 'public/typed/message-workspace.ts'), 'utf8');
 
 function record(overrides = {}) {
   return policy.normalizeRecord({

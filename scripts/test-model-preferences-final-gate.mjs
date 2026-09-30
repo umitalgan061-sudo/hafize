@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertMinimumCacheVersion } from './shell-cache-contract.mjs';
 
 const root=process.cwd();
 const state=fs.readFileSync(path.join(root,'public/typed/model-preferences.ts'),'utf8');
@@ -21,7 +22,7 @@ assert.match(shell,/modelPreferencesController/);
 assert.match(shell,/preference\.selectedModel/);
 assert.match(shell,/preference\.selectedAgentId/);
 assert.match(html,/model-preferences\.css/);
-assert.match(sw,/v45/);
+assertMinimumCacheVersion(45, 'model preferences shell cache');
 assert.match(sw,/model-preferences\.css/);
 assert.doesNotMatch(state+ui,/access_token|refresh_token|client_secret/i);
 console.log('model preferences final gate ok');

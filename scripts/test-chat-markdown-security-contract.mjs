@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-for (const path of ['public/markdown-renderer.js', 'public/chat-markdown.js']) {
+for (const path of ['public/markdown-renderer.ts', 'public/chat-markdown.js']) {
   const source = fs.readFileSync(path, 'utf8');
   assert.doesNotMatch(source, /innerHTML/);
   assert.doesNotMatch(source, /insertAdjacentHTML/);
@@ -11,7 +11,7 @@ for (const path of ['public/markdown-renderer.js', 'public/chat-markdown.js']) {
   assert.doesNotMatch(source, /fetch\s*\(/);
 }
 
-const renderer = fs.readFileSync('public/markdown-renderer.js', 'utf8');
+const renderer = fs.readFileSync('public/markdown-renderer.ts', 'utf8');
 assert.match(renderer, /createElement/);
 assert.match(renderer, /createTextNode/);
 assert.match(renderer, /textContent/);

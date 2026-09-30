@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 // public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
 // at runtime, which Node cannot statically analyse into named exports, so the
 // suite takes the default (CommonJS) export and destructures it.
-import promptLibrary from '../public/prompt-library.js';
+import promptLibrary from '../public/typed/prompt-library.ts';
 const { STORAGE_KEY, STATE_KEY, saveItems, saveState, loadItems, loadState, normalizeItem } = promptLibrary;
 
 const data = new Map();

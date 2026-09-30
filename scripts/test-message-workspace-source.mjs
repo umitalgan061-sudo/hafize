@@ -7,7 +7,7 @@ import { assertCssIncludes } from './source-contract.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
-const js = await read('public/message-workspace.js');
+const js = await read('public/typed/message-workspace.ts');
 const css = await read('public/message-workspace.css');
 const policy = await read('public/message-workspace-policy.js');
 const sw = await read('public/sw-policy.js');
