@@ -50,7 +50,10 @@ assert.match(variantsUi, /Bu yanıtı kullan/);
 assert.doesNotMatch(variantsUi, /innerHTML/);
 
 assert.match(optionsUi, /role.*dialog/);
-assert.match(optionsUi, /Daha kısa/);
+// The preset labels live in `response-regeneration-options.ts`; the dialog
+// renders `preset.label` for each of them.
+assert.match(optionsUi, /for \(const preset of REGENERATION_PRESETS\)/);
+assert.match(optionsUi, /preset\.label/);
 assert.match(optionsUi, /Özel yönerge/);
 
 assert.match(css, /assistant-message-actions/);
