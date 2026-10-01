@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const core = fs.readFileSync(new URL('../public/prompt-library.js', import.meta.url), 'utf8');
+const core = fs.readFileSync(new URL('../public/typed/prompt-library.ts', import.meta.url), 'utf8');
 const enhancement = fs.readFileSync(new URL('../public/prompt-library-enhancements.js', import.meta.url), 'utf8');
 assert.doesNotMatch(core, /document\.cookie/);
 assert.doesNotMatch(core, /Authorization/);

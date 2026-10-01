@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const root = new URL('../', import.meta.url);
 const [enhancements, center, history, bridge, suggestions, shortcuts, presets, css, historyCss, suggestionsCss, sw] = await Promise.all([
@@ -43,6 +44,7 @@ contains(presets, /PRESET_KEY/); contains(presets, /MAX_PRESETS\s*=\s*32/); cont
 
 contains(css, /prompt-library-variable-dialog/); contains(css, /max-width:700px/); contains(css, /forced-colors:active/); contains(css, /prefers-reduced-motion:reduce/);
 contains(historyCss, /prompt-smart-insert-history/); contains(historyCss, /forced-colors:active/); contains(suggestionsCss, /prompt-smart-insert-suggestions/); contains(suggestionsCss, /max-width:700px/);
-contains(sw, /prompt-library-smart-insert\.js/); contains(sw, /prompt-library-smart-insert-center\.js/); contains(sw, /prompt-library-smart-insert-history\.js/); contains(sw, /prompt-library-smart-insert-history-bridge\.js/); contains(sw, /prompt-library-smart-insert-suggestions\.js/); contains(sw, /prompt-library-smart-insert-shortcuts\.js/); contains(sw, /prompt-library-smart-insert-presets\.js/); contains(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v38`/);
+contains(sw, /prompt-library-smart-insert\.js/); contains(sw, /prompt-library-smart-insert-center\.js/); contains(sw, /prompt-library-smart-insert-history\.js/); contains(sw, /prompt-library-smart-insert-history-bridge\.js/); contains(sw, /prompt-library-smart-insert-suggestions\.js/); contains(sw, /prompt-library-smart-insert-shortcuts\.js/); contains(sw, /prompt-library-smart-insert-presets\.js/);
 
 console.log('prompt-library-smart-insert-integration: ok');
+assertCacheVersionAtLeast(38, 'prompt library smart insert');

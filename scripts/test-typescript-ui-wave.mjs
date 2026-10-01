@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const root = new URL('../', import.meta.url);
 const read = (path) => readFile(new URL(path, root), 'utf8');
@@ -51,7 +52,7 @@ for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   check(!source.includes('fetch('), `${legacy} bridge has no network implementation`);
 }
 
-check(sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v41`'), 'PWA cache version bumped');
+assertCacheVersionAtLeast(41, 'typescript ui wave');
 check(!html.includes('/typed-build/markdown-renderer.js" defer'), 'module entry is not marked defer-only');
 check(!html.includes('/typed-build/conversation-workspace.js" defer'), 'module entry is not marked defer-only');
 

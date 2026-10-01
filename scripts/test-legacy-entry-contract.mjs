@@ -1,4 +1,5 @@
 import { access, readFile } from 'node:fs/promises';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const ROOT = new URL('../', import.meta.url);
 const html = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -44,6 +45,6 @@ assert(html.includes('/hafize-runtime.css'), 'runtime diagnostics stylesheet is 
 const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
 for (const name of migrated) assert(sw.includes(`/typed-build/${name}.js`), `${name} generated entry is not in PWA shell`);
 assert(sw.includes('/typed-build/app-runtime.js'), 'app runtime generated entry is not in PWA shell');
-assert(sw.includes('hafize-shell-v40'), 'PWA cache was not versioned for the new entries');
+assertCacheVersionAtLeast(40, 'legacy entry contract');
 
 console.log(`legacy-entry-contract: ${migrated.length} migrated modules protected`);

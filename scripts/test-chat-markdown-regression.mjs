@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const files = {
-  renderer: fs.readFileSync('public/markdown-renderer.js', 'utf8'),
+  renderer: fs.readFileSync('public/markdown-renderer.ts', 'utf8'),
   chat: fs.readFileSync('public/chat-markdown.js', 'utf8'),
   css: fs.readFileSync('public/chat-markdown.css', 'utf8'),
-  app: fs.readFileSync('public/app.js', 'utf8'),
+  app: fs.readFileSync('public/typed/app-shell.ts', 'utf8'),
   composer: fs.readFileSync('public/chat-composer-features.js', 'utf8'),
-  workspace: fs.readFileSync('public/message-workspace.js', 'utf8'),
-  voice: fs.readFileSync('public/voice-output.js', 'utf8'),
+  workspace: fs.readFileSync('public/typed/message-workspace.ts', 'utf8'),
+  voice: fs.readFileSync('public/typed/voice-output.ts', 'utf8'),
   loader: fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8')
 };
 

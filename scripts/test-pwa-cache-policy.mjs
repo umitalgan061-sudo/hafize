@@ -39,8 +39,8 @@ assertShellAssets([
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/app.js',
-  '/ui-shell.js',
+  '/typed-build/app-shell.js',
+  '/typed-build/ui-shell.js',
   '/sw-policy.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
@@ -64,7 +64,7 @@ assert.equal(
   'query strings must not prevent shell matching'
 );
 assert.equal(
-  policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
+  policy.classifyRequest(request('/typed-build/app-shell.js?cache-bust=1'), ORIGIN),
   'shell'
 );
 
@@ -143,7 +143,15 @@ const swSource = await readFile(join(ROOT, 'public', 'sw.js'), 'utf8');
 assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);
 assert.match(swSource, /classifyRequest\(event\.request, self\.location\.origin\)/);
 assert.match(swSource, /shouldDeleteCache\(key\)/);
-assert.match(swSource, /cache\.addAll\(SHELL_ASSETS\)/);
+// The install precaches the navigation fallback strictly and the rest of the
+// shell one request at a time, so a single asset that 404s after a rename
+// degrades that file instead of aborting the whole install.
+assert.match(swSource, /cache\.addAll\(CRITICAL_SHELL_ASSETS\)/);
+assert.match(swSource, /SHELL_ASSETS\.filter\(/);
+assert.match(swSource, /cache\.add\(asset\)\.catch\(/);
+for (const critical of ['/index.html', '/offline.html']) {
+  assert.ok(swSource.includes(`'${critical}'`), `critical shell asset is strict: ${critical}`);
+}
 assert.match(swSource, /cache\.match\('\/offline\.html'\)/);
 assert.doesNotMatch(swSource, /cache\.put\(/);
 assert.doesNotMatch(swSource, /authorization/i);

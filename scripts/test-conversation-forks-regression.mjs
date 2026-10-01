@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const read = (file) => readFileSync(file, 'utf8');
 const fork = read('public/typed/conversation-forks.ts');
@@ -70,13 +71,13 @@ assert.match(app, /aria-busy/);
 assert.match(app, /hafize:open-conversation/);
 
 assert.match(html, /conversation-forks.css/);
-assert.match(html, /typed-build/conversation-forks.js/);
-assert.match(vite, /typed-build/conversation-forks.js/);
-assert.match(vite, /typed/conversation-forks.ts/);
+assert.match(html, /typed-build\/conversation-forks\.js/);
+assert.match(vite, /typed-build\/conversation-forks\.js/);
+assert.match(vite, /typed\/conversation-forks\.ts/);
 assert.match(vite, /'conversation-forks'/);
-assert.match(sw, /CURRENT_CACHE = .*v46/);
+assertCacheVersionAtLeast(46, 'conversation forks');
 assert.match(sw, /conversation-forks.css/);
-assert.match(sw, /typed-build/conversation-forks.js/);
+assert.match(sw, /typed-build\/conversation-forks\.js/);
 
 assert.match(css, /conversation-fork-banner/);
 assert.match(css, /conversation-fork-hub/);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const root = new URL('../', import.meta.url);
 const source = await readFile(new URL('public/prompt-library-smart-insert.js', root), 'utf8');
@@ -44,6 +45,6 @@ mustContain(index, /prompt-library-enhancements\.js/, 'enhancement loader is shi
 assert.equal((index.match(/prompt-library-enhancements\.js/g) || []).length, 1, 'enhancement script remains single-instanced');
 mustContain(sw, /prompt-library-smart-insert\.js/, 'smart insert JS is PWA cached');
 mustContain(sw, /prompt-library-smart-insert\.css/, 'smart insert CSS is PWA cached');
-mustContain(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v37`/, 'cache version advances for smart insert');
+assertCacheVersionAtLeast(37, 'prompt library smart insert');
 
 console.log('prompt-library-smart-insert-suite: ok');

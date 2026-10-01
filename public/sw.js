@@ -24,12 +24,22 @@ async function navigateWithOfflineFallback(request) {
   }
 }
 
+// The navigation fallback is the only part of the shell the app cannot work
+// without, so it stays strict. Everything else is precached one request at a
+// time: a single asset that 404s after a rename degrades that one file instead
+// of rejecting `addAll` and leaving the install — and therefore offline mode —
+// permanently broken.
+const CRITICAL_SHELL_ASSETS = Object.freeze(['/index.html', '/offline.html']);
+
+async function precacheShell() {
+  const cache = await caches.open(CURRENT_CACHE);
+  await cache.addAll(CRITICAL_SHELL_ASSETS);
+  const optional = SHELL_ASSETS.filter((asset) => !CRITICAL_SHELL_ASSETS.includes(asset));
+  await Promise.all(optional.map((asset) => cache.add(asset).catch(() => undefined)));
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CURRENT_CACHE)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(precacheShell().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
