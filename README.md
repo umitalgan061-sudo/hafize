@@ -323,6 +323,38 @@ Kısayol: Ctrl / ⌘ + Shift + Y.
 npm run test:workspace-backup
 ```
 
+## Yerel Veri ve Gizlilik Merkezi
+
+Ayarlar içindeki **Yerel veri ve gizlilik** paneli, bu tarayıcıdaki Hafize localStorage yüzeylerinin metinlerini göstermeden envanterini çıkarır.
+
+- Bilinen sohbet, mesaj, prompt, koleksiyon, revizyon, Smart Fill, model tercihi, composer geçmişi ve görev şablonu alanlarının yaklaşık boyutu gösterilir.
+- Bilinmeyen localStorage anahtarları yalnız sayaç olarak görünür; uygulamanın tanımadığı alanlar toplu temizlemeye dahil edilmez.
+- Tek bir veri yüzeyi temizlenebilir veya yalnız kullanıcı verileri topluca temizlenebilir; tüm bilinen alanları temizlemek için ikinci bir `TEMIZLE` onayı gerekir.
+- Gizlilik raporu yalnız kimliksiz yüzey özeti, sayaç, byte ve tarayıcı depolama tahminini içerir; prompt, mesaj, token veya credential içeriği rapora yazılmaz.
+- Tarayıcı `navigator.storage.estimate()` destekliyorsa kullanılan/kota bilgisi ayrıca gösterilir.
+- `Ctrl / ⌘ + Shift + R` düzenlenebilir alanların dışındayken gizlilik merkezine odaklanır.
+- Panel kendi başına network, telemetry, fetch, XHR veya WebSocket çağrısı yapmaz.
+
+Özel kontroller:
+```bash
+node scripts/test-settings-privacy-inventory.mjs
+node scripts/test-settings-privacy-clear.mjs
+node scripts/test-settings-privacy-safety.mjs
+node scripts/test-settings-privacy-report.mjs
+node scripts/test-settings-privacy-accessibility.mjs
+```
+
+Ayrıntılar `docs/SETTINGS_PRIVACY*.md` dosyalarındadır.
+
+### Yerel veri kontrolleri
+
+Privacy Center ayrıca veri yüzeyi arama, ada/boyuta göre sıralama, yalnız dolu yüzeyleri gösterme ve yüzey bazında içeriksiz özet kopyalama sağlar. Tercihleri sıfırlama kullanıcı verilerini korur; bilinen tüm alanların temizlenmesi iki aşamalı onay gerektirir.
+
+Feature doğrulaması:
+```bash
+node scripts/run-checks.mjs --filter=settings-privacy
+```
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.

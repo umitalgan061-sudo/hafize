@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { makeStorage, loadApi } from './settings-privacy-fixture.mjs';
+const api=await loadApi();
+const storage=makeStorage({'hafize.theme.v1':'dark','unknown':'x'});
+storage.setItem('hafize.prompt-library.v1','[]');
+let snap=api.inspectStorage(storage);
+assert.equal(snap.surfaces.find((s)=>s.id==='theme').present,true);
+assert.equal(snap.surfaces.find((s)=>s.id==='prompts').present,true);
+storage.removeItem('hafize.theme.v1');
+snap=api.inspectStorage(storage);
+assert.equal(snap.surfaces.find((s)=>s.id==='theme').present,false);
+assert.equal(storage.has('unknown'),true);
+console.log('runtime mutation refresh ok');

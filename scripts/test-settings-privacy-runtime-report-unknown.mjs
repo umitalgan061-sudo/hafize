@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { makeStorage, loadApi } from './settings-privacy-fixture.mjs';
+const api=await loadApi();
+const storage=makeStorage({'unknown':'private','auth.token':'secret','hafize.theme.v1':'dark'});
+const report=api.privacyReport(api.inspectStorage(storage),null);
+assert.ok(report.includes('"unknownKeys":2'));
+assert.equal(report.includes('private'),false);
+assert.equal(report.includes('secret'),false);
+assert.equal(report.includes('unknown'),true);
+console.log('runtime unknown report boundary ok');

@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { makeStorage, loadApi } from './settings-privacy-fixture.mjs';
+const api=await loadApi();
+const storage=makeStorage({'unknown':'secret','hafize.theme.v1':'dark'});
+const snap=api.inspectStorage(storage);
+assert.equal(snap.unknownKeys,1);
+api.clearAllKnown(storage);
+assert.equal(storage.has('unknown'),true);
+assert.equal(storage.has('hafize.theme.v1'),false);
+console.log('privacy runtime final unknown ok');
