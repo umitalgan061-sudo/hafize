@@ -346,6 +346,15 @@ node scripts/test-settings-privacy-accessibility.mjs
 
 Ayrıntılar `docs/SETTINGS_PRIVACY*.md` dosyalarındadır.
 
+### Yerel veri kontrolleri
+
+Privacy Center ayrıca veri yüzeyi arama, ada/boyuta göre sıralama, yalnız dolu yüzeyleri gösterme ve yüzey bazında içeriksiz özet kopyalama sağlar. Tercihleri sıfırlama kullanıcı verilerini korur; bilinen tüm alanların temizlenmesi iki aşamalı onay gerektirir.
+
+Feature doğrulaması:
+```bash
+node scripts/run-checks.mjs --filter=settings-privacy
+```
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.
