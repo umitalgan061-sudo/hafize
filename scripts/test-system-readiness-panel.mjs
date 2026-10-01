@@ -1,0 +1,24 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..', '..');
+const source = await readFile(resolve(ROOT, 'public/system-readiness-panel.ts'), 'utf8');
+assert.match(source, /fetch\('\/api\/health'/);
+assert.match(source, /cache:\s*'no-store'/);
+assert.match(source, /FETCH_TIMEOUT_MS\s*=\s*8_000/);
+assert.match(source, /REFRESH_MS\s*=\s*60_000/);
+assert.match(source, /AbortController/);
+assert.match(source, /setInterval\(refreshHealth, REFRESH_MS\)/);
+assert.match(source, /aria-live/);
+assert.match(source, /aria-label/);
+assert.match(source, /error\.textContent/);
+assert.match(source, /cache:\s*'no-store'/);
+assert.doesNotMatch(source, /localStorage/);
+assert.doesNotMatch(source, /sessionStorage/);
+assert.doesNotMatch(source, /navigator\.sendBeacon/);
+assert.doesNotMatch(source, /Authorization\s*:/);
+assert.doesNotMatch(source, /apiKey|token\s*:/i);
+assert.match(source, /card\.remove\(\)/);
+console.log('system readiness panel source checks passed');
