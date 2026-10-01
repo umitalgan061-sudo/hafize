@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { makeStorage, loadApi } from './settings-privacy-fixture.mjs';
+const api=await loadApi();
+const report=JSON.parse(api.privacyReport(api.inspectStorage(makeStorage({'hafize.theme.v1':'dark'})),null));
+assert.equal(report.format,'hafize-privacy-report');
+assert.equal(report.version,1);
+assert.equal(report.localOnly,true);
+assert.equal(report.contentIncluded,false);
+assert.ok(Array.isArray(report.surfaces));
+assert.equal(typeof report.totals.knownBytes,'number');
+console.log('runtime report shape ok');
