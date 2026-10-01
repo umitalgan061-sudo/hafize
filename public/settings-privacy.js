@@ -8,6 +8,7 @@
   const SHORTCUT = 'r';
   const MAX_KEYS = 300;
   const MAX_REPORT_BYTES = 120000;
+  const MAX_SEARCH = 80;
 
   const SURFACES = Object.freeze([
     { id: 'conversations', keys: ['hafize.conversations.v1'], label: 'Sohbetler', description: 'Yerel sohbet geçmişi ve konuşma dalları.', group: 'data' },
@@ -234,17 +235,24 @@
     const actions = make(documentRef, 'div', undefined, 'privacy-data-actions');
     const refresh = button(documentRef, 'Yenile', 'soft-btn');
     const report = button(documentRef, 'Gizlilik raporu', 'soft-btn');
+    const copyReport = button(documentRef, 'Raporu kopyala', 'soft-btn');
     const clearData = button(documentRef, 'Veri yüzeylerini temizle', 'soft-btn privacy-data-warning');
     const clearAll = button(documentRef, 'Bilinen tüm yerel veriyi temizle', 'soft-btn privacy-data-danger');
-    actions.append(refresh, report, clearData, clearAll);
+    actions.append(refresh, report, copyReport, clearData, clearAll);
 
+    const filter = documentRef.createElement('input');
+    filter.type = 'search';
+    filter.maxLength = MAX_SEARCH;
+    filter.placeholder = 'Veri yüzeyi ara…';
+    filter.setAttribute('aria-label', 'Yerel veri yüzeylerinde ara');
+    filter.className = 'privacy-data-filter';
     const list = make(documentRef, 'div', undefined, 'privacy-data-list');
     list.setAttribute('role', 'list');
     const status = make(documentRef, 'div', '', 'privacy-data-status');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
 
-    body.append(summary, actions, list, status, make(documentRef, 'p', 'Tanınmayan localStorage alanları gösterilmez ve toplu temizlemede silinmez. Oturum, token, OAuth secret ve sunucu görev verileri bu merkezin kapsamı dışındadır.', 'privacy-data-note'));
+    body.append(summary, actions, filter, list, status, make(documentRef, 'p', 'Tanınmayan localStorage alanları gösterilmez ve toplu temizlemede silinmez. Oturum, token, OAuth secret ve sunucu görev verileri bu merkezin kapsamı dışındadır.', 'privacy-data-note'));
     panel.append(head, body);
     settings.append(panel);
 
@@ -271,9 +279,10 @@
         make(documentRef, 'span', estimate.quota === null ? 'Tarayıcı kotası bilinmiyor' : 'Depolama / ' + formatBytes(estimate.quota))
       );
       list.replaceChildren();
+      const query = clean(filter.value, MAX_SEARCH).toLocaleLowerCase('tr-TR');
       [['data', 'Kullanıcı verileri'], ['preference', 'Tercihler']].forEach(function (group) {
         list.append(make(documentRef, 'h3', group[1], 'privacy-data-group-title'));
-        snapshot.surfaces.filter(function (item) { return item.group === group[0]; }).forEach(function (surface) {
+        snapshot.surfaces.filter(function (item) { return item.group === group[0] && (!query || (item.label + ' ' + item.description).toLocaleLowerCase('tr-TR').includes(query)); }).forEach(function (surface) {
           const row = make(documentRef, 'article', undefined, 'privacy-data-row');
           row.dataset.privacySurface = surface.id;
           const copy = make(documentRef, 'div', undefined, 'privacy-data-copy');
@@ -297,8 +306,12 @@
       if (!destroyed && token === renderVersion) render();
     }
 
+    async function reportPayload() {
+      return privacyReport(inspectStorage(rootRef.localStorage), estimate);
+    }
+
     async function downloadReport() {
-      const payload = privacyReport(inspectStorage(rootRef.localStorage), estimate);
+      const payload = await reportPayload();
       try {
         const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
         const url = rootRef.URL.createObjectURL(blob);
@@ -322,7 +335,15 @@
     }
 
     on(refresh, 'click', function () { render(); void refreshEstimate(); setStatus('Yerel veri özeti yenilendi.'); });
+    on(filter, 'input', function () { render(); });
     on(report, 'click', function () { void downloadReport(); });
+    on(copyReport, 'click', async function () {
+      try {
+        const payload = await reportPayload();
+        await rootRef.navigator?.clipboard?.writeText?.(payload);
+        setStatus('İçerik içermeyen gizlilik raporu panoya kopyalandı.');
+      } catch { setStatus('Gizlilik raporu panoya kopyalanamadı.'); }
+    });
     on(clearData, 'click', function () {
       if (!rootRef.confirm?.('Kullanıcı verisi yüzeyleri temizlensin mi? Tercihler korunur.')) return;
       const result = clearByGroup('data', rootRef.localStorage);
@@ -372,6 +393,7 @@
       inspect: function () { return inspectStorage(rootRef.localStorage); },
       clearSurface: function (id) { return clearSurface(id, rootRef.localStorage); },
       clearDataSurfaces: function () { return clearByGroup('data', rootRef.localStorage); },
+      clearPreferences: function () { return clearByGroup('preference', rootRef.localStorage); },
       clearAllKnown: function () { return clearAllKnown(rootRef.localStorage); },
       privacyReport: function () { return privacyReport(inspectStorage(rootRef.localStorage), estimate); },
       destroy: function () { destroyed = true; listeners.splice(0).forEach(function (off) { off(); }); panel.remove(); }
@@ -390,6 +412,7 @@
     storageEstimate: storageEstimate,
     clearSurface: clearSurface,
     clearDataSurfaces: function (storage) { return clearByGroup('data', storage); },
+    clearPreferences: function (storage) { return clearByGroup('preference', storage); },
     clearAllKnown: clearAllKnown,
     privacyReport: privacyReport,
     mount: mount
