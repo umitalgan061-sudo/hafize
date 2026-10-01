@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertFunctionDeclared } from './source-contract.mjs';
 
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root,p),'utf8');
@@ -9,26 +10,28 @@ const palette = read('public/prompt-library-command-palette.ts');
 const hints = read('public/prompt-library-smart-fill-hints.ts');
 const docs = read('docs/PROMPT_SMART_FILL_STATE_MACHINE.md');
 
-assert.match(smart,/function openFor\(prompt\)/);
+assertFunctionDeclared(smart, 'openFor');
 assert.match(smart,/activePrompt = prompt/);
 assert.match(smart,/activeNames = variableNames\(prompt\.body\)/);
-assert.match(smart,/renderPresetBar\(\)/);
+assert.match(smart,/persistPresetBar\(\)/, "the preset bar is re-rendered after changes");
 assert.match(smart,/renderPreview\(\)/);
-assert.match(smart,/insertIntoComposer\(\)/);
+assertFunctionDeclared(smart, 'insertIntoComposer');
+assert.match(smart,/insert\.addEventListener\('click', insertIntoComposer\)/, 'the insert button is wired to the composer handoff');
 assert.match(smart,/closeDialog\(\)/);
 assert.match(smart,/dialog\.hidden = true/);
 assert.match(smart,/fields\.replaceChildren\(\)/);
 assert.match(smart,/presetBar\.replaceChildren\(\)/);
 assert.match(smart,/errors\.textContent = ''/);
-assert.match(smart,/values\[name\] = clamp/);
+assert.match(smart,/\[name, clamp\(activeInputs\.get\(name\)\?\.value, MAX_VALUE\)\]/, 'every submitted value is clamped');
 assert.match(smart,/String\(value \?\? ''\)/);
 assert.match(smart,/if \(!writePresets/);
 assert.match(smart,/readPresets\(activePrompt\.id\)/);
 
-assert.match(palette,/function open\(start\)/);
-assert.match(palette,/triggerStart = start/);
+assertFunctionDeclared(palette, 'open');
+assert.match(palette,/open\(cursor - match\[0\]\.length/, 'the palette opens at the trigger offset');
+assert.match(palette,/triggerStart = Math\.max\(0, start\)/, 'the trigger offset is never negative');
 assert.match(palette,/query\.value = ''/);
-assert.match(palette,/current = results\(query\.value\)/);
+assert.match(palette,/current = searchPromptLibrary\(query\.value\)/, "the palette results come from the library search");
 assert.match(palette,/list\.replaceChildren\(\)/);
 assert.match(palette,/role', 'option'/);
 assert.match(palette,/aria-selected/);
@@ -36,7 +39,7 @@ assert.match(palette,/scrollIntoView/);
 assert.match(palette,/event\.key === 'Enter'/);
 assert.match(palette,/event\.key === 'Escape'/);
 
-assert.match(hints,/function paint\(panel\)/);
+assertFunctionDeclared(hints, 'paintSmartFillHints');
 assert.match(hints,/nextElementSibling/);
 assert.match(hints,/prompt-smart-fill-count/);
 assert.match(hints,/prompt-smart-fill-preview-count/);

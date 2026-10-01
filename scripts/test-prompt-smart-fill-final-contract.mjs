@@ -28,7 +28,7 @@ assert.match(smartFill, /MAX_PREVIEW = 8000/);
 assert.match(smartFill, /Object\.entries\(preset\.values/);
 assert.match(smartFill, /slice\(0, MAX_VARIABLES\)/);
 // Values go through the shared clamp helper rather than an inline slice.
-assert.match(smartFill, /clamp = \(value, limit\) => String\(value \?\? ''\)\.slice\(0, limit\)/);
+assert.match(smartFill, /clamp = \(value[^)]*, limit[^)]*\)[^=]*=> String\(value \?\? ''\)\.slice\(0, limit\)/, 'every stored string goes through the shared clamp');
 assert.match(smartFill, /clamp\([^)]*, MAX_VALUE\)/);
 assert.match(smartFill, /localStorage/);
 assert.match(smartFill, /hafize\.prompt-library\.smart-fill\.v1/);

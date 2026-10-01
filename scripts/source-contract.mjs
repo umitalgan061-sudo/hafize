@@ -49,3 +49,49 @@ export function cssIncludes(css, snippet) {
 export function assertCssIncludes(css, snippet, label = snippet) {
   assert.ok(cssIncludes(css, snippet), label);
 }
+
+/**
+ * True when `source` declares a function called `name`, in any of the forms the
+ * codebase uses.
+ *
+ * The TypeScript migration rewrote `function openFor(prompt) {` as
+ * `const openFor = (prompt: PromptRecord): void => {`, which changed no
+ * behaviour but broke every suite that matched the `function` keyword. What a
+ * contract suite means by "the module still has this function" is the binding,
+ * not the syntax that introduces it.
+ */
+export function functionDeclared(source, name) {
+  if (typeof source !== 'string' || !name) return false;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(
+    `(?:^|[^\\w.])(?:`
+    + `(?:async\\s+)?function\\s*\\*?\\s*${escaped}\\s*[(<]`         // function f(   /  function f<T>(
+    + `|(?:const|let|var)\\s+${escaped}\\s*(?::[^=;]+)?=\\s*`           // const f = …
+    + `(?:async\\s*)?(?:function|\\(|<|[\\w$]+\\s*=>)`                 //   … arrow or function expression
+    + `|${escaped}\\s*[(<][^)]*\\)\\s*(?::[^{;]+)?\\{`                 // method shorthand / object member
+    + `)`,
+    'm'
+  ).test(source);
+}
+
+export function assertFunctionDeclared(source, name, label = `function ${name}`) {
+  assert.ok(functionDeclared(source, name), label);
+}
+
+/**
+ * True when `source` returns focus to a remembered element.
+ *
+ * Returning focus to whatever opened a dialog is an accessibility contract, but
+ * it can be written as `lastFocus?.focus?.()` or as an
+ * `instanceof HTMLElement` guard followed by `.focus()`. Both satisfy it.
+ */
+export function focusRestored(source, binding) {
+  if (typeof source !== 'string' || !binding) return false;
+  const escaped = binding.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`${escaped}\\s*\\??\\.\\s*focus\\s*\\??\\.?\\s*\\(`).test(source)
+    || new RegExp(`${escaped}\\s+instanceof\\s+HTMLElement\\)\\s*${escaped}\\.focus\\(`).test(source);
+}
+
+export function assertFocusRestored(source, binding, label = `focus returns to ${binding}`) {
+  assert.ok(focusRestored(source, binding), label);
+}

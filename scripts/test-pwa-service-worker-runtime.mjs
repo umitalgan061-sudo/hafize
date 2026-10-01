@@ -9,7 +9,7 @@ const source = await readFile(new URL('../public/sw.js', import.meta.url), 'utf8
 const origin = 'https://hafize.example';
 const handlers = new Map();
 const deleted = [];
-let cachedAssets = null;
+let cachedAssets = [];
 let skipWaitingCalled = false;
 let claimCalled = false;
 let fetchCalls = 0;
@@ -20,15 +20,24 @@ function pathOf(input) {
   return new URL(input.url).pathname;
 }
 
+const unreachableAssets = new Set();
+
 const cache = {
   async addAll(assets) {
-    cachedAssets = [...assets];
+    for (const asset of assets) {
+      if (unreachableAssets.has(asset)) throw new Error('404: ' + asset);
+    }
+    cachedAssets.push(...assets);
+  },
+  async add(asset) {
+    if (unreachableAssets.has(asset)) throw new Error('404: ' + asset);
+    cachedAssets.push(asset);
   },
   async match(input) {
     const path = pathOf(input);
     if (path === '/index.html') return { source: 'cached-index' };
     if (path === '/offline.html') return { source: 'cached-offline' };
-    if (path === '/app.js') return { source: 'cached-app' };
+    if (path === '/typed-build/app-shell.js') return { source: 'cached-app' };
     return null;
   }
 };
@@ -80,7 +89,11 @@ vm.runInNewContext(source, context, { filename: 'public/sw.js' });
 let installPromise;
 handlers.get('install')({ waitUntil(value) { installPromise = value; } });
 await installPromise;
-assert.deepEqual(cachedAssets, [...policy.SHELL_ASSETS]);
+assert.deepEqual(
+  [...cachedAssets].sort(),
+  [...policy.SHELL_ASSETS].sort(),
+  'a clean install caches the whole shell'
+);
 assert.equal(skipWaitingCalled, true);
 
 let activatePromise;
@@ -108,11 +121,41 @@ fetchImpl = async () => { throw new Error('offline'); };
 assert.deepEqual(await dispatchFetch('/chat', { mode: 'navigate' }), { source: 'cached-index' });
 
 fetchCalls = 0;
-assert.deepEqual(await dispatchFetch('/app.js'), { source: 'cached-app' });
+assert.deepEqual(await dispatchFetch('/typed-build/app-shell.js'), { source: 'cached-app' });
 assert.equal(fetchCalls, 0);
 
 assert.equal(await dispatchFetch('/api/agent/run'), null);
 assert.equal(await dispatchFetch('https://cdn.example/image.png'), null);
 assert.equal(await dispatchFetch('/video.mp4', { headers: { range: 'bytes=0-10' } }), null);
 
-console.log('PWA service worker runtime OK: lifecycle, offline navigation, shell cache and network-only bypass');
+// One unreachable optional asset used to reject `cache.addAll` and abort the
+// whole install, so the shell cached nothing and offline mode was dead. The
+// install now degrades to that single file.
+const optional = policy.SHELL_ASSETS.find((asset) => asset !== '/index.html' && asset !== '/offline.html');
+assert.ok(optional, 'the shell has optional assets');
+cachedAssets = [];
+unreachableAssets.add(optional);
+skipWaitingCalled = false;
+let degradedInstall;
+handlers.get('install')({ waitUntil(value) { degradedInstall = value; } });
+await degradedInstall;
+assert.ok(!cachedAssets.includes(optional), 'the unreachable asset is skipped');
+assert.ok(cachedAssets.includes('/index.html'), 'the navigation fallback is still cached');
+assert.ok(cachedAssets.includes('/offline.html'), 'the offline page is still cached');
+assert.equal(cachedAssets.length, policy.SHELL_ASSETS.length - 1, 'every other asset still caches');
+assert.equal(skipWaitingCalled, true, 'the install still completes');
+
+// The navigation fallback is the one thing the app cannot work without, so a
+// failure there must still fail the install loudly rather than leave the
+// worker live with nothing to serve offline.
+cachedAssets = [];
+unreachableAssets.clear();
+unreachableAssets.add('/index.html');
+skipWaitingCalled = false;
+let criticalInstall;
+handlers.get('install')({ waitUntil(value) { criticalInstall = value; } });
+await assert.rejects(() => criticalInstall, /404: \/index\.html/, 'a missing navigation fallback fails the install');
+assert.equal(skipWaitingCalled, false, 'a failed install never activates');
+unreachableAssets.clear();
+
+console.log('PWA service worker runtime OK: lifecycle, offline navigation, shell cache, degraded install and network-only bypass');

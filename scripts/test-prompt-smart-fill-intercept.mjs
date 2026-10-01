@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertFocusRestored, assertFunctionDeclared } from './source-contract.mjs';
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
-assert.match(text, /function interceptUse\(event\)/);
-assert.match(text, /closest\?\.\('\.prompt-item-actions button'\)/);
+assertFunctionDeclared(text, 'interceptUse');
+assert.match(text, /closest(?:\?\.|<[^>]+>)?\('\.prompt-item-actions button'\)/, 'the use action is delegated from the prompt row');
 assert.match(text, /textContent\?\.trim\(\) !== 'Kullan'/);
 assert.match(text, /stopImmediatePropagation/);
 assert.match(text, /preventDefault/);
-assert.match(text, /smartFill\.open|openFor\(promptItem\)/);
-assert.match(text, /variableNames\(promptItem\.body\)/);
+assert.match(text, /smartFill\.open|openFor\((?:promptItem|prompt)\)/, 'the use action opens the fill dialog');
+assert.match(text, /variableNames\((?:promptItem|prompt)\.body\)/, 'the dialog reads the prompt variables');
 console.log('prompt smart-fill use interception: ok');

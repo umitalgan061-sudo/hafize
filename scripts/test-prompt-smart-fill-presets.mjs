@@ -12,7 +12,7 @@ assert.match(text, /JSON\.stringify/);
 assert.match(text, /Object\.fromEntries/);
 assert.match(text, /MAX_PRESETS/);
 assert.match(text, /name: clamp\(preset\.name, MAX_NAME\)/);
-assert.match(text, /values: Object\.fromEntries/);
+assert.match(text, /currentValues = \(\)[^=]*=> Object\.fromEntries/, 'preset values are collected from the active inputs');
 assert.doesNotMatch(text, /sessionStorage/);
 assert.doesNotMatch(text, /indexedDB/);
 console.log('prompt smart-fill presets: ok');

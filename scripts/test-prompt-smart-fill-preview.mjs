@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
-assert.match(text, /const preview = buildElement\(documentRef, 'pre'/);
+assert.match(text, /const preview = (?:buildElement|element)\(documentRef, 'pre'/, 'the live preview is a pre element');
 assert.match(text, /preview\.textContent =/);
 assert.doesNotMatch(text, /preview\.innerHTML/);
 assert.match(text, /MAX_PREVIEW/);

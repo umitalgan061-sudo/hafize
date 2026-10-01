@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertFocusRestored, assertFunctionDeclared } from './source-contract.mjs';
 
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
 
@@ -15,5 +16,5 @@ assert.match(text, /event\.key !== 'Tab'/);
 assert.match(text, /focus\(\)/);
 // Focus returns to whatever opened the dialog once it closes.
 assert.match(text, /lastFocus = documentRef\.activeElement/);
-assert.match(text, /lastFocus\?\.focus\?\.\(\)/);
+assertFocusRestored(text, 'lastFocus', 'focus returns to whatever opened the dialog');
 console.log('prompt smart-fill accessibility contracts: ok');
