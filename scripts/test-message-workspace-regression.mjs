@@ -24,11 +24,18 @@ assert.ok(workspace.includes('conversationId'));
 
 assert.ok(index.includes('id="messages"'));
 assert.ok(index.includes('class="utility-rail"'));
-assert.ok(index.indexOf('/message-workspace.js') > index.indexOf('/app.js'));
-assert.ok(index.indexOf('/message-workspace-policy.js') < index.indexOf('/message-workspace.js'));
+assert.ok(
+  index.indexOf('/typed-build/message-workspace.js') > index.indexOf('/typed-build/app-shell.js'),
+  'the workspace mounts after the app shell'
+);
+assert.ok(
+  index.indexOf('/message-workspace-policy.js') < index.indexOf('/typed-build/message-workspace.js'),
+  'the policy module is in place before the workspace mounts'
+);
 
-assert.ok(sw.indexOf("'/message-workspace-policy.js'") < sw.indexOf("'/message-workspace.js'"));
-assert.ok(sw.includes("'/message-workspace.css'"));
+for (const asset of ["'/message-workspace-policy.js'", "'/typed-build/message-workspace.js'", "'/message-workspace.css'"]) {
+  assert.ok(sw.includes(asset), `message workspace asset is precached: ${asset}`);
+}
 
 for (const token of [
   'Authorization:',

@@ -33,7 +33,7 @@ assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
 assert.ok(sw.includes("'/message-workspace-policy.js'"));
-assert.ok(sw.includes("'/message-workspace.js'"));
+assert.ok(sw.includes("'/typed-build/message-workspace.js'"));
 
 assert.ok(js.includes("hafize.message-workspace.v1"));
 assert.ok(js.includes("hafize:message-workspace-changed"));

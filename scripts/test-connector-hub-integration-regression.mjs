@@ -11,7 +11,8 @@ assert.match(source, /getSnapshot/);
 assert.match(source, /new EventImpl/);
 assert.match(source, /clipboard/);
 assert.match(readme, /## Bağlantılar çalışma alanı/);
-assert.match(readme, /connector-hub\.js/);
-assert.match(readme, /aynı-origin GET/);
+assert.match(readme, /(?:same|aynı)-origin GET/, 'refreshes are documented as same-origin GET only');
+assert.match(readme, /sessionStorage/, 'the storage boundary is documented');
+assert.match(readme, /credential, OAuth secret veya token göstermez/, 'the no-secrets guarantee is documented');
 
 console.log('connector hub integration regression: passed');

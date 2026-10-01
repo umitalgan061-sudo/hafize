@@ -438,6 +438,8 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   exportScope.append(exportScopeTitle, exportScopeHint, exportScopeActions, exportList);
   const actions = make(documentRef, 'div', '', 'workspace-backup-actions');
   const exportButton = button(documentRef, 'Yedeği indir', 'soft-btn');
+  exportButton.setAttribute('aria-keyshortcuts', 'Control+Shift+Y Meta+Shift+Y');
+  exportButton.title = 'Yedeği indir — Ctrl / ⌘ + Shift + Y';
   const importButton = button(documentRef, 'Yedekten geri yükle', 'soft-btn');
   const fileInput = documentRef.createElement('input');
   fileInput.type = 'file'; fileInput.accept = 'application/json,.json'; fileInput.hidden = true;

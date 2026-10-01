@@ -18,7 +18,7 @@ const sw = await read('public/sw-policy.js');
 assert.equal((html.match(/message-workspace/g) || []).length, 3);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
-assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));
+assert.ok(html.includes('<script type="module" src="/typed-build/message-workspace.js"></script>'));
 assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/message-workspace.js'));
 
 assert.ok(app.includes("const STORAGE_KEY = 'hafize.conversations.v1'"));
