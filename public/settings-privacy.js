@@ -66,11 +66,15 @@
     let unknownKeys = 0;
     let unknownBytes = 0;
     let totalKeys = 0;
-    for (let index = 0; index < Math.min(MAX_KEYS, store.length); index += 1) {
-      const key = store.key(index);
+    let length = 0;
+    try { length = Math.min(MAX_KEYS, Math.max(0, Number(store.length) || 0)); } catch { return { available: false, surfaces: [], knownBytes: 0, unknownKeys: 0, unknownBytes: 0, totalKeys: 0 }; }
+    for (let index = 0; index < length; index += 1) {
+      let key = null;
+      try { key = store.key(index); } catch { unknownKeys += 1; totalKeys += 1; continue; }
       if (key === null) continue;
       totalKeys += 1;
-      const raw = store.getItem(key) || '';
+      let raw = '';
+      try { raw = store.getItem(key) || ''; } catch { unknownKeys += 1; continue; }
       const bytes = new TextEncoder().encode(String(key) + raw).byteLength;
       const surface = classifyKey(key);
       if (surface) {
@@ -107,8 +111,11 @@
   function removalKeys(storage, surface) {
     const keys = [];
     if (!storage || !surface) return keys;
-    for (let index = 0; index < Math.min(MAX_KEYS, storage.length); index += 1) {
-      const key = storage.key(index);
+    let length = 0;
+    try { length = Math.min(MAX_KEYS, Math.max(0, Number(storage.length) || 0)); } catch { return keys; }
+    for (let index = 0; index < length; index += 1) {
+      let key = null;
+      try { key = storage.key(index); } catch { continue; }
       if (key !== null && matchesSurfaceKey(key, surface)) keys.push(key);
     }
     return keys;
