@@ -1,7 +1,5 @@
-// @ts-ignore Legacy agent registry remains shared during migration.
-import { authorizeAgentTool } from './agent-runtime.mjs';
-// @ts-ignore Legacy task handoff remains shared during migration.
-import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.mjs';
+import { authorizeAgentTool } from './agent-runtime.ts';
+import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.ts';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
 
 interface Agent { readonly id:string; readonly name:string; readonly kind:string; }
