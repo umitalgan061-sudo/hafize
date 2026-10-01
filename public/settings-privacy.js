@@ -152,6 +152,16 @@
     return { removed, ok: failures.length === 0, failures };
   }
 
+  function privacySummary(snapshot, estimate) {
+    const lines = ['Hafize yerel veri özeti', 'Bilinen veri: ' + formatBytes(snapshot.knownBytes), 'Tanınmayan alan: ' + snapshot.unknownKeys, 'Toplam localStorage alanı: ' + snapshot.totalKeys];
+    if (estimate?.usage !== null && estimate?.quota !== null && estimate?.quota > 0) {
+      lines.push('Tarayıcı kullanımı: ' + formatBytes(estimate.usage) + ' / ' + formatBytes(estimate.quota));
+    }
+    return lines.concat(snapshot.surfaces.filter(function (surface) { return surface.present; }).map(function (surface) {
+      return surface.label + ': ' + surface.keys + ' alan · ' + formatBytes(surface.bytes);
+    })).join('\\n').slice(0, MAX_REPORT_BYTES);
+  }
+
   function privacyReport(snapshot, estimate) {
     const payload = {
       format: 'hafize-privacy-report',
@@ -231,14 +241,17 @@
     const unknown = make(documentRef, 'div', undefined, 'privacy-data-stat');
     const browser = make(documentRef, 'div', undefined, 'privacy-data-stat');
     summary.append(known, unknown, browser);
+    const quotaNote = make(documentRef, 'div', '', 'privacy-data-quota');
 
     const actions = make(documentRef, 'div', undefined, 'privacy-data-actions');
     const refresh = button(documentRef, 'Yenile', 'soft-btn');
     const report = button(documentRef, 'Gizlilik raporu', 'soft-btn');
     const copyReport = button(documentRef, 'Raporu kopyala', 'soft-btn');
+    const copySummary = button(documentRef, 'Özeti kopyala', 'soft-btn');
     const clearData = button(documentRef, 'Veri yüzeylerini temizle', 'soft-btn privacy-data-warning');
+    const clearPreferences = button(documentRef, 'Tercihleri sıfırla', 'soft-btn privacy-data-warning');
     const clearAll = button(documentRef, 'Bilinen tüm yerel veriyi temizle', 'soft-btn privacy-data-danger');
-    actions.append(refresh, report, copyReport, clearData, clearAll);
+    actions.append(refresh, report, copyReport, copySummary, clearData, clearPreferences, clearAll);
 
     const filter = documentRef.createElement('input');
     filter.type = 'search';
@@ -278,7 +291,14 @@
         make(documentRef, 'strong', estimate.usage === null ? '—' : formatBytes(estimate.usage)),
         make(documentRef, 'span', estimate.quota === null ? 'Tarayıcı kotası bilinmiyor' : 'Depolama / ' + formatBytes(estimate.quota))
       );
+      quotaNote.textContent = '';
+      if (estimate.usage !== null && estimate.quota > 0) {
+        const ratio = estimate.usage / estimate.quota;
+        if (ratio >= .9) quotaNote.textContent = 'Depolama kotasının %90’ından fazlası kullanılıyor.';
+        else if (ratio >= .8) quotaNote.textContent = 'Depolama kotasının %80’inden fazlası kullanılıyor.';
+      }
       list.replaceChildren();
+      if (quotaNote.textContent) list.append(quotaNote);
       const query = clean(filter.value, MAX_SEARCH).toLocaleLowerCase('tr-TR');
       [['data', 'Kullanıcı verileri'], ['preference', 'Tercihler']].forEach(function (group) {
         list.append(make(documentRef, 'h3', group[1], 'privacy-data-group-title'));
@@ -337,12 +357,26 @@
     on(refresh, 'click', function () { render(); void refreshEstimate(); setStatus('Yerel veri özeti yenilendi.'); });
     on(filter, 'input', function () { render(); });
     on(report, 'click', function () { void downloadReport(); });
+    on(copySummary, 'click', async function () {
+      try {
+        await rootRef.navigator?.clipboard?.writeText?.(privacySummary(inspectStorage(rootRef.localStorage), estimate));
+        setStatus('İçeriksiz yerel veri özeti panoya kopyalandı.');
+      } catch { setStatus('Yerel veri özeti panoya kopyalanamadı.'); }
+    });
     on(copyReport, 'click', async function () {
       try {
         const payload = await reportPayload();
         await rootRef.navigator?.clipboard?.writeText?.(payload);
         setStatus('İçerik içermeyen gizlilik raporu panoya kopyalandı.');
       } catch { setStatus('Gizlilik raporu panoya kopyalanamadı.'); }
+    });
+    on(clearPreferences, 'click', function () {
+      if (!rootRef.confirm?.('Tema, hareket, filtre ve diğer bilinen tercih verileri sıfırlansın mı? Kullanıcı verileri korunur.')) return;
+      const result = clearByGroup('preference', rootRef.localStorage);
+      announce(rootRef, { action: 'clear-preferences', removed: result.removed });
+      setStatus(result.ok ? String(result.removed) + ' tercih alanı sıfırlandı.' : 'Bazı tercih alanları sıfırlanamadı.');
+      render();
+      void refreshEstimate();
     });
     on(clearData, 'click', function () {
       if (!rootRef.confirm?.('Kullanıcı verisi yüzeyleri temizlensin mi? Tercihler korunur.')) return;
@@ -414,6 +448,7 @@
     clearDataSurfaces: function (storage) { return clearByGroup('data', storage); },
     clearPreferences: function (storage) { return clearByGroup('preference', storage); },
     clearAllKnown: clearAllKnown,
+    privacySummary: privacySummary,
     privacyReport: privacyReport,
     mount: mount
   });
