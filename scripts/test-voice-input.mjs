@@ -178,7 +178,7 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
   assert.equal(controller.isListening(), true);
   assert.equal(mic.getAttribute('aria-pressed'), 'true');
   assert.equal(mic.textContent, '●');
-  assert.equal(toast.textContent.includes('otomatik gönderilmez'), true);
+  assert.equal(toast.textContent.includes('otomatik gönderim yapılmaz'), true);
 
   recognition.emitResult(' yeni   cümle ');
   assert.equal(input.value, 'Önceki yeni cümle');

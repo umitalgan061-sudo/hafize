@@ -632,5 +632,8 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   });
 }
 
-const bootstrap = (): void => { mountWorkspaceBackup(); };
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrap, { once: true }); else bootstrap();
+// Guarded so the module stays importable without a DOM (tests, workers).
+if (typeof document !== 'undefined') {
+  const bootstrap = (): void => { mountWorkspaceBackup(); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrap, { once: true }); else bootstrap();
+}
