@@ -92,7 +92,7 @@ export function createScheduleExecutionLeaseBoundary(input: {
   const holder = cleanId(input.holderId, 'holderId');
   const ttlMs = cleanLeaseMs(input.leaseMs);
   const timeoutMs = cleanProviderTimeoutMs(input.providerTimeoutMs, ttlMs);
-  const acquire = async (scheduleId: string) => parseAcquire(await callProvider(adapter.acquire.bind(adapter), { scheduleId: cleanId(scheduleId, 'scheduleId'), holderId: holder, leaseMs: ttlMs }, timeoutMs), scheduleId);
+  const acquire = async (scheduleId: string) => { const id = cleanId(scheduleId, 'scheduleId'); return parseAcquire(await callProvider(adapter.acquire.bind(adapter), { scheduleId: id, holderId: holder, leaseMs: ttlMs }, timeoutMs), id); };
   const renew = async ({ scheduleId, fence }: { scheduleId: string; fence: number }) => {
     const id = cleanId(scheduleId, 'scheduleId');
     return parseRenew(await callProvider(adapter.renew.bind(adapter), { scheduleId: id, holderId: holder, fence: cleanFence(fence), leaseMs: ttlMs }, timeoutMs));
