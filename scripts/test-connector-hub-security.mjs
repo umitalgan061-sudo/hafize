@@ -19,8 +19,8 @@ assert.doesNotMatch(source, /innerHTML\s*=/);
 assert.doesNotMatch(source, /outerHTML\s*=/);
 assert.match(source, /node\.textContent =/);
 assert.match(source, /credentials:\s*['"]same-origin['"]/);
-assert.match(source, //api\/health/);
-assert.match(source, //api\/connectors\/gmail\/status/);
-assert.match(source, //api\/connectors\/canva\/status/);
+assert.match(source, /\/api\/health/);
+assert.match(source, /\/api\/connectors\/gmail\/status/);
+assert.match(source, /\/api\/connectors\/canva\/status/);
 
 console.log('connector hub security: passed');

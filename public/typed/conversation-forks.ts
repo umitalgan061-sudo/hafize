@@ -729,7 +729,8 @@ const lineageOf = conversationLineage;
     observer?.disconnect();
     closeDialog();
   });
-})()  function showToast(message) {
+
+  function showToast(message) {
     if (!ui.toast) return;
     ui.toast.textContent = cleanText(message, 180);
     ui.toast.classList.remove('hidden');
@@ -1087,7 +1088,8 @@ const lineageOf = conversationLineage;
     observer?.disconnect();
     closeDialog();
   });
-})();
+
+  function renderGlobalBranchHub() {
     const all = readConversations();
     let panel = document.getElementById('hafizeConversationForkHub');
     const branches = all.filter((item) => item?.forkOf).sort((a, b) =>
@@ -1398,7 +1400,8 @@ const lineageOf = conversationLineage;
     observer?.disconnect();
     closeDialog();
   });
-})()  function showToast(message) {
+
+  function showToast(message) {
     if (!ui.toast) return;
     ui.toast.textContent = cleanText(message, 180);
     ui.toast.classList.remove('hidden');
