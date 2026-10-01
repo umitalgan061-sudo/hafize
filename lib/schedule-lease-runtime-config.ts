@@ -19,7 +19,7 @@ export interface ScheduleLeaseRuntime {
   readonly renewIntervalMs: number | null;
 }
 type Env = Record<string, string | undefined>;
-type ProviderFactory = (input: Readonly<{ provider: string }>) => Promise<unknown> | unknown;
+type ProviderFactory = (input: Readonly<{ provider: string }>) => Promise<ScheduleLeaseAdapter> | ScheduleLeaseAdapter;
 type ProviderFactories = Record<string, ProviderFactory>;
 type BoundaryFactory = typeof createScheduleExecutionLeaseBoundary;
 
@@ -66,7 +66,7 @@ export async function createScheduleLeaseProviderRuntime(input: {
   const factory = providerFactories[config.provider];
   if (typeof factory !== 'function') throw new Error('SCHEDULE_LEASE_PROVIDER_UNAVAILABLE');
 
-  let adapter: unknown;
+  let adapter: ScheduleLeaseAdapter;
   try {
     adapter = await factory(Object.freeze({ provider: config.provider }));
   } catch {
