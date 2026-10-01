@@ -11,7 +11,7 @@ const bridgeTargets = [
   'local-model-provider','model-provider-router','model-provider-runtime',
   'plaintext-credential-policy'
 ];
-const read = (path) => readFile(new URL(path, ROOT), 'utf8'));
+const read = (path) => readFile(new URL(path, ROOT), 'utf8');
 
 for (const name of bridgeTargets) {
   const source = (await read('lib/' + name + '.mjs')).trim();
