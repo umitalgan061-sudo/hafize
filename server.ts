@@ -549,12 +549,18 @@ async function handleAgentRun(req, res) {
       githubReadFile: GITHUB_READ_FILE,
       delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
       approvalGranted: false,
+      signal: controller.signal,
       ...connectorContext
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
     if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
-    toolSummary.push({ name: call.function.name, ok: result.ok, error: result.error || null });
+    toolSummary.push({
+      name: call.function.name,
+      ok: result.ok,
+      error: result.error || null,
+      durationMs: Number.isFinite(result.durationMs) ? result.durationMs : null
+    });
     toolMessages.push({
       role: 'tool',
       tool_call_id: call.id,
