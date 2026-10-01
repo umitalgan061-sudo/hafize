@@ -51,6 +51,10 @@
     return payload && typeof payload === 'object' && Array.isArray(payload.items) ? payload.items : [];
   }
 
+  // Skipped-record examples shown in the import preview and the diagnostics
+  // scan. Only an index and a short reason are kept, never prompt bodies.
+  const MAX_INVALID_SAMPLES = 6;
+
   function normalizeIncoming(payload) {
     const source = payloadItems(payload);
     const normalized = [];
@@ -75,7 +79,7 @@
         ids.add(item.id);
       }
     }
-    return { sourceCount: source.length, normalized, invalidCount: invalid.length, duplicateIds };
+    return { sourceCount: source.length, normalized, invalidCount: invalid.length, invalidSamples: invalid.slice(0, MAX_INVALID_SAMPLES), duplicateIds };
   }
 
   function normalizeRecoveryPayload(payload) {
@@ -147,6 +151,7 @@
       sourceCount: incoming.sourceCount,
       validCount: incoming.normalized.length,
       invalidCount: incoming.invalidCount,
+      invalidSamples: incoming.invalidSamples,
       duplicateIds: incoming.duplicateIds,
       collisions,
       acceptedCount: accepted.length,
@@ -208,12 +213,18 @@
     const ids = new Set();
     const duplicateIds = [];
     const invalidIndexes = [];
+    const invalidSamples = [];
     let invalidBodies = 0;
     let invalidUseCounts = 0;
+
+    const noteInvalid = (index, reason) => {
+      if (invalidSamples.length < MAX_INVALID_SAMPLES) invalidSamples.push({ index, reason });
+    };
 
     rawItems.forEach((rawItem, index) => {
       if (!rawItem || typeof rawItem !== 'object') {
         invalidIndexes.push(index);
+        noteInvalid(index, 'nesne değil');
         return;
       }
       const itemId = typeof rawItem.id === 'string' ? rawItem.id : '';
@@ -221,7 +232,10 @@
       if (itemId) ids.add(itemId);
       if (typeof rawItem.body !== 'string' || !rawItem.body) invalidBodies += 1;
       if (!Number.isFinite(rawItem.useCount) || rawItem.useCount < 0) invalidUseCounts += 1;
-      if (!api?.normalizeItem?.(rawItem)) invalidIndexes.push(index);
+      if (!api?.normalizeItem?.(rawItem)) {
+        invalidIndexes.push(index);
+        noteInvalid(index, !rawItem.body ? 'body boş' : 'model sınırlarına uymuyor');
+      }
     });
 
     const promptIds = new Set(normalized.map((item) => item.id));
@@ -235,7 +249,7 @@
       normalizedCount: normalized.length,
       overCapacity: rawItems.length > MAX_ITEMS,
       duplicateIds,
-      invalidSamples: invalid.slice(0, 6),
+      invalidSamples,
       invalidIndexes: [...new Set(invalidIndexes)],
       invalidBodies,
       invalidUseCounts,

@@ -95,7 +95,7 @@ assert.equal(plan.invalidCount, 1);
 assert.equal(plan.acceptedCount, 2);
 assert.ok(plan.collisions >= 1);
 
-api.saveItems(storage, current);
+root.HafizePromptLibrary.saveItems(storage, current);
 const applied = api.applyImportPlan(plan, storage);
 assert.equal(applied.ok, true);
 assert.equal(root.HafizePromptLibrary.loadItems(storage).length, 3);
@@ -112,5 +112,45 @@ assert.equal(api.hasRepairCheckpoint(storage), true);
 const undone = api.undoLastRepair(storage);
 assert.equal(undone.ok, true);
 assert.equal(api.hasRepairCheckpoint(storage), false);
+
+// The import preview renders `{ index, reason }` rows from the plan, so the
+// samples have to survive the trip out of `buildImportPlan`.
+assert.ok(Array.isArray(plan.invalidSamples), 'import plan carries skipped-record samples');
+assert.equal(plan.invalidSamples.length, 1);
+assert.equal(plan.invalidSamples[0].index, 2);
+assert.match(plan.invalidSamples[0].reason, /body boş/);
+assert.ok(plan.invalidSamples.length <= 6, 'samples stay bounded');
+for (const sample of plan.invalidSamples) {
+  assert.deepEqual([...Object.keys(sample)].sort(), ['index', 'reason'], 'samples never carry prompt bodies');
+}
+
+// A diagnostics scan has to survive a store holding non-objects and empty
+// bodies: it is the one surface a user reaches *because* the data is damaged.
+storage.setItem('hafize.prompt-library.v1', JSON.stringify([
+  { id: 'good', title: 'Geçerli', body: 'gövde', useCount: 0 },
+  42,
+  { id: 'empty', title: 'Boş', body: '', useCount: 0 }
+]));
+const report = api.analyzeLibrary(storage);
+assert.equal(report.storageReadable, true);
+assert.equal(report.rawCount, 3);
+assert.deepEqual([...report.invalidIndexes], [1, 2]);
+assert.deepEqual([...report.invalidSamples].map((sample) => sample.index), [1, 2]);
+assert.match(report.invalidSamples[0].reason, /nesne değil/);
+assert.match(report.invalidSamples[1].reason, /body boş/);
+
+// The preview is read-only and must not throw on the same damaged store.
+const preview = api.buildRepairPreview(storage);
+assert.equal(preview.normalizedCount, 1);
+assert.equal(preview.invalidCount, 2);
+assert.equal(
+  storage.getItem('hafize.prompt-library.v1'),
+  JSON.stringify([
+    { id: 'good', title: 'Geçerli', body: 'gövde', useCount: 0 },
+    42,
+    { id: 'empty', title: 'Boş', body: '', useCount: 0 }
+  ]),
+  'building a preview never writes to storage'
+);
 
 console.log('prompt-library-safety-behavior: ok');

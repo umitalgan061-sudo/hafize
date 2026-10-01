@@ -30,7 +30,7 @@ assert.match(preview, /event.key === 'Escape'/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /aria-expanded/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assert.match(diagnostics, /(?:data-diagnostics-repair|dataset\.diagnosticsRepair)/);
 assert.match(diagnostics, /Onarım planını kopyala/);
 assert.match(diagnostics, /Karantinayı geri al/);
 assert.match(diagnostics, /Son onarımı geri al/);

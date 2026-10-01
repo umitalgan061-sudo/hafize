@@ -32,7 +32,7 @@ assert.match(preview, /StorageEvent/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /buildRepairPreview/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assert.match(diagnostics, /(?:data-diagnostics-repair|dataset\.diagnosticsRepair)/);
 assert.match(diagnostics, /quarantineInvalidItems/);
 assert.match(diagnostics, /restoreQuarantine/);
 assert.match(diagnostics, /undoLastRepair/);

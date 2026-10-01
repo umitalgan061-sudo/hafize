@@ -5,6 +5,14 @@
   const CARD_ID = 'promptLibraryCard';
   const MAX_ORPHANS = 240;
   const safety = function () { return root.HafizePromptLibrarySafety; };
+  // Total orphan relations a single safe repair is allowed to prune. Past this
+  // point the store is damaged badly enough that silently dropping that many
+  // relations is data loss, not a repair, so the user takes a backup first.
+  const orphanCount = function (report) {
+    if (!report) return 0;
+    return Number(report.collections?.orphanMembers || 0) + Number(report.revisions?.orphanPromptRefs || 0);
+  };
+  const overOrphanLimit = function (report) { return orphanCount(report) > MAX_ORPHANS; };
   const library = function () { return root.HafizePromptLibrary; };
   const normalizeItem = function (item) { return library()?.normalizeItem?.(item); };
   const normalizeCollection = function (items) { return library()?.normalizeCollection?.(items) || []; };
@@ -99,7 +107,7 @@
       issues.forEach(function (issue) {
         reportList.append(metric(issue[0], issue[1], issue[1] ? 'is-warning' : 'is-ok'));
       });
-      repair.disabled = !report.storageReadable;
+      repair.disabled = !report.storageReadable || overOrphanLimit(report);
       destructive.disabled = !report.invalidIndexes.length;
       restore.disabled = safety().readQuarantine(rootRef.localStorage).items.length === 0;
       undo.disabled = !safety().hasRepairCheckpoint(rootRef.localStorage);
@@ -126,9 +134,16 @@
       } catch {
         repairPreview.textContent = 'Onarım önizlemesi üretilemedi.';
       }
-      status.textContent = report.storageReadable
-        ? 'Tarama tamamlandı; güvenli onarım geçerli kayıtları normalize eder ve yetim ilişkileri budar.'
-        : 'İstem verisi okunamıyor; otomatik onarım yapılmadı.';
+      if (!report.storageReadable) {
+        status.textContent = 'İstem verisi okunamıyor; otomatik onarım yapılmadı.';
+      } else if (overOrphanLimit(report)) {
+        status.textContent = String(orphanCount(report))
+          + ' yetim ilişki sayısı güvenli otomatik onarım sınırını aşıyor ('
+          + String(MAX_ORPHANS)
+          + '); önce yedek indir, sonra kayıtları elle gözden geçir.';
+      } else {
+        status.textContent = 'Tarama tamamlandı; güvenli onarım geçerli kayıtları normalize eder ve yetim ilişkileri budar.';
+      }
     }
 
     collapse.addEventListener('click', function () {
@@ -241,7 +256,13 @@
     refresh.addEventListener('click', scan);
     repair.addEventListener('click', function () {
       if (!lastReport) scan();
-      if (!lastReport || !rootRef.confirm || !rootRef.confirm('Normalize edilebilir kayıtlar ve yetim ilişkiler güvenli biçimde onarılsın mı?')) return;
+      if (!lastReport) return;
+      if (overOrphanLimit(lastReport)) {
+        status.textContent = String(orphanCount(lastReport))
+          + ' yetim ilişki sayısı güvenli otomatik onarım sınırını aşıyor; onarım uygulanmadı.';
+        return;
+      }
+      if (!rootRef.confirm || !rootRef.confirm('Normalize edilebilir kayıtlar ve yetim ilişkiler güvenli biçimde onarılsın mı?')) return;
       const result = safety().applySafeRepair(rootRef.localStorage);
       status.textContent = result.ok ? 'Güvenli onarım tamamlandı.' : 'Onarım başarısız: ' + result.reason;
       scan();
