@@ -13,7 +13,16 @@ assert.match(ui,/sessionStorage\.getItem\(HISTORY_KEY\)/);
 assert.match(ui,/sessionStorage\.setItem\(HISTORY_KEY/);
 assert.match(ui,/safeHistoryJson/);
 assert.match(ui,/copyWriteHistory\(visible\)/);
-assert.match(ui,/content, commit body, token/i);
+assert.match(ui,/content, commit body, token/i, 'the clipboard allowlist is documented');
+const entryType = ui.slice(ui.indexOf('interface WriteHistoryEntry'), ui.indexOf('}', ui.indexOf('interface WriteHistoryEntry')));
+for (const forbidden of ['content', 'body', 'token', 'ticket', 'approval']) {
+  assert.ok(!new RegExp(`\\b${forbidden}\\??:`, 'i').test(entryType), `write history never stores ${forbidden}`);
+}
+const copyPayload = ui.slice(ui.indexOf('function safeHistoryJson'), ui.indexOf('async function copyWriteHistory'));
+for (const allowed of ['action', 'repository', 'target', 'status', 'at']) {
+  assert.ok(copyPayload.includes(`item.${allowed}`), `copied history keeps ${allowed}`);
+}
+assert.ok(!/\bdelete\b/.test(copyPayload), 'the copy payload is an allowlist, not a redaction pass');
 assert.match(css,/github-write-history-filter/);
 assert.match(audit,/file content/);
 assert.match(audit,/approval ticket/);

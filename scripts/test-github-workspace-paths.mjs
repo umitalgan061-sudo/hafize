@@ -13,5 +13,11 @@ for (const source of [core, extra]) {
   assert.match(source, /startsWith\('\/'\)/);
   assert.match(source, /includes\('\\\\'\)/);
 }
-assert.match(extra, /private[._-]?keys?/i);
+assert.ok(
+  extra.includes('private[._-]?keys?'),
+  'directory listing filters private-key filenames'
+);
+for (const token of ['\\.env', 'credentials?', 'secrets?', 'tokens?', 'pem|key|p12|pfx']) {
+  assert.ok(extra.includes(token), `directory listing filters sensitive files: ${token}`);
+}
 console.log('github-workspace-paths: ok');

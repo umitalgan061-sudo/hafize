@@ -2,6 +2,7 @@ const DEFAULT_API = 'https://api.github.com';
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const MAX_REPOSITORY = 120;
 const MAX_REF = 200;
+const MAX_PATH = 400;
 const MAX_BODY = 2400;
 const MAX_FILES = 30;
 
@@ -92,7 +93,7 @@ export function createGitHubWorkspaceDetails(options: Options = {}) {
       files: files.slice(0, MAX_FILES).flatMap((entry) => {
         if (!entry || typeof entry !== 'object') return [];
         const file = entry as Record<string, unknown>;
-        const filename = clamp(file.filename, 400);
+        const filename = clamp(file.filename, MAX_PATH);
         if (!filename) return [];
         return [{
           filename,

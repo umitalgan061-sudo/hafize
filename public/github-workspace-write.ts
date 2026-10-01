@@ -137,6 +137,11 @@ function appendWriteHistory(action: WriteAction, data: ApiRecord): void {
     .filter((item) => !(item.action === action && item.repository === repository && item.target === target))]);
 }
 
+// What leaves the device when the user copies their write history. The field
+// list is an allowlist, not a redaction pass: file content, commit body, token
+// and approval ticket are never stored on a `WriteHistoryEntry` in the first
+// place, so a new field on that type cannot leak into the clipboard by
+// default — it has to be added here deliberately.
 function safeHistoryJson(values: readonly WriteHistoryEntry[]): string {
   return JSON.stringify(values.map((item) => ({
     action: item.action,

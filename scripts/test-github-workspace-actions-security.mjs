@@ -13,5 +13,7 @@ assert.match(source, /cache: ['"]no-store['"]/);
 assert.doesNotMatch(source, /Authorization/);
 assert.doesNotMatch(source, /GITHUB_TOKEN/);
 assert.doesNotMatch(source, /method: ['"](POST|PATCH|DELETE)['"]/);
-assert.match(source, /https:\/\/github\.com\//);
+assert.match(source, /\^https:\\\/\\\/github\\\.com\\\//, 'external links are allowlisted to github.com');
+assert.match(source, /anchor\.rel = 'noopener noreferrer'/, 'external links drop the opener');
+assert.match(source, /if \(safeGithubUrl\(link\)\)/, 'an un-allowlisted url renders no anchor at all');
 console.log('github-workspace-actions-security: ok');
