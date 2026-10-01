@@ -355,6 +355,17 @@ Feature doğrulaması:
 node scripts/run-checks.mjs --filter=settings-privacy
 ```
 
+## Sistem Sağlığı
+
+Sistem Sağlığı kartı GET /api/health üzerinden typed readiness özeti gösterir.
+
+- Kimlik doğrulama, PWA, Skills, bellek, zamanlama, bağlantılar, model ve release durumları görünür.
+- Manuel yenileme, 60 saniyelik yenileme ve 8 saniyelik timeout koruması vardır.
+- Güvenli özet panoya kopyalanabilir; secret, token ve credential içeriği kopyalanmaz.
+- UI browser storage kullanmaz ve health API cevapları service worker cache'lenmez.
+
+Ayrıntılar docs/SYSTEM_READINESS.md ve docs/TYPESCRIPT_READINESS_WAVE.md dosyalarındadır.
+
 ## Güvenlik
 
 Secret, token, `.env`, runtime data ve şifreli dosyalar repoya eklenmemelidir. GitHub/Gmail/Canva gibi dış servislerde yazma veya silme işlemleri açık kullanıcı onayı ve dar yetki politikalarıyla çalışmalıdır. Self-development değişiklikleri branch + Pull Request akışıyla yapılmalıdır; repository'nin ayrıntılı kuralları için `HAFIZE_RULES.md` dosyasına bakın.

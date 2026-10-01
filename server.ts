@@ -41,6 +41,7 @@ import {
 
 import { HttpRuntimeError, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
+import { buildSystemReadiness } from './lib/system-readiness.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -736,6 +737,21 @@ const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'GET' && url.pathname === '/api/health') {
+      const readiness = buildSystemReadiness({
+        env: process.env,
+        pwaReady: true,
+        releaseReady: true,
+        releaseChecksPass: true,
+        runtime: {
+          auth: { status: 'ready' },
+          pwa: { status: 'ready' },
+          skills: { status: AGENT_REGISTRY.agents.length ? 'ready' : 'blocked' },
+          memory: { status: 'warning', detail: 'memory runtime health is not probed by the public health endpoint' },
+          schedule: { status: SCHEDULE_HTTP_API ? (SCHEDULE_EXECUTION_RUNTIME.configured ? 'ready' : 'warning') : 'blocked' },
+          connectors: { status: (CANVA_AGENT_RUNTIME.configured || GMAIL_AGENT_RUNTIME.configured || GITHUB_READ_CONFIGURED) ? 'ready' : 'warning' },
+          model: { status: NVIDIA_API_KEY ? 'ready' : 'blocked' }
+        }
+      });
       sendJson(res, 200, {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
@@ -748,7 +764,8 @@ const server = createServer(async (req, res) => {
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         scheduleStorageDurable: SCHEDULE_STORAGE.durable,
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
-        agents: AGENT_REGISTRY.agents.length
+        agents: AGENT_REGISTRY.agents.length,
+        readiness
       });
       return;
     }
