@@ -152,6 +152,11 @@
     return { removed, ok: failures.length === 0, failures };
   }
 
+  function surfaceSummary(surface) {
+    if (!surface) return '';
+    return surface.label + ': ' + surface.keys + ' alan · ' + formatBytes(surface.bytes) + (surface.present ? '' : ' · Veri yok');
+  }
+
   function privacySummary(snapshot, estimate) {
     const lines = ['Hafize yerel veri özeti', 'Bilinen veri: ' + formatBytes(snapshot.knownBytes), 'Tanınmayan alan: ' + snapshot.unknownKeys, 'Toplam localStorage alanı: ' + snapshot.totalKeys];
     if (estimate?.usage !== null && estimate?.quota !== null && estimate?.quota > 0) {
@@ -324,11 +329,17 @@
           const copy = make(documentRef, 'div', undefined, 'privacy-data-copy');
           copy.append(make(documentRef, 'strong', surface.label), make(documentRef, 'small', surface.description));
           copy.append(make(documentRef, 'span', surface.present ? String(surface.keys) + ' alan · ' + formatBytes(surface.bytes) : 'Veri yok', 'privacy-data-meta'));
+          const rowActions = make(documentRef, 'div', undefined, 'privacy-data-row-actions');
           const wipe = button(documentRef, surface.present ? 'Temizle' : 'Boş');
           wipe.disabled = !surface.present;
           wipe.dataset.privacyClear = surface.id;
           wipe.setAttribute('aria-label', surface.label + ' yerel verisini temizle');
-          row.append(copy, wipe);
+          const copySurface = button(documentRef, 'Kopyala');
+          copySurface.disabled = !surface.present;
+          copySurface.dataset.privacyCopySurface = surface.id;
+          copySurface.setAttribute('aria-label', surface.label + ' özetini kopyala');
+          rowActions.append(wipe, copySurface);
+          row.append(copy, rowActions);
           list.append(row);
         });
       });
@@ -416,7 +427,14 @@
     });
     on(list, 'click', function (event) {
       const target = event.target?.closest?.('[data-privacy-clear]');
-      if (target) clearOne(target.dataset.privacyClear);
+      if (target) return clearOne(target.dataset.privacyClear);
+      const copyTarget = event.target?.closest?.('[data-privacy-copy-surface]');
+      if (!copyTarget) return;
+      const surface = inspectStorage(rootRef.localStorage).surfaces.find(function (item) { return item.id === copyTarget.dataset.privacyCopySurface; });
+      if (!surface) return;
+      rootRef.navigator?.clipboard?.writeText?.(surfaceSummary(surface)).then(function () {
+        setStatus('Yüzey özeti panoya kopyalandı.');
+      }).catch(function () { setStatus('Yüzey özeti panoya kopyalanamadı.'); });
     });
     on(rootRef, 'storage', function (event) {
       if (event.key === null || classifyKey(event.key)) { render(); void refreshEstimate(); }
@@ -466,6 +484,7 @@
     clearDataSurfaces: function (storage) { return clearByGroup('data', storage); },
     clearPreferences: function (storage) { return clearByGroup('preference', storage); },
     clearAllKnown: clearAllKnown,
+    surfaceSummary: surfaceSummary,
     privacySummary: privacySummary,
     privacyReport: privacyReport,
     mount: mount
