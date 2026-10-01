@@ -24,4 +24,31 @@ describe('typed tool runtime',()=>{
     const unauthorized=await executeNvidiaToolCall(agent,{id:'c2',function:{name:'github_read_file',arguments:'{}'}},context);
     expect(unauthorized).toMatchObject({ok:false,error:'TOOL_NOT_AUTHORIZED'});
   });
+
+  it('reports tool metadata and bounded duration', async () => {
+    const result = await executeNvidiaToolCall(agent, {
+      id: 'c3',
+      function: { name: 'runtime_status', arguments: '{}' }
+    }, context);
+    expect(result).toMatchObject({ ok: true, tool: 'runtime_status' });
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+    const runtime = listToolPermissions().find((item) => item.name === 'runtime_status');
+    expect(runtime).toMatchObject({ kind: 'diagnostic', timeoutMs: 10_000 });
+  });
+
+  it('does not expose unavailable connector tools', () => {
+    const tools = getAllowedNvidiaTools(agent, context);
+    expect(tools.map((tool) => tool.function.name)).not.toContain('canva_read');
+    expect(tools.map((tool) => tool.function.name)).not.toContain('gmail_read');
+  });
+
+  it('keeps execution context immutable at the call site', async () => {
+    const before = { ...context };
+    await executeNvidiaToolCall(agent, {
+      id: 'c4',
+      function: { name: 'runtime_status', arguments: '{}' }
+    }, context);
+    expect(context).toEqual(before);
+  });
+
 });
