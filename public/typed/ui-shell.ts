@@ -34,7 +34,7 @@ export function installChatAccessibility(documentRef:Document):boolean{
  const stage=documentRef.querySelector<HTMLElement>('.chat-stage'),messages=documentRef.querySelector<HTMLElement>('#messages');if(!messages)return false;
  stage?.removeAttribute('aria-live');messages.setAttribute('role','log');messages.setAttribute('aria-live','polite');messages.setAttribute('aria-relevant','additions text');messages.setAttribute('aria-atomic','false');messages.setAttribute('aria-label','Sohbet mesajları');return true;
 }
-export function install(documentRef:Document,root:Window&typeof globalThis):UiShellController|null{
+export function install(documentRef:Document,root:typeof globalThis):UiShellController|null{
  const html=documentRef.documentElement;if(!html)return null;
  const disposers:(()=>void)[]=[];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
  installChatAccessibility(documentRef);

@@ -111,7 +111,7 @@ describe('model-preferences state operations', () => {
     expect(current.profiles).toHaveLength(1);
     current = upsertProfile(current, { ...created!, name: 'Kod v2' });
     expect(current.profiles).toHaveLength(1);
-    expect(current.profiles[0].name).toBe('Kod v2');
+    expect(current.profiles[0]?.name).toBe('Kod v2');
   });
 
   it('removes a profile without affecting others', () => {
@@ -123,7 +123,7 @@ describe('model-preferences state operations', () => {
 
   it('touches existing profiles and safely ignores missing ones', () => {
     const current = state({ profiles: [profile({ id: 'a', useCount: 3 })!] });
-    expect(touchProfile(current, 'a').profiles[0].useCount).toBe(4);
+    expect(touchProfile(current, 'a').profiles[0]?.useCount).toBe(4);
     expect(touchProfile(current, 'missing')).toEqual(current);
   });
 
@@ -143,7 +143,7 @@ describe('model-preferences storage', () => {
     const current = state({ selectedModel: 'model-a', selectedAgentId: 'general', profiles: [item] });
     expect(saveModelPreferences(current, storage)).toBe(true);
     expect(storage.getItem(MODEL_PREFERENCES_STORAGE_KEY)).toContain('model-a');
-    expect(loadModelPreferences(storage).profiles[0].id).toBe('profile-1');
+    expect(loadModelPreferences(storage).profiles[0]?.id).toBe('profile-1');
     expect(loadModelPreferences(storage).selectedAgentId).toBe('general');
   });
 
@@ -201,7 +201,7 @@ describe('model-preferences import/export', () => {
     const incoming = profile({ id: 'same', name: 'Gelen' })!;
     const result = importModelPreferences(state({ profiles: [existing] }), [incoming]);
     expect(result.imported).toBe(1);
-    expect(result.state.profiles[0].id).toBe('same');
+    expect(result.state.profiles[0]?.id).toBe('same');
     expect(result.state.profiles[1]?.id).not.toBe('same');
     vi.unstubAllGlobals();
   });
@@ -218,7 +218,7 @@ describe('model-preferences import/export', () => {
   it('accepts an array payload', () => {
     const result = importModelPreferences(state(), [profile({ id: 'array-item' })!]);
     expect(result.imported).toBe(1);
-    expect(result.state.profiles[0].id).toBe('array-item');
+    expect(result.state.profiles[0]?.id).toBe('array-item');
   });
 });
 
@@ -228,17 +228,17 @@ describe('model-preferences profile management', () => {
     const original = profile({ id: 'rename-me', name: 'Eski', model: 'model-x', agentId: 'writer', toolsEnabled: true, useCount: 7 })!;
     const result = normalizeState({ ...state(), profiles: [original] });
     const renamed = renameProfile(result, 'rename-me', 'Yeni ad');
-    expect(renamed.profiles[0].name).toBe('Yeni ad');
-    expect(renamed.profiles[0].model).toBe('model-x');
-    expect(renamed.profiles[0].toolsEnabled).toBe(true);
-    expect(renamed.profiles[0].useCount).toBe(7);
+    expect(renamed.profiles[0]?.name).toBe('Yeni ad');
+    expect(renamed.profiles[0]?.model).toBe('model-x');
+    expect(renamed.profiles[0]?.toolsEnabled).toBe(true);
+    expect(renamed.profiles[0]?.useCount).toBe(7);
   });
 
   it('ignores empty profile names during rename', () => {
     const original = profile({ id: 'rename-me', name: 'Eski' })!;
     const result = normalizeState({ ...state(), profiles: [original] });
     const renamed = (require('./model-preferences.ts') as typeof import('./model-preferences.ts')).renameProfile(result, 'rename-me', '   ');
-    expect(renamed.profiles[0].name).toBe('Eski');
+    expect(renamed.profiles[0]?.name).toBe('Eski');
   });
 
   it('duplicates a profile with a fresh identity and reset usage', () => {
@@ -248,10 +248,10 @@ describe('model-preferences profile management', () => {
       'copy-me'
     );
     expect(result.profiles).toHaveLength(2);
-    expect(result.profiles[0].id).not.toBe('copy-me');
-    expect(result.profiles[0].name).toBe('Kod kopyası');
-    expect(result.profiles[0].useCount).toBe(0);
-    expect(result.profiles[0].toolsEnabled).toBe(true);
+    expect(result.profiles[0]?.id).not.toBe('copy-me');
+    expect(result.profiles[0]?.name).toBe('Kod kopyası');
+    expect(result.profiles[0]?.useCount).toBe(0);
+    expect(result.profiles[0]?.toolsEnabled).toBe(true);
   });
 
   it('does not duplicate at capacity', () => {
@@ -273,7 +273,7 @@ describe('model-preferences profile management', () => {
       'copy-me',
       longName
     );
-    expect(result.profiles[0].name.length).toBe(MODEL_PREFERENCES_LIMITS.maxName);
+    expect(result.profiles[0]?.name.length).toBe(MODEL_PREFERENCES_LIMITS.maxName);
   });
 });
 

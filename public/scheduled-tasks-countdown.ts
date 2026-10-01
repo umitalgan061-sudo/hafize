@@ -5,19 +5,19 @@ interface CountdownRow extends HTMLElement {
   };
 }
 
-interface CountdownWindow extends Window {
+type CountdownWindow = typeof globalThis & {
   ScheduledTaskCountdown?: Readonly<{
     label: (timestamp: string) => string;
     refresh: () => void;
     start: () => void;
     stop: () => void;
   }>;
-}
+};
 
 const root = globalThis as CountdownWindow;
 const PANEL_ID = 'scheduledTasksWorkspace';
 const REFRESH_MS = 1_000;
-let timer: number | undefined;
+let timer: ReturnType<typeof setInterval> | undefined;
 let observer: MutationObserver | undefined;
 
 export function countdownLabel(timestamp: string): string {

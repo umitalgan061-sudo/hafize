@@ -4,21 +4,27 @@ import {
   cleanForkText,
   conversationLineage,
   countDirectBranches,
-  createFork,
-  createForkId,
-  directChildren,
-  getConversationDepth,
-  normalizeForkMessage
+  createFork as buildFork,
+  directChildren
 } from './conversation-fork-core.ts';
+import type { ForkConversation, ForkMessage } from './conversation-fork-core.ts';
 
 const cleanText = cleanForkText;
-const uid = createForkId;
-const copyMessage = normalizeForkMessage;
-const conversationDepth = getConversationDepth;
-const branchCount = countDirectBranches;
-const makeFork = createFork;
+const makeFork = buildFork;
 const childrenOf = directChildren;
 const lineageOf = conversationLineage;
+const branchCount = countDirectBranches;
+
+interface ForkPublicApi {
+  readonly STORAGE_KEY: string;
+  readonly MAX_BRANCHES_PER_PARENT: number;
+  readonly MAX_FORK_DEPTH: number;
+  readonly makeFork: (conversation: ForkConversation, messageId: string, all?: readonly ForkConversation[]) => unknown;
+  readonly childrenOf: typeof directChildren;
+  readonly lineageOf: typeof conversationLineage;
+  readonly downloadConversation: (conversation: ForkConversation) => void;
+  readonly createFork: (messageId: string) => void;
+}
 
 (() => {
   'use strict';
@@ -27,42 +33,47 @@ const lineageOf = conversationLineage;
   const PANEL_ID = 'hafizeConversationForks';
   const DIALOG_ID = 'hafizeConversationForkDialog';
   const MAX_CONVERSATIONS = 30;
-  const MAX_MESSAGES = 100;
-  const MAX_MESSAGE_LENGTH = 12000;
   const MAX_TITLE = 80;
   const MAX_BRANCHES_PER_PARENT = 8;
-  const MAX_FORK_DEPTH = 4;
   const MAX_SNIPPET = 180;
 
-  const ui = {
-    messages: document.querySelector('#messages'),
-    historyBlock: document.querySelector('.history-block'),
-    conversationList: document.querySelector('#conversationList'),
-    toast: document.querySelector('#toast')
-  };
-  if (!ui.messages || !ui.historyBlock || !ui.conversationList) return;
+  const messagesNode = document.querySelector<HTMLElement>('#messages');
+  const historyNode = document.querySelector<HTMLElement>('.history-block');
+  const conversationListNode = document.querySelector<HTMLElement>('#conversationList');
+  const toastNode = document.querySelector<HTMLElement>('#toast');
+  if (!messagesNode || !historyNode || !conversationListNode) return;
 
-  let observer = null;
+  const messagesRoot: HTMLElement = messagesNode;
+  const historyBlock: HTMLElement = historyNode;
+
+  let observer: MutationObserver | null = null;
   let mounted = false;
-  let activeDialog = null;
-  let previousFocus = null;
-  const listeners = [];
+  let activeDialog: HTMLElement | null = null;
+  let previousFocus: HTMLElement | null = null;
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  const listeners: Array<() => void> = [];
 
-  function storage() {
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+  }
+
+  function storage(): Storage | null {
     try { return globalThis.localStorage; } catch { return null; }
   }
 
-  function readConversations() {
+  function readConversations(): ForkConversation[] {
     const store = storage();
     if (!store) return [];
     try {
-      const parsed = JSON.parse(store.getItem(STORAGE_KEY) || '[]');
+      const parsed: unknown = JSON.parse(store.getItem(STORAGE_KEY) || '[]');
       if (!Array.isArray(parsed)) return [];
-      return parsed.filter((item) => item && typeof item === 'object' && typeof item.id === 'string').slice(0, MAX_CONVERSATIONS);
+      return parsed
+        .filter((item): item is ForkConversation => isRecord(item) && typeof item.id === 'string')
+        .slice(0, MAX_CONVERSATIONS);
     } catch { return []; }
   }
 
-  function writeConversations(next) {
+  function writeConversations(next: readonly ForkConversation[]): boolean {
     const store = storage();
     if (!store) return false;
     try {
@@ -71,32 +82,32 @@ const lineageOf = conversationLineage;
     } catch { return false; }
   }
 
-  function showToast(message) {
-    if (!ui.toast) return;
-    ui.toast.textContent = cleanText(message, 180);
-    ui.toast.classList.remove('hidden');
-    globalThis.clearTimeout(showToast.timer);
-    showToast.timer = globalThis.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+  function showToast(message: string): void {
+    if (!toastNode) return;
+    toastNode.textContent = cleanText(message, 180);
+    toastNode.classList.remove('hidden');
+    globalThis.clearTimeout(toastTimer);
+    toastTimer = globalThis.setTimeout(() => toastNode.classList.add('hidden'), 3200);
   }
 
-  function isBusy() {
-    return ui.messages.getAttribute('aria-busy') === 'true';
+  function isBusy(): boolean {
+    return messagesRoot.getAttribute('aria-busy') === 'true';
   }
 
-  function currentConversationId() {
-    return cleanText(ui.messages.dataset.conversationId, 120);
+  function currentConversationId(): string {
+    return cleanText(messagesRoot.dataset.conversationId, 120);
   }
 
-  function currentConversation(all = readConversations()) {
+  function currentConversation(all: readonly ForkConversation[] = readConversations()): ForkConversation | null {
     const id = currentConversationId();
     return all.find((item) => item.id === id) || null;
   }
 
-  function focusable(container) {
-    return [...container.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+  function focusable(container: HTMLElement): HTMLElement[] {
+    return [...container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
   }
 
-  function closeDialog() {
+  function closeDialog(): void {
     if (!activeDialog) return;
     const dialog = activeDialog;
     activeDialog = null;
@@ -105,9 +116,29 @@ const lineageOf = conversationLineage;
     previousFocus = null;
   }
 
-  function openDialog(source, target, suggestedTitle, suggestedNote, onConfirm) {
+  function trapTab(event: KeyboardEvent, panel: HTMLElement): void {
+    const nodes = focusable(panel);
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }
+
+  function activeElement(): HTMLElement | null {
+    const node = document.activeElement;
+    return node instanceof HTMLElement ? node : null;
+  }
+
+  function openDialog(
+    source: ForkConversation,
+    target: ForkMessage,
+    suggestedTitle: string,
+    suggestedNote: string,
+    onConfirm: (title: string, note: string) => void
+  ): void {
     closeDialog();
-    previousFocus = document.activeElement;
+    previousFocus = activeElement();
 
     const overlay = document.createElement('div');
     overlay.id = DIALOG_ID;
@@ -171,7 +202,7 @@ const lineageOf = conversationLineage;
     document.body.append(overlay);
     activeDialog = overlay;
 
-    const finish = (confirmed) => {
+    const finish = (confirmed: boolean): void => {
       if (confirmed) onConfirm(cleanText(titleInput.value, MAX_TITLE), cleanText(noteInput.value, FORK_LIMITS.maxForkNote));
       else closeDialog();
     };
@@ -181,24 +212,29 @@ const lineageOf = conversationLineage;
 
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
-      const tagName = event.target?.tagName;
+      const node = event.target instanceof Element ? event.target : null;
+      const tagName = node?.tagName;
       if (event.key === 'Enter' && tagName !== 'INPUT' && tagName !== 'TEXTAREA' && event.target !== cancel) { event.preventDefault(); finish(true); return; }
       if (event.key !== 'Tab') return;
-      const nodes = focusable(panel);
-      if (!nodes.length) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      trapTab(event, panel);
     });
 
     titleInput.focus();
     titleInput.select();
   }
 
-  function comparisonData(parent, child) {
-    const parentMessages = Array.isArray(parent?.messages) ? parent.messages : [];
-    const childMessages = Array.isArray(child?.messages) ? child.messages : [];
+  interface ComparisonSummary {
+    readonly parentTitle: string;
+    readonly childTitle: string;
+    readonly commonCount: number;
+    readonly parentCount: number;
+    readonly childCount: number;
+    readonly divergent: readonly ForkMessage[];
+  }
+
+  function comparisonData(parent: ForkConversation | null, child: ForkConversation): ComparisonSummary {
+    const parentMessages: readonly ForkMessage[] = Array.isArray(parent?.messages) ? parent.messages : [];
+    const childMessages: readonly ForkMessage[] = Array.isArray(child?.messages) ? child.messages : [];
     const forkId = cleanText(child?.forkMessageId, 120);
     const parentIndex = parentMessages.findIndex((message) => message?.id === forkId);
     const childIndex = childMessages.findIndex((message) => message?.id === forkId);
@@ -214,9 +250,9 @@ const lineageOf = conversationLineage;
     };
   }
 
-  function openComparison(parent, child, trigger) {
+  function openComparison(parent: ForkConversation, child: ForkConversation, trigger: HTMLElement | null): void {
     closeDialog();
-    previousFocus = trigger || document.activeElement;
+    previousFocus = trigger || activeElement();
     const overlay = document.createElement('div');
     overlay.id = DIALOG_ID;
     overlay.className = 'conversation-fork-overlay';
@@ -288,53 +324,75 @@ const lineageOf = conversationLineage;
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
       if (event.key !== 'Tab') return;
-      const nodes = focusable(panel);
-      if (!nodes.length) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      trapTab(event, panel);
     });
     close.focus();
   }
 
-  function createFork(messageId) {
-    if (isBusy()) return showToast('Yanıt üretimi sürerken yeni dal oluşturulamaz.');
+  const FORK_ERROR_MESSAGES: Readonly<Record<string, string>> = Object.freeze({
+    MESSAGE_NOT_FOUND: 'Mesaj bulunamadı.',
+    DEPTH_LIMIT: 'Dal derinliği sınırına ulaşıldı.',
+    BRANCH_LIMIT: 'Bu sohbet için en fazla 8 dal oluşturulabilir.',
+    CONVERSATION_LIMIT: 'Yerel sohbet sınırı dolu. Önce bir sohbet sil.',
+    EMPTY_FORK: 'Dala aktarılabilecek mesaj yok.'
+  });
+
+  function forkErrorMessage(code: string | undefined): string {
+    return (code ? FORK_ERROR_MESSAGES[code] : undefined) || 'Yeni dal oluşturulamadı.';
+  }
+
+  function createFork(messageId: string): void {
+    if (isBusy()) {
+      showToast('Yanıt üretimi sürerken yeni dal oluşturulamaz.');
+      return;
+    }
 
     const all = readConversations();
     const source = currentConversation(all);
-    if (!source) return showToast('Aktif sohbet bulunamadı.');
-    const target = Array.isArray(source.messages) ? source.messages.find((message) => message?.id === messageId) : null;
-    if (!target) return showToast('Dallandırılacak mesaj bulunamadı.');
+    if (!source) {
+      showToast('Aktif sohbet bulunamadı.');
+      return;
+    }
+    const target = Array.isArray(source.messages) ? source.messages.find((message) => message?.id === messageId) : undefined;
+    if (!target) {
+      showToast('Dallandırılacak mesaj bulunamadı.');
+      return;
+    }
 
-    const errors = {
-      MESSAGE_NOT_FOUND: 'Mesaj bulunamadı.',
-      DEPTH_LIMIT: 'Dal derinliği sınırına ulaşıldı.',
-      BRANCH_LIMIT: 'Bu sohbet için en fazla 8 dal oluşturulabilir.',
-      CONVERSATION_LIMIT: 'Yerel sohbet sınırı dolu. Önce bir sohbet sil.',
-      EMPTY_FORK: 'Dala aktarılabilecek mesaj yok.'
-    };
     const preview = makeFork(source, messageId, all);
-    if (preview.error) return showToast(errors[preview.error] || 'Yeni dal oluşturulamadı.');
+    if (preview.error) {
+      showToast(forkErrorMessage(preview.error));
+      return;
+    }
 
     const suggestedTitle = ('↳ ' + (cleanText(source.title, MAX_TITLE) || 'Sohbet') + ' · Dal ' + (branchCount(source.id, all) + 1)).slice(0, MAX_TITLE);
     openDialog(source, target, suggestedTitle, '', (titleOverride, noteOverride) => {
       const latest = readConversations();
       const freshSource = latest.find((item) => item.id === source.id);
-      if (!freshSource) return showToast('Kaynak sohbet değişti; işlem iptal edildi.');
+      if (!freshSource) {
+        showToast('Kaynak sohbet değişti; işlem iptal edildi.');
+        return;
+      }
       const created = makeFork(freshSource, messageId, latest, { title: titleOverride, note: noteOverride });
-      if (created.error) return showToast(errors[created.error] || 'Yeni dal oluşturulamadı.');
-      const next = [created.conversation, ...latest].slice(0, MAX_CONVERSATIONS);
-      if (!writeConversations(next)) return showToast('Yeni dal cihazda kalıcı olarak kaydedilemedi.');
+      if (!created.conversation) {
+        showToast(forkErrorMessage(created.error));
+        return;
+      }
+      const fork = created.conversation;
+      const next = [fork, ...latest].slice(0, MAX_CONVERSATIONS);
+      if (!writeConversations(next)) {
+        showToast('Yeni dal cihazda kalıcı olarak kaydedilemedi.');
+        return;
+      }
       closeDialog();
-      window.dispatchEvent(new CustomEvent('hafize:conversation-forks-changed', { detail: { conversationId: freshSource.id, forkId: created.conversation.id } }));
-      window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: created.conversation.id } }));
+      window.dispatchEvent(new CustomEvent('hafize:conversation-forks-changed', { detail: { conversationId: freshSource.id, forkId: fork.id } }));
+      window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: fork.id } }));
       showToast('Yeni konuşma dalı oluşturuldu.');
     });
   }
 
-  function decorateMessages() {
-    ui.messages.querySelectorAll('.message').forEach((article) => {
+  function decorateMessages(): void {
+    messagesRoot.querySelectorAll<HTMLElement>('.message').forEach((article) => {
       if (article.querySelector('[data-conversation-fork]')) return;
       const messageId = cleanText(article.dataset.messageId, 120);
       if (!messageId) return;
@@ -355,26 +413,43 @@ const lineageOf = conversationLineage;
     });
   }
 
-  function descendantCount(conversationId, all, visited = new Set()) {
+  function descendantCount(conversationId: string, all: readonly ForkConversation[], visited = new Set<string>()): number {
     if (visited.has(conversationId)) return 0;
     visited.add(conversationId);
     const children = directChildren(conversationId, all);
     return children.reduce((sum, child) => sum + 1 + descendantCount(child.id, all, visited), 0);
   }
 
-  function renderActiveBranchBanner() {
+  function downloadConversation(conversation: ForkConversation): void {
+    try {
+      const snapshot = buildForkSnapshot(conversation);
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hafize-' + (cleanText(conversation.title, 48) || 'sohbet') + '.json';
+      link.click();
+      globalThis.setTimeout(() => URL.revokeObjectURL(url), 0);
+      showToast('Dal yedeği indirildi.');
+    } catch {
+      showToast('Dal yedeği oluşturulamadı.');
+    }
+  }
+
+  function renderActiveBranchBanner(): void {
     const all = readConversations();
     const active = currentConversation(all);
-    const stage = document.querySelector('.chat-stage');
+    const stage = document.querySelector<HTMLElement>('.chat-stage');
     if (!stage) return;
 
-    let banner = document.getElementById('hafizeConversationForkBanner');
+    const existing = document.getElementById('hafizeConversationForkBanner');
     if (!active?.forkOf) {
-      banner?.remove();
+      existing?.remove();
       return;
     }
 
-    const parent = all.find((item) => item.id === active.forkOf);
+    const parent = all.find((item) => item.id === active.forkOf) ?? null;
+    let banner = existing;
     if (!banner) {
       banner = document.createElement('aside');
       banner.id = 'hafizeConversationForkBanner';
@@ -417,7 +492,7 @@ const lineageOf = conversationLineage;
     banner.append(copy, openParent);
   }
 
-  function renderGlobalBranchHub() {
+  function renderGlobalBranchHub(): void {
     const all = readConversations();
     let panel = document.getElementById('hafizeConversationForkHub');
     const branches = all.filter((item) => item?.forkOf).sort((a, b) =>
@@ -435,28 +510,30 @@ const lineageOf = conversationLineage;
       const heading = document.createElement('span');
       heading.id = 'hafizeConversationForkHubTitle';
       heading.textContent = 'Tüm dallar';
-      const count = document.createElement('span');
-      count.className = 'conversation-fork-hub-count';
-      header.append(heading, count);
+      const headerCount = document.createElement('span');
+      headerCount.className = 'conversation-fork-hub-count';
+      header.append(heading, headerCount);
 
-      const search = document.createElement('input');
-      search.type = 'search';
-      search.maxLength = 80;
-      search.className = 'conversation-fork-hub-search';
-      search.placeholder = 'Dallarda ara…';
-      search.setAttribute('aria-label', 'Tüm konuşma dallarında ara');
+      const searchInput = document.createElement('input');
+      searchInput.type = 'search';
+      searchInput.maxLength = 80;
+      searchInput.className = 'conversation-fork-hub-search';
+      searchInput.placeholder = 'Dallarda ara…';
+      searchInput.setAttribute('aria-label', 'Tüm konuşma dallarında ara');
 
-      const list = document.createElement('div');
-      list.className = 'conversation-fork-hub-list';
-      list.setAttribute('role', 'list');
-      panel.append(header, search, list);
-      ui.historyBlock.before(panel);
+      const hubList = document.createElement('div');
+      hubList.className = 'conversation-fork-hub-list';
+      hubList.setAttribute('role', 'list');
+      panel.append(header, searchInput, hubList);
+      historyBlock.before(panel);
 
-      search.addEventListener('input', () => renderGlobalBranchHub());
+      searchInput.addEventListener('input', () => renderGlobalBranchHub());
     }
 
-    const search = panel.querySelector('.conversation-fork-hub-search');
-    const list = panel.querySelector('.conversation-fork-hub-list');
+    const search = panel.querySelector<HTMLInputElement>('.conversation-fork-hub-search');
+    const list = panel.querySelector<HTMLElement>('.conversation-fork-hub-list');
+    const count = panel.querySelector<HTMLElement>('.conversation-fork-hub-count');
+    if (!list) return;
     const query = cleanText(search?.value || '', 80).toLocaleLowerCase('tr-TR');
     const visible = branches.filter((item) => {
       const parent = all.find((candidate) => candidate.id === item.forkOf);
@@ -467,8 +544,7 @@ const lineageOf = conversationLineage;
       ].join(' ').toLocaleLowerCase('tr-TR').includes(query);
     });
 
-    const count = panel.querySelector('.conversation-fork-hub-count');
-    count.textContent = String(branches.length);
+    if (count) count.textContent = String(branches.length);
     list.replaceChildren();
 
     if (!visible.length) {
@@ -512,16 +588,22 @@ const lineageOf = conversationLineage;
     });
   }
 
-  function focusForkPoint(conversation) {
+  function focusForkPoint(conversation: ForkConversation): void {
     const id = cleanText(conversation?.forkMessageId, 120);
-    if (!id) return showToast('Bu sohbetin kayıtlı fork noktası yok.');
-    const node = ui.messages.querySelector('[data-message-id="' + CSS.escape(id) + '"]');
-    if (!node) return showToast('Fork noktası bu konuşmada bulunamadı.');
-    node.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-    node.querySelector?.('button')?.focus?.();
+    if (!id) {
+      showToast('Bu sohbetin kayıtlı fork noktası yok.');
+      return;
+    }
+    const node = messagesRoot.querySelector<HTMLElement>('[data-message-id="' + CSS.escape(id) + '"]');
+    if (!node) {
+      showToast('Fork noktası bu konuşmada bulunamadı.');
+      return;
+    }
+    node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    node.querySelector<HTMLElement>('button')?.focus();
   }
 
-  function renderBranchPanel() {
+  function renderBranchPanel(): void {
     const all = readConversations();
     const active = currentConversation(all);
     let panel = document.getElementById(PANEL_ID);
@@ -538,26 +620,28 @@ const lineageOf = conversationLineage;
       const heading = document.createElement('span');
       heading.id = PANEL_ID + 'Title';
       heading.textContent = 'Konuşma dalları';
-      const count = document.createElement('span');
-      count.className = 'conversation-fork-count';
-      header.append(heading, count);
+      const headerCount = document.createElement('span');
+      headerCount.className = 'conversation-fork-count';
+      header.append(heading, headerCount);
 
-      const body = document.createElement('div');
-      body.className = 'conversation-fork-body';
-      panel.append(header, body);
-      ui.historyBlock.after(panel);
+      const panelBody = document.createElement('div');
+      panelBody.className = 'conversation-fork-body';
+      panel.append(header, panelBody);
+      historyBlock.after(panel);
     }
 
-    const count = panel.querySelector('.conversation-fork-count');
-    const body = panel.querySelector('.conversation-fork-body');
+    const count = panel.querySelector<HTMLElement>('.conversation-fork-count');
+    const body = panel.querySelector<HTMLElement>('.conversation-fork-body');
+    if (!body) return;
     const children = childrenOf(active.id, all);
-    count.textContent = String(children.length);
+    if (count) count.textContent = String(children.length);
     body.replaceChildren();
 
     const context = document.createElement('p');
     context.className = 'conversation-fork-context';
-    if (active.forkOf) {
-      const parent = all.find((item) => item.id === active.forkOf);
+    const parentId = active.forkOf;
+    if (parentId) {
+      const parent = all.find((item) => item.id === parentId);
       context.textContent = parent ? 'Bu dal: ' + cleanText(parent.title, MAX_TITLE) + ' · Seviye ' + (Number(active.forkDepth) || 1) : 'Bu dalın üst sohbeti bulunamıyor.';
     } else {
       context.textContent = 'Bu sohbetin yerel dalları';
@@ -579,7 +663,7 @@ const lineageOf = conversationLineage;
     });
     const tools = document.createElement('div');
     tools.className = 'conversation-fork-panel-actions';
-    if (active.forkOf) {
+    if (parentId) {
       const pointButton = document.createElement('button');
       pointButton.type = 'button';
       pointButton.className = 'mini-btn';
@@ -594,7 +678,7 @@ const lineageOf = conversationLineage;
       parentButton.textContent = 'Üst sohbet';
       parentButton.setAttribute('aria-label', 'Bu dalın üst sohbetini aç');
       parentButton.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
-        detail: { conversationId: active.forkOf }
+        detail: { conversationId: parentId }
       })));
       tools.append(parentButton);
     }
@@ -668,37 +752,37 @@ const lineageOf = conversationLineage;
     body.append(list);
   }
 
-  function onRefresh() {
+  function onRefresh(): void {
     decorateMessages();
     renderBranchPanel();
     renderGlobalBranchHub();
     renderActiveBranchBanner();
   }
 
-  function onStorage(event) {
+  function onStorage(event: StorageEvent): void {
     if (event.key === STORAGE_KEY) onRefresh();
   }
 
-  function onKeydown(event) {
+  function onKeydown(event: KeyboardEvent): void {
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'f') return;
-    const target = event.target;
-    if (target?.matches?.('input, textarea, select, button, [contenteditable="true"]')) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.matches('input, textarea, select, button, [contenteditable="true"]')) return;
     const active = currentConversation();
-    const messages = Array.isArray(active?.messages) ? active.messages : [];
+    const messages: readonly ForkMessage[] = Array.isArray(active?.messages) ? active.messages : [];
     const last = messages.at(-1);
     if (!last?.id) return;
     event.preventDefault();
     createFork(last.id);
   }
 
-  function boot() {
+  function boot(): void {
     if (mounted) return;
     mounted = true;
     observer = new MutationObserver(onRefresh);
-    observer.observe(ui.messages, { childList: true, subtree: true });
-    const openHandler = () => onRefresh();
-    const forkHandler = () => onRefresh();
-    const storageHandler = (event) => onStorage(event);
+    observer.observe(messagesRoot, { childList: true, subtree: true });
+    const openHandler = (): void => onRefresh();
+    const forkHandler = (): void => onRefresh();
+    const storageHandler = (event: StorageEvent): void => onStorage(event);
     window.addEventListener('hafize:open-conversation', openHandler);
     window.addEventListener('hafize:conversation-forks-changed', forkHandler);
     window.addEventListener('storage', storageHandler);
@@ -713,1043 +797,18 @@ const lineageOf = conversationLineage;
 
   boot();
 
-  window.HafizeConversationForks = Object.freeze({
+  const api: ForkPublicApi = Object.freeze({
     STORAGE_KEY,
     MAX_BRANCHES_PER_PARENT,
     MAX_FORK_DEPTH: FORK_LIMITS.maxDepth,
-    makeFork: (conversation, messageId, all = [conversation]) => makeFork(conversation, messageId, all),
+    makeFork: (conversation: ForkConversation, messageId: string, all: readonly ForkConversation[] = [conversation]) =>
+      makeFork(conversation, messageId, all),
     childrenOf,
     lineageOf,
     downloadConversation,
     createFork
   });
-
-  window.addEventListener('beforeunload', () => {
-    for (const off of listeners.splice(0)) off();
-    observer?.disconnect();
-    closeDialog();
-  });
-})()  function showToast(message) {
-    if (!ui.toast) return;
-    ui.toast.textContent = cleanText(message, 180);
-    ui.toast.classList.remove('hidden');
-    globalThis.clearTimeout(showToast.timer);
-    showToast.timer = globalThis.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
-  }
-
-  function isBusy() {
-    return ui.messages.getAttribute('aria-busy') === 'true';
-  }
-
-  function currentConversationId() {
-    return cleanText(ui.messages.dataset.conversationId, 120);
-  }
-
-  function currentConversation(all = readConversations()) {
-    const id = currentConversationId();
-    return all.find((item) => item.id === id) || null;
-  }
-
-  function focusable(container) {
-    return [...container.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
-  }
-
-  function closeDialog() {
-    if (!activeDialog) return;
-    const dialog = activeDialog;
-    activeDialog = null;
-    dialog.remove();
-    previousFocus?.focus?.();
-    previousFocus = null;
-  }
-
-  function openDialog(source, target, onConfirm) {
-    closeDialog();
-    previousFocus = document.activeElement;
-
-    const overlay = document.createElement('div');
-    overlay.id = DIALOG_ID;
-    overlay.className = 'conversation-fork-overlay';
-
-    const panel = document.createElement('section');
-    panel.className = 'conversation-fork-dialog';
-    panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-modal', 'true');
-    panel.setAttribute('aria-labelledby', DIALOG_ID + 'Title');
-    panel.setAttribute('aria-describedby', DIALOG_ID + 'Description');
-
-    const title = document.createElement('h2');
-    title.id = DIALOG_ID + 'Title';
-    title.textContent = 'Konuşmayı buradan dallandır';
-
-    const description = document.createElement('p');
-    description.id = DIALOG_ID + 'Description';
-    const count = Array.isArray(source.messages) ? source.messages.findIndex((m) => m?.id === target.id) + 1 : 0;
-    const snippet = cleanText(target.content, MAX_SNIPPET).replace(/\s+/g, ' ');
-    description.textContent = count + ' mesaj yeni sohbetin başlangıcı olacak. Seçilen mesaj: ' + snippet;
-
-    const note = document.createElement('p');
-    note.className = 'conversation-fork-note';
-    note.textContent = 'Yeni dal yerel sohbette ayrı bir kayıt olur. Şimdilik hiçbir ağ isteği gönderilmez.';
-
-    const actions = document.createElement('div');
-    actions.className = 'conversation-fork-actions';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'soft-btn';
-    cancel.textContent = 'Vazgeç';
-    const confirm = document.createElement('button');
-    confirm.type = 'button';
-    confirm.className = 'soft-btn conversation-fork-primary';
-    confirm.textContent = 'Yeni dal oluştur';
-    actions.append(cancel, confirm);
-
-    panel.append(title, description, note, actions);
-    overlay.append(panel);
-    document.body.append(overlay);
-    activeDialog = overlay;
-
-    const finish = (confirmed) => {
-      if (confirmed) onConfirm();
-      else closeDialog();
-    };
-    cancel.addEventListener('click', () => finish(false));
-    confirm.addEventListener('click', () => finish(true));
-    overlay.addEventListener('click', (event) => { if (event.target === overlay) closeDialog(); });
-
-    overlay.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
-      if (event.key === 'Enter' && event.target !== cancel) { event.preventDefault(); finish(true); return; }
-      if (event.key !== 'Tab') return;
-      const nodes = focusable(panel);
-      if (!nodes.length) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    });
-
-    confirm.focus();
-  }
-
-  function createFork(messageId) {
-    if (isBusy()) return showToast('Yanıt üretimi sürerken yeni dal oluşturulamaz.');
-
-    const all = readConversations();
-    const source = currentConversation(all);
-    if (!source) return showToast('Aktif sohbet bulunamadı.');
-    const target = Array.isArray(source.messages) ? source.messages.find((message) => message?.id === messageId) : null;
-    if (!target) return showToast('Dallandırılacak mesaj bulunamadı.');
-
-    const errors = {
-      MESSAGE_NOT_FOUND: 'Mesaj bulunamadı.',
-      DEPTH_LIMIT: 'Dal derinliği sınırına ulaşıldı.',
-      BRANCH_LIMIT: 'Bu sohbet için en fazla 8 dal oluşturulabilir.',
-      CONVERSATION_LIMIT: 'Yerel sohbet sınırı dolu. Önce bir sohbet sil.',
-      EMPTY_FORK: 'Dala aktarılabilecek mesaj yok.'
-    };
-    const preview = makeFork(source, messageId, all);
-    if (preview.error) return showToast(errors[preview.error] || 'Yeni dal oluşturulamadı.');
-
-    openDialog(source, target, () => {
-      const latest = readConversations();
-      const freshSource = latest.find((item) => item.id === source.id);
-      if (!freshSource) return showToast('Kaynak sohbet değişti; işlem iptal edildi.');
-      const created = makeFork(freshSource, messageId, latest);
-      if (created.error) return showToast(errors[created.error] || 'Yeni dal oluşturulamadı.');
-      const next = [created.conversation, ...latest].slice(0, MAX_CONVERSATIONS);
-      if (!writeConversations(next)) return showToast('Yeni dal cihazda kalıcı olarak kaydedilemedi.');
-      closeDialog();
-      window.dispatchEvent(new CustomEvent('hafize:conversation-forks-changed', { detail: { conversationId: freshSource.id, forkId: created.conversation.id } }));
-      window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: created.conversation.id } }));
-      showToast('Yeni konuşma dalı oluşturuldu.');
-    });
-  }
-
-  function decorateMessages() {
-    ui.messages.querySelectorAll('.message').forEach((article) => {
-      if (article.querySelector('[data-conversation-fork]')) return;
-      const messageId = cleanText(article.dataset.messageId, 120);
-      if (!messageId) return;
-
-      const actions = document.createElement('div');
-      actions.className = 'message-fork-actions';
-      const fork = document.createElement('button');
-      fork.type = 'button';
-      fork.className = 'message-action conversation-fork-button';
-      fork.dataset.conversationFork = messageId;
-      fork.textContent = 'Buradan dallandır';
-      fork.setAttribute('aria-label', 'Bu mesajdan yeni konuşma dalı oluştur');
-      fork.addEventListener('click', () => createFork(messageId));
-      actions.append(fork);
-
-      const target = article.querySelector('.assistant-message-actions') || article;
-      target.append(actions);
-    });
-  }
-
-  function childrenOf(conversationId, all) {
-    return all.filter((item) => item?.forkOf === conversationId)
-      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-      .slice(0, MAX_BRANCHES_PER_PARENT);
-  }
-
-  function lineageOf(conversation, all) {
-    const chain = [];
-    const seen = new Set();
-    let cursor = conversation;
-    while (cursor && !seen.has(cursor.id) && chain.length <= MAX_FORK_DEPTH + 1) {
-      chain.unshift(cursor);
-      seen.add(cursor.id);
-      cursor = cursor.forkOf ? all.find((item) => item.id === cursor.forkOf) || null : null;
-    }
-    return chain;
-  }
-
-  function downloadConversation(conversation) {
-    const snapshot = {
-      version: 1,
-      type: 'hafize-conversation-fork',
-      exportedAt: new Date().toISOString(),
-      conversation
-    };
-    try {
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'hafize-' + (cleanText(conversation.title, 48) || 'sohbet') + '.json';
-      link.click();
-      globalThis.setTimeout?.(() => URL.revokeObjectURL(url), 0);
-      showToast('Dal yedeği indirildi.');
-    } catch {
-      showToast('Dal yedeği oluşturulamadı.');
-    }
-  }
-
-  function renderBranchPanel() {
-    const all = readConversations();
-    const active = currentConversation(all);
-    let panel = document.getElementById(PANEL_ID);
-    if (!active) { panel?.remove(); return; }
-
-    if (!panel) {
-      panel = document.createElement('section');
-      panel.id = PANEL_ID;
-      panel.className = 'conversation-fork-panel utility-card';
-      panel.setAttribute('aria-labelledby', PANEL_ID + 'Title');
-
-      const header = document.createElement('div');
-      header.className = 'utility-head conversation-fork-head';
-      const heading = document.createElement('span');
-      heading.id = PANEL_ID + 'Title';
-      heading.textContent = 'Konuşma dalları';
-      const count = document.createElement('span');
-      count.className = 'conversation-fork-count';
-      header.append(heading, count);
-
-      const body = document.createElement('div');
-      body.className = 'conversation-fork-body';
-      panel.append(header, body);
-      ui.historyBlock.after(panel);
-    }
-
-    const count = panel.querySelector('.conversation-fork-count');
-    const body = panel.querySelector('.conversation-fork-body');
-    const children = childrenOf(active.id, all);
-    count.textContent = String(children.length);
-    body.replaceChildren();
-
-    const context = document.createElement('p');
-    context.className = 'conversation-fork-context';
-    if (active.forkOf) {
-      const parent = all.find((item) => item.id === active.forkOf);
-      context.textContent = parent ? 'Bu dal: ' + cleanText(parent.title, MAX_TITLE) + ' · Seviye ' + (Number(active.forkDepth) || 1) : 'Bu dalın üst sohbeti bulunamıyor.';
-    } else {
-      context.textContent = 'Bu sohbetin yerel dalları';
-    }
-    const tools = document.createElement('div');
-    tools.className = 'conversation-fork-panel-actions';
-    if (active.forkOf) {
-      const parentButton = document.createElement('button');
-      parentButton.type = 'button';
-      parentButton.className = 'mini-btn';
-      parentButton.textContent = 'Üst sohbet';
-      parentButton.setAttribute('aria-label', 'Bu dalın üst sohbetini aç');
-      parentButton.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
-        detail: { conversationId: active.forkOf }
-      })));
-      tools.append(parentButton);
-    }
-    const exportButton = document.createElement('button');
-    exportButton.type = 'button';
-    exportButton.className = 'mini-btn';
-    exportButton.textContent = 'Dal yedeği';
-    exportButton.setAttribute('aria-label', 'Bu konuşma dalını JSON olarak dışa aktar');
-    exportButton.addEventListener('click', () => downloadConversation(active));
-    tools.append(exportButton);
-    body.append(context, tools);
-
-    if (!children.length) {
-      const empty = document.createElement('div');
-      empty.className = 'conversation-fork-empty';
-      empty.textContent = 'Henüz bu sohbetten dal oluşturulmadı.';
-      body.append(empty);
-      return;
-    }
-
-    const list = document.createElement('div');
-    list.className = 'conversation-fork-list';
-    list.setAttribute('role', 'list');
-
-    children.forEach((child) => {
-      const row = document.createElement('div');
-      row.className = 'conversation-fork-row';
-      row.setAttribute('role', 'listitem');
-
-      const info = document.createElement('div');
-      info.className = 'conversation-fork-info';
-      const name = document.createElement('strong');
-      name.textContent = cleanText(child.title, MAX_TITLE) || 'Yeni dal';
-      const meta = document.createElement('span');
-      meta.textContent = (Array.isArray(child.messages) ? child.messages.length : 0) + ' mesaj';
-      info.append(name, meta);
-
-      const open = document.createElement('button');
-      open.type = 'button';
-      open.className = 'mini-btn';
-      open.textContent = 'Aç';
-      open.setAttribute('aria-label', (cleanText(child.title, MAX_TITLE) || 'Yeni dal') + ' dalını aç');
-      open.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: child.id } })));
-
-      row.append(info, open);
-      list.append(row);
-    });
-    body.append(list);
-  }
-
-  function onRefresh() {
-    decorateMessages();
-    renderBranchPanel();
-  }
-
-  function onStorage(event) {
-    if (event.key === STORAGE_KEY) onRefresh();
-  }
-
-  function onKeydown(event) {
-    if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'f') return;
-    const target = event.target;
-    if (target?.matches?.('input, textarea, select, button, [contenteditable="true"]')) return;
-    const active = currentConversation();
-    const messages = Array.isArray(active?.messages) ? active.messages : [];
-    const last = messages.at(-1);
-    if (!last?.id) return;
-    event.preventDefault();
-    createFork(last.id);
-  }
-
-  function boot() {
-    if (mounted) return;
-    mounted = true;
-    observer = new MutationObserver(onRefresh);
-    observer.observe(ui.messages, { childList: true, subtree: true });
-    const openHandler = () => onRefresh();
-    const forkHandler = () => onRefresh();
-    const storageHandler = (event) => onStorage(event);
-    window.addEventListener('hafize:open-conversation', openHandler);
-    window.addEventListener('hafize:conversation-forks-changed', forkHandler);
-    window.addEventListener('storage', storageHandler);
-    document.addEventListener('keydown', onKeydown);
-    listeners.push(() => observer?.disconnect());
-    listeners.push(() => window.removeEventListener('hafize:open-conversation', openHandler));
-    listeners.push(() => window.removeEventListener('hafize:conversation-forks-changed', forkHandler));
-    listeners.push(() => window.removeEventListener('storage', storageHandler));
-    listeners.push(() => document.removeEventListener('keydown', onKeydown));
-    onRefresh();
-  }
-
-  boot();
-
-  window.HafizeConversationForks = Object.freeze({
-    STORAGE_KEY,
-    MAX_BRANCHES_PER_PARENT,
-    MAX_FORK_DEPTH,
-    makeFork: (conversation, messageId, all = [conversation]) => makeFork(conversation, messageId, all),
-    childrenOf,
-    lineageOf,
-    downloadConversation,
-    createFork
-  });
-
-  window.addEventListener('beforeunload', () => {
-    for (const off of listeners.splice(0)) off();
-    observer?.disconnect();
-    closeDialog();
-  });
-})();
-    const all = readConversations();
-    let panel = document.getElementById('hafizeConversationForkHub');
-    const branches = all.filter((item) => item?.forkOf).sort((a, b) =>
-      String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))
-    ).slice(0, 20);
-
-    if (!panel) {
-      panel = document.createElement('section');
-      panel.id = 'hafizeConversationForkHub';
-      panel.className = 'conversation-fork-hub utility-card';
-      panel.setAttribute('aria-labelledby', 'hafizeConversationForkHubTitle');
-
-      const header = document.createElement('div');
-      header.className = 'utility-head';
-      const heading = document.createElement('span');
-      heading.id = 'hafizeConversationForkHubTitle';
-      heading.textContent = 'Tüm dallar';
-      const count = document.createElement('span');
-      count.className = 'conversation-fork-hub-count';
-      header.append(heading, count);
-
-      const search = document.createElement('input');
-      search.type = 'search';
-      search.maxLength = 80;
-      search.className = 'conversation-fork-hub-search';
-      search.placeholder = 'Dallarda ara…';
-      search.setAttribute('aria-label', 'Tüm konuşma dallarında ara');
-
-      const list = document.createElement('div');
-      list.className = 'conversation-fork-hub-list';
-      list.setAttribute('role', 'list');
-      panel.append(header, search, list);
-      ui.historyBlock.before(panel);
-
-      search.addEventListener('input', () => renderGlobalBranchHub());
-    }
-
-    const search = panel.querySelector('.conversation-fork-hub-search');
-    const list = panel.querySelector('.conversation-fork-hub-list');
-    const query = cleanText(search?.value || '', 80).toLocaleLowerCase('tr-TR');
-    const visible = branches.filter((item) => {
-      const parent = all.find((candidate) => candidate.id === item.forkOf);
-      return !query || [
-        item.title,
-        parent?.title || '',
-        item.forkMessageId || ''
-      ].join(' ').toLocaleLowerCase('tr-TR').includes(query);
-    });
-
-    const count = panel.querySelector('.conversation-fork-hub-count');
-    count.textContent = String(branches.length);
-    list.replaceChildren();
-
-    if (!visible.length) {
-      const empty = document.createElement('div');
-      empty.className = 'conversation-fork-empty';
-      empty.textContent = query ? 'Aramaya uyan dal yok.' : 'Henüz konuşma dalı yok.';
-      list.append(empty);
-      return;
-    }
-
-    visible.slice(0, 12).forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'conversation-fork-hub-row';
-      row.setAttribute('role', 'listitem');
-
-      const info = document.createElement('div');
-      info.className = 'conversation-fork-hub-info';
-      const name = document.createElement('strong');
-      name.textContent = cleanText(item.title, MAX_TITLE) || 'Yeni dal';
-      const parent = all.find((candidate) => candidate.id === item.forkOf);
-      const meta = document.createElement('span');
-      meta.textContent = (parent ? cleanText(parent.title, 42) : 'Üst sohbet yok')
-        + ' · Seviye ' + (Number(item.forkDepth) || 1)
-        + ' · ' + (Array.isArray(item.messages) ? item.messages.length : 0) + ' mesaj';
-      if (typeof item.forkNote === 'string' && item.forkNote.trim()) {
-        meta.textContent += ' · ' + cleanText(item.forkNote, 90);
-      }
-      info.append(name, meta);
-
-      const open = document.createElement('button');
-      open.type = 'button';
-      open.className = 'mini-btn';
-      open.textContent = 'Aç';
-      open.setAttribute('aria-label', (cleanText(item.title, MAX_TITLE) || 'Yeni dal') + ' dalını aç');
-      open.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
-        detail: { conversationId: item.id }
-      })));
-
-      row.append(info, open);
-      list.append(row);
-    });
-  }
-
-  function focusForkPoint(conversation) {
-    const id = cleanText(conversation?.forkMessageId, 120);
-    if (!id) return showToast('Bu sohbetin kayıtlı fork noktası yok.');
-    const node = ui.messages.querySelector('[data-message-id="' + CSS.escape(id) + '"]');
-    if (!node) return showToast('Fork noktası bu konuşmada bulunamadı.');
-    node.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-    node.querySelector?.('button')?.focus?.();
-  }
-
-  function renderBranchPanel() {
-    const all = readConversations();
-    const active = currentConversation(all);
-    let panel = document.getElementById(PANEL_ID);
-    if (!active) { panel?.remove(); return; }
-
-    if (!panel) {
-      panel = document.createElement('section');
-      panel.id = PANEL_ID;
-      panel.className = 'conversation-fork-panel utility-card';
-      panel.setAttribute('aria-labelledby', PANEL_ID + 'Title');
-
-      const header = document.createElement('div');
-      header.className = 'utility-head conversation-fork-head';
-      const heading = document.createElement('span');
-      heading.id = PANEL_ID + 'Title';
-      heading.textContent = 'Konuşma dalları';
-      const count = document.createElement('span');
-      count.className = 'conversation-fork-count';
-      header.append(heading, count);
-
-      const body = document.createElement('div');
-      body.className = 'conversation-fork-body';
-      panel.append(header, body);
-      ui.historyBlock.after(panel);
-    }
-
-    const count = panel.querySelector('.conversation-fork-count');
-    const body = panel.querySelector('.conversation-fork-body');
-    const children = childrenOf(active.id, all);
-    count.textContent = String(children.length);
-    body.replaceChildren();
-
-    const context = document.createElement('p');
-    context.className = 'conversation-fork-context';
-    if (active.forkOf) {
-      const parent = all.find((item) => item.id === active.forkOf);
-      context.textContent = parent ? 'Bu dal: ' + cleanText(parent.title, MAX_TITLE) + ' · Seviye ' + (Number(active.forkDepth) || 1) : 'Bu dalın üst sohbeti bulunamıyor.';
-    } else {
-      context.textContent = 'Bu sohbetin yerel dalları';
-    }
-    const lineage = lineageOf(active, all);
-    const breadcrumbRow = document.createElement('div');
-    breadcrumbRow.className = 'conversation-fork-lineage';
-    breadcrumbRow.setAttribute('aria-label', 'Konuşma dalı soyu');
-    lineage.forEach((item, index) => {
-      const crumb = document.createElement('button');
-      crumb.type = 'button';
-      crumb.className = 'mini-btn conversation-fork-crumb';
-      crumb.textContent = cleanText(item.title, MAX_TITLE) || 'Sohbet';
-      crumb.setAttribute('aria-label', (cleanText(item.title, MAX_TITLE) || 'Sohbet') + ' sohbetine geç');
-      crumb.disabled = item.id === active.id;
-      crumb.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: item.id } })));
-      breadcrumbRow.append(crumb);
-      if (index < lineage.length - 1) breadcrumbRow.append(document.createTextNode('›'));
-    });
-    const tools = document.createElement('div');
-    tools.className = 'conversation-fork-panel-actions';
-    if (active.forkOf) {
-      const pointButton = document.createElement('button');
-      pointButton.type = 'button';
-      pointButton.className = 'mini-btn';
-      pointButton.textContent = 'Fork noktası';
-      pointButton.setAttribute('aria-label', 'Bu dalın fork noktasına git');
-      pointButton.addEventListener('click', () => focusForkPoint(active));
-      tools.append(pointButton);
-
-      const parentButton = document.createElement('button');
-      parentButton.type = 'button';
-      parentButton.className = 'mini-btn';
-      parentButton.textContent = 'Üst sohbet';
-      parentButton.setAttribute('aria-label', 'Bu dalın üst sohbetini aç');
-      parentButton.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
-        detail: { conversationId: active.forkOf }
-      })));
-      tools.append(parentButton);
-    }
-    const exportButton = document.createElement('button');
-    exportButton.type = 'button';
-    exportButton.className = 'mini-btn';
-    exportButton.textContent = 'Dal yedeği';
-    exportButton.setAttribute('aria-label', 'Bu konuşma dalını JSON olarak dışa aktar');
-    exportButton.addEventListener('click', () => downloadConversation(active));
-    tools.append(exportButton);
-    const descendants = descendantCount(active.id, all);
-    const stats = document.createElement('p');
-    stats.className = 'conversation-fork-context';
-    stats.textContent = descendants + ' alt dal' + (descendants === 1 ? '' : 'ı') + ' · ' + lineage.length + ' seviye bağlam';
-    body.append(context, breadcrumbRow, stats, tools);
-
-    if (!children.length) {
-      const empty = document.createElement('div');
-      empty.className = 'conversation-fork-empty';
-      empty.textContent = 'Henüz bu sohbetten dal oluşturulmadı.';
-      body.append(empty);
-      return;
-    }
-
-    const list = document.createElement('div');
-    list.className = 'conversation-fork-list';
-    list.setAttribute('role', 'list');
-
-    children.forEach((child) => {
-      const row = document.createElement('div');
-      row.className = 'conversation-fork-row';
-      row.setAttribute('role', 'listitem');
-
-      const info = document.createElement('div');
-      info.className = 'conversation-fork-info';
-      const name = document.createElement('strong');
-      name.textContent = cleanText(child.title, MAX_TITLE) || 'Yeni dal';
-      const meta = document.createElement('span');
-      meta.textContent = (Array.isArray(child.messages) ? child.messages.length : 0) + ' mesaj · Seviye ' + (Number(child.forkDepth) || 1);
-      info.append(name, meta);
-      if (typeof child.forkNote === 'string' && child.forkNote.trim()) {
-        const reason = document.createElement('span');
-        reason.className = 'conversation-fork-note-preview';
-        reason.textContent = cleanText(child.forkNote, 120);
-        info.append(reason);
-      }
-
-      const compare = document.createElement('button');
-      compare.type = 'button';
-      compare.className = 'mini-btn';
-      compare.textContent = 'Karşılaştır';
-      compare.setAttribute('aria-label', (cleanText(child.title, MAX_TITLE) || 'Yeni dal') + ' dalını üst sohbetle karşılaştır');
-      compare.addEventListener('click', () => {
-        const parent = all.find((item) => item.id === child.forkOf);
-        if (parent) openComparison(parent, child, compare);
-      });
-
-      const open = document.createElement('button');
-      open.type = 'button';
-      open.className = 'mini-btn';
-      open.textContent = 'Aç';
-      open.setAttribute('aria-label', (cleanText(child.title, MAX_TITLE) || 'Yeni dal') + ' dalını aç');
-      open.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: child.id } })));
-
-      const rowActions = document.createElement('div');
-      rowActions.className = 'conversation-fork-row-actions';
-      rowActions.append(compare, open);
-      row.append(info, rowActions);
-      list.append(row);
-    });
-    body.append(list);
-  }
-
-  function onRefresh() {
-    decorateMessages();
-    renderBranchPanel();
-    renderGlobalBranchHub();
-  }
-
-  function onStorage(event) {
-    if (event.key === STORAGE_KEY) onRefresh();
-  }
-
-  function onKeydown(event) {
-    if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'f') return;
-    const target = event.target;
-    if (target?.matches?.('input, textarea, select, button, [contenteditable="true"]')) return;
-    const active = currentConversation();
-    const messages = Array.isArray(active?.messages) ? active.messages : [];
-    const last = messages.at(-1);
-    if (!last?.id) return;
-    event.preventDefault();
-    createFork(last.id);
-  }
-
-  function boot() {
-    if (mounted) return;
-    mounted = true;
-    observer = new MutationObserver(onRefresh);
-    observer.observe(ui.messages, { childList: true, subtree: true });
-    const openHandler = () => onRefresh();
-    const forkHandler = () => onRefresh();
-    const storageHandler = (event) => onStorage(event);
-    window.addEventListener('hafize:open-conversation', openHandler);
-    window.addEventListener('hafize:conversation-forks-changed', forkHandler);
-    window.addEventListener('storage', storageHandler);
-    document.addEventListener('keydown', onKeydown);
-    listeners.push(() => observer?.disconnect());
-    listeners.push(() => window.removeEventListener('hafize:open-conversation', openHandler));
-    listeners.push(() => window.removeEventListener('hafize:conversation-forks-changed', forkHandler));
-    listeners.push(() => window.removeEventListener('storage', storageHandler));
-    listeners.push(() => document.removeEventListener('keydown', onKeydown));
-    onRefresh();
-  }
-
-  boot();
-
-  window.HafizeConversationForks = Object.freeze({
-    STORAGE_KEY,
-    MAX_BRANCHES_PER_PARENT,
-    MAX_FORK_DEPTH: FORK_LIMITS.maxDepth,
-    makeFork: (conversation, messageId, all = [conversation]) => makeFork(conversation, messageId, all),
-    childrenOf,
-    lineageOf,
-    downloadConversation,
-    createFork
-  });
-
-  window.addEventListener('beforeunload', () => {
-    for (const off of listeners.splice(0)) off();
-    observer?.disconnect();
-    closeDialog();
-  });
-})()  function showToast(message) {
-    if (!ui.toast) return;
-    ui.toast.textContent = cleanText(message, 180);
-    ui.toast.classList.remove('hidden');
-    globalThis.clearTimeout(showToast.timer);
-    showToast.timer = globalThis.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
-  }
-
-  function isBusy() {
-    return ui.messages.getAttribute('aria-busy') === 'true';
-  }
-
-  function currentConversationId() {
-    return cleanText(ui.messages.dataset.conversationId, 120);
-  }
-
-  function currentConversation(all = readConversations()) {
-    const id = currentConversationId();
-    return all.find((item) => item.id === id) || null;
-  }
-
-  function focusable(container) {
-    return [...container.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
-  }
-
-  function closeDialog() {
-    if (!activeDialog) return;
-    const dialog = activeDialog;
-    activeDialog = null;
-    dialog.remove();
-    previousFocus?.focus?.();
-    previousFocus = null;
-  }
-
-  function openDialog(source, target, onConfirm) {
-    closeDialog();
-    previousFocus = document.activeElement;
-
-    const overlay = document.createElement('div');
-    overlay.id = DIALOG_ID;
-    overlay.className = 'conversation-fork-overlay';
-
-    const panel = document.createElement('section');
-    panel.className = 'conversation-fork-dialog';
-    panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-modal', 'true');
-    panel.setAttribute('aria-labelledby', DIALOG_ID + 'Title');
-    panel.setAttribute('aria-describedby', DIALOG_ID + 'Description');
-
-    const title = document.createElement('h2');
-    title.id = DIALOG_ID + 'Title';
-    title.textContent = 'Konuşmayı buradan dallandır';
-
-    const description = document.createElement('p');
-    description.id = DIALOG_ID + 'Description';
-    const count = Array.isArray(source.messages) ? source.messages.findIndex((m) => m?.id === target.id) + 1 : 0;
-    const snippet = cleanText(target.content, MAX_SNIPPET).replace(/\s+/g, ' ');
-    description.textContent = count + ' mesaj yeni sohbetin başlangıcı olacak. Seçilen mesaj: ' + snippet;
-
-    const note = document.createElement('p');
-    note.className = 'conversation-fork-note';
-    note.textContent = 'Yeni dal yerel sohbette ayrı bir kayıt olur. Şimdilik hiçbir ağ isteği gönderilmez.';
-
-    const actions = document.createElement('div');
-    actions.className = 'conversation-fork-actions';
-    const cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'soft-btn';
-    cancel.textContent = 'Vazgeç';
-    const confirm = document.createElement('button');
-    confirm.type = 'button';
-    confirm.className = 'soft-btn conversation-fork-primary';
-    confirm.textContent = 'Yeni dal oluştur';
-    actions.append(cancel, confirm);
-
-    panel.append(title, description, note, actions);
-    overlay.append(panel);
-    document.body.append(overlay);
-    activeDialog = overlay;
-
-    const finish = (confirmed) => {
-      if (confirmed) onConfirm();
-      else closeDialog();
-    };
-    cancel.addEventListener('click', () => finish(false));
-    confirm.addEventListener('click', () => finish(true));
-    overlay.addEventListener('click', (event) => { if (event.target === overlay) closeDialog(); });
-
-    overlay.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
-      if (event.key === 'Enter' && event.target !== cancel) { event.preventDefault(); finish(true); return; }
-      if (event.key !== 'Tab') return;
-      const nodes = focusable(panel);
-      if (!nodes.length) return;
-      const first = nodes[0];
-      const last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    });
-
-    confirm.focus();
-  }
-
-  function createFork(messageId) {
-    if (isBusy()) return showToast('Yanıt üretimi sürerken yeni dal oluşturulamaz.');
-
-    const all = readConversations();
-    const source = currentConversation(all);
-    if (!source) return showToast('Aktif sohbet bulunamadı.');
-    const target = Array.isArray(source.messages) ? source.messages.find((message) => message?.id === messageId) : null;
-    if (!target) return showToast('Dallandırılacak mesaj bulunamadı.');
-
-    const errors = {
-      MESSAGE_NOT_FOUND: 'Mesaj bulunamadı.',
-      DEPTH_LIMIT: 'Dal derinliği sınırına ulaşıldı.',
-      BRANCH_LIMIT: 'Bu sohbet için en fazla 8 dal oluşturulabilir.',
-      CONVERSATION_LIMIT: 'Yerel sohbet sınırı dolu. Önce bir sohbet sil.',
-      EMPTY_FORK: 'Dala aktarılabilecek mesaj yok.'
-    };
-    const preview = makeFork(source, messageId, all);
-    if (preview.error) return showToast(errors[preview.error] || 'Yeni dal oluşturulamadı.');
-
-    openDialog(source, target, () => {
-      const latest = readConversations();
-      const freshSource = latest.find((item) => item.id === source.id);
-      if (!freshSource) return showToast('Kaynak sohbet değişti; işlem iptal edildi.');
-      const created = makeFork(freshSource, messageId, latest);
-      if (created.error) return showToast(errors[created.error] || 'Yeni dal oluşturulamadı.');
-      const next = [created.conversation, ...latest].slice(0, MAX_CONVERSATIONS);
-      if (!writeConversations(next)) return showToast('Yeni dal cihazda kalıcı olarak kaydedilemedi.');
-      closeDialog();
-      window.dispatchEvent(new CustomEvent('hafize:conversation-forks-changed', { detail: { conversationId: freshSource.id, forkId: created.conversation.id } }));
-      window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: created.conversation.id } }));
-      showToast('Yeni konuşma dalı oluşturuldu.');
-    });
-  }
-
-  function decorateMessages() {
-    ui.messages.querySelectorAll('.message').forEach((article) => {
-      if (article.querySelector('[data-conversation-fork]')) return;
-      const messageId = cleanText(article.dataset.messageId, 120);
-      if (!messageId) return;
-
-      const actions = document.createElement('div');
-      actions.className = 'message-fork-actions';
-      const fork = document.createElement('button');
-      fork.type = 'button';
-      fork.className = 'message-action conversation-fork-button';
-      fork.dataset.conversationFork = messageId;
-      fork.textContent = 'Buradan dallandır';
-      fork.setAttribute('aria-label', 'Bu mesajdan yeni konuşma dalı oluştur');
-      fork.addEventListener('click', () => createFork(messageId));
-      actions.append(fork);
-
-      const target = article.querySelector('.assistant-message-actions') || article;
-      target.append(actions);
-    });
-  }
-
-  function childrenOf(conversationId, all) {
-    return all.filter((item) => item?.forkOf === conversationId)
-      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-      .slice(0, MAX_BRANCHES_PER_PARENT);
-  }
-
-  function lineageOf(conversation, all) {
-    const chain = [];
-    const seen = new Set();
-    let cursor = conversation;
-    while (cursor && !seen.has(cursor.id) && chain.length <= MAX_FORK_DEPTH + 1) {
-      chain.unshift(cursor);
-      seen.add(cursor.id);
-      cursor = cursor.forkOf ? all.find((item) => item.id === cursor.forkOf) || null : null;
-    }
-    return chain;
-  }
-
-  function downloadConversation(conversation) {
-    const snapshot = {
-      version: 1,
-      type: 'hafize-conversation-fork',
-      exportedAt: new Date().toISOString(),
-      conversation
-    };
-    try {
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'hafize-' + (cleanText(conversation.title, 48) || 'sohbet') + '.json';
-      link.click();
-      globalThis.setTimeout?.(() => URL.revokeObjectURL(url), 0);
-      showToast('Dal yedeği indirildi.');
-    } catch {
-      showToast('Dal yedeği oluşturulamadı.');
-    }
-  }
-
-  function renderBranchPanel() {
-    const all = readConversations();
-    const active = currentConversation(all);
-    let panel = document.getElementById(PANEL_ID);
-    if (!active) { panel?.remove(); return; }
-
-    if (!panel) {
-      panel = document.createElement('section');
-      panel.id = PANEL_ID;
-      panel.className = 'conversation-fork-panel utility-card';
-      panel.setAttribute('aria-labelledby', PANEL_ID + 'Title');
-
-      const header = document.createElement('div');
-      header.className = 'utility-head conversation-fork-head';
-      const heading = document.createElement('span');
-      heading.id = PANEL_ID + 'Title';
-      heading.textContent = 'Konuşma dalları';
-      const count = document.createElement('span');
-      count.className = 'conversation-fork-count';
-      header.append(heading, count);
-
-      const body = document.createElement('div');
-      body.className = 'conversation-fork-body';
-      panel.append(header, body);
-      ui.historyBlock.after(panel);
-    }
-
-    const count = panel.querySelector('.conversation-fork-count');
-    const body = panel.querySelector('.conversation-fork-body');
-    const children = childrenOf(active.id, all);
-    count.textContent = String(children.length);
-    body.replaceChildren();
-
-    const context = document.createElement('p');
-    context.className = 'conversation-fork-context';
-    if (active.forkOf) {
-      const parent = all.find((item) => item.id === active.forkOf);
-      context.textContent = parent ? 'Bu dal: ' + cleanText(parent.title, MAX_TITLE) + ' · Seviye ' + (Number(active.forkDepth) || 1) : 'Bu dalın üst sohbeti bulunamıyor.';
-    } else {
-      context.textContent = 'Bu sohbetin yerel dalları';
-    }
-    const tools = document.createElement('div');
-    tools.className = 'conversation-fork-panel-actions';
-    if (active.forkOf) {
-      const parentButton = document.createElement('button');
-      parentButton.type = 'button';
-      parentButton.className = 'mini-btn';
-      parentButton.textContent = 'Üst sohbet';
-      parentButton.setAttribute('aria-label', 'Bu dalın üst sohbetini aç');
-      parentButton.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', {
-        detail: { conversationId: active.forkOf }
-      })));
-      tools.append(parentButton);
-    }
-    const exportButton = document.createElement('button');
-    exportButton.type = 'button';
-    exportButton.className = 'mini-btn';
-    exportButton.textContent = 'Dal yedeği';
-    exportButton.setAttribute('aria-label', 'Bu konuşma dalını JSON olarak dışa aktar');
-    exportButton.addEventListener('click', () => downloadConversation(active));
-    tools.append(exportButton);
-    body.append(context, tools);
-
-    if (!children.length) {
-      const empty = document.createElement('div');
-      empty.className = 'conversation-fork-empty';
-      empty.textContent = 'Henüz bu sohbetten dal oluşturulmadı.';
-      body.append(empty);
-      return;
-    }
-
-    const list = document.createElement('div');
-    list.className = 'conversation-fork-list';
-    list.setAttribute('role', 'list');
-
-    children.forEach((child) => {
-      const row = document.createElement('div');
-      row.className = 'conversation-fork-row';
-      row.setAttribute('role', 'listitem');
-
-      const info = document.createElement('div');
-      info.className = 'conversation-fork-info';
-      const name = document.createElement('strong');
-      name.textContent = cleanText(child.title, MAX_TITLE) || 'Yeni dal';
-      const meta = document.createElement('span');
-      meta.textContent = (Array.isArray(child.messages) ? child.messages.length : 0) + ' mesaj';
-      info.append(name, meta);
-
-      const open = document.createElement('button');
-      open.type = 'button';
-      open.className = 'mini-btn';
-      open.textContent = 'Aç';
-      open.setAttribute('aria-label', (cleanText(child.title, MAX_TITLE) || 'Yeni dal') + ' dalını aç');
-      open.addEventListener('click', () => window.dispatchEvent(new CustomEvent('hafize:open-conversation', { detail: { conversationId: child.id } })));
-
-      row.append(info, open);
-      list.append(row);
-    });
-    body.append(list);
-  }
-
-  function onRefresh() {
-    decorateMessages();
-    renderBranchPanel();
-  }
-
-  function onStorage(event) {
-    if (event.key === STORAGE_KEY) onRefresh();
-  }
-
-  function onKeydown(event) {
-    if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'f') return;
-    const target = event.target;
-    if (target?.matches?.('input, textarea, select, button, [contenteditable="true"]')) return;
-    const active = currentConversation();
-    const messages = Array.isArray(active?.messages) ? active.messages : [];
-    const last = messages.at(-1);
-    if (!last?.id) return;
-    event.preventDefault();
-    createFork(last.id);
-  }
-
-  function boot() {
-    if (mounted) return;
-    mounted = true;
-    observer = new MutationObserver(onRefresh);
-    observer.observe(ui.messages, { childList: true, subtree: true });
-    const openHandler = () => onRefresh();
-    const forkHandler = () => onRefresh();
-    const storageHandler = (event) => onStorage(event);
-    window.addEventListener('hafize:open-conversation', openHandler);
-    window.addEventListener('hafize:conversation-forks-changed', forkHandler);
-    window.addEventListener('storage', storageHandler);
-    document.addEventListener('keydown', onKeydown);
-    listeners.push(() => observer?.disconnect());
-    listeners.push(() => window.removeEventListener('hafize:open-conversation', openHandler));
-    listeners.push(() => window.removeEventListener('hafize:conversation-forks-changed', forkHandler));
-    listeners.push(() => window.removeEventListener('storage', storageHandler));
-    listeners.push(() => document.removeEventListener('keydown', onKeydown));
-    onRefresh();
-  }
-
-  boot();
-
-  window.HafizeConversationForks = Object.freeze({
-    STORAGE_KEY,
-    MAX_BRANCHES_PER_PARENT,
-    MAX_FORK_DEPTH,
-    makeFork: (conversation, messageId, all = [conversation]) => makeFork(conversation, messageId, all),
-    childrenOf,
-    lineageOf,
-    downloadConversation,
-    createFork
-  });
+  (globalThis as typeof globalThis & { HafizeConversationForks?: ForkPublicApi }).HafizeConversationForks = api;
 
   window.addEventListener('beforeunload', () => {
     for (const off of listeners.splice(0)) off();

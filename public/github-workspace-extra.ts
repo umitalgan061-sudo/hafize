@@ -1,6 +1,6 @@
-interface WorkspaceExtraWindow extends Window {
+type WorkspaceExtraWindow = typeof globalThis & {
   HafizeGitHubWorkspaceExtra?: Readonly<{ mount: () => GitHubWorkspaceExtraController | null }>;
-}
+};
 export interface GitHubWorkspaceExtraController {
   readonly mounted: true;
   readonly destroy: () => void;
@@ -81,9 +81,11 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceExtraContr
   dirPath.autocomplete = 'off'; dirPath.spellcheck = false;
   dirPath.setAttribute('aria-label', 'GitHub dizin yolu');
 
-  const directoryButton = make(documentRef, 'Dizin listele', 'mini-btn') as HTMLButtonElement;
-  const compareButton = make(documentRef, 'Ref karşılaştır', 'mini-btn') as HTMLButtonElement;
-  const status = make(documentRef, 'Dizin veya iki ref ile karşılaştırma seç.', 'github-workspace-extra-status');
+  const directoryButton = make(documentRef, 'button', 'Dizin listele', 'mini-btn');
+  directoryButton.type = 'button';
+  const compareButton = make(documentRef, 'button', 'Ref karşılaştır', 'mini-btn');
+  compareButton.type = 'button';
+  const status = make(documentRef, 'p', 'Dizin veya iki ref ile karşılaştırma seç.', 'github-workspace-extra-status');
   status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const result = make(documentRef, 'div', undefined, 'github-workspace-extra-result');
   result.setAttribute('aria-live', 'polite');

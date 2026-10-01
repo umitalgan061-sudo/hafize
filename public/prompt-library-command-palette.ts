@@ -16,11 +16,11 @@ interface SmartFillBridge {
   readonly open?: (item: PromptRecord) => void;
 }
 
-interface PaletteWindow extends Window {
+type PaletteWindow = typeof globalThis & {
   HafizePromptLibrary?: PromptLibraryCore;
   HafizePromptLibrarySmartFill?: SmartFillBridge;
   PromptLibraryCommandPalette?: Readonly<{ mount: () => PaletteController | null; results: (query: string) => PromptRecord[] }>;
-}
+};
 
 export interface PaletteController {
   readonly mounted: true;
@@ -189,7 +189,8 @@ function mount(documentRef: Document = root.document, rootRef: PaletteWindow = r
       if (palette.hidden) open(cursor - match[0].length + (match[1] ? 1 : 0));
       if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
       if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-      if (event.key === 'Enter' && current[activeIndex]) { event.preventDefault(); insert(current[activeIndex]); }
+      const selected = current[activeIndex];
+      if (event.key === 'Enter' && selected) { event.preventDefault(); insert(selected); }
     } else if (palette.hidden && !event.ctrlKey && !event.metaKey && event.key === ' ') {
       open(cursor - match[0].length + (match[1] ? 1 : 0));
     }
@@ -209,7 +210,10 @@ function mount(documentRef: Document = root.document, rootRef: PaletteWindow = r
     if (event.key === 'Escape') { event.preventDefault(); close(); }
     else if (event.key === 'ArrowDown') { event.preventDefault(); move(1); }
     else if (event.key === 'ArrowUp') { event.preventDefault(); move(-1); }
-    else if (event.key === 'Enter' && current[activeIndex]) { event.preventDefault(); insert(current[activeIndex]); }
+    else if (event.key === 'Enter') {
+      const selected = current[activeIndex];
+      if (selected) { event.preventDefault(); insert(selected); }
+    }
   };
   const onShortcut = (event: KeyboardEvent): void => {
     if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'o') return;

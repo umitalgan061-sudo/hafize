@@ -1,9 +1,9 @@
-interface HintsWindow extends Window {
+type HintsWindow = typeof globalThis & {
   HafizePromptSmartFillHints?: Readonly<{
     mount: () => void;
     paint: (panel: HTMLElement) => void;
   }>;
-}
+};
 
 const root = globalThis as HintsWindow;
 const CARD_ID = 'promptLibraryCard';

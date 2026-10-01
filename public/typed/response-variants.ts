@@ -127,11 +127,12 @@ export function selectResponseVariant(
   maxLength = MAX_RESPONSE_LENGTH
 ): ResponseAlternateState | null {
   const variants = listResponseVariants(current, history, maxLength);
-  if (!Number.isInteger(variantIndex) || variantIndex <= 0 || variantIndex >= variants.length) return null;
-  const selected = variants[variantIndex];
+  const chosen = typeof variantIndex === 'number' && Number.isInteger(variantIndex) ? variantIndex : -1;
+  if (chosen <= 0 || chosen >= variants.length) return null;
+  const selected = variants[chosen];
   if (!selected) return null;
   const remaining = variants
-    .filter((_variant, index) => index !== 0 && index !== variantIndex)
+    .filter((_variant, index) => index !== 0 && index !== chosen)
     .map((variant) => variant.content);
   return {
     current: selected.content,

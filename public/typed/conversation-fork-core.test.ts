@@ -11,12 +11,17 @@ import {
   getConversationDepth,
   normalizeForkMessage
 } from './conversation-fork-core.ts';
+import type { CreateForkResult, ForkConversation, ForkMessage, ForkRole } from './conversation-fork-core.ts';
 
-const message = (id, role = 'user', content = 'mesaj') => ({
+const message = (id: string, role: ForkRole = 'user', content = 'mesaj'): ForkMessage => ({
   id, role, content, at: '2026-09-29T00:00:00.000Z'
 });
 
-const conversation = (id, messages, extra = {}) => ({
+const conversation = (
+  id: string,
+  messages: readonly ForkMessage[],
+  extra: Partial<ForkConversation> = {}
+): ForkConversation => ({
   id,
   title: 'Ana sohbet',
   agentId: 'general',
@@ -26,6 +31,11 @@ const conversation = (id, messages, extra = {}) => ({
   messages,
   ...extra
 });
+
+function forked(result: CreateForkResult): ForkConversation {
+  if (!result.conversation) throw new Error('EXPECTED_FORK_CONVERSATION: ' + String(result.error));
+  return result.conversation;
+}
 
 describe('conversation fork core', () => {
   it('normalizes copied messages without accepting invalid roles', () => {
@@ -46,15 +56,26 @@ describe('conversation fork core', () => {
       now: () => '2026-09-29T01:00:00.000Z'
     });
     expect(result.error).toBeUndefined();
-    expect(result.conversation.messages.map((item) => item.id)).toEqual(['m1', 'm2']);
-    expect(result.conversation.forkOf).toBe('root');
-    expect(result.conversation.forkMessageId).toBe('m2');
+    expect(forked(result).messages.map((item) => item.id)).toEqual(['m1', 'm2']);
+    expect(forked(result).forkOf).toBe('root');
+    expect(forked(result).forkMessageId).toBe('m2');
   });
 
   it('rejects unknown messages and empty forks', () => {
     const source = conversation('root', [message('m1')]);
-    expect(createFork(source, 'missing', [source]).error).toBe(FORK_ERRORS.messageNotFound);
-    expect(createFork(source, 'm1', [conversation('root', [])])).toEqual({ error: FORK_ERRORS.messageNotFound });
+    expect(createFork(source, 'missing', [source])).toEqual({ error: FORK_ERRORS.messageNotFound });
+    expect(createFork(conversation('root', []), 'm1', [source]).error).toBe(FORK_ERRORS.messageNotFound);
+    expect(createFork(null, 'm1', [source]).error).toBe(FORK_ERRORS.messageNotFound);
+
+    const blank = conversation('root', [{ ...message('m1'), content: '   ' }]);
+    expect(createFork(blank, 'm1', [blank]).error).toBe(FORK_ERRORS.emptyFork);
+  });
+
+  it('treats the registry list as the limit source, not as the message source', () => {
+    const source = conversation('root', [message('m1')]);
+    const result = createFork(source, 'm1', [], { idFactory: () => 'fork-id', now: () => '2026-09-29T04:00:00Z' });
+    expect(forked(result).forkOf).toBe('root');
+    expect(forked(result).messages).toHaveLength(1);
   });
 
   it('enforces direct branch and total conversation limits', () => {
@@ -88,19 +109,20 @@ describe('conversation fork core', () => {
       idFactory: () => 'fork-id',
       now: () => '2026-09-29T03:00:00Z'
     });
-    expect(result.conversation.title).toBe('Özel araştırma dalı');
+    expect(forked(result).title).toBe('Özel araştırma dalı');
   });
 
-  it('trims unsafe null bytes and enforces fork title bounds', () => {
+  it('trims unsafe control bytes and enforces fork title bounds', () => {
     const value = cleanForkText('  abc' + String.fromCharCode(0) + 'def  ', 5);
     expect(value).toBe('abcde');
+    expect(cleanForkText('a\u0007b\u007fc', 10)).toBe('abc');
     const source = conversation('root', [message('m1')]);
     const result = createFork(source, 'm1', [source], {
       title: 'x'.repeat(500),
       idFactory: () => 'fork-id',
       now: () => '2026-09-29T03:00:00Z'
     });
-    expect(result.conversation.title.length).toBeLessThanOrEqual(FORK_LIMITS.maxTitle);
+    expect(forked(result).title.length).toBeLessThanOrEqual(FORK_LIMITS.maxTitle);
   });
 
   it('returns updated direct children and lineage root-to-current', () => {
@@ -109,6 +131,15 @@ describe('conversation fork core', () => {
     const newer = conversation('newer', [message('m1')], { forkOf: 'root', updatedAt: '2026-09-29T00:00:00Z' });
     expect(directChildren('root', [root, older, newer]).map((item) => item.id)).toEqual(['newer', 'older']);
     expect(conversationLineage(newer, [root, older, newer]).map((item) => item.id)).toEqual(['root', 'newer']);
+  });
+
+  it('does not reorder the caller list while listing direct children', () => {
+    const root = conversation('root', [message('m1')]);
+    const older = conversation('older', [message('m1')], { forkOf: 'root', updatedAt: '2026-09-28T00:00:00Z' });
+    const newer = conversation('newer', [message('m1')], { forkOf: 'root', updatedAt: '2026-09-29T00:00:00Z' });
+    const all = [root, older, newer];
+    directChildren('root', all);
+    expect(all.map((item) => item.id)).toEqual(['root', 'older', 'newer']);
   });
 
   it('builds a recovery snapshot without mutating the conversation', () => {
@@ -121,15 +152,34 @@ describe('conversation fork core', () => {
   });
 
   it('bounded copies preserve metadata categories', () => {
-    const source = message('m1', 'assistant', 'cevap');
-    source.feedback = 'positive';
-    source.alternates = ['a', 'b', 'c', 'd'];
-    source.toolActivities = Array.from({ length: 10 }, (_, i) => ({ label: 'tool-' + i, state: 'success' }));
-    source.generation = { model: 'm', agentId: 'a', toolsEnabled: true, generatedAt: 'now', durationMs: 44 };
+    const source = {
+      ...message('m1', 'assistant', 'cevap'),
+      feedback: 'positive',
+      alternates: ['a', 'b', 'c', 'd'],
+      toolActivities: Array.from({ length: 10 }, (_, i) => ({ label: 'tool-' + i, state: 'success' })),
+      generation: { model: 'm', agentId: 'a', toolsEnabled: true, generatedAt: 'now', durationMs: 44 }
+    };
     const copy = normalizeForkMessage(source, () => 'copy');
-    expect(copy.feedback).toBe('positive');
-    expect(copy.alternates).toHaveLength(3);
-    expect(copy.toolActivities).toHaveLength(4);
-    expect(copy.generation.durationMs).toBe(44);
+    expect(copy?.feedback).toBe('positive');
+    expect(copy?.alternates).toHaveLength(3);
+    expect(copy?.toolActivities).toHaveLength(4);
+    expect(copy?.generation?.durationMs).toBe(44);
+  });
+
+  it('drops metadata that is not shaped like fork metadata', () => {
+    const copy = normalizeForkMessage({
+      id: 'm1',
+      role: 'assistant',
+      content: 'cevap',
+      at: '2026-09-29T00:00:00.000Z',
+      feedback: 'maybe',
+      alternates: 'not-an-array',
+      toolActivities: [{ state: 'running' }],
+      generation: { model: 'm', durationMs: -5 }
+    });
+    expect(copy?.feedback).toBeUndefined();
+    expect(copy?.alternates).toBeUndefined();
+    expect(copy?.toolActivities).toEqual([]);
+    expect(copy?.generation?.durationMs).toBeNull();
   });
 });

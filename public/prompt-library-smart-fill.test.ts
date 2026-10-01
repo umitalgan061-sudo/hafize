@@ -24,7 +24,7 @@ describe('Prompt Library Smart Fill', () => {
     const presets = Array.from({ length: 9 }, (_, index) => ({ id: `id-${index}`, name: `Set ${index}`, values: { konu: 'x' } }));
     expect(writePresets('abc', presets)).toBe(true);
     expect(setItem).toHaveBeenCalledTimes(1);
-    const [key, raw] = setItem.mock.calls[0];
+    const [key, raw] = setItem.mock.calls[0] as [string, string];
     expect(key).toBe('hafize.prompt-library.smart-fill.v1.abc');
     expect(JSON.parse(raw)).toHaveLength(6);
   });

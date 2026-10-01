@@ -11,6 +11,8 @@ import {
   type ModelsResponse
 } from './hafize-types.ts';
 
+export { HafizeApiError };
+
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
@@ -84,7 +86,7 @@ export class HafizeApiClient {
         () => controller.abort(new DOMException('Request timeout', 'TimeoutError')),
         timeoutMs
       );
-      const parentSignal = options.signal;
+      const parentSignal = options.signal ?? undefined;
       const abortParent = () => controller.abort(parentSignal?.reason ?? new DOMException('Aborted', 'AbortError'));
 
       try {
@@ -120,15 +122,15 @@ export class HafizeApiClient {
   }
 
   health(signal?: AbortSignal): Promise<HealthResponse> {
-    return this.request('/api/health', { signal, timeoutMs: 8000, retry: 1 }).then(parseHealth);
+    return this.request('/api/health', { ...(signal ? { signal } : {}), timeoutMs: 8000, retry: 1 }).then(parseHealth);
   }
 
   models(signal?: AbortSignal): Promise<ModelsResponse> {
-    return this.request('/api/models', { signal, timeoutMs: 12_000, retry: 1 }).then(parseModels);
+    return this.request('/api/models', { ...(signal ? { signal } : {}), timeoutMs: 12_000, retry: 1 }).then(parseModels);
   }
 
   agents(signal?: AbortSignal): Promise<AgentsResponse> {
-    return this.request('/api/agents', { signal, timeoutMs: 8000, retry: 1 }).then(parseAgents);
+    return this.request('/api/agents', { ...(signal ? { signal } : {}), timeoutMs: 8000, retry: 1 }).then(parseAgents);
   }
 }
 

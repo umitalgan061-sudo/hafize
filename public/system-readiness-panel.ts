@@ -38,15 +38,20 @@ const make = <K extends keyof HTMLElementTagNameMap>(documentRef: Document, tag:
   return node;
 };
 
-async function fetchHealth(signal?: AbortSignal): Promise<HealthPayload> {
-  const response = await fetch('/api/health', { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store', signal });
+export async function fetchHealth(signal?: AbortSignal): Promise<HealthPayload> {
+  const response = await fetch('/api/health', {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+    ...(signal ? { signal } : {})
+  });
   if (!response.ok) throw new Error('HEALTH_HTTP_' + response.status);
   const data: unknown = await response.json();
   if (!data || typeof data !== 'object') throw new Error('HEALTH_INVALID_RESPONSE');
   return data as HealthPayload;
 }
 
-function mount(documentRef: Document = document, root: Window = window) {
+export function mount(documentRef: Document = document, root: Window = window) {
   const rail = documentRef.querySelector<HTMLElement>('.utility-rail');
   if (!rail || documentRef.getElementById(CARD_ID)) return null;
 

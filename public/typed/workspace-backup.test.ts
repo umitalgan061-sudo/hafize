@@ -94,7 +94,7 @@ describe('workspace backup core', () => {
 
     const payload = await api.createBackup(storage as unknown as Storage, ['hafize.prompt-library.v1']);
     expect(payload.sections).toHaveLength(1);
-    expect(payload.sections[0].key).toBe('hafize.prompt-library.v1');
+    expect(payload.sections[0]?.key).toBe('hafize.prompt-library.v1');
     expect(payload.integrity?.algorithm).toBe('SHA-256');
 
     const inspected = await api.inspectBackup(JSON.stringify(payload));
@@ -109,7 +109,7 @@ describe('workspace backup core', () => {
 
     const payload = await api.createBackup(storage as unknown as Storage);
     const tampered = JSON.parse(JSON.stringify(payload));
-    tampered.sections[0].data[0].body = 'değiştirildi';
+    tampered.sections[0]?.data[0].body = 'değiştirildi';
 
     const inspected = await api.inspectBackup(JSON.stringify(tampered));
     expect(inspected.valid).toBe(false);
