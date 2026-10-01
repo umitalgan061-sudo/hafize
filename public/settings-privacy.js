@@ -259,13 +259,26 @@
     filter.placeholder = 'Veri yüzeyi ara…';
     filter.setAttribute('aria-label', 'Yerel veri yüzeylerinde ara');
     filter.className = 'privacy-data-filter';
+    const sort = documentRef.createElement('select');
+    sort.setAttribute('aria-label', 'Veri yüzeylerini sırala');
+    [['name', 'Ada göre'], ['size', 'Boyuta göre']].forEach(function (item) {
+      const option = documentRef.createElement('option'); option.value = item[0]; option.textContent = item[1]; sort.append(option);
+    });
+    const onlyPresent = documentRef.createElement('input');
+    onlyPresent.type = 'checkbox';
+    onlyPresent.id = 'privacyDataOnlyPresent';
+    const onlyPresentLabel = documentRef.createElement('label');
+    onlyPresentLabel.className = 'privacy-data-only-present';
+    onlyPresentLabel.append(onlyPresent, make(documentRef, 'span', 'Yalnız dolu yüzeyler'));
+    const filterControls = make(documentRef, 'div', undefined, 'privacy-data-filter-controls');
+    filterControls.append(filter, sort, onlyPresentLabel);
     const list = make(documentRef, 'div', undefined, 'privacy-data-list');
     list.setAttribute('role', 'list');
     const status = make(documentRef, 'div', '', 'privacy-data-status');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
 
-    body.append(summary, actions, filter, list, status, make(documentRef, 'p', 'Tanınmayan localStorage alanları gösterilmez ve toplu temizlemede silinmez. Oturum, token, OAuth secret ve sunucu görev verileri bu merkezin kapsamı dışındadır.', 'privacy-data-note'));
+    body.append(summary, actions, filterControls, list, status, make(documentRef, 'p', 'Tanınmayan localStorage alanları gösterilmez ve toplu temizlemede silinmez. Oturum, token, OAuth secret ve sunucu görev verileri bu merkezin kapsamı dışındadır.', 'privacy-data-note'));
     panel.append(head, body);
     settings.append(panel);
 
@@ -302,7 +315,10 @@
       const query = clean(filter.value, MAX_SEARCH).toLocaleLowerCase('tr-TR');
       [['data', 'Kullanıcı verileri'], ['preference', 'Tercihler']].forEach(function (group) {
         list.append(make(documentRef, 'h3', group[1], 'privacy-data-group-title'));
-        snapshot.surfaces.filter(function (item) { return item.group === group[0] && (!query || (item.label + ' ' + item.description).toLocaleLowerCase('tr-TR').includes(query)); }).forEach(function (surface) {
+        const filtered = snapshot.surfaces.filter(function (item) {
+          return item.group === group[0] && (!query || (item.label + ' ' + item.description).toLocaleLowerCase('tr-TR').includes(query)) && (!onlyPresent.checked || item.present);
+        }).sort(function (a, b) { return sort.value === 'size' ? b.bytes - a.bytes : a.label.localeCompare(b.label, 'tr'); });
+        filtered.forEach(function (surface) {
           const row = make(documentRef, 'article', undefined, 'privacy-data-row');
           row.dataset.privacySurface = surface.id;
           const copy = make(documentRef, 'div', undefined, 'privacy-data-copy');
@@ -356,6 +372,8 @@
 
     on(refresh, 'click', function () { render(); void refreshEstimate(); setStatus('Yerel veri özeti yenilendi.'); });
     on(filter, 'input', function () { render(); });
+    on(sort, 'change', function () { render(); });
+    on(onlyPresent, 'change', function () { render(); });
     on(report, 'click', function () { void downloadReport(); });
     on(copySummary, 'click', async function () {
       try {
