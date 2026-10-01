@@ -1,4 +1,4 @@
-import { createScheduleExecutionLeaseBoundary } from './schedule-execution-lease.ts';
+import { createScheduleExecutionLeaseBoundary, type ScheduleLeaseAdapter, type ScheduleExecutionLease } from './schedule-execution-lease.ts';
 
 const PROVIDER_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const HOLDER_PATTERN = /^[A-Za-z0-9._:-]{1,200}$/;
@@ -15,7 +15,7 @@ export interface ScheduleLeaseConfig {
 export interface ScheduleLeaseRuntime {
   readonly configured: boolean;
   readonly provider: string | null;
-  readonly lease: { readonly acquire: (...args: unknown[]) => unknown } | null;
+  readonly lease: ScheduleExecutionLease | null;
   readonly renewIntervalMs: number | null;
 }
 type Env = Record<string, string | undefined>;
