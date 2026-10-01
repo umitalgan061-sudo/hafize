@@ -58,10 +58,13 @@ function mount(documentRef: Document = document, root: Window = window) {
   head.append(make(documentRef, 'span', 'mini-icon', '◈'));
   head.append(make(documentRef, 'strong', '', 'Sistem sağlığı'));
 
+  const copy = make(documentRef, 'button', 'mini-btn', 'Raporu kopyala');
+  copy.type = 'button';
+  copy.setAttribute('aria-label', 'Sistem sağlık özetini panoya kopyala');
   const refresh = make(documentRef, 'button', 'mini-btn', 'Yenile');
   refresh.type = 'button';
   refresh.setAttribute('aria-label', 'Sistem sağlığı durumunu yenile');
-  head.append(refresh);
+  head.append(copy, refresh);
 
   const title = make(documentRef, 'span', 'system-readiness-title', 'Hafize çalışma durumu');
   title.id = 'systemReadinessTitle';
@@ -77,6 +80,7 @@ function mount(documentRef: Document = document, root: Window = window) {
   list.setAttribute('role', 'list');
 
   const timestamp = make(documentRef, 'div', 'system-readiness-time', '');
+  let lastPayload: HealthPayload | null = null;
   const error = make(documentRef, 'div', 'system-readiness-error', '');
   error.setAttribute('role', 'alert');
 
@@ -88,6 +92,7 @@ function mount(documentRef: Document = document, root: Window = window) {
   let destroyed = false;
 
   const render = (payload: HealthPayload) => {
+    lastPayload = payload;
     const readiness = payload.readiness;
     const state = readiness?.state || 'unknown';
     status.textContent = stateLabels[state] || 'Bilinmiyor';
@@ -131,6 +136,18 @@ function mount(documentRef: Document = document, root: Window = window) {
     }
   };
 
+  copy.addEventListener('click', async () => {
+    const readiness = lastPayload?.readiness;
+    if (!readiness) { error.textContent = 'Önce sistem sağlığı kontrol edilmeli.'; return; }
+    const lines = Object.entries(readiness.components || {}).map(([key, value]) => (labels[key] || key) + ': ' + (stateLabels[value] || value));
+    const report = ['Hafize sistem sağlığı: ' + (stateLabels[readiness.state || 'unknown'] || 'Bilinmiyor'), ...lines].join('\\n');
+    try {
+      await navigator.clipboard.writeText(report.slice(0, 4000));
+      error.textContent = 'Güvenli özet panoya kopyalandı.';
+    } catch {
+      error.textContent = 'Rapor panoya kopyalanamadı.';
+    }
+  });
   refresh.addEventListener('click', refreshHealth);
   void refreshHealth();
   timer = root.setInterval(refreshHealth, REFRESH_MS);
