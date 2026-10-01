@@ -6,7 +6,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSwPolicy() {
   'use strict';
   const CACHE_PREFIX = 'hafize-shell-';
-  const CURRENT_CACHE = `${CACHE_PREFIX}v50`;
+  const CURRENT_CACHE = `${CACHE_PREFIX}v51`;
   const SHELL_ASSETS = Object.freeze([
     '/', '/index.html', '/offline.html',
     '/scheduled-task-preview.css', '/scheduled-task-duplicate.css', '/scheduled-task-templates.css', '/scheduled-task-planning.css', '/scheduled-task-templates-backup.css', '/scheduled-task-status-summary.css', '/scheduled-task-preview-activity.css', '/scheduled-task-template-presets.css', '/scheduled-task-draft.css', '/scheduled-task-insights.css', '/scheduled-task-actions.css', '/scheduled-task-detail.css', '/scheduled-task-templates-backup.css',
@@ -15,7 +15,7 @@
     '/settings-workspace.css', '/chat-history-management.css', '/chat-drafts.css',
     '/conversation-workspace.css', '/conversation-workspace-keyboard.css', '/conversation-forks.css', '/message-workspace.css',
     '/prompt-library.css', '/prompt-library-smart-views.css', '/prompt-library-smart-views-extras.css', '/prompt-library-smart-views-safety.css', '/model-preferences.css', '/prompt-library-safety.js', '/prompt-library-import-preview.js', '/prompt-library-diagnostics.js', '/prompt-library-smart-fill.css', '/prompt-library-command-palette.css',
-    '/prompt-library-collections.css', '/prompt-library-revisions.css', '/workspace-backup.css', '/github-workspace.css', '/github-workspace-extra.css', '/github-workspace-actions.css', '/github-workspace-details.css', '/github-workspace-write.css', '/connector-hub.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
+    '/prompt-library-collections.css', '/prompt-library-revisions.css', '/workspace-backup.css', '/settings-privacy.css', '/github-workspace.css', '/github-workspace-extra.css', '/github-workspace-actions.css', '/github-workspace-details.css', '/github-workspace-write.css', '/connector-hub.css', '/composer-history.css', '/scheduled-tasks.css', '/hafize-runtime.css',
     '/prompt-library-smart-insert.css', '/prompt-library-smart-insert-center.css', '/prompt-library-smart-insert-history.css', '/prompt-library-smart-insert-suggestions.css', '/prompt-library-smart-insert-activity.css',
     '/typed-build/auth.js', '/typed-build/app-shell.js', '/typed-build/ui-shell.js', '/typed-build/voice-input.js', '/typed-build/voice-output.js', '/chat-composer-features.js', '/chat-history-search.js', '/chat-history-export.js',
     '/chat-history-management.js', '/chat-drafts.js', '/typed-build/conversation-workspace.js', '/typed-build/conversation-forks.js', '/typed-build/message-workspace.js', '/conversation-workspace-keyboard.js',
@@ -27,7 +27,7 @@
     '/composer-history.js', '/composer-history-panel.js', '/composer-history-backup.js', '/composer-history-help.js', '/composer-history-settings.js',
     '/typed-build/scheduled-tasks.js', '/scheduled-tasks-enhancements.js', '/scheduled-tasks-keyboard.js', '/scheduled-task-preview.js', '/scheduled-task-duplicate.js', '/scheduled-task-templates.js', '/scheduled-task-planning.js', '/scheduled-task-templates-backup.js', '/scheduled-task-status-summary.js', '/scheduled-task-preview-activity.js', '/scheduled-task-template-presets.js', '/scheduled-task-draft.js', '/scheduled-task-insights.js', '/scheduled-task-actions.js', '/scheduled-task-detail.js', '/scheduled-task-export.js', '/scheduled-task-templates-backup.js',
     '/voice-input.js', '/voice-output.js', '/hands-free.js', '/hands-free-background-guard.js', '/screen-share.js',
-    '/settings-workspace.js', '/workspace-navigation.js', '/ui-shell.js',
+    '/settings-workspace.js', '/settings-privacy.js', '/workspace-navigation.js', '/ui-shell.js',
     '/typed-build/app-runtime.js', '/typed-build/prompt-library-smart-fill.js', '/typed-build/prompt-library-command-palette.js',
     '/typed-build/prompt-library-smart-fill-hints.js', '/typed-build/workspace-backup.js', '/typed-build/github-workspace.js', '/typed-build/github-workspace-extra.js', '/typed-build/github-workspace-actions.js', '/typed-build/github-workspace-details.js', '/typed-build/github-workspace-write.js', '/typed-build/scheduled-tasks-countdown.js',
     '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
