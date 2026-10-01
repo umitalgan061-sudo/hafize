@@ -125,6 +125,14 @@ export function assertShellCacheContract() {
   for (const asset of indexHtmlAssets()) {
     assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `index.html asset ${asset} is cached by the service worker`);
   }
+  for (const asset of injectedRuntimeAssets()) {
+    if (!/^\/[\w./-]+\.(?:css|js)$/.test(asset) || asset.startsWith('/api/')) continue;
+    if (!existsSync(path.join(PUBLIC_DIR, asset.slice(1)))) continue;
+    assert.ok(
+      swPolicy.SHELL_ASSETS.includes(asset),
+      `runtime-injected asset ${asset} is cached by the service worker`
+    );
+  }
   const referenced = referencedShellAssets();
   for (const asset of swPolicy.SHELL_ASSETS) {
     if (NON_INDEX_SHELL_ASSETS.includes(asset) || !/\.(css|js)$/.test(asset)) continue;

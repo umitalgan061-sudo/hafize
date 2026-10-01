@@ -8,7 +8,8 @@ const chat = fs.readFileSync('public/chat-markdown.js', 'utf8');
 
 assert.match(app, /updateMessage\(assistantId, content\)/);
 assert.match(chat, /HafizeMarkdown/);
-assert.match(chat, /MutationObserver/);
+assert.match(chat, /requestAnimationFrame/, 'streaming paints are coalesced into a frame');
+assert.match(chat, /cancelAnimationFrame/, 'a superseded frame is cancelled');
 assert.match(renderer, /createElement/);
 assert.match(renderer, /textContent/);
 assert.doesNotMatch(renderer, /innerHTML\s*=/);

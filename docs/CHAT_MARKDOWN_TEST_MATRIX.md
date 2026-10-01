@@ -13,7 +13,7 @@ içindeki küçük `document` taklidini kullanır (bu dosya `test-`/`validate-`
 | `test-chat-markdown-dom.mjs` | Düğüm ağacı | Başlık seviyeleri, kod bloğu başlık çubuğu, tablo `scope`/`data-align`, yeniden render'ın eskiyi silmesi |
 | `test-chat-markdown-streaming.mjs` | Akış davranışı | Yanıtın her ön eki çizilebilir; dört delta tek frame; nihai boyama bekleyen frame'i iptal eder; `aria-busy` yaşam döngüsü |
 | `test-chat-markdown-limits.mjs` | Sınırlar ve kötü girdi | 3 000 karakterlik ayraç çorbası 1.5 sn bütçe içinde biter; 60 kat iç içe alıntı derinlik sınırında durur; en derin metin kaybolmaz |
-| `test-chat-markdown-integration.mjs` | Bağlantı noktaları | Script sırası, offline shell listesi, `app.js` boyama çağrıları, aşağı akış tüketicileri, CSS kapsamı |
+| `test-chat-markdown-integration.mjs` | Bağlantı noktaları | Bootstrap enjeksiyon sırası (stil → renderer → sohbet katmanı), offline shell listesi, `app-shell.ts` boyama çağrıları, aşağı akış tüketicileri, CSS kapsamı |
 
 ## Kapsanan sınır durumları
 

@@ -200,3 +200,23 @@ ol.md-list { list-style: decimal; }
   .md-heading-1 { font-size: 1.3em; }
   .md-table th, .md-table td { padding: 7px 9px; }
 }
+
+@media (forced-colors: active) {
+  .md-inline-code,
+  .md-code,
+  .md-code-head,
+  .md-code-copy,
+  .md-table-wrap,
+  .md-table th,
+  .md-table td {
+    border-color: CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .md-quote { border-inline-start-color: CanvasText; }
+  .md-divider { border-color: CanvasText; }
+  .md-link { color: LinkText; }
+  .md-code-copy:focus-visible,
+  .md-link:focus-visible { outline: 2px solid Highlight; outline-offset: 2px; }
+  .md-code-copy[data-state="copied"] { color: CanvasText; }
+}

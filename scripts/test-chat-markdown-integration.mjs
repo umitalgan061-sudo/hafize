@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertShellAssets, assertShellCacheContract, indexHtmlAssets } from './shell-cache-contract.mjs';
+import { assertShellAssets, assertShellCacheContract, indexHtmlAssets, injectedRuntimeAssets, swPolicy } from './shell-cache-contract.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (file) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -19,20 +19,25 @@ const css = read('public/chat-markdown.css');
 
 /* The page loads the three new files, in a usable order ------------------ */
 
-for (const asset of ['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
-  assert.ok(html.includes(asset), `index.html loads ${asset}`);
-}
-
-const scriptOrder = [...html.matchAll(/<script src="(\/[^"]+)"/g)].map((match) => match[1]);
-const rendererAt = scriptOrder.indexOf('/markdown-renderer.js');
-const chatAt = scriptOrder.indexOf('/chat-markdown.js');
-const appAt = scriptOrder.indexOf('/app.js');
-assert.ok(rendererAt >= 0 && chatAt >= 0 && appAt >= 0);
-assert.ok(rendererAt < chatAt, 'the renderer is defined before the chat layer that uses it');
+const bootstrap = read('public/prompt-library-revisions-enhancements.js');
 assert.ok(
-  chatAt < appAt,
-  'both are defined before app.js, so the very first render already paints markdown'
+  html.includes('/prompt-library-revisions-enhancements.js'),
+  'index.html loads the bootstrap that injects the chat markdown layer'
 );
+for (const asset of ['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
+  assert.ok(bootstrap.includes(asset), `the bootstrap injects ${asset}`);
+  assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `${asset} is precached for offline use`);
+}
+assert.match(
+  bootstrap,
+  /loadScript\(RENDERER, \(\) => loadScript\(CHAT\)\)/,
+  'the chat layer is injected only after the renderer it calls has loaded'
+);
+assert.match(bootstrap, /loadLink\(\);/, 'the stylesheet is injected with the layer');
+// A sessionStorage flag here used to outlive the injected DOM, so a reload
+// left answers unstyled. Dedupe must be against the document.
+assert.doesNotMatch(bootstrap, /sessionStorage[\s\S]{0,120}chat-markdown\.bootstrap/, 'injection is not gated on sessionStorage');
+assert.match(bootstrap, /alreadyInHead\(/, 'injection dedupes against the document');
 for (const match of html.matchAll(/<script src="\/(?:markdown-renderer|chat-markdown)\.js"([^>]*)>/g)) {
   assert.ok(match[1].includes('defer'), 'the new scripts are deferred like the rest');
 }
@@ -41,9 +46,9 @@ for (const match of html.matchAll(/<script src="\/(?:markdown-renderer|chat-mark
 
 assertShellCacheContract();
 assertShellAssets(['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css'], 'markdown asset');
-const indexAssets = new Set(indexHtmlAssets());
+const injected = injectedRuntimeAssets();
 for (const asset of ['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
-  assert.ok(indexAssets.has(asset), `${asset} is discovered from index.html`);
+  assert.ok(injected.has(asset), `${asset} is discovered from the runtime bootstrap`);
 }
 
 /* app.js paints through the markdown layer ------------------------------- */
@@ -80,7 +85,7 @@ assert.match(
 );
 assert.match(
   voiceOutput,
-  /HafizeChatMarkdown\?\.sourceFor\?\.\(node\)/,
+  /HafizeChatMarkdown\?\.sourceFor\?\.\(node!?\)/,
   'voice output keeps reading markdown, which it already knows how to strip'
 );
 

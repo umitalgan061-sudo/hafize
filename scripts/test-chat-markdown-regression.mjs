@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 
 const files = {
   renderer: fs.readFileSync('public/markdown-renderer.ts', 'utf8'),
@@ -20,9 +21,8 @@ const requiredRendererContracts = [
   /appendChild|append\(/,
   /https?:/,
   /mailto:/,
-  /javascript/i,
-  /data:/,
-  /escape/i,
+  /SAFE_SCHEMES/,
+  /ESCAPABLE_PATTERN/,
   /table/i,
   /blockquote/i,
   /code/i,
@@ -40,8 +40,39 @@ const forbiddenExecution = [
   /srcdoc/i,
   /<script/i
 ];
+/** Source with comments removed, so a pattern matches code and not prose. */
+function codeOnly(source) {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/^[ \t]*\/\/.*$/gm, ' ');
+}
 for (const source of [files.renderer, files.chat]) {
-  for (const contract of forbiddenExecution) assert.doesNotMatch(source, contract, `unsafe contract ${contract} present`);
+  const code = codeOnly(source);
+  for (const contract of forbiddenExecution) assert.doesNotMatch(code, contract, `unsafe contract ${contract} present`);
+}
+
+// The allowlist is only as good as what it actually rejects, so exercise it.
+const renderer = createRequire(import.meta.url)('../public/markdown-renderer.ts');
+assert.deepEqual([...renderer.SAFE_SCHEMES], ['http:', 'https:', 'mailto:']);
+for (const safe of ['https://example.com/a', 'http://example.com', 'mailto:a@example.com']) {
+  assert.equal(renderer.safeUrl(safe), safe, `safe destination survives: ${safe}`);
+}
+for (const hostile of [
+  'javascript:alert(1)',
+  'JavaScript:alert(1)',
+  'java\tscript:alert(1)',
+  'java\nscript:alert(1)',
+  ' javascript:alert(1)',
+  'data:text/html,<script>alert(1)</script>',
+  'vbscript:msgbox(1)',
+  'file:///etc/passwd',
+  'blob:https://example.com/x',
+  '/admin/delete',
+  '//evil.example/x',
+  './relative',
+  ''
+]) {
+  assert.equal(renderer.safeUrl(hostile), '', `hostile destination is dropped: ${JSON.stringify(hostile)}`);
 }
 
 const chatContracts = [
@@ -49,17 +80,24 @@ const chatContracts = [
   /cancelAnimationFrame/,
   /aria-busy/,
   /navigator\.clipboard/,
-  /MutationObserver/,
-  /assistant/i,
   /content/,
   /copy|kopy/i,
   /stream/i
 ];
 for (const contract of chatContracts) assert.match(files.chat, contract, `chat contract ${contract} missing`);
 
+// Only assistant answers are rendered as markdown; a user message stays plain
+// text. The layer takes that as a `plain` option so it owns no role logic.
+assert.match(files.chat, /options\.plain/, 'the layer honours a plain-text mode');
+assert.match(
+  files.app,
+  /plain: role !== 'assistant'/,
+  'the app renders markdown for assistant answers only'
+);
+
 const integrationContracts = [
   [/updateMessage\(assistantId, content\)/, 'assistant stream update remains canonical'],
-  [/textContent\s*=\s*content/, 'plain text fallback remains available'],
+  [/node\.textContent = value \|\| MESSAGE_PLACEHOLDER/, 'plain text fallback remains available when the renderer is absent'],
   [/addMessage\(['"]assistant['"]/, 'assistant messages still use app message path'],
   [/hafize/, 'existing application namespace remains referenced']
 ];
@@ -74,8 +112,12 @@ for (const [source, contract, label] of downstreamContracts) assert.match(source
 
 assert.match(files.css, /\.message\.assistant/);
 assert.match(files.css, /@media/);
-assert.match(files.css, /prefers-reduced-motion/);
-assert.match(files.css, /forced-colors/);
+assert.match(files.css, /forced-colors/, 'high-contrast mode keeps answer structure visible');
+assert.doesNotMatch(
+  files.css,
+  /(?:^|[\s;{])(?:transition|animation)\s*:/m,
+  'no motion to reduce: a reduced-motion query would be a dead rule'
+);
 assert.doesNotMatch(files.css, /\.message\.user\s*\{/);
 
 const bootstrapContracts = [
@@ -101,7 +143,7 @@ const operations = fs.readFileSync('docs/CHAT_MARKDOWN_USAGE.md', 'utf8');
 for (const [source, terms, label] of [
   [docs, ['Markdown', 'Streaming', 'Geri alma'], 'product doc'],
   [security, ['DOM', 'javascript:', 'Gizlilik', 'Streaming'], 'security doc'],
-  [matrix, ['Bloklar', 'DOM', 'Güvenlik', 'Streaming'], 'test matrix'],
+  [matrix, ['Blok ayrıştırma', 'DOM', 'Güvenlik', 'Akış davranışı'], 'test matrix'],
   [review, ['Product', 'Security', 'Integration', 'Rollback'], 'release review'],
   [operations, ['Kullanıcı davranışı', 'Operasyon', 'Geri alma'], 'operations doc']
 ]) {

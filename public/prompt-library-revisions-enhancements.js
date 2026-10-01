@@ -86,20 +86,16 @@
 
 (function bootstrapChatMarkdown(root) {
   'use strict';
-  const DOC_KEY = 'hafize.chat-markdown.bootstrap.v1';
   const STYLE = '/chat-markdown.css';
   const RENDERER = '/markdown-renderer.js';
   const CHAT = '/chat-markdown.js';
   const loaded = new Set();
-  function markOnce(key) {
-    try {
-      if (root.sessionStorage?.getItem?.(DOC_KEY + key) === '1') return false;
-      root.sessionStorage?.setItem?.(DOC_KEY + key, '1');
-    } catch {}
-    return true;
+  function alreadyInHead(selector) {
+    return Boolean(root.document?.querySelector?.(selector));
   }
   function loadLink() {
-    if (!root.document || !markOnce('style') || loaded.has(STYLE)) return;
+    if (!root.document || loaded.has(STYLE)) return;
+    if (alreadyInHead('link[data-hafize-chat-markdown="style"]')) return;
     const link = root.document.createElement('link');
     link.rel = 'stylesheet';
     link.href = STYLE;
@@ -109,6 +105,7 @@
   }
   function loadScript(src, onload) {
     if (!root.document || loaded.has(src)) return;
+    if (alreadyInHead(`script[src="${src}"]`)) return;
     const script = root.document.createElement('script');
     script.src = src;
     script.defer = true;
