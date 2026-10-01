@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import { makeStorage, loadApi } from './settings-privacy-fixture.mjs';
+const api=await loadApi();
+const entries={};
+for(let i=0;i<320;i++) entries['k'+i]='v';
+entries['hafize.prompt-library.v1']='prompt';
+const snapshot=api.inspectStorage(makeStorage(entries));
+assert.equal(snapshot.totalKeys,300);
+assert.ok(snapshot.unknownKeys<=300);
+assert.ok(snapshot.surfaces.find((s)=>s.id==='prompts').present);
+console.log('runtime hard limits ok');
