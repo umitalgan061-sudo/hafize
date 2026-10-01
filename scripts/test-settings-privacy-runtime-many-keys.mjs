@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import { makeStorage, loadApi } from './settings-privacy-fixture.mjs';
-
 const api=await loadApi();
-const entries={};
+const entries={'hafize.prompt-library.v1':'prompt'};
 for(let i=0;i<500;i++) entries['unknown-'+i]='value';
-entries['hafize.theme.v1']='dark';
 const snapshot=api.inspectStorage(makeStorage(entries));
 assert.equal(snapshot.totalKeys,300);
-assert.ok(snapshot.unknownKeys<=300);
+assert.equal(snapshot.surfaces.find((s)=>s.id==='prompts').present,true);
+assert.ok(snapshot.unknownKeys<300);
 console.log('runtime bounded scan ok');
