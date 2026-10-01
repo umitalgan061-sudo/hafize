@@ -1,9 +1,6 @@
-// @ts-ignore Transitional legacy agent authorization and skill registry.
-import { authorizeAgentTool } from './agent-runtime.mjs';
-// @ts-ignore Transitional connector definitions.
-import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.mjs';
-// @ts-ignore Transitional connector definitions.
-import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.mjs';
+import { authorizeAgentTool } from './agent-runtime.ts';
+import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
+import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
 import { normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
 import { projectSafeToolExecutionResult } from './tool-execution-result-policy.ts';
 
