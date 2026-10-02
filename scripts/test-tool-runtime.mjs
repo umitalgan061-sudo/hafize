@@ -16,13 +16,13 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
-  { permission: 'runtime.status', functionName: 'runtime_status' },
-  { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' },
-  { permission: 'connector.canva.read', functionName: 'canva_read' },
-  { permission: 'connector.gmail.read', functionName: 'gmail_read' },
-  { permission: 'skill.invoke', functionName: 'skill_invoke' }
+assert.deepEqual(listToolPermissions().map(({ permission, name }) => ({ permission, name })), [
+  { permission: 'runtime.status', name: 'runtime_status' },
+  { permission: 'agent.delegate', name: 'agent_delegate' },
+  { permission: 'repo.read', name: 'github_read_file' },
+  { permission: 'connector.canva.read', name: 'canva_read' },
+  { permission: 'connector.gmail.read', name: 'gmail_read' },
+  { permission: 'skill.invoke', name: 'skill_invoke' }
 ]);
 
 assert.deepEqual(getPublicToolRunningActivity('runtime_status'), { label: 'Runtime durumu kontrol ediliyor', state: 'running' });

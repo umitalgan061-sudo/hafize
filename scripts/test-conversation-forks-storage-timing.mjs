@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-const s=require('node:fs').readFileSync('public/typed/conversation-forks.ts','utf8');
+import fs from 'node:fs';
+const s=fs.readFileSync('public/typed/conversation-forks.ts','utf8');
 const dialog=s.slice(s.indexOf('function openDialog'),s.indexOf('function comparisonData'));
 const creation=s.slice(s.indexOf('function createFork'),s.indexOf('function decorateMessages'));
 assert.ok(!dialog.includes('setItem(STORAGE_KEY'));

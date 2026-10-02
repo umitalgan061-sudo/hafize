@@ -42,5 +42,5 @@ assert.deepEqual(await executeNvidiaToolCall(agent, {
   function: { name: 'canva_read', arguments: '[]' }
 }, context), { ok: false, error: 'INVALID_TOOL_ARGUMENTS' });
 assert.equal('principal' in context, false);
-assert.equal(listToolPermissions().some((item) => item.permission === 'connector.canva.read' && item.functionName === 'canva_read'), true);
+assert.equal(listToolPermissions().some((item) => item.permission === 'connector.canva.read' && item.name === 'canva_read'), true);
 console.log('canva agent tool runtime tests passed');

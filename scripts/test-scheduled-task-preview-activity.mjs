@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const js = await readFile(new URL('../public/scheduled-task-preview-activity.js', import.meta.url), 'utf8');
+const js = await readFile(new URL('../public/typed/legacy/scheduled-task-preview-activity.ts', import.meta.url), 'utf8');
 
 assert.match(js, /hafize:scheduled-preview-activity/);
 assert.match(js, /MAX_EVENTS = 8/);

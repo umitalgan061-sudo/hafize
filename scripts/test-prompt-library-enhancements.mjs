@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync(new URL('../public/prompt-library-enhancements.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../public/typed/legacy/prompt-library-enhancements.ts', import.meta.url), 'utf8');
 assert.match(source, /dataset\.promptEnhancement/);
 assert.match(source, /data-prompt-enhancement/);
 assert.match(source, /Kopyala/);

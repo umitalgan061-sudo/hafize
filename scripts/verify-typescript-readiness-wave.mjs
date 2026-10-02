@@ -33,7 +33,7 @@ const vite = await read('vite.config.ts');
 assert.match(vite, /system-readiness-panel/);
 const index = await read('public/index.html');
 assert.match(index, /typed-build\/system-readiness-panel\.js/);
-const sw = await read('public/sw-policy.js');
+const sw = await read('public/sw-policy.ts');
 assert.match(sw, /typed-build\/system-readiness-panel\.js/);
 
 function run(file) {

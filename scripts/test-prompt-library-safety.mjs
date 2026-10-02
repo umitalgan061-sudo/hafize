@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const read = (p) => fs.readFile(p, 'utf8');
-const source = await read('public/prompt-library-safety.js');
+const source = await read('public/typed/legacy/prompt-library-safety.ts');
 assert.match(source, /MAX_IMPORT_BYTES\s*=\s*1000000/);
 assert.match(source, /buildImportPlan/);
 assert.match(source, /applyImportPlan/);

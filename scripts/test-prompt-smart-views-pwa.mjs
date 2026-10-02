@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/sw-policy.js','utf8');
+const source = fs.readFileSync('public/sw-policy.ts','utf8');
 assert.match(source,/CURRENT_CACHE = .*v49/);
 for (const asset of [
   '/prompt-library-smart-views.css',

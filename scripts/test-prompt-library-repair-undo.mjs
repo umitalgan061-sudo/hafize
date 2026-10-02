@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const source=await fs.readFile('public/prompt-library-safety.js','utf8');
+const source=await fs.readFile('public/typed/legacy/prompt-library-safety.ts','utf8');
 assert.match(source,/CHECKPOINT_CORRUPT/);
 assert.match(source,/CHECKPOINT_INVALID/);
 assert.match(source,/PROMPT_RESTORE_FAILED/);

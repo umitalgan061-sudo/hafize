@@ -41,5 +41,5 @@ assert.deepEqual(await executeNvidiaToolCall(agent, {
   type: 'function',
   function: { name: 'gmail_read', arguments: '[]' }
 }, context), { ok: false, error: 'INVALID_TOOL_ARGUMENTS' });
-assert.equal(listToolPermissions().some((item) => item.permission === 'connector.gmail.read' && item.functionName === 'gmail_read'), true);
+assert.equal(listToolPermissions().some((item) => item.permission === 'connector.gmail.read' && item.name === 'gmail_read'), true);
 console.log('gmail agent tool runtime tests passed');

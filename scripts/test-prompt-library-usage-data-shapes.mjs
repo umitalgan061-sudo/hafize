@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import promptLibrary from '../public/prompt-library.js';
 
 const core = fs.readFileSync('public/prompt-library.js', 'utf8');
-const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
+const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 const docs = fs.readFileSync('docs/PROMPT_LIBRARY_USAGE_INSIGHTS.md', 'utf8');
 
 assert.match(core, /useCount/);

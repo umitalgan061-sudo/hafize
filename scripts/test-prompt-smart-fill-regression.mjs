@@ -4,11 +4,11 @@ import path from 'node:path';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const root = process.cwd();
 const read = (p) => fs.readFileSync(path.join(root,p),'utf8');
-const smart = read('public/prompt-library-smart-fill.js');
-const hints = read('public/prompt-library-smart-fill-hints.js');
-const palette = read('public/prompt-library-command-palette.js');
+const smart = read('public/prompt-library-smart-fill.ts');
+const hints = read('public/prompt-library-smart-fill-hints.ts');
+const palette = read('public/prompt-library-command-palette.ts');
 const index = read('public/index.html');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const core = read('public/prompt-library.js');
 
 assert.match(core,/hafize\.prompt-library\.v1/);

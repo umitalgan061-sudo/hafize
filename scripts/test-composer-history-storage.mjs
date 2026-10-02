@@ -14,7 +14,7 @@ const storage = createStorageStub({
   'hafize.prompt-library.v1': JSON.stringify([{ id: 'p1' }])
 });
 globalThis.localStorage = storage;
-require('../public/composer-history.js');
+require('../public/typed/legacy/composer-history.ts');
 const history = globalThis.HafizeComposerHistory;
 assert.ok(history, 'composer history exposes its API on the global');
 
