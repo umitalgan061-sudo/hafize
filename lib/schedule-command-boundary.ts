@@ -1,5 +1,5 @@
 // @ts-ignore Legacy credential policy remains shared during migration.
-import { containsPlaintextCredential } from './plaintext-credential-policy.mjs';
+import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 const CREATE_FIELDS=new Set(['agentId','task','runAt','maxAttempts']);
 interface Principal{readonly authenticated?:boolean;readonly subject?:unknown;}
 interface Entry{readonly ownerId:string;readonly scheduleId:string;readonly traceId:string;readonly agentId:string;readonly task:string;readonly runAt:unknown;readonly status:string;readonly attempts:number;readonly maxAttempts:number;readonly lastError:unknown;readonly createdAt:string;readonly updatedAt:string;}

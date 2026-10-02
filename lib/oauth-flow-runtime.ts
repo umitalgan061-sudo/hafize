@@ -1,9 +1,9 @@
 // TypeScript migration wave 2026-10.
 // Compatibility-preserving typed runtime path.
 // @ts-nocheck
-import { buildOAuthAuthorizationUrl, createOAuthState, createPkceChallenge, createPkceVerifier } from './oauth-pkce.mjs';
-import { createOAuthFlowStore } from './oauth-flow-store.mjs';
-import { normalizeOAuthCallback } from './oauth-callback-contract.mjs';
+import { buildOAuthAuthorizationUrl, createOAuthState, createPkceChallenge, createPkceVerifier } from './oauth-pkce.ts';
+import { createOAuthFlowStore } from './oauth-flow-store.ts';
+import { normalizeOAuthCallback } from './oauth-callback-contract.ts';
 
 export function createOAuthFlowRuntime({ store = createOAuthFlowStore() } = {}) {
   if (typeof store?.issue !== 'function' || typeof store?.consume !== 'function') {

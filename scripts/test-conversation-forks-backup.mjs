@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-const s=require('node:fs').readFileSync('public/typed/conversation-forks.ts','utf8');
-assert.match(s,/downloadConversation/);
-assert.match(s,/application\\/json/);
-assert.match(s,/URL\\.createObjectURL/);
-assert.match(s,/URL\\.revokeObjectURL/);
-assert.match(s,/buildForkSnapshot/);
+import { readFileSync } from 'node:fs';
+
+const source = readFileSync('public/typed/conversation-forks.ts', 'utf8');
+
+assert.match(source, /downloadConversation/);
+assert.match(source, /application\/json/);
+assert.match(source, /createObjectURL/);
+assert.match(source, /revokeObjectURL/);
+assert.match(source, /buildForkSnapshot/);
+
 console.log('conversation fork backup: ok');

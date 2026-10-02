@@ -1,7 +1,7 @@
 // TypeScript migration wave 2026-10.
 // Compatibility-preserving typed runtime path.
 // @ts-nocheck
-import { authorizeAgentTool } from './agent-runtime.mjs';
+import { authorizeAgentTool } from './agent-runtime.ts';
 import { containsSecretMaterial, normalizeSkillManifest } from './skills-manifest.ts';
 
 const SOURCE_RANK = Object.freeze({ builtin: 3, user: 2, project: 1 });
