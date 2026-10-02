@@ -1179,4 +1179,3 @@ interface JsonPayload { readonly [key: string]: unknown; }
 })();
 
 
-export { normalizeConversation, normalizeMessage, fetchJson, MAX_RESPONSE_ALTERNATES };
