@@ -30,7 +30,7 @@ assert(pkg.scripts?.build === 'vite build', 'build script must bundle through Vi
 assert(pkg.scripts?.prestart === 'npm run build', 'production start must build typed assets');
 assert(pkg.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime typecheck script missing');
 assert(pkg.scripts?.['check:modern']?.includes('test-modern-toolchain.mjs'), 'modern verification command missing source contract');
-assert(pkg.scripts?.test:modernization === 'node scripts/test-runtime-modernization.mjs', 'runtime modernization gate missing');
+assert(pkg.scripts?.['test:modernization'] === 'node scripts/test-runtime-modernization.mjs', 'runtime modernization gate missing');
 assert(tsconfig.compilerOptions?.strict === true, 'strict TypeScript is required');
 assert(tsconfig.compilerOptions?.moduleResolution === 'bundler', 'bundler module resolution is required');
 assert(tsconfig.include?.includes('public/**/*.ts'), 'browser TypeScript sources are not in typecheck include');
