@@ -1,5 +1,3 @@
-import { HafizeApiError } from './hafize-types.ts';
-
 export interface HafizeSseEvent<T = unknown> {
   readonly type: string;
   readonly data: string;
@@ -311,7 +309,27 @@ export class HafizeSseClient {
     payload: unknown,
     options: HafizeSseOptions = {}
   ): Promise<HafizeSseStats> {
-    const response = await this.open(path, payload, options);
-    return consumeSseResponse(response, options);
+    const timeoutMs = Math.min(MAX_TIMEOUT_MS, Math.max(1_000, Math.floor(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)));
+    const controller = new AbortController();
+    const timer = globalThis.setTimeout(() => controller.abort(new DOMException('Request timeout', 'TimeoutError')), timeoutMs);
+    const parentSignal = options.signal;
+    const abortParent = () => controller.abort(parentSignal?.reason ?? new DOMException('Aborted', 'AbortError'));
+
+    try {
+      if (parentSignal?.aborted) abortParent();
+      else parentSignal?.addEventListener('abort', abortParent, { once: true });
+      const response = await this.open(path, payload, { ...options, signal: controller.signal });
+      return await consumeSseResponse(response, { ...options, signal: controller.signal });
+    } catch (error) {
+      if (error instanceof HafizeSseError) throw error;
+      throw new HafizeSseError(error instanceof Error ? error.message : 'SSE akışı başarısız.', {
+        code: error instanceof DOMException && error.name === 'TimeoutError' ? 'SSE_TIMEOUT' : 'SSE_STREAM_ERROR',
+        retryable: true,
+        cause: error
+      });
+    } finally {
+      globalThis.clearTimeout(timer);
+      parentSignal?.removeEventListener('abort', abortParent);
+    }
   }
 }
