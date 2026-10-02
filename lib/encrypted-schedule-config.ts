@@ -14,8 +14,10 @@ const cleanEnvValue = (value: unknown): string => typeof value === 'string' ? va
 function decodeKey(value: unknown): Buffer {
   const text = cleanEnvValue(value);
   if (!text || /\s/.test(text) || !/^[A-Za-z0-9+/_-]+={0,2}$/.test(text)) invalid();
-  let key: Buffer;
-  try { key = Buffer.from(text, 'base64url'); } catch { invalid(); }
+  const key = (() => {
+    try { return Buffer.from(text, 'base64url'); }
+    catch { return invalid(); }
+  })();
   if (key.length !== 32) invalid();
   const canonicalInput = text.replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
   if (canonicalInput !== key.toString('base64url')) invalid();

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { timingSafeEqual } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -42,6 +43,7 @@ import {
 import { HttpRuntimeError, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
 import { buildSystemReadiness } from './lib/system-readiness.ts';
+import { createRuntimeMetrics } from './lib/runtime-metrics.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -53,9 +55,18 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';
 const SCHEDULE_AUTH_SUBJECT = process.env.HAFIZE_SCHEDULE_AUTH_SUBJECT || '';
 const SCHEDULE_MODEL = (process.env.HAFIZE_SCHEDULE_MODEL || '').trim();
+const METRICS_TOKEN = (process.env.HAFIZE_METRICS_TOKEN || '').trim();
 const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 30_000, 5_000, 300_000);
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
+
+function hasMetricsAuthorization(req) {
+  const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+  const expected = Buffer.from(`Bearer ${METRICS_TOKEN}`, 'utf8');
+  const provided = Buffer.from(authorization, 'utf8');
+  return provided.length === expected.length && timingSafeEqual(provided, expected);
+}
+
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
@@ -83,6 +94,7 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
 });
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
+const RUNTIME_METRICS = createRuntimeMetrics();
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
 
@@ -109,13 +121,21 @@ async function nvidiaFetch(pathname, init = {}) {
     error.status = 503;
     throw error;
   }
-  return fetch(`${NIM_BASE_URL}${pathname}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${NVIDIA_API_KEY}`,
-      ...(init.headers || {})
-    }
-  });
+  const finishMetric = RUNTIME_METRICS.startNvidia();
+  try {
+    const response = await fetch(`${NIM_BASE_URL}${pathname}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
+        ...(init.headers || {})
+      }
+    });
+    finishMetric(!response.ok);
+    return response;
+  } catch (error) {
+    finishMetric(true);
+    throw error;
+  }
 }
 
 async function nvidiaJsonCompletion(payload, signal) {
@@ -705,7 +725,7 @@ async function handleChat(req, res) {
   }
 }
 
-async function serveStatic(pathname, res) {
+async function serveStatic(pathname, res, req) {
   let decoded;
   try {
     decoded = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
@@ -721,11 +741,36 @@ async function serveStatic(pathname, res) {
   const relative = filePath.slice(PUBLIC_DIR.length + 1);
 
   try {
-    const content = await readFile(filePath);
+    const metadata = await stat(filePath);
+    if (!metadata.isFile()) {
+      sendJson(res, 404, { error: 'NOT_FOUND' });
+      return;
+    }
+
+    const etag = `W/"${metadata.size.toString(16)}-${Math.trunc(metadata.mtimeMs).toString(16)}"`;
+    const cacheControl = relative === 'index.html'
+      ? 'no-cache'
+      : /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(relative)
+        ? 'public, max-age=31536000, immutable'
+        : 'public, max-age=300';
+
     setSecurityHeaders(res);
+    res.setHeader('ETag', etag);
+    res.setHeader('Last-Modified', metadata.mtime.toUTCString());
+    res.setHeader('Cache-Control', cacheControl);
+
+    const incomingTag = Array.isArray(req.headers['if-none-match'])
+      ? req.headers['if-none-match'][0]
+      : req.headers['if-none-match'];
+    if (incomingTag === etag) {
+      res.writeHead(304);
+      res.end();
+      return;
+    }
+
+    const content = await readFile(filePath);
     res.writeHead(200, {
-      'Content-Type': MIME.get(extname(filePath).toLowerCase()) || 'application/octet-stream',
-      'Cache-Control': relative === 'index.html' ? 'no-cache' : 'public, max-age=300'
+      'Content-Type': MIME.get(extname(filePath).toLowerCase()) || 'application/octet-stream'
     });
     res.end(content);
   } catch {
@@ -733,25 +778,73 @@ async function serveStatic(pathname, res) {
   }
 }
 
+const buildReadinessReport = () => buildSystemReadiness({
+  env: process.env,
+  pwaReady: true,
+  releaseReady: true,
+  releaseChecksPass: true,
+  runtime: {
+    auth: { status: 'ready' },
+    pwa: { status: 'ready' },
+    skills: { status: AGENT_REGISTRY.agents.length ? 'ready' : 'blocked' },
+    memory: { status: 'warning', detail: 'memory runtime health is not probed by the public health endpoint' },
+    schedule: { status: SCHEDULE_HTTP_API ? (SCHEDULE_EXECUTION_RUNTIME.configured ? 'ready' : 'warning') : 'blocked' },
+    connectors: { status: (CANVA_AGENT_RUNTIME.configured || GMAIL_AGENT_RUNTIME.configured || GITHUB_READ_CONFIGURED) ? 'ready' : 'warning' },
+    model: { status: NVIDIA_API_KEY ? 'ready' : 'blocked' }
+  }
+});
+
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
-    if (req.method === 'GET' && url.pathname === '/api/health') {
-      const readiness = buildSystemReadiness({
-        env: process.env,
-        pwaReady: true,
-        releaseReady: true,
-        releaseChecksPass: true,
-        runtime: {
-          auth: { status: 'ready' },
-          pwa: { status: 'ready' },
-          skills: { status: AGENT_REGISTRY.agents.length ? 'ready' : 'blocked' },
-          memory: { status: 'warning', detail: 'memory runtime health is not probed by the public health endpoint' },
-          schedule: { status: SCHEDULE_HTTP_API ? (SCHEDULE_EXECUTION_RUNTIME.configured ? 'ready' : 'warning') : 'blocked' },
-          connectors: { status: (CANVA_AGENT_RUNTIME.configured || GMAIL_AGENT_RUNTIME.configured || GITHUB_READ_CONFIGURED) ? 'ready' : 'warning' },
-          model: { status: NVIDIA_API_KEY ? 'ready' : 'blocked' }
-        }
+    const requestMetric = RUNTIME_METRICS.startRequest(req.method, url.pathname);
+    const requestId = createTraceId();
+    res.setHeader('X-Hafize-Request-Id', requestId);
+    let requestFinished = false;
+    res.once('finish', () => {
+      requestFinished = true;
+      requestMetric.finish(res.statusCode);
+    });
+    res.once('close', () => {
+      if (!requestFinished) requestMetric.abort();
+    });
+    
+    if (req.method === 'GET' && url.pathname === '/api/health/live') {
+      sendJson(res, 200, {
+        status: 'ok',
+        uptimeSeconds: Number(process.uptime().toFixed(3)),
+        time: new Date().toISOString()
       });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/health/ready') {
+      const readiness = buildReadinessReport();
+      const ready = readiness.state === 'ready' || readiness.state === 'degraded';
+      sendJson(res, ready ? 200 : 503, {
+        status: ready ? 'ready' : 'not_ready',
+        state: readiness.state,
+        summary: readiness.summary
+      });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/metrics') {
+      if (!METRICS_TOKEN) {
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+        return;
+      }
+      if (!hasMetricsAuthorization(req)) {
+        res.setHeader('WWW-Authenticate', 'Bearer');
+        sendJson(res, 401, { error: 'UNAUTHORIZED' });
+        return;
+      }
+      sendJson(res, 200, {
+        schemaVersion: 1,
+        ...RUNTIME_METRICS.snapshot()
+      });
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/health') {
+      const readiness = buildReadinessReport();
       sendJson(res, 200, {
         status: 'ok',
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
@@ -839,7 +932,7 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'GET' || req.method === 'HEAD') {
-      await serveStatic(url.pathname, res);
+      await serveStatic(url.pathname, res, req);
       return;
     }
     sendJson(res, 405, { error: 'METHOD_NOT_ALLOWED' });

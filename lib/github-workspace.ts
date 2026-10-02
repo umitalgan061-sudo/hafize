@@ -224,7 +224,7 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     };
   }
 
-  async function file(input: { readonly repository: unknown; readonly path: unknown; readonly ref?: unknown }): Promise<JsonRecord> {
+  async function file(input: { readonly repository: unknown; readonly path?: unknown; readonly ref?: unknown }): Promise<JsonRecord> {
     const repo = normalizeRepository(input.repository);
     assertAllowed(repo, allowedRepositories);
     const path = normalizePath(input.path);

@@ -10,7 +10,7 @@ function assert(condition, message) {
 
 const index = await readFile(join(root, 'public/index.html'), 'utf8');
 const vite = await readFile(join(root, 'vite.config.ts'), 'utf8');
-const sw = await readFile(join(root, 'public/sw-policy.js'), 'utf8');
+const sw = await readFile(join(root, 'public/sw-policy.ts'), 'utf8');
 const app = await readFile(join(root, 'public/typed/app-shell.ts'), 'utf8');
 
 const migrated = [

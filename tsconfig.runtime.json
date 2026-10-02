@@ -6,6 +6,11 @@
   ],
   "compilerOptions": {
     "noEmit": true,
-    "rewriteRelativeImportExtensions": true
-  }
+    "rewriteRelativeImportExtensions": true,
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false
+  },
+  "exclude": [
+    "lib/**/*.test.ts"
+  ]
 }

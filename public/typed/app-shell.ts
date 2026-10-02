@@ -824,6 +824,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       renderStreamStatus();
       throw error;
     }
+  }
 
   async function streamAssistantReply() {
     const model = ui.modelSelect.value;
@@ -1130,7 +1131,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
   });
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined));
+    window.addEventListener('load', () => {
+      const serviceWorkerUrl = import.meta.env.DEV ? '/sw.ts' : '/typed-build/sw.js';
+      navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' }).catch(() => undefined);
+    });
   }
 
   if (!activeConversationId) createConversation();
@@ -1175,4 +1179,3 @@ interface JsonPayload { readonly [key: string]: unknown; }
 })();
 
 
-export { normalizeConversation, normalizeMessage, fetchJson, MAX_RESPONSE_ALTERNATES };

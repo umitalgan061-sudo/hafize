@@ -1,0 +1,46 @@
+// Unified TypeScript entry for the remaining active browser modules.
+// The modules retain their existing DOM/global contracts while Vite provides one ESM entrypoint.
+import './legacy/chat-history-export.ts';
+import './legacy/chat-drafts.ts';
+import './legacy/conversation-workspace-keyboard.ts';
+import './legacy/message-workspace-policy.ts';
+import './legacy/prompt-library-starters.ts';
+import './legacy/prompt-library-enhancements.ts';
+import './legacy/prompt-library-keyboard.ts';
+import './legacy/prompt-library-usage.ts';
+import './legacy/prompt-library-collections.ts';
+import './legacy/prompt-library-collections-enhancements.ts';
+import './legacy/prompt-library-revisions.ts';
+import './legacy/prompt-library-revisions-enhancements.ts';
+import './legacy/prompt-library-safety.ts';
+import './legacy/prompt-library-import-preview.ts';
+import './legacy/prompt-library-diagnostics.ts';
+import './legacy/prompt-library-smart-views.ts';
+import './legacy/prompt-library-smart-views-history.ts';
+import './legacy/prompt-library-smart-views-builder.ts';
+import './legacy/prompt-library-smart-views-safety.ts';
+import './legacy/connector-hub.ts';
+import './legacy/composer-history.ts';
+import './legacy/composer-history-panel.ts';
+import './legacy/composer-history-backup.ts';
+import './legacy/composer-history-help.ts';
+import './legacy/composer-history-settings.ts';
+import './legacy/scheduled-tasks-enhancements.ts';
+import './legacy/scheduled-tasks-keyboard.ts';
+import './legacy/scheduled-task-preview.ts';
+import './legacy/scheduled-task-duplicate.ts';
+import './legacy/scheduled-task-templates.ts';
+import './legacy/scheduled-task-planning.ts';
+import './legacy/scheduled-task-templates-backup.ts';
+import './legacy/scheduled-task-status-summary.ts';
+import './legacy/scheduled-task-preview-activity.ts';
+import './legacy/scheduled-task-template-presets.ts';
+import './legacy/scheduled-task-draft.ts';
+import './legacy/scheduled-task-insights.ts';
+import './legacy/scheduled-task-actions.ts';
+import './legacy/scheduled-task-detail.ts';
+import './legacy/scheduled-task-export.ts';
+import './legacy/screen-share.ts';
+import './legacy/settings-workspace.ts';
+
+export const HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 42;

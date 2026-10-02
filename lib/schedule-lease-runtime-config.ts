@@ -73,9 +73,9 @@ export async function createScheduleLeaseProviderRuntime(input: {
     throw new Error('SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED');
   }
 
-  let lease: { acquire: (...args: unknown[]) => unknown };
+  let lease: ScheduleExecutionLease;
   try {
-    lease = createBoundary({ adapter, holderId: config.holderId, leaseMs: config.leaseMs }) as typeof lease;
+    lease = createBoundary({ adapter, holderId: config.holderId, leaseMs: config.leaseMs });
   } catch {
     throw new Error('SCHEDULE_LEASE_RUNTIME_STARTUP_FAILED');
   }

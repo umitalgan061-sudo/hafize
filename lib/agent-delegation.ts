@@ -1,8 +1,8 @@
-import { authorizeAgentTool } from './agent-runtime.ts';
+import { authorizeAgentTool, type AgentDefinition } from './agent-runtime.ts';
 import { formatTaskHandoff, normalizeTaskHandoff } from './task-handoff.ts';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
 
-interface Agent { readonly id:string; readonly name:string; readonly kind:string; }
+type Agent = AgentDefinition;
 interface Registry { readonly agents:readonly Agent[]; readonly policy?:{readonly maxDelegationDepth?:number;readonly maxParallelAgents?:number}; }
 interface Result { readonly ok:boolean; readonly content?:unknown; readonly error?:unknown; }
 interface Lifecycle { readonly start:(input:{runId:string;parentRunId:string;parentSignal?:AbortSignal|null;execute:(input:{signal?:AbortSignal})=>Promise<Result>})=>{promise:Promise<{value?:Result}>;snapshot:()=>{state:string;error?:unknown}}; }
