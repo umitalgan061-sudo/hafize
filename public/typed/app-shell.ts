@@ -12,6 +12,7 @@ import { openRegenerationOptions } from './response-regeneration-options-ui.ts';
 import { buildRegenerationMessages } from './response-regeneration-options.ts';
 import { mountModelPreferences, type ModelPreferencesUiController } from './model-preferences-ui.ts';
 import { loadModelPreferences } from './model-preferences.ts';
+import { HafizeSseClient, type HafizeSseStats, type HafizeSseEvent } from './hafize-sse.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -72,9 +73,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 100;
   const MAX_MESSAGE_LENGTH = 12000;
-  const REQUEST_TIMEOUT_MS = 60_000;
   let networkOnline = globalThis.navigator?.onLine !== false;
-  let activeRequestController = null;
+  const hafizeSse = new HafizeSseClient();
   const ui: AppUi = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -730,69 +730,49 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
   }
 
-  function parseSseBlock(block) {
-    const lines = block.split('\n');
-    const type = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message';
-    const data = lines
-      .filter((line) => line.startsWith('data:'))
-      .map((line) => line.slice(5).trim())
-      .join('\n');
-    if (!data || data === '[DONE]') return null;
-    try {
-      return { type, payload: JSON.parse(data) };
-    } catch {
-      return null;
-    }
-  }
-
   function getRequestMessages(conversation = getActiveConversation()) {
     return (conversation?.messages ?? [])
       .filter((message) => message.content)
       .map(({ role, content }) => ({ role, content }));
   }
 
-  async function consumeAssistantStream(response, assistantId, emptyMessage) {
-    if (!response.ok || !response.body) {
-      let detail = response.statusText;
-      try {
-        const payload = await response.json();
-        detail = payload?.error || detail;
-      } catch {
-        // Keep HTTP status text.
-      }
-      throw new Error(detail || 'CHAT_FAILED');
+  function handleAssistantStreamEvent(
+    event: HafizeSseEvent,
+    assistantId: string,
+    appendContent: (delta: string) => void
+  ): void {
+    if (event.type === 'hafize-tool-activity') {
+      appendToolActivity(assistantId, event.payload);
+      return;
     }
+    if (event.type !== 'message' || !event.payload || typeof event.payload !== 'object') return;
+    const payload = event.payload as Record<string, any>;
+    if (typeof payload.error === 'string' && payload.error) throw new Error(payload.error);
+    const delta = payload.choices?.[0]?.delta?.content;
+    if (typeof delta === 'string' && delta) appendContent(delta);
+  }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+  async function consumeAssistantStream(
+    endpoint: string,
+    payload: Record<string, unknown>,
+    assistantId: string,
+    emptyMessage: string
+  ): Promise<HafizeSseStats> {
     let content = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() || '';
-      for (const block of blocks) {
-        const parsed = parseSseBlock(block);
-        if (!parsed) continue;
-        if (parsed.type === 'hafize-tool-activity') {
-          appendToolActivity(assistantId, parsed.payload);
-          continue;
-        }
-        if (parsed.type !== 'message') continue;
-        const event = parsed.payload;
-        if (event.error) throw new Error(event.error);
-        const delta = event.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
+    const stats = await hafizeSse.stream(endpoint, payload, {
+      timeoutMs: 60_000,
+      maxFrameChars: 128 * 1024,
+      maxBufferChars: 256 * 1024,
+      maxEvents: 20_000,
+      onEvent: (event) => {
+        handleAssistantStreamEvent(event, assistantId, (delta) => {
           content += delta;
           updateMessage(assistantId, content);
-        }
+        });
       }
-      if (done) break;
-    }
-
+    });
     updateMessage(assistantId, content || emptyMessage, { persist: true });
+    return stats;
   }
 
   async function streamAssistantReply() {
@@ -806,12 +786,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-    });
-    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    const stats = await consumeAssistantStream(
+      '/api/chat',
+      { model, agentId, messages: requestMessages, max_tokens: 2048 },
+      assistantId,
+      'NVIDIA modeli boş bir yanıt döndürdü.'
+    );
     const generated = conversation.messages.find((entry) => entry.id === assistantId);
     if (generated) {
       generated.generation = {
@@ -819,7 +799,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         agentId,
         toolsEnabled: false,
         generatedAt: new Date().toISOString(),
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+        durationMs: Math.max(0, Math.round(stats.durationMs || performance.now() - startedAt))
       };
       saveConversations();
     }
@@ -836,13 +816,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
-    const response = await fetch('/api/agent/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-    });
-    await consumeAssistantStream(
-      response,
+    const stats = await consumeAssistantStream(
+      '/api/agent/run',
+      { model, agentId, messages: requestMessages, max_tokens: 2048 },
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
     );
@@ -853,7 +829,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         agentId,
         toolsEnabled: true,
         generatedAt: new Date().toISOString(),
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+        durationMs: Math.max(0, Math.round(stats.durationMs || performance.now() - startedAt))
       };
       saveConversations();
     }
@@ -910,13 +886,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
     try {
       const endpoint = conversation.toolsEnabled ? '/api/agent/run' : '/api/chat';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-      });
       await consumeAssistantStream(
-        response,
+        endpoint,
+        { model, agentId, messages: requestMessages, max_tokens: 2048 },
         message.id,
         conversation.toolsEnabled
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
