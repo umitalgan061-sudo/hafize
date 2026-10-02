@@ -75,6 +75,8 @@ export default defineConfig({
         'github-workspace-write': resolve(ROOT, 'public/github-workspace-write.ts'),
         'workspace-backup': resolve(ROOT, 'public/typed/workspace-backup.ts'),
         'system-readiness-panel': resolve(ROOT, 'public/system-readiness-panel.ts'),
+        'legacy-app': resolve(ROOT, 'public/typed/legacy-app.ts'),
+        'sw': resolve(ROOT, 'public/sw.ts'),
         'chat-composer-features': resolve(ROOT, 'public/typed/chat-composer-features.ts'),
         'chat-history-search': resolve(ROOT, 'public/typed/chat-history-search.ts'),
         'chat-history-management': resolve(ROOT, 'public/typed/chat-history-management.ts'),

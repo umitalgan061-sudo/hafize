@@ -224,6 +224,17 @@ Görevler çalışma alanı, mevcut schedule HTTP API üzerinden authenticated k
 - Server authentication, ownership, credential policy ve state transitions değiştirilmez; UI bunları yeniden uygulamaya çalışmaz.
 - Ayrıntılar `docs/SCHEDULED_TASKS_*.md` dosyalarındadır.
 
+
+## Runtime 2.0: gözlemlenebilirlik ve üretim dayanıklılığı
+
+Çalışma zamanı katmanı artık bounded ve gizlilik odaklı runtime ölçümleri üretir. Her istek için `X-Hafize-Request-Id` verilir; metrikler route cardinality sınırı, durum kodu sayaçları, aktif istekler, iptal edilen istekler, gecikme histogramları, NVIDIA upstream hata/aktiflik sayaçları ve process memory özeti içerir. Ham istek gövdesi, kullanıcı mesajı, credential veya token metriklere yazılmaz.
+
+Kubernetes/reverse-proxy benzeri ortamlarda `/api/health/live` liveness, `/api/health/ready` readiness kontrolüdür. Readiness bloklu/unknown ise HTTP 503 döner. Ayrıntılı `/api/metrics` endpoint'i varsayılan olarak kapalıdır; yalnızca `HAFIZE_METRICS_TOKEN` tanımlandığında doğru Bearer token ile açılır.
+
+HTTP runtime ayrıca CSP, Cross-Origin Isolation ve resource policy başlıklarını uygular. Statik dosyalarda ETag/304 desteği vardır; fingerprint içeren Vite çıktıları uzun ömürlü immutable cache başlıkları kullanır.
+
+Yeni kalite kapısı `npm run test:modernization` ile doğrulanır ve `npm run check:modern` zincirine bağlıdır. GitHub Actions, Node.js 24 LTS ve güncel Node.js Current hattında typecheck, test, build ve audit kontrollerini çalıştırır.
+
 ## Test
 
 ```bash

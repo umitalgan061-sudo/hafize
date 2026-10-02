@@ -20,7 +20,7 @@ function normalizeComponent(name: string, value: unknown): DeploymentComponent {
   const rawFindings = Array.isArray(source.findings) ? source.findings : [];
   const findings = rawFindings.map((item) => {
     const value = item && typeof item === 'object' ? item as Record<string, unknown> : {};
-    return finding(value.code, value.detail);
+    return finding(value.code, typeof value.detail === 'string' ? value.detail : '');
   });
   return Object.freeze({ name, state, findings: Object.freeze(findings) });
 }

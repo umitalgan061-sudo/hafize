@@ -1130,7 +1130,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
   });
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => undefined));
+    window.addEventListener('load', () => {
+      const serviceWorkerUrl = import.meta.env.DEV ? '/sw.ts' : '/typed-build/sw.js';
+      navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' }).catch(() => undefined);
+    });
   }
 
   if (!activeConversationId) createConversation();
