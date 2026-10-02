@@ -12,6 +12,9 @@ import { openRegenerationOptions } from './response-regeneration-options-ui.ts';
 import { buildRegenerationMessages } from './response-regeneration-options.ts';
 import { mountModelPreferences, type ModelPreferencesUiController } from './model-preferences-ui.ts';
 import { loadModelPreferences } from './model-preferences.ts';
+import { hafizeApi } from './hafize-api.ts';
+import { HafizeSseClient, type HafizeSseStats, type HafizeSseEvent } from './hafize-sse.ts';
+import { createHafizeStreamController, formatStreamBytes, formatStreamDuration, phaseLabel, phaseTone } from './hafize-stream-state.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -72,9 +75,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 100;
   const MAX_MESSAGE_LENGTH = 12000;
-  const REQUEST_TIMEOUT_MS = 60_000;
   let networkOnline = globalThis.navigator?.onLine !== false;
-  let activeRequestController = null;
+  const hafizeSse = new HafizeSseClient();
+  const streamState = createHafizeStreamController();
+  let streamStatus: HTMLElement | null = null;
+  let streamStatusTimer: number | undefined;
   const ui: AppUi = {
     sidebar: document.querySelector('#sidebar'),
     sidebarToggle: document.querySelector('#sidebarToggle'),
@@ -184,21 +189,6 @@ interface JsonPayload { readonly [key: string]: unknown; }
     };
   }
 
-  async function fetchJson(url, init = {}) {
-    if (!networkOnline) throw new Error('OFFLINE');
-    const controller = new AbortController();
-    const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal, headers: { Accept: 'application/json', ...(init.headers || {}) } });
-      let payload = {};
-      try { payload = await response.json(); } catch { payload = {}; }
-      if (!response.ok) throw new Error(typeof payload?.error === 'string' ? payload.error : `HTTP_${response.status}`);
-      return payload;
-    } finally {
-      globalThis.clearTimeout(timeout);
-
-    }
-  }
 
   function loadConversations(): Conversation[] {
     try {
@@ -666,8 +656,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   async function loadModels() {
     ui.modelSelect.replaceChildren(new Option('NVIDIA modelleri yükleniyor…', ''));
     try {
-      const payload = await fetchJson('/api/models');
-      const models = Array.isArray(payload.models) ? payload.models : [];
+      const payload = await hafizeApi.models();
+      const models = payload.models;
       ui.modelSelect.replaceChildren();
       if (!models.length) {
         ui.modelSelect.append(new Option('NVIDIA modeli bulunamadı', ''));
@@ -679,7 +669,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       modelPreferencesController?.refresh();
     } catch (error) {
       ui.modelSelect.replaceChildren(new Option('NVIDIA NIM bağlantısı bekleniyor', ''));
-      if (error?.message !== 'NVIDIA_NOT_CONFIGURED') showToast('NVIDIA model listesi alınamadı.');
+      if (error instanceof Error && error.message !== 'NVIDIA_NOT_CONFIGURED') showToast('NVIDIA model listesi alınamadı.');
     }
   }
 
@@ -687,12 +677,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.agentSelect.disabled = true;
     ui.agentSelect.replaceChildren(new Option('Ajanlar yükleniyor…', ''));
     try {
-      const payload = await fetchJson('/api/agents');
-
-      const agents = Array.isArray(payload.agents)
-        ? payload.agents.filter((agent) => agent && typeof agent.id === 'string' && typeof agent.name === 'string')
-        : [];
-      const fallback = typeof payload.defaultAgent === 'string' ? payload.defaultAgent : '';
+      const payload = await hafizeApi.agents();
+      const agents = payload.agents;
+      const fallback = payload.defaultAgent;
       if (!agents.length || !agents.some((agent) => agent.id === fallback)) throw new Error('INVALID_AGENT_LIST');
 
       availableAgents = agents;
@@ -730,20 +717,47 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
   }
 
-  function parseSseBlock(block) {
-    const lines = block.split('\n');
-    const type = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message';
-    const data = lines
-      .filter((line) => line.startsWith('data:'))
-      .map((line) => line.slice(5).trim())
-      .join('\n');
-    if (!data || data === '[DONE]') return null;
-    try {
-      return { type, payload: JSON.parse(data) };
-    } catch {
-      return null;
+  function ensureStreamStatus(): HTMLElement | null {
+    if (streamStatus && document.body.contains(streamStatus)) return streamStatus;
+    streamStatus = document.createElement('div');
+    streamStatus.className = 'stream-status';
+    streamStatus.hidden = true;
+    streamStatus.setAttribute('role', 'status');
+    streamStatus.setAttribute('aria-live', 'polite');
+    streamStatus.setAttribute('aria-atomic', 'true');
+    ui.composer.insertBefore(streamStatus, ui.composer.querySelector('.composer-row'));
+    return streamStatus;
+  }
+
+  function renderStreamStatus(snapshot = streamState.snapshot()): void {
+    const node = ensureStreamStatus();
+    if (!node) return;
+    globalThis.clearTimeout(streamStatusTimer);
+    const visible = snapshot.phase !== 'idle';
+    node.hidden = !visible;
+    node.dataset.phase = snapshot.phase;
+    node.dataset.tone = phaseTone(snapshot.phase);
+    if (!visible) {
+      node.textContent = '';
+      return;
+    }
+    const suffix = snapshot.phase === 'completed'
+      ? ` · ${formatStreamDuration(snapshot.durationMs)} · ${formatStreamBytes(snapshot.bytesRead)}`
+      : snapshot.phase === 'failed'
+        ? ` · ${snapshot.errorCode || 'akış hatası'}`
+        : snapshot.phase === 'aborted'
+          ? ' · kullanıcı tarafından durduruldu'
+          : '';
+    node.textContent = `${phaseLabel(snapshot.phase)}${suffix}`;
+    if (snapshot.phase === 'completed' || snapshot.phase === 'failed' || snapshot.phase === 'aborted') {
+      streamStatusTimer = globalThis.setTimeout(() => {
+        streamState.reset();
+        renderStreamStatus();
+      }, 5000);
     }
   }
+
+  streamState.subscribe(renderStreamStatus);
 
   function getRequestMessages(conversation = getActiveConversation()) {
     return (conversation?.messages ?? [])
@@ -751,49 +765,65 @@ interface JsonPayload { readonly [key: string]: unknown; }
       .map(({ role, content }) => ({ role, content }));
   }
 
-  async function consumeAssistantStream(response, assistantId, emptyMessage) {
-    if (!response.ok || !response.body) {
-      let detail = response.statusText;
-      try {
-        const payload = await response.json();
-        detail = payload?.error || detail;
-      } catch {
-        // Keep HTTP status text.
-      }
-      throw new Error(detail || 'CHAT_FAILED');
+  function handleAssistantStreamEvent(
+    event: HafizeSseEvent,
+    assistantId: string,
+    appendContent: (delta: string) => void
+  ): void {
+    if (event.type === 'hafize-tool-activity') {
+      appendToolActivity(assistantId, event.payload);
+      return;
     }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let content = '';
-
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value || new Uint8Array(), { stream: !done }).replace(/\r\n/g, '\n');
-      const blocks = buffer.split('\n\n');
-      buffer = blocks.pop() || '';
-      for (const block of blocks) {
-        const parsed = parseSseBlock(block);
-        if (!parsed) continue;
-        if (parsed.type === 'hafize-tool-activity') {
-          appendToolActivity(assistantId, parsed.payload);
-          continue;
-        }
-        if (parsed.type !== 'message') continue;
-        const event = parsed.payload;
-        if (event.error) throw new Error(event.error);
-        const delta = event.choices?.[0]?.delta?.content;
-        if (typeof delta === 'string' && delta) {
-          content += delta;
-          updateMessage(assistantId, content);
-        }
-      }
-      if (done) break;
-    }
-
-    updateMessage(assistantId, content || emptyMessage, { persist: true });
+    if (event.type !== 'message' || !event.payload || typeof event.payload !== 'object') return;
+    const payload = event.payload as Record<string, any>;
+    if (typeof payload.error === 'string' && payload.error) throw new Error(payload.error);
+    const delta = payload.choices?.[0]?.delta?.content;
+    if (typeof delta === 'string' && delta) appendContent(delta);
   }
+
+  async function consumeAssistantStream(
+    endpoint: string,
+    payload: Record<string, unknown>,
+    assistantId: string,
+    emptyMessage: string
+  ): Promise<HafizeSseStats> {
+    let content = '';
+    streamState.begin();
+    renderStreamStatus();
+    try {
+      const stats = await hafizeSse.stream(endpoint, payload, {
+      timeoutMs: 60_000,
+      maxFrameChars: 128 * 1024,
+      maxBufferChars: 256 * 1024,
+      maxEvents: 20_000,
+        onEvent: (event) => {
+          streamState.chunk(0, 1);
+          handleAssistantStreamEvent(event, assistantId, (delta) => {
+            content += delta;
+            updateMessage(assistantId, content);
+          });
+          renderStreamStatus();
+        }
+      });
+      streamState.complete({
+        traceId: stats.traceId,
+        bytesRead: stats.bytesRead,
+        events: stats.events,
+        durationMs: stats.durationMs,
+        endedAt: Date.now()
+      });
+      renderStreamStatus();
+      updateMessage(assistantId, content || emptyMessage, { persist: true });
+      return stats;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code || 'SSE_ERROR')
+        : '';
+      if (code === 'SSE_ABORTED' || code === 'AbortError') streamState.abort(error);
+      else streamState.fail(error);
+      renderStreamStatus();
+      throw error;
+    }
 
   async function streamAssistantReply() {
     const model = ui.modelSelect.value;
@@ -806,12 +836,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-    });
-    await consumeAssistantStream(response, assistantId, 'NVIDIA modeli boş bir yanıt döndürdü.');
+    const stats = await consumeAssistantStream(
+      '/api/chat',
+      { model, agentId, messages: requestMessages, max_tokens: 2048 },
+      assistantId,
+      'NVIDIA modeli boş bir yanıt döndürdü.'
+    );
     const generated = conversation.messages.find((entry) => entry.id === assistantId);
     if (generated) {
       generated.generation = {
@@ -819,7 +849,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         agentId,
         toolsEnabled: false,
         generatedAt: new Date().toISOString(),
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+        durationMs: Math.max(0, Math.round(stats.durationMs || performance.now() - startedAt))
       };
       saveConversations();
     }
@@ -836,13 +866,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
-    const response = await fetch('/api/agent/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-    });
-    await consumeAssistantStream(
-      response,
+    const stats = await consumeAssistantStream(
+      '/api/agent/run',
+      { model, agentId, messages: requestMessages, max_tokens: 2048 },
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
     );
@@ -853,7 +879,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         agentId,
         toolsEnabled: true,
         generatedAt: new Date().toISOString(),
-        durationMs: Math.max(0, Math.round(performance.now() - startedAt))
+        durationMs: Math.max(0, Math.round(stats.durationMs || performance.now() - startedAt))
       };
       saveConversations();
     }
@@ -910,13 +936,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
     try {
       const endpoint = conversation.toolsEnabled ? '/api/agent/run' : '/api/chat';
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ model, agentId, messages: requestMessages, max_tokens: 2048 })
-      });
       await consumeAssistantStream(
-        response,
+        endpoint,
+        { model, agentId, messages: requestMessages, max_tokens: 2048 },
         message.id,
         conversation.toolsEnabled
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
@@ -1028,7 +1050,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
-  window.addEventListener('beforeunload', persistOnLifecycle);
+  window.addEventListener('beforeunload', () => { persistOnLifecycle(); streamState.destroy(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) persistOnLifecycle(); });
 
   window.addEventListener('hafize:edit-message', (event) => beginMessageEdit(event.detail?.messageId));

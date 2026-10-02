@@ -31,7 +31,12 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts')
       .replaceAll('/typed-build/github-workspace-write.js', '/github-workspace-write.ts')
       .replaceAll('/typed-build/workspace-backup.js', '/typed/workspace-backup.ts')
-      .replaceAll('/typed-build/system-readiness-panel.js', '/system-readiness-panel.ts');
+      .replaceAll('/typed-build/system-readiness-panel.js', '/system-readiness-panel.ts')
+      .replaceAll('/typed-build/chat-composer-features.js', '/typed/chat-composer-features.ts')
+      .replaceAll('/typed-build/chat-history-search.js', '/typed/chat-history-search.ts')
+      .replaceAll('/typed-build/chat-history-management.js', '/typed/chat-history-management.ts')
+      .replaceAll('/typed-build/hands-free-background-guard.js', '/typed/hands-free-background-guard.ts')
+      .replaceAll('/typed-build/workspace-navigation.js', '/typed/workspace-navigation.ts');
   }
 });
 
@@ -70,6 +75,13 @@ export default defineConfig({
         'github-workspace-write': resolve(ROOT, 'public/github-workspace-write.ts'),
         'workspace-backup': resolve(ROOT, 'public/typed/workspace-backup.ts'),
         'system-readiness-panel': resolve(ROOT, 'public/system-readiness-panel.ts'),
+        'chat-composer-features': resolve(ROOT, 'public/typed/chat-composer-features.ts'),
+        'chat-history-search': resolve(ROOT, 'public/typed/chat-history-search.ts'),
+        'chat-history-management': resolve(ROOT, 'public/typed/chat-history-management.ts'),
+        'hands-free-background-guard': resolve(ROOT, 'public/typed/hands-free-background-guard.ts'),
+        'workspace-navigation': resolve(ROOT, 'public/typed/workspace-navigation.ts'),
+        'hands-free': resolve(ROOT, 'public/typed/hands-free.ts'),
+        'settings-privacy': resolve(ROOT, 'public/typed/settings-privacy.ts'),
         'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),

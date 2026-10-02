@@ -1,3 +1,8 @@
+/**
+ * TypeScript-first frontend migration wave.
+ * The browser/global contract is intentionally preserved during the migration.
+ */
+// @ts-nocheck
 (function exposeHafizeHandsFree(root, factory) {
   'use strict';
 
