@@ -96,7 +96,7 @@ function normalizeLimit(value: number | undefined, fallback: number, max: number
 }
 
 function parseRetry(value: string): number | null {
-  if (!value || !/^\\d+$/.test(value)) return null;
+  if (!value || !/^\d+$/.test(value)) return null;
   return Math.min(3_600_000, Number(value));
 }
 
@@ -112,7 +112,7 @@ export function parseSseEventBlock(block: string, maxFrameChars = DEFAULT_MAX_FR
   let retry: number | null = null;
   const data: string[] = [];
 
-  for (const rawLine of block.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n').split('\\n')) {
+  for (const rawLine of block.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')) {
     if (!rawLine || rawLine.startsWith(':')) continue;
     const separator = rawLine.indexOf(':');
     const field = separator >= 0 ? rawLine.slice(0, separator) : rawLine;
@@ -124,7 +124,7 @@ export function parseSseEventBlock(block: string, maxFrameChars = DEFAULT_MAX_FR
     else if (field === 'data') data.push(value);
   }
 
-  const joined = data.join('\\n');
+  const joined = data.join('\n');
   if (!joined && id === null && retry === null) return null;
   if (joined === '[DONE]') {
     return Object.freeze({ type, data: joined, payload: null, id, retry });
@@ -199,7 +199,7 @@ export async function consumeSseResponse(
       }
       const chunk = await reader.read();
       bytesRead += chunk.value?.byteLength || 0;
-      buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done }).replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
+      buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done }).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       if (buffer.length > maxBufferChars) {
         throw new HafizeSseError('SSE tamponu izin verilen boyutu aştı.', {
           code: 'SSE_BUFFER_TOO_LARGE',
@@ -207,7 +207,7 @@ export async function consumeSseResponse(
           traceId
         });
       }
-      const blocks = buffer.split('\\n\\n');
+      const blocks = buffer.split('\n\n');
       buffer = blocks.pop() || '';
       for (const block of blocks) await emit(block);
       if (chunk.done) {
@@ -258,7 +258,7 @@ export class HafizeSseClient {
   readonly fetchImpl: typeof fetch;
 
   constructor(baseUrl = '', fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)) {
-    this.baseUrl = baseUrl.replace(/\\/+$/, '');
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.fetchImpl = fetchImpl;
   }
 
