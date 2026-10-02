@@ -824,6 +824,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       renderStreamStatus();
       throw error;
     }
+  }
 
   async function streamAssistantReply() {
     const model = ui.modelSelect.value;
