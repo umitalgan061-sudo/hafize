@@ -41,9 +41,10 @@ assert(await exists('public/typed/app-runtime.ts'), 'typed runtime surface missi
 assert(await exists('public/hafize-runtime.css'), 'runtime diagnostics stylesheet missing');
 assert(html.includes('/hafize-runtime.css'), 'runtime diagnostics stylesheet is not linked');
 
-const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 for (const name of migrated) assert(sw.includes(`/typed-build/${name}.js`), `${name} generated entry is not in PWA shell`);
 assert(sw.includes('/typed-build/app-runtime.js'), 'app runtime generated entry is not in PWA shell');
-assert(sw.includes('hafize-shell-v40'), 'PWA cache was not versioned for the new entries');
+assert(sw.includes('hafize-shell-v54'), 'PWA cache was not versioned for the new entries');
+assert(html.includes('/typed-build/legacy-app.js'), 'unified legacy browser entry is missing');
 
 console.log(`legacy-entry-contract: ${migrated.length} migrated modules protected`);
