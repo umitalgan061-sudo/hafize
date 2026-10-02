@@ -291,7 +291,6 @@ export class HafizeSseClient {
       if (!response.ok) throw errorFromResponse(response, await payloadOf(response));
       return response;
     } catch (error) {
-      if (error instanceof HafizeApiError) throw error;
       if (error instanceof HafizeSseError) throw error;
       const code = error instanceof DOMException && error.name === 'TimeoutError' ? 'SSE_TIMEOUT' : 'SSE_NETWORK_ERROR';
       throw new HafizeSseError(
