@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   MAX_RESPONSE_ALTERNATES,
   canRegenerateResponse,
@@ -5,7 +6,7 @@ import {
   normalizeResponseAlternates,
   rememberResponseAlternate,
   restoreLatestResponseAlternate
-} from './response-variants';
+} from './response-variants.ts';
 
 describe('response variants', () => {
   it('normalizes newest-first alternate history with a hard cap', () => {

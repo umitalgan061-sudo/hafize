@@ -3,7 +3,11 @@ import { createContextCompactor, estimateMessageTokens } from './context-compact
 
 describe('context compaction',()=>{
   it('estimates tokens deterministically',()=>{
-    expect(estimateMessageTokens([{role:'user',content:'1234'}])).toBe(4);
+    // The estimate covers the whole serialized message - keys included - so it
+    // never under-counts what the provider actually receives.
+    expect(estimateMessageTokens([{role:'user',content:'1234'}])).toBe(5);
+    expect(estimateMessageTokens([{role:'user',content:'12345678'}])).toBe(6);
+    expect(estimateMessageTokens([])).toBe(0);
   });
   it('keeps short histories unchanged',async()=>{
     const compactor=createContextCompactor({contextLimitTokens:16_000,summarize:async()=> 'unused'});
@@ -22,7 +26,9 @@ describe('context compaction',()=>{
   });
   it('fails closed when summarization errors',async()=>{
     const compactor=createContextCompactor({contextLimitTokens:16_000,triggerRatio:.5,summarize:async()=>{throw new Error('provider');}});
-    const messages=Array.from({length:30},()=>({role:'user',content:'x'.repeat(1000)}));
+    // 30 x ~2 KB of history is past the 8 000 token trigger for a 16 000 token
+    // limit at triggerRatio 0.5, so compaction is really attempted here.
+    const messages=Array.from({length:30},()=>({role:'user',content:'x'.repeat(2000)}));
     const result=await compactor.prepare(messages);
     expect(result.meta.reason).toBe('summary_failed');
     expect(result.messages).toBe(messages);

@@ -19,3 +19,6 @@ coverage/
 *.crt
 runtime/
 data/
+
+# Generated frontend bundle output
+public/typed-build/

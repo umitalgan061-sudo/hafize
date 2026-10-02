@@ -32,6 +32,11 @@ function commandResponse(output, successStatus, requestId) {
   return response(normalized.status, normalized, requestId ? { 'X-Hafize-Request-Id': requestId } : {});
 }
 
+// Schedule ids follow the same conservative id shape as the trace layer, so a
+// percent-encoded separator or control character can never be decoded into an
+// id: `/api/schedules/%2F` is a malformed path, not a schedule named "/".
+const SCHEDULE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+
 function scheduleIdFromPath(pathname) {
   const prefix = `${SCHEDULES_PATH}/`;
   if (!pathname.startsWith(prefix)) return null;
@@ -39,7 +44,7 @@ function scheduleIdFromPath(pathname) {
   if (!raw || raw.includes('/')) return '';
   try {
     const id = decodeURIComponent(raw).trim();
-    return id && id.length <= 120 ? id : '';
+    return id && id.length <= 120 && SCHEDULE_ID_PATTERN.test(id) ? id : '';
   } catch {
     return '';
   }

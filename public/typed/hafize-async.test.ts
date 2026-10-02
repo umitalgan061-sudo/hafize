@@ -56,8 +56,11 @@ describe('createAsyncController', () => {
         }),
         { timeoutMs: 1_000 }
       );
+      // The rejection handler is attached before the timers run, otherwise the
+      // timeout rejects while nothing observes it.
+      const rejected = expect(pending).rejects.toBeInstanceOf(HafizeAsyncTimeoutError);
       await vi.advanceTimersByTimeAsync(1_000);
-      await expect(pending).rejects.toBeInstanceOf(HafizeAsyncTimeoutError);
+      await rejected;
       expect(controller.snapshot()).toMatchObject({ phase: 'cancelled' });
     } finally {
       vi.useRealTimers();

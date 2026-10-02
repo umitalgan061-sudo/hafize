@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
   listResponseVariants,
   selectResponseVariant
@@ -26,7 +27,9 @@ describe('response variant selection', () => {
   });
 
   it('trims and caps selected response content', () => {
-    const result = selectResponseVariant('C', [' B ', 'A'], 1, 1);
-    expect(result).toEqual({ current: 'B', alternates: ['C'] });
+    // The fourth argument is a per-response length bound, not an item count:
+    // every variant is trimmed and truncated, none of them is dropped.
+    const result = selectResponseVariant('CCCC', ['  BBBB  ', 'AAAA'], 1, 2);
+    expect(result).toEqual({ current: 'BB', alternates: ['CC', 'AA'] });
   });
 });

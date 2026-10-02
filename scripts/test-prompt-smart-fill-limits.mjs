@@ -25,7 +25,7 @@ globalThis.localStorage = {
 // Variable extraction lives in the prompt library core, which smart fill reads
 // off the same global the browser gives it.
 globalThis.HafizePromptLibrary = require('../public/prompt-library.js');
-require('../public/prompt-library-smart-fill.js');
+require('../public/prompt-library-smart-fill.ts');
 const smartFill = globalThis.HafizePromptLibrarySmartFill;
 assert.ok(smartFill, 'smart fill exposes its API on the global');
 

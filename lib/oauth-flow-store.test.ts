@@ -22,6 +22,9 @@ describe('OAuth flow store', () => {
     const store = createOAuthFlowStore({ ttlMs: 100, now: () => now });
     store.issue(base);
     now = 1_101;
+    // An expired flow reports its own code and is dropped, so a retry can no
+    // longer find it.
+    expect(() => store.consume(state)).toThrow('OAUTH_FLOW_EXPIRED');
     expect(() => store.consume(state)).toThrow('OAUTH_FLOW_NOT_FOUND');
     expect(store.size()).toBe(0);
   });

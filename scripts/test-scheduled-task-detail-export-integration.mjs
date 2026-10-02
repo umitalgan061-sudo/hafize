@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 const detail = await readFile(new URL('../public/scheduled-task-detail.js', import.meta.url), 'utf8');
 const exportJs = await readFile(new URL('../public/scheduled-task-export.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 
 assert.match(detail, /data-scheduled-detail/);
 assert.match(detail, /scheduledTaskDetailDialog/);

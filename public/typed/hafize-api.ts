@@ -11,6 +11,10 @@ import {
   type ModelsResponse
 } from './hafize-types.ts';
 
+// The client throws this error, so callers can import it from here instead of
+// reaching into the shared type module.
+export { HafizeApiError };
+
 const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;

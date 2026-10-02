@@ -128,9 +128,11 @@ describe('hafize-sse consumption', () => {
   });
 
   it('enforces the buffer limit before processing unbounded content', async () => {
+    // The buffer bound can never be smaller than a single frame bound, so both
+    // limits have to be below the unterminated 26 character chunk.
     const response = responseFromChunks(['data: 12345678901234567890']);
     await expect(
-      consumeSseResponse(response, { maxFrameChars: 100, maxBufferChars: 10 })
+      consumeSseResponse(response, { maxFrameChars: 10, maxBufferChars: 10 })
     ).rejects.toMatchObject({ code: 'SSE_BUFFER_TOO_LARGE' });
   });
 
@@ -177,9 +179,16 @@ describe('HafizeSseClient', () => {
   it('propagates a parent abort signal into the request', async () => {
     const controller = new AbortController();
     let seenSignal: AbortSignal | undefined;
+    // A real fetch rejects when its signal aborts, so the stub has to as well.
     const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
       seenSignal = init?.signal;
-      return new Promise<Response>(() => undefined);
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(init?.signal?.reason ?? new DOMException('Aborted', 'AbortError')),
+          { once: true }
+        );
+      });
     });
     const client = new HafizeSseClient('', fetchImpl);
 
@@ -193,11 +202,18 @@ describe('HafizeSseClient', () => {
   it('uses a bounded timeout and reports it as a typed stream error', async () => {
     vi.useFakeTimers();
     try {
-      const fetchImpl = vi.fn<typeof fetch>(async () => new Promise<Response>(() => undefined));
+      const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          'abort',
+          () => reject(init?.signal?.reason ?? new DOMException('Aborted', 'AbortError')),
+          { once: true }
+        );
+      }));
       const client = new HafizeSseClient('', fetchImpl);
       const pending = client.open('/api/chat', {}, { timeoutMs: 1_000 });
+      const rejected = expect(pending).rejects.toMatchObject({ code: 'SSE_TIMEOUT' });
       await vi.advanceTimersByTimeAsync(1_000);
-      await expect(pending).rejects.toMatchObject({ code: 'SSE_TIMEOUT' });
+      await rejected;
     } finally {
       vi.useRealTimers();
     }

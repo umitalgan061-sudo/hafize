@@ -132,7 +132,9 @@ export function createHafizeStreamController(): HafizeStreamController {
     subscribe: (listener) => {
       if (destroyed) return () => undefined;
       listeners.add(listener);
-      listener(current);
+      // The first delivery is isolated exactly like every later one, so a
+      // throwing listener can never break subscription for the others.
+      try { listener(current); } catch { /* listener isolation */ }
       return () => listeners.delete(listener);
     },
     destroy: () => {

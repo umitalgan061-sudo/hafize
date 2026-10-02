@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 
 const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.js');
+const policy = require('../public/sw-policy.ts');
 const source = await readFile(new URL('../public/sw.js', import.meta.url), 'utf8');
 const origin = 'https://hafize.example';
 const handlers = new Map();

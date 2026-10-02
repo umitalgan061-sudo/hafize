@@ -40,8 +40,12 @@ describe('HafizeStorage', () => {
   });
 
   it('calculates UTF-8 byte limits rather than string length', () => {
-    const storage = createStorage({ maxValueBytes: 5, maxWriteBytes: 5 });
-    expect(() => storage.writeRaw('hafize.limit', '🙂🙂')).toThrowError(
+    // Limits have a 256 byte floor, so the bound is proven with a value whose
+    // UTF-8 size crosses it while its string length stays below it.
+    const storage = createStorage({ maxValueBytes: 256, maxWriteBytes: 256 });
+    const emoji = '🙂'.repeat(100);
+    expect(emoji.length).toBeLessThan(256);
+    expect(() => storage.writeRaw('hafize.limit', emoji)).toThrowError(
       expect.objectContaining({ code: 'STORAGE_VALUE_TOO_LARGE' })
     );
   });
@@ -54,8 +58,9 @@ describe('HafizeStorage', () => {
   });
 
   it('distinguishes value and write bounds', () => {
-    const storage = createStorage({ maxValueBytes: 100, maxWriteBytes: 10 });
-    expect(() => storage.writeRaw('hafize.limit', '12345678901')).toThrowError(
+    const storage = createStorage({ maxValueBytes: 1024, maxWriteBytes: 256 });
+    // Within the value bound but past the per-write bound.
+    expect(() => storage.writeRaw('hafize.limit', 'x'.repeat(300))).toThrowError(
       expect.objectContaining({ code: 'STORAGE_WRITE_TOO_LARGE' })
     );
   });

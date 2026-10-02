@@ -7,9 +7,16 @@ const allReadyRuntime = {
 };
 
 describe('buildSystemReadiness', () => {
-  it('normalizes a fully healthy system without exposing secrets', () => {
+  it('normalizes a fully healthy system without exposing secret values', () => {
+    const authToken = 'a'.repeat(40);
     const report = buildSystemReadiness({
-      env: { HOST: '127.0.0.1', NODE_ENV: 'development' },
+      env: {
+        HOST: '127.0.0.1',
+        NODE_ENV: 'development',
+        HAFIZE_AUTH_TOKEN: authToken,
+        NVIDIA_API_KEY: 'nvapi-never-report-this',
+        GITHUB_TOKEN: 'ghp_never_report_this'
+      },
       runtime: allReadyRuntime,
       pwaReady: true,
       releaseReady: true,
@@ -19,7 +26,14 @@ describe('buildSystemReadiness', () => {
     expect(report.releaseable).toBe(true);
     expect(report.summary).toEqual({ total: 8, ready: 8, warning: 0, blocked: 0, unknown: 0 });
     expect(report.components).toMatchObject({ auth: 'ready', pwa: 'ready', release: 'ready' });
-    expect(JSON.stringify(report)).not.toMatch(/secret|password|token/i);
+
+    // Variable names are public documentation; the values behind them must
+    // never reach a readiness report.
+    const serialized = JSON.stringify(report);
+    expect(serialized).toContain('"HAFIZE_AUTH_TOKEN"');
+    expect(serialized).not.toContain(authToken);
+    expect(serialized).not.toContain('nvapi-never-report-this');
+    expect(serialized).not.toContain('ghp_never_report_this');
   });
 
   it('blocks public production without a valid auth secret', () => {

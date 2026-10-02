@@ -54,7 +54,9 @@ describe('conversation fork core', () => {
   it('rejects unknown messages and empty forks', () => {
     const source = conversation('root', [message('m1')]);
     expect(createFork(source, 'missing', [source]).error).toBe(FORK_ERRORS.messageNotFound);
-    expect(createFork(source, 'm1', [conversation('root', [])])).toEqual({ error: FORK_ERRORS.messageNotFound });
+    // An empty conversation has nothing to fork from, whatever id is asked for.
+    const empty = conversation('root', []);
+    expect(createFork(empty, 'm1', [empty])).toEqual({ error: FORK_ERRORS.messageNotFound });
   });
 
   it('enforces direct branch and total conversation limits', () => {

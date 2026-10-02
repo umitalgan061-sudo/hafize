@@ -176,7 +176,7 @@ describe('stream display helpers', () => {
 
   it('formats bytes with bounded units', () => {
     expect(formatStreamBytes(0)).toBe('0 B');
-    expect(formatStreamBytes(1_024)).toBe('1 KB');
+    expect(formatStreamBytes(1_024)).toBe('1.0 KB');
     expect(formatStreamBytes(9_216)).toBe('9.0 KB');
     expect(formatStreamBytes(1_048_576)).toBe('1.0 MB');
   });

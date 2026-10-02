@@ -21,7 +21,15 @@ describe('typed tool runtime',()=>{
   it('rejects malformed and unauthorized calls',async()=>{
     const malformed=await executeNvidiaToolCall(agent,{id:'c1',function:{name:'runtime_status',arguments:'['}},context);
     expect(malformed).toMatchObject({ok:false});
-    const unauthorized=await executeNvidiaToolCall(agent,{id:'c2',function:{name:'github_read_file',arguments:'{}'}},context);
+    // A tool the deployment has not configured is unavailable before policy is
+    // consulted; policy only speaks for tools that could actually run.
+    const unavailable=await executeNvidiaToolCall(agent,{id:'c2',function:{name:'github_read_file',arguments:'{}'}},context);
+    expect(unavailable).toMatchObject({ok:false,error:'TOOL_UNAVAILABLE'});
+    const unauthorized=await executeNvidiaToolCall(
+      agent,
+      {id:'c3',function:{name:'github_read_file',arguments:'{}'}},
+      {...context,githubReadConfigured:true,githubReadFile:async()=>({content:'never reached'})}
+    );
     expect(unauthorized).toMatchObject({ok:false,error:'TOOL_NOT_AUTHORIZED'});
   });
 

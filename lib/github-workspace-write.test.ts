@@ -46,18 +46,19 @@ describe('github workspace safe write core', () => {
     expect(calls).toBe(0);
   });
 
-  it('binds an approval ticket to the exact payload', () => {
+  it('binds an approval ticket to the exact payload', async () => {
     const writer = makeWriter(async () => jsonResponse({}));
     const ticket = writer.issueApproval('branch', {
       repository: 'owner/repo',
       branch: 'feature/x',
       fromRef: 'main',
     }, true);
-    expect(() => writer.createBranch(ticket.ticket, {
+    // createBranch is async, so the mismatch surfaces as a rejection.
+    await expect(writer.createBranch(ticket.ticket, {
       repository: 'owner/repo',
       branch: 'feature/changed',
       fromRef: 'main'
-    })).toThrowError(new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_MISMATCH', 409));
+    })).rejects.toMatchObject({ code: 'GITHUB_WRITE_APPROVAL_MISMATCH', status: 409 });
   });
 
   it('consumes a ticket so it cannot be replayed', async () => {

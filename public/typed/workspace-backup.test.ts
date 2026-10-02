@@ -30,10 +30,16 @@ class MemoryStorage {
 }
 
 class FailOnceStorage extends MemoryStorage {
+  private armed = false;
   private failed = false;
 
+  /** Seeding the fixture must succeed; only the restore under test may fail. */
+  arm(): void {
+    this.armed = true;
+  }
+
   override setItem(key: string, value: string): void {
-    if (!this.failed && key === 'hafize.message-workspace.v1') {
+    if (this.armed && !this.failed && key === 'hafize.message-workspace.v1') {
       this.failed = true;
       throw new Error('quota');
     }
@@ -158,6 +164,7 @@ describe('workspace backup core', () => {
     const storage = new FailOnceStorage();
     storage.setItem('hafize.prompt-library.v1', JSON.stringify([{ id: 'old' }]));
     storage.setItem('hafize.message-workspace.v1', JSON.stringify([{ id: 'old-message' }]));
+    storage.arm();
 
     const sections = [
       {

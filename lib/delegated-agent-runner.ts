@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { createAgentDelegator } from './agent-delegation.ts';
-import { buildAgentSystemMessage } from './agent-runtime.ts';
+import { buildAgentSystemMessage, type AgentDefinition } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.ts';
 
@@ -26,6 +26,26 @@ function normalizeCompletion(complete, payload) {
   });
 }
 
+// The input is described explicitly so typed callers - the scheduled executor
+// among them - are checked against the real parameter list instead of only the
+// fields that happen to carry a default value.
+export interface DelegatedAgentRunInput {
+  readonly agent?: AgentDefinition;
+  readonly task?: unknown;
+  readonly traceId?: unknown;
+  readonly parentTaskId?: unknown;
+  readonly depth?: number;
+  readonly registry?: unknown;
+  readonly runLedger?: unknown;
+  readonly model?: unknown;
+  readonly maxTokens?: number;
+  readonly complete?: unknown;
+  readonly nvidiaConfigured?: boolean;
+  readonly githubReadConfigured?: boolean;
+  readonly githubReadFile?: unknown;
+  readonly skillsRuntime?: unknown;
+}
+
 export async function runDelegatedAgent({
   agent,
   task,
@@ -41,7 +61,7 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime
-} = {}) {
+}: DelegatedAgentRunInput = {}) {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }

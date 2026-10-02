@@ -79,6 +79,28 @@ const lineageOf = conversationLineage;
     showToast.timer = globalThis.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
+  // `Dal yedeği` downloads the active branch as JSON. The snapshot shape comes
+  // from the fork core so the export and the restore path cannot drift apart.
+  function downloadConversation(conversation) {
+    if (!conversation) return;
+    let url = '';
+    try {
+      const snapshot = buildForkSnapshot(conversation);
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+      url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hafize-' + (cleanText(conversation.title, 48) || 'sohbet') + '.json';
+      link.rel = 'noopener';
+      link.click();
+      showToast('Dal yedeği indirildi.');
+    } catch {
+      showToast('Dal yedeği oluşturulamadı.');
+    } finally {
+      if (url) globalThis.setTimeout?.(() => URL.revokeObjectURL(url), 0);
+    }
+  }
+
   function isBusy() {
     return ui.messages.getAttribute('aria-busy') === 'true';
   }

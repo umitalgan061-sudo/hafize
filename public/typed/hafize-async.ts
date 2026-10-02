@@ -131,6 +131,11 @@ export function createAsyncController<T = unknown>(
       options.signal?.addEventListener('abort', () => controller.abort(options.signal?.reason), { once: true });
     }
 
+    // `onStateChange` observes every published transition of this operation -
+    // queued, running and the terminal phase - not just a single snapshot.
+    const stateListener = options.onStateChange as ((snapshot: AsyncSnapshot<T>) => void) | undefined;
+    if (stateListener) subscribers.add(stateListener);
+
     publish({
       phase: 'queued',
       operationId,
@@ -141,7 +146,6 @@ export function createAsyncController<T = unknown>(
       error: null
     });
     publish({ ...current, phase: 'running' });
-    options.onStateChange?.(current);
 
     timeoutHandle = globalThis.setTimeout(() => {
       if (current.operationId !== operationId) return;
@@ -174,6 +178,8 @@ export function createAsyncController<T = unknown>(
       }
       settle(operationId, 'failed', null, normalized);
       throw normalized;
+    } finally {
+      if (stateListener) subscribers.delete(stateListener);
     }
   }
 

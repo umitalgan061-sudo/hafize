@@ -14,7 +14,7 @@
     "build": "vite build",
     "typecheck": "npm run typecheck:runtime",
     "test:modern": "vitest run",
-    "check:modern": "npm run typecheck && npm run typecheck:syntax && npm run test:modern:gate && npm run test:modernization && node scripts/test-nextgen-release.mjs",
+    "check:modern": "npm run typecheck && npm run typecheck:syntax && npm run test:modern && npm run test:modernization && node scripts/test-nextgen-release.mjs && node scripts/test-module-resolution.mjs && node scripts/test-typescript-platform-wave.mjs && node scripts/test-server-boot-smoke.mjs",
     "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",

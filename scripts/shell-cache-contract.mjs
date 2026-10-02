@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PUBLIC_DIR = path.join(ROOT, 'public');
-export const swPolicy = require('../public/sw-policy.js');
+export const swPolicy = require('../public/sw-policy.ts');
 export const CACHE_VERSION_PATTERN = /^hafize-shell-v(\d+)$/;
 export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.CURRENT_CACHE)?.[1] ?? NaN);
 

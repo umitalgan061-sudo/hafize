@@ -25,20 +25,23 @@ describe('typed GitHub read boundary', () => {
   });
 
   it('decodes bounded text content', async () => {
+    // The byte budget has a 1 KiB floor, so a fixture only shows truncation
+    // once it crosses that floor.
+    const body = 'h'.repeat(1100);
     const read = createGitHubReadFile({
       token: 'token',
       allowedRepositories: ['a/b'],
-      maxFileBytes: 5,
+      maxFileBytes: 1024,
       fetchImpl: async () => response({
         type: 'file', encoding: 'base64',
-        content: Buffer.from('hello world').toString('base64'),
-        sha: 'abc', size: 11
+        content: Buffer.from(body).toString('base64'),
+        sha: 'abc', size: body.length
       })
     });
     await expect(read({ repository: 'a/b', path: 'README.md' })).resolves.toMatchObject({
       repository: 'a/b',
       path: 'README.md',
-      content: 'hello',
+      content: 'h'.repeat(1024),
       truncated: true
     });
   });

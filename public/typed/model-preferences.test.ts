@@ -201,8 +201,12 @@ describe('model-preferences import/export', () => {
     const incoming = profile({ id: 'same', name: 'Gelen' })!;
     const result = importModelPreferences(state({ profiles: [existing] }), [incoming]);
     expect(result.imported).toBe(1);
-    expect(result.state.profiles[0].id).toBe('same');
-    expect(result.state.profiles[1]?.id).not.toBe('same');
+    // The stored profile keeps its id and the incoming copy gets a fresh one,
+    // whichever order the list happens to present them in.
+    const ids = result.state.profiles.map((item) => item.id);
+    expect(new Set(ids).size).toBe(2);
+    expect(result.state.profiles.find((item) => item.id === 'same')?.name).toBe('Yazı');
+    expect(result.state.profiles.find((item) => item.id === 'generated-id')?.name).toBe('Gelen');
     vi.unstubAllGlobals();
   });
 
