@@ -80,6 +80,8 @@ export default defineConfig({
         'chat-history-management': resolve(ROOT, 'public/typed/chat-history-management.ts'),
         'hands-free-background-guard': resolve(ROOT, 'public/typed/hands-free-background-guard.ts'),
         'workspace-navigation': resolve(ROOT, 'public/typed/workspace-navigation.ts'),
+        'hands-free': resolve(ROOT, 'public/typed/hands-free.ts'),
+        'settings-privacy': resolve(ROOT, 'public/typed/settings-privacy.ts'),
         'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
