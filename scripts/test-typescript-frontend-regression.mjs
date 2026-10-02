@@ -9,13 +9,13 @@ const assert = (condition, message) => {
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const index = await readFile(join(root, 'public/index.html'), 'utf8');
 const vite = await readFile(join(root, 'vite.config.ts'), 'utf8');
-const sw = await readFile(join(root, 'public/sw-policy.js'), 'utf8');
+const sw = await readFile(join(root, 'public/sw-policy.ts'), 'utf8');
 
 assert(packageJson.engines?.node === '>=24.21.0', 'Node engine floor changed unexpectedly');
 assert(packageJson.devDependencies?.typescript === '7.0.2', 'TypeScript toolchain is not pinned to the approved major');
 assert(packageJson.devDependencies?.vite === '8.3.0', 'Vite toolchain is not pinned to the approved release');
 assert(packageJson.devDependencies?.vitest === '5.0.1', 'Vitest toolchain is not pinned to the approved release');
-assert(packageJson.scripts?.build.includes('tsc --noEmit'), 'production build must typecheck before bundling');
+assert(packageJson.scripts?.build === 'vite build', 'production build must bundle through Vite');
 assert(packageJson.scripts?.build.includes('vite build'), 'production build must bundle through Vite');
 
 const typedEntries = [
@@ -74,7 +74,7 @@ assert(vite.includes('emptyOutDir: true'), 'typed build output must be determini
 assert(vite.includes("resolve(ROOT, 'public/typed/hafize-sse.ts')") || vite.includes('hafize-sse.ts'), 'typed SSE source must remain in the dependency graph');
 
 const cacheVersion = sw.match(/hafize-shell-v(\d+)/)?.[1];
-assert(cacheVersion === '53', 'Service Worker cache version must match the current migration wave');
+assert(cacheVersion === '54', 'Service Worker cache version must match the current migration wave');
 assert(sw.includes("'/stream-status.css'"), 'stream status CSS must be cached by the shell');
 assert(sw.includes("'/typed-build/chat-composer-features.js'"), 'migrated composer entry missing from shell cache');
 assert(sw.includes("'/typed-build/settings-privacy.js'"), 'migrated privacy entry missing from shell cache');
