@@ -2,7 +2,7 @@
   "name": "hafize-ai",
   "version": "0.1.0",
   "private": true,
-  "description": "Hafize kişisel yapay zekâ çalışma alanı — güvenli, Claude-benzeri frontend başlangıcı.",
+  "description": "Hafize ki\u015fisel yapay zek\u00e2 \u00e7al\u0131\u015fma alan\u0131 \u2014 g\u00fcvenli, Claude-benzeri frontend ba\u015flang\u0131c\u0131.",
   "engines": {
     "node": ">=24.21.0"
   },
@@ -15,7 +15,6 @@
     "typecheck": "npm run typecheck:runtime",
     "test:modern": "vitest run",
     "check:modern": "npm run typecheck && npm run typecheck:syntax && npm run test:modern:gate && npm run test:modernization && node scripts/test-nextgen-release.mjs",
-    "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
     "check": "node scripts/run-checks.mjs",
     "test": "node scripts/run-checks.mjs",
     "format:check": "node scripts/format-check.mjs",

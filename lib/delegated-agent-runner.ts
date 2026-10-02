@@ -26,6 +26,27 @@ function normalizeCompletion(complete, payload) {
   });
 }
 
+// Declared explicitly so call sites are checked. Without it TypeScript infers the
+// parameter type from the defaulted properties alone, which silently rejects `agent`,
+// `task` and the other required fields. The body validates every field at runtime, so the
+// types stay permissive on purpose.
+export interface DelegatedAgentRunOptions {
+  readonly agent?: unknown;
+  readonly task?: unknown;
+  readonly traceId?: unknown;
+  readonly parentTaskId?: unknown;
+  readonly depth?: number;
+  readonly registry?: unknown;
+  readonly runLedger?: unknown;
+  readonly model?: unknown;
+  readonly maxTokens?: number;
+  readonly complete?: unknown;
+  readonly nvidiaConfigured?: boolean;
+  readonly githubReadConfigured?: boolean;
+  readonly githubReadFile?: unknown;
+  readonly skillsRuntime?: unknown;
+}
+
 export async function runDelegatedAgent({
   agent,
   task,
@@ -41,7 +62,7 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime
-} = {}) {
+}: DelegatedAgentRunOptions = {}) {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }

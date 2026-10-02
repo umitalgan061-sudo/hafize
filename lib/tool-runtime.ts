@@ -3,6 +3,12 @@ import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
 import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
 import { normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
 import { projectSafeToolExecutionResult } from './tool-execution-result-policy.ts';
+import { createBuiltinSkillsRuntimeSync } from './skills-runtime.ts';
+
+// skill_invoke falls back to the registry-backed built-in runtime when a caller injects
+// none. Without this the tool advertises as unavailable everywhere, since no production
+// call site passes `skillsRuntime`.
+const BUILTIN_SKILLS_RUNTIME = createBuiltinSkillsRuntimeSync() as { readonly resolveForAgent: (args: unknown) => unknown };
 
 export interface ToolAgent {
   readonly id: string;
@@ -142,8 +148,13 @@ const CATALOG = new Map<string, ToolEntry>([
       path: { type: 'string' },
       ref: { type: 'string' }
     }),
-    available: (context) => Boolean(context.githubReadConfigured && context.githubReadFile),
-    execute: async (args, context) => context.githubReadFile!(args)
+    available: (context) => Boolean(context.githubReadConfigured),
+    execute: async (args, context) => {
+      if (typeof context.githubReadFile !== 'function') {
+        throw Object.assign(new Error('GITHUB_NOT_CONFIGURED'), { code: 'GITHUB_NOT_CONFIGURED', status: 503 });
+      }
+      return context.githubReadFile(args);
+    }
   }],
   ['canva_read', {
     permission: 'connector.canva.read',
@@ -167,14 +178,14 @@ const CATALOG = new Map<string, ToolEntry>([
     permission: 'skill.invoke',
     kind: 'skill',
     timeoutMs: timeout(30_000, 30_000),
-    activity: { running: 'Hafize skill hazırlanıyor', success: 'Hafize skill hazırlandı', failure: 'Hafize skill hazırlanamadı' },
+    activity: { running: 'Hafize skill’i hazırlanıyor', success: 'Hafize skill’i hazırlandı', failure: 'Hafize skill’i hazırlanamadı' },
     definition: definition('skill_invoke', 'Registry içindeki güvenli Hafize skill yapısını çözümler.', {
       skillId: { type: 'string' },
       args: { type: 'object' }
     }),
-    available: (context) => typeof context.skillsRuntime?.resolveForAgent === 'function',
+    available: (context) => typeof (context.skillsRuntime ?? BUILTIN_SKILLS_RUNTIME)?.resolveForAgent === 'function',
     execute: async (args, context) => {
-      const invocation = context.skillsRuntime!.resolveForAgent({
+      const invocation = (context.skillsRuntime ?? BUILTIN_SKILLS_RUNTIME).resolveForAgent({
         agent: context.agent,
         skillId: args.skillId,
         args: args.args,
@@ -209,21 +220,21 @@ export function getAllowedNvidiaTools(
   }
   return Object.freeze(output);
 }
-export function getPublicToolRunningActivity(name: unknown): Readonly<{ label: string; state: 'running'; tool: string; timeoutMs: number } | null> {
+// Streamed to the browser as `hafize-tool-activity`. The payload stays at label+state:
+// that is all the client reads, and anything else here is avoidable exposure.
+export function getPublicToolRunningActivity(name: unknown): Readonly<{ label: string; state: 'running' } | null> {
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
-  return entry ? Object.freeze({ label: entry.activity.running, state: 'running' as const, tool: name as string, timeoutMs: entry.timeoutMs }) : null;
+  return entry ? Object.freeze({ label: entry.activity.running, state: 'running' as const }) : null;
 }
-export function getPublicToolActivity(name: unknown, result: unknown): Readonly<{ label: string; state: 'success' | 'failure'; tool: string; durationMs?: number; error?: string } | null> {
+// Same contract as the running payload: never forward a tool's own error text, which can
+// carry repository paths, hostnames or upstream messages, to the client.
+export function getPublicToolActivity(name: unknown, result: unknown): Readonly<{ label: string; state: 'success' | 'failure' } | null> {
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
   if (!entry) return null;
   const ok = Boolean(result && typeof result === 'object' && (result as { ok?: boolean }).ok === true);
-  const value = result && typeof result === 'object' ? result as { durationMs?: unknown; error?: unknown } : {};
   return Object.freeze({
     label: ok ? entry.activity.success : entry.activity.failure,
-    state: ok ? 'success' as const : 'failure' as const,
-    tool: name as string,
-    ...(Number.isFinite(value.durationMs) ? { durationMs: Number(value.durationMs) } : {}),
-    ...(typeof value.error === 'string' ? { error: value.error.slice(0, 120) } : {})
+    state: ok ? 'success' as const : 'failure' as const
   });
 }
 export async function executeNvidiaToolCall(
