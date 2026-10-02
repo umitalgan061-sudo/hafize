@@ -5,7 +5,7 @@ const root = new URL('../', import.meta.url);
 const source = await readFile(new URL('public/prompt-library-smart-insert.js', root), 'utf8');
 const css = await readFile(new URL('public/prompt-library-smart-insert.css', root), 'utf8');
 const index = await readFile(new URL('public/index.html', root), 'utf8');
-const sw = await readFile(new URL('public/sw-policy.js', root), 'utf8');
+const sw = await readFile(new URL('public/sw-policy.ts', root), 'utf8');
 
 const mustContain = (text, pattern, label) => assert.match(text, pattern, label);
 const mustNotContain = (text, pattern, label) => assert.doesNotMatch(text, pattern, label);

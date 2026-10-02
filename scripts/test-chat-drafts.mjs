@@ -5,9 +5,9 @@ import path from 'node:path';
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('public/index.html');
-const js = read('public/chat-drafts.js');
+const js = read('public/typed/legacy/chat-drafts.ts');
 const css = read('public/chat-drafts.css');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const docs = read('docs/CHAT_DRAFTS.md');
 
 assert.match(html, /chat-drafts\.css/);

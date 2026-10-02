@@ -25,6 +25,15 @@ function text(value: unknown, max: number, code: string): string {
   return result;
 }
 
+// Model content must be a string. Coercing a structured payload to an empty
+// string would silently drop the answer, so a non-string value is refused and a
+// too-large one gets its own code.
+function content(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value !== 'string') throw new Error('INVALID_MODEL_CONTENT');
+  return text(value, MAX_CONTENT_LENGTH, 'MODEL_CONTENT_TOO_LARGE');
+}
+
 function finishReason(value: unknown): ModelFinishReason {
   if (value == null) return 'unknown';
   if (typeof value !== 'string') throw new Error('INVALID_MODEL_FINISH_REASON');
@@ -53,10 +62,14 @@ function toolCalls(value: unknown): readonly ModelToolCall[] {
     const fn = call.function && typeof call.function === 'object' && !Array.isArray(call.function)
       ? call.function as Record<string, unknown>
       : call;
+    // A missing id and a missing name keep their own codes so a malformed tool
+    // call can be diagnosed from the error alone.
     const id = text(call.id, 200, 'INVALID_MODEL_TOOL_CALL_ID');
+    if (!id) throw new Error('INVALID_MODEL_TOOL_CALL_ID');
     const name = text(fn.name, 120, 'INVALID_MODEL_TOOL_CALL_NAME');
+    if (!name) throw new Error('INVALID_MODEL_TOOL_CALL_NAME');
     const args = fn.arguments;
-    if (!id || !name || typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
+    if (typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
       throw new Error('INVALID_MODEL_TOOL_CALL');
     }
     return Object.freeze({ id, name, arguments: args });
@@ -67,7 +80,7 @@ export function normalizeModelResponse(value: unknown = {}): NormalizedModelResp
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_MODEL_RESPONSE');
   const source = value as Record<string, unknown>;
   return Object.freeze({
-    content: source.content == null ? '' : text(source.content, MAX_CONTENT_LENGTH, 'INVALID_MODEL_CONTENT'),
+    content: content(source.content),
     finishReason: finishReason(source.finishReason),
     toolCalls: toolCalls(source.toolCalls),
     usage: usage(source.usage),
@@ -94,6 +107,14 @@ export function normalizeNvidiaChatCompletion(value: unknown = {}): NormalizedMo
     model: source.model,
     responseId: source.id
   });
+}
+
+// A response is terminal only when the model is finished with it: a tool_calls
+// or unknown finish reason still needs another round, so callers must not treat
+// it as a final answer.
+export function isTerminalModelResponse(response: unknown = {}): boolean {
+  const normalized = normalizeModelResponse(response);
+  return normalized.finishReason !== 'tool_calls' && normalized.finishReason !== 'unknown';
 }
 
 export const MODEL_RESPONSE_CONTRACT = Object.freeze({

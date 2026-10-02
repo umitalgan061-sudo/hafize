@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-// public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
-// at runtime, which Node cannot statically analyse into named exports, so the
-// suite takes the default (CommonJS) export and destructures it.
-import promptLibrary from '../public/prompt-library.js';
+import { createRequire } from 'node:module';
+// public/prompt-library.js is only a loader for the built bundle; the module
+// itself lives in public/typed/prompt-library.ts and assigns `module.exports`
+// at runtime, so the suite requires it and destructures the CommonJS export.
+const require = createRequire(import.meta.url);
+const promptLibrary = require('../public/typed/prompt-library.ts');
 const { LIMITS, normalizeItem, normalizeCollection, safeState } = promptLibrary;
 
 const item = normalizeItem({ title: 'x'.repeat(200), body: 'x'.repeat(9000), tags: Array.from({ length: 20 }, (_, i) => `tag-${i}`), variables: Array.from({ length: 20 }, (_, i) => `v-${i}`) });

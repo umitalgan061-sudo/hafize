@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const detail = await readFile(new URL('../public/scheduled-task-detail.js', import.meta.url), 'utf8');
-const exportJs = await readFile(new URL('../public/scheduled-task-export.js', import.meta.url), 'utf8');
+const detail = await readFile(new URL('../public/typed/legacy/scheduled-task-detail.ts', import.meta.url), 'utf8');
+const exportJs = await readFile(new URL('../public/typed/legacy/scheduled-task-export.ts', import.meta.url), 'utf8');
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 

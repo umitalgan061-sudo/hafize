@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { createStorageStub, createThrowingStorage } from './browser-storage-stub.mjs';
 
 const require = createRequire(import.meta.url);
-const source = fs.readFileSync('public/composer-history.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/composer-history.ts', 'utf8');
 
 assert.match(source, /hafize\.composer-history\.v1/);
 assert.match(source, /MAX_ITEMS = 40/);

@@ -6,7 +6,7 @@ import { assertAttributeDeclared } from './source-contract.mjs';
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.css'), 'utf8');
 const keyboardCss = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
-const keyboard = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
+const keyboard = fs.readFileSync(path.join(root, 'public', 'typed/legacy/conversation-workspace-keyboard.ts'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
 const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
 

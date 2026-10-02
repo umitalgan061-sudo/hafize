@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const source = fs.readFileSync('public/composer-history-panel.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/composer-history-panel.ts', 'utf8');
 assert.match(source, /composerHistoryPanel/);
 assert.match(source, /composerHistoryToggle/);
 assert.match(source, /Geçmiş/);

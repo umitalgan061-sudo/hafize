@@ -7,7 +7,7 @@ const state=fs.readFileSync(path.join(root,'public/typed/model-preferences.ts'),
 const ui=fs.readFileSync(path.join(root,'public/typed/model-preferences-ui.ts'),'utf8');
 const shell=fs.readFileSync(path.join(root,'public/typed/app-shell.ts'),'utf8');
 const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');
-const sw=fs.readFileSync(path.join(root,'public/sw-policy.js'),'utf8');
+const sw=fs.readFileSync(path.join(root,'public/sw-policy.ts'),'utf8');
 
 assert.match(state,/hafize\.model-preferences\.v1/);
 assert.match(state,/maxProfiles: 6/);

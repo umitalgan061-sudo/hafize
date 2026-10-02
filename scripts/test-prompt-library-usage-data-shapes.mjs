@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import fs from 'node:fs';
 // public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
 // at runtime, which Node cannot statically analyse into named exports, so the
 // suite takes the default (CommonJS) export.
-import promptLibrary from '../public/prompt-library.js';
+// public/prompt-library.js is only a loader for the built bundle; the module
+// itself lives in public/typed/prompt-library.ts and assigns `module.exports`
+// at runtime, so the suite requires it and destructures the CommonJS export.
+const require = createRequire(import.meta.url);
+const promptLibrary = require('../public/typed/prompt-library.ts');
 
-const core = fs.readFileSync('public/prompt-library.js', 'utf8');
-const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
+const core = fs.readFileSync('public/typed/prompt-library.ts', 'utf8');
+const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 const docs = fs.readFileSync('docs/PROMPT_LIBRARY_USAGE_INSIGHTS.md', 'utf8');
 
 assert.match(core, /useCount/);

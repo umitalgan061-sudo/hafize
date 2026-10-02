@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const files = {
-  core: 'public/composer-history.js',
-  panel: 'public/composer-history-panel.js',
-  backup: 'public/composer-history-backup.js',
-  settings: 'public/composer-history-settings.js',
+  core: 'public/typed/legacy/composer-history.ts',
+  panel: 'public/typed/legacy/composer-history-panel.ts',
+  backup: 'public/typed/legacy/composer-history-backup.ts',
+  settings: 'public/typed/legacy/composer-history-settings.ts',
   help: 'public/composer-history-help.js'
 };
 const source = Object.fromEntries(Object.entries(files).map(([key, file]) => [key, fs.readFileSync(file, 'utf8')]));
@@ -43,7 +43,7 @@ for (const value of Object.values(source)) {
 }
 const html = fs.readFileSync('public/index.html', 'utf8');
 for (const asset of Object.keys(files).map((key) => `/${files[key].split('/').at(-1)}`)) assert.match(html, new RegExp(asset.replaceAll('/','\\/')));
-const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.ts', 'utf8');
 for (const asset of Object.keys(files).map((key) => `/${files[key].split('/').at(-1)}`)) assert.match(sw, new RegExp(asset.replaceAll('/','\\/')));
 assertVersionedCacheDeclaration(sw);
 console.log('composer history integrated contract: ok');

@@ -18,9 +18,9 @@ export const swPolicy = require('../public/sw-policy.ts');
 export const CACHE_VERSION_PATTERN = /^hafize-shell-v(\d+)$/;
 export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.CURRENT_CACHE)?.[1] ?? NaN);
 
-/** Source text of `public/sw-policy.js`, for suites that assert on the file itself. */
+/** Source text of `public/sw-policy.ts`, for suites that assert on the file itself. */
 export function readSwPolicySource() {
-  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.js'), 'utf8');
+  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.ts'), 'utf8');
 }
 
 /** Local file backing a shell asset path, or null for the bare `/` entry. */

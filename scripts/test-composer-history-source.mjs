@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const ALL = [
-  'public/composer-history.js',
-  'public/composer-history-panel.js',
-  'public/composer-history-backup.js',
-  'public/composer-history-settings.js',
+  'public/typed/legacy/composer-history.ts',
+  'public/typed/legacy/composer-history-panel.ts',
+  'public/typed/legacy/composer-history-backup.ts',
+  'public/typed/legacy/composer-history-settings.ts',
   'public/composer-history-help.js'
 ];
 // The core module never renders: it only reads and writes the composer's value.
-const RENDERING = ALL.filter((file) => file !== 'public/composer-history.js');
+const RENDERING = ALL.filter((file) => file !== 'public/typed/legacy/composer-history.ts');
 
 for (const file of ALL) {
   const source = fs.readFileSync(file, 'utf8');

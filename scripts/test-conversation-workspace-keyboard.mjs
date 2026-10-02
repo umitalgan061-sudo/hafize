@@ -3,10 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
-const source = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
+const source = fs.readFileSync(path.join(root, 'public', 'typed/legacy/conversation-workspace-keyboard.ts'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const sw = fs.readFileSync(path.join(root, 'public', 'sw-policy.js'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'public', 'sw-policy.ts'), 'utf8');
 
 const must = (fragment, label = fragment) => assert.ok(source.includes(fragment), label);
 const mustCss = (fragment) => assert.ok(css.includes(fragment), `css includes ${fragment}`);

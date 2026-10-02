@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 
 const root = new URL('../', import.meta.url);
 const [enhancements, center, history, bridge, suggestions, shortcuts, presets, css, historyCss, suggestionsCss, sw] = await Promise.all([
-  readFile(new URL('public/prompt-library-enhancements.js', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-enhancements.ts', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-center.js', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-history.js', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-history-bridge.js', root), 'utf8'),
@@ -13,7 +13,7 @@ const [enhancements, center, history, bridge, suggestions, shortcuts, presets, c
   readFile(new URL('public/prompt-library-smart-insert.css', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-history.css', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-suggestions.css', root), 'utf8'),
-  readFile(new URL('public/sw-policy.js', root), 'utf8')
+  readFile(new URL('public/sw-policy.ts', root), 'utf8')
 ]);
 
 const contains = (source, pattern, name) => assert.match(source, pattern, name);
