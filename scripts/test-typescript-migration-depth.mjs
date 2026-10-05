@@ -17,6 +17,7 @@ const migrated=[
 ];
 
 const browserMigrated=['markdown-renderer.ts','conversation-workspace.ts','message-workspace.ts','prompt-library.ts','scheduled-tasks.ts'];
+const smartInsertMigrated=['prompt-library-smart-insert.ts','prompt-library-smart-insert-center.ts','prompt-library-smart-insert-history.ts','prompt-library-smart-insert-history-bridge.ts','prompt-library-smart-insert-presets.ts','prompt-library-smart-insert-suggestions.ts','prompt-library-smart-insert-validation.ts','prompt-library-smart-insert-activity.ts','prompt-library-smart-insert-shortcuts.ts'];
 async function exists(path){try{await access(path);return true;}catch{return false;}}
 function assert(value,message){if(!value)throw new Error('TYPESCRIPT_MIGRATION_DEPTH_FAILED:'+message);}
 
@@ -27,6 +28,12 @@ for(const file of migrated){
 }
 
 for(const file of browserMigrated) assert(await exists(resolve(root,'public',file)),'missing-browser:'+file);
+for(const file of smartInsertMigrated){
+  assert(await exists(resolve(root,'public/typed/legacy',file)),'missing-smart-insert:'+file);
+  const legacy=file.replace(/\\.ts$/,'.js');
+  assert(!(await exists(resolve(root,'public',legacy))),'legacy-smart-insert:'+legacy);
+}
+
 
 assert(packageData.scripts?.['typecheck:runtime'],'missing-runtime-typecheck');
 assert(packageData.scripts?.['test:typed-core'],'missing-typed-test-script');

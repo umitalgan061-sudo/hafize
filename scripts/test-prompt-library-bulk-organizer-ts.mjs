@@ -1,0 +1,29 @@
+import assert from 'node:assert/strict';
+import { access, readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+const root = resolve(new URL('../', import.meta.url).pathname);
+const read = (path) => readFile(resolve(root, path), 'utf8');
+const exists = async (path) => { try { await access(resolve(root, path)); return true; } catch { return false; } };
+
+const source = await read('public/typed/legacy/prompt-library-bulk-organizer.ts');
+const app = await read('public/typed/legacy-app.ts');
+const html = await read('public/index.html');
+const sw = await read('public/sw-policy.ts');
+
+assert(await exists('public/typed/legacy/prompt-library-bulk-organizer.ts'));
+assert.equal(await exists('public/prompt-library-bulk-organizer.js'), false);
+assert.match(source, /export function installPromptLibraryBulkOrganizer/);
+assert.match(source, /HafizeLegacyRoot/);
+assert.match(source, /@ts-nocheck/);
+assert.match(source, /MAX_SELECTION = 40/);
+assert.match(source, /MAX_TAGS = 8/);
+assert.match(source, /createElement/);
+assert.doesNotMatch(source, /innerHTML\\s*=/);
+assert.doesNotMatch(source, /fetch\\s*\\(/);
+assert.match(app, /prompt-library-bulk-organizer\\.ts/);
+assert.match(app, /HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52/);
+assert.match(html, /typed-build\\/legacy-app\\.js/);
+assert.match(sw, /typed-build\\/legacy-app\\.js/);
+assert.match(sw, /hafize-shell-v55/);
+console.log('Prompt Library bulk organizer TypeScript gate: OK');
