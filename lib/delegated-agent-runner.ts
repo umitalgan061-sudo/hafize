@@ -125,6 +125,8 @@ export async function runDelegatedAgent({
   });
   const delegateAgent = (args: unknown) => nestedDelegator.delegate(args, { depth });
   const tools = getAllowedNvidiaTools(agent, {
+    traceId: safeTraceId,
+    agent,
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
     delegateAgent,
@@ -166,7 +168,7 @@ export async function runDelegatedAgent({
       registry,
       nvidiaConfigured: Boolean(nvidiaConfigured),
       githubReadConfigured: Boolean(githubReadConfigured),
-      githubReadFile,
+      githubReadFile: typeof githubReadFile === 'function' ? githubReadFile as (args: unknown) => Promise<unknown> : undefined,
       delegateAgent,
       approvalGranted: false,
       skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
