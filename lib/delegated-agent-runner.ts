@@ -115,7 +115,8 @@ export async function runDelegatedAgent({
       nvidiaConfigured,
       githubReadConfigured,
       githubReadFile,
-      skillsRuntime
+      skillsRuntime,
+      signal: nestedSignal
     })
   });
   const delegateAgent = (args: unknown) => nestedDelegator.delegate(args, { depth });
