@@ -13,10 +13,12 @@ export interface TaskLedgerEntry {
   readonly parentTaskId: string | null;
   readonly createdAt: string;
   readonly updatedAt: string | null;
+  readonly [key: string]: unknown;
 }
 export interface TaskLedgerSnapshot {
   readonly traceId: string;
   readonly entries: readonly TaskLedgerEntry[];
+  readonly [key: string]: unknown;
 }
 export interface TaskLedgerOptions {
   readonly traceId?: unknown;
