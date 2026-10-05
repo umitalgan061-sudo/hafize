@@ -17,7 +17,7 @@ for (const name of modules) {
   assert.equal(await exists('public/' + name + '.js'), false, 'legacy JS exists: ' + name);
   const source = await read(path);
   assert.match(source, /import type \{ HafizeLegacyRoot \}/);
-  assert.match(source, /export function install/);
+  assert.match(source, /export function [A-Za-z0-9_]+\(root:/);
   assert.doesNotMatch(source, /eval\s*\(/);
   assert.doesNotMatch(source, /new Function\s*\(/);
   assert.doesNotMatch(source, /fetch\s*\(/);
