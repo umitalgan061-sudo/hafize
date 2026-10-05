@@ -59,6 +59,8 @@ function errorFromResponse(response: Response, payload: unknown): HafizeApiError
   });
 }
 
+export { HafizeApiError } from './hafize-types.ts';
+
 export class HafizeApiClient {
   readonly baseUrl: string;
   readonly fetchImpl: typeof fetch;
