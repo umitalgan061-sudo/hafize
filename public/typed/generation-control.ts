@@ -1,3 +1,14 @@
+import {
+  appendGenerationHistory,
+  clearGenerationHistory,
+  compactGenerationHistoryForCopy,
+  generationHistoryFromSnapshot,
+  readGenerationHistory,
+  summarizeGenerationHistory,
+  writeGenerationHistory,
+  type GenerationHistoryEntry
+} from './generation-history.ts';
+
 export type GenerationPhase = 'idle' | 'active' | 'completed' | 'aborted' | 'failed';
 
 export type GenerationStopReason = 'user' | 'navigation' | 'offline' | 'shutdown' | 'unknown';
@@ -35,6 +46,10 @@ export interface GenerationController {
   readonly stop: (reason?: GenerationStopReason) => boolean;
   readonly complete: (stats?: Partial<GenerationSnapshot>) => void;
   readonly fail: (error?: unknown, stats?: Partial<GenerationSnapshot>) => void;
+  readonly readHistory: () => GenerationHistoryEntry[];
+  readonly historySummary: () => ReturnType<typeof summarizeGenerationHistory>;
+  readonly clearHistory: () => boolean;
+  readonly copyHistory: () => Promise<boolean>;
   readonly copyDiagnostics: () => Promise<boolean>;
   readonly subscribe: (listener: (snapshot: GenerationSnapshot) => void) => () => void;
   readonly destroy: () => void;
@@ -132,6 +147,7 @@ export function createGenerationController(): GenerationController {
   let diagnostics: HTMLButtonElement | null = null;
   let status: HTMLElement | null = null;
   let keyboardTarget: Window | null = null;
+  let historyStorage: Storage | null = null;
   const listeners = new Set<(snapshot: GenerationSnapshot) => void>();
   const disposers: Array<() => void> = [];
 
@@ -139,6 +155,13 @@ export function createGenerationController(): GenerationController {
     if (current.startedAt === null) return current.elapsedMs;
     const end = current.endedAt ?? Date.now();
     return Math.max(0, end - current.startedAt);
+  }
+
+  function persistTerminalSnapshot(): void {
+    const entry = generationHistoryFromSnapshot(current);
+    if (!entry || !historyStorage) return;
+    const next = appendGenerationHistory(historyStorage, entry);
+    writeGenerationHistory(historyStorage, next);
   }
 
   function clearTerminalTimer(): void {
@@ -209,6 +232,7 @@ export function createGenerationController(): GenerationController {
       label: current.label,
       errorCode: 'SSE_ABORTED'
     });
+    persistTerminalSnapshot();
     scheduleTerminalHide();
     return true;
   }
@@ -239,6 +263,9 @@ export function createGenerationController(): GenerationController {
     if (destroyed || mounted) return mounted;
     const documentRef = options.documentRef ?? document;
     const target = options.composer ?? documentRef.querySelector<HTMLElement>('#composer');
+    historyStorage = (() => {
+      try { return window.localStorage; } catch { return null; }
+    })();
     if (!documentRef || !target || documentRef.getElementById(CONTROL_ID)) return false;
 
     control = documentRef.createElement('div');
@@ -337,6 +364,7 @@ export function createGenerationController(): GenerationController {
       errorCode: stats.errorCode ?? null,
       ...stats
     });
+    persistTerminalSnapshot();
     scheduleTerminalHide();
   }
 
@@ -357,7 +385,35 @@ export function createGenerationController(): GenerationController {
       errorCode: errorCodeOf(error),
       ...stats
     });
+    persistTerminalSnapshot();
     scheduleTerminalHide();
+  }
+
+  function readHistory(): GenerationHistoryEntry[] {
+    return readGenerationHistory(historyStorage);
+  }
+
+  function historySummary() {
+    return summarizeGenerationHistory(readHistory());
+  }
+
+  function clearHistory(): boolean {
+    return clearGenerationHistory(historyStorage);
+  }
+
+  async function copyHistory(): Promise<boolean> {
+    const entries = readHistory();
+    if (!entries.length) return false;
+    const value = compactGenerationHistoryForCopy(entries);
+    try {
+      if (globalThis.navigator?.clipboard?.writeText) {
+        await globalThis.navigator.clipboard.writeText(value);
+        return true;
+      }
+    } catch {
+      return false;
+    }
+    return false;
   }
 
   function destroy(): void {
@@ -385,6 +441,10 @@ export function createGenerationController(): GenerationController {
     stop,
     complete,
     fail,
+    readHistory,
+    historySummary,
+    clearHistory,
+    copyHistory,
     copyDiagnostics,
     subscribe: (listener: (snapshot: GenerationSnapshot) => void) => {
       if (destroyed) return () => undefined;
