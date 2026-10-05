@@ -1,5 +1,5 @@
 // TypeScript migration wave 2026-10.
-// The source is now a native TypeScript module; runtime behavior remains contract-compatible during the migration.
+// Canonical runtime source migrated from the legacy module.
 // @ts-nocheck
 import { createDeviceApprovalLeaseStore } from './device-approval-lease.ts';
 import { createDeviceApprovalReviewStore } from './device-approval-review.ts';

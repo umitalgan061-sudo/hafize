@@ -1,5 +1,5 @@
 // TypeScript migration wave 2026-10.
-// The source is now a native TypeScript module; runtime behavior remains contract-compatible during the migration.
+// Canonical runtime source migrated from the legacy module.
 // @ts-nocheck
 const STAGES = new Set(['review_started', 'review_cancelled', 'approval_issued', 'approval_rejected']);
 const ACTIONS = new Set(['browser.open', 'app.open']);
