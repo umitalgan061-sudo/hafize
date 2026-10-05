@@ -23,6 +23,12 @@ export interface GenerationHistoryInsights {
   readonly eventsPerSecond: number;
   readonly latest: GenerationHistoryEntry | null;
   readonly dominantErrorFamily: GenerationErrorFamily | null;
+  readonly p95ElapsedMs: number;
+  readonly slowestElapsedMs: number;
+  readonly fastestElapsedMs: number;
+  readonly medianElapsedMs: number;
+  readonly recentFailureRate: number;
+  readonly recentAbortRate: number;
 }
 
 function safeNumber(value: unknown): number {
@@ -48,6 +54,18 @@ export function classifyGenerationError(entry: GenerationHistoryEntry): Generati
   return 'unknown';
 }
 
+export function percentile(values: readonly number[], percentileValue: number): number {
+  if (!values.length) return 0;
+  const sorted = values.filter(Number.isFinite).map(Math.max.bind(Math)).sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  const position = (sorted.length - 1) * Math.min(1, Math.max(0, percentileValue));
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return Math.round(sorted[lower] ?? 0);
+  const ratio = position - lower;
+  return Math.round((sorted[lower] ?? 0) + ((sorted[upper] ?? 0) - (sorted[lower] ?? 0)) * ratio);
+}
+
 export function summarizeGenerationInsights(
   entries: readonly GenerationHistoryEntry[]
 ): GenerationHistoryInsights {
@@ -60,6 +78,10 @@ export function summarizeGenerationInsights(
   const bytes = values.reduce((sum, entry) => sum + safeNumber(entry.bytesRead), 0);
   const events = values.reduce((sum, entry) => sum + safeNumber(entry.events), 0);
   const seconds = elapsed > 0 ? elapsed / 1000 : 0;
+  const elapsedValues = values.map((entry) => safeNumber(entry.elapsedMs));
+  const recent = values.slice(0, 8);
+  const recentFailureRate = recent.length ? recent.filter((entry) => entry.phase === 'failed').length / recent.length : 0;
+  const recentAbortRate = recent.length ? recent.filter((entry) => entry.phase === 'aborted').length / recent.length : 0;
 
   const errorCounts = new Map<GenerationErrorFamily, number>();
   for (const entry of values) {
@@ -88,8 +110,26 @@ export function summarizeGenerationInsights(
     bytesPerSecond: seconds ? Math.round(bytes / seconds) : 0,
     eventsPerSecond: seconds ? Math.round(events / seconds) : 0,
     latest: values[0] || null,
-    dominantErrorFamily
+    dominantErrorFamily,
+    p95ElapsedMs: percentile(elapsedValues, 0.95),
+    slowestElapsedMs: elapsedValues.length ? Math.max(...elapsedValues) : 0,
+    fastestElapsedMs: elapsedValues.length ? Math.min(...elapsedValues) : 0,
+    medianElapsedMs: percentile(elapsedValues, 0.5),
+    recentFailureRate,
+    recentAbortRate
   });
+}
+
+export function healthLabel(insights: GenerationHistoryInsights): string {
+  if (!insights.total) return 'Veri yok';
+  if (insights.recentFailureRate >= 0.5) return 'Sorunlu';
+  if (insights.recentFailureRate >= 0.25 || insights.recentAbortRate >= 0.5) return 'İzlenmeli';
+  return 'Sağlıklı';
+}
+
+export function formatPerformanceLine(insights: GenerationHistoryInsights): string {
+  if (!insights.total) return 'Son üretim performansı için yeterli kayıt yok.';
+  return `p95 ${insights.p95ElapsedMs} ms · medyan ${insights.medianElapsedMs} ms · ${Math.round(insights.bytesPerSecond)} B/sn · ${healthLabel(insights)}`;
 }
 
 export function formatCompletionRate(value: number): string {
