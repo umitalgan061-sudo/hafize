@@ -242,9 +242,6 @@ export async function executeNvidiaToolCall(
   if (!entry) {
     return { ok: false, tool: normalized.function.name, error: 'UNKNOWN_TOOL', durationMs: Date.now() - startedAt };
   }
-  if (entry.available && !entry.available(context)) {
-    return { ok: false, tool: entry.definition.function.name, error: 'TOOL_UNAVAILABLE', durationMs: Date.now() - startedAt };
-  }
   const authorization = authorize(agent, entry.permission, Boolean(context.approvalGranted));
   if (!authorization.allowed) {
     return {
@@ -254,6 +251,9 @@ export async function executeNvidiaToolCall(
       reason: authorization.reason,
       durationMs: Date.now() - startedAt
     };
+  }
+  if (entry.available && !entry.available(context)) {
+    return { ok: false, tool: entry.definition.function.name, error: 'TOOL_UNAVAILABLE', durationMs: Date.now() - startedAt };
   }
   let args: Record<string, unknown>;
   try {
