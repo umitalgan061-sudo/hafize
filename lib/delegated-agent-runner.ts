@@ -81,9 +81,12 @@ export async function runDelegatedAgent({
   skillsRuntime,
   signal
 }: DelegatedAgentRunInput = {}) {
-  if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
+  if (!agent?.id || typeof task !== 'string' || !task.trim() || typeof traceId !== 'string' || !traceId.trim() || typeof parentTaskId !== 'string' || !parentTaskId.trim()) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }
+  const safeTraceId = traceId.trim();
+  const safeParentTaskId = parentTaskId.trim();
+  const safeModel = typeof model === 'string' && model.trim() ? model.trim() : '';
   if (!Number.isInteger(depth) || depth < 0) return { ok: false, error: 'INVALID_DELEGATED_DEPTH' };
   if (!registry || typeof runLedger?.recordToolStart !== 'function' || typeof complete !== 'function') {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
@@ -91,9 +94,9 @@ export async function runDelegatedAgent({
 
   const nestedDelegator = createAgentDelegator({
     registry,
-    traceId,
+    traceId: safeTraceId,
     parentAgent: agent,
-    parentTaskId,
+    parentTaskId: safeParentTaskId,
     runLedger,
     executeAgent: ({
       agent: nestedAgent,
@@ -124,11 +127,11 @@ export async function runDelegatedAgent({
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
     delegateAgent,
-    skillsRuntime
+    skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined
   });
-  const messages = [buildAgentSystemMessage(agent, traceId), { role: 'user', content: task }];
-  const firstPayload = {
-    model,
+  const messages = [buildAgentSystemMessage(agent, safeTraceId), { role: 'user' as const, content: task }];
+  const firstPayload: Record<string, unknown> = {
+    model: safeModel,
     messages,
     stream: false,
     max_tokens: maxTokens
@@ -153,11 +156,11 @@ export async function runDelegatedAgent({
   let anyToolFailed = false;
   for (const call of calls) {
     const toolTask = runLedger.recordToolStart(call.function.name, {
-      parentTaskId,
+      parentTaskId: safeParentTaskId,
       toolAgentId: agent.id
     });
     const result = await executeNvidiaToolCall(agent, call, {
-      traceId,
+      traceId: safeTraceId,
       agent,
       registry,
       nvidiaConfigured: Boolean(nvidiaConfigured),
@@ -165,7 +168,8 @@ export async function runDelegatedAgent({
       githubReadFile,
       delegateAgent,
       approvalGranted: false,
-      skillsRuntime
+      skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
+      signal
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
