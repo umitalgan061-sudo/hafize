@@ -22,7 +22,7 @@ assert(server.includes("url.pathname === '/api/health/live'"), 'liveness-route')
 assert(server.includes("url.pathname === '/api/health/ready'"), 'readiness-route');
 assert(server.includes("url.pathname === '/api/metrics'"), 'metrics-route');
 assert(server.includes('timingSafeEqual'), 'timing-safe-metrics-token');
-assert((await read('public/typed/legacy-app.ts')).includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 42'), 'legacy-browser-bundle');
+assert((await read('public/typed/legacy-app.ts')).includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52'), 'legacy-browser-bundle');
 assert((await read('public/sw.ts')).includes("'./sw-policy.ts'"), 'typescript-service-worker');
 assert(!(await exists('public/sw.js')), 'legacy-service-worker-removed');
 assert(!(await exists('public/sw-policy.js')), 'legacy-service-worker-policy-removed');
