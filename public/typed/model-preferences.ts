@@ -273,8 +273,8 @@ export function importModelPreferences(
     let profile = normalized;
     while (ids.has(profile.id)) profile = Object.freeze({ ...profile, id: uid() });
     ids.add(profile.id);
-    const next = upsertProfile(state, profile);
-    state = next;
+    const nextProfiles = state.profiles.concat(profile);
+    state = normalizeState({ ...state, profiles: nextProfiles, updatedAt: now() });
     imported += 1;
     if (state.profiles.length >= MODEL_PREFERENCES_LIMITS.maxProfiles) break;
   }
