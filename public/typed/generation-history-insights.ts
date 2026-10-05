@@ -56,7 +56,7 @@ export function classifyGenerationError(entry: GenerationHistoryEntry): Generati
 
 export function percentile(values: readonly number[], percentileValue: number): number {
   if (!values.length) return 0;
-  const sorted = values.filter(Number.isFinite).map(Math.max.bind(Math)).sort((a, b) => a - b);
+  const sorted = values.filter(Number.isFinite).map((value) => safeNumber(value)).sort((a, b) => a - b);
   if (!sorted.length) return 0;
   const position = (sorted.length - 1) * Math.min(1, Math.max(0, percentileValue));
   const lower = Math.floor(position);
