@@ -17,6 +17,7 @@ import './legacy/prompt-library-smart-insert-suggestions.ts';
 import './legacy/prompt-library-smart-insert-activity.ts';
 import './legacy/prompt-library-smart-insert-center.ts';
 import './legacy/prompt-library-smart-insert-shortcuts.ts';
+import './legacy/prompt-library-bulk-organizer.ts';
 import './legacy/prompt-library-collections.ts';
 import './legacy/prompt-library-collections-enhancements.ts';
 import './legacy/prompt-library-revisions.ts';
@@ -52,4 +53,4 @@ import './legacy/scheduled-task-export.ts';
 import './legacy/screen-share.ts';
 import './legacy/settings-workspace.ts';
 
-export const HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 51;
+export const HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52;
