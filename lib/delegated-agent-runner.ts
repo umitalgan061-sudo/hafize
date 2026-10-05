@@ -103,7 +103,8 @@ export async function runDelegatedAgent({
       task: nestedTask,
       traceId: nestedTraceId,
       depth: nestedDepth,
-      parentTaskId: nestedParentTaskId
+      parentTaskId: nestedParentTaskId,
+      signal: nestedSignal
     }) => runDelegatedAgent({
       agent: nestedAgent,
       task: nestedTask,
@@ -117,8 +118,8 @@ export async function runDelegatedAgent({
       complete,
       nvidiaConfigured,
       githubReadConfigured,
-      githubReadFile,
-      skillsRuntime,
+      githubReadFile: typeof githubReadFile === 'function' ? githubReadFile as (args: unknown) => Promise<unknown> : undefined,
+      skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
       signal: nestedSignal
     })
   });
