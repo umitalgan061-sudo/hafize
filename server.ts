@@ -44,6 +44,8 @@ import { HttpRuntimeError, readJson, requestJsonAcceptsSse, sendJson, sendSseCon
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
 import { buildSystemReadiness } from './lib/system-readiness.ts';
 import { createRuntimeMetrics } from './lib/runtime-metrics.ts';
+import { createRateLimiter } from './lib/rate-limit.ts';
+import { createUpstreamCircuitBreaker, UpstreamCircuitOpenError } from './lib/upstream-circuit-breaker.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -97,6 +99,43 @@ const AGENT_REGISTRY = await loadAgentRegistry();
 const RUNTIME_METRICS = createRuntimeMetrics();
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
+const NVIDIA_CIRCUIT = createUpstreamCircuitBreaker({
+  failureThreshold: 5,
+  openMs: 15_000
+});
+const CHAT_RATE_LIMITER = createRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  maxConcurrent: 4,
+  maxEntries: 2_000
+});
+const AGENT_RATE_LIMITER = createRateLimiter({
+  windowMs: 60_000,
+  max: 12,
+  maxConcurrent: 2,
+  maxEntries: 2_000
+});
+
+function requestRateKey(req) {
+  const address = req.socket?.remoteAddress;
+  return typeof address === 'string' && address ? address.slice(0, 200) : 'anonymous';
+}
+
+function acquireRateLimit(limiter, req, res) {
+  const decision = limiter.check(requestRateKey(req));
+  if (!decision.ok) {
+    res.setHeader('Retry-After', String(decision.retryAfterSeconds));
+    sendJson(res, 429, {
+      error: 'RATE_LIMITED',
+      reason: decision.concurrent ? 'concurrent_limit' : 'window_limit',
+      retryAfterSeconds: decision.retryAfterSeconds
+    });
+    return false;
+  }
+  res.once('finish', decision.release);
+  res.once('close', decision.release);
+  return true;
+}
 
 const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
@@ -123,6 +162,7 @@ async function nvidiaFetch(pathname, init = {}) {
   }
   const finishMetric = RUNTIME_METRICS.startNvidia();
   try {
+    NVIDIA_CIRCUIT.beforeRequest();
     const response = await fetch(`${NIM_BASE_URL}${pathname}`, {
       ...init,
       headers: {
@@ -130,9 +170,17 @@ async function nvidiaFetch(pathname, init = {}) {
         ...(init.headers || {})
       }
     });
+    if (response.ok) {
+      NVIDIA_CIRCUIT.recordSuccess();
+    } else if (response.status === 408 || response.status === 429 || response.status >= 500) {
+      NVIDIA_CIRCUIT.recordFailure();
+    }
     finishMetric(!response.ok);
     return response;
   } catch (error) {
+    if (!(error instanceof UpstreamCircuitOpenError) && error?.name !== 'AbortError') {
+      NVIDIA_CIRCUIT.recordFailure();
+    }
     finishMetric(true);
     throw error;
   }
@@ -857,6 +905,7 @@ const server = createServer(async (req, res) => {
         scheduleApiConfigured: Boolean(SCHEDULE_HTTP_API),
         scheduleStorageDurable: SCHEDULE_STORAGE.durable,
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
+        nvidiaCircuit: NVIDIA_CIRCUIT.snapshot(),
         agents: AGENT_REGISTRY.agents.length,
         readiness
       });
@@ -924,10 +973,12 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/agent/run') {
+      if (!acquireRateLimit(AGENT_RATE_LIMITER, req, res)) return;
       await handleAgentRun(req, res);
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/chat') {
+      if (!acquireRateLimit(CHAT_RATE_LIMITER, req, res)) return;
       await handleChat(req, res);
       return;
     }
