@@ -3,6 +3,8 @@ import {
   clearGenerationHistory,
   compactGenerationHistoryForCopy,
   generationHistoryFromSnapshot,
+  historyLabel,
+  historyOutcomeLabel,
   readGenerationHistory,
   summarizeGenerationHistory,
   writeGenerationHistory,
@@ -50,6 +52,7 @@ export interface GenerationController {
   readonly historySummary: () => ReturnType<typeof summarizeGenerationHistory>;
   readonly clearHistory: () => boolean;
   readonly copyHistory: () => Promise<boolean>;
+  readonly renderHistory: () => void;
   readonly copyDiagnostics: () => Promise<boolean>;
   readonly subscribe: (listener: (snapshot: GenerationSnapshot) => void) => () => void;
   readonly destroy: () => void;
@@ -145,6 +148,8 @@ export function createGenerationController(): GenerationController {
   let control: HTMLElement | null = null;
   let button: HTMLButtonElement | null = null;
   let diagnostics: HTMLButtonElement | null = null;
+  let historyButton: HTMLButtonElement | null = null;
+  let historyList: HTMLElement | null = null;
   let status: HTMLElement | null = null;
   let keyboardTarget: Window | null = null;
   let historyStorage: Storage | null = null;
@@ -181,6 +186,31 @@ export function createGenerationController(): GenerationController {
     paint();
   }
 
+  function renderHistory(): void {
+    if (!historyList) return;
+    historyList.replaceChildren();
+    const entries = readHistory().slice(0, 5);
+    if (!entries.length) {
+      const empty = document.createElement('span');
+      empty.className = 'generation-history-empty';
+      empty.textContent = 'Henüz tamamlanmış üretim kaydı yok.';
+      historyList.append(empty);
+      return;
+    }
+    for (const entry of entries) {
+      const row = document.createElement('div');
+      row.className = 'generation-history-row';
+      const label = document.createElement('span');
+      label.className = 'generation-history-label';
+      label.textContent = historyLabel(entry);
+      const meta = document.createElement('span');
+      meta.className = 'generation-history-meta';
+      meta.textContent = `${historyOutcomeLabel(entry)} · ${formatGenerationElapsed(entry.elapsedMs)} · ${entry.events} olay · ${formatGenerationBytes(entry.bytesRead)}`;
+      row.append(label, meta);
+      historyList.append(row);
+    }
+  }
+
   function paint(): void {
     if (!control || !button || !diagnostics || !status) return;
     const active = current.phase === 'active';
@@ -191,6 +221,8 @@ export function createGenerationController(): GenerationController {
     button.disabled = !active;
     diagnostics.hidden = !terminal;
     diagnostics.disabled = !terminal;
+    historyButton && (historyButton.hidden = !terminal);
+    if (historyButton && terminal) renderHistory();
     status.textContent = current.phase === 'idle'
       ? ''
       : `${current.label || 'Yanıt üretimi'} · ${formatGenerationElapsed(computedElapsed())} · ${current.events} olay · ${formatGenerationBytes(current.bytesRead)}`;
@@ -301,7 +333,44 @@ export function createGenerationController(): GenerationController {
       void copyDiagnostics();
     });
 
-    control.append(status, button, diagnostics);
+    historyButton = documentRef.createElement('button');
+    historyButton.id = 'hafizeGenerationHistory';
+    historyButton.type = 'button';
+    historyButton.className = 'generation-control-history';
+    historyButton.textContent = 'Geçmişi aç';
+    historyButton.setAttribute('aria-expanded', 'false');
+    historyButton.setAttribute('aria-controls', 'hafizeGenerationHistoryList');
+    historyButton.addEventListener('click', () => {
+      if (!historyList) return;
+      const nextHidden = !historyList.hidden;
+      historyList.hidden = nextHidden;
+      historyButton?.setAttribute('aria-expanded', String(!nextHidden));
+      if (!nextHidden) renderHistory();
+    });
+
+    historyList = documentRef.createElement('div');
+    historyList.id = 'hafizeGenerationHistoryList';
+    historyList.className = 'generation-history-list';
+    historyList.hidden = true;
+    historyList.setAttribute('role', 'list');
+    historyList.setAttribute('aria-label', 'Son üretimler');
+
+    const clearHistoryButton = documentRef.createElement('button');
+    clearHistoryButton.type = 'button';
+    clearHistoryButton.className = 'generation-control-history-clear';
+    clearHistoryButton.textContent = 'Geçmişi temizle';
+    clearHistoryButton.setAttribute('aria-label', 'Yerel üretim geçmişini temizle');
+    clearHistoryButton.addEventListener('click', () => {
+      if (!globalThis.confirm('Üretim geçmişi silinsin mi?')) return;
+      if (!clearHistory()) return;
+      renderHistory();
+    });
+
+    const historyActions = documentRef.createElement('div');
+    historyActions.className = 'generation-history-actions';
+    historyActions.append(historyButton, clearHistoryButton);
+
+    control.append(status, button, diagnostics, historyActions, historyList);
     const anchor = target.querySelector('.composer-row');
     if (anchor) target.insertBefore(control, anchor);
     else target.append(control);
@@ -445,6 +514,7 @@ export function createGenerationController(): GenerationController {
     historySummary,
     clearHistory,
     copyHistory,
+    renderHistory,
     copyDiagnostics,
     subscribe: (listener: (snapshot: GenerationSnapshot) => void) => {
       if (destroyed) return () => undefined;
