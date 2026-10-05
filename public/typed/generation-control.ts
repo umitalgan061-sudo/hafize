@@ -8,6 +8,8 @@ export interface GenerationSnapshot {
   readonly startedAt: number | null;
   readonly endedAt: number | null;
   readonly elapsedMs: number;
+  readonly bytesRead: number;
+  readonly events: number;
   readonly stopReason: GenerationStopReason | null;
   readonly label: string;
   readonly errorCode: string | null;
@@ -29,16 +31,20 @@ export interface GenerationController {
   readonly snapshot: () => GenerationSnapshot;
   readonly mount: (options?: GenerationControlOptions) => boolean;
   readonly begin: (label: string) => GenerationRun | null;
+  readonly progress: (bytesRead: number, events?: number) => void;
   readonly stop: (reason?: GenerationStopReason) => boolean;
-  readonly complete: () => void;
-  readonly fail: (error?: unknown) => void;
+  readonly complete: (stats?: Partial<GenerationSnapshot>) => void;
+  readonly fail: (error?: unknown, stats?: Partial<GenerationSnapshot>) => void;
+  readonly copyDiagnostics: () => Promise<boolean>;
   readonly subscribe: (listener: (snapshot: GenerationSnapshot) => void) => () => void;
   readonly destroy: () => void;
 }
 
 const CONTROL_ID = 'hafizeGenerationControl';
 const STOP_ID = 'hafizeGenerationStop';
+const COPY_ID = 'hafizeGenerationDiagnostics';
 const STATUS_ID = 'hafizeGenerationControlStatus';
+const TERMINAL_HIDE_MS = 5000;
 const MAX_LABEL = 120;
 const MAX_ERROR = 100;
 
@@ -62,6 +68,8 @@ function initialSnapshot(): GenerationSnapshot {
     startedAt: null,
     endedAt: null,
     elapsedMs: 0,
+    bytesRead: 0,
+    events: 0,
     stopReason: null,
     label: '',
     errorCode: null
@@ -78,7 +86,38 @@ export function formatGenerationElapsed(elapsedMs: number): string {
   const value = Math.max(0, Math.floor(Number.isFinite(elapsedMs) ? elapsedMs : 0));
   if (value < 1000) return `${value} ms`;
   const seconds = value / 1000;
-  return seconds < 60 ? `${seconds.toFixed(seconds < 10 ? 1 : 0)} sn` : `${Math.floor(seconds / 60)} dk ${Math.floor(seconds % 60)} sn`;
+  return seconds < 60
+    ? `${seconds.toFixed(seconds < 10 ? 1 : 0)} sn`
+    : `${Math.floor(seconds / 60)} dk ${Math.floor(seconds % 60)} sn`;
+}
+
+export function formatGenerationBytes(bytes: number): string {
+  const value = Math.max(0, Math.floor(Number.isFinite(bytes) ? bytes : 0));
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(value < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDiagnostics(snapshot: GenerationSnapshot): string {
+  const phase = snapshot.phase === 'completed'
+    ? 'tamamlandı'
+    : snapshot.phase === 'aborted'
+      ? 'durduruldu'
+      : snapshot.phase === 'failed'
+        ? 'hata'
+        : snapshot.phase;
+  const lines = [
+    'Hafize üretim tanısı',
+    `Durum: ${phase}`,
+    `Çalışma: ${snapshot.runId}`,
+    `Süre: ${formatGenerationElapsed(snapshot.elapsedMs)}`,
+    `SSE olayları: ${snapshot.events}`,
+    `Okunan veri: ${formatGenerationBytes(snapshot.bytesRead)}`,
+    `Etiket: ${clampText(snapshot.label, MAX_LABEL) || 'Yok'}`
+  ];
+  if (snapshot.stopReason) lines.push(`Durdurma nedeni: ${snapshot.stopReason}`);
+  if (snapshot.errorCode) lines.push(`Hata kodu: ${snapshot.errorCode}`);
+  return lines.join('\n').slice(0, 1500);
 }
 
 export function createGenerationController(): GenerationController {
@@ -87,24 +126,31 @@ export function createGenerationController(): GenerationController {
   let mounted = false;
   let destroyed = false;
   let timer: number | undefined;
+  let terminalTimer: number | undefined;
   let control: HTMLElement | null = null;
   let button: HTMLButtonElement | null = null;
+  let diagnostics: HTMLButtonElement | null = null;
   let status: HTMLElement | null = null;
   let keyboardTarget: Window | null = null;
   const listeners = new Set<(snapshot: GenerationSnapshot) => void>();
   const disposers: Array<() => void> = [];
 
-  function elapsed(snapshot: GenerationSnapshot): number {
-    if (snapshot.startedAt === null) return snapshot.elapsedMs;
-    const end = snapshot.endedAt ?? Date.now();
-    return Math.max(0, end - snapshot.startedAt);
+  function computedElapsed(): number {
+    if (current.startedAt === null) return current.elapsedMs;
+    const end = current.endedAt ?? Date.now();
+    return Math.max(0, end - current.startedAt);
+  }
+
+  function clearTerminalTimer(): void {
+    if (terminalTimer !== undefined) globalThis.clearTimeout(terminalTimer);
+    terminalTimer = undefined;
   }
 
   function publish(next: Omit<GenerationSnapshot, 'elapsedMs'> & Partial<Pick<GenerationSnapshot, 'elapsedMs'>>): void {
     if (destroyed) return;
     current = Object.freeze({
       ...next,
-      elapsedMs: next.elapsedMs ?? elapsed(next as GenerationSnapshot)
+      elapsedMs: next.elapsedMs ?? computedElapsed()
     });
     for (const listener of listeners) {
       try { listener(current); } catch { /* listener isolation */ }
@@ -113,36 +159,57 @@ export function createGenerationController(): GenerationController {
   }
 
   function paint(): void {
-    if (!control || !button || !status) return;
+    if (!control || !button || !diagnostics || !status) return;
     const active = current.phase === 'active';
-    control.hidden = !active;
+    const terminal = current.phase === 'completed' || current.phase === 'aborted' || current.phase === 'failed';
+    control.hidden = current.phase === 'idle';
     control.dataset.phase = current.phase;
+    button.hidden = !active;
     button.disabled = !active;
-    status.textContent = active
-      ? `${current.label || 'Yanıt üretiliyor'} · ${formatGenerationElapsed(elapsed(current))}`
-      : '';
-    button.setAttribute('aria-busy', String(active));
+    diagnostics.hidden = !terminal;
+    diagnostics.disabled = !terminal;
+    status.textContent = current.phase === 'idle'
+      ? ''
+      : `${current.label || 'Yanıt üretimi'} · ${formatGenerationElapsed(computedElapsed())} · ${current.events} olay · ${formatGenerationBytes(current.bytesRead)}`;
   }
 
-  function tick(): void {
-    if (current.phase !== 'active') return;
-    paint();
+  function scheduleTick(): void {
+    if (timer !== undefined) globalThis.clearInterval(timer);
+    timer = globalThis.setInterval(() => {
+      if (current.phase === 'active') {
+        current = Object.freeze({ ...current, elapsedMs: computedElapsed() });
+        paint();
+      }
+    }, 250);
+  }
+
+  function scheduleTerminalHide(): void {
+    clearTerminalTimer();
+    terminalTimer = globalThis.setTimeout(() => {
+      if (current.phase !== 'active') {
+        current = Object.freeze({ ...initialSnapshot(), runId: current.runId });
+        paint();
+      }
+    }, TERMINAL_HIDE_MS);
   }
 
   function stop(reason: GenerationStopReason = 'user'): boolean {
     if (!controller || current.phase !== 'active') return false;
-    const active = controller;
+    const activeController = controller;
     controller = null;
-    active.abort(new DOMException('Generation stopped', 'AbortError'));
+    activeController.abort(new DOMException('Generation stopped', 'AbortError'));
     publish({
       phase: 'aborted',
       runId: current.runId,
       startedAt: current.startedAt,
       endedAt: Date.now(),
+      bytesRead: current.bytesRead,
+      events: current.events,
       stopReason: reason,
       label: current.label,
       errorCode: 'SSE_ABORTED'
     });
+    scheduleTerminalHide();
     return true;
   }
 
@@ -152,6 +219,20 @@ export function createGenerationController(): GenerationController {
     if (current.phase !== 'active') return;
     event.preventDefault();
     stop('user');
+  }
+
+  async function copyDiagnostics(): Promise<boolean> {
+    const terminal = current.phase === 'completed' || current.phase === 'aborted' || current.phase === 'failed';
+    if (!terminal) return false;
+    const value = formatDiagnostics(current);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        status && (status.textContent = 'Tanı özeti panoya kopyalandı.');
+        return true;
+      }
+    } catch { /* fall through to unavailable */ }
+    return false;
   }
 
   function mount(options: GenerationControlOptions = {}): boolean {
@@ -182,22 +263,33 @@ export function createGenerationController(): GenerationController {
     button.setAttribute('aria-label', 'Devam eden Hafize yanıt üretimini durdur');
     button.addEventListener('click', () => stop('user'));
 
-    control.append(status, button);
+    diagnostics = documentRef.createElement('button');
+    diagnostics.id = COPY_ID;
+    diagnostics.type = 'button';
+    diagnostics.className = 'generation-control-diagnostics';
+    diagnostics.textContent = 'Tanıyı kopyala';
+    diagnostics.setAttribute('aria-label', 'Üretim tanı özetini panoya kopyala');
+    diagnostics.hidden = true;
+    diagnostics.addEventListener('click', () => {
+      void copyDiagnostics();
+    });
+
+    control.append(status, button, diagnostics);
     const anchor = target.querySelector('.composer-row');
     if (anchor) target.insertBefore(control, anchor);
     else target.append(control);
-    mounted = true;
 
+    mounted = true;
     keyboardTarget = options.keyboardTarget ?? window;
     keyboardTarget.addEventListener('keydown', onShortcut);
     disposers.push(() => keyboardTarget?.removeEventListener('keydown', onShortcut));
-
     paint();
     return true;
   }
 
   function begin(label: string): GenerationRun | null {
     if (destroyed || current.phase === 'active') return null;
+    clearTerminalTimer();
     const nextController = new AbortController();
     controller = nextController;
     const runId = current.runId + 1;
@@ -207,50 +299,71 @@ export function createGenerationController(): GenerationController {
       runId,
       startedAt,
       endedAt: null,
+      bytesRead: 0,
+      events: 0,
       stopReason: null,
       label: clampText(label || 'Yanıt üretiliyor', MAX_LABEL),
       errorCode: null
     });
-    if (timer !== undefined) globalThis.clearInterval(timer);
-    timer = globalThis.setInterval(tick, 250);
+    scheduleTick();
     return Object.freeze({ runId, signal: nextController.signal, startedAt });
   }
 
-  function complete(): void {
+  function progress(bytesRead: number, events = 1): void {
+    if (current.phase !== 'active') return;
+    publish({
+      ...current,
+      phase: 'active',
+      elapsedMs: computedElapsed(),
+      bytesRead: Math.max(current.bytesRead, Math.max(0, Math.floor(Number.isFinite(bytesRead) ? bytesRead : 0))),
+      events: current.events + Math.max(0, Math.floor(Number.isFinite(events) ? events : 0))
+    });
+  }
+
+  function complete(stats: Partial<GenerationSnapshot> = {}): void {
     if (current.phase !== 'active') return;
     controller = null;
+    if (timer !== undefined) globalThis.clearInterval(timer);
+    timer = undefined;
     publish({
       phase: 'completed',
       runId: current.runId,
       startedAt: current.startedAt,
       endedAt: Date.now(),
+      bytesRead: Math.max(current.bytesRead, stats.bytesRead ?? current.bytesRead),
+      events: Math.max(current.events, stats.events ?? current.events),
       stopReason: null,
       label: current.label,
-      errorCode: null
+      errorCode: stats.errorCode ?? null,
+      ...stats
     });
-    if (timer !== undefined) globalThis.clearInterval(timer);
-    timer = undefined;
+    scheduleTerminalHide();
   }
 
-  function fail(error?: unknown): void {
+  function fail(error?: unknown, stats: Partial<GenerationSnapshot> = {}): void {
     if (current.phase !== 'active') return;
     controller = null;
+    if (timer !== undefined) globalThis.clearInterval(timer);
+    timer = undefined;
     publish({
       phase: 'failed',
       runId: current.runId,
       startedAt: current.startedAt,
       endedAt: Date.now(),
+      bytesRead: Math.max(current.bytesRead, stats.bytesRead ?? current.bytesRead),
+      events: Math.max(current.events, stats.events ?? current.events),
       stopReason: null,
       label: current.label,
-      errorCode: errorCodeOf(error)
+      errorCode: errorCodeOf(error),
+      ...stats
     });
-    if (timer !== undefined) globalThis.clearInterval(timer);
-    timer = undefined;
+    scheduleTerminalHide();
   }
 
   function destroy(): void {
     if (destroyed) return;
     destroyed = true;
+    clearTerminalTimer();
     controller?.abort(new DOMException('Generation controller destroyed', 'AbortError'));
     controller = null;
     if (timer !== undefined) globalThis.clearInterval(timer);
@@ -259,6 +372,7 @@ export function createGenerationController(): GenerationController {
     control?.remove();
     control = null;
     button = null;
+    diagnostics = null;
     status = null;
     listeners.clear();
   }
@@ -267,9 +381,11 @@ export function createGenerationController(): GenerationController {
     snapshot: () => current,
     mount,
     begin,
+    progress,
     stop,
     complete,
     fail,
+    copyDiagnostics,
     subscribe: (listener: (snapshot: GenerationSnapshot) => void) => {
       if (destroyed) return () => undefined;
       listeners.add(listener);
