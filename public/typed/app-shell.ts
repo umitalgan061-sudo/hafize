@@ -15,6 +15,7 @@ import { loadModelPreferences } from './model-preferences.ts';
 import { hafizeApi } from './hafize-api.ts';
 import { HafizeSseClient, type HafizeSseStats, type HafizeSseEvent } from './hafize-sse.ts';
 import { createHafizeStreamController, formatStreamBytes, formatStreamDuration, phaseLabel, phaseTone } from './hafize-stream-state.ts';
+import { createGenerationController } from './generation-control.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -78,6 +79,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let networkOnline = globalThis.navigator?.onLine !== false;
   const hafizeSse = new HafizeSseClient();
   const streamState = createHafizeStreamController();
+  const generationControl = createGenerationController();
   let streamStatus: HTMLElement | null = null;
   let streamStatusTimer: number | undefined;
   const ui: AppUi = {
@@ -758,6 +760,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   streamState.subscribe(renderStreamStatus);
+  generationControl.mount({ documentRef: document, composer: ui.composer, keyboardTarget: window });
 
   function getRequestMessages(conversation = getActiveConversation()) {
     return (conversation?.messages ?? [])
@@ -788,10 +791,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
     emptyMessage: string
   ): Promise<HafizeSseStats> {
     let content = '';
+    const generationRun = generationControl.begin(endpoint === '/api/agent/run' ? 'Ajan yanıtı üretiliyor' : 'Hafize yanıtı üretiliyor');
+    if (!generationRun) throw new Error('GENERATION_ALREADY_ACTIVE');
     streamState.begin();
     renderStreamStatus();
     try {
       const stats = await hafizeSse.stream(endpoint, payload, {
+        signal: generationRun.signal,
       timeoutMs: 60_000,
       maxFrameChars: 128 * 1024,
       maxBufferChars: 256 * 1024,
@@ -813,6 +819,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         endedAt: Date.now()
       });
       renderStreamStatus();
+      generationControl.complete();
       updateMessage(assistantId, content || emptyMessage, { persist: true });
       return stats;
     } catch (error) {
@@ -821,6 +828,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         : '';
       if (code === 'SSE_ABORTED' || code === 'AbortError') streamState.abort(error);
       else streamState.fail(error);
+      generationControl.fail(error);
       renderStreamStatus();
       throw error;
     }
@@ -960,7 +968,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
       message.toolActivities = [];
       saveConversations();
       render();
-      showToast('Yanıt yeniden üretilemedi: ' + (error?.message || 'bilinmeyen hata'));
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code || '') : '';
+      showToast(code === 'SSE_ABORTED' || code === 'AbortError'
+        ? 'Yeniden üretme durduruldu; önceki yanıt korundu.'
+        : 'Yanıt yeniden üretilemedi: ' + (error?.message || 'bilinmeyen hata'));
     } finally {
       isStreaming = false;
       setGenerationUi(false);
@@ -1014,17 +1025,29 @@ interface JsonPayload { readonly [key: string]: unknown; }
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
       else await streamAssistantReply();
     } catch (error) {
-      const message = error?.message === 'OFFLINE'
-        ? 'İnternet bağlantısı bulunamadı.'
-        : error?.message === 'MODEL_REQUIRED'
-        ? 'Bir NVIDIA modeli seçilmedi.'
-        : error?.message === 'AGENT_REQUIRED'
-          ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code || '') : '';
       const conversation = getActiveConversation();
       const last = conversation?.messages.at(-1);
-      if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
-      else addMessage('assistant', message);
+      if (code === 'SSE_ABORTED' || code === 'AbortError') {
+        if (last?.role === 'assistant' && !last.content && conversation) {
+          conversation.messages = conversation.messages.filter((entry) => entry.id !== last.id);
+          saveConversations();
+          render();
+        }
+        showToast('Yanıt üretimi durduruldu.');
+      } else {
+        const message = error?.message === 'OFFLINE'
+          ? 'İnternet bağlantısı bulunamadı.'
+          : error?.message === 'MODEL_REQUIRED'
+          ? 'Bir NVIDIA modeli seçilmedi.'
+          : error?.message === 'AGENT_REQUIRED'
+            ? 'Bir Hafize ajanı seçilmedi.'
+            : error?.message === 'GENERATION_ALREADY_ACTIVE'
+              ? 'Zaten devam eden bir yanıt üretimi var.'
+              : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+        if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
+        else addMessage('assistant', message);
+      }
     } finally {
       isStreaming = false;
       setGenerationUi(false);
@@ -1051,7 +1074,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   window.addEventListener('online', handleOnline);
   window.addEventListener('offline', handleOffline);
-  window.addEventListener('beforeunload', () => { persistOnLifecycle(); streamState.destroy(); });
+  window.addEventListener('beforeunload', () => { persistOnLifecycle(); generationControl.destroy(); streamState.destroy(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) persistOnLifecycle(); });
 
   window.addEventListener('hafize:edit-message', (event) => beginMessageEdit(event.detail?.messageId));
