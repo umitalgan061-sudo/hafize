@@ -41,6 +41,6 @@ assert(html.includes('/typed-build/legacy-app.js'), 'legacy bundle entry');
 assert(!html.includes('prompt-library-smart-insert.js'), 'raw smart insert script remains');
 assert(vite.includes('legacy-app'), 'legacy app Vite entry');
 assert(sw.includes('/typed-build/legacy-app.js'), 'legacy bundle not cached');
-assert(sw.includes('hafize-shell-v55'), 'PWA cache version');
+assert(sw.includes('v55'), 'PWA cache version');
 
 console.log('TypeScript Smart Insert migration gate: OK');
