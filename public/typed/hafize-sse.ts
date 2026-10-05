@@ -201,6 +201,25 @@ export async function consumeSseResponse(
         });
       }
       const chunk = await reader.read();
+      if (options.signal?.aborted) {
+        const reason = options.signal.reason;
+        if (reason instanceof DOMException && reason.name === 'TimeoutError') {
+          throw new HafizeSseError('SSE akışı zaman aşımına uğradı.', {
+            code: 'SSE_TIMEOUT',
+            status: response.status,
+            traceId,
+            retryable: true,
+            cause: reason
+          });
+        }
+        throw new HafizeSseError('SSE akışı iptal edildi.', {
+          code: 'SSE_ABORTED',
+          status: response.status,
+          traceId,
+          retryable: false,
+          cause: reason
+        });
+      }
       bytesRead += chunk.value?.byteLength || 0;
       buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done }).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       if (buffer.length > maxBufferChars) {
