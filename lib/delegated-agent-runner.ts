@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createAgentDelegator } from './agent-delegation.ts';
 import { buildAgentSystemMessage } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
@@ -16,33 +15,53 @@ export interface DelegatedAgentRunInput {
   readonly runLedger?: AgentRunLedger;
   readonly model?: string;
   readonly maxTokens?: number;
-  readonly complete?: (payload: unknown, signal?: AbortSignal) => Promise<unknown>;
+  readonly complete?: CompletionFn;
   readonly nvidiaConfigured?: boolean;
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: unknown;
   readonly skillsRuntime?: unknown;
+  readonly signal?: AbortSignal;
 }
 
-function normalizeToolCalls(calls) {
+interface DelegatedToolCall {
+  readonly id: string;
+  readonly type: 'function';
+  readonly function: { readonly name: string; readonly arguments: unknown };
+}
+
+interface DelegatedToolMessage {
+  readonly role: 'tool';
+  readonly tool_call_id: string;
+  readonly name: string;
+  readonly content: string;
+}
+
+type NormalizedCompletion = ReturnType<typeof normalizeNvidiaChatCompletion>;
+type CompletionFn = (payload: unknown, signal?: AbortSignal) => Promise<unknown>;
+
+function normalizeToolCalls(calls: unknown): DelegatedToolCall[] {
   if (!Array.isArray(calls)) return [];
-  return calls.slice(0, 4).filter((call) => call?.id && call?.name).map((call) => ({
-    id: String(call.id),
-    type: 'function',
-    function: {
-      name: String(call.name),
-      arguments: call.arguments
-    }
-  }));
+  return calls.slice(0, 4)
+    .filter((call): call is Record<string, unknown> =>
+      Boolean(call && typeof call === 'object' && (call as Record<string, unknown>).id && (call as Record<string, unknown>).name)
+    )
+    .map((call) => ({
+      id: String(call.id),
+      type: 'function' as const,
+      function: {
+        name: String(call.name),
+        arguments: call.arguments
+      }
+    }));
 }
 
-function normalizeCompletion(complete, payload) {
-  return complete(payload).then((response) => {
-    try {
-      return normalizeNvidiaChatCompletion(response);
-    } catch {
-      return null;
-    }
-  });
+async function normalizeCompletion(complete: CompletionFn, payload: unknown, signal?: AbortSignal): Promise<NormalizedCompletion | null> {
+  const response = await complete(payload, signal);
+  try {
+    return normalizeNvidiaChatCompletion(response);
+  } catch {
+    return null;
+  }
 }
 
 export async function runDelegatedAgent({
@@ -59,7 +78,8 @@ export async function runDelegatedAgent({
   nvidiaConfigured = false,
   githubReadConfigured = false,
   githubReadFile,
-  skillsRuntime
+  skillsRuntime,
+  signal
 }: DelegatedAgentRunInput = {}) {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
@@ -98,7 +118,7 @@ export async function runDelegatedAgent({
       skillsRuntime
     })
   });
-  const delegateAgent = (args) => nestedDelegator.delegate(args, { depth });
+  const delegateAgent = (args: unknown) => nestedDelegator.delegate(args, { depth });
   const tools = getAllowedNvidiaTools(agent, {
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
@@ -117,7 +137,7 @@ export async function runDelegatedAgent({
     firstPayload.tool_choice = 'auto';
   }
 
-  const first = await normalizeCompletion(complete, firstPayload);
+  const first = await normalizeCompletion(complete, firstPayload, signal);
   if (!first) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
 
   const rawCalls = first.toolCalls;
@@ -128,7 +148,7 @@ export async function runDelegatedAgent({
   const calls = normalizeToolCalls(rawCalls);
   if (!calls.length) return { ok: false, error: 'INVALID_TOOL_CALL' };
 
-  const toolMessages = [];
+  const toolMessages: DelegatedToolMessage[] = [];
   let anyToolFailed = false;
   for (const call of calls) {
     const toolTask = runLedger.recordToolStart(call.function.name, {
@@ -171,7 +191,7 @@ export async function runDelegatedAgent({
     max_tokens: maxTokens,
     tools,
     tool_choice: 'none'
-  });
+  }, signal);
   if (!second) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
   if (anyToolFailed) return { ok: false, error: 'DELEGATED_TOOL_FAILED' };
 
