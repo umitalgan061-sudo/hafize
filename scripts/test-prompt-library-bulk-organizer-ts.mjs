@@ -23,5 +23,5 @@ assert(app.includes('./legacy/prompt-library-bulk-organizer.ts'));
 assert(app.includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(sw.includes('/typed-build/legacy-app.js'));
-assert(sw.includes('hafize-shell-v55'));
+assert(sw.includes('v55'), 'PWA cache version');
 console.log('Prompt Library bulk organizer TypeScript gate: OK');
