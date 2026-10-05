@@ -14,18 +14,18 @@
     "build": "vite build",
     "typecheck": "npm run typecheck:runtime",
     "test:modern": "vitest run",
-    "check:modern": "npm run typecheck && npm run typecheck:syntax && npm run test:modern:gate && node scripts/test-typescript-source-integrity.ts && npm run test:modernization && node scripts/test-typescript-entrypoints-release.ts && node scripts/test-typescript-ui-wave.ts && node scripts/test-legacy-entry-contract.ts && node scripts/test-nextgen-release.mjs && npm run test:prompt-smart-insert-ts",
-    "precheck": "node scripts/run-checks.mjs --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
-    "check": "node scripts/run-checks.mjs",
-    "test": "node scripts/run-checks.mjs",
-    "format:check": "node scripts/format-check.mjs",
+    "check:modern": "npm run typecheck && npm run typecheck:syntax && npm run test:modern:gate && node scripts/test-typescript-source-integrity.ts && npm run test:modernization && node scripts/test-typescript-entrypoints-release.ts && node scripts/test-typescript-ui-wave.ts && node scripts/test-legacy-entry-contract.ts && node scripts/test-nextgen-release.ts && npm run test:prompt-smart-insert-ts",
+    "precheck": "node scripts/run-checks.ts --filter=voice-input,voice-output,ui-shell,sidebar-accessibility",
+    "check": "node scripts/run-checks.ts",
+    "test": "node scripts/run-checks.ts",
+    "format:check": "node scripts/format-check.ts",
     "test:typed-core": "vitest run lib/**/*.test.ts lib/runtime-metrics.test.ts lib/upstream-circuit-breaker.test.ts",
     "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json",
     "test:workspace-backup": "vitest run public/typed/workspace-backup.test.ts && node scripts/test-workspace-backup-core.mjs && node scripts/test-workspace-backup-security.mjs && node scripts/test-workspace-backup-integrity.mjs && node scripts/test-workspace-backup-restore.mjs && node scripts/test-workspace-backup-pwa.mjs && node scripts/test-workspace-backup-limits.mjs && node scripts/test-workspace-backup-events.mjs && node scripts/test-workspace-backup-format.mjs && node scripts/test-workspace-backup-storage.mjs",
     "typecheck:syntax": "tsc --noEmit --noCheck",
     "test:modernization": "node scripts/test-runtime-modernization.ts",
     "test:modern:gate": "vitest run lib/runtime-metrics.test.ts lib/upstream-circuit-breaker.test.ts lib/rate-limit.test.ts",
-    "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs"
+    "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.ts && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs"
   },
   "dependencies": {
     "redis": "^6.1.0"
