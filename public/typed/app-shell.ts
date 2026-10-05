@@ -803,7 +803,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
       maxBufferChars: 256 * 1024,
       maxEvents: 20_000,
         onEvent: (event) => {
-          streamState.chunk(0, 1);
+          const eventBytes = typeof event.data === 'string' ? new TextEncoder().encode(event.data).byteLength : 0;
+          streamState.chunk(eventBytes, 1);
+          generationControl.progress(eventBytes, 1);
           handleAssistantStreamEvent(event, assistantId, (delta) => {
             content += delta;
             updateMessage(assistantId, content);
@@ -1065,7 +1067,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function handleOffline() {
     networkOnline = false;
-    showToast('İnternet bağlantısı kesildi.');
+    generationControl.stop('offline');
+    showToast('İnternet bağlantısı kesildi; devam eden yanıt korunarak durduruldu.');
   }
 
   function persistOnLifecycle() {
