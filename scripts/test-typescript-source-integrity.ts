@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { extname, join, relative, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
@@ -26,7 +26,7 @@ if (orphan.length) fail('lib-orphan-mjs=' + orphan.map((p) => relative(ROOT, p))
 
 for (const file of libMjs) {
   const source = await readFile(file, 'utf8');
-  const expected = "export * from './" + file.split('/').pop()?.replace(/\\.mjs$/, '.ts') + "';";
+  const expected = "export * from './" + file.split('/').pop().replace('.mjs', '.ts') + "';";;
   const compact = source.split('\n').map((line) => line.trim()).filter(Boolean);
   if (compact.length > 3 || !source.includes(expected)) fail('lib-legacy-module-not-wrapper=' + relative(ROOT, file));
 }
