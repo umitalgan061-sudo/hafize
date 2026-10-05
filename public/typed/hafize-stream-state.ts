@@ -181,7 +181,7 @@ export function formatStreamBytes(bytes: number): string {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) {
     const kb = value / 1024;
-    return `${Number(kb.toFixed(kb < 10 ? 1 : 0))} KB`;
+    return `${kb === 1 ? '1' : kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
   }
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
