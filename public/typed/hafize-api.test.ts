@@ -75,8 +75,9 @@ describe('HafizeApiClient', () => {
     const fetchImpl = fetchMock([new Error('socket closed'), new Error('socket closed')]);
     const api = new HafizeApiClient('', fetchImpl);
     const promise = api.models();
+    const assertion = expect(promise).rejects.toMatchObject({ code: 'NETWORK_ERROR', retryable: true });
     await vi.runAllTimersAsync();
-    await expect(promise).rejects.toMatchObject({ code: 'NETWORK_ERROR', retryable: true });
+    await assertion;
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
   });

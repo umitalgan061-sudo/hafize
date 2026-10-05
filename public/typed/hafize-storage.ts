@@ -77,8 +77,8 @@ function validKey(key: string, limits: Required<HafizeStorageLimits>): boolean {
 function normalizeLimits(input: HafizeStorageLimits = {}): Required<HafizeStorageLimits> {
   return {
     maxKeyLength: Math.max(1, Math.min(1024, Math.floor(input.maxKeyLength ?? DEFAULT_LIMITS.maxKeyLength))),
-    maxValueBytes: Math.max(256, Math.min(4 * 1024 * 1024, Math.floor(input.maxValueBytes ?? DEFAULT_LIMITS.maxValueBytes))),
-    maxWriteBytes: Math.max(256, Math.min(4 * 1024 * 1024, Math.floor(input.maxWriteBytes ?? DEFAULT_LIMITS.maxWriteBytes))),
+    maxValueBytes: Math.max(1, Math.min(4 * 1024 * 1024, Math.floor(input.maxValueBytes ?? DEFAULT_LIMITS.maxValueBytes))),
+    maxWriteBytes: Math.max(1, Math.min(4 * 1024 * 1024, Math.floor(input.maxWriteBytes ?? DEFAULT_LIMITS.maxWriteBytes))),
     maxKeys: Math.max(1, Math.min(10_000, Math.floor(input.maxKeys ?? DEFAULT_LIMITS.maxKeys)))
   };
 }
