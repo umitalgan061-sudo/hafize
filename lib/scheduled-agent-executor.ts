@@ -1,6 +1,6 @@
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import { createAgentRunLedger } from './agent-run-ledger.ts';
-import { runDelegatedAgent } from './delegated-agent-runner.ts';
+import { runDelegatedAgent, type DelegatedAgentRunInput } from './delegated-agent-runner.ts';
 // @ts-ignore Typed credential boundary is the single policy source.
 import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
@@ -15,7 +15,7 @@ export function createScheduledAgentExecutor(args:{
   readonly nvidiaConfigured?:boolean;
   readonly githubReadConfigured?:boolean;
   readonly githubReadFile?:unknown;
-  readonly runAgentTask?:typeof runDelegatedAgent;
+  readonly runAgentTask?: typeof runDelegatedAgent;
 }){
   const{registry,model,complete,maxTokens=2048,nvidiaConfigured=false,githubReadConfigured=false,githubReadFile,runAgentTask=runDelegatedAgent}=args;
   if(!Array.isArray(registry?.agents))throw new Error('INVALID_SCHEDULE_AGENT_EXECUTOR:registry');
@@ -32,7 +32,22 @@ export function createScheduledAgentExecutor(args:{
     const ledger=createAgentRunLedger({traceId:safeTraceId,agentId:canonicalAgent.id,action:'schedule.run'});
     let result:Record<string,unknown>|null=null;
     try{
-      result=await runAgentTask({agent:canonicalAgent,task:safeTask,traceId:safeTraceId,parentTaskId:ledger.rootTaskId,depth:0,registry,runLedger:ledger,model:safeModel,maxTokens:tokenLimit,complete,nvidiaConfigured:Boolean(nvidiaConfigured),githubReadConfigured:Boolean(githubReadConfigured),githubReadFile}) as Record<string,unknown>;
+      const delegatedInput: DelegatedAgentRunInput = {
+        agent: canonicalAgent,
+        task: safeTask,
+        traceId: safeTraceId,
+        parentTaskId: ledger.rootTaskId,
+        depth: 0,
+        registry,
+        runLedger: ledger,
+        model: safeModel,
+        maxTokens: tokenLimit,
+        complete,
+        nvidiaConfigured: Boolean(nvidiaConfigured),
+        githubReadConfigured: Boolean(githubReadConfigured),
+        githubReadFile
+      };
+      result=await runAgentTask(delegatedInput) as Record<string,unknown>;
     }catch{result={ok:false,error:'SCHEDULE_AGENT_RUN_FAILED'};}
     if(result?.ok!==true){const error=errorCode(result?.error);ledger.finish({ok:false,detail:error});return{ok:false as const,error,taskLedger:ledger.snapshot()};}
     const content=typeof result.content==='string'?result.content:'';
