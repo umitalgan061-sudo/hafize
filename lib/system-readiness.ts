@@ -31,7 +31,7 @@ export function buildSystemReadiness(input: SystemReadinessInput): SystemReadine
     release: { state: release }
   });
   const components: Record<string, 'ready' | 'warning' | 'blocked' | 'unknown'> = {
-    auth: config.authRequired && !config.findings.some((finding) => finding.code === 'AUTH_SECRET_MISSING') ? 'ready' : 'blocked',
+    auth: !config.authRequired || !config.findings.some((finding) => finding.code === 'AUTH_SECRET_MISSING') ? 'ready' : 'blocked',
     pwa,
     skills: runtime.components.skills.status === 'ready' ? 'ready' : runtime.components.skills.status === 'warning' ? 'warning' : runtime.components.skills.status,
     memory: runtime.components.memory.status === 'ready' ? 'ready' : runtime.components.memory.status === 'warning' ? 'warning' : runtime.components.memory.status,
@@ -48,6 +48,7 @@ export function buildSystemReadiness(input: SystemReadinessInput): SystemReadine
     blocked: values.filter((value) => value === 'blocked').length,
     unknown: values.filter((value) => value === 'unknown').length
   };
-  const state: SystemState = deployment.state === 'blocked' ? 'blocked' : deployment.state === 'unknown' ? 'unknown' : deployment.state === 'degraded' ? 'degraded' : 'ready';
-  return Object.freeze({ state, releaseable: deployment.releaseable && input.releaseChecksPass !== false, config, runtime, deployment, components: Object.freeze(components), summary: Object.freeze(summary) });
+  const state: SystemState = summary.blocked > 0 ? 'blocked' : summary.unknown > 0 ? 'unknown' : summary.warning > 0 ? 'degraded' : deployment.state;
+  const releaseable = deployment.releaseable && summary.blocked === 0 && summary.unknown === 0 && summary.warning === 0 && input.releaseChecksPass !== false;
+  return Object.freeze({ state, releaseable, config, runtime, deployment, components: Object.freeze(components), summary: Object.freeze(summary) });
 }
