@@ -25,7 +25,7 @@
     "typecheck:syntax": "tsc --noEmit --noCheck",
     "test:modernization": "node scripts/test-runtime-modernization.mjs",
     "test:modern:gate": "vitest run lib/runtime-metrics.test.ts",
-    "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs"
+    "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs"
   },
   "dependencies": {
     "redis": "^6.1.0"
