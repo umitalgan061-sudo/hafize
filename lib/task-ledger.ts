@@ -109,6 +109,8 @@ export function createTaskLedger({
     entries[index] = next;
     return Object.freeze({ ...next });
   }
+  function read(): TaskLedgerSnapshot;
+  function read(taskId: string): TaskLedgerEntry | null;
   function read(taskId: unknown = null): TaskLedgerEntry | TaskLedgerSnapshot | null {
     if (taskId == null) return snapshot();
     const id = cleanText(taskId, 'taskId', 120);
