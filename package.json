@@ -23,7 +23,7 @@
     "typecheck:runtime": "tsc --noEmit -p tsconfig.runtime.json",
     "test:workspace-backup": "vitest run public/typed/workspace-backup.test.ts && node scripts/test-workspace-backup-core.mjs && node scripts/test-workspace-backup-security.mjs && node scripts/test-workspace-backup-integrity.mjs && node scripts/test-workspace-backup-restore.mjs && node scripts/test-workspace-backup-pwa.mjs && node scripts/test-workspace-backup-limits.mjs && node scripts/test-workspace-backup-events.mjs && node scripts/test-workspace-backup-format.mjs && node scripts/test-workspace-backup-storage.mjs",
     "typecheck:syntax": "tsc --noEmit --noCheck",
-    "test:modernization": "node scripts/test-runtime-modernization.mjs",
+    "test:modernization": "node scripts/test-runtime-modernization.ts",
     "test:modern:gate": "vitest run lib/runtime-metrics.test.ts",
     "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs"
   },

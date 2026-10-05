@@ -148,7 +148,7 @@ export async function consumeSseResponse(
 ): Promise<HafizeSseStats> {
   const started = new Date();
   const maxFrameChars = normalizeLimit(options.maxFrameChars, DEFAULT_MAX_FRAME_CHARS, 1_000_000);
-  const maxBufferChars = Math.max(maxFrameChars, normalizeLimit(options.maxBufferChars, DEFAULT_MAX_BUFFER_CHARS, 2_000_000));
+  const maxBufferChars = normalizeLimit(options.maxBufferChars, DEFAULT_MAX_BUFFER_CHARS, 2_000_000);
   const maxEvents = normalizeLimit(options.maxEvents, DEFAULT_MAX_EVENTS, 100_000);
   const traceId = traceIdOf(response);
 
@@ -162,6 +162,9 @@ export async function consumeSseResponse(
   }
 
   const reader = response.body.getReader();
+  const abortReader = (): void => { void reader.cancel(options.signal?.reason); };
+  options.signal?.addEventListener('abort', abortReader, { once: true });
+  if (options.signal?.aborted) abortReader();
   const decoder = new TextDecoder('utf-8', { fatal: false });
   let buffer = '';
   let bytesRead = 0;
@@ -198,6 +201,25 @@ export async function consumeSseResponse(
         });
       }
       const chunk = await reader.read();
+      if (options.signal?.aborted) {
+        const reason = options.signal.reason;
+        if (reason instanceof DOMException && reason.name === 'TimeoutError') {
+          throw new HafizeSseError('SSE akışı zaman aşımına uğradı.', {
+            code: 'SSE_TIMEOUT',
+            status: response.status,
+            traceId,
+            retryable: true,
+            cause: reason
+          });
+        }
+        throw new HafizeSseError('SSE akışı iptal edildi.', {
+          code: 'SSE_ABORTED',
+          status: response.status,
+          traceId,
+          retryable: false,
+          cause: reason
+        });
+      }
       bytesRead += chunk.value?.byteLength || 0;
       buffer += decoder.decode(chunk.value || new Uint8Array(), { stream: !chunk.done }).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       if (buffer.length > maxBufferChars) {
@@ -220,6 +242,15 @@ export async function consumeSseResponse(
   } catch (error) {
     try { await reader.cancel(error); } catch { /* already closed */ }
     if (error instanceof HafizeSseError) throw error;
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new HafizeSseError('SSE akışı zaman aşımına uğradı.', {
+        code: 'SSE_TIMEOUT',
+        status: response.status,
+        traceId,
+        retryable: true,
+        cause: error
+      });
+    }
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new HafizeSseError('SSE akışı iptal edildi.', {
         code: 'SSE_ABORTED',
@@ -237,6 +268,7 @@ export async function consumeSseResponse(
       cause: error
     });
   } finally {
+    options.signal?.removeEventListener('abort', abortReader);
     reader.releaseLock();
   }
 
@@ -281,12 +313,20 @@ export class HafizeSseClient {
       headers.set('Accept', 'text/event-stream');
       headers.set('Content-Type', headers.get('Content-Type') || 'application/json');
 
-      const response = await this.fetchImpl(this.url(path), {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
+      const response = await Promise.race([
+        this.fetchImpl(this.url(path), {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        }),
+        new Promise<Response>((_resolve, reject) => {
+          const abort = (): void => reject(controller.signal.reason ?? new DOMException('Aborted', 'AbortError'));
+          if (controller.signal.aborted) abort();
+          else controller.signal.addEventListener('abort', abort, { once: true });
+          controller.signal.addEventListener('abort', () => controller.signal.removeEventListener('abort', abort), { once: true });
+        })
+      ]);
 
       if (!response.ok) throw errorFromResponse(response, await payloadOf(response));
       return response;

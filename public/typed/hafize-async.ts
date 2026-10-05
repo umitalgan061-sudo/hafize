@@ -131,6 +131,9 @@ export function createAsyncController<T = unknown>(
       options.signal?.addEventListener('abort', () => controller.abort(options.signal?.reason), { once: true });
     }
 
+    const notify = (): void => {
+      try { options.onStateChange?.(current); } catch { /* listener isolation */ }
+    };
     publish({
       phase: 'queued',
       operationId,
@@ -140,8 +143,9 @@ export function createAsyncController<T = unknown>(
       value: null,
       error: null
     });
+    notify();
     publish({ ...current, phase: 'running' });
-    options.onStateChange?.(current);
+    notify();
 
     timeoutHandle = globalThis.setTimeout(() => {
       if (current.operationId !== operationId) return;
