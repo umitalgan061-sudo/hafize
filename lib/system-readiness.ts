@@ -13,7 +13,7 @@ export interface SystemReadinessInput {
 export interface SystemReadinessReport {
   readonly state: SystemState;
   readonly releaseable: boolean;
-  readonly config: ReturnType<typeof evaluateConfigReadiness>;
+  readonly config: Omit<ReturnType<typeof evaluateConfigReadiness>, 'secretVariables'>;
   readonly runtime: ReturnType<typeof evaluateRuntimeReadiness>;
   readonly deployment: ReturnType<typeof evaluateDeploymentReadiness>;
   readonly components: Readonly<Record<string, 'ready' | 'warning' | 'blocked' | 'unknown'>>;
@@ -22,6 +22,7 @@ export interface SystemReadinessReport {
 
 export function buildSystemReadiness(input: SystemReadinessInput): SystemReadinessReport {
   const config = evaluateConfigReadiness(input.env);
+  const { secretVariables: _secretVariables, ...publicConfig } = config;
   const runtime = evaluateRuntimeReadiness(input.runtime);
   const pwa = input.pwaReady === true ? 'ready' : 'unknown';
   const release = input.releaseReady === true ? 'ready' : input.releaseReady === false ? 'blocked' : 'unknown';
@@ -50,5 +51,5 @@ export function buildSystemReadiness(input: SystemReadinessInput): SystemReadine
   };
   const state: SystemState = summary.blocked > 0 ? 'blocked' : summary.unknown > 0 ? 'unknown' : summary.warning > 0 ? 'degraded' : deployment.state;
   const releaseable = deployment.releaseable && summary.blocked === 0 && summary.unknown === 0 && summary.warning === 0 && input.releaseChecksPass !== false;
-  return Object.freeze({ state, releaseable, config, runtime, deployment, components: Object.freeze(components), summary: Object.freeze(summary) });
+  return Object.freeze({ state, releaseable, config: publicConfig, runtime, deployment, components: Object.freeze(components), summary: Object.freeze(summary) });
 }
