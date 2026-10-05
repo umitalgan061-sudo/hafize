@@ -297,6 +297,10 @@ node scripts/test-typescript-security-entrypoints.mjs
 Bu gate'ler production entry'nin `server.ts` olduğunu, typed browser artifact'larının Vite üzerinden geldiğini, legacy browser girişlerinin HTML'den çıkarıldığını ve güvenlik çekirdeğinin TS kaynaklarını doğrular.
 
 ## TypeScript modernizasyonu
+### Smart Insert TypeScript dalgası
+
+Prompt Smart Insert'in dokuz legacy browser modülü TypeScript-first unified browser entrypoint'e taşındı. Değişken doldurma, profil, preset, öneri, geçmiş, aktivite ve klavye akışları aynı local-storage sözleşmeleriyle korunur; eski `.js` kaynakları artık üretimden çıkarılmıştır. Vite bu modülleri `typed-build/legacy-app.js` içinde paketler ve PWA shell `v55` çıktıyı cache'ler. Migration release gate'i `npm run test:prompt-smart-insert-ts` ile çalışır.
+
 
 Hafize'nin üretim runtime'ı TypeScript tabanına geçirilirken browser tarafındaki büyük çalışma alanları da Vite üzerinden derlenen typed entrypoint'lere taşınıyor. Bu migration dalgasında Markdown Renderer ve Conversation Workspace kaynakları `public/*.ts`, Message Workspace, Prompt Library ve Scheduled Tasks kaynakları `public/typed/*.ts` altında tutuluyor; HTML üretimde `typed-build/*.js` çıktısını yüklüyor.
 
