@@ -26,9 +26,9 @@ const sw = await read('public/sw-policy.ts');
 for (const name of modules) {
   assert(await exists('public/typed/legacy/' + name + '.ts'), 'missing typed Smart Insert module: ' + name);
   assert.equal(await exists('public/' + name + '.js'), false, 'legacy Smart Insert JS remains: ' + name);
-  assert.match(legacyApp, new RegExp('legacy/' + name + '\\\\.ts'), 'legacy app wiring missing: ' + name);
+  assert.ok(legacyApp.includes('./legacy/' + name + '.ts'), 'legacy app wiring missing: ' + name);
   const source = await read('public/typed/legacy/' + name + '.ts');
-  assert.match(source, /import type \\{ HafizeLegacyRoot \\}/);
+  assert.ok(source.includes('import type { HafizeLegacyRoot }'), 'typed legacy root import missing: ' + name);
   assert.match(source, /@ts-nocheck/);
   assert.doesNotMatch(source, /fetch\s*\(/);
   assert.doesNotMatch(source, /XMLHttpRequest/);
