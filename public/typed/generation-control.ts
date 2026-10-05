@@ -11,6 +11,7 @@ import {
   type GenerationHistoryEntry
 } from './generation-history.ts';
 import { formatHistoryInsightLine, summarizeGenerationInsights } from './generation-history-insights.ts';
+import { emitGenerationLifecycle } from './generation-lifecycle.ts';
 
 export type GenerationPhase = 'idle' | 'active' | 'completed' | 'aborted' | 'failed';
 
@@ -270,6 +271,7 @@ export function createGenerationController(): GenerationController {
       errorCode: 'SSE_ABORTED'
     });
     persistTerminalSnapshot();
+    emitGenerationLifecycle(window, current, 'aborted');
     scheduleTerminalHide();
     return true;
   }
@@ -406,6 +408,7 @@ export function createGenerationController(): GenerationController {
       label: clampText(label || 'Yanıt üretiliyor', MAX_LABEL),
       errorCode: null
     });
+    emitGenerationLifecycle(window, current, 'started');
     scheduleTick();
     return Object.freeze({ runId, signal: nextController.signal, startedAt });
   }
@@ -419,6 +422,7 @@ export function createGenerationController(): GenerationController {
       bytesRead: Math.max(current.bytesRead, Math.max(0, Math.floor(Number.isFinite(bytesRead) ? bytesRead : 0))),
       events: current.events + Math.max(0, Math.floor(Number.isFinite(events) ? events : 0))
     });
+    emitGenerationLifecycle(window, current, 'progress');
   }
 
   function complete(stats: Partial<GenerationSnapshot> = {}): void {
@@ -439,6 +443,7 @@ export function createGenerationController(): GenerationController {
       ...stats
     });
     persistTerminalSnapshot();
+    emitGenerationLifecycle(window, current, 'completed');
     scheduleTerminalHide();
   }
 
@@ -460,6 +465,7 @@ export function createGenerationController(): GenerationController {
       ...stats
     });
     persistTerminalSnapshot();
+    emitGenerationLifecycle(window, current, 'failed');
     scheduleTerminalHide();
   }
 
