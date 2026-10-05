@@ -48,9 +48,8 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
 
   legacy-suite:
-    name: Legacy regression report
+    name: Full regression suite
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v7

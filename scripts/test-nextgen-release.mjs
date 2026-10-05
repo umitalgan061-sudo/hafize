@@ -28,7 +28,7 @@ assert(files.package.scripts?.build === 'vite build', 'vite-build-script');
 assert(files.package.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime-typecheck-script');
 assert(files.package.scripts?.['typecheck:syntax'] === 'tsc --noEmit --noCheck', 'syntax-typecheck-script');
 assert(files.package.scripts?.['test:modern:gate'] === 'vitest run lib/runtime-metrics.test.ts', 'modern-vitest-gate');
-assert(files.package.scripts?.['test:modernization'] === 'node scripts/test-runtime-modernization.mjs', 'modernization-contract-script');
+assert(files.package.scripts?.['test:modernization'] === 'node scripts/test-runtime-modernization.ts', 'modernization-contract-script');
 assert(files.package.scripts?.['check:modern']?.includes('test-nextgen-release.mjs'), 'nextgen-release-gate');
 
 assert(files.server.includes("url.pathname === '/api/health/live'"), 'liveness-endpoint');

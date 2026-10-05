@@ -39,7 +39,8 @@ function scheduleIdFromPath(pathname) {
   if (!raw || raw.includes('/')) return '';
   try {
     const id = decodeURIComponent(raw).trim();
-    return id && id.length <= 120 ? id : '';
+    if (!id || id.includes('/')) return '';
+    return id.length <= 120 ? id : '';
   } catch {
     return '';
   }

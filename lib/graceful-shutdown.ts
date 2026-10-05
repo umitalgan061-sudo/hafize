@@ -28,7 +28,6 @@ export function createShutdownCoordinator(
     started = true;
     promise = (async () => {
       options.stopWorker?.();
-      const serverClose = options.closeServer();
 
       if (options.waitForTick) {
         try {
@@ -48,7 +47,7 @@ export function createShutdownCoordinator(
       }
 
       try {
-        await serverClose;
+        await options.closeServer();
       } catch (error) {
         logger('Hafize HTTP server shutdown failed', error);
         process.exitCode = 1;

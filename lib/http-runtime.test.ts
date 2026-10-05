@@ -15,7 +15,7 @@ function responseStub() {
     destroyed: false,
     writable: true,
     setHeader(name: string, value: string) { headers.set(name, value); },
-    writeHead(value: number, _headers: Record<string, string>) { status = value; },
+    writeHead(value: number, headersArg: Record<string, string>) { status = value; for (const [name, header] of Object.entries(headersArg)) headers.set(name, header); },
     write(chunk: string) { body += chunk; return true; },
     end(chunk = '') { body += chunk; this.writableEnded = true; },
   } as unknown as import('node:http').ServerResponse;
