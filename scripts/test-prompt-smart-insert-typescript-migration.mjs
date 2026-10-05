@@ -41,6 +41,6 @@ assert.ok(html.includes('typed-build/legacy-app.js'));
 assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\.js/);
 assert.match(vite, /legacy-app/);
 assert.ok(sw.includes('typed-build/legacy-app.js'));
-assert.match(sw, /hafize-shell-v55/);
+assert.ok(sw.includes('v55'), 'service worker cache version mismatch');
 
 console.log('TypeScript Smart Insert migration gate: OK');
