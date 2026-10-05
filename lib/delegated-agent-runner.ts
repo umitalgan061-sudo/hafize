@@ -3,6 +3,25 @@ import { createAgentDelegator } from './agent-delegation.ts';
 import { buildAgentSystemMessage } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
 import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.ts';
+import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
+import type { AgentRunLedger } from './agent-run-ledger.ts';
+
+export interface DelegatedAgentRunInput {
+  readonly agent?: AgentDefinition;
+  readonly task?: unknown;
+  readonly traceId?: unknown;
+  readonly parentTaskId?: unknown;
+  readonly depth?: number;
+  readonly registry?: AgentRegistry;
+  readonly runLedger?: AgentRunLedger;
+  readonly model?: string;
+  readonly maxTokens?: number;
+  readonly complete?: (payload: unknown, signal?: AbortSignal) => Promise<unknown>;
+  readonly nvidiaConfigured?: boolean;
+  readonly githubReadConfigured?: boolean;
+  readonly githubReadFile?: unknown;
+  readonly skillsRuntime?: unknown;
+}
 
 function normalizeToolCalls(calls) {
   if (!Array.isArray(calls)) return [];
@@ -41,7 +60,7 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime
-} = {}) {
+}: DelegatedAgentRunInput = {}) {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || !traceId || !parentTaskId) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }
