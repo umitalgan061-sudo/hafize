@@ -22,6 +22,7 @@ describe('upstream circuit breaker', () => {
     breaker.recordFailure();
     now += 1000;
     breaker.beforeRequest();
+    expect(() => breaker.beforeRequest()).toThrow(UpstreamCircuitOpenError);
     breaker.recordSuccess();
     expect(breaker.snapshot()).toMatchObject({ state: 'closed', failures: 0, retryAfterMs: 0 });
   });
