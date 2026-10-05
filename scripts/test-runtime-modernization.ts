@@ -36,6 +36,6 @@ assert(http.includes('Content-Security-Policy'), 'csp-header');
 assert(http.includes('Cross-Origin-Opener-Policy'), 'coop-header');
 assert(metrics.includes('MAX_ROUTES = 96'), 'bounded-route-cardinality');
 assert(metrics.includes('histogram'), 'latency-histogram');
-assert(packageData.scripts?.['test-modernization'] === 'node scripts/test-runtime-modernization.ts', 'package-script');
+assert(packageData.scripts?.['test:modernization'] === 'node scripts/test-runtime-modernization.ts', 'package-script');
 
 console.log('Runtime modernization contract: OK');
