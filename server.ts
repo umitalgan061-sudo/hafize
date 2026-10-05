@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
