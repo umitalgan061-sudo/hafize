@@ -31,17 +31,17 @@ export interface ContextMeta {
 function fail(field: string): never {
   throw new Error('INVALID_CONTEXT_COMPACTOR:' + field);
 }
-function countStrings(value: unknown): number {
-  if (typeof value === 'string') return value.length;
-  if (Array.isArray(value)) return value.reduce((sum, item) => sum + countStrings(item), 0);
-  if (!value || typeof value !== 'object') return 0;
-  let total = 0;
-  for (const [key, item] of Object.entries(value)) total += key.length + countStrings(item);
-  return total;
+function countMessageContent(value: unknown): number {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return 0;
+  const content = (value as Record<string, unknown>).content;
+  if (typeof content === 'string') return content.length;
+  if (Array.isArray(content)) return content.reduce((sum, item) => sum + countMessageContent(item), 0);
+  return typeof content === 'number' || typeof content === 'boolean' ? String(content).length : 0;
 }
 export function estimateMessageTokens(messages: readonly unknown[]): number {
   if (!Array.isArray(messages)) fail('messages');
-  return Math.ceil(messages.reduce((sum, item) => sum + countStrings(item), 0) / 4);
+  // Deterministic conservative estimator: count user-visible message content.
+  return messages.reduce((sum, item) => sum + countMessageContent(item), 0);
 }
 function integer(value: unknown, fallback: number, min: number, max: number, field: string): number {
   if (value === undefined) return fallback;
