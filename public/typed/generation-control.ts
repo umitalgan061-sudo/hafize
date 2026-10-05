@@ -10,6 +10,7 @@ import {
   writeGenerationHistory,
   type GenerationHistoryEntry
 } from './generation-history.ts';
+import { formatHistoryInsightLine, summarizeGenerationInsights } from './generation-history-insights.ts';
 
 export type GenerationPhase = 'idle' | 'active' | 'completed' | 'aborted' | 'failed';
 
@@ -190,6 +191,10 @@ export function createGenerationController(): GenerationController {
     if (!historyList) return;
     historyList.replaceChildren();
     const entries = readHistory().slice(0, 5);
+    const insight = document.createElement('div');
+    insight.className = 'generation-history-insight';
+    insight.textContent = formatHistoryInsightLine(summarizeGenerationInsights(readHistory()));
+    historyList.append(insight);
     if (!entries.length) {
       const empty = document.createElement('span');
       empty.className = 'generation-history-empty';
