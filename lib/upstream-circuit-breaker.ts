@@ -44,6 +44,7 @@ export function createUpstreamCircuitBreaker({
   let state: UpstreamCircuitBreakerSnapshot['state'] = 'closed';
   let failures = 0;
   let openedAt: number | null = null;
+  let halfOpenProbeInFlight = false;
 
   const currentTime = (): number => {
     const value = Number(now());
@@ -63,18 +64,24 @@ export function createUpstreamCircuitBreaker({
       if (retryAfterMs > 0) throw new UpstreamCircuitOpenError(retryAfterMs);
       state = 'half-open';
     }
+    if (state === 'half-open') {
+      if (halfOpenProbeInFlight) throw new UpstreamCircuitOpenError(openMs);
+      halfOpenProbeInFlight = true;
+    }
   }
 
   function recordSuccess(): void {
     failures = 0;
     state = 'closed';
     openedAt = null;
+    halfOpenProbeInFlight = false;
   }
 
   function recordFailure(): void {
     const time = currentTime();
     if (state === 'half-open' || failures + 1 >= failureThreshold) {
       failures = failureThreshold;
+      halfOpenProbeInFlight = false;
       open(time);
       return;
     }
