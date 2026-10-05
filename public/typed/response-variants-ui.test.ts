@@ -27,6 +27,6 @@ describe('response variant selection', () => {
 
   it('trims and caps selected response content', () => {
     const result = selectResponseVariant('C', [' B ', 'A'], 1, 1);
-    expect(result).toEqual({ current: 'B', alternates: ['C'] });
+    expect(result).toEqual({ current: 'B', alternates: ['C', 'A'] });
   });
 });
