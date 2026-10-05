@@ -1,7 +1,5 @@
-// @ts-ignore Legacy task ledger is intentionally isolated behind this typed boundary.
-import { createTaskLedger } from './task-ledger.mjs';
-// @ts-ignore Legacy trace utilities remain shared during migration.
-import { createTraceContext, normalizeTaskRelation, assertTraceContinuity } from './trace-consistency.mjs';
+import { createTaskLedger } from './task-ledger.ts';
+import { createTraceContext, normalizeTaskRelation, assertTraceContinuity } from './trace-consistency.ts';
 import type { TaskLedgerEntry, TaskLedgerSnapshot } from './runtime-contracts.ts';
 
 interface Options { readonly traceId: unknown; readonly agentId: unknown; readonly action?: unknown; readonly now?: () => number; }
