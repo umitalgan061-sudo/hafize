@@ -1,10 +1,17 @@
-.generation-control{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text)}
+.generation-control{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;margin:8px 0 6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text)}
 .generation-control-status{min-width:0;color:var(--muted);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.generation-control-stop{flex:0 0 auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:6px 10px;font:inherit;font-size:11px;font-weight:650;cursor:pointer}
-.generation-control-stop:hover{filter:brightness(.98)}
-.generation-control-stop:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.generation-control-stop,.generation-control-diagnostics,.generation-control-history,.generation-control-history-clear{flex:0 0 auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);padding:6px 10px;font:inherit;font-size:11px;font-weight:650;cursor:pointer}
+.generation-control-stop:hover,.generation-control-diagnostics:hover,.generation-control-history:hover,.generation-control-history-clear:hover{filter:brightness(.98)}
+.generation-control-stop:focus-visible,.generation-control-diagnostics:focus-visible,.generation-control-history:focus-visible,.generation-control-history-clear:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .generation-control[data-phase="active"]{border-color:var(--accent)}
 .generation-control[data-phase="active"] .generation-control-status::before{content:"●";display:inline-block;margin-right:6px}
-@media(max-width:700px){.generation-control{align-items:stretch;flex-direction:column}.generation-control-status{white-space:normal}.generation-control-stop{width:100%}}
-@media(prefers-reduced-motion:reduce){.generation-control-stop{transition:none}}
-@media(forced-colors:active){.generation-control{border-color:CanvasText;background:Canvas;color:CanvasText}.generation-control-stop{border-color:CanvasText;background:Canvas;color:CanvasText}.generation-control-stop:focus-visible{outline-color:Highlight}}
+.generation-history-actions{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}
+.generation-history-actions button{flex:1 1 140px}
+.generation-history-list{grid-column:1/-1;display:flex;flex-direction:column;gap:5px;max-height:180px;overflow:auto;padding-top:6px;border-top:1px solid var(--line)}
+.generation-history-row{display:flex;justify-content:space-between;gap:10px;padding:6px 7px;border:1px solid var(--line);border-radius:7px;background:var(--panel);font-size:10px}
+.generation-history-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.generation-history-meta{flex:0 0 auto;color:var(--muted);text-align:right}
+.generation-history-empty{color:var(--muted);font-size:10px}
+@media(max-width:700px){.generation-control{grid-template-columns:1fr}.generation-control-status{white-space:normal}.generation-control-stop,.generation-control-diagnostics,.generation-control-history,.generation-control-history-clear{width:100%}.generation-history-actions{grid-column:auto}.generation-history-list{grid-column:auto}.generation-history-row{align-items:flex-start;flex-direction:column}.generation-history-meta{text-align:left}}
+@media(prefers-reduced-motion:reduce){.generation-control-stop,.generation-control-diagnostics,.generation-control-history,.generation-control-history-clear{transition:none}}
+@media(forced-colors:active){.generation-control,.generation-history-row{border-color:CanvasText;background:Canvas;color:CanvasText}.generation-control-stop,.generation-control-diagnostics,.generation-control-history,.generation-control-history-clear{border-color:CanvasText;background:Canvas;color:CanvasText}.generation-control-stop:focus-visible,.generation-control-diagnostics:focus-visible,.generation-control-history:focus-visible,.generation-control-history-clear:focus-visible{outline-color:Highlight}.generation-history-meta{color:CanvasText}}
