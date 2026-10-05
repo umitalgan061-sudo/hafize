@@ -730,8 +730,7 @@ async function handleChat(req, res) {
 
   const traceId = createTraceId();
   res.setHeader('X-Hafize-Trace-Id', traceId);
-  const controller = new AbortController();
-  res.on('close', () => controller.abort());
+  const requestAbort = attachDisconnectAbort(req, REQUEST_TIMEOUT_MS);
   const preparedConversation = await prepareConversation(
     [buildAgentSystemMessage(agent, traceId), ...messages],
     model,
