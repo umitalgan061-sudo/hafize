@@ -132,7 +132,7 @@ export function createHafizeStreamController(): HafizeStreamController {
     subscribe: (listener) => {
       if (destroyed) return () => undefined;
       listeners.add(listener);
-      listener(current);
+      try { listener(current); } catch { /* listener isolation */ }
       return () => listeners.delete(listener);
     },
     destroy: () => {
@@ -179,6 +179,9 @@ export function formatStreamDuration(durationMs: number | null): string {
 export function formatStreamBytes(bytes: number): string {
   const value = Math.max(0, Math.floor(Number.isFinite(bytes) ? bytes : 0));
   if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(value < 10 * 1024 ? 1 : 0)} KB`;
+  if (value < 1024 * 1024) {
+    const kb = value / 1024;
+    return `${Number(kb.toFixed(kb < 10 ? 1 : 0))} KB`;
+  }
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
