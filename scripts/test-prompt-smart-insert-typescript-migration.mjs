@@ -26,19 +26,19 @@ const sw = await read('public/sw-policy.ts');
 for (const name of modules) {
   assert(await exists('public/typed/legacy/' + name + '.ts'), 'missing typed Smart Insert module: ' + name);
   assert.equal(await exists('public/' + name + '.js'), false, 'legacy Smart Insert JS remains: ' + name);
-  assert.match(legacyApp, new RegExp('legacy/' + name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + '\\\\.ts'), 'legacy app wiring missing: ' + name);
+  assert.match(legacyApp, new RegExp('legacy/' + name + '\\\\.ts'), 'legacy app wiring missing: ' + name);
   const source = await read('public/typed/legacy/' + name + '.ts');
   assert.match(source, /import type \\{ HafizeLegacyRoot \\}/);
   assert.match(source, /@ts-nocheck/);
-  assert.doesNotMatch(source, /fetch\\s*\\(/);
+  assert.doesNotMatch(source, /fetch\s*\(/);
   assert.doesNotMatch(source, /XMLHttpRequest/);
   assert.doesNotMatch(source, /WebSocket/);
 }
 
 assert(await exists('public/typed/legacy/prompt-library-smart-insert-contract.ts'), 'typed Smart Insert contract missing');
-assert.match(legacyApp, /HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 51/);
+assert.match(legacyApp, /HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52/);
 assert.match(html, /typed-build\\/legacy-app\\.js/);
-assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\\.js/);
+assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\.js/);
 assert.match(vite, /legacy-app/);
 assert.match(sw, /typed-build\\/legacy-app\\.js/);
 assert.match(sw, /hafize-shell-v55/);
