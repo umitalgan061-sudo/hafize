@@ -40,7 +40,7 @@ import {
   getPublicToolRunningActivity
 } from './lib/tool-runtime.ts';
 
-import { HttpRuntimeError, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
+import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
 import { buildSystemReadiness } from './lib/system-readiness.ts';
 import { createRuntimeMetrics } from './lib/runtime-metrics.ts';
@@ -61,6 +61,7 @@ const METRICS_TOKEN = (process.env.HAFIZE_METRICS_TOKEN || '').trim();
 const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 30_000, 5_000, 300_000);
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
+const REQUEST_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_REQUEST_TIMEOUT_MS, 180_000, 30_000, 600_000);
 
 function hasMetricsAuthorization(req) {
   const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
@@ -288,7 +289,7 @@ const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
     const timeout = setTimeout(() => controller.abort(), SCHEDULE_RUN_TIMEOUT_MS);
     timeout.unref?.();
     try {
-      return await nvidiaJsonCompletion(payload, controller.signal);
+      return await nvidiaJsonCompletion(payload, requestAbort.signal);
     } finally {
       clearTimeout(timeout);
     }
@@ -495,12 +496,11 @@ async function handleAgentRun(req, res) {
   const traceId = createTraceId();
   const runLedger = createAgentRunLedger({ traceId, agentId: agent.id });
   res.setHeader('X-Hafize-Trace-Id', traceId);
-  const controller = new AbortController();
-  res.on('close', () => controller.abort());
+  const requestAbort = attachDisconnectAbort(req, REQUEST_TIMEOUT_MS);
   const preparedConversation = await prepareConversation(
     [buildAgentSystemMessage(agent, traceId), ...messages],
     model,
-    controller.signal,
+    requestAbort.signal,
     res
   );
   const conversation = preparedConversation.messages;
@@ -529,7 +529,7 @@ async function handleAgentRun(req, res) {
         maxTokens: boundedMaxTokens(body),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         githubReadFile: GITHUB_READ_FILE,
-        complete: (payload) => nvidiaJsonCompletion(payload, controller.signal)
+        complete: (payload) => nvidiaJsonCompletion(payload, requestAbort.signal)
       });
     }
   });
@@ -552,9 +552,10 @@ async function handleAgentRun(req, res) {
 
   let first;
   try {
-    first = normalizeRootCompletion(await nvidiaJsonCompletion(firstPayload, controller.signal));
+    first = normalizeRootCompletion(await nvidiaJsonCompletion(firstPayload, requestAbort.signal));
   } catch (error) {
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
+    requestAbort.cancel();
     deliverRequestFailure(res, error);
     return;
   }
@@ -571,6 +572,7 @@ async function handleAgentRun(req, res) {
   const toolCalls = assistant.tool_calls;
   if (!toolCalls.length) {
     runLedger.finish({ ok: true });
+    requestAbort.cancel();
     if (streamResponse) {
       sendSseContent(res, first.content);
       return;
@@ -598,6 +600,7 @@ async function handleAgentRun(req, res) {
     }));
   if (!normalizedCalls.length) {
     runLedger.finish({ ok: false, detail: 'INVALID_TOOL_CALL' });
+    requestAbort.cancel();
     sendJson(res, 502, { error: 'INVALID_TOOL_CALL', taskLedger: runLedger.snapshot() });
     return;
   }
@@ -618,7 +621,7 @@ async function handleAgentRun(req, res) {
       githubReadFile: GITHUB_READ_FILE,
       delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
       approvalGranted: false,
-      signal: controller.signal,
+      signal: requestAbort.signal,
       ...connectorContext
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
@@ -656,12 +659,13 @@ async function handleAgentRun(req, res) {
     try {
       upstream = await nvidiaFetch('/chat/completions', {
         method: 'POST',
-        signal: controller.signal,
+        signal: requestAbort.signal,
         headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
         body: JSON.stringify(secondPayload)
       });
     } catch (error) {
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
+      requestAbort.cancel();
       deliverRequestFailure(res, error);
       return;
     }
@@ -670,6 +674,7 @@ async function handleAgentRun(req, res) {
       const error = new Error('NVIDIA_CHAT_ERROR');
       error.status = upstream.status || 502;
       runLedger.finish({ ok: false, detail: 'NVIDIA_CHAT_ERROR' });
+      requestAbort.cancel();
       deliverRequestFailure(res, error);
       return;
     }
@@ -686,20 +691,23 @@ async function handleAgentRun(req, res) {
         detail: streamInterrupted ? 'stream_interrupted' : anyToolFailed ? 'tool_failed' : null
       });
       try { if (!res.destroyed && !res.writableEnded) res.end(); } catch {}
+      requestAbort.cancel();
     }
     return;
   }
 
   let second;
   try {
-    second = normalizeRootCompletion(await nvidiaJsonCompletion(secondPayload, controller.signal));
+    second = normalizeRootCompletion(await nvidiaJsonCompletion(secondPayload, requestAbort.signal));
   } catch (error) {
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
+    requestAbort.cancel();
     deliverRequestFailure(res, error);
     return;
   }
 
   runLedger.finish({ ok: !anyToolFailed, detail: anyToolFailed ? 'tool_failed' : null });
+  requestAbort.cancel();
   sendJson(res, 200, {
     traceId,
     agent: { id: agent.id, name: agent.name },
@@ -727,7 +735,7 @@ async function handleChat(req, res) {
   const preparedConversation = await prepareConversation(
     [buildAgentSystemMessage(agent, traceId), ...messages],
     model,
-    controller.signal,
+    requestAbort.signal,
     res
   );
 
@@ -744,11 +752,12 @@ async function handleChat(req, res) {
   try {
     upstream = await nvidiaFetch('/chat/completions', {
       method: 'POST',
-      signal: controller.signal,
+      signal: requestAbort.signal,
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify(payload)
     });
   } catch (error) {
+    requestAbort.cancel();
     deliverRequestFailure(res, error);
     return;
   }
@@ -758,6 +767,7 @@ async function handleChat(req, res) {
     const error = new Error('NVIDIA_CHAT_ERROR');
     error.status = upstream.status || 502;
     error.detail = detail.slice(0, 1200);
+    requestAbort.cancel();
     deliverRequestFailure(res, error);
     return;
   }
@@ -770,6 +780,7 @@ async function handleChat(req, res) {
     deliverRequestFailure(res, error);
   } finally {
     try { if (!res.destroyed && !res.writableEnded) res.end(); } catch {}
+    requestAbort.cancel();
   }
 }
 
