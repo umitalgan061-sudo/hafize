@@ -196,8 +196,9 @@ describe('HafizeSseClient', () => {
       const fetchImpl = vi.fn<typeof fetch>(async () => new Promise<Response>(() => undefined));
       const client = new HafizeSseClient('', fetchImpl);
       const pending = client.open('/api/chat', {}, { timeoutMs: 1_000 });
+      const assertion = expect(pending).rejects.toMatchObject({ code: 'SSE_TIMEOUT' });
       await vi.advanceTimersByTimeAsync(1_000);
-      await expect(pending).rejects.toMatchObject({ code: 'SSE_TIMEOUT' });
+      await assertion;
     } finally {
       vi.useRealTimers();
     }

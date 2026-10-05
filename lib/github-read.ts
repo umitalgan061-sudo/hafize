@@ -130,7 +130,8 @@ export function createGitHubReadFile({
       throw new GitHubReadError('INVALID_GITHUB_RESPONSE', 502);
     }
 
-    const decoded = decodeGitHubContent(payload, Math.max(1024, Math.min(maxFileBytes, 256 * 1024)));
+    const boundedMaxFileBytes = Number.isInteger(maxFileBytes) ? Math.max(1, Math.min(maxFileBytes, 256 * 1024)) : DEFAULT_MAX_FILE_BYTES;
+    const decoded = decodeGitHubContent(payload, boundedMaxFileBytes);
     if (containsPlaintextCredential(decoded.content)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
     return { repository, path, ref, ...decoded };
   };

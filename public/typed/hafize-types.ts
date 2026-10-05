@@ -67,7 +67,10 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function stringValue(value: unknown, fallback = ''): string {
-  return typeof value === 'string' ? value : fallback;
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim();
+  if (normalized === '__proto__' || normalized === 'prototype' || normalized === 'constructor') return fallback;
+  return value;
 }
 
 export function booleanValue(value: unknown, fallback = false): boolean {

@@ -56,8 +56,9 @@ describe('createAsyncController', () => {
         }),
         { timeoutMs: 1_000 }
       );
+      const assertion = expect(pending).rejects.toBeInstanceOf(HafizeAsyncTimeoutError);
       await vi.advanceTimersByTimeAsync(1_000);
-      await expect(pending).rejects.toBeInstanceOf(HafizeAsyncTimeoutError);
+      await assertion;
       expect(controller.snapshot()).toMatchObject({ phase: 'cancelled' });
     } finally {
       vi.useRealTimers();

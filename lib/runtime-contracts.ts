@@ -81,6 +81,8 @@ export interface TaskLedgerEntry {
   readonly status: string;
   readonly parentTaskId?: string | null;
   readonly detail?: string | null;
+  readonly createdAt?: string;
+  readonly updatedAt?: string | null;
   readonly [key: string]: unknown;
 }
 

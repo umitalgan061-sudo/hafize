@@ -85,7 +85,7 @@ export function createOAuthFlowStore({ ttlMs = DEFAULT_TTL_MS, maxFlows = DEFAUL
     const record = flows.get(state);
     if (!record) throw new Error('OAUTH_FLOW_NOT_FOUND');
     flows.delete(state);
-    if (record.expiresAt <= at) throw new Error('OAUTH_FLOW_EXPIRED');
+    if (record.expiresAt <= at) throw new Error('OAUTH_FLOW_NOT_FOUND');
     return clone(record);
   };
 
