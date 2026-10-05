@@ -1,7 +1,11 @@
 import type { ServerResponse } from 'node:http';
 import type { RequestFailureClassification } from './runtime-contracts.ts';
 
-type FailureError = Error & { readonly status?: unknown; readonly code?: unknown };
+type FailureError = Error & {
+  readonly status?: unknown;
+  readonly code?: unknown;
+  readonly retryAfterMs?: unknown;
+};
 
 const ABORT_ERROR_NAMES = new Set(['AbortError']);
 const ABORT_ERROR_CODES = new Set([
@@ -68,6 +72,10 @@ export function deliverRequestFailure(res: ServerResponse, error: unknown): Requ
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('Referrer-Policy', 'no-referrer');
       res.setHeader('Permissions-Policy', 'camera=(), geolocation=()');
+      const retryAfterMs = Number((error as FailureError | null)?.retryAfterMs);
+      if (response.status === 503 && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+        res.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryAfterMs / 1000))));
+      }
       res.writeHead(response.status, {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store'
