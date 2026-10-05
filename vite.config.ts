@@ -85,6 +85,7 @@ export default defineConfig({
         'hands-free': resolve(ROOT, 'public/typed/hands-free.ts'),
         'settings-privacy': resolve(ROOT, 'public/typed/settings-privacy.ts'),
         'markdown-renderer': resolve(ROOT, 'public/markdown-renderer.ts'),
+        'chat-markdown': resolve(ROOT, 'public/chat-markdown.ts'),
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
         'prompt-library': resolve(ROOT, 'public/typed/prompt-library.ts'),
