@@ -13,7 +13,7 @@ export interface SystemReadinessInput {
 export interface SystemReadinessReport {
   readonly state: SystemState;
   readonly releaseable: boolean;
-  readonly config: Omit<ReturnType<typeof evaluateConfigReadiness>, 'secretVariables'>;
+  readonly config: Omit<ReturnType<typeof evaluateConfigReadiness>, 'secretVariables' | 'findings'>;
   readonly runtime: ReturnType<typeof evaluateRuntimeReadiness>;
   readonly deployment: ReturnType<typeof evaluateDeploymentReadiness>;
   readonly components: Readonly<Record<string, 'ready' | 'warning' | 'blocked' | 'unknown'>>;
@@ -22,7 +22,7 @@ export interface SystemReadinessReport {
 
 export function buildSystemReadiness(input: SystemReadinessInput): SystemReadinessReport {
   const config = evaluateConfigReadiness(input.env);
-  const { secretVariables: _secretVariables, ...publicConfig } = config;
+  const { secretVariables: _secretVariables, findings: _findings, ...publicConfig } = config;
   const runtime = evaluateRuntimeReadiness(input.runtime);
   const pwa = input.pwaReady === true ? 'ready' : 'unknown';
   const release = input.releaseReady === true ? 'ready' : input.releaseReady === false ? 'blocked' : 'unknown';
