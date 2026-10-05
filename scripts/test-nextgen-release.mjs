@@ -27,7 +27,7 @@ assert(files.package.devDependencies?.vitest === '5.0.1', 'vitest-toolchain');
 assert(files.package.scripts?.build === 'vite build', 'vite-build-script');
 assert(files.package.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime-typecheck-script');
 assert(files.package.scripts?.['typecheck:syntax'] === 'tsc --noEmit --noCheck', 'syntax-typecheck-script');
-assert(files.package.scripts?.['test:modern:gate'] === 'vitest run lib/runtime-metrics.test.ts', 'modern-vitest-gate');
+assert(files.package.scripts?.['test:modern:gate'] === 'vitest run lib/runtime-metrics.test.ts lib/upstream-circuit-breaker.test.ts lib/rate-limit.test.ts', 'modern-vitest-gate');
 assert(files.package.scripts?.['test:modernization'] === 'node scripts/test-runtime-modernization.ts', 'modernization-contract-script');
 assert(files.package.scripts?.['check:modern']?.includes('test-nextgen-release.mjs'), 'nextgen-release-gate');
 
@@ -38,6 +38,9 @@ assert(files.server.includes('X-Hafize-Request-Id'), 'request-id');
 assert(files.server.includes('timingSafeEqual'), 'timing-safe-metrics-token');
 assert(files.server.includes('If-None-Match'.toLowerCase()), 'etag');
 assert(files.server.includes('max-age=31536000, immutable'), 'immutable-cache');
+assert(files.server.includes('createUpstreamCircuitBreaker'), 'upstream-circuit-breaker');
+assert(files.server.includes('createRateLimiter'), 'request-rate-limiter');
+assert(files.server.includes('attachDisconnectAbort'), 'disconnect-cancellation');
 assert(files.http.includes('Content-Security-Policy'), 'csp');
 assert(files.http.includes('Cross-Origin-Opener-Policy'), 'coop');
 assert(files.http.includes('Cross-Origin-Resource-Policy'), 'corp');
