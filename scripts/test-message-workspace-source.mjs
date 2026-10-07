@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertCssIncludes } from './source-contract.mjs';
 
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
@@ -32,8 +33,8 @@ for (const asset of [
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
-assert.ok(sw.includes("'/message-workspace-policy.js'"));
-assert.ok(sw.includes("'/message-workspace.js'"));
+assert.ok(sw.includes("shellAssetForBrowserModule('message-workspace-policy')"));
+assert.ok(sw.includes("shellAssetForBrowserModule('message-workspace')"));
 
 assert.ok(js.includes("hafize.message-workspace.v1"));
 assert.ok(js.includes("hafize:message-workspace-changed"));

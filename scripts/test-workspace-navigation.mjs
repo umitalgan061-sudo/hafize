@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertVersionedCacheDeclaration, shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 
 import { loadBrowserModule } from './browser-module.mjs';
 const workspace = await loadBrowserModule('public/typed/workspace-navigation.ts');
@@ -92,7 +92,7 @@ function host() {
 
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);
 assert.deepEqual(workspace.allowedCardIds('tasks'), ['scheduleRuntimeCard', 'scheduleListCard']);
-assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard']);
+assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'gmailConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard']);
 for (const unsafe of ['', 'settings', 'TASKS', null, {}, '__proto__']) assert.equal(workspace.normalizeWorkspace(unsafe), 'chat');
 assert.equal(workspace.isWorkspaceCard({ id: 'scheduleListCard' }, 'tasks'), true);
 assert.equal(workspace.isWorkspaceCard({ id: 'scheduleListCard-rogue' }, 'tasks'), false);
@@ -142,9 +142,9 @@ assert.equal(h.cards.voice.hidden, true);
 assert.equal(controller.setWorkspace('connections'), false);
 
 assertVersionedCacheDeclaration();
-assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.js'), true);
+assert.equal(sw.SHELL_ASSETS.includes(shellAssetForBrowserModule('workspace-navigation')), true);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.css'), true);
-for (const path of ['/workspace-navigation.js', '/workspace-navigation.css']) {
+for (const path of [shellAssetForBrowserModule('workspace-navigation'), '/workspace-navigation.css']) {
   assert.equal(sw.classifyRequest({ url: `https://hafize.example${path}`, method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'shell');
 }
 assert.equal(sw.classifyRequest({ url: 'https://hafize.example/api/health', method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'network-only');

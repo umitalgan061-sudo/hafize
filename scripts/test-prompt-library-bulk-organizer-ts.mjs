@@ -23,5 +23,7 @@ assert(app.includes('./legacy/prompt-library-bulk-organizer.ts'));
 assert(app.includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(sw.includes('/typed-build/legacy-app.js'));
-assert(sw.includes('v55'), 'PWA cache version');
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'PWA cache version');
 console.log('Prompt Library bulk organizer TypeScript gate: OK');

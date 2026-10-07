@@ -3,6 +3,7 @@ import { assertAttributeDeclared } from './source-contract.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
 const cssPath = path.join(root, 'public', 'conversation-workspace.css');
@@ -172,7 +173,7 @@ check('index references workspace script', index.includes('/conversation-workspa
 check('workspace script loads after chat drafts', index.indexOf('/chat-drafts.js') < index.indexOf('/conversation-workspace.js'));
 check('workspace remains before voice modules', index.indexOf('/conversation-workspace.js') < index.indexOf('/voice-input.js'));
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
-check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
+check('service worker has workspace script', sw.includes(shellAssetForBrowserModule('conversation-workspace')));
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
 // HAFIZE_RULES.md replaced the old 3000-line budget with a completion rule:
 // a round stays open until the work package is finished, not until a number.

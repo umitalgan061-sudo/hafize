@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const i=readFileSync('public/index.html','utf8');
 const sw=readFileSync('public/sw-policy.ts','utf8');
 assert.ok(i.includes('/settings-privacy.css'));
 assert.ok(i.includes('/settings-privacy.js'));
 assert.ok(sw.includes('/settings-privacy.css'));
-assert.ok(sw.includes('/settings-privacy.js'));
+assert.ok(sw.includes(shellAssetForBrowserModule('settings-privacy')));
 console.log('privacy PWA final asset contract ok');

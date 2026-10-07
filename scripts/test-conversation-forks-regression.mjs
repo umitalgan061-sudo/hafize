@@ -74,7 +74,9 @@ assert.match(html, /typed-build\/conversation-forks\.js/);
 assert.match(vite, /typed-build\/conversation-forks\.js/);
 assert.match(vite, /typed\/conversation-forks\.ts/);
 assert.match(vite, /'conversation-forks'/);
-assert.match(sw, /CURRENT_CACHE = .*v46/);
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');
 assert.match(sw, /conversation-forks.css/);
 assert.match(sw, /typed-build\/conversation-forks\.js/);
 

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const source = fs.readFileSync(path.join(root, 'public/typed/legacy/conversation-workspace-keyboard.ts'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
@@ -78,7 +79,7 @@ for (const fragment of [
 
 assert.ok(index.includes('/conversation-workspace-keyboard.js'));
 assert.ok(index.includes('/conversation-workspace-keyboard.css'));
-assert.ok(sw.includes('/conversation-workspace-keyboard.js'));
+assert.ok(sw.includes(shellAssetForBrowserModule('conversation-workspace-keyboard')));
 assert.ok(sw.includes('/conversation-workspace-keyboard.css'));
 
 const jsLines = source.split('\n').length;

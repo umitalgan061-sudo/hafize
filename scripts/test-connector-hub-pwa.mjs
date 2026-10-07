@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const sw = await readFile('public/sw-policy.ts', 'utf8');
 const index = await readFile('public/index.html', 'utf8');
 
@@ -13,7 +14,7 @@ assert.match(index, /connector-hub\.css/);
 assert.match(index, /connector-hub\.js/);
 
 const apiAssetPos = sw.indexOf('/api/');
-const hubAssetPos = sw.indexOf('/connector-hub.js');
+const hubAssetPos = sw.indexOf(shellAssetForBrowserModule('connector-hub'));
 assert.ok(apiAssetPos >= 0 && hubAssetPos >= 0);
 assert.ok(sw.includes('return \'network-only\'') || sw.includes('return "network-only"'));
 

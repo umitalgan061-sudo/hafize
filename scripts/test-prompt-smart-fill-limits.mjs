@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
+import { loadBrowserModule } from './browser-module.mjs';
 const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
 
 assert.match(text, /MAX_VALUE = 1000/);
@@ -24,8 +23,8 @@ globalThis.localStorage = {
 };
 // Variable extraction lives in the prompt library core, which smart fill reads
 // off the same global the browser gives it.
-globalThis.HafizePromptLibrary = require('../public/typed/prompt-library.ts');
-require('../public/prompt-library-smart-fill.ts');
+globalThis.HafizePromptLibrary = await loadBrowserModule('public/typed/prompt-library.ts');
+await loadBrowserModule('public/prompt-library-smart-fill.ts');
 const smartFill = globalThis.HafizePromptLibrarySmartFill;
 assert.ok(smartFill, 'smart fill exposes its API on the global');
 

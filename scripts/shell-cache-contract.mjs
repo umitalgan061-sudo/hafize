@@ -6,27 +6,41 @@
 
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-const require = createRequire(import.meta.url);
+import * as swPolicyModule from '../public/sw-policy.ts';
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PUBLIC_DIR = path.join(ROOT, 'public');
-export const swPolicy = require('../public/sw-policy.ts');
+export const swPolicy = swPolicyModule;
 export const CACHE_VERSION_PATTERN = /^hafize-shell-v(\d+)$/;
 export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.CURRENT_CACHE)?.[1] ?? NaN);
 
 /** Source text of `public/sw-policy.ts`, for suites that assert on the file itself. */
 export function readSwPolicySource() {
-  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.js'), 'utf8');
+  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.ts'), 'utf8');
+}
+
+/**
+ * Vite entry name -> TypeScript source, read from vite.config.ts.
+ * `/typed-build/*.js` assets are build outputs, so what must exist in the
+ * repository is the entry that produces them.
+ */
+export function typedBuildEntries() {
+  const config = readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
+  const entries = new Map();
+  for (const match of config.matchAll(/'([A-Za-z0-9._-]+)':\s*resolve\(ROOT,\s*'([^']+)'\)/g)) {
+    entries.set(match[1], path.join(ROOT, match[2]));
+  }
+  return entries;
 }
 
 /** Local file backing a shell asset path, or null for the bare `/` entry. */
 export function shellAssetFile(assetPath) {
   if (assetPath === '/') return path.join(PUBLIC_DIR, 'index.html');
   if (!assetPath.startsWith('/') || assetPath.includes('..')) return null;
+  const built = /^\/typed-build\/([A-Za-z0-9._-]+)\.js$/.exec(assetPath);
+  if (built) return typedBuildEntries().get(built[1]) ?? null;
   return path.join(PUBLIC_DIR, assetPath.slice(1));
 }
 
@@ -44,7 +58,7 @@ export function indexHtmlAssets() {
  * static assets referenced from the manifest.
  */
 export const NON_INDEX_SHELL_ASSETS = Object.freeze([
-  '/', '/index.html', '/offline.html', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+  '/', '/index.html', '/offline.html', '/manifest.webmanifest', '/hafize.jpeg'
 ]);
 
 /**
@@ -57,8 +71,11 @@ export function assertShellCacheContract() {
   assert.match(swPolicy.CURRENT_CACHE, CACHE_VERSION_PATTERN, 'shell cache name carries a numeric version');
   assert.ok(Number.isInteger(CURRENT_CACHE_VERSION) && CURRENT_CACHE_VERSION > 0);
   assert.equal(swPolicy.CURRENT_CACHE, `${swPolicy.CACHE_PREFIX}v${CURRENT_CACHE_VERSION}`);
-  assert.ok(Object.isFrozen(swPolicy));
+  // The policy is an ES module now, so its namespace cannot be reassigned from
+  // outside at all; what still needs asserting is that the exported collections
+  // cannot be mutated in place.
   assert.ok(Object.isFrozen(swPolicy.SHELL_ASSETS));
+  assert.ok(Object.isFrozen(swPolicy.SW_POLICY_LIMITS));
 
   assert.equal(swPolicy.SHELL_ASSETS.some((asset) => asset.startsWith('/api/')), false, 'API paths never enter the shell cache');
   assert.equal(new Set(swPolicy.SHELL_ASSETS).size, swPolicy.SHELL_ASSETS.length, 'shell assets are unique');
@@ -67,7 +84,7 @@ export function assertShellCacheContract() {
   // offline shell entirely: every entry must be backed by a real file.
   for (const asset of swPolicy.SHELL_ASSETS) {
     const file = shellAssetFile(asset);
-    assert.ok(file && existsSync(file), `shell asset ${asset} exists on disk`);
+    assert.ok(file && existsSync(file), `shell asset ${asset} is backed by a source file`);
   }
 
   // The list is kept in sync with the page in both directions: everything
@@ -89,6 +106,23 @@ export function assertShellCacheContract() {
   assert.equal(swPolicy.shouldDeleteCache('other-app-cache-v1'), false);
   assert.equal(swPolicy.shouldDeleteCache('hafize-runtime-v1'), false);
   assert.equal(swPolicy.shouldDeleteCache(null), false);
+}
+
+/**
+ * Shell asset that now delivers a browser module.
+ *
+ * A module is either its own Vite entry (`/typed-build/<name>.js`) or one of the
+ * modules bundled into the single legacy entry (`/typed-build/legacy-app.js`).
+ * Suites assert the delivering asset instead of a pre-migration `/x.js` path,
+ * which no longer exists and is not cached.
+ */
+const MODULE_RENAMES = Object.freeze({ app: 'app-shell' });
+
+export function shellAssetForBrowserModule(rawName) {
+  const name = MODULE_RENAMES[rawName] ?? rawName;
+  if (typedBuildEntries().has(name)) return `/typed-build/${name}.js`;
+  if (existsSync(path.join(PUBLIC_DIR, 'typed', 'legacy', `${name}.ts`))) return '/typed-build/legacy-app.js';
+  throw new Error(`UNKNOWN_BROWSER_MODULE:${name}`);
 }
 
 /** Asserts each given path is cached by the shell, so the feature also works offline. */

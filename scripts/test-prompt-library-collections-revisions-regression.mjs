@@ -16,7 +16,9 @@ assert.match(files.html, /prompt-library-collections\.js/);
 assert.match(files.html, /prompt-library-collections-enhancements\.js/);
 assert.match(files.html, /prompt-library-revisions\.js/);
 assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
-assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');
 for (const asset of [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',

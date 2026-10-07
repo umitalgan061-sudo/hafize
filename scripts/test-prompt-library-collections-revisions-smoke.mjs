@@ -20,7 +20,9 @@ const requiredHtmlAssets = [
 ];
 for (const asset of requiredHtmlAssets) assert.ok(html.includes(asset), `missing HTML asset: ${asset}`);
 for (const asset of requiredHtmlAssets) assert.ok(sw.includes(asset), `missing shell asset: ${asset}`);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 

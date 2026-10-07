@@ -6,8 +6,7 @@ import {
   assertShellAssets,
   assertShellCacheContract,
   indexHtmlAssets,
-  swPolicy as policy
-} from './shell-cache-contract.mjs';
+  swPolicy as policy, shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const ORIGIN = 'https://hafize.example';
 
 function request(path, options = {}) {
@@ -39,9 +38,8 @@ assertShellAssets([
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/app.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
+  shellAssetForBrowserModule('app'),
+  shellAssetForBrowserModule('ui-shell'),
   '/manifest.webmanifest',
   '/hafize.jpeg'
 ], 'core shell asset');
@@ -64,7 +62,7 @@ assert.equal(
   'query strings must not prevent shell matching'
 );
 assert.equal(
-  policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
+  policy.classifyRequest(request(`${shellAssetForBrowserModule('app')}?cache-bust=1`), ORIGIN),
   'shell'
 );
 
@@ -140,9 +138,11 @@ assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 
 const swSource = await readFile(join(ROOT, 'public/sw.ts'), 'utf8');
-assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);
+// The worker no longer pulls the policy in with importScripts: it imports the
+// shared module, which Vite bundles into the worker entry.
+assert.match(swSource, /^import \{[^}]+\} from '\.\/sw-policy\.ts';$/m);
 assert.match(swSource, /classifyRequest\(event\.request, self\.location\.origin\)/);
-assert.match(swSource, /shouldDeleteCache\(key\)/);
+assert.match(swSource, /keys\.filter\(shouldDeleteCache\)/, 'stale caches are evicted through the shared predicate');
 assert.match(swSource, /cache\.addAll\(SHELL_ASSETS\)/);
 assert.match(swSource, /cache\.match\('\/offline\.html'\)/);
 assert.doesNotMatch(swSource, /cache\.put\(/);

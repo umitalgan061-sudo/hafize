@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const app = await read('public/typed/app-shell.ts');
@@ -27,7 +28,7 @@ assert.ok(index.includes('class="utility-rail"'));
 assert.ok(index.indexOf('/message-workspace.js') > index.indexOf('/app.js'));
 assert.ok(index.indexOf('/message-workspace-policy.js') < index.indexOf('/message-workspace.js'));
 
-assert.ok(sw.indexOf("'/message-workspace-policy.js'") < sw.indexOf("'/message-workspace.js'"));
+assert.ok(sw.indexOf("shellAssetForBrowserModule('message-workspace-policy')") < sw.indexOf("shellAssetForBrowserModule('message-workspace')"));
 assert.ok(sw.includes("'/message-workspace.css'"));
 
 for (const token of [

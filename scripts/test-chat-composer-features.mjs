@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const composer = await readFile(new URL('../public/typed/chat-composer-features.ts', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const serviceWorkerPolicy = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
@@ -29,7 +30,7 @@ assert.doesNotMatch(composer, /fetch\(/, 'feature must remain client-local and a
 assert.match(shell, /chat-composer-features\.css/);
 assert.match(shell, /chat-composer-features\.js/);
 assert.match(shell, /title="Metin veya kod dosyası ekle"/);
-assert.ok(shell.indexOf('/chat-composer-features.js') > shell.indexOf('/app.js'));
+assert.ok(shell.indexOf(shellAssetForBrowserModule('chat-composer-features')) > shell.indexOf(shellAssetForBrowserModule('app')));
 
 assert.match(style, /\.attachment-strip/);
 assert.match(style, /\.attachment-chip/);

@@ -51,7 +51,9 @@ for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   check(!source.includes('fetch('), `${legacy} bridge has no network implementation`);
 }
 
-check(sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v41`'), 'PWA cache version bumped');
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+check(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'PWA cache name is versioned');
 check(!html.includes('/typed-build/markdown-renderer.js" defer'), 'module entry is not marked defer-only');
 check(!html.includes('/typed-build/conversation-workspace.js" defer'), 'module entry is not marked defer-only');
 

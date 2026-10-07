@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertShellAssets, assertShellCacheContract, indexHtmlAssets } from './shell-cache-contract.mjs';
+import { assertShellAssets, assertShellCacheContract, indexHtmlAssets, shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (file) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -40,7 +40,7 @@ for (const match of html.matchAll(/<script src="\/(?:markdown-renderer|chat-mark
 /* They survive offline --------------------------------------------------- */
 
 assertShellCacheContract();
-assertShellAssets(['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css'], 'markdown asset');
+assertShellAssets([shellAssetForBrowserModule('markdown-renderer'), shellAssetForBrowserModule('chat-markdown'), '/chat-markdown.css'], 'markdown asset');
 const indexAssets = new Set(indexHtmlAssets());
 for (const asset of ['/markdown-renderer.js', '/chat-markdown.js', '/chat-markdown.css']) {
   assert.ok(indexAssets.has(asset), `${asset} is discovered from index.html`);

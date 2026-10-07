@@ -41,6 +41,8 @@ assert.ok(html.includes('typed-build/legacy-app.js'));
 assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\.js/);
 assert.match(vite, /legacy-app/);
 assert.ok(sw.includes('typed-build/legacy-app.js'));
-assert.ok(sw.includes('v55'), 'service worker cache version mismatch');
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert.ok(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'service worker cache version is not declared');
 
 console.log('TypeScript Smart Insert migration gate: OK');

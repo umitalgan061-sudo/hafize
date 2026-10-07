@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import { readFile } from 'node:fs/promises';
 
 import { loadBrowserModule } from './browser-module.mjs';
+import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 const policy = await loadBrowserModule('public/sw-policy.ts');
 const source = await readFile(new URL('../public/sw.ts', import.meta.url), 'utf8');
 const origin = 'https://hafize.example';
@@ -27,15 +28,21 @@ const cache = {
     const path = pathOf(input);
     if (path === '/index.html') return { source: 'cached-index' };
     if (path === '/offline.html') return { source: 'cached-offline' };
-    if (path === '/app.js') return { source: 'cached-app' };
+    if (path === shellAssetForBrowserModule('app')) return { source: 'cached-app' };
     return null;
   }
 };
 
+// `public/sw.ts` is an ES module, while the vm sandbox runs a classic script, so
+// its single static import is bound to the policy module already loaded above.
+assert.match(source, /^import \{[^}]+\} from '\.\/sw-policy\.ts';$/m, 'the worker imports the shared cache policy');
+const sandboxSource = source.replace(
+  /^import \{([^}]+)\} from '\.\/sw-policy\.ts';$/m,
+  'const {$1} = __policy;'
+);
+
 const context = {
-  importScripts(path) {
-    assert.equal(path, '/sw-policy.js');
-  },
+  __policy: policy,
   caches: {
     async open(name) {
       assert.equal(name, policy.CURRENT_CACHE);
@@ -74,7 +81,7 @@ const context = {
     }
   }
 };
-vm.runInNewContext(source, context, { filename: 'public/sw.ts' });
+vm.runInNewContext(sandboxSource, context, { filename: 'public/sw.ts' });
 
 let installPromise;
 handlers.get('install')({ waitUntil(value) { installPromise = value; } });
@@ -107,7 +114,7 @@ fetchImpl = async () => { throw new Error('offline'); };
 assert.deepEqual(await dispatchFetch('/chat', { mode: 'navigate' }), { source: 'cached-index' });
 
 fetchCalls = 0;
-assert.deepEqual(await dispatchFetch('/app.js'), { source: 'cached-app' });
+assert.deepEqual(await dispatchFetch(shellAssetForBrowserModule('app')), { source: 'cached-app' });
 assert.equal(fetchCalls, 0);
 
 assert.equal(await dispatchFetch('/api/agent/run'), null);

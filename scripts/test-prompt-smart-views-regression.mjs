@@ -34,7 +34,9 @@ for (const asset of [
 ]) assert.ok(html.includes(asset), asset);
 
 const sw = read('public/sw-policy.ts');
-assert.match(sw,/CURRENT_CACHE = .*v49/);
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');
 for (const asset of [
   '/prompt-library-smart-views.css',
   '/prompt-library-smart-views-extras.css',

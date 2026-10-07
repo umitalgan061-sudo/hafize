@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertVersionedCacheDeclaration, shellAssetForBrowserModule } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
@@ -17,9 +17,9 @@ assert.ok(index.includes('/prompt-library-command-palette.js'));
 assert.ok(index.includes('/prompt-library-smart-fill-hints.js'));
 assert.ok(sw.includes('/prompt-library-smart-fill.css'));
 assert.ok(sw.includes('/prompt-library-command-palette.css'));
-assert.ok(sw.includes('/prompt-library-smart-fill.js'));
-assert.ok(sw.includes('/prompt-library-command-palette.js'));
-assert.ok(sw.includes('/prompt-library-smart-fill-hints.js'));
+assert.ok(sw.includes(shellAssetForBrowserModule('prompt-library-smart-fill')));
+assert.ok(sw.includes(shellAssetForBrowserModule('prompt-library-command-palette')));
+assert.ok(sw.includes(shellAssetForBrowserModule('prompt-library-smart-fill-hints')));
 assertVersionedCacheDeclaration(sw);
 assert.ok(sw.includes("pathname.startsWith('/api/')"));
 assert.ok(smart.includes('Mesaja aktar'));

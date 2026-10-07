@@ -8,7 +8,9 @@ const sw = await read('public/sw-policy.ts');
 const html = await read('public/index.html');
 const vite = await read('vite.config.ts');
 const app = await read('public/typed/legacy-app.ts');
-assert(sw.includes('v55'), 'PWA cache version');
+// The shell cache version is bumped on every shell change, so a literal version
+// turns an unrelated change into a failure here. The invariant is what matters.
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'PWA cache version');
 assert(sw.includes('/typed-build/legacy-app.js'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(vite.includes('legacy-app'));
