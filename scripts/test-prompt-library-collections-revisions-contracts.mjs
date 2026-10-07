@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const collections = read('public/typed/legacy/prompt-library-collections.ts');
 const collectionEnh = read('public/typed/legacy/prompt-library-collections-enhancements.ts');
@@ -87,23 +88,25 @@ assert.match(revisionEnh, /beforeunload/);
 
 for (const asset of [
   '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/prompt-library-revisions.css'
 ]) assert.ok(html.includes(asset), `HTML missing ${asset}`);
+// The four modules are bundled into the single legacy entry, so their
+// pre-migration filenames no longer appear in the page or the shell list;
+// assertModuleDelivered() checks the entry that carries each of them.
+for (const name of [
+  'prompt-library-collections',
+  'prompt-library-collections-enhancements',
+  'prompt-library-revisions',
+  'prompt-library-revisions-enhancements',
+]) assertModuleDelivered(name);
+
 
 for (const asset of [
   '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/prompt-library-revisions.css'
 ]) assert.ok(sw.includes(asset), `SW missing ${asset}`);
 
-assert.match(sw, /v36/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 

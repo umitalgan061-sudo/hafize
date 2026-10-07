@@ -10,9 +10,13 @@ assertVersionedCacheDeclaration(sw);
 assertModuleDelivered('prompt-library-usage');
 assert.match(sw, /if \(pathname\.startsWith\('\/api\/'\)\) return 'network-only'/);
 assert.match(sw, /SHELL_PATHS = new Set\(SHELL_ASSETS\)/);
-assert.match(enhancements, /script\.src = '\/prompt-library-usage\.js'/);
-assert.match(enhancements, /script\.defer = true/);
-assert.match(enhancements, /data-hafize-prompt-usage/);
+// The usage layer is imported by the legacy entry instead of being injected as a
+// script at runtime, so the order in that entry is the contract.
+const legacyEntry = fs.readFileSync('public/typed/legacy-app.ts', 'utf8');
+const enhancementsPos = legacyEntry.indexOf('./legacy/prompt-library-enhancements.ts');
+const usagePos = legacyEntry.indexOf('./legacy/prompt-library-usage.ts');
+assert.ok(enhancementsPos >= 0 && usagePos > enhancementsPos, 'usage loads after the enhancements layer');
+assert.doesNotMatch(enhancements, /script\.src = '\/prompt-library-usage\.js'/, 'no leftover runtime injection of a bundled module');
 assert.match(usage, /const STORAGE_KEY = 'hafize\.prompt-library\.v1'/);
 assert.match(usage, /root\.HafizePromptLibraryUsage = api/);
 assert.match(usage, /MutationObserver/);

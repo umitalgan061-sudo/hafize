@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const read = (path) => fs.readFileSync(path, 'utf8');
 const html = read('public/index.html');
 const sw = read('public/sw-policy.ts');
@@ -10,16 +11,19 @@ const revisions = read('public/typed/legacy/prompt-library-revisions.ts');
 const revisionEnh = read('public/typed/legacy/prompt-library-revisions-enhancements.ts');
 const css = read('public/prompt-library-collections.css');
 
-const requiredHtmlAssets = [
-  '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
-];
+const requiredHtmlAssets = ['/prompt-library-collections.css', '/prompt-library-revisions.css'];
 for (const asset of requiredHtmlAssets) assert.ok(html.includes(asset), `missing HTML asset: ${asset}`);
 for (const asset of requiredHtmlAssets) assert.ok(sw.includes(asset), `missing shell asset: ${asset}`);
+// The four modules are bundled into the single legacy entry, so their
+// pre-migration filenames no longer appear in the page or the shell list;
+// assertModuleDelivered() checks the entry that carries each of them.
+for (const name of [
+  'prompt-library-collections',
+  'prompt-library-collections-enhancements',
+  'prompt-library-revisions',
+  'prompt-library-revisions-enhancements',
+]) assertModuleDelivered(name);
+
 // The shell cache version is bumped on every shell change, so a literal version
 // turns an unrelated change into a failure here. The invariant is what matters.
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');

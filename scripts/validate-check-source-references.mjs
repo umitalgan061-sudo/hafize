@@ -25,6 +25,15 @@ const EXPECTED_ABSENT = Object.freeze({
   'test-prompt-library-bulk-organizer-ts.mjs': ['public/prompt-library-bulk-organizer.js'],
   'test-runtime-modernization.mjs': ['public/sw-policy.js', 'public/sw.js'],
   'test-runtime-modernization.ts': ['public/sw-policy.js', 'public/sw.js'],
+  'test-typescript-frontend-wave.mjs': [
+    'public/chat-composer-features.js',
+    'public/chat-history-search.js',
+    'public/chat-history-management.js',
+    'public/hands-free.js',
+    'public/hands-free-background-guard.js',
+    'public/settings-privacy.js',
+    'public/workspace-navigation.js'
+  ],
   'test-typescript-entrypoints-release.mjs': [
     'public/app.js',
     'public/auth.js',

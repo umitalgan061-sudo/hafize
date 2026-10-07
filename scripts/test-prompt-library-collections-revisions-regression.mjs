@@ -22,12 +22,18 @@ assertModuleDelivered('prompt-library-revisions-enhancements');
 assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');
 for (const asset of [
   '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/prompt-library-revisions.css'
 ]) assert.match(files.sw, new RegExp(asset.replaceAll('.', '\\.')));
+// The four modules are bundled into the single legacy entry, so their
+// pre-migration filenames no longer appear in the page or the shell list;
+// assertModuleDelivered() checks the entry that carries each of them.
+for (const name of [
+  'prompt-library-collections',
+  'prompt-library-collections-enhancements',
+  'prompt-library-revisions',
+  'prompt-library-revisions-enhancements',
+]) assertModuleDelivered(name);
+
 
 assert.match(files.collections, /hafize\.prompt-library\.collections\.v1/);
 assert.match(files.revisions, /hafize\.prompt-library\.revisions\.v1/);

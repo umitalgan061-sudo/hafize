@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
+import { readFileSync } from 'node:fs';
 const [index, safety, preview, diagnostics, sw] = await Promise.all([
   fs.readFile('public/index.html', 'utf8'),
   fs.readFile('public/typed/legacy/prompt-library-safety.ts', 'utf8'),
@@ -9,13 +11,19 @@ const [index, safety, preview, diagnostics, sw] = await Promise.all([
   fs.readFile('public/sw-policy.ts', 'utf8')
 ]);
 
-assert.ok(index.includes('/prompt-library-safety.js'));
-assert.ok(index.includes('/prompt-library-import-preview.js'));
-assert.ok(index.includes('/prompt-library-diagnostics.js'));
+// Bundled into the legacy entry, so the pre-migration filename is gone from the page.
+assertModuleDelivered('prompt-library-safety');
+assertModuleDelivered('prompt-library-import-preview');
+assertModuleDelivered('prompt-library-diagnostics');
 
-const safetyPos = index.indexOf('/prompt-library-safety.js');
-const previewPos = index.indexOf('/prompt-library-import-preview.js');
-const diagnosticsPos = index.indexOf('/prompt-library-diagnostics.js');
+// All three share the legacy entry, so their mount order is the import order in it:
+// safety publishes the recovery API, the import preview builds on it, and
+// diagnostics renders on top of both.
+const legacyEntry = readFileSync(new URL('../public/typed/legacy-app.ts', import.meta.url), 'utf8');
+const safetyPos = legacyEntry.indexOf('./legacy/prompt-library-safety.ts');
+const previewPos = legacyEntry.indexOf('./legacy/prompt-library-import-preview.ts');
+const diagnosticsPos = legacyEntry.indexOf('./legacy/prompt-library-diagnostics.ts');
+assert.ok(safetyPos >= 0 && previewPos >= 0 && diagnosticsPos >= 0);
 assert.ok(safetyPos < previewPos && previewPos < diagnosticsPos);
 
 assert.match(safety, /normalizeRecoveryPayload/);
@@ -30,14 +38,13 @@ assert.match(preview, /event.key === 'Escape'/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /aria-expanded/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assert.match(diagnostics, /dataset\.diagnosticsRepair/);
 assert.match(diagnostics, /Onarım planını kopyala/);
 assert.match(diagnostics, /Karantinayı geri al/);
 assert.match(diagnostics, /Son onarımı geri al/);
 
-for (const asset of ['prompt-library-safety.js', 'prompt-library-import-preview.js', 'prompt-library-diagnostics.js']) {
-  assert.ok(sw.includes('/' + asset));
-}
+// The carrying entry is what the service worker caches; assertModuleDelivered above
+// already checks it for each of the three modules.
 
 assert.doesNotMatch(safety + preview + diagnostics, /XMLHttpRequest|WebSocket|navigator\.sendBeacon/);
 

@@ -5,7 +5,7 @@
 // This module is a helper, not a suite (run-checks only executes test-*/validate-*).
 
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as swPolicyModule from '../public/sw-policy.ts';
@@ -54,12 +54,29 @@ export function indexHtmlAssets() {
 
 /**
  * Shell entries that are not `<link>`ed or `<script>`ed from index.html:
- * documents, the policy the service worker pulls in with `importScripts`, and
- * static assets referenced from the manifest.
+ * documents and static assets referenced from the manifest.
  */
 export const NON_INDEX_SHELL_ASSETS = Object.freeze([
   '/', '/index.html', '/offline.html', '/manifest.webmanifest', '/hafize.jpeg'
 ]);
+
+/**
+ * Stylesheets a browser module appends at runtime instead of index.html linking
+ * them. They are not in the page source, so the index/shell cross-check skips
+ * them, but they still have to be cached or the surface is unstyled offline.
+ */
+export function runtimeInjectedAssets() {
+  const found = new Set();
+  const roots = [PUBLIC_DIR, path.join(PUBLIC_DIR, 'typed'), path.join(PUBLIC_DIR, 'typed', 'legacy')];
+  for (const dir of roots) {
+    for (const name of readdirSync(dir, { withFileTypes: true })) {
+      if (!name.isFile() || !name.name.endsWith('.ts')) continue;
+      const source = readFileSync(path.join(dir, name.name), 'utf8');
+      for (const match of source.matchAll(/injectCss\(\s*'(\/[A-Za-z0-9._/-]+\.css)'/g)) found.add(match[1]);
+    }
+  }
+  return [...found].sort();
+}
 
 /**
  * Asserts the version-independent shell-cache invariants:
@@ -93,8 +110,12 @@ export function assertShellCacheContract() {
   for (const asset of indexAssets) {
     assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `index.html asset ${asset} is cached by the service worker`);
   }
+  const injected = new Set(runtimeInjectedAssets());
+  for (const asset of injected) {
+    assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `runtime-injected asset ${asset} is cached by the service worker`);
+  }
   for (const asset of swPolicy.SHELL_ASSETS) {
-    if (NON_INDEX_SHELL_ASSETS.includes(asset) || !/\.(css|js)$/.test(asset)) continue;
+    if (NON_INDEX_SHELL_ASSETS.includes(asset) || injected.has(asset) || !/\.(css|js)$/.test(asset)) continue;
     assert.ok(indexAssets.has(asset), `shell asset ${asset} is still loaded by index.html`);
   }
 

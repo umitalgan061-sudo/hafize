@@ -12,7 +12,8 @@ const required = [
   /slice\(0, MAX_MEMBERS\)/,
   /slice\(0, MAX_NAME\)|MAX_NAME\)/,
   /slice\(0, MAX_DESCRIPTION\)|MAX_DESCRIPTION\)/,
-  /slice\(0, MAX_QUERY\)/,
+  // the search box clips its query through the shared clip() helper
+  /clip\(search\.value, MAX_QUERY\)/,
   /500_000/,
   /filter\(\(id\) => typeof id === 'string'/,
   /new Set\(/,

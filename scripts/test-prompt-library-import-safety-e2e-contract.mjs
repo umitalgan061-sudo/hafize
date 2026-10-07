@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const files = await Promise.all([
   fs.readFile('public/typed/legacy/prompt-library-safety.ts', 'utf8'),
   fs.readFile('public/typed/legacy/prompt-library-import-preview.ts', 'utf8'),
@@ -32,7 +33,7 @@ assert.match(preview, /StorageEvent/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /buildRepairPreview/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assert.match(diagnostics, /dataset\.diagnosticsRepair/);
 assert.match(diagnostics, /quarantineInvalidItems/);
 assert.match(diagnostics, /restoreQuarantine/);
 assert.match(diagnostics, /undoLastRepair/);
@@ -43,13 +44,10 @@ assert.match(css, /prompt-library-import-dialog/);
 assert.match(css, /prompt-library-diagnostics-repair-preview/);
 assert.match(css, /forced-colors:active/);
 
-for (const asset of [
-  'prompt-library-safety.js',
-  'prompt-library-import-preview.js',
-  'prompt-library-diagnostics.js'
-]) {
-  assert.ok(index.includes('/' + asset));
-  assert.ok(sw.includes('/' + asset));
+// Bundled into the legacy entry, so the carrying entry is what the page loads and
+// the service worker caches.
+for (const name of ['prompt-library-safety', 'prompt-library-import-preview', 'prompt-library-diagnostics']) {
+  assertModuleDelivered(name);
 }
 
 const combined = safety + preview + diagnostics;

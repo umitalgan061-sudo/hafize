@@ -1,5 +1,5 @@
 export const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v56`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v57`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -43,6 +43,11 @@ export const SHELL_ASSETS = Object.freeze([
   "/scheduled-task-detail.css",
   "/hafize-runtime.css",
   "/prompt-library-collections.css",
+  "/prompt-library-smart-insert.css",
+  "/prompt-library-smart-insert-center.css",
+  "/prompt-library-smart-insert-history.css",
+  "/prompt-library-smart-insert-suggestions.css",
+  "/prompt-library-smart-insert-activity.css",
   "/prompt-library-revisions.css",
   "/github-workspace.css",
   "/github-workspace-extra.css",
