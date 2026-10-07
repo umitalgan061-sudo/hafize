@@ -125,6 +125,24 @@ export function shellAssetForBrowserModule(rawName) {
   throw new Error(`UNKNOWN_BROWSER_MODULE:${name}`);
 }
 
+/**
+ * Asserts a browser module is still delivered to the page and survives offline.
+ *
+ * A module that is not its own Vite entry is bundled into the single legacy entry,
+ * so its pre-migration `/x.js` filename no longer appears in index.html or in the
+ * shell list. What must still hold is that the entry carrying it is loaded by the
+ * page and cached by the service worker, and that the legacy entry imports it.
+ */
+export function assertModuleDelivered(name) {
+  const asset = shellAssetForBrowserModule(name);
+  const html = readFileSync(path.join(PUBLIC_DIR, 'index.html'), 'utf8');
+  assert.ok(html.includes(`src="${asset}"`), `index.html loads ${asset} for ${name}`);
+  assert.ok(swPolicy.SHELL_ASSETS.includes(asset), `${asset} is cached for ${name}`);
+  if (asset !== '/typed-build/legacy-app.js') return;
+  const entry = readFileSync(path.join(PUBLIC_DIR, 'typed', 'legacy-app.ts'), 'utf8');
+  assert.ok(entry.includes(`./legacy/${name}.ts`), `the legacy entry imports ${name}`);
+}
+
 /** Asserts each given path is cached by the shell, so the feature also works offline. */
 export function assertShellAssets(assetPaths, label = 'shell asset') {
   for (const assetPath of assetPaths) {

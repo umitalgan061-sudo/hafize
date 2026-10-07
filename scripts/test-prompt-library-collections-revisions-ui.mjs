@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const html = fs.readFileSync('public/index.html', 'utf8');
 const collections = fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8');
 const revisions = fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8');
@@ -10,10 +11,10 @@ const css = fs.readFileSync('public/prompt-library-collections.css', 'utf8');
 
 assert.match(html, /prompt-library-collections\.css/);
 assert.match(html, /prompt-library-revisions\.css/);
-assert.match(html, /prompt-library-collections\.js/);
-assert.match(html, /prompt-library-collections-enhancements\.js/);
-assert.match(html, /prompt-library-revisions\.js/);
-assert.match(html, /prompt-library-revisions-enhancements\.js/);
+assertModuleDelivered('prompt-library-collections');
+assertModuleDelivered('prompt-library-collections-enhancements');
+assertModuleDelivered('prompt-library-revisions');
+assertModuleDelivered('prompt-library-revisions-enhancements');
 assert.match(collections, /id = 'promptLibraryCollections'/);
 assert.match(revisions, /id = 'promptLibraryRevisions'/);
 assert.match(collections, /aria-labelledby/);

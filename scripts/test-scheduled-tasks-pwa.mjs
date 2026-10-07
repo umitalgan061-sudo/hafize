@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { assertShellAssets, assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertShellAssets, assertVersionedCacheDeclaration, assertModuleDelivered } from './shell-cache-contract.mjs';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
@@ -8,7 +8,7 @@ const workspace = await readFile(new URL('../public/typed/scheduled-tasks.ts', i
 
 assert.match(index, /scheduled-tasks\.css/);
 assert.match(index, /scheduled-tasks\.js/);
-assert.match(index, /scheduled-tasks-enhancements\.js/);
+assertModuleDelivered('scheduled-tasks-enhancements');
 
 // The panel is built by the module rather than shipped in the markup, so the
 // id contract belongs to the script.

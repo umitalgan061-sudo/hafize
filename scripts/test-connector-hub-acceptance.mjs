@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const source=await readFile('public/typed/legacy/connector-hub.ts','utf8');
 const nav=await readFile('public/typed/workspace-navigation.ts','utf8');
 const server=await readFile('server.ts','utf8');
@@ -20,6 +21,6 @@ assert.match(server,/\/api\/health/);
 assert.match(server,/\/api\/connectors\/gmail\/status/);
 assert.match(server,/\/api\/connectors\/canva\/status/);
 assert.match(index,/connector-hub\.css/);
-assert.match(index,/connector-hub\.js/);
+assertModuleDelivered('connector-hub');
 
 console.log('connector hub acceptance: passed');

@@ -32,7 +32,9 @@ assert.equal(snapshot.entries.length, 2);
 assert.equal(ledger.read('task_2').status, 'completed');
 assert.equal(ledger.read('missing'), null);
 
-snapshot.entries[0].status = 'failed';
+// The snapshot is deeply frozen, so a write to it throws here (module code is
+// strict mode) rather than silently succeeding, and the ledger stays untouched.
+assert.throws(() => { snapshot.entries[0].status = 'failed'; }, TypeError);
 assert.equal(ledger.read('task_1').status, 'running', 'snapshots must not mutate internal ledger state');
 
 assert.throws(

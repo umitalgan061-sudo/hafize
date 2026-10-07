@@ -1,17 +1,16 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { shellAssetForBrowserModule } from './shell-cache-contract.mjs';
+import { shellAssetForBrowserModule, assertModuleDelivered } from './shell-cache-contract.mjs';
 const sw = await readFile('public/sw-policy.ts', 'utf8');
 const index = await readFile('public/index.html', 'utf8');
 
 assert.match(sw, /['"]\/connector-hub\.css['"]/);
-assert.match(sw, /['"]\/connector-hub\.js['"]/);
 assert.match(sw, /SHELL_ASSETS/);
 assert.match(sw, /pathname\.startsWith\(['"]\/api\//);
 assert.match(sw, /network-only/);
 assert.match(index, /connector-hub\.css/);
-assert.match(index, /connector-hub\.js/);
+assertModuleDelivered('connector-hub');
 
 const apiAssetPos = sw.indexOf('/api/');
 const hubAssetPos = sw.indexOf(shellAssetForBrowserModule('connector-hub'));

@@ -67,15 +67,31 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 const MIN_TIMEOUT_MS = 2_000;
 const MAX_TIMEOUT_MS = 120_000;
 
-const definition = (name: string, description: string, properties: Record<string, unknown>): ToolDefinition =>
+// `required` is part of what the model is told about a tool: without it a call can
+// arrive with the mandatory arguments missing and only fail at execution time.
+const definition = (
+  name: string,
+  description: string,
+  properties: Record<string, unknown>,
+  required: readonly string[] = []
+): ToolDefinition =>
   Object.freeze({
     type: 'function',
     function: Object.freeze({
       name,
       description,
-      parameters: Object.freeze({ type: 'object', properties: Object.freeze(properties), additionalProperties: false })
+      parameters: Object.freeze({
+        type: 'object',
+        properties: Object.freeze(properties),
+        required: Object.freeze([...required]),
+        additionalProperties: false
+      })
     })
   });
+
+// Delegation hand-off lists; lib/task-handoff.ts enforces the same bounds server-side.
+const HANDOFF_LIST = (description: string) =>
+  Object.freeze({ type: 'array', description, maxItems: 8, items: Object.freeze({ type: 'string', maxLength: 500 }) });
 
 function timeout(value: unknown, fallback = DEFAULT_TIMEOUT_MS): number {
   if (!Number.isInteger(value)) return fallback;
@@ -121,14 +137,25 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'delegation',
     timeoutMs: timeout(90_000, 90_000),
     activity: { running: 'Uzman ajan çalıştırılıyor', success: 'Uzman ajan çalıştırıldı', failure: 'Uzman ajan çalıştırılamadı' },
-    definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder.', {
-      agentId: { type: 'string' },
-      task: { type: 'string' }
-    }),
+    definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder. Backend depth/fan-out ve uzman sınırlarını zorunlu uygular.', {
+      agentId: { type: 'string', description: 'Hedef specialist agent kimliği.' },
+      task: { type: 'string', description: 'Uzman ajanın çözmesi gereken dar kapsamlı görev.' },
+      successCriteria: HANDOFF_LIST('Görevin tamamlanmış sayılması için gözlenebilir başarı ölçütleri.'),
+      constraints: HANDOFF_LIST('Uzman ajanın görev sırasında aşmaması gereken kapsam veya davranış sınırları.'),
+      evidenceRequired: HANDOFF_LIST('Uzman sonucun doğrulanması için beklenen kanıt veya kontrol maddeleri.')
+    }, ['agentId', 'task']),
     available: (context) => typeof context.delegateAgent === 'function',
     execute: async (args, context) => {
       const result = await context.delegateAgent!(args) as { ok?: boolean; error?: unknown; value?: unknown };
-      if (result?.ok !== true) throw new Error(typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED');
+      if (result?.ok !== true) {
+        // sanitizeToolError() reports `code`, so the specific delegation reason
+        // (depth exceeded, fan-out exhausted, unknown specialist) has to travel
+        // there or the caller only ever sees TOOL_EXECUTION_FAILED.
+        const reason = typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED';
+        const error = new Error('AGENT_DELEGATION_FAILED') as Error & { code?: string };
+        error.code = reason;
+        throw error;
+      }
       return result.value;
     }
   }],
@@ -141,7 +168,7 @@ const CATALOG = new Map<string, ToolEntry>([
       repository: { type: 'string' },
       path: { type: 'string' },
       ref: { type: 'string' }
-    }),
+    }, ['repository', 'path']),
     available: (context) => Boolean(context.githubReadConfigured && context.githubReadFile),
     execute: async (args, context) => context.githubReadFile!(args)
   }],
@@ -171,7 +198,7 @@ const CATALOG = new Map<string, ToolEntry>([
     definition: definition('skill_invoke', 'Registry içindeki güvenli Hafize skill yapısını çözümler.', {
       skillId: { type: 'string' },
       args: { type: 'object' }
-    }),
+    }, ['skillId']),
     available: (context) => typeof context.skillsRuntime?.resolveForAgent === 'function',
     execute: async (args, context) => {
       const invocation = context.skillsRuntime!.resolveForAgent({
@@ -199,12 +226,15 @@ function catalogEntries(): readonly ToolEntry[] {
 export function getAllowedNvidiaTools(
   agent: ToolAgent,
   context: ToolRuntimeContext,
-  options: { readonly allowedPermissions?: ReadonlySet<string> } = {}
+  options: { readonly allowedPermissions?: Iterable<string> } = {}
 ): readonly ToolDefinition[] {
   const output: ToolDefinition[] = [];
+  // The skills runtime hands its permission scope over as a frozen array, so any
+  // iterable is accepted and narrowed here rather than forcing a Set on callers.
+  const allowed = options.allowedPermissions ? new Set(options.allowedPermissions) : null;
   for (const entry of catalogEntries()) {
     if (entry.available && !entry.available(context)) continue;
-    if (options.allowedPermissions && !options.allowedPermissions.has(entry.permission)) continue;
+    if (allowed && !allowed.has(entry.permission)) continue;
     if (authorize(agent, entry.permission, Boolean(context.approvalGranted)).allowed) output.push(entry.definition);
   }
   return Object.freeze(output);

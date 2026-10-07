@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const files = {
   hub: await readFile('public/typed/legacy/connector-hub.ts', 'utf8'),
   index: await readFile('public/index.html', 'utf8'),
@@ -26,9 +27,9 @@ for (const id of ['accountConnectionCard','gmailConnectionCard','canvaConnection
 }
 
 assert.match(files.index, /connector-hub\.css/);
-assert.match(files.index, /connector-hub\.js/);
+assertModuleDelivered('connector-hub');
 assert.match(files.sw, /connector-hub\.css/);
-assert.match(files.sw, /connector-hub\.js/);
+assertModuleDelivered('connector-hub');
 assert.match(files.server, /\/api\/connectors\/gmail\/status/);
 assert.match(files.server, /\/api\/connectors\/canva\/status/);
 assert.doesNotMatch(files.hub, /Authorization\s*:/);

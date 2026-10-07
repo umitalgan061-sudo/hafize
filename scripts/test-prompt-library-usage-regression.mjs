@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 const enhancements = fs.readFileSync('public/typed/legacy/prompt-library-enhancements.ts', 'utf8');
 const sw = fs.readFileSync('public/sw-policy.ts', 'utf8');
@@ -33,11 +34,11 @@ assert.match(usage, /observer\?\.observe/);
 assert.match(usage, /observer\?\.disconnect/);
 assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /mounted: true/);
-assert.match(enhancements, /prompt-library-usage\.js/);
+assertModuleDelivered('prompt-library-usage');
 assert.match(enhancements, /data-hafize-prompt-usage/);
-assert.match(sw, /\/prompt-library-usage\.js/);
+assertModuleDelivered('prompt-library-usage');
 assert.match(index, /\/prompt-library\.js/);
-assert.match(index, /\/prompt-library-enhancements\.js/);
+assertModuleDelivered('prompt-library-enhancements');
 assert.doesNotMatch(usage, /document\.write/);
 assert.doesNotMatch(usage, /insertAdjacentHTML/);
 assert.doesNotMatch(usage, /\.innerHTML\s*=/);

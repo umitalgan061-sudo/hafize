@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertVersionedCacheDeclaration, assertModuleDelivered } from './shell-cache-contract.mjs';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Promise.all([
@@ -50,13 +50,13 @@ assert.match(css, /forced-colors:active/);
 assert.match(css, /prefers-reduced-motion:reduce/);
 assert.match(index, /scheduled-tasks\.css/);
 assert.match(index, /scheduled-tasks\.js/);
-assert.match(index, /scheduled-tasks-enhancements\.js/);
-assert.match(index, /scheduled-tasks-keyboard\.js/);
+assertModuleDelivered('scheduled-tasks-enhancements');
+assertModuleDelivered('scheduled-tasks-keyboard');
 assert.match(index, /scheduled-tasks-countdown\.js/);
 assertVersionedCacheDeclaration(sw);
 assert.match(sw, /\/scheduled-tasks\.css/);
 assert.match(sw, /\/scheduled-tasks\.js/);
-assert.match(sw, /\/scheduled-tasks-keyboard\.js/);
+assertModuleDelivered('scheduled-tasks-keyboard');
 assert.match(sw, /\/scheduled-tasks-countdown\.js/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(readme, /Görev|schedule|Zamanlanmış/);

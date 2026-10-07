@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const files = {
   collections: fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8'),
   revisions: fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8'),
@@ -12,10 +13,10 @@ const files = {
 
 assert.match(files.html, /prompt-library-collections\.css/);
 assert.match(files.html, /prompt-library-revisions\.css/);
-assert.match(files.html, /prompt-library-collections\.js/);
-assert.match(files.html, /prompt-library-collections-enhancements\.js/);
-assert.match(files.html, /prompt-library-revisions\.js/);
-assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
+assertModuleDelivered('prompt-library-collections');
+assertModuleDelivered('prompt-library-collections-enhancements');
+assertModuleDelivered('prompt-library-revisions');
+assertModuleDelivered('prompt-library-revisions-enhancements');
 // The shell cache version is bumped on every shell change, so a literal version
 // turns an unrelated change into a failure here. The invariant is what matters.
 assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'shell cache name carries a numeric version');

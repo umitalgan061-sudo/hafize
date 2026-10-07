@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertVersionedCacheDeclaration, assertModuleDelivered } from './shell-cache-contract.mjs';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
@@ -15,8 +15,8 @@ assert.match(index, /<script src="\/scheduled-tasks-countdown\.js" defer><\/scri
 assert.ok(jsMatches.length >= 3);
 assert.match(sw, /\/scheduled-tasks\.css/);
 assert.match(sw, /\/scheduled-tasks\.js/);
-assert.match(sw, /\/scheduled-tasks-enhancements\.js/);
-assert.match(sw, /\/scheduled-tasks-keyboard\.js/);
+assertModuleDelivered('scheduled-tasks-enhancements');
+assertModuleDelivered('scheduled-tasks-keyboard');
 assert.match(sw, /\/scheduled-tasks-countdown\.js/);
 assertVersionedCacheDeclaration(sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+import { assertModuleDelivered } from './shell-cache-contract.mjs';
 const nav = await readFile('public/typed/workspace-navigation.ts', 'utf8');
 const index = await readFile('public/index.html', 'utf8');
 
@@ -10,7 +11,7 @@ assert.match(nav, /canvaConnectionCard/);
 assert.match(nav, /githubWriteReadinessCard/);
 assert.match(nav, /connections:/);
 assert.match(index, /connector-hub\.css/);
-assert.match(index, /connector-hub\.js/);
+assertModuleDelivered('connector-hub');
 assert.match(index, /github-workspace-details\.css/);
 assert.match(index, /typed-build\/github-workspace-details\.js/);
 

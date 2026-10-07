@@ -51,14 +51,23 @@
     } catch { return null; }
   }
 
+  // A prefix surface owns both its namespaced keys and the bare namespace key
+  // itself. Leaving the bare key unclassified would hide real device data from the
+  // inventory and from scoped clearing, which is the opposite of what this panel is for.
+  function matchesPrefix(value, prefix) {
+    if (!prefix) return false;
+    if (value.startsWith(prefix)) return true;
+    return prefix.endsWith('.') && value === prefix.slice(0, -1);
+  }
+
   function classifyKey(key) {
     const value = String(key || '');
     if (exactMap.has(value)) return exactMap.get(value);
-    return SURFACES.find(function (surface) { return surface.prefix && value.startsWith(surface.prefix); }) || null;
+    return SURFACES.find(function (surface) { return matchesPrefix(value, surface.prefix); }) || null;
   }
 
   function matchesSurfaceKey(key, surface) {
-    return Boolean(surface && (surface.prefix ? String(key || '').startsWith(surface.prefix) : surface.keys.includes(key)));
+    return Boolean(surface && (surface.prefix ? matchesPrefix(String(key || ''), surface.prefix) : surface.keys.includes(key)));
   }
 
   function inspectStorage(storage) {

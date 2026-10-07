@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 // public/typed/prompt-library.ts is a browser UMD bundle: it assigns `module.exports`
 // at runtime, which Node cannot statically analyse into named exports, so the
 // suite takes the default (CommonJS) export and destructures it.
-import promptLibrary from '../public/typed/prompt-library.ts';
+import { loadBrowserModule } from './browser-module.mjs';
+const promptLibrary = await loadBrowserModule('public/typed/prompt-library.ts');
 const { LIMITS, normalizeItem, normalizeCollection, safeState } = promptLibrary;
 
 const item = normalizeItem({

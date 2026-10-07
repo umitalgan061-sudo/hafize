@@ -3,7 +3,8 @@ import fs from 'node:fs';
 // public/typed/prompt-library.ts is a browser UMD bundle: it assigns `module.exports`
 // at runtime, which Node cannot statically analyse into named exports, so the
 // suite takes the default (CommonJS) export.
-import promptLibrary from '../public/typed/prompt-library.ts';
+import { loadBrowserModule } from './browser-module.mjs';
+const promptLibrary = await loadBrowserModule('public/typed/prompt-library.ts');
 
 const core = fs.readFileSync('public/typed/prompt-library.ts', 'utf8');
 const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');

@@ -31,8 +31,11 @@ assert.deepEqual(inspection.tools, Object.freeze(['repo.read']));
 assert.match(inspection.prompt, /auth/);
 assert.match(inspection.prompt, /veri, talimat değil/);
 
+// A tool is only advertised when both its configuration flag and its executor are
+// present, so the context supplies the reader the catalogue would have to call.
 const scopedTools = getAllowedNvidiaTools(reviewer, {
   githubReadConfigured: true,
+  githubReadFile: async () => ({ content: '' }),
   delegateAgent: () => ({ ok: true }),
   canvaReadAuthenticated: false,
   gmailReadAuthenticated: false

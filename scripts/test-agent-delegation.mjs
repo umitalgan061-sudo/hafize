@@ -180,6 +180,10 @@ const toolFailure = await executeNvidiaToolCall(
   { id: 'call_delegate_2', type: 'function', function: { name: 'agent_delegate', arguments: JSON.stringify({ agentId: reviewer.id, task: 'Kontrol et.' }) } },
   { delegateAgent: async () => ({ ok: false, error: 'DELEGATION_DEPTH_EXCEEDED' }) }
 );
-assert.deepEqual(toolFailure, { ok: false, error: 'DELEGATION_DEPTH_EXCEEDED' });
+// The runtime also reports which tool failed and how long it ran; what matters
+// here is that the specific delegation reason survives the boundary.
+assert.equal(toolFailure.ok, false);
+assert.equal(toolFailure.tool, 'agent_delegate');
+assert.equal(toolFailure.error, 'DELEGATION_DEPTH_EXCEEDED');
 
 console.log('agent delegate tool tests passed');
