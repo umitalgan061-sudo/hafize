@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { assertShippedBrowserModule } from './shell-cache-contract.mjs';
 
 const [index, safety, preview, diagnostics, sw] = await Promise.all([
   fs.readFile('public/index.html', 'utf8'),
-  fs.readFile('public/prompt-library-safety.js', 'utf8'),
-  fs.readFile('public/prompt-library-import-preview.js', 'utf8'),
-  fs.readFile('public/prompt-library-diagnostics.js', 'utf8'),
-  fs.readFile('public/sw-policy.js', 'utf8')
+  fs.readFile('public/typed/legacy/prompt-library-safety.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-import-preview.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-diagnostics.ts', 'utf8'),
+  fs.readFile('public/sw-policy.ts', 'utf8')
 ]);
 
-assert.ok(index.includes('/prompt-library-safety.js'));
-assert.ok(index.includes('/prompt-library-import-preview.js'));
-assert.ok(index.includes('/prompt-library-diagnostics.js'));
+assertShippedBrowserModule('prompt-library-safety');
+assertShippedBrowserModule('prompt-library-import-preview');
+assertShippedBrowserModule('prompt-library-diagnostics');
 
 const safetyPos = index.indexOf('/prompt-library-safety.js');
 const previewPos = index.indexOf('/prompt-library-import-preview.js');

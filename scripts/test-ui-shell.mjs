@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const shell = require('../public/ui-shell.js');
+const shell = require('../public/typed/ui-shell.ts');
 
 assert.equal(shell.resolveTheme('dark', false), 'dark');
 assert.equal(shell.resolveTheme('light', true), 'light');

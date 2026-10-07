@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShippedBrowserModule } from './shell-cache-contract.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
-const source = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
+const source = fs.readFileSync(path.join(root, 'public', 'typed', 'legacy', 'conversation-workspace-keyboard.ts'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const sw = fs.readFileSync(path.join(root, 'public', 'sw-policy.js'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'public', 'sw-policy.ts'), 'utf8');
 
 const must = (fragment, label = fragment) => assert.ok(source.includes(fragment), label);
 const mustCss = (fragment) => assert.ok(css.includes(fragment), `css includes ${fragment}`);
@@ -76,9 +77,9 @@ for (const fragment of [
   '@media (forced-colors: active)'
 ]) mustCss(fragment);
 
-assert.ok(index.includes('/conversation-workspace-keyboard.js'));
+assertShippedBrowserModule('conversation-workspace-keyboard');
 assert.ok(index.includes('/conversation-workspace-keyboard.css'));
-assert.ok(sw.includes('/conversation-workspace-keyboard.js'));
+assertShippedBrowserModule('conversation-workspace-keyboard');
 assert.ok(sw.includes('/conversation-workspace-keyboard.css'));
 
 const jsLines = source.split('\n').length;

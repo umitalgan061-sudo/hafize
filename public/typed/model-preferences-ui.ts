@@ -420,6 +420,8 @@ const boot = (): void => {
   if (!modelSelect || !agentSelect || !toolModeButton) return;
 };
 
-if (document.readyState !== 'loading') boot();
-else document.addEventListener('DOMContentLoaded', boot, { once: true });
+if (typeof document !== 'undefined') {
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot, { once: true });
+}
 

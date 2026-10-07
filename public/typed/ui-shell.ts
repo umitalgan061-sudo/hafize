@@ -71,4 +71,4 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
 const api=Object.freeze({THEME_KEY,WEEKDAYS,resolveTheme,createMonthCells,moveCalendarDate,installSidebarDisclosure,installChatAccessibility,install});
 (globalThis as typeof globalThis & {HafizeUiShell?:unknown}).HafizeUiShell=api;
 const start=()=>install(document,globalThis);
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();}

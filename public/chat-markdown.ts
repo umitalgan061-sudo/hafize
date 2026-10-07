@@ -4,8 +4,7 @@
 (function exposeHafizeChatMarkdown(root, factory) {
   'use strict';
   const api = factory(root);
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizeChatMarkdown = api;
+  root.HafizeChatMarkdown = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatMarkdown(root) {
   'use strict';
 
@@ -160,3 +159,17 @@
 
   return Object.freeze({ paint, sourceFor, plainTextFor, copyText, codeTextFor, init, COPY_FEEDBACK_MS });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizechatmarkdownApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeChatMarkdown;
+export default hafizechatmarkdownApi;
+export const {
+  paint,
+  sourceFor,
+  plainTextFor,
+  copyText,
+  codeTextFor,
+  init,
+  COPY_FEEDBACK_MS
+} = hafizechatmarkdownApi;

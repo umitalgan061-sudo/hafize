@@ -7,14 +7,11 @@
   'use strict';
 
   const api = factory();
-  if (typeof module === 'object' && module?.exports) {
-    module.exports = api;
-    return;
-  }
 
   root.HafizeHandsFree = api;
+  if (!root.document) return;
   const install = () => api.installHandsFree(root.document, root);
-  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
+  if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
   else install();
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeHandsFree() {
   'use strict';
@@ -641,3 +638,28 @@
     terminalRecognitionMessage
   });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizehandsfreeApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeHandsFree;
+export default hafizehandsfreeApi;
+export const {
+  DEFAULT_WAKE_PHRASE,
+  HANDOFF_TIMEOUT_MS,
+  HANDS_FREE_REVOKE_EVENT,
+  NETWORK_RETRY_DELAYS_MS,
+  POST_OUTPUT_COOLDOWN_MS,
+  RESTART_DELAY_MS,
+  SESSION_LIMIT_MS,
+  VOICE_INPUT_STATE_EVENT,
+  VOICE_OUTPUT_STATE_EVENT,
+  classifyRecognitionError,
+  containsWakePhrase,
+  getRecognitionConstructor,
+  installHandsFree,
+  networkRetryDelay,
+  normalizeRecognitionError,
+  normalizeSpeech,
+  readRecognitionText,
+  terminalRecognitionMessage
+} = hafizehandsfreeApi;

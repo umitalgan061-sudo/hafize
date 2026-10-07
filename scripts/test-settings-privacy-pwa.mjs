@@ -1,7 +1,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const sw=readFileSync('public/sw-policy.js','utf8');
+const sw=readFileSync('public/sw-policy.ts','utf8');
 const index=readFileSync('public/index.html','utf8');
 for (const required of ['v51','/settings-privacy.css','/settings-privacy.js']) assert.ok(sw.includes(required),required);
 assert.ok(index.includes('href="/settings-privacy.css"'));

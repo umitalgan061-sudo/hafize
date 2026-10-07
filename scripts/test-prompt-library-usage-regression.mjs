@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertShippedBrowserModule } from './shell-cache-contract.mjs';
 
-const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
-const enhancements = fs.readFileSync('public/prompt-library-enhancements.js', 'utf8');
-const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
+const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
+const enhancements = fs.readFileSync('public/typed/legacy/prompt-library-enhancements.ts', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.ts', 'utf8');
 const index = fs.readFileSync('public/index.html', 'utf8');
 
 const requiredUsageClasses = [
@@ -35,9 +36,9 @@ assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /mounted: true/);
 assert.match(enhancements, /prompt-library-usage\.js/);
 assert.match(enhancements, /data-hafize-prompt-usage/);
-assert.match(sw, /\/prompt-library-usage\.js/);
+assertShippedBrowserModule('prompt-library-usage');
 assert.match(index, /\/prompt-library\.js/);
-assert.match(index, /\/prompt-library-enhancements\.js/);
+assertShippedBrowserModule('prompt-library-enhancements');
 assert.doesNotMatch(usage, /document\.write/);
 assert.doesNotMatch(usage, /insertAdjacentHTML/);
 assert.doesNotMatch(usage, /\.innerHTML\s*=/);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
+const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 const css = fs.readFileSync('public/prompt-library.css', 'utf8');
 
 assert.match(usage, /hafize\.prompt-library\.v1/);

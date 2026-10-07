@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..');
+const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..', '..');
 const panel = await readFile(resolve(ROOT, 'public/system-readiness-panel.ts'), 'utf8');
 const service = await readFile(resolve(ROOT, 'lib/system-readiness.ts'), 'utf8');
 const config = await readFile(resolve(ROOT, 'lib/config-readiness.ts'), 'utf8');

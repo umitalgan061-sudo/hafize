@@ -10,7 +10,7 @@ class Storage {
 
 const storage = new Storage();
 globalThis.localStorage = storage;
-await import(new URL('../public/prompt-library-revisions.js', import.meta.url));
+await import(new URL('../public/typed/legacy/prompt-library-revisions.ts', import.meta.url));
 const api = globalThis.HafizePromptLibraryRevisions;
 assert.ok(api);
 
@@ -48,7 +48,7 @@ assert.equal(api.removePromptRevisions('missing', storage), true);
 assert.equal(api.removePromptRevisions('p1', storage), true);
 assert.equal(api.revisionsFor('p1', storage).length, 0);
 
-const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8');
 assert.match(source, /MAX_REVISIONS_PER_PROMPT = 20/);
 assert.match(source, /MAX_REVISIONS_TOTAL = 600/);
 assert.match(source, /before-restore/);

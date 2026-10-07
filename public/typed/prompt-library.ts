@@ -4,10 +4,10 @@
 (function exposeHafizePromptLibrary(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizePromptLibrary = api;
+  root.HafizePromptLibrary = api;
+  if (!root.document) return;
   const mount = () => api.mount(root.document, root);
-  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', mount, { once: true });
+  if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', mount, { once: true });
   else mount();
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizePromptLibrary() {
   'use strict';
@@ -302,3 +302,30 @@
 
   return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems, filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizepromptlibraryApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizePromptLibrary;
+export default hafizepromptlibraryApi;
+export const {
+  STORAGE_KEY,
+  STATE_KEY,
+  LIMITS,
+  normalizeItem,
+  normalizeCollection,
+  safeState,
+  loadItems,
+  loadState,
+  saveItems,
+  saveState,
+  extractVariables,
+  replaceVariables,
+  itemMatches,
+  sortItems,
+  filterItems,
+  collectTags,
+  normalizeImportedPayload,
+  mergeImportedItems,
+  exportPayload,
+  mount
+} = hafizepromptlibraryApi;

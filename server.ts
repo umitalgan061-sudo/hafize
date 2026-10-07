@@ -534,8 +534,12 @@ async function handleAgentRun(req, res) {
     }
   });
 
+  // The advertised tool list must be built from the same context the tool call
+  // executes with: a tool is only offered when its reader is actually wired up,
+  // so omitting githubReadFile here would silently drop github_read_file.
   const tools = getAllowedNvidiaTools(agent, {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
+    githubReadFile: GITHUB_READ_FILE,
     delegateAgent: delegator.delegate,
     ...connectorContext
   });

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-const source = (await import('node:fs')).readFileSync('public/composer-history-backup.js', 'utf8');
+const source = (await import('node:fs')).readFileSync('public/typed/legacy/composer-history-backup.ts', 'utf8');
 assert.match(source, /MAX_EXPORT = 512000/);
 assert.match(source, /MAX_IMPORT = 512000/);
 assert.match(source, /exportPayload/);

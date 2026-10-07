@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-revisions-enhancements.ts', 'utf8');
 const styleAt = source.indexOf("const STYLE = '/chat-markdown.css'");
 const rendererAt = source.indexOf("const RENDERER = '/markdown-renderer.js'");
 const chatAt = source.indexOf("const CHAT = '/chat-markdown.js'");
