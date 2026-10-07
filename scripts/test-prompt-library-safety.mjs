@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { assertNumericLimit } from './source-contract.mjs';
 const read = (p) => fs.readFile(p, 'utf8');
-const source = await read('public/prompt-library-safety.js');
-assert.match(source, /MAX_IMPORT_BYTES\s*=\s*1000000/);
+const source = await read('public/typed/legacy/prompt-library-safety.ts');
+assertNumericLimit(source, 'MAX_IMPORT_BYTES', 1000000);
 assert.match(source, /buildImportPlan/);
 assert.match(source, /applyImportPlan/);
 assert.match(source, /analyzeLibrary/);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const js = fs.readFileSync(new URL('../public/prompt-library.js', import.meta.url), 'utf8');
+const js = fs.readFileSync(new URL('../public/typed/prompt-library.ts', import.meta.url), 'utf8');
 const css = fs.readFileSync(new URL('../public/prompt-library.css', import.meta.url), 'utf8');
 const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
 assert.match(js, /aria-labelledby/);

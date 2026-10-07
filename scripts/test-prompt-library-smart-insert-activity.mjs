@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-const source = await readFile(new URL('../public/prompt-library-smart-insert-activity.js', import.meta.url), 'utf8');
+import { assertNumericLimit } from './source-contract.mjs';
+const source = await readFile(new URL('../public/typed/legacy/prompt-library-smart-insert-activity.ts', import.meta.url), 'utf8');
 assert.match(source, /HISTORY_KEY/);
-assert.match(source, /MAX_DAYS\s*=\s*14/);
-assert.match(source, /MAX_ROWS\s*=\s*7/);
+assertNumericLimit(source, 'MAX_DAYS', 14);
+assertNumericLimit(source, 'MAX_ROWS', 7);
 assert.match(source, /readHistory\(/);
 assert.match(source, /usageFor\(/);
 assert.match(source, /dailyFor\(/);

@@ -2,13 +2,11 @@
 (function exposeHafizeSettingsWorkspace(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else {
-    root.HafizeSettingsWorkspace = api;
-    const install = () => api.mount(root.document, root);
-    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
-    else install();
-  }
+  root.HafizeSettingsWorkspace = api;
+  if (!root.document) return;
+  const install = () => api.mount(root.document, root);
+  if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSettingsWorkspace() {
   'use strict';
 
@@ -298,3 +296,18 @@
 
   return Object.freeze({ THEME_KEY, REDUCED_MOTION_KEY, STORAGE_KEY, readTheme, readReducedMotion, readConversations, formatCount, mount });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizesettingsworkspaceApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeSettingsWorkspace;
+export default hafizesettingsworkspaceApi;
+export const {
+  THEME_KEY,
+  REDUCED_MOTION_KEY,
+  STORAGE_KEY,
+  readTheme,
+  readReducedMotion,
+  readConversations,
+  formatCount,
+  mount
+} = hafizesettingsworkspaceApi;

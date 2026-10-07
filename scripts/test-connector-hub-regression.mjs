@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertShippedBrowserModule } from './shell-cache-contract.mjs';
 
-const source = await readFile('public/connector-hub.js', 'utf8');
-const nav = await readFile('public/workspace-navigation.js', 'utf8');
-const sw = await readFile('public/sw-policy.js', 'utf8');
+const source = await readFile('public/typed/legacy/connector-hub.ts', 'utf8');
+const nav = await readFile('public/typed/workspace-navigation.ts', 'utf8');
+const sw = await readFile('public/sw-policy.ts', 'utf8');
 const index = await readFile('public/index.html', 'utf8');
 
 const requiredCards = [
@@ -16,7 +17,7 @@ const requiredCards = [
 for (const id of requiredCards) {
   assert.match(source, new RegExp(id));
   assert.match(nav, new RegExp(id));
-  assert.match(index, /connector-hub\.js/);
+  assertShippedBrowserModule('connector-hub');
 }
 
 assert.match(source, /CAPABILITIES/);
@@ -30,7 +31,7 @@ assert.match(source, /lastSnapshot/);
 assert.match(source, /connectedCount/);
 assert.match(source, /hafize:connector-hub-changed/);
 assert.match(sw, /connector-hub\.css/);
-assert.match(sw, /connector-hub\.js/);
+assertShippedBrowserModule('connector-hub');
 
 const css = await readFile('public/connector-hub.css', 'utf8');
 assert.match(css, /connector-hub-capability/);

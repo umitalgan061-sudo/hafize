@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const source=await fs.readFile('public/prompt-library-import-preview.js','utf8');
+const source=await fs.readFile('public/typed/legacy/prompt-library-import-preview.ts','utf8');
 const open=source.indexOf('function open(file)');
 const apply=source.indexOf('applyImportPlan(activePlan');
 assert.ok(open>=0 && apply>open);

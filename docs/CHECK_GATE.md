@@ -35,4 +35,21 @@ Böylece bir refactor veya cache sürümü artışı ilgisiz paketleri kırmaz.
 - Kaynak metnine bakan bir regex hâlâ meşrudur (ağ çağrısı yokluğu, `innerHTML` yasağı gibi
   yasaklar için), ancak varlık kontrolü yerine davranış kontrolü mümkünse o tercih edilir.
 
+## Paketin çalışabilirliği
+
+`scripts/test-check-suite-integrity.mjs` paketleri çalıştırmadan her birinin
+*çalışabilir* olduğunu doğrular: parse ediyor mu, okuduğu her repo yolu diskte
+var mı, ESM içinde `createRequire` olmadan `require` kullanıyor mu ve migration'ın
+kaldırdığı bir `public/*.js` modülünü mü okuyor. Gate `check:modern` zincirinde
+olduğu için CI'da koşar. Çalışamayan bir paket düşen bir paketten daha kötüdür:
+hiçbir şey raporlamaz. Ayrıntılar `docs/CHECK_SUITE_REPAIR.md` dosyasındadır.
+
+Vite artık eski tek tek tarayıcı modüllerini `typed-build/legacy-app.js` içinde
+paketlediği için `index.html` içinde `/chat-drafts.js` gibi bir yol aramak
+anlamsızdır. Bunun yerine `shell-cache-contract.mjs` içindeki
+`assertShippedBrowserModule(name)` ve `assertShippedStylesheet(name)` kullanılır;
+bunlar modülün kanonik kaynağını, onu taşıyan build entry'sini, `index.html`
+yüklemesini ve precache kaydını birlikte doğrular. Sabit cache sürümü yerine
+`assertCacheVersionAtLeast(n)` kullanılır.
+
 Runner hata çıktısını bounded biçimde raporlar ve keşif/çalıştırma hatasında fail-closed şekilde sıfır olmayan çıkış kodu verir. Secret veya credential değeri kendi çıktısına ekleyen testler repo sözleşmesine aykırıdır.

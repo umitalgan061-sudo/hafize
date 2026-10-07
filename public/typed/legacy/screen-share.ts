@@ -3,11 +3,8 @@
   'use strict';
 
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else {
-    root.HafizeScreenShare = api;
-    if (root.document) api.mountScreenShare({ root });
-  }
+  root.HafizeScreenShare = api;
+  if (root.document) api.mountScreenShare({ root });
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeScreenShare() {
   'use strict';
 
@@ -160,3 +157,14 @@
 
   return Object.freeze({ boundedSize, captureScreenFrame, mountScreenShare, stopStream });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizescreenshareApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeScreenShare;
+export default hafizescreenshareApi;
+export const {
+  boundedSize,
+  captureScreenFrame,
+  mountScreenShare,
+  stopStream
+} = hafizescreenshareApi;

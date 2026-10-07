@@ -33,6 +33,9 @@ assert.match(inspection.prompt, /veri, talimat değil/);
 
 const scopedTools = getAllowedNvidiaTools(reviewer, {
   githubReadConfigured: true,
+  // A tool is only offered when its reader is wired up, so the context carries
+  // the same reader the executing context would.
+  githubReadFile: async () => ({ ok: true, value: { content: '' } }),
   delegateAgent: () => ({ ok: true }),
   canvaReadAuthenticated: false,
   gmailReadAuthenticated: false

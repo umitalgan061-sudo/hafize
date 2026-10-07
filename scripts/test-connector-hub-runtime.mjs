@@ -4,7 +4,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const source = await readFile('public/connector-hub.js', 'utf8');
+const source = await readFile('public/typed/legacy/connector-hub.ts', 'utf8');
 const temp = await mkdtemp(join(tmpdir(), 'hafize-connector-hub-'));
 
 assert.ok(temp.length > 0);

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertNumericLimit } from './source-contract.mjs';
 
-const source = await readFile('public/connector-hub.js', 'utf8');
+const source = await readFile('public/typed/legacy/connector-hub.ts', 'utf8');
 
 assert.match(source, /HEALTH_URL = ['"]\/api\/health/);
 assert.match(source, /GMAIL_STATUS_URL = ['"]\/api\/connectors\/gmail\/status/);
@@ -10,8 +11,8 @@ assert.match(source, /method:\s*['"]GET['"]/);
 assert.match(source, /credentials:\s*['"]same-origin['"]/);
 assert.match(source, /headers:\s*\{\s*accept:\s*['"]application\/json['"]/);
 assert.match(source, /AbortController/);
-assert.match(source, /REQUEST_TIMEOUT_MS\s*=\s*8000/);
-assert.match(source, /REFRESH_COOLDOWN_MS\s*=\s*900/);
+assertNumericLimit(source, 'REQUEST_TIMEOUT_MS', 8000);
+assertNumericLimit(source, 'REFRESH_COOLDOWN_MS', 900);
 assert.match(source, /Promise\.all\(\[/);
 assert.match(source, /refreshInFlight/);
 assert.match(source, /lastRefreshAt/);
