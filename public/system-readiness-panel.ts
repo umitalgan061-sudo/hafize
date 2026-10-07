@@ -104,7 +104,7 @@ function mount(documentRef: Document = document, root: Window = window) {
       const row = make(documentRef, 'div', 'system-readiness-row');
       row.setAttribute('role', 'listitem');
       const name = make(documentRef, 'span', 'system-readiness-name', labels[key] || key);
-      const badge = make(documentRef, 'span', 'system-readiness-badge', stateLabels[value] || value);
+      const badge = make(documentRef, 'span', 'system-readiness-badge', stateLabels[value] || String(value ?? ''));
       badge.dataset.state = value;
       row.append(name, badge);
       list.append(row);

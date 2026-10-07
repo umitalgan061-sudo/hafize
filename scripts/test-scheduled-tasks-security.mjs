@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const boundary = await readFile(new URL('../lib/schedule-command-boundary.mjs', import.meta.url), 'utf8');
-const client = await readFile(new URL('../public/scheduled-tasks.js', import.meta.url), 'utf8');
+const client = await readFile(new URL('../public/typed/scheduled-tasks.ts', import.meta.url), 'utf8');
 
 assert.match(boundary, /AUTH_REQUIRED/);
 assert.match(boundary, /principalSubject/);

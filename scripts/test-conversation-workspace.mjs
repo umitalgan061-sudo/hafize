@@ -7,7 +7,7 @@ const root = path.resolve(new URL('..', import.meta.url).pathname);
 const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
 const cssPath = path.join(root, 'public', 'conversation-workspace.css');
 const indexPath = path.join(root, 'public', 'index.html');
-const swPath = path.join(root, 'public', 'sw-policy.js');
+const swPath = path.join(root, 'public/sw-policy.ts');
 const rulesPath = path.join(root, 'HAFIZE_RULES.md');
 
 const source = fs.readFileSync(sourcePath, 'utf8');

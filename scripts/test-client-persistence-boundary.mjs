@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/typed/app-shell.ts', import.meta.url), 'utf8');
 
 assert.match(source, /let persistenceWarningShown = false;/);
 assert.match(source, /function saveConversations\(\) \{\n    try \{/);

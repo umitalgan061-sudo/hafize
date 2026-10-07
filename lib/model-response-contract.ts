@@ -25,6 +25,19 @@ function text(value: unknown, max: number, code: string): string {
   return result;
 }
 
+/**
+ * Assistant content is the one field we never coerce. A provider that returns an
+ * object, an array or a number where prose belongs is malformed, and silently
+ * turning that into an empty string loses the answer without telling anyone.
+ */
+function content(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value !== 'string') throw new Error('INVALID_MODEL_CONTENT');
+  const result = value.trim();
+  if (result.length > MAX_CONTENT_LENGTH) throw new Error('MODEL_CONTENT_TOO_LARGE');
+  return result;
+}
+
 function finishReason(value: unknown): ModelFinishReason {
   if (value == null) return 'unknown';
   if (typeof value !== 'string') throw new Error('INVALID_MODEL_FINISH_REASON');
@@ -54,9 +67,11 @@ function toolCalls(value: unknown): readonly ModelToolCall[] {
       ? call.function as Record<string, unknown>
       : call;
     const id = text(call.id, 200, 'INVALID_MODEL_TOOL_CALL_ID');
+    if (!id) throw new Error('INVALID_MODEL_TOOL_CALL_ID');
     const name = text(fn.name, 120, 'INVALID_MODEL_TOOL_CALL_NAME');
+    if (!name) throw new Error('INVALID_MODEL_TOOL_CALL_NAME');
     const args = fn.arguments;
-    if (!id || !name || typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
+    if (typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
       throw new Error('INVALID_MODEL_TOOL_CALL');
     }
     return Object.freeze({ id, name, arguments: args });
@@ -67,7 +82,7 @@ export function normalizeModelResponse(value: unknown = {}): NormalizedModelResp
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_MODEL_RESPONSE');
   const source = value as Record<string, unknown>;
   return Object.freeze({
-    content: source.content == null ? '' : text(source.content, MAX_CONTENT_LENGTH, 'INVALID_MODEL_CONTENT'),
+    content: content(source.content),
     finishReason: finishReason(source.finishReason),
     toolCalls: toolCalls(source.toolCalls),
     usage: usage(source.usage),
@@ -94,6 +109,16 @@ export function normalizeNvidiaChatCompletion(value: unknown = {}): NormalizedMo
     model: source.model,
     responseId: source.id
   });
+}
+
+/**
+ * A response is terminal when the model is done talking: no tool calls are
+ * pending and the finish reason is not a hand-off back to the tool runtime.
+ * The value is normalized first so callers can pass raw or normalized input.
+ */
+export function isTerminalModelResponse(value: unknown): boolean {
+  const response = normalizeModelResponse(value);
+  return response.finishReason !== 'tool_calls' && response.toolCalls.length === 0;
 }
 
 export const MODEL_RESPONSE_CONTRACT = Object.freeze({

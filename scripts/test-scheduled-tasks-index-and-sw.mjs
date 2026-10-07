@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 
 const cssMatches = index.match(/<link rel="stylesheet" href="\/scheduled-tasks\.css"\s*\/>/g) || [];
 const jsMatches = index.match(/<script src="\/scheduled-tasks-[a-z-]+\.js" defer><\/script>/g) || [];

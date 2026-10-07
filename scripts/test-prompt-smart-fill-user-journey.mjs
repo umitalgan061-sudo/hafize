@@ -4,9 +4,9 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
-const smart = read('public/prompt-library-smart-fill.js');
-const palette = read('public/prompt-library-command-palette.js');
-const hints = read('public/prompt-library-smart-fill-hints.js');
+const smart = read('public/prompt-library-smart-fill.ts');
+const palette = read('public/prompt-library-command-palette.ts');
+const hints = read('public/prompt-library-smart-fill-hints.ts');
 const index = read('public/index.html');
 
 const openFlow = [

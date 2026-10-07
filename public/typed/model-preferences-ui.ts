@@ -420,6 +420,10 @@ const boot = (): void => {
   if (!modelSelect || !agentSelect || !toolModeButton) return;
 };
 
-if (document.readyState !== 'loading') boot();
-else document.addEventListener('DOMContentLoaded', boot, { once: true });
+// A browser entry must not throw where there is no DOM (Node checks, workers,
+// prerender): the module still publishes its API, it only skips auto-mounting.
+if (typeof document !== 'undefined') {
+  if (document.readyState !== 'loading') boot();
+  else document.addEventListener('DOMContentLoaded', boot, { once: true });
+}
 

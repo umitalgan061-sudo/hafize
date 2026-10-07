@@ -8,7 +8,7 @@ const {
   REVOKED_ATTR,
   hasAudioInput,
   installHandsFreeBackgroundGuard
-} = require('../public/hands-free-background-guard.js');
+} = require('../public/typed/hands-free-background-guard.ts');
 
 class FakeTarget {
   constructor() { this.listeners = new Map(); }

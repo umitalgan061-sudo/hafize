@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-const source = await readFile(new URL('../public/prompt-library-smart-insert-activity.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/typed/legacy/prompt-library-smart-insert-activity.ts', import.meta.url), 'utf8');
 assert.match(source, /HISTORY_KEY/);
 assert.match(source, /MAX_DAYS\s*=\s*14/);
 assert.match(source, /MAX_ROWS\s*=\s*7/);

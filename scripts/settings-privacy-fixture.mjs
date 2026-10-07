@@ -14,7 +14,7 @@ export function makeStorage(entries = {}) {
 }
 
 export async function loadApi() {
-  await import(pathToFileURL('public/settings-privacy.js').href + '?test=' + Date.now());
+  await import(pathToFileURL('public/typed/settings-privacy.ts').href + '?test=' + Date.now());
   if (!globalThis.HafizePrivacyCenter) throw new Error('privacy api missing');
   return globalThis.HafizePrivacyCenter;
 }

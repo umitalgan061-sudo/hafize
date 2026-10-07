@@ -1,11 +1,10 @@
 // Bounds and adversarial input: a runaway or hostile answer must degrade to
 // readable text in bounded time, never hang the tab and never throw.
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { createContainer, createDocument, findAll } from './markdown-dom-harness.mjs';
 
-const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+import { loadBrowserModule } from './browser-module.mjs';
+const markdown = await loadBrowserModule('public/markdown-renderer.ts');
 const { LIMITS } = markdown;
 
 const BUDGET_MS = 1500;

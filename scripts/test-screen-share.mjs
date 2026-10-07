@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { normalizeScreenCaptureMetadata } from '../lib/screen-capture-contract.mjs';
 
 const require = createRequire(import.meta.url);
-const { boundedSize, captureScreenFrame, stopStream } = require('../public/screen-share.js');
+const { boundedSize, captureScreenFrame, stopStream } = require('../public/typed/legacy/screen-share.ts');
 
 assert.deepEqual(boundedSize(1920, 1080), { width: 1280, height: 720 });
 assert.deepEqual(boundedSize(800, 600), { width: 800, height: 600 });

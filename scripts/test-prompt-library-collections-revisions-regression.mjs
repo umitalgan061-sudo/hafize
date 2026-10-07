@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const files = {
-  collections: fs.readFileSync('public/prompt-library-collections.js', 'utf8'),
-  revisions: fs.readFileSync('public/prompt-library-revisions.js', 'utf8'),
-  collectionEnh: fs.readFileSync('public/prompt-library-collections-enhancements.js', 'utf8'),
-  revisionEnh: fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8'),
+  collections: fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8'),
+  revisions: fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8'),
+  collectionEnh: fs.readFileSync('public/typed/legacy/prompt-library-collections-enhancements.ts', 'utf8'),
+  revisionEnh: fs.readFileSync('public/typed/legacy/prompt-library-revisions-enhancements.ts', 'utf8'),
   html: fs.readFileSync('public/index.html', 'utf8'),
-  sw: fs.readFileSync('public/sw-policy.js', 'utf8')
+  sw: fs.readFileSync('public/sw-policy.ts', 'utf8')
 };
 
 assert.match(files.html, /prompt-library-collections\.css/);

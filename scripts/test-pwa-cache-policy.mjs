@@ -139,7 +139,7 @@ assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
 assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 
-const swSource = await readFile(join(ROOT, 'public', 'sw.js'), 'utf8');
+const swSource = await readFile(join(ROOT, 'public/sw.ts'), 'utf8');
 assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);
 assert.match(swSource, /classifyRequest\(event\.request, self\.location\.origin\)/);
 assert.match(swSource, /shouldDeleteCache\(key\)/);

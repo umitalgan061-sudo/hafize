@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
-const require = createRequire(import.meta.url);
-const workspace = require('../public/workspace-navigation.js');
-const sw = require('../public/sw-policy.js');
+import { loadBrowserModule } from './browser-module.mjs';
+const workspace = await loadBrowserModule('public/typed/workspace-navigation.ts');
+const sw = await loadBrowserModule('public/sw-policy.ts');
 
 class FakeClassList {
   constructor(node) { this.node = node; }
