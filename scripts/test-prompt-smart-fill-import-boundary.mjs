@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 const root = process.cwd();
 const smart = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill.ts'),'utf8');
-const core = fs.readFileSync(path.join(root,'public/prompt-library.js'),'utf8');
+const core = fs.readFileSync(path.join(root,'public/typed/prompt-library.ts'),'utf8');
 assert.match(core,/normalizeImportedPayload/);
 assert.match(core,/exportPayload/);
 assert.match(smart,/STORAGE_KEY = 'hafize\.prompt-library\.smart-fill\.v1'/);

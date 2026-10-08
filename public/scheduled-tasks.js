@@ -1,1 +1,1 @@
-(function legacyTypedBridge(){'use strict';var boot=function(){return import('/typed-build/scheduled-tasks.ts.js');};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();})();
+(function legacyTypedBridge(){'use strict';var boot=function(){return import('/typed-build/scheduled-tasks.js');};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();})();

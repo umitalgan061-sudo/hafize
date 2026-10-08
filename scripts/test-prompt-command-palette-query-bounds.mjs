@@ -7,6 +7,6 @@ assert.match(text, /const normalized = String\(query \|\| ''\)/);
 assert.match(text, /slice\(0, MAX_QUERY\)/);
 assert.match(text, /query\.maxLength = MAX_QUERY/);
 // The bounded matcher is what the palette exposes as `search`.
-assert.match(text, /search: results/);
-assert.match(text, /current = results\(query\.value\)/);
+assert.match(text, /search: searchPromptLibrary/);
+assert.match(text, /current = searchPromptLibrary\(query\.value\)/);
 console.log('prompt command palette query bounds: ok');

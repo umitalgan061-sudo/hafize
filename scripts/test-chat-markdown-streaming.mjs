@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { createContainer, createDocument, findAll, findByClass } from './markdown-dom-harness.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+const markdown = require('../public/markdown-renderer.ts');
 
 // `chat-markdown.js` looks the renderer up on the global, the way the browser
 // wires the two script tags together.
@@ -26,7 +26,7 @@ const runFrames = () => {
   return queued.filter(Boolean).length;
 };
 
-const chat = require('../public/chat-markdown.js');
+const chat = require('../public/chat-markdown.ts');
 
 /* Every prefix of an answer renders without throwing -------------------- */
 

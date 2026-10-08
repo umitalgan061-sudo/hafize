@@ -4,7 +4,7 @@ import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Promise.all([
-  read('public/scheduled-tasks.js'),
+  read('public/typed/scheduled-tasks.ts'),
   read('public/scheduled-tasks.css'),
   read('public/typed/legacy/scheduled-tasks-enhancements.ts'),
   read('public/typed/legacy/scheduled-tasks-keyboard.ts'),

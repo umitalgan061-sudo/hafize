@@ -8,7 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
 const app = await read('public/typed/app-shell.ts');
-const workspace = await read('public/message-workspace.js');
+const workspace = await read('public/typed/message-workspace.ts');
 const policy = await read('public/typed/legacy/message-workspace-policy.ts');
 const css = await read('public/message-workspace.css');
 const sw = await read('public/sw-policy.ts');

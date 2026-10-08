@@ -7,7 +7,7 @@ import { loadPromptLibrary } from './prompt-library-fixture.mjs';
 
 const promptLibrary = await loadPromptLibrary();
 
-const core = fs.readFileSync('public/prompt-library.js', 'utf8');
+const core = fs.readFileSync('public/typed/prompt-library.ts', 'utf8');
 const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 const docs = fs.readFileSync('docs/PROMPT_LIBRARY_USAGE_INSIGHTS.md', 'utf8');
 

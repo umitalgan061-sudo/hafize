@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { createContainer, createDocument, findAll } from './markdown-dom-harness.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+const markdown = require('../public/markdown-renderer.ts');
 const { LIMITS } = markdown;
 
 const BUDGET_MS = 1500;
