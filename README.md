@@ -347,6 +347,8 @@ Ayarlar içindeki **Yerel veri ve gizlilik** paneli, bu tarayıcıdaki Hafize lo
 
 - Bilinen sohbet, mesaj, prompt, koleksiyon, revizyon, Smart Fill, model tercihi, composer geçmişi ve görev şablonu alanlarının yaklaşık boyutu gösterilir.
 - Bilinmeyen localStorage anahtarları yalnız sayaç olarak görünür; uygulamanın tanımadığı alanlar toplu temizlemeye dahil edilmez.
+- Panel bunu açıkça yazar: *Tanınmayan localStorage alanları gösterilmez ve toplu temizlemede silinmez.*
+- Toplu eylemler **Veri yüzeylerini temizle** (yalnız kullanıcı verisi) ve **Bilinen tüm yerel veriyi temizle** (veri + tercihler) düğmeleridir.
 - Tek bir veri yüzeyi temizlenebilir veya yalnız kullanıcı verileri topluca temizlenebilir; tüm bilinen alanları temizlemek için ikinci bir `TEMIZLE` onayı gerekir.
 - Gizlilik raporu yalnız kimliksiz yüzey özeti, sayaç, byte ve tarayıcı depolama tahminini içerir; prompt, mesaj, token veya credential içeriği rapora yazılmaz.
 - Tarayıcı `navigator.storage.estimate()` destekliyorsa kullanılan/kota bilgisi ayrıca gösterilir.
@@ -360,6 +362,7 @@ node scripts/test-settings-privacy-clear.mjs
 node scripts/test-settings-privacy-safety.mjs
 node scripts/test-settings-privacy-report.mjs
 node scripts/test-settings-privacy-accessibility.mjs
+node scripts/test-settings-privacy-regression.mjs
 ```
 
 Ayrıntılar `docs/SETTINGS_PRIVACY*.md` dosyalarındadır.

@@ -23,7 +23,7 @@
     { id: 'prompt-collections', keys: ['hafize.prompt-library.collections.v1'], label: 'İstem koleksiyonları', description: 'İstem koleksiyonları ve üyelikleri.', group: 'data' },
     { id: 'prompt-revisions', keys: ['hafize.prompt-library.revisions.v1'], label: 'İstem sürümleri', description: 'Prompt düzenleme sürümleri ve geri alma kayıtları.', group: 'data' },
     { id: 'smart-views', keys: ['hafize.prompt-library.smart-views.v1', 'hafize.prompt-library.smart-views.v1.state'], label: 'Akıllı görünümler', description: 'Kaydedilmiş prompt filtreleri ve görünüm durumu.', group: 'data' },
-    { id: 'smart-fill', prefix: 'hafize.prompt-library.smart-fill.v1.', label: 'Akıllı doldurma', description: 'Değişkenler için cihazda tutulan değer setleri.', group: 'data' },
+    { id: 'smart-fill', keys: ['hafize.prompt-library.smart-fill.v1'], prefix: 'hafize.prompt-library.smart-fill.v1.', label: 'Akıllı doldurma', description: 'Değişkenler için cihazda tutulan değer setleri.', group: 'data' },
     { id: 'model-preferences', keys: ['hafize.model-preferences.v1'], label: 'Model tercihleri', description: 'Seçili model, ajan ve yerel profiller.', group: 'preference' },
     { id: 'composer-history', keys: ['hafize.composer-history.v1'], label: 'Composer geçmişi', description: 'Cihazda tutulan son yazılan mesajlar.', group: 'data' },
     { id: 'composer-settings', keys: ['hafize.composer-history.settings.v1'], label: 'Composer ayarları', description: 'Geçmiş saklama tercihi.', group: 'preference' },
@@ -58,12 +58,22 @@
   }
 
   function matchesSurfaceKey(key, surface) {
-    return Boolean(surface && (surface.prefix ? String(key || '').startsWith(surface.prefix) : surface.keys.includes(key)));
+    if (!surface) return false;
+    if ((surface.keys || []).includes(key)) return true;
+    return Boolean(surface.prefix && String(key || '').startsWith(surface.prefix));
+  }
+
+  /** Every exact key the known surfaces declare, so they never need enumeration. */
+  const EXACT_KEYS = Object.freeze(SURFACES.flatMap(function (surface) { return surface.keys || []; }));
+
+  function keyBytes(key, raw) {
+    return new TextEncoder().encode(String(key) + String(raw == null ? '' : raw)).byteLength;
   }
 
   function inspectStorage(storage) {
     const store = safeStorage(storage);
-    if (!store) return { available: false, surfaces: [], knownBytes: 0, unknownKeys: 0, unknownBytes: 0, totalKeys: 0 };
+    const empty = { available: false, surfaces: [], knownBytes: 0, unknownKeys: 0, unknownBytes: 0, totalKeys: 0 };
+    if (!store) return empty;
     const stats = new Map(SURFACES.map(function (surface) {
       return [surface.id, { id: surface.id, label: surface.label, description: surface.description, group: surface.group, keys: 0, bytes: 0, present: false }];
     }));
@@ -71,16 +81,37 @@
     let unknownKeys = 0;
     let unknownBytes = 0;
     let totalKeys = 0;
+
+    // Surfaces with exact keys are read directly. Enumeration is capped, so a
+    // browser holding more than MAX_KEYS entries would otherwise report the
+    // user's own data surfaces as absent.
+    const counted = new Set();
+    for (const key of EXACT_KEYS) {
+      let raw = null;
+      try { raw = store.getItem(key); } catch { continue; }
+      if (raw === null) continue;
+      const surface = classifyKey(key);
+      if (!surface) continue;
+      const target = stats.get(surface.id);
+      const bytes = keyBytes(key, raw);
+      target.keys += 1;
+      target.bytes += bytes;
+      target.present = true;
+      knownBytes += bytes;
+      counted.add(key);
+    }
+
     let length = 0;
-    try { length = Math.min(MAX_KEYS, Math.max(0, Number(store.length) || 0)); } catch { return { available: false, surfaces: [], knownBytes: 0, unknownKeys: 0, unknownBytes: 0, totalKeys: 0 }; }
+    try { length = Math.min(MAX_KEYS, Math.max(0, Number(store.length) || 0)); } catch { return empty; }
     for (let index = 0; index < length; index += 1) {
       let key = null;
       try { key = store.key(index); } catch { unknownKeys += 1; totalKeys += 1; continue; }
       if (key === null) continue;
       totalKeys += 1;
+      if (counted.has(key)) continue;
       let raw = '';
       try { raw = store.getItem(key) || ''; } catch { unknownKeys += 1; continue; }
-      const bytes = new TextEncoder().encode(String(key) + raw).byteLength;
+      const bytes = keyBytes(key, raw);
       const surface = classifyKey(key);
       if (surface) {
         const target = stats.get(surface.id);
@@ -113,28 +144,41 @@
     } catch { return { usage: null, quota: null }; }
   }
 
+  /**
+   * Keys to remove for a surface, plus whether any lookup failed. An unreadable
+   * storage must not be reported as a successful clear: nothing was inspected,
+   * so nothing can be claimed about what is left behind.
+   */
   function removalKeys(storage, surface) {
-    const keys = [];
-    if (!storage || !surface) return keys;
-    let length = 0;
-    try { length = Math.min(MAX_KEYS, Math.max(0, Number(storage.length) || 0)); } catch { return keys; }
-    for (let index = 0; index < length; index += 1) {
-      let key = null;
-      try { key = storage.key(index); } catch { continue; }
-      if (key !== null && matchesSurfaceKey(key, surface)) keys.push(key);
+    const keys = new Set();
+    if (!storage || !surface) return { keys: [], unreadable: true };
+    let unreadable = false;
+    // Exact keys are resolved without enumeration, so clearing a surface stays
+    // complete even when the capped scan cannot reach every entry.
+    for (const key of surface.keys || []) {
+      try { if (storage.getItem(key) !== null) keys.add(key); } catch { unreadable = true; }
     }
-    return keys;
+    if (surface.prefix) {
+      let length = 0;
+      try { length = Math.min(MAX_KEYS, Math.max(0, Number(storage.length) || 0)); } catch { return { keys: [...keys], unreadable: true }; }
+      for (let index = 0; index < length; index += 1) {
+        let key = null;
+        try { key = storage.key(index); } catch { unreadable = true; continue; }
+        if (key !== null && matchesSurfaceKey(key, surface)) keys.add(key);
+      }
+    }
+    return { keys: [...keys], unreadable };
   }
 
   function clearSurface(id, storage) {
     const store = safeStorage(storage);
     const surface = surfaceMap.get(id);
     if (!store || !surface) return { removed: 0, ok: false };
-    const keys = removalKeys(store, surface);
+    const { keys, unreadable } = removalKeys(store, surface);
     let removed = 0;
     try {
       keys.forEach(function (key) { store.removeItem(key); removed += 1; });
-      return { removed, ok: true };
+      return { removed, ok: !unreadable };
     } catch { return { removed, ok: false }; }
   }
 
