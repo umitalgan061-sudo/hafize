@@ -3,7 +3,9 @@ import fs from 'node:fs';
 // public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
 // at runtime, which Node cannot statically analyse into named exports, so the
 // suite takes the default (CommonJS) export.
-import promptLibrary from '../public/prompt-library.js';
+import { loadPromptLibrary } from './prompt-library-fixture.mjs';
+
+const promptLibrary = await loadPromptLibrary();
 
 const core = fs.readFileSync('public/prompt-library.js', 'utf8');
 const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');

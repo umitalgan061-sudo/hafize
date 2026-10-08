@@ -1,10 +1,11 @@
-import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertModuleShipped, assertStylesheetShipped, assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
-const html = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-const sw = fs.readFileSync(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
-for (const asset of ['/prompt-library.css', '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js']) assert.match(html, new RegExp(asset.replace('.', '\\.'), 'u'));
-for (const asset of ['/prompt-library.css', '/prompt-library.js', '/prompt-library-starters.js', '/prompt-library-enhancements.js']) assert.match(sw, new RegExp(asset.replace('.', '\\.'), 'u'));
-assertVersionedCacheDeclaration(sw);
+// Asset names moved with the TypeScript migration, so the helper resolves which
+// bundle ships each module instead of pinning file names here.
+assertStylesheetShipped('/prompt-library.css');
+for (const module of ['prompt-library', 'prompt-library-starters', 'prompt-library-enhancements']) {
+  assertModuleShipped(module);
+}
+assertVersionedCacheDeclaration(fs.readFileSync(new URL('../public/sw-policy.ts', import.meta.url), 'utf8'));
 console.log('test-prompt-library-pwa: ok');
