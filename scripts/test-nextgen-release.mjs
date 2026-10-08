@@ -1,5 +1,6 @@
 import { readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFile(join(root, path), 'utf8');
@@ -24,7 +25,7 @@ assert(files.package.engines?.node === '>=24.21.0', 'node-engine');
 assert(files.package.devDependencies?.typescript === '7.0.2', 'typescript-toolchain');
 assert(files.package.devDependencies?.vite === '8.3.0', 'vite-toolchain');
 assert(files.package.devDependencies?.vitest === '5.0.1', 'vitest-toolchain');
-assert(files.package.scripts?.build === 'vite build', 'vite-build-script');
+assert(files.package.scripts?.build === 'npm run typecheck && vite build', 'vite-build-script');
 assert(files.package.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime-typecheck-script');
 assert(files.package.scripts?.['typecheck:syntax'] === 'tsc --noEmit --noCheck', 'syntax-typecheck-script');
 assert(files.package.scripts?.['test:modern:gate'] === 'vitest run lib/runtime-metrics.test.ts lib/upstream-circuit-breaker.test.ts lib/rate-limit.test.ts', 'modern-vitest-gate');
@@ -53,7 +54,7 @@ assert(files.vite.includes("'sw': resolve(ROOT, 'public/sw.ts')"), 'sw-vite-entr
 assert(files.index.includes('/typed-build/legacy-app.js'), 'legacy-app-html-entry');
 assert(files.app.includes("navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' })"), 'module-service-worker-registration');
 assert(files.sw.includes("from './sw-policy.ts'"), 'typed-sw-policy-import');
-assert(files.swPolicy.includes("CURRENT_CACHE = `${CACHE_PREFIX}v55`"), 'cache-version');
+assertVersionedCacheDeclaration(files.swPolicy);
 assert(!await exists('public/sw.js'), 'legacy-sw-removed');
 assert(!await exists('public/sw-policy.js'), 'legacy-sw-policy-removed');
 

@@ -3,6 +3,7 @@ import { access, readFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertLegacyBridge, bridgeStatements } from './legacy-bridge-contract.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
 const sources = ['config-readiness', 'deployment-readiness', 'runtime-readiness', 'pwa-readiness', 'release-manifest'];
@@ -13,8 +14,7 @@ const exists = async (path) => { try { await access(resolve(ROOT, path)); return
 
 for (const name of sources) {
   assert.equal(await exists('lib/' + name + '.ts'), true, 'missing typed source: ' + name);
-  const bridge = (await read('lib/' + name + '.mjs')).trim();
-  assert.equal(bridge, 'export * from \'./' + name + '.ts\';', 'non-typed implementation remains: ' + name);
+  assertLegacyBridge('lib/' + name + '.mjs', name);
 }
 
 for (const name of tests) {

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const files = [
   'public/typed/legacy/prompt-library-collections.ts',
@@ -21,7 +22,7 @@ assert.match(source['public/sw-policy.ts'], /prompt-library-collections\.js/);
 assert.match(source['public/sw-policy.ts'], /prompt-library-revisions\.js/);
 assert.match(source['public/sw-policy.ts'], /prompt-library-collections\.css/);
 assert.match(source['public/sw-policy.ts'], /prompt-library-revisions\.css/);
-assert.match(source['public/sw-policy.ts'], /v36/);
+assertVersionedCacheDeclaration(source['public/sw-policy.ts']);
 assert.match(source['public/typed/legacy/prompt-library-collections.ts'], /MAX_COLLECTIONS = 40/);
 assert.match(source['public/typed/legacy/prompt-library-collections.ts'], /MAX_MEMBERS = 120/);
 assert.match(source['public/typed/legacy/prompt-library-revisions.ts'], /MAX_REVISIONS_PER_PROMPT = 20/);

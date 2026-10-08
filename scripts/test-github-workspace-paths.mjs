@@ -13,5 +13,7 @@ for (const source of [core, extra]) {
   assert.match(source, /startsWith\('\/'\)/);
   assert.match(source, /includes\('\\\\'\)/);
 }
-assert.match(extra, /private[._-]?keys?/i);
+// The sensitive-name guard is a regex literal; assert its source text.
+assert.ok(extra.includes('private[._-]?keys?'), 'private key names are blocked');
+assert.ok(extra.includes('\\.(pem|key|p12|pfx)$'), 'key file extensions are blocked');
 console.log('github-workspace-paths: ok');

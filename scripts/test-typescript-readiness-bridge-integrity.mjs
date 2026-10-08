@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertLegacyBridge, bridgeStatements } from './legacy-bridge-contract.mjs';
 
 const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..', '..');
 const runtimeNames = [
@@ -14,8 +15,7 @@ const exists = async (path) => { try { await access(resolve(ROOT, path)); return
 
 for (const name of runtimeNames) {
   assert.equal(await exists('lib/' + name + '.ts'), true, 'missing TS source: ' + name);
-  const bridge = (await read('lib/' + name + '.mjs')).trim();
-  assert.equal(bridge, `export * from './${name}.ts';`, 'bridge mismatch: ' + name);
+  assertLegacyBridge('lib/' + name + '.mjs', name);
 }
 
 const testNames = [
@@ -25,8 +25,8 @@ const testNames = [
 ];
 for (const name of testNames) {
   assert.equal(await exists('scripts/test-' + name + '.ts'), true, 'missing TS test: ' + name);
-  const bridge = (await read('scripts/test-' + name + '.mjs')).trim();
-  assert.equal(bridge, `await import('./test-${name}.ts');`, 'test bridge mismatch: ' + name);
+  const bridge = bridgeStatements(await read('scripts/test-' + name + '.mjs'));
+  assert.deepEqual(bridge, [`await import('./test-${name}.ts');`], 'test bridge mismatch: ' + name);
 }
 
 const tsconfig = JSON.parse(await read('tsconfig.json'));

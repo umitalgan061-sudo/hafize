@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const read = (path) => fs.readFileSync(path,'utf8');
 const views = read('public/typed/legacy/prompt-library-smart-views.ts');
@@ -34,7 +35,7 @@ for (const asset of [
 ]) assert.ok(html.includes(asset), asset);
 
 const sw = read('public/sw-policy.ts');
-assert.match(sw,/CURRENT_CACHE = .*v49/);
+assertVersionedCacheDeclaration(sw);
 for (const asset of [
   '/prompt-library-smart-views.css',
   '/prompt-library-smart-views-extras.css',

@@ -13,5 +13,6 @@ assert.match(source, /cache: ['"]no-store['"]/);
 assert.doesNotMatch(source, /Authorization/);
 assert.doesNotMatch(source, /GITHUB_TOKEN/);
 assert.doesNotMatch(source, /method: ['"](POST|PATCH|DELETE)['"]/);
-assert.match(source, /https:\/\/github\.com\//);
+// The link allowlist lives in a regex literal, so match its source text.
+assert.ok(source.includes("/^https:\\/\\/github\\.com\\//i.test(url)"), 'only github.com links are rendered');
 console.log('github-workspace-actions-security: ok');

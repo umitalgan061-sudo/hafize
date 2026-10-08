@@ -13,7 +13,16 @@ assert.match(ui,/sessionStorage\.getItem\(HISTORY_KEY\)/);
 assert.match(ui,/sessionStorage\.setItem\(HISTORY_KEY/);
 assert.match(ui,/safeHistoryJson/);
 assert.match(ui,/copyWriteHistory\(visible\)/);
-assert.match(ui,/content, commit body, token/i);
+// What matters is the serializer's allowlist, not a comment describing it: the
+// copied history carries metadata only, never file content, commit bodies or
+// credentials.
+const serializer = ui.slice(ui.indexOf('function safeHistoryJson'), ui.indexOf('async function copyWriteHistory'));
+for (const field of ['action', 'repository', 'target', 'status', 'at', 'reference']) {
+  assert.match(serializer, new RegExp(`\\b${field}:`), `history keeps ${field}`);
+}
+for (const field of ['content', 'body', 'message', 'token', 'approval']) {
+  assert.doesNotMatch(serializer, new RegExp(`\\b${field}:`), `history must not carry ${field}`);
+}
 assert.match(css,/github-write-history-filter/);
 assert.match(audit,/file content/);
 assert.match(audit,/approval ticket/);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertLegacyBridge, bridgeStatements } from './legacy-bridge-contract.mjs';
 
 const ROOT = new URL('../', import.meta.url);
 const bridgeTargets = [
@@ -15,7 +16,7 @@ const read = (path) => readFile(new URL(path, ROOT), 'utf8');
 
 for (const name of bridgeTargets) {
   const source = (await read('lib/' + name + '.mjs')).trim();
-  assert.equal(source, `export * from './${name}.ts';`, 'legacy runtime bridge mismatch: ' + name);
+  assertLegacyBridge('lib/' + name + '.mjs', name);
   assert.ok((await read('lib/' + name + '.ts')).trim().length > 0, 'typed runtime missing: ' + name);
 }
 for (const path of ['lib/agent-delegation.ts','lib/tool-runtime.ts']) {

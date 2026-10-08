@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const files = {
   package: 'package.json',
@@ -26,7 +27,7 @@ assert(pkg.engines?.node === '>=24.21.0', 'Node 24.21+ engine missing');
 assert(pkg.devDependencies?.typescript === '7.0.2', 'TypeScript 6 is not pinned');
 assert(pkg.devDependencies?.vite === '8.3.0', 'Vite 8.1 is not pinned');
 assert(pkg.devDependencies?.vitest === '5.0.1', 'Vitest 5 is not pinned');
-assert(pkg.scripts?.build === 'vite build', 'build script must bundle through Vite');
+assert(pkg.scripts?.build === 'npm run typecheck && vite build', 'build script must typecheck then bundle through Vite');
 assert(pkg.scripts?.prestart === 'npm run build', 'production start must build typed assets');
 assert(pkg.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime typecheck script missing');
 assert(pkg.scripts?.['check:modern']?.includes('test-modern-toolchain.mjs'), 'modern verification command missing source contract');
@@ -63,7 +64,7 @@ assert(!text.index.includes('prompt-library-smart-fill.js" defer'), 'legacy Smar
 assert(!text.index.includes('prompt-library-command-palette.js" defer'), 'legacy Command Palette script remains in HTML');
 assert(!text.index.includes('scheduled-tasks-countdown.js" defer'), 'legacy Countdown script remains in HTML');
 assert(!text.index.includes('prompt-library-smart-fill-hints.js" defer'), 'legacy Smart Fill hints remain in HTML');
-assert(text.sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v54`'), 'service worker cache version must be v54');
+assertVersionedCacheDeclaration(text.sw);
 assert(text.sw.includes('/typed-build/app-runtime.js'), 'runtime build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-smart-fill.js'), 'Smart Fill build missing from PWA shell');
 assert(text.sw.includes('/typed-build/prompt-library-command-palette.js'), 'Command Palette build missing from PWA shell');

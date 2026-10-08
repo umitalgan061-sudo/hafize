@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = resolve(new URL('../', import.meta.url).pathname);
 const read = (path) => readFile(resolve(root, path), 'utf8');
@@ -41,6 +42,6 @@ assert.ok(html.includes('typed-build/legacy-app.js'));
 assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\.js/);
 assert.match(vite, /legacy-app/);
 assert.ok(sw.includes('typed-build/legacy-app.js'));
-assert.ok(sw.includes('v55'), 'service worker cache version mismatch');
+assertVersionedCacheDeclaration(sw);
 
 console.log('TypeScript Smart Insert migration gate: OK');

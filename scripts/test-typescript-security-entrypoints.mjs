@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertLegacyBridge, bridgeStatements } from './legacy-bridge-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -43,7 +44,7 @@ const bridges = [
   'lib/personal-memory-encryption.mjs'
 ];
 for (const path of bridges) {
-  assert.equal(read(path).trim(), `export * from './${path.replace(/\.mjs$/, '.ts')}';`);
+  assertLegacyBridge(`lib/${path}`, path.replace(/\.mjs$/, ''));
 }
 
 console.log('TypeScript security entrypoint gate: ok');

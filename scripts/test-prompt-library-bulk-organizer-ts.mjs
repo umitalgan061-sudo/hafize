@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const root = resolve(new URL('../', import.meta.url).pathname);
 const read = (path) => readFile(resolve(root, path), 'utf8');
@@ -23,5 +24,5 @@ assert(app.includes('./legacy/prompt-library-bulk-organizer.ts'));
 assert(app.includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(sw.includes('/typed-build/legacy-app.js'));
-assert(sw.includes('v55'), 'PWA cache version');
+assertVersionedCacheDeclaration(sw);
 console.log('Prompt Library bulk organizer TypeScript gate: OK');

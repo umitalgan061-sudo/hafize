@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertLegacyBridge, bridgeStatements } from './legacy-bridge-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -34,7 +35,7 @@ function assertFile(path) {
 function assertBridge(name) {
   const path = `lib/${name}.mjs`;
   assertFile(path);
-  assert.equal(read(path).trim(), `export * from './${name}.ts';`, `legacy bridge drift: ${path}`);
+  assertLegacyBridge(path, name);
 }
 
 for (const name of migrated) {

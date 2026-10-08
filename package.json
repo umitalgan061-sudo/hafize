@@ -11,7 +11,7 @@
     "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
     "dev:server": "node --import ./lib/production-guard.ts server.ts",
-    "build": "vite build",
+    "build": "npm run typecheck && vite build",
     "typecheck": "npm run typecheck:runtime",
     "test:modern": "vitest run",
     "check:modern": "npm run typecheck && npm run typecheck:syntax && npm run test:modern:gate && node scripts/test-typescript-source-integrity.ts && npm run test:modernization && node scripts/test-nextgen-release.mjs && npm run test:prompt-smart-insert-ts",

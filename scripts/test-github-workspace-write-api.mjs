@@ -11,7 +11,7 @@ for(const action of ['branch','file','pull']) assert.match(writer, new RegExp(`[
 assert.match(writer,/\/git\/refs/);
 assert.match(writer,/\/contents\//);
 assert.match(writer,/\/pulls/);
-assert.match(writer,/Buffer\.from\(fileContent,'utf8'\)\.toString\('base64'\)/);
+assert.match(writer,/Buffer\.from\(fileContent,\s*'utf8'\)\.toString\('base64'\)/);
 assert.match(writer,/existingSha/);
 assert.match(server,/GITHUB_WRITE_CONFIGURED/);
 assert.match(server,/githubWriteConfigured/);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const paths = [
   'public/index.html',
@@ -23,7 +24,7 @@ const [index, sw, readme, ...modules] = files;
 
 assert.ok(index.includes('scheduled-task-preview.js'));
 assert.ok(sw.includes('scheduled-task-preview.js'));
-assert.ok(sw.includes('v45') || sw.includes('v46') || sw.includes('v47'));
+assertVersionedCacheDeclaration(sw);
 assert.ok(readme.includes('Görevler'));
 assert.ok(modules.some((source) => source.includes('requestSubmit')));
 assert.ok(modules.some((source) => source.includes('localStorage')));
