@@ -30,4 +30,4 @@ export function installVoiceInput(documentRef:Document,root:typeof globalThis):V
 }
 const api=Object.freeze({DEFAULT_LANGUAGE,getSpeechRecognitionConstructor,installVoiceInput,mapSpeechError,mergeTranscript,normalizeTranscript,readRecognitionText});
 (globalThis as typeof globalThis & {HafizeVoiceInput?:unknown}).HafizeVoiceInput=api;
-const start=()=>installVoiceInput(document,globalThis);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+if(typeof document!=='undefined'){const start=()=>installVoiceInput(document,globalThis);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();}

@@ -1,10 +1,11 @@
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import { assertLegacyModuleOrder } from './legacy-bundle-contract.mjs';
 
-const html=fs.readFileSync('public/index.html','utf8');
-const views=html.indexOf('/prompt-library-smart-views.js');
-const history=html.indexOf('/prompt-library-smart-views-history.js');
-const builder=html.indexOf('/prompt-library-smart-views-builder.js');
-const safety=html.indexOf('/prompt-library-smart-views-safety.js');
-assert.ok(views>=0 && history>views && builder>history && safety>builder);
+// Smart views mount core-first: the view store, then history, then the query
+// builder, then the safety layer that repairs broken records.
+assertLegacyModuleOrder([
+  'prompt-library-smart-views',
+  'prompt-library-smart-views-history',
+  'prompt-library-smart-views-builder',
+  'prompt-library-smart-views-safety'
+]);
 console.log('smart-view asset order: ok');

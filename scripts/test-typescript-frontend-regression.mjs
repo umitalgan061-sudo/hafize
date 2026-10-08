@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const assert = (condition, message) => {
@@ -73,8 +74,7 @@ assert(vite.includes('sourcemap: true'), 'production debugging sourcemaps must r
 assert(vite.includes('emptyOutDir: true'), 'typed build output must be deterministic');
 assert(vite.includes("resolve(ROOT, 'public/typed/hafize-sse.ts')") || vite.includes('hafize-sse.ts'), 'typed SSE source must remain in the dependency graph');
 
-const cacheVersion = sw.match(/hafize-shell-v(\d+)/)?.[1];
-assert(cacheVersion === '54', 'Service Worker cache version must match the current migration wave');
+assertShellCacheAtLeast(54, 'typescript frontend wave');
 assert(sw.includes("'/stream-status.css'"), 'stream status CSS must be cached by the shell');
 assert(sw.includes("'/typed-build/chat-composer-features.js'"), 'migrated composer entry missing from shell cache');
 assert(sw.includes("'/typed-build/settings-privacy.js'"), 'migrated privacy entry missing from shell cache');

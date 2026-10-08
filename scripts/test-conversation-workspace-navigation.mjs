@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertAttributeDeclared } from './source-contract.mjs';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.css'), 'utf8');
 const keyboardCss = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
-const keyboard = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
+const keyboard = fs.readFileSync(path.join(root, 'public', 'typed', 'legacy', 'conversation-workspace-keyboard.ts'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
+const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.ts'), 'utf8');
 
 const responsiveContracts = [
   ['@media (max-width: 760px)', 'tablet/mobile layout breakpoint'],
@@ -67,15 +68,15 @@ for (const [fragment, label] of shortcutBehaviorContracts) assert.ok(keyboard.in
 const indexContracts = [
   ['/conversation-workspace.css', 'workspace css'],
   ['/conversation-workspace-keyboard.css', 'keyboard css'],
-  ['/conversation-workspace.js', 'workspace runtime'],
-  ['/conversation-workspace-keyboard.js', 'keyboard runtime']
+  ['/typed-build/conversation-workspace.js', 'workspace runtime'],
+  ['/typed-build/legacy-app.js', 'keyboard runtime ships in the unified legacy entry']
 ];
 for (const [fragment, label] of indexContracts) assert.ok(index.includes(fragment), label);
 
 assert.equal(index.match(/conversation-workspace-keyboard\.css/g)?.length, 1);
-assert.equal(index.match(/conversation-workspace-keyboard\.js/g)?.length, 1);
 assert.equal(index.match(/conversation-workspace\.css/g)?.length, 1);
-assert.equal(index.match(/conversation-workspace\.js/g)?.length, 1);
+assert.equal(index.match(/typed-build\/conversation-workspace\.js/g)?.length, 1);
+assertLegacyModulesBundled(['conversation-workspace-keyboard']);
 
 const noNetwork = ['fetch(', 'XMLHttpRequest', 'WebSocket', 'document.cookie', 'Authorization', 'Bearer '];
 for (const fragment of noNetwork) {

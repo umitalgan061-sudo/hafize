@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
-const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.js');
+import { loadBrowserModule } from './lib/source-registry.mjs';
+const policy = await loadBrowserModule('public/sw-policy.ts');
 const origin = 'https://hafize.example';
 
 assertVersionedCacheDeclaration();
-for (const asset of ['/screen-share.css', '/screen-share.js', '/hands-free.css', '/hands-free.js']) {
+for (const asset of ['/screen-share.css', '/hands-free.css', '/typed-build/hands-free.js', '/typed-build/legacy-app.js']) {
   assert.ok(policy.SHELL_ASSETS.includes(asset));
   assert.equal(policy.classifyRequest({
     url: new URL(asset, origin).href,

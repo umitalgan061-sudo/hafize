@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root=process.cwd();
 const read=(p)=>fs.readFileSync(path.join(root,p),'utf8');
@@ -9,7 +10,7 @@ const state=read('public/typed/model-preferences.ts');
 const ui=read('public/typed/model-preferences-ui.ts');
 const shell=read('public/typed/app-shell.ts');
 const html=read('public/index.html');
-const sw=read('public/sw-policy.js');
+const sw=read('public/sw-policy.ts');
 const css=read('public/model-preferences.css');
 
 const stateContracts=[
@@ -54,7 +55,7 @@ assert.match(shell,/saveConversations/);
 
 assert.match(html,/model-preferences\.css/);
 assert.match(html,/typed-build\/app-shell\.js/);
-assert.match(sw,/v45/);
+assertShellCacheAtLeast(45, 'model preferences');
 assert.match(sw,/model-preferences\.css/);
 assert.match(css,/prefers-reduced-motion/);
 assert.match(css,/forced-colors/);

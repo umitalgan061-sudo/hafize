@@ -1,26 +1,24 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const html = read('public/index.html');
-const sw = read('public/sw-policy.js');
-const collections = read('public/prompt-library-collections.js');
-const collectionEnh = read('public/prompt-library-collections-enhancements.js');
-const revisions = read('public/prompt-library-revisions.js');
-const revisionEnh = read('public/prompt-library-revisions-enhancements.js');
+const sw = read('public/sw-policy.ts');
+const collections = read('public/typed/legacy/prompt-library-collections.ts');
+const collectionEnh = read('public/typed/legacy/prompt-library-collections-enhancements.ts');
+const revisions = read('public/typed/legacy/prompt-library-revisions.ts');
+const revisionEnh = read('public/typed/legacy/prompt-library-revisions-enhancements.ts');
 const css = read('public/prompt-library-collections.css');
 
 const requiredHtmlAssets = [
   '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/prompt-library-revisions.css'
 ];
 for (const asset of requiredHtmlAssets) assert.ok(html.includes(asset), `missing HTML asset: ${asset}`);
 for (const asset of requiredHtmlAssets) assert.ok(sw.includes(asset), `missing shell asset: ${asset}`);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+assertShellCacheAtLeast(36, 'prompt library collections');
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 
@@ -102,4 +100,5 @@ assert.ok((revisions.match(/revision/g) || []).length >= 15);
 assert.ok((secureSources.join('\n').match(/textContent/g) || []).length >= 8);
 assert.ok((secureSources.join('\n').match(/aria-label/g) || []).length >= 4);
 
+assertLegacyModulesBundled(['prompt-library-collections', 'prompt-library-collections-enhancements', 'prompt-library-revisions', 'prompt-library-revisions-enhancements']);
 console.log('prompt library collections/revisions release smoke: ok');

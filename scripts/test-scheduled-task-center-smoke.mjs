@@ -1,22 +1,23 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const paths = [
   'public/index.html',
-  'public/sw-policy.js',
-  'public/scheduled-task-preview.js',
-  'public/scheduled-task-duplicate.js',
-  'public/scheduled-task-templates.js',
-  'public/scheduled-task-templates-backup.js',
-  'public/scheduled-task-template-presets.js',
-  'public/scheduled-task-draft.js',
-  'public/scheduled-task-planning.js',
-  'public/scheduled-task-status-summary.js',
-  'public/scheduled-task-preview-activity.js',
-  'public/scheduled-task-insights.js',
-  'public/scheduled-task-actions.js',
-  'public/scheduled-task-detail.js',
-  'public/scheduled-task-export.js'
+  'public/sw-policy.ts',
+  'public/typed/legacy/scheduled-task-preview.ts',
+  'public/typed/legacy/scheduled-task-duplicate.ts',
+  'public/typed/legacy/scheduled-task-templates.ts',
+  'public/typed/legacy/scheduled-task-templates-backup.ts',
+  'public/typed/legacy/scheduled-task-template-presets.ts',
+  'public/typed/legacy/scheduled-task-draft.ts',
+  'public/typed/legacy/scheduled-task-planning.ts',
+  'public/typed/legacy/scheduled-task-status-summary.ts',
+  'public/typed/legacy/scheduled-task-preview-activity.ts',
+  'public/typed/legacy/scheduled-task-insights.ts',
+  'public/typed/legacy/scheduled-task-actions.ts',
+  'public/typed/legacy/scheduled-task-detail.ts',
+  'public/typed/legacy/scheduled-task-export.ts'
 ];
 
 const values = await Promise.all(paths.map((path) => readFile(new URL('../' + path, import.meta.url), 'utf8')));
@@ -34,9 +35,6 @@ assert.doesNotMatch(source, /password/i);
 
 const index = values[0];
 const sw = values[1];
-assert.ok(index.includes('scheduled-task-preview.js'));
-assert.ok(index.includes('scheduled-task-detail.js'));
-assert.ok(sw.includes('scheduled-task-preview.js'));
-assert.ok(sw.includes('scheduled-task-detail.js'));
 
+assertLegacyModulesBundled(['scheduled-task-detail', 'scheduled-task-preview']);
 console.log('scheduled-task-center-smoke: ok');

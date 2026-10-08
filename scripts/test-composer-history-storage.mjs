@@ -2,10 +2,9 @@
 // could not fail for the product. It now checks that the real module keeps to
 // its own storage keys and survives a hostile or unavailable store.
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { createStorageStub, createThrowingStorage } from './browser-storage-stub.mjs';
+import { loadBrowserModule } from './lib/source-registry.mjs';
 
-const require = createRequire(import.meta.url);
 const HISTORY_KEY = 'hafize.composer-history.v1';
 const SETTINGS_KEY = 'hafize.composer-history.settings.v1';
 
@@ -14,7 +13,7 @@ const storage = createStorageStub({
   'hafize.prompt-library.v1': JSON.stringify([{ id: 'p1' }])
 });
 globalThis.localStorage = storage;
-require('../public/composer-history.js');
+await loadBrowserModule('public/typed/legacy/composer-history.ts');
 const history = globalThis.HafizeComposerHistory;
 assert.ok(history, 'composer history exposes its API on the global');
 

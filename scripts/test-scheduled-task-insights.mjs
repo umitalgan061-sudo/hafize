@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const js = await readFile(new URL('../public/scheduled-task-insights.js', import.meta.url), 'utf8');
+const js = await readFile(new URL('../public/typed/legacy/scheduled-task-insights.ts', import.meta.url), 'utf8');
 const css = await readFile(new URL('../public/scheduled-task-insights.css', import.meta.url), 'utf8');
 
 for (const token of ['Toplam', 'Yaklaşan', 'Çalışıyor', 'Başarısız', 'MutationObserver']) assert.ok(js.includes(token));

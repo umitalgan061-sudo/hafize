@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root = resolve(new URL('../', import.meta.url).pathname);
 const read = (path) => readFile(resolve(root, path), 'utf8');
@@ -10,7 +11,7 @@ const app = await read('public/typed/legacy-app.ts');
 const html = await read('public/index.html');
 const sw = await read('public/sw-policy.ts');
 assert(await exists('public/typed/legacy/prompt-library-bulk-organizer.ts'));
-assert.equal(await exists('public/prompt-library-bulk-organizer.js'), false);
+assert.equal(await exists('public/typed/legacy/prompt-library-bulk-organizer.ts'), false);
 assert.match(source, /export function installPromptLibraryBulkOrganizer/);
 assert.match(source, /HafizeLegacyRoot/);
 assert.match(source, /@ts-nocheck/);
@@ -23,5 +24,5 @@ assert(app.includes('./legacy/prompt-library-bulk-organizer.ts'));
 assert(app.includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(sw.includes('/typed-build/legacy-app.js'));
-assert(sw.includes('v55'), 'PWA cache version');
+assertShellCacheAtLeast(55, 'prompt library bulk organizer');
 console.log('Prompt Library bulk organizer TypeScript gate: OK');

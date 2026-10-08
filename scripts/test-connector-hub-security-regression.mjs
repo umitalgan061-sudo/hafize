@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
-const source=await readFile('public/connector-hub.js','utf8');
+const source=await readFile('public/typed/legacy/connector-hub.ts','utf8');
 const css=await readFile('public/connector-hub.css','utf8');
-const sw=await readFile('public/sw-policy.js','utf8');
+const sw=await readFile('public/sw-policy.ts','utf8');
 
 for(const forbidden of [
   /Authorization\s*:/,
@@ -23,7 +24,7 @@ assert.match(source,/navigator\?\.clipboard/);
 assert.match(source,/repository\.read/);
 assert.match(css,/:focus-visible/);
 assert.match(css,/max-width:700px/);
-assert.match(sw,/connector-hub\.js/);
 assert.match(sw,/connector-hub\.css/);
 
+assertLegacyModulesBundled(['connector-hub']);
 console.log('connector hub security regression: passed');

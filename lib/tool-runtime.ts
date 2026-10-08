@@ -1,8 +1,9 @@
 import { authorizeAgentTool, type AgentDefinition } from './agent-runtime.ts';
 import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
 import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
-import { normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
+import { ToolBoundaryError, normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
 import { projectSafeToolExecutionResult } from './tool-execution-result-policy.ts';
+import { TASK_HANDOFF_LIMITS } from './task-handoff.ts';
 
 export interface ToolAgent {
   readonly id: string;
@@ -67,6 +68,14 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 const MIN_TIMEOUT_MS = 2_000;
 const MAX_TIMEOUT_MS = 120_000;
 
+const handoffList = (description: string) =>
+  Object.freeze({
+    type: 'array',
+    description,
+    maxItems: TASK_HANDOFF_LIMITS.maxItems,
+    items: Object.freeze({ type: 'string', maxLength: TASK_HANDOFF_LIMITS.maxListItem })
+  });
+
 const definition = (name: string, description: string, properties: Record<string, unknown>): ToolDefinition =>
   Object.freeze({
     type: 'function',
@@ -122,13 +131,23 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(90_000, 90_000),
     activity: { running: 'Uzman ajan çalıştırılıyor', success: 'Uzman ajan çalıştırıldı', failure: 'Uzman ajan çalıştırılamadı' },
     definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder.', {
-      agentId: { type: 'string' },
-      task: { type: 'string' }
+      agentId: { type: 'string', maxLength: TASK_HANDOFF_LIMITS.maxAgentId },
+      task: { type: 'string', maxLength: TASK_HANDOFF_LIMITS.maxTask },
+      // The handoff normalizer bounds these lists, so the schema the model sees
+      // declares the same bounds instead of hiding the fields entirely.
+      successCriteria: handoffList('Devredilen görevin kabul ölçütleri.'),
+      constraints: handoffList('Uzman ajanın uyması gereken kısıtlar.'),
+      evidenceRequired: handoffList('Sonuçla birlikte beklenen kanıtlar.')
     }),
     available: (context) => typeof context.delegateAgent === 'function',
     execute: async (args, context) => {
       const result = await context.delegateAgent!(args) as { ok?: boolean; error?: unknown; value?: unknown };
-      if (result?.ok !== true) throw new Error(typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED');
+      // The delegator's own error codes (depth, fan-out, authorization, target)
+      // are stable and safe to report, so they are carried as the boundary code
+      // instead of collapsing into a generic TOOL_EXECUTION_FAILED.
+      if (result?.ok !== true) {
+        throw new ToolBoundaryError(typeof result?.error === 'string' && result.error.trim() ? result.error.trim() : 'AGENT_DELEGATION_FAILED');
+      }
       return result.value;
     }
   }],
@@ -167,7 +186,7 @@ const CATALOG = new Map<string, ToolEntry>([
     permission: 'skill.invoke',
     kind: 'skill',
     timeoutMs: timeout(30_000, 30_000),
-    activity: { running: 'Hafize skill hazırlanıyor', success: 'Hafize skill hazırlandı', failure: 'Hafize skill hazırlanamadı' },
+    activity: { running: 'Hafize skill’i hazırlanıyor', success: 'Hafize skill’i hazırlandı', failure: 'Hafize skill’i hazırlanamadı' },
     definition: definition('skill_invoke', 'Registry içindeki güvenli Hafize skill yapısını çözümler.', {
       skillId: { type: 'string' },
       args: { type: 'object' }
@@ -213,6 +232,25 @@ export function getPublicToolRunningActivity(name: unknown): Readonly<{ label: s
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
   return entry ? Object.freeze({ label: entry.activity.running, state: 'running' as const, tool: name as string, timeoutMs: entry.timeoutMs }) : null;
 }
+/**
+ * Tool error codes the browser is allowed to see.
+ *
+ * `getPublicToolActivity()` feeds the chat activity line, so it must not echo
+ * an arbitrary upstream error string back to the page. Only the runtime's own
+ * stable codes are surfaced; anything else is reported as a generic failure.
+ */
+export const PUBLIC_TOOL_ERROR_CODES = Object.freeze(new Set([
+  'UNKNOWN_TOOL', 'TOOL_NOT_AUTHORIZED', 'TOOL_UNAVAILABLE', 'TOOL_ABORTED', 'TOOL_TIMEOUT', 'TOOL_EXECUTION_FAILED',
+  'INVALID_TOOL_CALL', 'INVALID_TOOL_CALL_ID', 'INVALID_TOOL_NAME', 'INVALID_TOOL_ARGUMENTS', 'TOOL_ARGUMENTS_TOO_LARGE',
+  'AGENT_DELEGATION_FAILED', 'DELEGATED_AGENT_FAILED', 'DELEGATED_RESULT_INVALID', 'DELEGATION_CANCELLED',
+  'DELEGATION_DEPTH_EXCEEDED', 'DELEGATION_FANOUT_EXCEEDED', 'DELEGATION_NOT_AUTHORIZED',
+  'DELEGATION_TARGET_NOT_FOUND', 'DELEGATION_TARGET_NOT_SPECIALIST', 'INVALID_DELEGATION_ARGUMENTS',
+  'INVALID_DELEGATION_DEPTH', 'SELF_DELEGATION_NOT_ALLOWED',
+  'TOOL_RESULT_ACCESSOR_BLOCKED', 'TOOL_RESULT_COMPLEXITY_BLOCKED', 'TOOL_RESULT_CREDENTIAL_BLOCKED',
+  'TOOL_RESULT_CREDENTIAL_FIELD_BLOCKED', 'TOOL_RESULT_INSPECTION_FAILED', 'TOOL_RESULT_SHAPE_BLOCKED',
+  'TOOL_RESULT_UNSAFE'
+]));
+
 export function getPublicToolActivity(name: unknown, result: unknown): Readonly<{ label: string; state: 'success' | 'failure'; tool: string; durationMs?: number; error?: string } | null> {
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
   if (!entry) return null;
@@ -223,7 +261,7 @@ export function getPublicToolActivity(name: unknown, result: unknown): Readonly<
     state: ok ? 'success' as const : 'failure' as const,
     tool: name as string,
     ...(Number.isFinite(value.durationMs) ? { durationMs: Number(value.durationMs) } : {}),
-    ...(typeof value.error === 'string' ? { error: value.error.slice(0, 120) } : {})
+    ...(typeof value.error === 'string' && PUBLIC_TOOL_ERROR_CODES.has(value.error) ? { error: value.error } : {})
   });
 }
 export async function executeNvidiaToolCall(

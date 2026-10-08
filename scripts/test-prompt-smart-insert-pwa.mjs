@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root = resolve(new URL('../', import.meta.url).pathname);
 const read = (path) => readFile(resolve(root, path), 'utf8');
@@ -8,7 +9,7 @@ const sw = await read('public/sw-policy.ts');
 const html = await read('public/index.html');
 const vite = await read('vite.config.ts');
 const app = await read('public/typed/legacy-app.ts');
-assert(sw.includes('v55'), 'PWA cache version');
+assertShellCacheAtLeast(55, 'prompt smart insert');
 assert(sw.includes('/typed-build/legacy-app.js'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(vite.includes('legacy-app'));

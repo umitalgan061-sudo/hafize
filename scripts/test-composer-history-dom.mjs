@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/composer-history-panel.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/composer-history-panel.ts', 'utf8');
 
 // The panel builds every node through the element API and writes user text with
 // textContent, so a stored submission can never be parsed as markup.

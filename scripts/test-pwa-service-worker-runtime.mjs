@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
+import { loadBrowserModule } from './lib/source-registry.mjs';
 
-const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.js');
-const source = await readFile(new URL('../public/sw.js', import.meta.url), 'utf8');
+const policy = await loadBrowserModule('public/sw-policy.ts');
+const source = await readFile(new URL('../public/sw.ts', import.meta.url), 'utf8');
 const origin = 'https://hafize.example';
 const handlers = new Map();
 const deleted = [];
@@ -75,7 +74,7 @@ const context = {
     }
   }
 };
-vm.runInNewContext(source, context, { filename: 'public/sw.js' });
+vm.runInNewContext(source, context, { filename: 'public/sw.ts' });
 
 let installPromise;
 handlers.get('install')({ waitUntil(value) { installPromise = value; } });

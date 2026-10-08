@@ -3,28 +3,26 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertCssIncludes } from './source-contract.mjs';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
-const js = await read('public/message-workspace.js');
+const js = await read('public/typed/message-workspace.ts');
 const css = await read('public/message-workspace.css');
-const policy = await read('public/message-workspace-policy.js');
-const sw = await read('public/sw-policy.js');
+const policy = await read('public/typed/legacy/message-workspace-policy.ts');
+const sw = await read('public/sw-policy.ts');
 
 function count(text, needle) {
   return text.split(needle).length - 1;
 }
 
 assert.equal(count(html, '/message-workspace.css'), 1);
-assert.equal(count(html, '/message-workspace-policy.js'), 1);
-assert.equal(count(html, '/message-workspace.js'), 1);
-assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/message-workspace.js'));
+assert.equal(count(html, '/typed-build/message-workspace.js'), 1);
 
 for (const asset of [
   '/message-workspace.css',
-  '/message-workspace-policy.js',
-  '/message-workspace.js'
+  '/typed-build/message-workspace.js'
 ]) {
   assert.equal(count(sw, asset), 1, `shell asset missing exactly once: ${asset}`);
 }
@@ -32,8 +30,8 @@ for (const asset of [
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
-assert.ok(sw.includes("'/message-workspace-policy.js'"));
-assert.ok(sw.includes("'/message-workspace.js'"));
+assert.ok(sw.includes("'/typed-build/message-workspace.js'"));
+assertLegacyModulesBundled(['message-workspace-policy']);
 
 assert.ok(js.includes("hafize.message-workspace.v1"));
 assert.ok(js.includes("hafize:message-workspace-changed"));
@@ -102,4 +100,5 @@ assert.ok(js.includes('application/json'));
 assert.ok(js.includes("slice(0,MAX_EXPORT)"));
 assert.ok(js.includes("slice(0,12000)"));
 
+assertLegacyModulesBundled(['message-workspace-policy']);
 console.log('message workspace source contract tests passed');

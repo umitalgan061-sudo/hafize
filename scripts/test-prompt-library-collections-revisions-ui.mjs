@@ -1,19 +1,16 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const html = fs.readFileSync('public/index.html', 'utf8');
-const collections = fs.readFileSync('public/prompt-library-collections.js', 'utf8');
-const revisions = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
-const collectionEnh = fs.readFileSync('public/prompt-library-collections-enhancements.js', 'utf8');
-const revisionEnh = fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8');
+const collections = fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8');
+const revisions = fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8');
+const collectionEnh = fs.readFileSync('public/typed/legacy/prompt-library-collections-enhancements.ts', 'utf8');
+const revisionEnh = fs.readFileSync('public/typed/legacy/prompt-library-revisions-enhancements.ts', 'utf8');
 const css = fs.readFileSync('public/prompt-library-collections.css', 'utf8');
 
 assert.match(html, /prompt-library-collections\.css/);
 assert.match(html, /prompt-library-revisions\.css/);
-assert.match(html, /prompt-library-collections\.js/);
-assert.match(html, /prompt-library-collections-enhancements\.js/);
-assert.match(html, /prompt-library-revisions\.js/);
-assert.match(html, /prompt-library-revisions-enhancements\.js/);
 assert.match(collections, /id = 'promptLibraryCollections'/);
 assert.match(revisions, /id = 'promptLibraryRevisions'/);
 assert.match(collections, /aria-labelledby/);
@@ -37,4 +34,5 @@ for (const source of [collections, revisions, collectionEnh, revisionEnh]) {
   assert.doesNotMatch(source, /eval\(/);
   assert.doesNotMatch(source, /Function\(/);
 }
+assertLegacyModulesBundled(['prompt-library-collections', 'prompt-library-collections-enhancements', 'prompt-library-revisions', 'prompt-library-revisions-enhancements']);
 console.log('prompt library collections/revisions UI contract: ok');

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
-const collections = read('public/prompt-library-collections.js');
-const collectionEnh = read('public/prompt-library-collections-enhancements.js');
-const revisions = read('public/prompt-library-revisions.js');
-const revisionEnh = read('public/prompt-library-revisions-enhancements.js');
+const collections = read('public/typed/legacy/prompt-library-collections.ts');
+const collectionEnh = read('public/typed/legacy/prompt-library-collections-enhancements.ts');
+const revisions = read('public/typed/legacy/prompt-library-revisions.ts');
+const revisionEnh = read('public/typed/legacy/prompt-library-revisions-enhancements.ts');
 const html = read('public/index.html');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const collectionCss = read('public/prompt-library-collections.css');
 const revisionCss = read('public/prompt-library-revisions.css');
 
@@ -87,23 +89,15 @@ assert.match(revisionEnh, /beforeunload/);
 
 for (const asset of [
   '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/prompt-library-revisions.css'
 ]) assert.ok(html.includes(asset), `HTML missing ${asset}`);
 
 for (const asset of [
   '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/prompt-library-revisions.css'
 ]) assert.ok(sw.includes(asset), `SW missing ${asset}`);
 
-assert.match(sw, /v36/);
+assertShellCacheAtLeast(36, 'prompt library collections');
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 
@@ -160,4 +154,5 @@ assert.match(revisions, /destroy:/);
 assert.match(collectionEnh, /listeners\.splice/);
 assert.match(revisionEnh, /listeners\.splice/);
 
+assertLegacyModulesBundled(['prompt-library-collections', 'prompt-library-collections-enhancements', 'prompt-library-revisions', 'prompt-library-revisions-enhancements']);
 console.log('prompt library collections/revisions contract gate: ok');

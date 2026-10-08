@@ -23,4 +23,4 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
 }
 const api=Object.freeze({STORAGE_KEY,normalizeSpeechText,splitSpeechText,installVoiceOutput});
 (globalThis as typeof globalThis & {HafizeVoiceOutput?:unknown}).HafizeVoiceOutput=api;
-const start=()=>installVoiceOutput(document,globalThis);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+if(typeof document!=='undefined'){const start=()=>installVoiceOutput(document,globalThis);if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();}

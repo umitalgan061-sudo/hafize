@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { executeNvidiaToolCall, getAllowedNvidiaTools, listToolPermissions } from '../lib/tool-runtime.mjs';
+import { assertToolFailure, assertToolSuccess } from './tool-result-contract.mjs';
 
 const agent = {
   id: 'hafize-general',
@@ -28,18 +29,18 @@ const result = await executeNvidiaToolCall(agent, {
   type: 'function',
   function: { name: 'gmail_read', arguments: JSON.stringify({ operation: 'message.get', params: { messageId: 'm1' } }) }
 }, { ...context, approvalGranted: false });
-assert.deepEqual(result, { ok: true, value: { messages: [{ id: 'm1' }] } });
+assertToolSuccess(result, 'gmail_read', { messages: [{ id: 'm1' }] });
 assert.deepEqual(calls[0], { operation: 'message.get', params: { messageId: 'm1' } });
 
-assert.deepEqual(await executeNvidiaToolCall(agent, {
+assertToolFailure(await executeNvidiaToolCall(agent, {
   id: 'call_gmail_2',
   type: 'function',
   function: { name: 'gmail_read', arguments: '{}' }
-}, { gmailReadTool, gmailReadAuthenticated: false }), { ok: false, error: 'TOOL_UNAVAILABLE' });
-assert.deepEqual(await executeNvidiaToolCall(agent, {
+}, { gmailReadTool, gmailReadAuthenticated: false }), 'gmail_read', 'TOOL_UNAVAILABLE');
+assertToolFailure(await executeNvidiaToolCall(agent, {
   id: 'call_gmail_3',
   type: 'function',
   function: { name: 'gmail_read', arguments: '[]' }
-}, context), { ok: false, error: 'INVALID_TOOL_ARGUMENTS' });
-assert.equal(listToolPermissions().some((item) => item.permission === 'connector.gmail.read' && item.functionName === 'gmail_read'), true);
+}, context), 'gmail_read', 'INVALID_TOOL_ARGUMENTS');
+assert.equal(listToolPermissions().some((item) => item.permission === 'connector.gmail.read' && item.name === 'gmail_read'), true);
 console.log('gmail agent tool runtime tests passed');

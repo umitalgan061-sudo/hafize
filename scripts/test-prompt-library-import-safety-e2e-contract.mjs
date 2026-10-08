@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const files = await Promise.all([
-  fs.readFile('public/prompt-library-safety.js', 'utf8'),
-  fs.readFile('public/prompt-library-import-preview.js', 'utf8'),
-  fs.readFile('public/prompt-library-diagnostics.js', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-safety.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-import-preview.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-diagnostics.ts', 'utf8'),
   fs.readFile('public/prompt-library.css', 'utf8'),
   fs.readFile('public/index.html', 'utf8'),
-  fs.readFile('public/sw-policy.js', 'utf8')
+  fs.readFile('public/sw-policy.ts', 'utf8')
 ]);
 const [safety, preview, diagnostics, css, index, sw] = files;
 
@@ -32,7 +33,7 @@ assert.match(preview, /StorageEvent/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /buildRepairPreview/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assert.match(diagnostics, /dataset\.diagnosticsRepair/);
 assert.match(diagnostics, /quarantineInvalidItems/);
 assert.match(diagnostics, /restoreQuarantine/);
 assert.match(diagnostics, /undoLastRepair/);
@@ -43,14 +44,7 @@ assert.match(css, /prompt-library-import-dialog/);
 assert.match(css, /prompt-library-diagnostics-repair-preview/);
 assert.match(css, /forced-colors:active/);
 
-for (const asset of [
-  'prompt-library-safety.js',
-  'prompt-library-import-preview.js',
-  'prompt-library-diagnostics.js'
-]) {
-  assert.ok(index.includes('/' + asset));
-  assert.ok(sw.includes('/' + asset));
-}
+assertLegacyModulesBundled(['prompt-library-safety', 'prompt-library-import-preview', 'prompt-library-diagnostics']);
 
 const combined = safety + preview + diagnostics;
 assert.doesNotMatch(combined, /XMLHttpRequest/);

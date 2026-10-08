@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const source=await fs.readFile('public/prompt-library-safety.js','utf8');
+const source=await fs.readFile('public/typed/legacy/prompt-library-safety.ts','utf8');
 const generated=source.indexOf('const payload = {');
 assert.ok(generated>=0);
 assert.ok(source.indexOf('prompts:',generated)>generated);

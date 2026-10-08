@@ -67,7 +67,7 @@ assert.match(tokenStore, /0o700/);
 assert.match(tokenStore, /0o600/);
 assert.match(tokenStore, /structuredClone/);
 assert.match(tokenStore, /assertInside/);
-assert.doesNotMatch(tokenStore, /path\\.join\\([^)]*ownerId/);
+assert.doesNotMatch(tokenStore, /path\.join\([^)]*ownerId/);
 
 const canvaPolicy = read('lib/canva-oauth-policy.ts');
 const googlePolicy = read('lib/google-oauth-policy.ts');

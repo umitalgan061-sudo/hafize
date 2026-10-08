@@ -1,0 +1,22 @@
+/* GitHub workspace quick actions.
+ *
+ * The actions row sits under the repository form: refresh, copy, the pull
+ * request state filter and the session repository history chips. Declared by
+ * index.html and cached by the service worker, so the panel keeps its layout
+ * offline too. */
+
+.github-workspace-actions{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding-top:8px;border-top:1px solid var(--line)}
+.github-workspace-state{box-sizing:border-box;min-width:0;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:6px 8px;font:inherit;font-size:10px}
+.github-workspace-history{display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex:1 1 100%;min-width:0}
+.github-workspace-history-empty{color:var(--muted);font-size:10px}
+.github-workspace-history-item{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media(max-width:700px){
+  .github-workspace-actions{flex-direction:column;align-items:stretch}
+  .github-workspace-state{width:100%}
+}
+
+@media(forced-colors:active){
+  .github-workspace-actions{border-color:CanvasText}
+  .github-workspace-state{border-color:CanvasText;background:Canvas;color:CanvasText}
+}

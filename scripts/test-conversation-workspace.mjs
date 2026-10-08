@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import { assertAttributeDeclared } from './source-contract.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
-const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
+const sourcePath = path.join(root, 'public', 'conversation-workspace.ts');
 const cssPath = path.join(root, 'public', 'conversation-workspace.css');
 const indexPath = path.join(root, 'public', 'index.html');
-const swPath = path.join(root, 'public', 'sw-policy.js');
+const swPath = path.join(root, 'public', 'sw-policy.ts');
 const rulesPath = path.join(root, 'HAFIZE_RULES.md');
 
 const source = fs.readFileSync(sourcePath, 'utf8');
@@ -169,7 +170,6 @@ check('workspace has destructive styling', css.includes('.workspace-danger'));
 check('workspace has focus styling', css.includes('.workspace-search:focus'));
 check('index references workspace stylesheet', index.includes('/conversation-workspace.css'));
 check('index references workspace script', index.includes('/conversation-workspace.js'));
-check('workspace script loads after chat drafts', index.indexOf('/chat-drafts.js') < index.indexOf('/conversation-workspace.js'));
 check('workspace remains before voice modules', index.indexOf('/conversation-workspace.js') < index.indexOf('/voice-input.js'));
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
 check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
@@ -259,4 +259,5 @@ const summary = {
 };
 
 console.log(`conversation-workspace contract: ${summary.checks} checks passed`);
+assertLegacyModulesBundled(['chat-drafts']);
 console.log(JSON.stringify(summary, null, 2));

@@ -1,22 +1,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { assertLegacyModuleOrder, assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const [index, safety, preview, diagnostics, sw] = await Promise.all([
   fs.readFile('public/index.html', 'utf8'),
-  fs.readFile('public/prompt-library-safety.js', 'utf8'),
-  fs.readFile('public/prompt-library-import-preview.js', 'utf8'),
-  fs.readFile('public/prompt-library-diagnostics.js', 'utf8'),
-  fs.readFile('public/sw-policy.js', 'utf8')
+  fs.readFile('public/typed/legacy/prompt-library-safety.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-import-preview.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-diagnostics.ts', 'utf8'),
+  fs.readFile('public/sw-policy.ts', 'utf8')
 ]);
 
-assert.ok(index.includes('/prompt-library-safety.js'));
-assert.ok(index.includes('/prompt-library-import-preview.js'));
-assert.ok(index.includes('/prompt-library-diagnostics.js'));
 
-const safetyPos = index.indexOf('/prompt-library-safety.js');
-const previewPos = index.indexOf('/prompt-library-import-preview.js');
-const diagnosticsPos = index.indexOf('/prompt-library-diagnostics.js');
-assert.ok(safetyPos < previewPos && previewPos < diagnosticsPos);
+assertLegacyModuleOrder(['prompt-library-safety', 'prompt-library-import-preview', 'prompt-library-diagnostics']);
 
 assert.match(safety, /normalizeRecoveryPayload/);
 assert.match(safety, /buildRepairPreview/);
@@ -30,15 +25,14 @@ assert.match(preview, /event.key === 'Escape'/);
 
 assert.match(diagnostics, /MAX_ORPHANS/);
 assert.match(diagnostics, /aria-expanded/);
-assert.match(diagnostics, /data-diagnostics-repair/);
+assert.match(diagnostics, /dataset\.diagnosticsRepair/);
 assert.match(diagnostics, /Onarım planını kopyala/);
 assert.match(diagnostics, /Karantinayı geri al/);
 assert.match(diagnostics, /Son onarımı geri al/);
 
-for (const asset of ['prompt-library-safety.js', 'prompt-library-import-preview.js', 'prompt-library-diagnostics.js']) {
-  assert.ok(sw.includes('/' + asset));
-}
+assertLegacyModulesBundled(['prompt-library-safety', 'prompt-library-import-preview', 'prompt-library-diagnostics']);
 
 assert.doesNotMatch(safety + preview + diagnostics, /XMLHttpRequest|WebSocket|navigator\.sendBeacon/);
 
+assertLegacyModulesBundled(['prompt-library-diagnostics', 'prompt-library-import-preview', 'prompt-library-safety']);
 console.log('prompt-library-import-safety-mount-order: ok');

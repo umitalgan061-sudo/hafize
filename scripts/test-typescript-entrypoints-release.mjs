@@ -7,7 +7,7 @@ const read = (path) => readFileSync(join(root, path), 'utf8');
 const pkg = JSON.parse(read('package.json'));
 const vite = read('vite.config.ts');
 const html = read('public/index.html');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const runtime = read('tsconfig.runtime.json');
 
 assert.equal(pkg.scripts.start, 'node --import ./lib/production-guard.ts server.ts');
@@ -18,7 +18,7 @@ for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-outp
   assert.match(html, new RegExp(`typed-build/${entry}\\.js`));
   assert.match(sw, new RegExp(`typed-build/${entry}\\.js`));
 }
-for (const legacy of ['public/app.js', 'public/auth.js', 'public/ui-shell.js', 'public/voice-input.js', 'public/voice-output.js']) {
+for (const legacy of ['public/typed/app-shell.ts', 'public/typed/auth.ts', 'public/typed/ui-shell.ts', 'public/typed/voice-input.ts', 'public/typed/voice-output.ts']) {
   assert.equal(existsSync(join(root, legacy)), false, `legacy entry still exists: ${legacy}`);
 }
 assert.equal(existsSync(join(root, 'server.mjs')), false);

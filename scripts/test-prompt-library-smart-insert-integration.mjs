@@ -1,19 +1,20 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertShellCacheAtLeast } from './shell-cache-contract.mjs';
 
 const root = new URL('../', import.meta.url);
 const [enhancements, center, history, bridge, suggestions, shortcuts, presets, css, historyCss, suggestionsCss, sw] = await Promise.all([
-  readFile(new URL('public/prompt-library-enhancements.js', root), 'utf8'),
-  readFile(new URL('public/prompt-library-smart-insert-center.js', root), 'utf8'),
-  readFile(new URL('public/prompt-library-smart-insert-history.js', root), 'utf8'),
-  readFile(new URL('public/prompt-library-smart-insert-history-bridge.js', root), 'utf8'),
-  readFile(new URL('public/prompt-library-smart-insert-suggestions.js', root), 'utf8'),
-  readFile(new URL('public/prompt-library-smart-insert-shortcuts.js', root), 'utf8'),
-  readFile(new URL('public/prompt-library-smart-insert-presets.js', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-enhancements.ts', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-smart-insert-center.ts', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-smart-insert-history.ts', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-smart-insert-history-bridge.ts', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-smart-insert-suggestions.ts', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-smart-insert-shortcuts.ts', root), 'utf8'),
+  readFile(new URL('public/typed/legacy/prompt-library-smart-insert-presets.ts', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert.css', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-history.css', root), 'utf8'),
   readFile(new URL('public/prompt-library-smart-insert-suggestions.css', root), 'utf8'),
-  readFile(new URL('public/sw-policy.js', root), 'utf8')
+  readFile(new URL('public/sw-policy.ts', root), 'utf8')
 ]);
 
 const contains = (source, pattern, name) => assert.match(source, pattern, name);
@@ -43,6 +44,6 @@ contains(presets, /PRESET_KEY/); contains(presets, /MAX_PRESETS\s*=\s*32/); cont
 
 contains(css, /prompt-library-variable-dialog/); contains(css, /max-width:700px/); contains(css, /forced-colors:active/); contains(css, /prefers-reduced-motion:reduce/);
 contains(historyCss, /prompt-smart-insert-history/); contains(historyCss, /forced-colors:active/); contains(suggestionsCss, /prompt-smart-insert-suggestions/); contains(suggestionsCss, /max-width:700px/);
-contains(sw, /prompt-library-smart-insert\.js/); contains(sw, /prompt-library-smart-insert-center\.js/); contains(sw, /prompt-library-smart-insert-history\.js/); contains(sw, /prompt-library-smart-insert-history-bridge\.js/); contains(sw, /prompt-library-smart-insert-suggestions\.js/); contains(sw, /prompt-library-smart-insert-shortcuts\.js/); contains(sw, /prompt-library-smart-insert-presets\.js/); contains(sw, /CURRENT_CACHE\s*=\s*`\$\{CACHE_PREFIX\}v38`/);
+contains(sw, /prompt-library-smart-insert\.js/); contains(sw, /prompt-library-smart-insert-center\.js/); contains(sw, /prompt-library-smart-insert-history\.js/); contains(sw, /prompt-library-smart-insert-history-bridge\.js/); contains(sw, /prompt-library-smart-insert-suggestions\.js/); contains(sw, /prompt-library-smart-insert-shortcuts\.js/); contains(sw, /prompt-library-smart-insert-presets\.js/); assertShellCacheAtLeast(38, 'prompt smart insert');
 
 console.log('prompt-library-smart-insert-integration: ok');

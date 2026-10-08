@@ -1,9 +1,8 @@
 // Inline scanner contract: emphasis, code spans, links and escapes.
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { loadBrowserModule } from './lib/source-registry.mjs';
 
-const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+const markdown = await loadBrowserModule('public/markdown-renderer.ts');
 
 const inline = (source) => markdown.parseInline(source);
 const shape = (source) => inline(source).map((node) => node.type);

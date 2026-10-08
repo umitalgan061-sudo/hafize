@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
-const shell = require('../public/ui-shell.js');
+import { loadBrowserModule } from './lib/source-registry.mjs';
+const shell = await loadBrowserModule('public/typed/ui-shell.ts');
 
 function fakeNode(id) {
   const listeners = new Map();

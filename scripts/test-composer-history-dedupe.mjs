@@ -1,13 +1,12 @@
 // This suite used to re-implement `add()` inline and assert against its own
 // copy, so it could not fail for the product. It now drives the real module.
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { createStorageStub } from './browser-storage-stub.mjs';
+import { loadBrowserModule } from './lib/source-registry.mjs';
 
-const require = createRequire(import.meta.url);
 const storage = createStorageStub();
 globalThis.localStorage = storage;
-require('../public/composer-history.js');
+await loadBrowserModule('public/typed/legacy/composer-history.ts');
 const history = globalThis.HafizeComposerHistory;
 assert.ok(history, 'composer history exposes its API on the global');
 

@@ -21,10 +21,11 @@ const PERMISSION=/^[a-z][a-z0-9_.:-]{0,119}$/;
 const NEVER=new Set(['secret.read','repo.delete']);
 const APPROVAL=new Set(['external.write','external.send','repo.merge','repo.write_branch']);
 function required(value:unknown,label:string):string{if(typeof value!=='string'||!value.trim())throw new Error('INVALID_AGENT_REGISTRY:'+label);return value.trim();}
-function permissions(value:unknown,label:string):ReadonlySet<string>{if(value==null)return new Set();if(!Array.isArray(value))throw new Error('INVALID_AGENT_REGISTRY:'+label);const set=new Set<string>();for(const item of value){const p=typeof item==='string'?item.trim():'';if(!PERMISSION.test(p)||set.has(p))throw new Error('INVALID_AGENT_REGISTRY:'+label+'.permission');set.add(p);}return set;}
+function permissions(value:unknown,label:string):ReadonlySet<string>{if(value==null)return new Set();if(!Array.isArray(value))throw new Error('INVALID_AGENT_REGISTRY:'+label);const set=new Set<string>();for(const item of value){const p=typeof item==='string'?item.trim():'';if(!PERMISSION.test(p))throw new Error('INVALID_AGENT_REGISTRY:'+label+'.permission');if(set.has(p))throw new Error('INVALID_AGENT_REGISTRY:'+label+'.duplicate:'+p);set.add(p);}return set;}
 function toolPolicy(agent:AgentDefinition,id:string):void{
   if(agent.toolPolicy?.default!=='deny')throw new Error('INVALID_AGENT_REGISTRY:toolPolicy:'+id);
-  const allow=permissions(agent.toolPolicy.allow,'allow'),deny=permissions(agent.toolPolicy.deny,'deny'),approval=permissions(agent.toolPolicy.approvalRequired,'approvalRequired');
+  const scope='toolPolicy:'+id+':';
+  const allow=permissions(agent.toolPolicy.allow,scope+'allow'),deny=permissions(agent.toolPolicy.deny,scope+'deny'),approval=permissions(agent.toolPolicy.approvalRequired,scope+'approvalRequired');
   for(const p of NEVER)if(allow.has(p)||approval.has(p))throw new Error('INVALID_AGENT_REGISTRY:toolPolicy:'+id+':forbidden:'+p);
   for(const p of APPROVAL)if(allow.has(p))throw new Error('INVALID_AGENT_REGISTRY:toolPolicy:'+id+':approvalRequired:'+p);
   for(const p of allow)if(deny.has(p)||approval.has(p))throw new Error('INVALID_AGENT_REGISTRY:toolPolicy:'+id+':overlap:'+p);
@@ -34,7 +35,9 @@ export async function loadAgentRegistry(fileUrl:URL|string=DEFAULT_URL):Promise<
   const registry=JSON.parse(await readFile(fileUrl,'utf8')) as AgentRegistry;
   if(registry?.schemaVersion!==1)throw new Error('INVALID_AGENT_REGISTRY:schemaVersion');
   if(!Array.isArray(registry.agents)||!registry.agents.length)throw new Error('INVALID_AGENT_REGISTRY:agents');
-  if(registry.policy?.externalWritesRequireApproval!==true||registry.policy?.secretsNeverEnterAgentContext!==true||registry.policy?.sharedTraceIdRequired!==true)throw new Error('INVALID_AGENT_REGISTRY:policy');
+  for(const flag of ['externalWritesRequireApproval','secretsNeverEnterAgentContext','sharedTraceIdRequired'] as const){
+    if(registry.policy?.[flag]!==true)throw new Error('INVALID_AGENT_REGISTRY:policy.'+flag);
+  }
   const ids=new Set<string>();
   for(const agent of registry.agents){const id=required(agent?.id,'agent.id');required(agent?.name,id+'.name');required(agent?.description,id+'.description');if(ids.has(id))throw new Error('INVALID_AGENT_REGISTRY:duplicate:'+id);toolPolicy(agent,id);ids.add(id);}
   const defaultAgent=required(registry.defaultAgent,'defaultAgent');if(!ids.has(defaultAgent))throw new Error('INVALID_AGENT_REGISTRY:defaultAgent');return registry;

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
-const nav = await readFile('public/workspace-navigation.js', 'utf8');
+const nav = await readFile('public/typed/workspace-navigation.ts', 'utf8');
 const index = await readFile('public/index.html', 'utf8');
 
 assert.match(nav, /accountConnectionCard/);
@@ -10,13 +11,13 @@ assert.match(nav, /canvaConnectionCard/);
 assert.match(nav, /githubWriteReadinessCard/);
 assert.match(nav, /connections:/);
 assert.match(index, /connector-hub\.css/);
-assert.match(index, /connector-hub\.js/);
 assert.match(index, /github-workspace-details\.css/);
 assert.match(index, /typed-build\/github-workspace-details\.js/);
 
 const styleBeforeScript = index.indexOf('connector-hub.css');
-const scriptIndex = index.indexOf('connector-hub.js');
+const scriptIndex = index.indexOf('typed-build/legacy-app.js');
 assert.ok(styleBeforeScript >= 0 && scriptIndex >= 0);
 assert.ok(styleBeforeScript < scriptIndex);
 
+assertLegacyModulesBundled(['connector-hub']);
 console.log('connector hub workspace integration: passed');

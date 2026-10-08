@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 const root = new URL('../', import.meta.url);
 const html = await readFile(new URL('public/index.html', root), 'utf8');
-const sw = await readFile(new URL('public/sw-policy.js', root), 'utf8');
+const sw = await readFile(new URL('public/sw-policy.ts', root), 'utf8');
 const vite = await readFile(new URL('vite.config.ts', root), 'utf8');
 for (const marker of ['workspace-backup.css','typed-build/workspace-backup.js']) assert.ok(html.includes(marker), 'HTML marker missing: ' + marker);
 for (const marker of ['workspace-backup','public/typed/workspace-backup.ts','typed-build/workspace-backup.js']) assert.ok(vite.includes(marker), 'Vite marker missing: ' + marker);

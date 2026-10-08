@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { loadAgentRegistry, resolveAgent } from '../lib/agent-runtime.mjs';
+import { createSkillsRuntime } from '../lib/skills-runtime.mjs';
+import { assertToolFailure } from './tool-result-contract.mjs';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
@@ -16,19 +18,25 @@ const engineer = resolveAgent(registry, 'agency-minimal-engineer');
 assert.ok(hafize);
 assert.ok(reviewer);
 assert.ok(engineer);
-assert.deepEqual(listToolPermissions(), [
-  { permission: 'runtime.status', functionName: 'runtime_status' },
-  { permission: 'agent.delegate', functionName: 'agent_delegate' },
-  { permission: 'repo.read', functionName: 'github_read_file' },
-  { permission: 'connector.canva.read', functionName: 'canva_read' },
-  { permission: 'connector.gmail.read', functionName: 'gmail_read' },
-  { permission: 'skill.invoke', functionName: 'skill_invoke' }
+// The catalog also reports the tool kind and its timeout; the registry contract
+// asserted here is the tool name and the permission it is gated behind.
+assert.deepEqual(listToolPermissions().map(({ name, permission }) => ({ name, permission })), [
+  { name: 'runtime_status', permission: 'runtime.status' },
+  { name: 'agent_delegate', permission: 'agent.delegate' },
+  { name: 'github_read_file', permission: 'repo.read' },
+  { name: 'canva_read', permission: 'connector.canva.read' },
+  { name: 'gmail_read', permission: 'connector.gmail.read' },
+  { name: 'skill_invoke', permission: 'skill.invoke' }
 ]);
+for (const entry of listToolPermissions()) {
+  assert.ok(['diagnostic', 'delegation', 'repository', 'connector', 'skill'].includes(entry.kind), `${entry.name} declares a tool kind`);
+  assert.ok(Number.isInteger(entry.timeoutMs) && entry.timeoutMs > 0, `${entry.name} declares a timeout`);
+}
 
-assert.deepEqual(getPublicToolRunningActivity('runtime_status'), { label: 'Runtime durumu kontrol ediliyor', state: 'running' });
-assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), { label: 'Uzman ajan çalıştırılıyor', state: 'running' });
-assert.deepEqual(getPublicToolRunningActivity('github_read_file'), { label: 'GitHub dosyası okunuyor', state: 'running' });
-assert.deepEqual(getPublicToolRunningActivity('skill_invoke'), { label: 'Hafize skill’i hazırlanıyor', state: 'running' });
+assert.deepEqual(getPublicToolRunningActivity('runtime_status'), { label: 'Runtime durumu kontrol ediliyor', state: 'running', tool: 'runtime_status', timeoutMs: 10_000 });
+assert.deepEqual(getPublicToolRunningActivity('agent_delegate'), { label: 'Uzman ajan çalıştırılıyor', state: 'running', tool: 'agent_delegate', timeoutMs: 90_000 });
+assert.deepEqual(getPublicToolRunningActivity('github_read_file'), { label: 'GitHub dosyası okunuyor', state: 'running', tool: 'github_read_file', timeoutMs: 60_000 });
+assert.deepEqual(getPublicToolRunningActivity('skill_invoke'), { label: 'Hafize skill’i hazırlanıyor', state: 'running', tool: 'skill_invoke', timeoutMs: getPublicToolRunningActivity('skill_invoke').timeoutMs });
 assert.equal(getPublicToolRunningActivity('repo_delete'), null);
 assert.equal(getPublicToolRunningActivity(null), null);
 const safeRunningActivity = JSON.stringify(getPublicToolRunningActivity('github_read_file'));
@@ -36,32 +44,39 @@ assert.equal(safeRunningActivity.includes('repository'), false);
 assert.equal(safeRunningActivity.includes('path'), false);
 assert.equal(safeRunningActivity.includes('token'), false);
 
-assert.deepEqual(getPublicToolActivity('runtime_status', { ok: true }), { label: 'Runtime durumu kontrol edildi', state: 'success' });
-assert.deepEqual(getPublicToolActivity('agent_delegate', { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' }), { label: 'Uzman ajan çalıştırılamadı', state: 'failure' });
-assert.deepEqual(getPublicToolActivity('skill_invoke', { ok: true, value: { prompt: 'secret: do not leak' } }), { label: 'Hafize skill’i hazırlandı', state: 'success' });
+assert.deepEqual(getPublicToolActivity('runtime_status', { ok: true }), { label: 'Runtime durumu kontrol edildi', state: 'success', tool: 'runtime_status' });
+assert.deepEqual(getPublicToolActivity('agent_delegate', { ok: false, error: 'PRIVATE_INTERNAL_DETAIL' }), { label: 'Uzman ajan çalıştırılamadı', state: 'failure', tool: 'agent_delegate' });
+assert.deepEqual(getPublicToolActivity('skill_invoke', { ok: true, value: { prompt: 'secret: do not leak' } }), { label: 'Hafize skill’i hazırlandı', state: 'success', tool: 'skill_invoke' });
 assert.deepEqual(
   getPublicToolActivity('github_read_file', { ok: true, value: { repository: 'private-owner/private-repo', path: 'secret.txt', content: 'NVIDIA_API_KEY=should-never-leak' } }),
-  { label: 'GitHub dosyası okundu', state: 'success' }
+  { label: 'GitHub dosyası okundu', state: 'success', tool: 'github_read_file' }
 );
 assert.equal(getPublicToolActivity('repo_delete', { ok: true }), null);
 
-// agent_delegate only appears once the runtime can actually delegate; runtime_status
-// and skill_invoke need no extra runtime dependency.
-const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true });
+// A tool is only offered once its runtime dependency is present: agent_delegate
+// needs a delegator and skill_invoke needs the skills runtime, so an agent that
+// is permitted to use them still sees neither without one.
+const skillsRuntime = await createSkillsRuntime();
+const githubReadFile = async () => ({ content: '' });
+assert.deepEqual(
+  getAllowedNvidiaTools(hafize, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  ['runtime_status']
+);
+const hafizeTools = getAllowedNvidiaTools(hafize, { githubReadConfigured: true, skillsRuntime });
 assert.deepEqual(hafizeTools.map((tool) => tool.function.name), ['runtime_status', 'skill_invoke']);
 assert.deepEqual(
-  getAllowedNvidiaTools(hafize, { githubReadConfigured: true, delegateAgent: async () => ({ ok: true }) }).map((tool) => tool.function.name),
+  getAllowedNvidiaTools(hafize, { githubReadConfigured: true, skillsRuntime, delegateAgent: async () => ({ ok: true }) }).map((tool) => tool.function.name),
   ['runtime_status', 'agent_delegate', 'skill_invoke']
 );
 assert.deepEqual(
-  getAllowedNvidiaTools(reviewer, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  getAllowedNvidiaTools(reviewer, { githubReadConfigured: true, githubReadFile, skillsRuntime }).map((tool) => tool.function.name),
   ['github_read_file', 'skill_invoke']
 );
 assert.deepEqual(
-  getAllowedNvidiaTools(engineer, { githubReadConfigured: true }).map((tool) => tool.function.name),
+  getAllowedNvidiaTools(engineer, { githubReadConfigured: true, githubReadFile, skillsRuntime }).map((tool) => tool.function.name),
   ['github_read_file', 'skill_invoke']
 );
-assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false }).map((tool) => tool.function.name), ['skill_invoke']);
+assert.deepEqual(getAllowedNvidiaTools(reviewer, { githubReadConfigured: false, githubReadFile, skillsRuntime }).map((tool) => tool.function.name), ['skill_invoke']);
 
 const traceId = '00000000-0000-4000-8000-000000000001';
 const result = await executeNvidiaToolCall(
@@ -82,14 +97,14 @@ const credentialBearingToolResult = await executeNvidiaToolCall(
   { id: 'call_credential_1', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
   { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => ({ content: 'Authorization: Bearer abcdefghijk' }), approvalGranted: false }
 );
-assert.deepEqual(credentialBearingToolResult, { ok: false, error: 'TOOL_RESULT_CREDENTIAL_BLOCKED' });
+assertToolFailure(credentialBearingToolResult, 'github_read_file', 'TOOL_RESULT_CREDENTIAL_BLOCKED');
 
 const credentialFieldToolResult = await executeNvidiaToolCall(
   reviewer,
   { id: 'call_credential_2', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
   { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => ({ content: 'normal', access_token: 'opaque-secret' }), approvalGranted: false }
 );
-assert.deepEqual(credentialFieldToolResult, { ok: false, error: 'TOOL_RESULT_CREDENTIAL_FIELD_BLOCKED' });
+assertToolFailure(credentialFieldToolResult, 'github_read_file', 'TOOL_RESULT_CREDENTIAL_FIELD_BLOCKED');
 
 const accessorsToolResult = await executeNvidiaToolCall(
   reviewer,
@@ -100,7 +115,7 @@ const accessorsToolResult = await executeNvidiaToolCall(
     return value;
   }, approvalGranted: false }
 );
-assert.deepEqual(accessorsToolResult, { ok: false, error: 'TOOL_RESULT_ACCESSOR_BLOCKED' });
+assertToolFailure(accessorsToolResult, 'github_read_file', 'TOOL_RESULT_ACCESSOR_BLOCKED');
 
 const skillResult = await executeNvidiaToolCall(
   hafize,
@@ -109,7 +124,7 @@ const skillResult = await executeNvidiaToolCall(
     type: 'function',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'runtime-diagnostics', args: { question: 'Runtime hazır mı?' } }) }
   },
-  { traceId, agent: hafize, registry, approvalGranted: false }
+  { traceId, agent: hafize, registry, skillsRuntime, approvalGranted: false }
 );
 assert.equal(skillResult.ok, true);
 assert.equal(skillResult.value.skill, 'runtime-diagnostics');
@@ -124,7 +139,7 @@ const codeSkill = await executeNvidiaToolCall(
     type: 'function',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'code-inspection', args: { focus: 'tool runtime' } }) }
   },
-  { traceId, agent: reviewer, registry, githubReadConfigured: true, approvalGranted: false }
+  { traceId, agent: reviewer, registry, githubReadConfigured: true, skillsRuntime, approvalGranted: false }
 );
 assert.equal(codeSkill.ok, true);
 assert.deepEqual(codeSkill.value.tools, ['repo.read', 'runtime.status'].filter((tool) => reviewer.toolPolicy.allow.includes(tool)));
@@ -136,7 +151,7 @@ const invalidSkillArgs = await executeNvidiaToolCall(
     type: 'function',
     function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'runtime-diagnostics', args: { question: 'x', token: 'secret' } }) }
   },
-  { traceId, agent: hafize, registry, approvalGranted: false }
+  { traceId, agent: hafize, registry, skillsRuntime, approvalGranted: false }
 );
 assert.equal(invalidSkillArgs.ok, false);
 assert.match(invalidSkillArgs.error, /UNKNOWN_SKILL_ARGUMENT|SKILL_ARGUMENT_SECRET_MATERIAL/);
@@ -144,9 +159,9 @@ assert.match(invalidSkillArgs.error, /UNKNOWN_SKILL_ARGUMENT|SKILL_ARGUMENT_SECR
 const unknownSkill = await executeNvidiaToolCall(
   hafize,
   { id: 'call_skill_4', type: 'function', function: { name: 'skill_invoke', arguments: JSON.stringify({ skillId: 'does-not-exist' }) } },
-  { traceId, agent: hafize, registry, approvalGranted: false }
+  { traceId, agent: hafize, registry, skillsRuntime, approvalGranted: false }
 );
-assert.deepEqual(unknownSkill, { ok: false, error: 'UNKNOWN_SKILL' });
+assertToolFailure(unknownSkill, 'skill_invoke', 'UNKNOWN_SKILL');
 
 const deniedRuntime = await executeNvidiaToolCall(
   reviewer,
@@ -170,7 +185,7 @@ const unavailableGithub = await executeNvidiaToolCall(
   { id: 'call_4', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
   { traceId, agent: reviewer, registry, githubReadConfigured: false }
 );
-assert.deepEqual(unavailableGithub, { ok: false, error: 'TOOL_UNAVAILABLE' });
+assertToolFailure(unavailableGithub, 'github_read_file', 'TOOL_UNAVAILABLE');
 
 const deniedGithub = await executeNvidiaToolCall(
   hafize,
@@ -185,7 +200,8 @@ const safeExecutionError = await executeNvidiaToolCall(
   { id: 'call_6', type: 'function', function: { name: 'github_read_file', arguments: '{"repository":"x/y","path":"README.md"}' } },
   { traceId, agent: reviewer, registry, githubReadConfigured: true, githubReadFile: async () => { const error = new Error('do not expose this internal detail'); error.code = 'GITHUB_REPO_NOT_ALLOWED'; error.status = 403; throw error; } }
 );
-assert.deepEqual(safeExecutionError, { ok: false, error: 'GITHUB_REPO_NOT_ALLOWED', status: 403 });
+assertToolFailure(safeExecutionError, 'github_read_file', 'GITHUB_REPO_NOT_ALLOWED');
+assert.equal(safeExecutionError.status, 403);
 assert.equal(JSON.stringify(safeExecutionError).includes('internal detail'), false);
 
 const unknown = await executeNvidiaToolCall(
@@ -193,6 +209,6 @@ const unknown = await executeNvidiaToolCall(
   { id: 'call_7', type: 'function', function: { name: 'repo_delete', arguments: '{}' } },
   { traceId, agent: hafize, registry, nvidiaConfigured: true, approvalGranted: false }
 );
-assert.deepEqual(unknown, { ok: false, error: 'UNKNOWN_TOOL' });
+assertToolFailure(unknown, 'repo_delete', 'UNKNOWN_TOOL');
 
 console.log('Tool runtime OK: authorization, safe activity, credential-safe egress, delegation and configured GitHub repo.read are policy-gated');

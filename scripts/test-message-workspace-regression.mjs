@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertLegacyModulesBundled } from './legacy-bundle-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
-const app = await read('public/app.js');
-const workspace = await read('public/message-workspace.js');
+const app = await read('public/typed/app-shell.ts');
+const workspace = await read('public/typed/message-workspace.ts');
 const index = await read('public/index.html');
-const sw = await read('public/sw-policy.js');
+const sw = await read('public/sw-policy.ts');
 
 assert.ok(app.includes("hafize.conversations.v1"));
 assert.ok(app.includes('function saveConversations()'));
@@ -25,9 +26,7 @@ assert.ok(workspace.includes('conversationId'));
 assert.ok(index.includes('id="messages"'));
 assert.ok(index.includes('class="utility-rail"'));
 assert.ok(index.indexOf('/message-workspace.js') > index.indexOf('/app.js'));
-assert.ok(index.indexOf('/message-workspace-policy.js') < index.indexOf('/message-workspace.js'));
 
-assert.ok(sw.indexOf("'/message-workspace-policy.js'") < sw.indexOf("'/message-workspace.js'"));
 assert.ok(sw.includes("'/message-workspace.css'"));
 
 for (const token of [
@@ -55,4 +54,5 @@ assert.ok(workspace.includes('CustomEvent'));
 
 assert.ok(!app.includes('message-workspace')); // integration must stay decoupled from runtime storage
 
+assertLegacyModulesBundled(['message-workspace-policy']);
 console.log('message workspace regression tests passed');
