@@ -5,9 +5,9 @@ import path from 'node:path';
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('public/index.html');
-const settings = read('public/settings-workspace.js');
+const settings = read('public/typed/legacy/settings-workspace.ts');
 const css = read('public/settings-workspace.css');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 
 assert.match(html, /settings-workspace\.css/);
 assert.match(html, /settings-workspace\.js/);

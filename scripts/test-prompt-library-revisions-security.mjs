@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8');
 for (const pattern of [
   /Object\.freeze\(/,
   /MAX_REVISIONS_PER_PROMPT = 20/,

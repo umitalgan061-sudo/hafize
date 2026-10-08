@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile('public/connector-hub.js', 'utf8');
+const source = await readFile('public/typed/legacy/connector-hub.ts', 'utf8');
 
 assert.match(source, /HEALTH_URL = ['"]\/api\/health/);
 assert.match(source, /GMAIL_STATUS_URL = ['"]\/api\/connectors\/gmail\/status/);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-const source = await fs.readFile('public/prompt-library-import-preview.js', 'utf8');
+const source = await fs.readFile('public/typed/legacy/prompt-library-import-preview.ts', 'utf8');
 assert.doesNotMatch(source, /\.innerHTML\s*=/);
 assert.doesNotMatch(source, /outerHTML/);
 assert.match(source, /textContent/);

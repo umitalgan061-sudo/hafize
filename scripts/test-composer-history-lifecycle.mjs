@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const source = fs.readFileSync('public/composer-history.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/composer-history.ts', 'utf8');
 assert.match(source, /addEventListener\('input'/);
 assert.match(source, /removeEventListener\('input'/);
 assert.match(source, /addEventListener\('keydown'/);

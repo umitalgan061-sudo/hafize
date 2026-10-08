@@ -8,7 +8,7 @@ const coreTest = read('public/typed/conversation-fork-core.test.ts');
 const app = read('public/typed/app-shell.ts');
 const html = read('public/index.html');
 const vite = read('vite.config.ts');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const css = read('public/conversation-forks.css');
 
 const requiredFiles = [
@@ -61,22 +61,22 @@ assert.match(fork, /event.key === 'Escape'/);
 assert.match(fork, /event.key === 'Tab'/);
 assert.match(fork, /event.key === 'Enter'/);
 
-assert.match(app, /forkOf?: string/);
-assert.match(app, /forkMessageId?: string/);
-assert.match(app, /forkDepth?: number/);
-assert.match(app, /forkNote?: string/);
+assert.match(app, /forkOf\?: string/);
+assert.match(app, /forkMessageId\?: string/);
+assert.match(app, /forkDepth\?: number/);
+assert.match(app, /forkNote\?: string/);
 assert.match(app, /data-conversation-id/);
 assert.match(app, /aria-busy/);
 assert.match(app, /hafize:open-conversation/);
 
-assert.match(html, /conversation-forks.css/);
-assert.match(html, /typed-build/conversation-forks.js/);
-assert.match(vite, /typed-build/conversation-forks.js/);
-assert.match(vite, /typed/conversation-forks.ts/);
+assert.match(html, /conversation-forks\.css/);
+assert.match(html, /typed-build\/conversation-forks\.js/);
+assert.match(vite, /typed-build\/conversation-forks\.js/);
+assert.match(vite, /typed\/conversation-forks\.ts/);
 assert.match(vite, /'conversation-forks'/);
-assert.match(sw, /CURRENT_CACHE = .*v46/);
-assert.match(sw, /conversation-forks.css/);
-assert.match(sw, /typed-build/conversation-forks.js/);
+assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
+assert.match(sw, /conversation-forks\.css/);
+assert.match(sw, /typed-build\/conversation-forks\.js/);
 
 assert.match(css, /conversation-fork-banner/);
 assert.match(css, /conversation-fork-hub/);

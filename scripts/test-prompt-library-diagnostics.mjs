@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-diagnostics.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-diagnostics.ts', 'utf8');
 for (const pattern of [
   /localStorage/, /normalizeItem/, /normalizeCollection/, /saveItems/,
   /prompt-library-diagnostics-report/, /aria-labelledby/, /aria-expanded/,

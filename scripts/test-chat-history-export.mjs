@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const index = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-const source = fs.readFileSync(new URL('../public/chat-history-export.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../public/typed/legacy/chat-history-export.ts', import.meta.url), 'utf8');
 const style = fs.readFileSync(new URL('../public/chat-history-export.css', import.meta.url), 'utf8');
 
 assert.match(index, /chat-history-export\.css/);
