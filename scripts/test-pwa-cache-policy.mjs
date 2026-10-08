@@ -39,9 +39,9 @@ assertShellAssets([
   '/index.html',
   '/offline.html',
   '/styles.css',
-  '/app.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
+  '/typed-build/app-shell.js',
+  '/typed-build/ui-shell.js',
+  '/typed-build/legacy-app.js',
   '/manifest.webmanifest',
   '/hafize.jpeg'
 ], 'core shell asset');
@@ -64,7 +64,7 @@ assert.equal(
   'query strings must not prevent shell matching'
 );
 assert.equal(
-  policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
+  policy.classifyRequest(request('/typed-build/app-shell.js?cache-bust=1'), ORIGIN),
   'shell'
 );
 
@@ -140,9 +140,12 @@ assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
 
 
 const swSource = await readFile(join(ROOT, 'public', 'sw.ts'), 'utf8');
-assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);
+// The worker is an ES module now, so the policy arrives through a static import
+// rather than `importScripts`.
+assert.match(swSource, /^import \{ CURRENT_CACHE, SHELL_ASSETS, classifyRequest, shouldDeleteCache \} from '\.\/sw-policy\.ts';$/m);
+assert.doesNotMatch(swSource, /importScripts/);
 assert.match(swSource, /classifyRequest\(event\.request, self\.location\.origin\)/);
-assert.match(swSource, /shouldDeleteCache\(key\)/);
+assert.match(swSource, /keys\.filter\(shouldDeleteCache\)/);
 assert.match(swSource, /cache\.addAll\(SHELL_ASSETS\)/);
 assert.match(swSource, /cache\.match\('\/offline\.html'\)/);
 assert.doesNotMatch(swSource, /cache\.put\(/);

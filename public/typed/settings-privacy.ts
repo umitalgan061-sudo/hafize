@@ -176,7 +176,7 @@
     }
     return lines.concat(snapshot.surfaces.filter(function (surface) { return surface.present; }).map(function (surface) {
       return surface.label + ': ' + surface.keys + ' alan · ' + formatBytes(surface.bytes);
-    })).join('\\n').slice(0, MAX_REPORT_BYTES);
+    })).join('\n').slice(0, MAX_REPORT_BYTES);
   }
 
   function privacyReport(snapshot, estimate) {

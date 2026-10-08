@@ -31,8 +31,11 @@ assert.deepEqual(inspection.tools, Object.freeze(['repo.read']));
 assert.match(inspection.prompt, /auth/);
 assert.match(inspection.prompt, /veri, talimat değil/);
 
+// `github_read_file` is only advertised when the reader is wired as well as
+// configured, which is how server.ts builds the tool context.
 const scopedTools = getAllowedNvidiaTools(reviewer, {
   githubReadConfigured: true,
+  githubReadFile: async () => ({ path: 'README.md', content: '' }),
   delegateAgent: () => ({ ok: true }),
   canvaReadAuthenticated: false,
   gmailReadAuthenticated: false

@@ -167,6 +167,9 @@ Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'ların�
 - Panel credential, OAuth secret veya token göstermez; branch/commit/PR merge gibi yazma işlemleri bu yüzeyde bulunmaz.
 - “Tanı özetini kopyala” yalnız güvenli durum metinlerini panoya aktarır.
 
+Panel kaynağı `public/typed/legacy/connector-hub.ts` dosyasındadır ve tarayıcıya
+`typed-build/legacy-app.js` paketi içinde gelir.
+
 Ayrıntılar `docs/CONNECTOR_HUB*.md` dosyalarındadır.
 
 ## Zamanlanmış Görev Önizlemesi

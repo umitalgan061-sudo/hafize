@@ -151,7 +151,7 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(60_000),
     activity: { running: 'Canva verisi okunuyor', success: 'Canva verisi okundu', failure: 'Canva verisi okunamadı' },
     definition: CANVA_READ_TOOL_DEFINITION as ToolDefinition,
-    available: (context) => context.canvaReadAuthenticated === true && Boolean(context.canvaReadTool),
+    available: (context) => context.canvaReadAuthenticated === true && typeof context.canvaReadTool?.execute === 'function',
     execute: async (args, context) => context.canvaReadTool!.execute(args)
   }],
   ['gmail_read', {
@@ -160,7 +160,7 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(60_000),
     activity: { running: 'Gmail verisi okunuyor', success: 'Gmail verisi okundu', failure: 'Gmail verisi okunamadı' },
     definition: GMAIL_READ_TOOL_DEFINITION as ToolDefinition,
-    available: (context) => context.gmailReadAuthenticated === true && Boolean(context.gmailReadTool),
+    available: (context) => context.gmailReadAuthenticated === true && typeof context.gmailReadTool?.execute === 'function',
     execute: async (args, context) => context.gmailReadTool!.execute(args)
   }],
   ['skill_invoke', {
@@ -199,12 +199,19 @@ function catalogEntries(): readonly ToolEntry[] {
 export function getAllowedNvidiaTools(
   agent: ToolAgent,
   context: ToolRuntimeContext,
-  options: { readonly allowedPermissions?: ReadonlySet<string> } = {}
+  // A skill invocation hands back `tools` as a frozen array of permissions, so
+  // accept any iterable rather than only a Set.
+  options: { readonly allowedPermissions?: Iterable<string> } = {}
 ): readonly ToolDefinition[] {
+  const allowedPermissions = options.allowedPermissions == null
+    ? null
+    : options.allowedPermissions instanceof Set
+      ? options.allowedPermissions as ReadonlySet<string>
+      : new Set(options.allowedPermissions);
   const output: ToolDefinition[] = [];
   for (const entry of catalogEntries()) {
     if (entry.available && !entry.available(context)) continue;
-    if (options.allowedPermissions && !options.allowedPermissions.has(entry.permission)) continue;
+    if (allowedPermissions && !allowedPermissions.has(entry.permission)) continue;
     if (authorize(agent, entry.permission, Boolean(context.approvalGranted)).allowed) output.push(entry.definition);
   }
   return Object.freeze(output);

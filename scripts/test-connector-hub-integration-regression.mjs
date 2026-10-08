@@ -11,7 +11,8 @@ assert.match(source, /getSnapshot/);
 assert.match(source, /new EventImpl/);
 assert.match(source, /clipboard/);
 assert.match(readme, /## Bağlantılar çalışma alanı/);
-assert.match(readme, /connector-hub\.js/);
-assert.match(readme, /aynı-origin GET/);
+assert.match(readme, /public\/typed\/legacy\/connector-hub\.ts/);
+assert.match(readme, /typed-build\/legacy-app\.js/);
+assert.match(readme, /same-origin GET/);
 
 console.log('connector hub integration regression: passed');

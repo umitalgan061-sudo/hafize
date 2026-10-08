@@ -140,7 +140,7 @@ function mount(documentRef: Document = document, root: Window = window) {
     const readiness = lastPayload?.readiness;
     if (!readiness) { error.textContent = 'Önce sistem sağlığı kontrol edilmeli.'; return; }
     const lines = Object.entries(readiness.components || {}).map(([key, value]) => (labels[key] || key) + ': ' + (stateLabels[value] || value));
-    const report = ['Hafize sistem sağlığı: ' + (stateLabels[readiness.state || 'unknown'] || 'Bilinmiyor'), ...lines].join('\\n');
+    const report = ['Hafize sistem sağlığı: ' + (stateLabels[readiness.state || 'unknown'] || 'Bilinmiyor'), ...lines].join('\n');
     try {
       await navigator.clipboard.writeText(report.slice(0, 4000));
       error.textContent = 'Güvenli özet panoya kopyalandı.';

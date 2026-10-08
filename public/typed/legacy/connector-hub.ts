@@ -492,7 +492,7 @@
       ];
       try {
         if (typeof rootRef.navigator?.clipboard?.writeText !== 'function') return;
-        await rootRef.navigator.clipboard.writeText(lines.join('\\n'));
+        await rootRef.navigator.clipboard.writeText(lines.join('\n'));
         last.textContent = 'Tanı özeti panoya kopyalandı · ' + formatTime();
       } catch {
         last.textContent = 'Tanı özeti panoya kopyalanamadı · ' + formatTime();

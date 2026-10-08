@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertModuleShipped, assertStylesheetShipped } from './shell-cache-contract.mjs';
 
 const source = await readFile('public/typed/legacy/connector-hub.ts', 'utf8');
 const nav = await readFile('public/typed/workspace-navigation.ts', 'utf8');
@@ -16,8 +17,9 @@ const requiredCards = [
 for (const id of requiredCards) {
   assert.match(source, new RegExp(id));
   assert.match(nav, new RegExp(id));
-  assert.match(index, /connector-hub\.js/);
 }
+assertModuleShipped('connector-hub');
+assertStylesheetShipped('/connector-hub.css');
 
 assert.match(source, /CAPABILITIES/);
 assert.match(source, /repository\.read/);
@@ -25,12 +27,13 @@ assert.match(source, /gmail\.read/);
 assert.match(source, /asset\.read/);
 assert.match(source, /Tanı özetini kopyala/);
 assert.match(source, /navigator\?\.clipboard/);
-assert.match(source, /lines\.join\(['"]\\n['"]\)/);
+// The copied summary must be separated by real newlines, not the literal
+// two-character sequence the source used to carry.
+assert.match(source, /lines\.join\('\\n'\)/);
+assert.doesNotMatch(source, /join\('\\\\n'\)/);
 assert.match(source, /lastSnapshot/);
 assert.match(source, /connectedCount/);
 assert.match(source, /hafize:connector-hub-changed/);
-assert.match(sw, /connector-hub\.css/);
-assert.match(sw, /connector-hub\.js/);
 
 const css = await readFile('public/connector-hub.css', 'utf8');
 assert.match(css, /connector-hub-capability/);

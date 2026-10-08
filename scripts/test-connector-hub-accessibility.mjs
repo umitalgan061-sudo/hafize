@@ -8,7 +8,7 @@ assert.match(source, /aria-labelledby/);
 assert.match(source, /aria-expanded/);
 assert.match(source, /aria-controls/);
 assert.match(source, /type = ['"]button['"]/);
-assert.match(source, /focus-visible/);
+// Focus styling is a stylesheet concern, asserted on the CSS below.
 assert.match(source, /textContent/);
 assert.match(css, /:focus-visible/);
 assert.match(css, /max-width:700px/);
