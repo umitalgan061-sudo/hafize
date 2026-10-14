@@ -1,10 +1,9 @@
 // The node tree a rendered answer produces, asserted against a DOM stand-in.
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { createContainer, createDocument, find, findAll, findAllByClass, findByClass, outline } from './markdown-dom-harness.mjs';
 
-const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.ts');
+await import('../public/markdown-renderer.ts');
+const markdown = globalThis.HafizeMarkdown;
 
 function render(source) {
   const documentRef = createDocument();

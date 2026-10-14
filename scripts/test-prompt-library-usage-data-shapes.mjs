@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-// public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
-// at runtime, which Node cannot statically analyse into named exports, so the
-// suite takes the default (CommonJS) export.
-import promptLibrary from '../public/typed/prompt-library.ts';
+// public/typed/prompt-library.ts keeps its UMD browser contract: loaded as an
+// ES module it publishes the API on `globalThis` instead of `module.exports`,
+// so the suite imports it for that side effect and reads the global.
+import '../public/typed/prompt-library.ts';
+
+const promptLibrary = globalThis.HafizePromptLibrary;
 
 const core = fs.readFileSync('public/typed/prompt-library.ts', 'utf8');
 const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');

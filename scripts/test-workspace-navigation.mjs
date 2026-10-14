@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
-const require = createRequire(import.meta.url);
-const workspace = require('../public/typed/workspace-navigation.ts');
-const sw = require('../public/sw-policy.ts');
+await import('../public/typed/workspace-navigation.ts');
+const workspace = globalThis.HafizeWorkspaceNavigation;
+const sw = await import('../public/sw-policy.ts');
 
 class FakeClassList {
   constructor(node) { this.node = node; }
@@ -93,7 +92,7 @@ function host() {
 
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);
 assert.deepEqual(workspace.allowedCardIds('tasks'), ['scheduleRuntimeCard', 'scheduleListCard']);
-assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard']);
+assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'gmailConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard']);
 for (const unsafe of ['', 'settings', 'TASKS', null, {}, '__proto__']) assert.equal(workspace.normalizeWorkspace(unsafe), 'chat');
 assert.equal(workspace.isWorkspaceCard({ id: 'scheduleListCard' }, 'tasks'), true);
 assert.equal(workspace.isWorkspaceCard({ id: 'scheduleListCard-rogue' }, 'tasks'), false);
@@ -143,9 +142,9 @@ assert.equal(h.cards.voice.hidden, true);
 assert.equal(controller.setWorkspace('connections'), false);
 
 assertVersionedCacheDeclaration();
-assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.js'), true);
+assert.equal(sw.SHELL_ASSETS.includes('/typed-build/workspace-navigation.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.css'), true);
-for (const path of ['/workspace-navigation.js', '/workspace-navigation.css']) {
+for (const path of ['/typed-build/workspace-navigation.js', '/workspace-navigation.css']) {
   assert.equal(sw.classifyRequest({ url: `https://hafize.example${path}`, method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'shell');
 }
 assert.equal(sw.classifyRequest({ url: 'https://hafize.example/api/health', method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'network-only');

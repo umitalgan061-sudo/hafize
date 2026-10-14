@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(import.meta.url);
-const policy = require(path.join(root, 'public/typed/legacy/message-workspace-policy.ts'));
+await import('../public/typed/legacy/message-workspace-policy.ts');
+const policy = globalThis.HafizeMessageWorkspacePolicy;
 const source = await readFile(path.join(root, 'public/typed/message-workspace.ts'), 'utf8');
 
 function record(index) {

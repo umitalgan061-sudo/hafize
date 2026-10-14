@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
-const require = createRequire(import.meta.url);
-const policy = require(path.join(root, 'public/typed/legacy/message-workspace-policy.ts'));
+await import('../public/typed/legacy/message-workspace-policy.ts');
+const policy = globalThis.HafizeMessageWorkspacePolicy;
 
 function baseRecord(overrides = {}) {
   return {

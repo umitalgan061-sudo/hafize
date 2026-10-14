@@ -6,13 +6,12 @@
 // non-http(s)/mailto destination reach an `href`.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContainer, createDocument, findAll, findAllByClass, walk } from './markdown-dom-harness.mjs';
 
-const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.ts');
+await import('../public/markdown-renderer.ts');
+const markdown = globalThis.HafizeMarkdown;
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /* No string ever becomes markup ---------------------------------------- */

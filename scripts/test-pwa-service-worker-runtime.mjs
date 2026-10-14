@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 
-const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.ts');
-const source = await readFile(new URL('../public/sw.ts', import.meta.url), 'utf8');
+const policy = await import('../public/sw-policy.ts');
+const rawSource = await readFile(new URL('../public/sw.ts', import.meta.url), 'utf8');
+
+// `public/sw.ts` is an ES module worker: it pulls the policy in with a static
+// import. The VM sandbox below runs plain script source, so the import is
+// rewritten to read the same bindings off the fake `self` while every handler
+// under test stays byte-identical.
+const POLICY_IMPORT = /^import \{([^}]+)\} from '\.\/sw-policy\.ts';$/m;
+assert.match(rawSource, POLICY_IMPORT, 'service worker imports the shared policy module');
+const source = rawSource.replace(POLICY_IMPORT, 'const {$1} = self.HafizeSwPolicy;');
 const origin = 'https://hafize.example';
 const handlers = new Map();
 const deleted = [];
@@ -28,14 +34,14 @@ const cache = {
     const path = pathOf(input);
     if (path === '/index.html') return { source: 'cached-index' };
     if (path === '/offline.html') return { source: 'cached-offline' };
-    if (path === '/app.js') return { source: 'cached-app' };
+    if (path === '/typed-build/app-shell.js') return { source: 'cached-app' };
     return null;
   }
 };
 
 const context = {
-  importScripts(path) {
-    assert.equal(path, '/sw-policy.js');
+  importScripts() {
+    assert.fail('the module worker must not fall back to importScripts');
   },
   caches: {
     async open(name) {
@@ -108,7 +114,7 @@ fetchImpl = async () => { throw new Error('offline'); };
 assert.deepEqual(await dispatchFetch('/chat', { mode: 'navigate' }), { source: 'cached-index' });
 
 fetchCalls = 0;
-assert.deepEqual(await dispatchFetch('/app.js'), { source: 'cached-app' });
+assert.deepEqual(await dispatchFetch('/typed-build/app-shell.js'), { source: 'cached-app' });
 assert.equal(fetchCalls, 0);
 
 assert.equal(await dispatchFetch('/api/agent/run'), null);
