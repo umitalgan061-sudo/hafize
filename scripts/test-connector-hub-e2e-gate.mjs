@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
 
 const files = {
   hub: await readFile('public/typed/legacy/connector-hub.ts', 'utf8'),
@@ -26,9 +27,8 @@ for (const id of ['accountConnectionCard','gmailConnectionCard','canvaConnection
 }
 
 assert.match(files.index, /connector-hub\.css/);
-assert.match(files.index, /connector-hub\.js/);
+assertBrowserModuleShipped('connector-hub');
 assert.match(files.sw, /connector-hub\.css/);
-assert.match(files.sw, /connector-hub\.js/);
 assert.match(files.server, /\/api\/connectors\/gmail\/status/);
 assert.match(files.server, /\/api\/connectors\/canva\/status/);
 assert.doesNotMatch(files.hub, /Authorization\s*:/);

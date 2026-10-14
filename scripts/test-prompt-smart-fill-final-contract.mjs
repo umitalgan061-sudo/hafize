@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
 
 const root = process.cwd();
 const smartFill = fs.readFileSync(path.join(root, 'public/prompt-library-smart-fill.ts'), 'utf8');
@@ -53,15 +54,14 @@ assert.match(smartCss, /focus-visible/);
 assert.match(smartCss, /max-width:700px/);
 
 assert.match(index, /prompt-library-smart-fill\.css/);
-assert.match(index, /prompt-library-smart-fill\.js/);
+assertBrowserModuleShipped('prompt-library-smart-fill');
 const cssPosition = index.indexOf('prompt-library-smart-fill.css');
-const jsPosition = index.indexOf('prompt-library-smart-fill.js');
+const jsPosition = index.indexOf('typed-build/prompt-library-smart-fill.js');
 assert.ok(cssPosition >= 0 && jsPosition >= 0 && cssPosition < index.indexOf('</head>'));
 assert.ok(jsPosition > index.indexOf('prompt-library.js'));
-assert.ok(jsPosition < index.indexOf('voice-input.js'));
+assert.ok(jsPosition < index.indexOf('typed-build/voice-input.js'));
 
 assert.match(sw, /prompt-library-smart-fill\.css/);
-assert.match(sw, /prompt-library-smart-fill\.js/);
 assertVersionedCacheDeclaration(sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 

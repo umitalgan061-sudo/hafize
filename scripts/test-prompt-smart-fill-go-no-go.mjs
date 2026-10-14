@@ -9,7 +9,7 @@ const hints = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill-h
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
 const sw = fs.readFileSync(path.join(root,'public/sw-policy.ts'),'utf8');
 
-for (const asset of ['prompt-library-smart-fill.css','prompt-library-smart-fill.js','prompt-library-command-palette.css','prompt-library-command-palette.js','prompt-library-smart-fill-hints.js']) {
+for (const asset of ['prompt-library-smart-fill.css','typed-build/prompt-library-smart-fill.js','prompt-library-command-palette.css','typed-build/prompt-library-command-palette.js','typed-build/prompt-library-smart-fill-hints.js']) {
   assert.ok(index.includes(asset));
   assert.ok(sw.includes(asset));
 }

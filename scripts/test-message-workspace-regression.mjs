@@ -25,9 +25,9 @@ assert.ok(workspace.includes('conversationId'));
 assert.ok(index.includes('id="messages"'));
 assert.ok(index.includes('class="utility-rail"'));
 assert.ok(index.indexOf('/message-workspace.js') > index.indexOf('/app.js'));
-assert.ok(index.indexOf('/message-workspace-policy.js') < index.indexOf('/message-workspace.js'));
+assert.ok(index.indexOf('/typed-build/legacy-app.js') < index.indexOf('/message-workspace.js'));
 
-assert.ok(sw.indexOf("'/message-workspace-policy.js'") < sw.indexOf("'/message-workspace.js'"));
+assert.ok(sw.indexOf("'/typed-build/legacy-app.js'") < sw.indexOf("'/message-workspace.js'"));
 assert.ok(sw.includes("'/message-workspace.css'"));
 
 for (const token of [

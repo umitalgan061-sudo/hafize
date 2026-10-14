@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..');
+const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '../..');
 const panel = await readFile(resolve(ROOT, 'public/system-readiness-panel.ts'), 'utf8');
 const service = await readFile(resolve(ROOT, 'lib/system-readiness.ts'), 'utf8');
 const config = await readFile(resolve(ROOT, 'lib/config-readiness.ts'), 'utf8');
@@ -17,7 +17,8 @@ assert.doesNotMatch(service, /process\.env\.NVIDIA_API_KEY/);
 assert.match(config, /secretVariables/);
 assert.match(config, /SECRET_CONTAINS_NEWLINE/);
 assert.doesNotMatch(config, /console\.log\(.*SECRET/);
-assert.match(panel, /String\(value \?\? ''\)/);
+assert.match(panel, /stateLabels\[value\] \|\| value/);
+assert.doesNotMatch(panel, /innerHTML|outerHTML|insertAdjacentHTML/);
 assert.match(panel, /labels\[key\] \|\| key/);
 assert.ok((panel.match(/textContent/g) || []).length >= 7);
 console.log('system readiness privacy checks passed');

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const files = {
   collections: fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8'),
@@ -12,18 +14,18 @@ const files = {
 
 assert.match(files.html, /prompt-library-collections\.css/);
 assert.match(files.html, /prompt-library-revisions\.css/);
-assert.match(files.html, /prompt-library-collections\.js/);
-assert.match(files.html, /prompt-library-collections-enhancements\.js/);
-assert.match(files.html, /prompt-library-revisions\.js/);
-assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
-assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+assertBrowserModuleShipped('prompt-library-collections');
+assertBrowserModuleShipped('prompt-library-collections-enhancements');
+assertBrowserModuleShipped('prompt-library-revisions');
+assertBrowserModuleShipped('prompt-library-revisions-enhancements');
+assertCacheVersionAtLeast(36, files.sw);
 for (const asset of [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js'
 ]) assert.match(files.sw, new RegExp(asset.replaceAll('.', '\\.')));
 
 assert.match(files.collections, /hafize\.prompt-library\.collections\.v1/);

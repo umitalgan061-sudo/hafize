@@ -7,7 +7,7 @@ const typed = await readFile(new URL('../public/typed/scheduled-tasks.ts', impor
 const preview = await readFile(new URL('../public/typed/legacy/scheduled-task-preview.ts', import.meta.url), 'utf8');
 const duplicate = await readFile(new URL('../public/typed/legacy/scheduled-task-duplicate.ts', import.meta.url), 'utf8');
 
-for (const asset of ['scheduled-task-preview.js', 'scheduled-task-preview.css', 'scheduled-task-duplicate.js', 'scheduled-task-duplicate.css']) {
+for (const asset of ['typed-build/legacy-app.js', 'scheduled-task-preview.css', 'typed-build/legacy-app.js', 'scheduled-task-duplicate.css']) {
   assert.ok(index.includes(asset), 'index asset missing: ' + asset);
   assert.ok(sw.includes(asset), 'service worker asset missing: ' + asset);
 }

@@ -7,10 +7,10 @@ const sw = fs.readFileSync(path.join(root,'public/sw-policy.ts'),'utf8');
 const index = fs.readFileSync(path.join(root,'public/index.html'),'utf8');
 const assets = [
   'prompt-library-smart-fill.css',
-  'prompt-library-smart-fill.js',
+  'typed-build/prompt-library-smart-fill.js',
   'prompt-library-command-palette.css',
-  'prompt-library-command-palette.js',
-  'prompt-library-smart-fill-hints.js'
+  'typed-build/prompt-library-command-palette.js',
+  'typed-build/prompt-library-smart-fill-hints.js'
 ];
 for (const asset of assets) {
   assert.match(index,new RegExp(asset.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));

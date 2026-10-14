@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
 
 const composer = await readFile(new URL('../public/typed/chat-composer-features.ts', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
@@ -27,9 +28,9 @@ assert.match(composer, /Dosya sunucuya ayrı bir yükleme olarak gönderilmedi/)
 assert.doesNotMatch(composer, /fetch\(/, 'feature must remain client-local and avoid a second upload endpoint');
 
 assert.match(shell, /chat-composer-features\.css/);
-assert.match(shell, /chat-composer-features\.js/);
+assertBrowserModuleShipped('chat-composer-features');
 assert.match(shell, /title="Metin veya kod dosyası ekle"/);
-assert.ok(shell.indexOf('/chat-composer-features.js') > shell.indexOf('/app.js'));
+assert.ok(shell.indexOf('/typed-build/chat-composer-features.js') > shell.indexOf('/app.js'));
 
 assert.match(style, /\.attachment-strip/);
 assert.match(style, /\.attachment-chip/);
@@ -39,8 +40,7 @@ assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
 assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
-assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
-assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
+assert.match(serviceWorkerPolicy, /["']\/chat-composer-features\.css["']/);
 
 const attachmentBlock = composer.match(/\[Ekli dosya: \$\{file\.name\}\]/);
 assert.ok(attachmentBlock);

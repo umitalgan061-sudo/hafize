@@ -7,7 +7,7 @@ const [index,sw,safety,preview,diag]=await Promise.all([
   fs.readFile('public/typed/legacy/prompt-library-import-preview.ts','utf8'),
   fs.readFile('public/typed/legacy/prompt-library-diagnostics.ts','utf8')
 ]);
-for(const asset of ['prompt-library-safety.js','prompt-library-import-preview.js','prompt-library-diagnostics.js']){
+for(const asset of ['typed-build/legacy-app.js','typed-build/legacy-app.js','typed-build/legacy-app.js']){
   assert.ok(index.includes('/'+asset));
   assert.ok(sw.includes('/'+asset));
 }

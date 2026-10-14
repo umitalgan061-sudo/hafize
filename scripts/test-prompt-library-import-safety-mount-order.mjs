@@ -9,13 +9,13 @@ const [index, safety, preview, diagnostics, sw] = await Promise.all([
   fs.readFile('public/sw-policy.ts', 'utf8')
 ]);
 
-assert.ok(index.includes('/prompt-library-safety.js'));
-assert.ok(index.includes('/prompt-library-import-preview.js'));
-assert.ok(index.includes('/prompt-library-diagnostics.js'));
+assert.ok(index.includes('/typed-build/legacy-app.js'));
+assert.ok(index.includes('/typed-build/legacy-app.js'));
+assert.ok(index.includes('/typed-build/legacy-app.js'));
 
-const safetyPos = index.indexOf('/prompt-library-safety.js');
-const previewPos = index.indexOf('/prompt-library-import-preview.js');
-const diagnosticsPos = index.indexOf('/prompt-library-diagnostics.js');
+const safetyPos = index.indexOf('/typed-build/legacy-app.js');
+const previewPos = index.indexOf('/typed-build/legacy-app.js');
+const diagnosticsPos = index.indexOf('/typed-build/legacy-app.js');
 assert.ok(safetyPos < previewPos && previewPos < diagnosticsPos);
 
 assert.match(safety, /normalizeRecoveryPayload/);
@@ -35,7 +35,7 @@ assert.match(diagnostics, /Onarım planını kopyala/);
 assert.match(diagnostics, /Karantinayı geri al/);
 assert.match(diagnostics, /Son onarımı geri al/);
 
-for (const asset of ['prompt-library-safety.js', 'prompt-library-import-preview.js', 'prompt-library-diagnostics.js']) {
+for (const asset of ['typed-build/legacy-app.js', 'typed-build/legacy-app.js', 'typed-build/legacy-app.js']) {
   assert.ok(sw.includes('/' + asset));
 }
 

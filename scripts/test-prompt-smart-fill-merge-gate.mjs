@@ -12,14 +12,14 @@ const hints = fs.readFileSync(path.join(root,'public/prompt-library-smart-fill-h
 
 assert.ok(index.includes('/prompt-library-smart-fill.css'));
 assert.ok(index.includes('/prompt-library-command-palette.css'));
-assert.ok(index.includes('/prompt-library-smart-fill.js'));
-assert.ok(index.includes('/prompt-library-command-palette.js'));
-assert.ok(index.includes('/prompt-library-smart-fill-hints.js'));
+assert.ok(index.includes('/typed-build/prompt-library-smart-fill.js'));
+assert.ok(index.includes('/typed-build/prompt-library-command-palette.js'));
+assert.ok(index.includes('/typed-build/prompt-library-smart-fill-hints.js'));
 assert.ok(sw.includes('/prompt-library-smart-fill.css'));
 assert.ok(sw.includes('/prompt-library-command-palette.css'));
-assert.ok(sw.includes('/prompt-library-smart-fill.js'));
-assert.ok(sw.includes('/prompt-library-command-palette.js'));
-assert.ok(sw.includes('/prompt-library-smart-fill-hints.js'));
+assert.ok(sw.includes('/typed-build/prompt-library-smart-fill.js'));
+assert.ok(sw.includes('/typed-build/prompt-library-command-palette.js'));
+assert.ok(sw.includes('/typed-build/prompt-library-smart-fill-hints.js'));
 assertVersionedCacheDeclaration(sw);
 assert.ok(sw.includes("pathname.startsWith('/api/')"));
 assert.ok(smart.includes('Mesaja aktar'));

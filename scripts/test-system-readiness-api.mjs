@@ -3,12 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..');
+const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '../..');
 const server = await readFile(resolve(ROOT, 'server.ts'), 'utf8');
 
 const healthBlock = server.slice(server.indexOf("url.pathname === '/api/health'"), server.indexOf("url.pathname === '/api/connectors/canva/status'"));
 assert.ok(healthBlock.length > 0);
-assert.match(healthBlock, /buildSystemReadiness/);
+// The readiness report is assembled by a named builder outside the handler.
+const readinessBuilder = server.slice(server.indexOf('const buildReadinessReport'), server.indexOf('const server = createServer'));
+assert.match(readinessBuilder, /buildSystemReadiness\(/);
+assert.match(healthBlock, /buildReadinessReport\(\)/);
 assert.match(healthBlock, /readiness/);
 assert.match(healthBlock, /nvidiaConfigured/);
 assert.match(healthBlock, /githubReadConfigured/);

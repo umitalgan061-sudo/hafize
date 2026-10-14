@@ -19,7 +19,7 @@ assert.equal((html.match(/message-workspace/g) || []).length, 3);
 assert.ok(html.includes('<link rel="stylesheet" href="/message-workspace.css" />'));
 assert.ok(html.includes('<script src="/message-workspace-policy.js" defer></script>'));
 assert.ok(html.includes('<script src="/message-workspace.js" defer></script>'));
-assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/message-workspace.js'));
+assert.ok(html.indexOf('/typed-build/legacy-app.js') < html.indexOf('/message-workspace.js'));
 
 assert.ok(app.includes("const STORAGE_KEY = 'hafize.conversations.v1'"));
 assert.equal(app.includes('hafize.message-workspace.v1'), false);
@@ -49,7 +49,7 @@ assertCssIncludes(css, 'forced-colors:active');
 assertCssIncludes(css, 'prefers-reduced-motion:reduce');
 
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
-for (const asset of ['/message-workspace.css','/message-workspace-policy.js','/message-workspace.js']) {
+for (const asset of ['/message-workspace.css','/typed-build/legacy-app.js','/message-workspace.js']) {
   assert.equal((sw.match(new RegExp(asset.replace('.', '\\.'), 'g')) || []).length, 1);
 }
 

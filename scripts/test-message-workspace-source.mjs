@@ -17,13 +17,13 @@ function count(text, needle) {
 }
 
 assert.equal(count(html, '/message-workspace.css'), 1);
-assert.equal(count(html, '/message-workspace-policy.js'), 1);
+assert.equal(count(html, '/typed-build/legacy-app.js'), 1);
 assert.equal(count(html, '/message-workspace.js'), 1);
-assert.ok(html.indexOf('/message-workspace-policy.js') < html.indexOf('/message-workspace.js'));
+assert.ok(html.indexOf('/typed-build/legacy-app.js') < html.indexOf('/message-workspace.js'));
 
 for (const asset of [
   '/message-workspace.css',
-  '/message-workspace-policy.js',
+  '/typed-build/legacy-app.js',
   '/message-workspace.js'
 ]) {
   assert.equal(count(sw, asset), 1, `shell asset missing exactly once: ${asset}`);
@@ -32,7 +32,7 @@ for (const asset of [
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
-assert.ok(sw.includes("'/message-workspace-policy.js'"));
+assert.ok(sw.includes("'/typed-build/legacy-app.js'"));
 assert.ok(sw.includes("'/message-workspace.js'"));
 
 assert.ok(js.includes("hafize.message-workspace.v1"));

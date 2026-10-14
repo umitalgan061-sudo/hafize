@@ -34,9 +34,9 @@ assert.doesNotMatch(source, /password/i);
 
 const index = values[0];
 const sw = values[1];
-assert.ok(index.includes('scheduled-task-preview.js'));
-assert.ok(index.includes('scheduled-task-detail.js'));
-assert.ok(sw.includes('scheduled-task-preview.js'));
-assert.ok(sw.includes('scheduled-task-detail.js'));
+assert.ok(index.includes('typed-build/legacy-app.js'));
+assert.ok(index.includes('typed-build/legacy-app.js'));
+assert.ok(sw.includes('typed-build/legacy-app.js'));
+assert.ok(sw.includes('typed-build/legacy-app.js'));
 
 console.log('scheduled-task-center-smoke: ok');

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
 const html = read('public/index.html');
@@ -13,14 +14,14 @@ const css = read('public/prompt-library-collections.css');
 const requiredHtmlAssets = [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js'
 ];
 for (const asset of requiredHtmlAssets) assert.ok(html.includes(asset), `missing HTML asset: ${asset}`);
 for (const asset of requiredHtmlAssets) assert.ok(sw.includes(asset), `missing shell asset: ${asset}`);
-assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+assertCacheVersionAtLeast(36, sw);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);
 assert.match(sw, /return 'network-only'/);
 

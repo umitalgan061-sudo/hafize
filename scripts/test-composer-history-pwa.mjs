@@ -4,11 +4,11 @@ import { assertShellAssets, assertVersionedCacheDeclaration, swPolicy } from './
 
 const COMPOSER_HISTORY_ASSETS = [
   '/composer-history.css',
-  '/composer-history.js',
-  '/composer-history-panel.js',
-  '/composer-history-backup.js',
-  '/composer-history-help.js',
-  '/composer-history-settings.js'
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/legacy-app.js'
 ];
 
 const html = fs.readFileSync('public/index.html', 'utf8');

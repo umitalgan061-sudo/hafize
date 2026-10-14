@@ -5,13 +5,13 @@ import { assertAttributeDeclared, assertClassDeclared } from './source-contract.
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
-const keyboard = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.js'), 'utf8');
-const drafts = fs.readFileSync(path.join(root, 'public', 'chat-drafts.js'), 'utf8');
-const historyManagement = fs.readFileSync(path.join(root, 'public', 'chat-history-management.js'), 'utf8');
-const historySearch = fs.readFileSync(path.join(root, 'public', 'chat-history-search.js'), 'utf8');
-const historyExport = fs.readFileSync(path.join(root, 'public', 'chat-history-export.js'), 'utf8');
-const settings = fs.readFileSync(path.join(root, 'public', 'settings-workspace.js'), 'utf8');
+const workspace = fs.readFileSync(path.join(root, 'public/conversation-workspace.ts'), 'utf8');
+const keyboard = fs.readFileSync(path.join(root, 'public/typed/legacy/conversation-workspace-keyboard.ts'), 'utf8');
+const drafts = fs.readFileSync(path.join(root, 'public/typed/legacy/chat-drafts.ts'), 'utf8');
+const historyManagement = fs.readFileSync(path.join(root, 'public/typed/chat-history-management.ts'), 'utf8');
+const historySearch = fs.readFileSync(path.join(root, 'public/typed/chat-history-search.ts'), 'utf8');
+const historyExport = fs.readFileSync(path.join(root, 'public/typed/legacy/chat-history-export.ts'), 'utf8');
+const settings = fs.readFileSync(path.join(root, 'public/typed/legacy/settings-workspace.ts'), 'utf8');
 
 function has(text, fragment, label = fragment) {
   assert.ok(text.includes(fragment), label);
@@ -21,12 +21,12 @@ function notHas(text, fragment, label = `must not contain ${fragment}`) {
 }
 
 const shellModules = [
-  ['/chat-history-search.js', 'history search remains loaded'],
-  ['/chat-history-export.js', 'history export remains loaded'],
-  ['/chat-history-management.js', 'history management remains loaded'],
-  ['/chat-drafts.js', 'chat drafts remain loaded'],
+  ['/typed-build/chat-history-search.js', 'history search remains loaded'],
+  ['/typed-build/legacy-app.js', 'history export remains loaded'],
+  ['/typed-build/chat-history-management.js', 'history management remains loaded'],
+  ['/typed-build/legacy-app.js', 'chat drafts remain loaded'],
   ['/conversation-workspace.js', 'workspace is loaded'],
-  ['/conversation-workspace-keyboard.js', 'workspace keyboard is loaded']
+  ['/typed-build/legacy-app.js', 'workspace keyboard is loaded']
 ];
 for (const [pathName, label] of shellModules) has(index, pathName, label);
 
@@ -42,14 +42,14 @@ for (const [pathName, label] of stylesheetModules) has(index, pathName, label);
 
 const loadOrder = [
   '/app.js',
-  '/chat-composer-features.js',
-  '/chat-history-search.js',
-  '/chat-history-export.js',
-  '/chat-history-management.js',
-  '/chat-drafts.js',
+  '/typed-build/chat-composer-features.js',
+  '/typed-build/chat-history-search.js',
+  '/typed-build/legacy-app.js',
+  '/typed-build/chat-history-management.js',
+  '/typed-build/legacy-app.js',
   '/conversation-workspace.js',
-  '/conversation-workspace-keyboard.js',
-  '/voice-input.js'
+  '/typed-build/legacy-app.js',
+  '/typed-build/voice-input.js'
 ];
 for (let i = 1; i < loadOrder.length; i += 1) {
   assert.ok(index.indexOf(loadOrder[i - 1]) < index.indexOf(loadOrder[i]), `script order keeps ${loadOrder[i - 1]} before ${loadOrder[i]}`);

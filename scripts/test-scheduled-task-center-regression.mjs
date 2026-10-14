@@ -6,19 +6,19 @@ const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'u
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
 
 for (const asset of [
-  'scheduled-task-preview.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-preview.css',
-  'scheduled-task-duplicate.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-duplicate.css',
-  'scheduled-task-templates.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-templates.css',
-  'scheduled-task-templates-backup.js',
-  'scheduled-task-planning.js',
-  'scheduled-task-draft.js',
-  'scheduled-task-insights.js',
-  'scheduled-task-actions.js',
-  'scheduled-task-detail.js',
-  'scheduled-task-export.js'
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js'
 ]) {
   assert.ok(index.includes(asset), 'index missing: ' + asset);
   assert.ok(sw.includes(asset), 'service worker missing: ' + asset);

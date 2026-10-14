@@ -21,8 +21,8 @@ const paths = [
 const files = await Promise.all(paths.map((path) => readFile(new URL('../' + path, import.meta.url), 'utf8')));
 const [index, sw, readme, ...modules] = files;
 
-assert.ok(index.includes('scheduled-task-preview.js'));
-assert.ok(sw.includes('scheduled-task-preview.js'));
+assert.ok(index.includes('typed-build/legacy-app.js'));
+assert.ok(sw.includes('typed-build/legacy-app.js'));
 assert.ok(sw.includes('v45') || sw.includes('v46') || sw.includes('v47'));
 assert.ok(readme.includes('Görevler'));
 assert.ok(modules.some((source) => source.includes('requestSubmit')));

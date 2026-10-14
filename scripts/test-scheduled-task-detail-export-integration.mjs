@@ -10,7 +10,7 @@ assert.match(detail, /data-scheduled-detail/);
 assert.match(detail, /scheduledTaskDetailDialog/);
 assert.match(exportJs, /Görünenleri dışa aktar/);
 assert.match(exportJs, /MAX_EXPORT = 250000/);
-for (const asset of ['scheduled-task-detail.js', 'scheduled-task-detail.css', 'scheduled-task-export.js']) {
+for (const asset of ['typed-build/legacy-app.js', 'scheduled-task-detail.css', 'typed-build/legacy-app.js']) {
   assert.ok(index.includes(asset), 'index missing: ' + asset);
   assert.ok(sw.includes(asset), 'sw missing: ' + asset);
 }

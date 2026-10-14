@@ -71,14 +71,14 @@ assert.match(hints,/requestAnimationFrame/);
 for (const asset of [
   'prompt-library-smart-fill.css',
   'prompt-library-command-palette.css',
-  'prompt-library-smart-fill.js',
-  'prompt-library-command-palette.js',
-  'prompt-library-smart-fill-hints.js'
+  'typed-build/prompt-library-smart-fill.js',
+  'typed-build/prompt-library-command-palette.js',
+  'typed-build/prompt-library-smart-fill-hints.js'
 ]) assert.ok(index.includes(asset), `missing asset: ${asset}`);
 
-assert.ok(index.indexOf('prompt-library.js') < index.indexOf('prompt-library-smart-fill.js'));
-assert.ok(index.indexOf('prompt-library-smart-fill.js') < index.indexOf('prompt-library-command-palette.js'));
-assert.ok(index.indexOf('prompt-library-command-palette.js') < index.indexOf('prompt-library-smart-fill-hints.js'));
+assert.ok(index.indexOf('prompt-library.js') < index.indexOf('typed-build/prompt-library-smart-fill.js'));
+assert.ok(index.indexOf('typed-build/prompt-library-smart-fill.js') < index.indexOf('typed-build/prompt-library-command-palette.js'));
+assert.ok(index.indexOf('typed-build/prompt-library-command-palette.js') < index.indexOf('typed-build/prompt-library-smart-fill-hints.js'));
 
 for (const source of [smart,palette,hints]) {
   assert.doesNotMatch(source,/fetch\s*\(/);

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
 
 const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 const enhancements = fs.readFileSync('public/typed/legacy/prompt-library-enhancements.ts', 'utf8');
@@ -33,11 +34,10 @@ assert.match(usage, /observer\?\.observe/);
 assert.match(usage, /observer\?\.disconnect/);
 assert.match(usage, /section\.remove\(\)/);
 assert.match(usage, /mounted: true/);
-assert.match(enhancements, /prompt-library-usage\.js/);
+assertBrowserModuleShipped('prompt-library-usage');
+assertBrowserModuleShipped('prompt-library-enhancements');
 assert.match(enhancements, /data-hafize-prompt-usage/);
-assert.match(sw, /\/prompt-library-usage\.js/);
 assert.match(index, /\/prompt-library\.js/);
-assert.match(index, /\/prompt-library-enhancements\.js/);
 assert.doesNotMatch(usage, /document\.write/);
 assert.doesNotMatch(usage, /insertAdjacentHTML/);
 assert.doesNotMatch(usage, /\.innerHTML\s*=/);

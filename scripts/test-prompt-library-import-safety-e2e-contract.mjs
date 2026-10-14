@@ -44,9 +44,9 @@ assert.match(css, /prompt-library-diagnostics-repair-preview/);
 assert.match(css, /forced-colors:active/);
 
 for (const asset of [
-  'prompt-library-safety.js',
-  'prompt-library-import-preview.js',
-  'prompt-library-diagnostics.js'
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js'
 ]) {
   assert.ok(index.includes('/' + asset));
   assert.ok(sw.includes('/' + asset));

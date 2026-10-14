@@ -6,30 +6,30 @@ const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'u
 
 const assets = [
   'scheduled-task-preview.css',
-  'scheduled-task-preview.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-duplicate.css',
-  'scheduled-task-duplicate.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-templates.css',
-  'scheduled-task-templates.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-templates-backup.css',
-  'scheduled-task-templates-backup.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-template-presets.css',
-  'scheduled-task-template-presets.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-draft.css',
-  'scheduled-task-draft.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-planning.css',
-  'scheduled-task-planning.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-insights.css',
-  'scheduled-task-insights.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-actions.css',
-  'scheduled-task-actions.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-detail.css',
-  'scheduled-task-detail.js',
-  'scheduled-task-export.js',
+  'typed-build/legacy-app.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-status-summary.css',
-  'scheduled-task-status-summary.js',
+  'typed-build/legacy-app.js',
   'scheduled-task-preview-activity.css',
-  'scheduled-task-preview-activity.js'
+  'typed-build/legacy-app.js'
 ];
 
 for (const asset of assets) {

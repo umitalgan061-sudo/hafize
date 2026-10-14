@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
 
 const source = await readFile('public/typed/legacy/connector-hub.ts', 'utf8');
 const readme = await readFile('README.md', 'utf8');
@@ -11,7 +12,7 @@ assert.match(source, /getSnapshot/);
 assert.match(source, /new EventImpl/);
 assert.match(source, /clipboard/);
 assert.match(readme, /## Bağlantılar çalışma alanı/);
-assert.match(readme, /connector-hub\.js/);
+assertBrowserModuleShipped('connector-hub');
 assert.match(readme, /aynı-origin GET/);
 
 console.log('connector hub integration regression: passed');

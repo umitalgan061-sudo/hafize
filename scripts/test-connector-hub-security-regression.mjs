@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertBrowserModuleShipped } from './browser-bundle-contract.mjs';
 
 const source=await readFile('public/typed/legacy/connector-hub.ts','utf8');
 const css=await readFile('public/connector-hub.css','utf8');
@@ -23,7 +24,7 @@ assert.match(source,/navigator\?\.clipboard/);
 assert.match(source,/repository\.read/);
 assert.match(css,/:focus-visible/);
 assert.match(css,/max-width:700px/);
-assert.match(sw,/connector-hub\.js/);
+assertBrowserModuleShipped('connector-hub');
 assert.match(sw,/connector-hub\.css/);
 
 console.log('connector hub security regression: passed');

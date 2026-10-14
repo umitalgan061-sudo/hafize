@@ -119,3 +119,16 @@ export function assertShellAssets(assetPaths, label = 'shell asset') {
 export function assertVersionedCacheDeclaration(source = readSwPolicySource()) {
   assert.match(source, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'service worker declares a versioned shell cache');
 }
+
+/**
+ * Asserts the shell cache was bumped for a release wave and never rolled back.
+ * Suites record the version their wave shipped; later waves bump it further,
+ * so the check is a floor and not an equality.
+ */
+export function assertCacheVersionAtLeast(minimum, source = readSwPolicySource()) {
+  assertVersionedCacheDeclaration(source);
+  assert.ok(
+    CURRENT_CACHE_VERSION >= minimum,
+    `shell cache v${CURRENT_CACHE_VERSION} is older than the v${minimum} this surface shipped with`
+  );
+}

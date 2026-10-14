@@ -11,7 +11,7 @@ const sw = fs.readFileSync(path.join(root,'public/sw-policy.ts'),'utf8');
 for (const token of ['HafizePromptLibrarySmartFill','replaceVariables','Mesaja aktar','aria-modal']) assert.ok(smart.includes(token));
 for (const token of ['PromptLibraryCommandPalette','/prompt','MAX_RESULTS = 12']) assert.ok(palette.includes(token));
 for (const token of ['HafizePromptSmartFillHints','MutationObserver','MAX_VALUE = 1000']) assert.ok(hints.includes(token));
-for (const asset of ['prompt-library-smart-fill.js','prompt-library-command-palette.js','prompt-library-smart-fill-hints.js']) {
+for (const asset of ['typed-build/prompt-library-smart-fill.js','typed-build/prompt-library-command-palette.js','typed-build/prompt-library-smart-fill-hints.js']) {
   assert.ok(index.includes(asset));
   assert.ok(sw.includes(asset));
 }
