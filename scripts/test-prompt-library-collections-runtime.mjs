@@ -13,7 +13,7 @@ const storage = new Storage();
 const previous = globalThis.localStorage;
 globalThis.localStorage = storage;
 delete globalThis.HafizePromptLibraryCollections;
-await import(new URL('../public/prompt-library-collections.js', import.meta.url));
+await import(new URL('../public/typed/legacy/prompt-library-collections.ts', import.meta.url));
 const api = globalThis.HafizePromptLibraryCollections;
 assert.ok(api);
 
@@ -71,7 +71,7 @@ assert.ok(hostile);
 assert.equal(hostile.name, 'güvenli');
 assert.equal(hostile.promptIds.length, 1);
 assert.equal(hostile.promptIds[0], 'ok');
-assert.doesNotMatch(fs.readFileSync('public/prompt-library-collections.js', 'utf8'), /innerHTML\s*=/);
+assert.doesNotMatch(fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8'), /innerHTML\s*=/);
 
 globalThis.localStorage = previous;
 console.log('prompt library collections runtime: ok');

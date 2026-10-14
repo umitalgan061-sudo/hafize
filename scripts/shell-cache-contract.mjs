@@ -6,28 +6,46 @@
 
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const require = createRequire(import.meta.url);
+import * as swPolicyModule from '../public/sw-policy.ts';
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PUBLIC_DIR = path.join(ROOT, 'public');
-export const swPolicy = require('../public/sw-policy.js');
+export const swPolicy = swPolicyModule;
 export const CACHE_VERSION_PATTERN = /^hafize-shell-v(\d+)$/;
 export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.CURRENT_CACHE)?.[1] ?? NaN);
 
-/** Source text of `public/sw-policy.js`, for suites that assert on the file itself. */
+/** Source text of `public/sw-policy.ts`, for suites that assert on the file itself. */
 export function readSwPolicySource() {
-  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.js'), 'utf8');
+  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.ts'), 'utf8');
+}
+
+/**
+ * Vite entry name -> TypeScript source, parsed from `vite.config.ts`.
+ * `/typed-build/*.js` shell entries only exist after `npm run build`, so the
+ * contract is checked against the entry source when the bundle is absent.
+ */
+export function viteEntrySources() {
+  const config = readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
+  const entries = new Map();
+  for (const match of config.matchAll(/'([A-Za-z0-9-]+)':\s*resolve\(ROOT,\s*'([^']+)'\)/g)) {
+    entries.set(match[1], match[2]);
+  }
+  return entries;
 }
 
 /** Local file backing a shell asset path, or null for the bare `/` entry. */
 export function shellAssetFile(assetPath) {
   if (assetPath === '/') return path.join(PUBLIC_DIR, 'index.html');
   if (!assetPath.startsWith('/') || assetPath.includes('..')) return null;
-  return path.join(PUBLIC_DIR, assetPath.slice(1));
+  const direct = path.join(PUBLIC_DIR, assetPath.slice(1));
+  if (existsSync(direct)) return direct;
+  const bundled = /^\/typed-build\/([A-Za-z0-9-]+)\.js$/.exec(assetPath);
+  if (!bundled) return direct;
+  const source = viteEntrySources().get(bundled[1]);
+  return source ? path.join(ROOT, source) : direct;
 }
 
 /** Same-origin CSS/JS URLs referenced by `public/index.html`. */
@@ -40,11 +58,10 @@ export function indexHtmlAssets() {
 
 /**
  * Shell entries that are not `<link>`ed or `<script>`ed from index.html:
- * documents, the policy the service worker pulls in with `importScripts`, and
- * static assets referenced from the manifest.
+ * documents and static assets referenced from the manifest.
  */
 export const NON_INDEX_SHELL_ASSETS = Object.freeze([
-  '/', '/index.html', '/offline.html', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+  '/', '/index.html', '/offline.html', '/manifest.webmanifest', '/hafize.jpeg'
 ]);
 
 /**
@@ -57,7 +74,7 @@ export function assertShellCacheContract() {
   assert.match(swPolicy.CURRENT_CACHE, CACHE_VERSION_PATTERN, 'shell cache name carries a numeric version');
   assert.ok(Number.isInteger(CURRENT_CACHE_VERSION) && CURRENT_CACHE_VERSION > 0);
   assert.equal(swPolicy.CURRENT_CACHE, `${swPolicy.CACHE_PREFIX}v${CURRENT_CACHE_VERSION}`);
-  assert.ok(Object.isFrozen(swPolicy));
+  assert.equal(Object.isExtensible(swPolicy), false, 'policy exports are a sealed module namespace');
   assert.ok(Object.isFrozen(swPolicy.SHELL_ASSETS));
 
   assert.equal(swPolicy.SHELL_ASSETS.some((asset) => asset.startsWith('/api/')), false, 'API paths never enter the shell cache');

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const index = fs.readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-const search = fs.readFileSync(new URL('../public/chat-history-search.js', import.meta.url), 'utf8');
+const search = fs.readFileSync(new URL('../public/typed/chat-history-search.ts', import.meta.url), 'utf8');
 const style = fs.readFileSync(new URL('../public/chat-history-search.css', import.meta.url), 'utf8');
 const docs = fs.readFileSync(new URL('../docs/CHAT_HISTORY_SEARCH.md', import.meta.url), 'utf8');
 

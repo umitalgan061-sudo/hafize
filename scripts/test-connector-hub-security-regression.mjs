@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source=await readFile('public/connector-hub.js','utf8');
+const source=await readFile('public/typed/legacy/connector-hub.ts','utf8');
 const css=await readFile('public/connector-hub.css','utf8');
-const sw=await readFile('public/sw-policy.js','utf8');
+const sw=await readFile('public/sw-policy.ts','utf8');
 
 for(const forbidden of [
   /Authorization\s*:/,

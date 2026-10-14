@@ -7,7 +7,7 @@ import { createStorageStub } from './browser-storage-stub.mjs';
 const require = createRequire(import.meta.url);
 const storage = createStorageStub();
 globalThis.localStorage = storage;
-require('../public/composer-history.js');
+require('../public/typed/legacy/composer-history.ts');
 const history = globalThis.HafizeComposerHistory;
 assert.ok(history, 'composer history exposes its API on the global');
 

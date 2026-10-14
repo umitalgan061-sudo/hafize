@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const js = await readFile(new URL('../public/scheduled-task-templates.js', import.meta.url), 'utf8');
+const js = await readFile(new URL('../public/typed/legacy/scheduled-task-templates.ts', import.meta.url), 'utf8');
 
 assert.doesNotMatch(js, /fetch\(/);
 assert.doesNotMatch(js, /XMLHttpRequest/);

@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
 const html = fs.readFileSync('public/index.html', 'utf8');
-const collections = fs.readFileSync('public/prompt-library-collections.js', 'utf8');
-const revisions = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
-const collectionEnh = fs.readFileSync('public/prompt-library-collections-enhancements.js', 'utf8');
-const revisionEnh = fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8');
+const collections = fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8');
+const revisions = fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8');
+const collectionEnh = fs.readFileSync('public/typed/legacy/prompt-library-collections-enhancements.ts', 'utf8');
+const revisionEnh = fs.readFileSync('public/typed/legacy/prompt-library-revisions-enhancements.ts', 'utf8');
 const css = fs.readFileSync('public/prompt-library-collections.css', 'utf8');
 
 assert.match(html, /prompt-library-collections\.css/);

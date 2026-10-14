@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createScheduleStorageRuntime } from '../lib/schedule-storage-runtime.mjs';
+import { createScheduleStorageRuntime } from '../lib/schedule-storage-runtime.ts';
 
 const memoryStore = Object.freeze({ kind: 'memory' });
 let memoryCalls = 0;

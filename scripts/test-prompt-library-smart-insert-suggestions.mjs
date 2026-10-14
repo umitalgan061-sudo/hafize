@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-const source = await readFile(new URL('../public/prompt-library-smart-insert-suggestions.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/typed/legacy/prompt-library-smart-insert-suggestions.ts', import.meta.url), 'utf8');
 assert.match(source, /MAX_SUGGESTIONS\s*=\s*5/);
 assert.match(source, /score\(/); assert.match(source, /rank\(/); assert.match(source, /recommend\(/);
 assert.match(source, /fillValues\(/); assert.match(source, /hasMissing\(/); assert.match(source, /item\.variables/);

@@ -19,3 +19,6 @@ coverage/
 *.crt
 runtime/
 data/
+
+# Vite build output
+public/typed-build/

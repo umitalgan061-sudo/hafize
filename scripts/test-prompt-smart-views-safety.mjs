@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source=fs.readFileSync('public/prompt-library-smart-views-safety.js','utf8');
+const source=fs.readFileSync('public/typed/legacy/prompt-library-smart-views-safety.ts','utf8');
 assert.match(source,/function analyze/);
 assert.match(source,/function normalizeRepair/);
 assert.match(source,/function applyRepair/);

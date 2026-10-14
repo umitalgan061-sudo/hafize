@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync(new URL('../public/prompt-library.js', import.meta.url), 'utf8');
-const enhancements = fs.readFileSync(new URL('../public/prompt-library-enhancements.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../public/typed/prompt-library.ts', import.meta.url), 'utf8');
+const enhancements = fs.readFileSync(new URL('../public/typed/legacy/prompt-library-enhancements.ts', import.meta.url), 'utf8');
 assert.doesNotMatch(source, /fetch\s*\(/);
 assert.doesNotMatch(source, /XMLHttpRequest/);
 assert.doesNotMatch(source, /WebSocket/);

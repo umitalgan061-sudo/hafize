@@ -7,10 +7,10 @@ import { assertCssIncludes } from './source-contract.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
-const js = await read('public/message-workspace.js');
+const js = await read('public/typed/message-workspace.ts');
 const css = await read('public/message-workspace.css');
-const policy = await read('public/message-workspace-policy.js');
-const sw = await read('public/sw-policy.js');
+const policy = await read('public/typed/legacy/message-workspace-policy.ts');
+const sw = await read('public/sw-policy.ts');
 
 function count(text, needle) {
   return text.split(needle).length - 1;
