@@ -104,9 +104,13 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
     for (const [key, value] of search.entries()) url.searchParams.set(key, value);
     const response = await fetchImpl(url, {
       method: 'GET',
+      // The request carries the installation token, so no layer between the
+      // runtime and GitHub may keep a copy of the response.
+      cache: 'no-store',
       headers: {
         Accept: 'application/vnd.github+json',
         Authorization: 'Bearer ' + token,
+        'Cache-Control': 'no-store',
         'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'Hafize-GitHub-Workspace'
       }

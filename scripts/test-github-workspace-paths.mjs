@@ -13,5 +13,6 @@ for (const source of [core, extra]) {
   assert.match(source, /startsWith\('\/'\)/);
   assert.match(source, /includes\('\\\\'\)/);
 }
-assert.match(extra, /private[._-]?keys?/i);
+// The blocklist is a regex literal, so the source carries its character class.
+assert.match(extra, /private\[\._-\]\?keys\?/i);
 console.log('github-workspace-paths: ok');

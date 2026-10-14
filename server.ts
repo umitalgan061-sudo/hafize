@@ -31,7 +31,7 @@ import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.ts';
 import { createScheduleWorker } from './lib/schedule-worker.ts';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
-import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
+import { isTerminalModelResponse, normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
 import { deliverRequestFailure } from './lib/request-failure.ts';
 import {
   executeNvidiaToolCall,
@@ -570,7 +570,7 @@ async function handleAgentRun(req, res) {
     }))
   };
   const toolCalls = assistant.tool_calls;
-  if (!toolCalls.length) {
+  if (isTerminalModelResponse(first)) {
     runLedger.finish({ ok: true });
     requestAbort.cancel();
     if (streamResponse) {

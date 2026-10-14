@@ -20,8 +20,20 @@ export interface NormalizedModelResponse {
 }
 
 function text(value: unknown, max: number, code: string): string {
-  const result = typeof value === 'string' ? value.trim() : '';
+  // A non-string where the contract expects text is a provider contract
+  // breach: it is rejected instead of being flattened into an empty answer.
+  if (value == null) return '';
+  if (typeof value !== 'string') throw new Error(code);
+  const result = value.trim();
   if (result.length > max) throw new Error(code);
+  return result;
+}
+
+/** Assistant text: malformed and oversized content get distinct codes. */
+function content(value: unknown): string {
+  if (typeof value !== 'string') throw new Error('INVALID_MODEL_CONTENT');
+  const result = value.trim();
+  if (result.length > MAX_CONTENT_LENGTH) throw new Error('MODEL_CONTENT_TOO_LARGE');
   return result;
 }
 
@@ -56,7 +68,9 @@ function toolCalls(value: unknown): readonly ModelToolCall[] {
     const id = text(call.id, 200, 'INVALID_MODEL_TOOL_CALL_ID');
     const name = text(fn.name, 120, 'INVALID_MODEL_TOOL_CALL_NAME');
     const args = fn.arguments;
-    if (!id || !name || typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
+    if (!id) throw new Error('INVALID_MODEL_TOOL_CALL_ID');
+    if (!name) throw new Error('INVALID_MODEL_TOOL_CALL_NAME');
+    if (typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
       throw new Error('INVALID_MODEL_TOOL_CALL');
     }
     return Object.freeze({ id, name, arguments: args });
@@ -67,7 +81,7 @@ export function normalizeModelResponse(value: unknown = {}): NormalizedModelResp
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_MODEL_RESPONSE');
   const source = value as Record<string, unknown>;
   return Object.freeze({
-    content: source.content == null ? '' : text(source.content, MAX_CONTENT_LENGTH, 'INVALID_MODEL_CONTENT'),
+    content: source.content == null ? '' : content(source.content),
     finishReason: finishReason(source.finishReason),
     toolCalls: toolCalls(source.toolCalls),
     usage: usage(source.usage),
@@ -94,6 +108,15 @@ export function normalizeNvidiaChatCompletion(value: unknown = {}): NormalizedMo
     model: source.model,
     responseId: source.id
   });
+}
+
+/**
+ * A response is terminal when the model is not waiting for tool results:
+ * no tool calls were requested and it did not finish for that reason.
+ * The tool loop uses this instead of re-deriving the rule at the call site.
+ */
+export function isTerminalModelResponse(value: NormalizedModelResponse): boolean {
+  return value.finishReason !== 'tool_calls' && value.toolCalls.length === 0;
 }
 
 export const MODEL_RESPONSE_CONTRACT = Object.freeze({

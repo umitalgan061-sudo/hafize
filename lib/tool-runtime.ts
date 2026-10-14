@@ -3,6 +3,7 @@ import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
 import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
 import { normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
 import { projectSafeToolExecutionResult } from './tool-execution-result-policy.ts';
+import { TASK_HANDOFF_LIMITS } from './task-handoff.ts';
 
 export interface ToolAgent {
   readonly id: string;
@@ -99,6 +100,16 @@ function abortedReason(signal: AbortSignal | undefined): 'TOOL_ABORTED' | 'TOOL_
   return 'TOOL_ABORTED';
 }
 
+/** Tool failure that carries a stable code through the tool boundary. */
+export class ToolExecutionError extends Error {
+  readonly code: string;
+  constructor(code: string) {
+    super(code);
+    this.name = 'ToolExecutionError';
+    this.code = code;
+  }
+}
+
 const CATALOG = new Map<string, ToolEntry>([
   ['runtime_status', {
     permission: 'runtime.status',
@@ -121,14 +132,24 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'delegation',
     timeoutMs: timeout(90_000, 90_000),
     activity: { running: 'Uzman ajan çalıştırılıyor', success: 'Uzman ajan çalıştırıldı', failure: 'Uzman ajan çalıştırılamadı' },
+    // The structured handoff fields are part of the delegation contract
+    // (lib/task-handoff.ts); the schema advertises them with the same bounds
+    // the normalizer enforces, so the model can actually send them.
     definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder.', {
-      agentId: { type: 'string' },
-      task: { type: 'string' }
+      agentId: { type: 'string', maxLength: TASK_HANDOFF_LIMITS.maxAgentId },
+      task: { type: 'string', maxLength: TASK_HANDOFF_LIMITS.maxTask },
+      ...Object.fromEntries(['successCriteria', 'constraints', 'evidenceRequired'].map((field) => [field, {
+        type: 'array',
+        maxItems: TASK_HANDOFF_LIMITS.maxItems,
+        items: { type: 'string', maxLength: TASK_HANDOFF_LIMITS.maxListItem }
+      }]))
     }),
     available: (context) => typeof context.delegateAgent === 'function',
     execute: async (args, context) => {
       const result = await context.delegateAgent!(args) as { ok?: boolean; error?: unknown; value?: unknown };
-      if (result?.ok !== true) throw new Error(typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED');
+      // Delegation errors are a closed set of codes, so the caller keeps the
+      // reason (depth exceeded, cancelled, ...) instead of a generic failure.
+      if (result?.ok !== true) throw new ToolExecutionError(typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED');
       return result.value;
     }
   }],
@@ -167,7 +188,7 @@ const CATALOG = new Map<string, ToolEntry>([
     permission: 'skill.invoke',
     kind: 'skill',
     timeoutMs: timeout(30_000, 30_000),
-    activity: { running: 'Hafize skill hazırlanıyor', success: 'Hafize skill hazırlandı', failure: 'Hafize skill hazırlanamadı' },
+    activity: { running: 'Hafize skill’i hazırlanıyor', success: 'Hafize skill’i hazırlandı', failure: 'Hafize skill’i hazırlanamadı' },
     definition: definition('skill_invoke', 'Registry içindeki güvenli Hafize skill yapısını çözümler.', {
       skillId: { type: 'string' },
       args: { type: 'object' }
@@ -213,17 +234,19 @@ export function getPublicToolRunningActivity(name: unknown): Readonly<{ label: s
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
   return entry ? Object.freeze({ label: entry.activity.running, state: 'running' as const, tool: name as string, timeoutMs: entry.timeoutMs }) : null;
 }
-export function getPublicToolActivity(name: unknown, result: unknown): Readonly<{ label: string; state: 'success' | 'failure'; tool: string; durationMs?: number; error?: string } | null> {
+// The activity event is streamed to the browser, so it stays a fixed public
+// projection: the catalogue's own label, the state, the tool name and its
+// duration. Failure detail travels in the tool summary, never in the stream.
+export function getPublicToolActivity(name: unknown, result: unknown): Readonly<{ label: string; state: 'success' | 'failure'; tool: string; durationMs?: number } | null> {
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
   if (!entry) return null;
   const ok = Boolean(result && typeof result === 'object' && (result as { ok?: boolean }).ok === true);
-  const value = result && typeof result === 'object' ? result as { durationMs?: unknown; error?: unknown } : {};
+  const value = result && typeof result === 'object' ? result as { durationMs?: unknown } : {};
   return Object.freeze({
     label: ok ? entry.activity.success : entry.activity.failure,
     state: ok ? 'success' as const : 'failure' as const,
     tool: name as string,
-    ...(Number.isFinite(value.durationMs) ? { durationMs: Number(value.durationMs) } : {}),
-    ...(typeof value.error === 'string' ? { error: value.error.slice(0, 120) } : {})
+    ...(Number.isFinite(value.durationMs) ? { durationMs: Number(value.durationMs) } : {})
   });
 }
 export async function executeNvidiaToolCall(

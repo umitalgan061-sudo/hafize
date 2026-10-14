@@ -180,6 +180,12 @@ const toolFailure = await executeNvidiaToolCall(
   { id: 'call_delegate_2', type: 'function', function: { name: 'agent_delegate', arguments: JSON.stringify({ agentId: reviewer.id, task: 'Kontrol et.' }) } },
   { delegateAgent: async () => ({ ok: false, error: 'DELEGATION_DEPTH_EXCEEDED' }) }
 );
-assert.deepEqual(toolFailure, { ok: false, error: 'DELEGATION_DEPTH_EXCEEDED' });
+// The tool envelope carries the failing tool and its duration alongside the
+// delegation error code.
+assert.equal(toolFailure.ok, false);
+assert.equal(toolFailure.tool, 'agent_delegate');
+assert.equal(toolFailure.error, 'DELEGATION_DEPTH_EXCEEDED');
+assert.equal(Number.isFinite(toolFailure.durationMs), true);
+assert.deepEqual(Object.keys(toolFailure).sort(), ['durationMs', 'error', 'ok', 'tool']);
 
 console.log('agent delegate tool tests passed');

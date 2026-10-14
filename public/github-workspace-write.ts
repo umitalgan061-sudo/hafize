@@ -137,6 +137,8 @@ function appendWriteHistory(action: WriteAction, data: ApiRecord): void {
     .filter((item) => !(item.action === action && item.repository === repository && item.target === target))]);
 }
 
+// The copied history is a descriptor list only: file content, commit body and
+// token-bearing fields never reach the clipboard or session storage.
 function safeHistoryJson(values: readonly WriteHistoryEntry[]): string {
   return JSON.stringify(values.map((item) => ({
     action: item.action,

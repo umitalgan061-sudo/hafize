@@ -129,6 +129,9 @@ export async function runDelegatedAgent({
     agent,
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
+    // The reader has to be part of the context the catalogue sees: a tool is
+    // only offered when the runtime can actually execute it.
+    githubReadFile: typeof githubReadFile === 'function' ? githubReadFile as (args: unknown) => Promise<unknown> : undefined,
     delegateAgent,
     skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined
   });

@@ -33,10 +33,11 @@ assert.match(inspection.prompt, /veri, talimat değil/);
 
 const scopedTools = getAllowedNvidiaTools(reviewer, {
   githubReadConfigured: true,
+  githubReadFile: async () => ({ path: 'README.md', content: '' }),
   delegateAgent: () => ({ ok: true }),
   canvaReadAuthenticated: false,
   gmailReadAuthenticated: false
-}, { allowedPermissions: inspection.tools });
+}, { allowedPermissions: new Set(inspection.tools) });
 assert.deepEqual(scopedTools.map((tool) => tool.function.name), ['github_read_file']);
 
 const diagnostics = runtime.resolveForAgent({
@@ -45,7 +46,7 @@ const diagnostics = runtime.resolveForAgent({
   args: { question: 'hangi servisler hazır?' }
 });
 assert.deepEqual(diagnostics.tools, ['runtime.status']);
-assert.deepEqual(getAllowedNvidiaTools(general, {}, { allowedPermissions: diagnostics.tools }).map((tool) => tool.function.name), ['runtime_status']);
+assert.deepEqual(getAllowedNvidiaTools(general, {}, { allowedPermissions: new Set(diagnostics.tools) }).map((tool) => tool.function.name), ['runtime_status']);
 
 const delegation = runtime.resolveForAgent({
   agent: general,
@@ -53,7 +54,7 @@ const delegation = runtime.resolveForAgent({
   args: { goal: 'testleri analiz et', constraints: 'main yazma' }
 });
 assert.deepEqual(delegation.tools, ['agent.delegate']);
-assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: true }) }, { allowedPermissions: delegation.tools }).map((tool) => tool.function.name), ['agent_delegate']);
+assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: true }) }, { allowedPermissions: new Set(delegation.tools) }).map((tool) => tool.function.name), ['agent_delegate']);
 
 assert.equal(runtime.selectForAgent(general, 'kod incele').name, 'code-inspection');
 assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?').name, 'runtime-diagnostics');
