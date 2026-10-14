@@ -7,7 +7,7 @@ export interface GitHubWorkspaceActionsController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as GitHubWorkspaceActionsWindow;
+const root = globalThis as unknown as GitHubWorkspaceActionsWindow;
 const CARD_ID = 'githubWorkspaceCard';
 const HISTORY_KEY = 'hafize.github-workspace.history.v1';
 const MAX_HISTORY = 6;
@@ -158,8 +158,8 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceActionsCon
     }).then(async (response) => {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(clamp((payload as Record<string, unknown>).error, 100) || 'GITHUB_WORKSPACE_FAILED');
-      const pulls = Array.isArray((payload as Record<string, unknown>).pullRequests)
-        ? (payload as Record<string, unknown>).pullRequests
+      const pulls: unknown[] = Array.isArray((payload as Record<string, unknown>).pullRequests)
+        ? (payload as Record<string, unknown>).pullRequests as unknown[]
         : [];
       result.replaceChildren();
       const list = make(documentRef, 'div', undefined, 'github-workspace-list');

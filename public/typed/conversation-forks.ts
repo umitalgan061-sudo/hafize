@@ -35,7 +35,7 @@ const lineageOf = conversationLineage;
   const MAX_SNIPPET = 180;
 
   const ui = {
-    messages: document.querySelector('#messages'),
+    messages: document.querySelector<HTMLElement>('#messages'),
     historyBlock: document.querySelector('.history-block'),
     conversationList: document.querySelector('#conversationList'),
     toast: document.querySelector('#toast')
@@ -71,12 +71,38 @@ const lineageOf = conversationLineage;
     } catch { return false; }
   }
 
+  function downloadConversation(conversation) {
+    if (!conversation || typeof conversation !== 'object') return false;
+    const snapshot = buildForkSnapshot(conversation);
+    let url = '';
+    try {
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+      url = URL.createObjectURL(blob);
+      const anchorNode = document.createElement('a');
+      anchorNode.href = url;
+      anchorNode.download = 'hafize-dal-' + cleanText(conversation.id, 40) + '-' + new Date().toISOString().slice(0, 10) + '.json';
+      anchorNode.rel = 'noopener';
+      document.body.append(anchorNode);
+      anchorNode.click();
+      anchorNode.remove();
+      showToast('Dal yedeği indirildi.');
+      return true;
+    } catch {
+      showToast('Dal yedeği oluşturulamadı.');
+      return false;
+    } finally {
+      if (url) globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+  }
+
+  let toastTimer = 0;
+
   function showToast(message) {
     if (!ui.toast) return;
     ui.toast.textContent = cleanText(message, 180);
     ui.toast.classList.remove('hidden');
-    globalThis.clearTimeout(showToast.timer);
-    showToast.timer = globalThis.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    globalThis.clearTimeout(toastTimer);
+    toastTimer = globalThis.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function isBusy() {
@@ -181,7 +207,7 @@ const lineageOf = conversationLineage;
 
     overlay.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') { event.preventDefault(); closeDialog(); return; }
-      const tagName = event.target?.tagName;
+      const tagName = event.target instanceof HTMLElement ? event.target.tagName : '';
       if (event.key === 'Enter' && tagName !== 'INPUT' && tagName !== 'TEXTAREA' && event.target !== cancel) { event.preventDefault(); finish(true); return; }
       if (event.key !== 'Tab') return;
       const nodes = focusable(panel);
@@ -334,7 +360,7 @@ const lineageOf = conversationLineage;
   }
 
   function decorateMessages() {
-    ui.messages.querySelectorAll('.message').forEach((article) => {
+    ui.messages.querySelectorAll<HTMLElement>('.message').forEach((article) => {
       if (article.querySelector('[data-conversation-fork]')) return;
       const messageId = cleanText(article.dataset.messageId, 120);
       if (!messageId) return;
@@ -455,7 +481,7 @@ const lineageOf = conversationLineage;
       search.addEventListener('input', () => renderGlobalBranchHub());
     }
 
-    const search = panel.querySelector('.conversation-fork-hub-search');
+    const search = panel.querySelector<HTMLInputElement>('.conversation-fork-hub-search');
     const list = panel.querySelector('.conversation-fork-hub-list');
     const query = cleanText(search?.value || '', 80).toLocaleLowerCase('tr-TR');
     const visible = branches.filter((item) => {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptLibraryCollections(root) {
   'use strict';
 
@@ -257,7 +256,7 @@
     }
 
     function selectedPromptIds() {
-      return [...card.querySelectorAll('[data-prompt-selection]:checked')]
+      return [...card.querySelectorAll<HTMLElement>('[data-prompt-selection]:checked')]
         .map((node) => node.dataset.promptSelection)
         .filter(Boolean)
         .slice(0, 40);
@@ -447,3 +446,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

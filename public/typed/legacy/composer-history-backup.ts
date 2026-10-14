@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizeComposerHistoryBackup(root) {
   'use strict';
   const MAX_EXPORT = 512000;
@@ -52,7 +51,9 @@
     const file = doc.createElement('input'); file.type = 'file'; file.accept = 'application/json,.json'; file.hidden = true; file.setAttribute('aria-label', 'Gönderim geçmişi yedeği seç');
     wrapper.append(exportButton, importButton, file);
     const panel = doc.getElementById('composerHistoryPanel');
-    panel?.querySelector('.composer-history-footer')?.prepend(wrapper) || form.after(wrapper);
+    const footer = panel?.querySelector('.composer-history-footer');
+    if (footer) footer.prepend(wrapper);
+    else form.after(wrapper);
     exportButton.addEventListener('click', download);
     importButton.addEventListener('click', () => file.click());
     file.addEventListener('change', () => {
@@ -72,3 +73,5 @@
   }
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

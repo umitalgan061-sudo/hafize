@@ -24,7 +24,7 @@ assert.equal(uiFindings[0].code, 'UI_FOCUSVISIBLE');
 assert.equal(uiFindings[1].code, 'UI_ERRORSTATES');
 
 const pass = evaluateQualityGates({
-  files: [{ path: 'lib/app.mjs', content: 'safe' }],
+  files: [{ path: 'public/typed/app-shell.ts', content: 'safe' }],
   result: { claims: ['a'], evidence: [{ source: 'test', note: 'verified' }] },
   ui: { responsive: true, keyboard: true, focusVisible: true, contrast: true, emptyStates: true, loadingStates: true, errorStates: true }
 });

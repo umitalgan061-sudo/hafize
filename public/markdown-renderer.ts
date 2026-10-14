@@ -1,12 +1,10 @@
 // TypeScript migration wave 2026-09.
 // Runtime behavior remains compatible with the previous browser-global surface.
 // The module is bundled by Vite/Rolldown and loaded as a generated entrypoint.
-// @ts-nocheck
 (function exposeHafizeMarkdown(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizeMarkdown = api;
+  root.HafizeMarkdown = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeMarkdown() {
   'use strict';
 
@@ -754,7 +752,7 @@
 
   const sourceByContainer = new WeakMap();
 
-  function element(doc, tag, className) {
+  function element(doc, tag, className?) {
     const node = doc.createElement(tag);
     if (className) node.setAttribute('class', className);
     return node;
@@ -927,7 +925,7 @@
    * a bound was hit before anything was produced, or when parsing yields
    * nothing — the answer is always readable.
    */
-  function renderMarkdownInto(container, value, options = {}) {
+  function renderMarkdownInto(container, value, options: Record<string, any> = {}) {
     if (!container) return { rendered: false, truncated: false, blocks: 0 };
     const doc = options.document ?? container.ownerDocument;
     if (!doc || typeof doc.createElement !== 'function') return { rendered: false, truncated: false, blocks: 0 };
@@ -957,7 +955,7 @@
   }
 
   /** Writes plain text into a container that may hold a previous render. */
-  function renderPlainInto(container, value, options = {}) {
+  function renderPlainInto(container, value, options: Record<string, any> = {}) {
     if (!container) return false;
     const doc = options.document ?? container.ownerDocument;
     if (!doc || typeof doc.createTextNode !== 'function') return false;
@@ -987,3 +985,5 @@
     sourceFor
   });
 });
+
+export {};

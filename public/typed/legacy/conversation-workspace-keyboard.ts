@@ -1,4 +1,3 @@
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -11,7 +10,7 @@
   });
   const ui = {
     workspace: document.querySelector('.conversation-workspace'),
-    search: document.querySelector('#conversationWorkspaceSearch'),
+    search: document.querySelector<HTMLInputElement>('#conversationWorkspaceSearch'),
     selectAll: document.querySelector('.conversation-workspace-actions .workspace-ghost'),
     clearSelection: document.querySelectorAll('.conversation-workspace-actions .workspace-ghost')?.[1],
     status: document.querySelector('#conversationWorkspaceStatus')
@@ -159,3 +158,5 @@
     focusSearch
   });
 })();
+
+export {};

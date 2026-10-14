@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskPreviewActivity(root) {
   'use strict';
   const MAX_EVENTS = 8;
@@ -8,7 +7,7 @@
   let mounted = false;
 
   const doc = function () { return root.document; };
-  const make = function (tag, text, className) {
+  const make = function (tag, text, className?) {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -71,3 +70,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

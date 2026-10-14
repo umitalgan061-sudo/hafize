@@ -1,7 +1,7 @@
 // TypeScript migration wave 2026-10.
 // Legacy behavior is preserved while this runtime surface moves to the typed build path.
 // @ts-nocheck
-import { containsPlaintextCredential } from './plaintext-credential-policy.mjs';
+import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
 const API_ORIGIN = 'https://api.canva.com';
 const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;

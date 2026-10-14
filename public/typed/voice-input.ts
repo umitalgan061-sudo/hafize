@@ -1,7 +1,8 @@
 export interface VoiceInputController { readonly isSupported:boolean; readonly isListening:()=>boolean; readonly start:()=>void; readonly stop:()=>void; readonly destroy:()=>void; }
 interface RecognitionResultLike { readonly transcript?:unknown; }
 interface RecognitionEventLike { readonly results?:ArrayLike<ArrayLike<RecognitionResultLike>>; readonly resultIndex?:number; readonly error?:unknown; }
-type RecognitionInstance=SpeechRecognition&{onstart:(()=>void)|null;onresult:((event:RecognitionEventLike)=>void)|null;onerror:((event:RecognitionEventLike)=>void)|null;onend:(()=>void)|null};
+interface SpeechRecognitionLike { lang:string; continuous:boolean; interimResults:boolean; maxAlternatives:number; start():void; stop():void; abort():void; }
+type RecognitionInstance=SpeechRecognitionLike&{onstart:(()=>void)|null;onresult:((event:RecognitionEventLike)=>void)|null;onerror:((event:RecognitionEventLike)=>void)|null;onend:(()=>void)|null};
 type RecognitionCtor=new()=>RecognitionInstance;
 const DEFAULT_LANGUAGE='tr-TR',TOAST_DURATION_MS=4200;
 export function getSpeechRecognitionConstructor(root:typeof globalThis):RecognitionCtor|null{const candidate=(root as typeof globalThis & {SpeechRecognition?:RecognitionCtor;webkitSpeechRecognition?:RecognitionCtor});return candidate.SpeechRecognition||candidate.webkitSpeechRecognition||null;}

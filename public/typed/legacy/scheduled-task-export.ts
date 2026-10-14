@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskExport(root) {
   'use strict';
   const PANEL_ID = 'scheduledTasksWorkspace';
@@ -14,7 +13,7 @@
   function readVisible() {
     const panel = doc()?.getElementById?.(PANEL_ID);
     if (!panel) return [];
-    return Array.from(panel.querySelectorAll('.scheduled-task-row')).filter((row) => !row.hidden).map((row) => ({
+    return Array.from(panel.querySelectorAll<HTMLElement>('.scheduled-task-row')).filter((row) => !row.hidden).map((row) => ({
       scheduleId: row.dataset.scheduleId || '',
       status: row.dataset.status || '',
       agentId: row.dataset.agentId || '',
@@ -61,3 +60,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

@@ -1,7 +1,7 @@
 // TypeScript migration wave 2026-10.
 // Compatibility-preserving typed runtime path.
 // @ts-nocheck
-import { containsPlaintextCredential } from './plaintext-credential-policy.mjs';
+import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
 
 const API_ORIGIN = 'https://gmail.googleapis.com';
 const OWNER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;

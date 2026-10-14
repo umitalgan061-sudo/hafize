@@ -1,7 +1,6 @@
 // TypeScript migration wave 2026-09.
 // Runtime behavior remains compatible with the previous browser-global surface.
 // The module is bundled by Vite/Rolldown and loaded as a generated entrypoint.
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -103,7 +102,7 @@
     if (!content) return null;
     const id = typeof message.id === 'string' && message.id ? message.id.slice(0, 120) : `imported-${index}-${Date.now()}`;
     const at = typeof message.at === 'string' ? message.at : new Date().toISOString();
-    const normalized = { id, role: safeRole(message.role), content, at };
+    const normalized: Record<string, any> = { id, role: safeRole(message.role), content, at };
     if (Array.isArray(message.toolActivities)) {
       normalized.toolActivities = message.toolActivities
         .filter((activity) => activity && typeof activity === 'object')
@@ -167,16 +166,20 @@
     }
   }
 
+  let announceTimeoutId = 0;
   function announce(message) {
     if (!ui.toast || !message) return;
     ui.toast.textContent = message;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(announce.timeoutId);
-    announce.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3000);
+    window.clearTimeout(announceTimeoutId);
+    announceTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3000);
   }
 
+  /** Row controls published by the toolbar so row-level handlers can refresh it. */
+  let rowControls: { updateRows: () => void; refreshTagOptions: () => void; updateStatus: () => void } | null = null;
+
   function getRows() {
-    return Array.from(ui.history.querySelectorAll('.conversation-row'));
+    return Array.from(ui.history.querySelectorAll<HTMLElement>('.conversation-row'));
   }
 
   function getRowId(row) {
@@ -388,7 +391,7 @@
         const visible = orderedIds.has(id);
         row.hidden = !visible;
         row.style.order = visible ? String(orderedIds.get(id)) : '9999';
-        const check = row.querySelector('.workspace-row-check');
+        const check = row.querySelector<HTMLInputElement>('.workspace-row-check');
         if (check) {
           check.checked = state.selected.includes(id);
           check.setAttribute('aria-checked', String(check.checked));
@@ -613,7 +616,7 @@
     exportButton.addEventListener('click', downloadSelected);
     importButton.addEventListener('click', importBackup);
 
-    buildToolbar.rowControls = { updateRows, refreshTagOptions, updateStatus };
+    rowControls = { updateRows, refreshTagOptions, updateStatus };
     updateRows();
   }
 
@@ -659,7 +662,7 @@
         state.selected = [...selected].slice(0, MAX_CONVERSATIONS);
         persistState();
         row.classList.toggle('workspace-selected', check.checked);
-        buildToolbar.rowControls?.updateStatus?.();
+        rowControls?.updateStatus?.();
       });
       row.prepend(check);
     }
@@ -677,8 +680,8 @@
   function refresh() {
     pruneMissingSelection();
     decorateRows();
-    buildToolbar.rowControls?.refreshTagOptions?.();
-    buildToolbar.rowControls?.updateRows?.();
+    rowControls?.refreshTagOptions?.();
+    rowControls?.updateRows?.();
   }
 
   function expose() {
@@ -711,7 +714,7 @@
 
   const observer = new MutationObserver(() => {
     decorateRows();
-    buildToolbar.rowControls?.updateRows?.();
+    rowControls?.updateRows?.();
   });
   observer.observe(ui.history, { childList: true, subtree: true });
 
@@ -721,3 +724,5 @@
 
   window.addEventListener(WORKSPACE_EVENT, () => refresh());
 })();
+
+export {};

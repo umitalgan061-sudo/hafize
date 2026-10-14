@@ -6,11 +6,11 @@ const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Promise.all([
   read('public/scheduled-tasks.js'),
   read('public/scheduled-tasks.css'),
-  read('public/scheduled-tasks-enhancements.js'),
-  read('public/scheduled-tasks-keyboard.js'),
-  read('public/scheduled-tasks-countdown.js'),
+  read('public/typed/legacy/scheduled-tasks-enhancements.ts'),
+  read('public/typed/legacy/scheduled-tasks-keyboard.ts'),
+  read('public/scheduled-tasks-countdown.ts'),
   read('public/index.html'),
-  read('public/sw-policy.js'),
+  read('public/sw-policy.ts'),
   read('README.md')
 ]);
 

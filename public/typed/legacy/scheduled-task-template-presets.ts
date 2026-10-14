@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskTemplatePresets(root) {
   'use strict';
   const PANEL_ID = 'scheduledTaskTemplates';
@@ -14,7 +13,7 @@
   let panel = null;
 
   const doc = () => root.document;
-  const make = (tag, text, className) => {
+  const make = (tag, text, className?) => {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -23,7 +22,7 @@
 
   function currentAgentId() {
     const form = doc()?.querySelector?.('#scheduledTasksWorkspace .scheduled-tasks-create');
-    return form?.querySelector('#scheduledTaskAgent')?.value || '';
+    return form?.querySelector<HafizeValueControl>('#scheduledTaskAgent')?.value || '';
   }
 
   function status(message) {
@@ -82,3 +81,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

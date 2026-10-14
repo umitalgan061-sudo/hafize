@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskDraft(root) {
   'use strict';
   const STORAGE_KEY = 'hafize.scheduled-task-draft.v1';
@@ -41,9 +40,9 @@
     const current = form();
     if (!current) return null;
     return {
-      agentId: String(current.querySelector('#scheduledTaskAgent')?.value || '').slice(0, 120),
+      agentId: String(current.querySelector<HafizeValueControl>('#scheduledTaskAgent')?.value || '').slice(0, 120),
       task: String(current.querySelector('textarea')?.value || '').slice(0, MAX_TASK),
-      maxAttempts: Math.max(1, Math.min(5, Number(current.querySelector('select[aria-label="Maksimum deneme sayısı"]')?.value) || 1))
+      maxAttempts: Math.max(1, Math.min(5, Number(current.querySelector<HTMLSelectElement>('select[aria-label="Maksimum deneme sayısı"]')?.value) || 1))
     };
   }
   function status(message) {
@@ -66,9 +65,9 @@
     const draft = readDraft();
     const current = form();
     if (!draft || !current) return false;
-    const agent = current.querySelector('#scheduledTaskAgent');
+    const agent = current.querySelector<HafizeValueControl>('#scheduledTaskAgent');
     const task = current.querySelector('textarea');
-    const attempts = current.querySelector('select[aria-label="Maksimum deneme sayısı"]');
+    const attempts = current.querySelector<HTMLSelectElement>('select[aria-label="Maksimum deneme sayısı"]');
     if (agent && draft.agentId) agent.value = draft.agentId;
     if (task) { task.value = draft.task; task.dispatchEvent(new Event('input', { bubbles: true })); }
     if (attempts) attempts.value = String(draft.maxAttempts);
@@ -122,3 +121,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

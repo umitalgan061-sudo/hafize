@@ -1,11 +1,10 @@
 // Streaming behaviour: partial answers stay readable, and per-delta paints are
 // coalesced into one frame instead of rebuilding the DOM on every token.
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { createContainer, createDocument, findAll, findByClass } from './markdown-dom-harness.mjs';
 
-const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.js');
+await import('../public/markdown-renderer.ts');
+const markdown = globalThis.HafizeMarkdown;
 
 // `chat-markdown.js` looks the renderer up on the global, the way the browser
 // wires the two script tags together.
@@ -26,7 +25,8 @@ const runFrames = () => {
   return queued.filter(Boolean).length;
 };
 
-const chat = require('../public/chat-markdown.js');
+await import('../public/chat-markdown.ts');
+const chat = globalThis.HafizeChatMarkdown;
 
 /* Every prefix of an answer renders without throwing -------------------- */
 

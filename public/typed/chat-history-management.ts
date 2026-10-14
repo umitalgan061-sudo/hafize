@@ -2,7 +2,6 @@
  * TypeScript-first frontend migration wave.
  * The browser/global contract is intentionally preserved during the migration.
  */
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -22,12 +21,14 @@
 
   if (!ui.list) return;
 
+  let announceTimeoutId = 0;
+
   function announce(message) {
     if (!ui.toast || !message) return;
     ui.toast.textContent = message;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(announce.timeoutId);
-    announce.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 2600);
+    window.clearTimeout(announceTimeoutId);
+    announceTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 2600);
   }
 
   function readHistory() {
@@ -220,3 +221,5 @@
     if (event.key === STORAGE_KEY) sync();
   });
 })();
+
+export {};

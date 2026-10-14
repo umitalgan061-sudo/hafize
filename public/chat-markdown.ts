@@ -1,11 +1,9 @@
 // TypeScript migration wave 2026-10.
 // Canonical source for the compatibility global consumed by the chat shell.
-// @ts-nocheck
 (function exposeHafizeChatMarkdown(root, factory) {
   'use strict';
   const api = factory(root);
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizeChatMarkdown = api;
+  root.HafizeChatMarkdown = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeChatMarkdown(root) {
   'use strict';
 
@@ -62,7 +60,7 @@
    * straight away and cancels a frame that is still pending, so the final
    * text can never be overwritten by an older delta.
    */
-  function paint(container, text, options = {}) {
+  function paint(container, text, options: Record<string, any> = {}) {
     if (!container) return null;
     pendingPaints.set(container, { text: typeof text === 'string' ? text : '', options });
     if (options.streaming) {
@@ -148,7 +146,7 @@
     markCopyState(button, (await copyText(codeTextFor(button))) ? 'copied' : 'failed');
   }
 
-  function init(messagesNode) {
+  function init(messagesNode?) {
     const node = messagesNode ?? root.document?.querySelector?.('#messages');
     if (!node || node.dataset?.mdCopyBound === 'true') return false;
     node.addEventListener('click', handleCopyClick);
@@ -160,3 +158,5 @@
 
   return Object.freeze({ paint, sourceFor, plainTextFor, copyText, codeTextFor, init, COPY_FEEDBACK_MS });
 });
+
+export {};

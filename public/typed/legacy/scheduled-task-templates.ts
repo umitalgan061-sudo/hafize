@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskTemplates(root) {
   'use strict';
 
@@ -94,9 +93,9 @@
   function currentForm() {
     const current = form();
     if (!current) return null;
-    const agent = current.querySelector('#scheduledTaskAgent');
-    const task = current.querySelector('textarea');
-    const attempts = current.querySelector('select[aria-label="Maksimum deneme sayısı"]');
+    const agent = current.querySelector<HTMLSelectElement>('#scheduledTaskAgent');
+    const task = current.querySelector<HTMLTextAreaElement>('textarea');
+    const attempts = current.querySelector<HTMLSelectElement>('select[aria-label="Maksimum deneme sayısı"]');
     return {
       agentId: clip(agent?.value, 120),
       agentLabel: agent?.selectedOptions?.[0]?.textContent?.trim() || agent?.value || '',
@@ -108,9 +107,9 @@
   function setForm(template) {
     const current = form();
     if (!current || !template) return false;
-    const agent = current.querySelector('#scheduledTaskAgent');
-    const task = current.querySelector('textarea');
-    const attempts = current.querySelector('select[aria-label="Maksimum deneme sayısı"]');
+    const agent = current.querySelector<HTMLSelectElement>('#scheduledTaskAgent');
+    const task = current.querySelector<HTMLTextAreaElement>('textarea');
+    const attempts = current.querySelector<HTMLSelectElement>('select[aria-label="Maksimum deneme sayısı"]');
     if (agent) agent.value = template.agentId;
     if (task) {
       task.value = template.task;
@@ -122,13 +121,13 @@
     return true;
   }
 
-  const make = function (tag, text, className) {
+  const make = function (tag, text, className?) {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
     return node;
   };
-  const button = function (label, action, className) {
+  const button = function (label, action, className?) {
     const node = make('button', label, className || 'mini-btn');
     node.type = 'button';
     if (action) node.dataset.templateAction = action;
@@ -147,12 +146,13 @@
     const templates = load();
     const existing = doc().getElementById(PANEL_ID);
     if (!existing) return;
-    const select = existing.querySelector('select[data-template-select]');
-    const list = existing.querySelector('[data-template-list]');
+    const select = existing.querySelector<HTMLSelectElement>('select[data-template-select]');
+    const list = existing.querySelector<HTMLElement>('[data-template-list]');
     if (!select || !list) return;
     select.replaceChildren();
-    select.append(make('option', 'Kayıtlı şablon seç'));
-    select.firstElementChild.value = '';
+    const placeholder = make('option', 'Kayıtlı şablon seç') as HTMLOptionElement;
+    placeholder.value = '';
+    select.append(placeholder);
     templates.forEach(function (item) {
       const option = make('option', item.name);
       option.value = item.id;
@@ -261,3 +261,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

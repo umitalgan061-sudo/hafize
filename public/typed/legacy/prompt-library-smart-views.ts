@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizePromptSmartViews(root) {
   'use strict';
 
@@ -20,7 +19,7 @@
     activeId: ''
   });
 
-  const text = (doc, value, className) => {
+  const text = (doc, value, className?) => {
     const node = doc.createElement('span');
     if (className) node.className = className;
     node.textContent = String(value ?? '');
@@ -751,3 +750,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

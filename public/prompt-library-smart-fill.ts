@@ -24,6 +24,7 @@ interface PromptLibraryApi {
 }
 
 interface SmartFillRoot extends Window {
+  StorageEvent?: typeof StorageEvent;
   HafizePromptLibrary?: PromptLibraryApi;
   HafizePromptLibrarySmartFill?: {
     readonly STORAGE_KEY: string;
@@ -38,7 +39,7 @@ interface SmartFillController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as SmartFillRoot;
+const root = globalThis as unknown as SmartFillRoot;
 const STORAGE_KEY = 'hafize.prompt-library.smart-fill.v1';
 const CARD_ID = 'promptLibraryCard';
 const MAX_VALUE = 1000;
@@ -358,3 +359,5 @@ root.HafizePromptLibrarySmartFill = api;
 const start = (): void => { if (root.document) mount(root.document, root); };
 if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
 else start();
+
+export {};

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   MAX_RESPONSE_ALTERNATES,
   canRegenerateResponse,
@@ -34,6 +33,7 @@ interface ChatMessage {
   };
 }
 interface AgentInfo { id: string; name: string; description?: string; kind?: string; }
+type PublicAgent = AgentInfo;
 interface Conversation {
   id: string;
   title: string;
@@ -102,7 +102,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
   let isStreaming = false;
-  let availableAgents = [];
+  let availableAgents: readonly PublicAgent[] = [];
   let defaultAgentId = '';
   let editingMessageId = null;
   let modelPreferencesController: ModelPreferencesUiController | null = null;
@@ -129,7 +129,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function normalizeMessage(value: unknown): ChatMessage | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const source = value;
+    const source = value as Record<string, any>;
     if ((source.role !== 'user' && source.role !== 'assistant') || typeof source.content !== 'string') return null;
     const content = source.content.slice(0, MAX_MESSAGE_LENGTH);
     if (!content) return null;
@@ -168,7 +168,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function normalizeConversation(value: unknown): Conversation | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    const source = value;
+    const source = value as Record<string, any>;
     if (typeof source.id !== 'string' || typeof source.title !== 'string') return null;
     const messages = Array.isArray(source.messages)
       ? source.messages.map((message) => normalizeMessage(message)).filter(Boolean).slice(-MAX_MESSAGES_PER_CONVERSATION)
@@ -356,7 +356,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const target = getEditableMessage(id);
     if (!target) return null;
     target.conversation.messages = target.conversation.messages.slice(0, target.index);
-    const message = { id: uid(), role: 'user', content, at: new Date().toISOString() };
+    const message: ChatMessage = { id: uid(), role: 'user', content, at: new Date().toISOString() };
     target.conversation.messages.push(message);
     target.conversation.updatedAt = new Date().toISOString();
     if (target.conversation.title === 'Yeni sohbet') {
@@ -641,11 +641,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
     updateEditingIndicator();
   }
 
+  let toastTimeoutId = 0;
+
   function showToast(text) {
     ui.toast.textContent = text;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(showToast.timeoutId);
-    showToast.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    window.clearTimeout(toastTimeoutId);
+    toastTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function autoResizeComposer() {
@@ -1110,7 +1112,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     submitMessage(ui.messageInput.value);
   });
 
-  document.querySelectorAll('[data-prompt]').forEach((button) => {
+  document.querySelectorAll<HTMLElement>('[data-prompt]').forEach((button) => {
     button.addEventListener('click', () => submitMessage(button.dataset.prompt || ''));
   });
 

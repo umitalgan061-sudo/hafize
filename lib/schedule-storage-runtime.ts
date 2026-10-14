@@ -1,8 +1,8 @@
 // @ts-nocheck
-import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.mjs';
-import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.mjs';
-import { createTaskSchedulePersistence } from './task-schedule-persistence.mjs';
-import { createTaskScheduleStore } from './task-schedule-store.mjs';
+import { createEncryptedFileScheduleAdapter } from './encrypted-file-schedule-adapter.ts';
+import { readEncryptedScheduleStorageConfig } from './encrypted-schedule-config.ts';
+import { createTaskSchedulePersistence } from './task-schedule-persistence.ts';
+import { createTaskScheduleStore } from './task-schedule-store.ts';
 
 function requireFactory(value, label) {
   if (typeof value !== 'function') throw new Error(`INVALID_SCHEDULE_STORAGE_RUNTIME:${label}`);

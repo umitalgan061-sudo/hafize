@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptLibraryImportPreview(root) {
   'use strict';
   const CARD_ID = 'promptLibraryCard';
@@ -210,7 +209,7 @@
           return;
         }
         if (event.key !== 'Tab') return;
-        const focusables = Array.from(dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'));
+        const focusables = Array.from(dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])')) as HafizeFocusable[];
         if (!focusables.length) return;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
@@ -260,3 +259,5 @@
   if (root.document && root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

@@ -30,7 +30,7 @@ export interface PaletteController {
   readonly destroy: () => void;
 }
 
-const root = globalThis as PaletteWindow;
+const root = globalThis as unknown as PaletteWindow;
 const CARD_ID = 'promptLibraryCard';
 const INPUT_ID = 'messageInput';
 const PALETTE_ID = 'promptLibraryCommandPalette';

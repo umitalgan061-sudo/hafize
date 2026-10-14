@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptSmartInsert(root: HafizeLegacyRoot): void {
     'use strict';
 
@@ -18,8 +17,8 @@ export function installPromptSmartInsert(root: HafizeLegacyRoot): void {
     let active = null;
 
     const api = () => root.HafizePromptLibrary;
-    const composer = () => root.document?.querySelector?.('#messageInput');
-    const make = (tag, text, className) => {
+    const composer = () => root.document?.querySelector?.('#messageInput') as HTMLTextAreaElement | null;
+    const make = (tag, text?, className?) => {
       const node = root.document.createElement(tag);
       if (className) node.className = className;
       if (text !== undefined) node.textContent = text;
@@ -326,8 +325,8 @@ export function installPromptSmartInsert(root: HafizeLegacyRoot): void {
       const card = root.document?.getElementById?.(CARD_ID);
       const list = card?.querySelector?.('#promptLibraryList');
       if (!card || !list) return;
-      list.querySelectorAll('.prompt-item').forEach((row) => {
-        const actions = row.querySelector('.prompt-item-actions'); const itemId = row.dataset.promptId;
+      list.querySelectorAll<HTMLElement>('.prompt-item').forEach((row) => {
+        const actions = row.querySelector<HTMLElement>('.prompt-item-actions'); const itemId = row.dataset.promptId;
         if (!actions || !itemId || actions.querySelector('[data-prompt-smart-insert]')) return;
         const button = make('button', 'Akıllı doldur', 'soft-btn prompt-smart-insert'); button.type = 'button';
         button.dataset.promptSmartInsert = itemId; button.setAttribute('aria-label', 'Değişkenleri doldurarak kullan'); actions.append(button);
@@ -370,4 +369,4 @@ export function installPromptSmartInsert(root: HafizeLegacyRoot): void {
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-installPromptSmartInsert(globalThis as HafizeLegacyRoot);
+installPromptSmartInsert(globalThis as unknown as HafizeLegacyRoot);

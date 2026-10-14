@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptSmartInsertCenter(root: HafizeLegacyRoot): void {
     'use strict';
     const CARD_ID = 'promptLibraryCard';
@@ -17,7 +16,7 @@ export function installPromptSmartInsertCenter(root: HafizeLegacyRoot): void {
     const SORTS = Object.freeze(['recent', 'name', 'favorite']);
     let mounted = false;
 
-    const make = (tag, text, className) => {
+    const make = (tag, text?, className?) => {
       const node = root.document.createElement(tag);
       if (className) node.className = className;
       if (text !== undefined) node.textContent = text;
@@ -181,7 +180,7 @@ export function installPromptSmartInsertCenter(root: HafizeLegacyRoot): void {
       if (action === 'duplicate' && profile) return duplicateProfile(profile);
       if (action === 'rename' && profile) return renameProfile(profile);
       if (action === 'delete' && profile) return deleteProfile(profile);
-      if (action === 'import') return root.document.getElementById(CENTER_ID)?.querySelector('[data-profile-center-file]')?.click();
+      if (action === 'import') return root.document.getElementById(CENTER_ID)?.querySelector<HTMLInputElement>('[data-profile-center-file]')?.click();
       if (action === 'export') return exportProfiles();
       if (action === 'clear-search') {
         const next = loadState(); next.query = ''; saveState(next); render();
@@ -215,7 +214,7 @@ export function installPromptSmartInsertCenter(root: HafizeLegacyRoot): void {
       const status = make('div', '', 'prompt-profile-center-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
       center.append(heading, toolbar, list, file, status);
       center.addEventListener('click', handleAction);
-      search.addEventListener('input', () => { const next = loadState(); next.query = String(search.value).slice(0, MAX_QUERY); saveState(next); render(); root.requestAnimationFrame?.(() => root.document.querySelector('[data-profile-center-search]')?.focus()); });
+      search.addEventListener('input', () => { const next = loadState(); next.query = String(search.value).slice(0, MAX_QUERY); saveState(next); render(); root.requestAnimationFrame?.(() => root.document.querySelector<HTMLInputElement>('[data-profile-center-search]')?.focus()); });
       sort.addEventListener('change', () => { const next = loadState(); next.sort = sort.value; saveState(next); render(); });
       file.addEventListener('change', () => { const selected = file.files?.[0]; file.value = ''; importProfiles(selected); });
     }
@@ -234,4 +233,4 @@ export function installPromptSmartInsertCenter(root: HafizeLegacyRoot): void {
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-installPromptSmartInsertCenter(globalThis as HafizeLegacyRoot);
+installPromptSmartInsertCenter(globalThis as unknown as HafizeLegacyRoot);

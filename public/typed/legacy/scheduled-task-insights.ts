@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskInsights(root) {
   'use strict';
   const PANEL_ID = 'scheduledTasksWorkspace';
@@ -9,13 +8,13 @@
   let timer = 0;
 
   const doc = () => root.document;
-  const make = (tag, text, className) => {
+  const make = (tag, text, className?) => {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
     return node;
   };
-  function rows(panel) { return Array.from(panel.querySelectorAll('.scheduled-task-row')); }
+  function rows(panel): HTMLElement[] { return Array.from(panel.querySelectorAll('.scheduled-task-row')) as HTMLElement[]; }
   function dateValue(row) { const value = Date.parse(row.dataset.runAt || ''); return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER; }
   function render() {
     const panel = doc()?.getElementById?.(PANEL_ID);
@@ -45,7 +44,7 @@
     const next = make('div', undefined, 'scheduled-task-insights-upcoming');
     next.append(make('span', upcoming.length ? 'Yaklaşan görevler' : 'Yaklaşan görev yok', 'scheduled-task-insights-subtitle'));
     upcoming.forEach(function (row) {
-      const title = row.querySelector('.scheduled-task-row-head strong')?.textContent || 'Görev';
+      const title = row.querySelector<HTMLElement>('.scheduled-task-row-head strong')?.textContent || 'Görev';
       const item = make('div', undefined, 'scheduled-task-insight-next');
       item.append(make('span', title), make('time', row.dataset.runAt ? new Date(row.dataset.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' }) : 'Tarih yok'));
       next.append(item);
@@ -66,3 +65,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

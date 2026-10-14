@@ -1,7 +1,7 @@
 // TypeScript migration wave 2026-10.
 // Compatibility-preserving typed runtime path.
 // @ts-nocheck
-import { createOAuthFlowRuntime } from './oauth-flow-runtime.mjs';
+import { createOAuthFlowRuntime } from './oauth-flow-runtime.ts';
 import { normalizeGoogleOAuthRequest } from './google-oauth-policy.ts';
 
 const GOOGLE_AUTHORIZATION_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';

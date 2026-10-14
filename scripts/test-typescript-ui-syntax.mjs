@@ -20,10 +20,17 @@ const bridges = [
   'public/scheduled-tasks.js'
 ];
 
+// The typed sources are TypeScript, so parsing them with `new Function` would
+// reject ordinary annotations. `npm run typecheck:browser` is the parser/checker
+// for these files; this gate keeps them inside that config and credential-free.
+const browserTsconfig = JSON.parse(await read('tsconfig.browser.json'));
+const packageData = JSON.parse(await read('package.json'));
+assert.ok(browserTsconfig.include?.includes('public/**/*.ts'), 'browser typecheck must cover public/**/*.ts');
+assert.match(String(packageData.scripts?.typecheck || ''), /typecheck:browser/, 'typecheck must run the browser config');
+
 for (const path of typed) {
   const source = await read(path);
-  assert.ok(source.includes('// @ts-nocheck'), `migration marker missing: ${path}`);
-  assert.doesNotThrow(() => new Function(source), `typed browser source does not parse: ${path}`);
+  assert.ok(!source.includes('@ts-nocheck'), `typed source must stay type-checked: ${path}`);
   assert.doesNotMatch(source, /(?:Authorization|Bearer\s+)/i, `auth credential text leaked into: ${path}`);
 }
 

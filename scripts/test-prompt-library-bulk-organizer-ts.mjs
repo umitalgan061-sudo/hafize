@@ -13,7 +13,7 @@ assert(await exists('public/typed/legacy/prompt-library-bulk-organizer.ts'));
 assert.equal(await exists('public/prompt-library-bulk-organizer.js'), false);
 assert.match(source, /export function installPromptLibraryBulkOrganizer/);
 assert.match(source, /HafizeLegacyRoot/);
-assert.match(source, /@ts-nocheck/);
+assert.doesNotMatch(source, /@ts-nocheck/);
 assert.match(source, /MAX_SELECTION = 40/);
 assert.match(source, /MAX_TAGS = 8/);
 assert.match(source, /createElement/);

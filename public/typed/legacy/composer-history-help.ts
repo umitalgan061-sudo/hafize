@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizeComposerHistoryHelp(root) {
   'use strict';
   function boot() {
@@ -12,9 +11,12 @@
     note.textContent = 'Geçmiş: ↑ / ↓ · Panel: Ctrl/⌘ + Shift + H';
     note.setAttribute('aria-label', 'Gönderim geçmişi kısayolları: yukarı ve aşağı oklarla gezin, kontrol veya komut artı shift artı H ile paneli aç');
     const row = form.querySelector('.composer-row');
-    row?.after(note) || form.append(note);
+    if (row) row.after(note);
+    else form.append(note);
     root.HafizeComposerHistoryHelp = Object.freeze({ element: note, destroy: () => { note.remove(); delete root.HafizeComposerHistoryHelp; } });
     return root.HafizeComposerHistoryHelp;
   }
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

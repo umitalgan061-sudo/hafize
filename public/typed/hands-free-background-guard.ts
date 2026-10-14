@@ -2,14 +2,9 @@
  * TypeScript-first frontend migration wave.
  * The browser/global contract is intentionally preserved during the migration.
  */
-// @ts-nocheck
 (function exposeHafizeHandsFreeBackgroundGuard(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) {
-    module.exports = api;
-    return;
-  }
   root.HafizeHandsFreeBackgroundGuard = api;
   const install = () => api.installHandsFreeBackgroundGuard(root.document, root);
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
@@ -303,3 +298,5 @@
     normalizePermissionState
   });
 });
+
+export {};

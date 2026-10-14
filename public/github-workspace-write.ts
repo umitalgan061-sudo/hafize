@@ -10,7 +10,7 @@ type WriteAction = 'branch' | 'file' | 'pull';
 type WritePayload = Record<string, unknown>;
 type ApiRecord = Record<string, unknown>;
 
-const root = globalThis as GitHubWorkspaceWriteWindow;
+const root = globalThis as unknown as GitHubWorkspaceWriteWindow;
 const CARD_ID = 'githubWorkspaceCard';
 const PANEL_CLASS = 'github-workspace-write';
 const MAX_REPOSITORY = 120;
@@ -395,7 +395,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
 
   const actionSelect = control<HTMLSelectElement>(documentRef, 'select', 'GitHub yazma eylemi');
   actionSelect.append(
-    Object.entries({
+    ...Object.entries({
       branch: 'Branch oluştur',
       file: 'Dosya commit et',
       pull: 'Pull request aç'
@@ -430,6 +430,12 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   const result = make(documentRef, 'div', '', 'github-write-result');
   result.setAttribute('aria-live', 'polite');
 
+  const historyHost = make(documentRef, 'section', undefined, 'github-write-history');
+  historyHost.setAttribute('aria-labelledby', 'githubWriteHistoryTitle');
+  const historyHeading = make(documentRef, 'strong', 'Son başarılı işlemler');
+  historyHeading.id = 'githubWriteHistoryTitle';
+  historyHost.append(historyHeading);
+
   const actions = make(documentRef, 'div', undefined, 'github-write-actions');
   actions.append(execute, cancel);
   panel.append(heading, intro, actionSelect, form, planHost, approvalLabel, actions, status, result, historyHost);
@@ -439,12 +445,6 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   let writeConfigured = true;
   let fieldValues: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement> = {};
   let refreshPlan: () => void = () => {};
-
-  const historyHost = make(documentRef, 'section', undefined, 'github-write-history');
-  historyHost.setAttribute('aria-labelledby', 'githubWriteHistoryTitle');
-  const historyHeading = make(documentRef, 'strong', 'Son başarılı işlemler');
-  historyHeading.id = 'githubWriteHistoryTitle';
-  historyHost.append(historyHeading);
 
   const report = (message: string): void => {
     status.textContent = clamp(message, 260);

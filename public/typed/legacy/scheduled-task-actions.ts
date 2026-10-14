@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskActions(root) {
   'use strict';
   const PANEL_ID = 'scheduledTasksWorkspace';
@@ -66,3 +65,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

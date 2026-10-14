@@ -1,11 +1,9 @@
 // TypeScript migration wave 2026-09.
 // Behavior is preserved while the browser module moves behind the typed Vite boundary.
-// @ts-nocheck
 (function exposeHafizePromptLibrary(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizePromptLibrary = api;
+  root.HafizePromptLibrary = api;
   const mount = () => api.mount(root.document, root);
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', mount, { once: true });
   else mount();
@@ -170,7 +168,7 @@
     return output.length <= LIMITS.maxExport ? output : JSON.stringify({ ...payload, items: payload.items.slice(0, 40) }, null, 2);
   }
 
-  function element(doc, tag, textValue, className) {
+  function element(doc, tag, textValue?, className?) {
     const node = doc.createElement(tag);
     if (className) node.className = className;
     if (textValue !== undefined) node.textContent = textValue;
@@ -178,9 +176,9 @@
   }
   function button(doc, textValue, className = 'soft-btn') { const node = element(doc, 'button', textValue, className); node.type = 'button'; return node; }
 
-  function mount(documentRef = globalThis.document, rootRef = globalThis, options = {}) {
+  function mount(documentRef = globalThis.document, rootRef = globalThis, options: Record<string, any> = {}) {
     const rail = documentRef?.querySelector?.('.utility-rail');
-    const composer = documentRef?.querySelector?.('#messageInput');
+    const composer = documentRef?.querySelector?.('#messageInput') as HTMLTextAreaElement | null;
     if (!documentRef || !rail || !composer) return null;
     if (documentRef.getElementById('promptLibraryCard')) return { mounted: false, reason: 'already-mounted' };
     const storage = options.storage || rootRef.localStorage;
@@ -302,3 +300,5 @@
 
   return Object.freeze({ STORAGE_KEY, STATE_KEY, LIMITS: Object.freeze(LIMITS), normalizeItem, normalizeCollection, safeState, loadItems, loadState, saveItems, saveState, extractVariables, replaceVariables, itemMatches: matches, sortItems, filterItems, collectTags, normalizeImportedPayload, mergeImportedItems, exportPayload, mount });
 });
+
+export {};

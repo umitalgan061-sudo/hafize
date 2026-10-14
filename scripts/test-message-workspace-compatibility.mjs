@@ -1,11 +1,10 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const require = createRequire(import.meta.url);
-const policy = require(path.join(root, 'public/message-workspace-policy.js'));
+await import('../public/typed/legacy/message-workspace-policy.ts');
+const policy = globalThis.HafizeMessageWorkspacePolicy;
 
 function raw(index, overrides = {}) {
   return {

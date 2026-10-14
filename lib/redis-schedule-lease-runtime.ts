@@ -1,10 +1,10 @@
 // @ts-nocheck
-import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.mjs';
-import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.mjs';
+import { createRedisLeaseClient, readRedisLeaseClientConfig } from './redis-lease-client-factory.ts';
+import { createRedisScheduleLeaseAdapter } from './redis-schedule-lease-adapter.ts';
 import {
   createScheduleLeaseProviderRuntime,
   readScheduleLeaseRuntimeConfig
-} from './schedule-lease-runtime-config.mjs';
+} from './schedule-lease-runtime-config.ts';
 
 async function defaultLoadRedisModule() {
   return import('redis');

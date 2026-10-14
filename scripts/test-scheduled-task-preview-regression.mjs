@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const paths = [
-  'public/scheduled-task-preview.js',
+  'public/typed/legacy/scheduled-task-preview.ts',
   'public/scheduled-task-preview.css',
-  'public/scheduled-task-duplicate.js',
+  'public/typed/legacy/scheduled-task-duplicate.ts',
   'public/scheduled-task-duplicate.css',
   'public/typed/scheduled-tasks.ts',
   'public/index.html',
-  'public/sw-policy.js',
+  'public/sw-policy.ts',
   'README.md'
 ];
 const values = await Promise.all(paths.map((path) => readFile(new URL('../' + path, import.meta.url), 'utf8')));

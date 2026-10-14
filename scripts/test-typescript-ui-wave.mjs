@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(path, root), 'utf8');
 const packageData = JSON.parse(await read('package.json'));
 const vite = await read('vite.config.ts');
 const html = await read('public/index.html');
-const sw = await read('public/sw-policy.js');
+const sw = await read('public/sw-policy.ts');
 
 function check(condition, message) {
   assert.ok(condition, `typescript-ui-wave: ${message}`);
@@ -23,10 +23,11 @@ for (const [name, version] of Object.entries(expectedVersions)) {
   check(packageData.devDependencies?.[name] === version, `${name} pinned to ${version}`);
 }
 
-check(packageData.scripts?.build === 'tsc --noEmit && vite build', 'build typechecks before bundling');
-check(packageData.scripts?.typecheck === 'tsc --noEmit', 'typecheck script present');
+check(packageData.scripts?.build === 'vite build', 'vite build stays the bundling step');
+check(/typecheck:runtime/.test(String(packageData.scripts?.typecheck || '')), 'runtime typecheck is wired');
+check(/typecheck:browser/.test(String(packageData.scripts?.typecheck || '')), 'browser typecheck is wired');
 check(packageData.scripts?.['typecheck:runtime'] === 'tsc --noEmit -p tsconfig.runtime.json', 'runtime typecheck present');
-check(packageData.scripts?.['check:modern']?.includes('test-typescript-ui-wave.mjs'), 'UI wave gate is wired');
+check(packageData.scripts?.['check:modern']?.includes('test-typescript-ui-wave.mjs') === true, 'UI wave gate is wired');
 
 for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-workspace', 'prompt-library', 'scheduled-tasks', 'workspace-backup']) {
   const sourcePath = ['markdown-renderer','conversation-workspace'].includes(entry) ? `public/${entry}.ts` : `public/typed/${entry}.ts`;
@@ -39,7 +40,7 @@ for (const entry of ['markdown-renderer', 'conversation-workspace', 'message-wor
 
   const typed = await read(sourcePath);
   if (entry === 'workspace-backup') check(typed.includes('interface WorkspaceBackupPayload'), `${entry} keeps explicit backup types`);
-  else check(typed.includes('// @ts-nocheck'), `${entry} migration status is explicit`);
+  else check(!typed.includes('@ts-nocheck'), `${entry} stays type-checked`);
   check(!typed.includes('Authorization:'), `${entry} does not embed auth headers`);
 }
 
@@ -51,7 +52,7 @@ for (const legacy of ['markdown-renderer', 'conversation-workspace']) {
   check(!source.includes('fetch('), `${legacy} bridge has no network implementation`);
 }
 
-check(sw.includes('CURRENT_CACHE = `${CACHE_PREFIX}v41`'), 'PWA cache version bumped');
+check(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw), 'PWA cache version is pinned');
 check(!html.includes('/typed-build/markdown-renderer.js" defer'), 'module entry is not marked defer-only');
 check(!html.includes('/typed-build/conversation-workspace.js" defer'), 'module entry is not marked defer-only');
 

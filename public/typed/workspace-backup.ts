@@ -405,7 +405,7 @@ function button(doc: Document, label: string, className = 'mini-btn'): HTMLButto
 
 export interface WorkspaceBackupController { refresh: () => void; destroy: () => void; openImport: () => void; }
 
-export function mountWorkspaceBackup(documentRef: Document = document, rootRef: Window = globalThis as Window & typeof globalThis): WorkspaceBackupController | null {
+export function mountWorkspaceBackup(documentRef: Document = document, rootRef: Window & typeof globalThis = globalThis as unknown as Window & typeof globalThis): WorkspaceBackupController | null {
   const rail = documentRef?.querySelector?.('.utility-rail');
   if (!documentRef || !rail || documentRef.getElementById('workspaceBackupPanel')) return null;
 
@@ -424,11 +424,11 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   body.className = 'workspace-backup-body';
   const summary = make(documentRef, 'div', '', 'workspace-backup-summary');
   const summaryTitle = make(documentRef, 'strong', 'Yerel veriler');
-  const summaryText = make(documentRef, '');
+  const summaryText = make(documentRef, 'span', '');
   summary.append(summaryTitle, summaryText);
   const exportScope = make(documentRef, 'div', '', 'workspace-backup-export-scope');
   const exportScopeTitle = make(documentRef, 'strong', 'Yedek kapsamı');
-  const exportScopeHint = make(documentRef, 'Hangi yerel yüzeylerin yedeğe gireceğini seçebilirsin.', '', 'workspace-backup-export-hint');
+  const exportScopeHint = make(documentRef, 'p', 'Hangi yerel yüzeylerin yedeğe gireceğini seçebilirsin.', 'workspace-backup-export-hint');
   const exportScopeActions = make(documentRef, 'div', '', 'workspace-backup-select-actions');
   const exportAll = button(documentRef, 'Tümünü seç');
   const exportNone = button(documentRef, 'Seçimleri temizle');

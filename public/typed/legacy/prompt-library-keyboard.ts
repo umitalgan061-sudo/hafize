@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptLibraryKeyboard(root) {
   'use strict';
   let installed = false;
@@ -11,7 +10,7 @@
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey) return;
       const key = event.key.toLowerCase();
       if (key === 'p') {
-        const search = root.document.querySelector('#promptLibrarySearch');
+        const search = root.document.querySelector<HTMLInputElement>('#promptLibrarySearch');
         if (!search) return;
         event.preventDefault();
         search.focus();
@@ -19,7 +18,7 @@
         return;
       }
       if (key === 'n') {
-        const create = card.querySelector('.prompt-library-actions .soft-btn');
+        const create = card.querySelector<HTMLButtonElement>('.prompt-library-actions .soft-btn');
         if (!create) return;
         event.preventDefault();
         create.click();
@@ -29,3 +28,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
   else install();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

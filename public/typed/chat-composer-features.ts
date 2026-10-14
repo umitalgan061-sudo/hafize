@@ -2,7 +2,6 @@
  * TypeScript-first frontend migration wave.
  * The browser/global contract is intentionally preserved during the migration.
  */
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -10,22 +9,33 @@
   const MAX_ATTACHMENTS = 3;
   const MAX_ATTACHMENT_TEXT = 9000;
   const ACCEPTED_EXTENSIONS = /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log)$/i;
+  /** A pending composer attachment: metadata plus the text block injected into the message. */
+  type ComposerAttachment = {
+    name: string;
+    size: number;
+    lastModified: number;
+    block: string;
+  };
+  /** The composer form also carries the attachments queued for the next message. */
+  type ComposerForm = HTMLFormElement & { _hafizeAttachments?: ComposerAttachment[] };
+
   const ui = {
-    composer: document.querySelector('#composer'),
-    attachBtn: document.querySelector('#attachBtn'),
-    messageInput: document.querySelector('#messageInput'),
-    messages: document.querySelector('#messages'),
-    toast: document.querySelector('#toast')
+    composer: document.querySelector<ComposerForm>('#composer'),
+    attachBtn: document.querySelector<HTMLButtonElement>('#attachBtn'),
+    messageInput: document.querySelector<HTMLTextAreaElement>('#messageInput'),
+    messages: document.querySelector<HTMLElement>('#messages'),
+    toast: document.querySelector<HTMLElement>('#toast')
   };
 
   if (!ui.composer || !ui.attachBtn || !ui.messageInput || !ui.messages) return;
 
+  let announceTimeoutId = 0;
   function announce(message) {
     if (!ui.toast || !message) return;
     ui.toast.textContent = message;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(announce.timeoutId);
-    announce.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    window.clearTimeout(announceTimeoutId);
+    announceTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function acceptedFile(file) {
@@ -248,7 +258,8 @@
     ui.composer.classList.add('drag-active');
   });
   ui.composer.addEventListener('dragleave', (event) => {
-    if (!ui.composer.contains(event.relatedTarget)) ui.composer.classList.remove('drag-active');
+    const leaving = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    if (!leaving || !ui.composer.contains(leaving)) ui.composer.classList.remove('drag-active');
   });
   ui.composer.addEventListener('drop', async (event) => {
     event.preventDefault();
@@ -271,3 +282,5 @@
   for (const article of ui.messages.querySelectorAll('.message.assistant')) enhanceArticle(article);
   for (const article of ui.messages.querySelectorAll('.message.user')) enhanceUserArticle(article);
 })();
+
+export {};

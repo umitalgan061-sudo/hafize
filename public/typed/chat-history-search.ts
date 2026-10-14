@@ -2,7 +2,6 @@
  * TypeScript-first frontend migration wave.
  * The browser/global contract is intentionally preserved during the migration.
  */
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -85,8 +84,8 @@
   let query = '';
   let refreshQueued = false;
 
-  function rowConversationIndex() {
-    return Array.from(ui.history.querySelectorAll('.conversation-row'));
+  function rowConversationIndex(): HTMLElement[] {
+    return Array.from(ui.history.querySelectorAll<HTMLElement>('.conversation-row'));
   }
 
   function render() {
@@ -158,7 +157,7 @@
     const target = event.target;
     if (!event.ctrlKey && !event.metaKey) return;
     if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
-    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
+    if (target instanceof HTMLElement && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();
     searchUi.input.select();
@@ -172,3 +171,5 @@
 
   render();
 })();
+
+export {};

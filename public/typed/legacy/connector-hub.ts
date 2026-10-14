@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function exposeHafizeConnectorHub(root) {
   'use strict';
 
@@ -48,7 +47,7 @@
     return node;
   }
 
-  function makeButton(documentRef, label, className) {
+  function makeButton(documentRef, label, className?) {
     const node = documentRef.createElement('button');
     node.type = 'button';
     node.className = className || 'connector-hub-btn';
@@ -392,7 +391,7 @@
         });
 
         if (!response?.ok) {
-          let payload = {};
+          let payload: Record<string, any> = {};
           try { payload = await response.json(); } catch {}
           return Object.freeze({
             error: payload?.error || 'HTTP_' + String(response?.status || 0)
@@ -570,3 +569,5 @@
     start();
   }
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

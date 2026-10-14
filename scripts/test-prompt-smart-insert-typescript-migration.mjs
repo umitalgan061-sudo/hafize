@@ -29,7 +29,7 @@ for (const name of modules) {
   assert.ok(legacyApp.includes('./legacy/' + name + '.ts'), 'legacy app wiring missing: ' + name);
   const source = await read('public/typed/legacy/' + name + '.ts');
   assert.ok(source.includes('import type { HafizeLegacyRoot }'), 'typed legacy root import missing: ' + name);
-  assert.match(source, /@ts-nocheck/);
+  assert.doesNotMatch(source, /@ts-nocheck/);
   assert.doesNotMatch(source, /fetch\s*\(/);
   assert.doesNotMatch(source, /XMLHttpRequest/);
   assert.doesNotMatch(source, /WebSocket/);

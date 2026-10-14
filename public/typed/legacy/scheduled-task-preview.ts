@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskPreview(root) {
   'use strict';
 
@@ -19,7 +18,7 @@
 
   const doc = function () { return root.document; };
   const clip = function (value, limit) { return String(value == null ? '' : value).trim().slice(0, limit || MAX_TEXT); };
-  const make = function (tag, value, className) {
+  const make = function (tag, value?, className?) {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (value !== undefined) node.textContent = String(value);
@@ -116,7 +115,7 @@
   function trapFocus(event) {
     const shell = dialog && dialog.querySelector('[role="dialog"]');
     if (!shell) return;
-    const focusables = Array.from(shell.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])'))
+    const focusables = (Array.from(shell.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])')) as HafizeFocusable[])
       .filter(function (node) { return !node.disabled && !node.hidden; });
     if (!focusables.length) return;
     const first = focusables[0], last = focusables[focusables.length - 1];
@@ -354,3 +353,5 @@
   if (doc() && doc().readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

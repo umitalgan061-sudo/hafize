@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskDetail(root) {
   'use strict';
   const WORKSPACE_ID = 'scheduledTasksWorkspace';
@@ -7,7 +6,7 @@
   let previousFocus = null;
   let mounted = false;
   const doc = () => root.document;
-  const make = (tag, text, className) => {
+  const make = (tag, text, className?) => {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -107,3 +106,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

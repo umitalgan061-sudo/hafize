@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptSmartInsertHistory(root: HafizeLegacyRoot): void {
     'use strict';
     const HISTORY_KEY = 'hafize.prompt-library.smart-insert-history.v1';
@@ -146,4 +145,4 @@ export function installPromptSmartInsertHistory(root: HafizeLegacyRoot): void {
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-installPromptSmartInsertHistory(globalThis as HafizeLegacyRoot);
+installPromptSmartInsertHistory(globalThis as unknown as HafizeLegacyRoot);

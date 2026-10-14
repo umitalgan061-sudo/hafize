@@ -1,14 +1,10 @@
-// @ts-nocheck
 (function exposeHafizeSettingsWorkspace(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else {
-    root.HafizeSettingsWorkspace = api;
-    const install = () => api.mount(root.document, root);
-    if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
-    else install();
-  }
+  root.HafizeSettingsWorkspace = api;
+  const install = () => api.mount(root.document, root);
+  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
+  else install();
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeSettingsWorkspace() {
   'use strict';
 
@@ -243,7 +239,7 @@
     if (existing) return existing;
     ensureStyle(documentRef);
     const rail = documentRef.querySelector('.utility-rail');
-    const primary = documentRef.querySelector('.primary-column');
+    const primary = documentRef.querySelector<HTMLElement>('.primary-column');
     const main = documentRef.querySelector('.main');
     if (!rail || !primary || !main) return null;
     const storage = rootRef?.localStorage;
@@ -266,9 +262,9 @@
       view.hidden = false;
       primary.hidden = true;
       main.setAttribute('data-workspace', 'settings');
-      const intro = documentRef.querySelector('#workspaceNavigationIntro');
+      const intro = documentRef.querySelector<HTMLElement>('#workspaceNavigationIntro');
       if (intro) intro.hidden = true;
-      for (const node of Array.from(rail.children || [])) {
+      for (const node of Array.from(rail.children || []) as HTMLElement[]) {
         if (node !== view && node !== intro) node.hidden = true;
       }
       rail.setAttribute('aria-label', 'Hafize ayarlar çalışma alanı');
@@ -286,7 +282,7 @@
       event.preventDefault();
       showSettings();
       const sidebar = documentRef.querySelector('#sidebar');
-      const toggle = documentRef.querySelector('#sidebarToggle');
+      const toggle = documentRef.querySelector<HTMLElement>('#sidebarToggle');
       if (sidebar?.classList?.contains('open') && typeof toggle?.click === 'function') toggle.click();
     };
 
@@ -298,3 +294,5 @@
 
   return Object.freeze({ THEME_KEY, REDUCED_MOTION_KEY, STORAGE_KEY, readTheme, readReducedMotion, readConversations, formatCount, mount });
 });
+
+export {};

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
-const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
-const enhancements = fs.readFileSync('public/prompt-library-enhancements.js', 'utf8');
-const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.ts', 'utf8');
+const enhancements = fs.readFileSync('public/typed/legacy/prompt-library-enhancements.ts', 'utf8');
+const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 
 assertVersionedCacheDeclaration(sw);
 assert.match(sw, /\/prompt-library-usage\.js/);

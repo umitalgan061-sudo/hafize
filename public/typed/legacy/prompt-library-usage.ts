@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function exposeHafizePromptUsage(root) {
   'use strict';
   const STORAGE_KEY = 'hafize.prompt-library.v1';
@@ -164,3 +163,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

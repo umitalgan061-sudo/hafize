@@ -2,7 +2,6 @@
  * TypeScript-first frontend migration wave.
  * The browser/global contract is intentionally preserved during the migration.
  */
-// @ts-nocheck
 (function installHafizePrivacyCenter(root) {
   'use strict';
 
@@ -216,14 +215,14 @@
     return true;
   }
 
-  function make(documentRef, tag, textValue, className) {
+  function make(documentRef, tag, textValue?, className?) {
     const node = documentRef.createElement(tag);
     if (className) node.className = className;
     if (textValue !== undefined) node.textContent = textValue;
     return node;
   }
 
-  function button(documentRef, label, className) {
+  function button(documentRef, label, className?) {
     const node = make(documentRef, 'button', label, className || 'mini-btn');
     node.type = 'button';
     return node;
@@ -506,3 +505,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

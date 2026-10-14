@@ -4,8 +4,8 @@ import path from 'node:path';
 
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
-const app = read('public/app.js');
-const features = read('public/chat-composer-features.js');
+const app = read('public/typed/app-shell.ts');
+const features = read('public/typed/chat-composer-features.ts');
 const css = read('public/chat-composer-features.css');
 const html = read('public/index.html');
 

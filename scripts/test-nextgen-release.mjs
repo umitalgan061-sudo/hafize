@@ -25,7 +25,9 @@ assert(files.package.devDependencies?.typescript === '7.0.2', 'typescript-toolch
 assert(files.package.devDependencies?.vite === '8.3.0', 'vite-toolchain');
 assert(files.package.devDependencies?.vitest === '5.0.1', 'vitest-toolchain');
 assert(files.package.scripts?.build === 'vite build', 'vite-build-script');
-assert(files.package.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime-typecheck-script');
+assert(files.package.scripts?.typecheck === 'npm run typecheck:runtime && npm run typecheck:browser', 'typecheck-script');
+assert(files.package.scripts?.['typecheck:runtime'] === 'tsc --noEmit -p tsconfig.runtime.json', 'runtime-typecheck-script');
+assert(files.package.scripts?.['typecheck:browser'] === 'tsc --noEmit -p tsconfig.browser.json', 'browser-typecheck-script');
 assert(files.package.scripts?.['typecheck:syntax'] === 'tsc --noEmit --noCheck', 'syntax-typecheck-script');
 assert(files.package.scripts?.['test:modern:gate'] === 'vitest run lib/runtime-metrics.test.ts lib/upstream-circuit-breaker.test.ts lib/rate-limit.test.ts', 'modern-vitest-gate');
 assert(files.package.scripts?.['test:modernization'] === 'node scripts/test-runtime-modernization.ts', 'modernization-contract-script');

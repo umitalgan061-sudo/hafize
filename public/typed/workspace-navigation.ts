@@ -2,14 +2,9 @@
  * TypeScript-first frontend migration wave.
  * The browser/global contract is intentionally preserved during the migration.
  */
-// @ts-nocheck
 (function exposeHafizeWorkspaceNavigation(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) {
-    module.exports = api;
-    return;
-  }
   root.HafizeWorkspaceNavigation = api;
   const install = () => api.mount(root.document, root);
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
@@ -61,9 +56,9 @@
     return COPY[key] || null;
   }
 
-  function resolveNavigation(documentRef) {
+  function resolveNavigation(documentRef): Record<string, HTMLButtonElement> | null {
     const navList = documentRef?.querySelector?.('.nav-list');
-    const buttons = Array.from(navList?.querySelectorAll?.('.nav-item') || []);
+    const buttons = Array.from(navList?.querySelectorAll?.('.nav-item') || []) as HTMLButtonElement[];
     if (buttons.length < WORKSPACES.length) return null;
     const resolved = Object.fromEntries(WORKSPACES.map((workspace) => [workspace, buttons[NAV_INDEX[workspace]]]));
     return WORKSPACES.every((workspace) => resolved[workspace]) ? Object.freeze(resolved) : null;
@@ -136,9 +131,9 @@
       throw new Error('INVALID_WORKSPACE_NAVIGATION_DOCUMENT');
     }
 
-    const main = documentRef.querySelector('.main');
-    const primary = documentRef.querySelector('.primary-column');
-    const rail = documentRef.querySelector('.utility-rail');
+    const main = documentRef.querySelector('.main') as HTMLElement | null;
+    const primary = documentRef.querySelector('.primary-column') as HTMLElement | null;
+    const rail = documentRef.querySelector('.utility-rail') as HTMLElement | null;
     const nav = resolveNavigation(documentRef);
     if (!main || !primary || !rail || !nav) throw new Error('WORKSPACE_NAVIGATION_HOST_UNAVAILABLE');
 
@@ -150,8 +145,8 @@
     let intro = null;
     let introOwned = false;
     const listeners = [];
-    const managedCards = new Set();
-    const cardSnapshots = new Map();
+    const managedCards = new Set<HTMLElement>();
+    const cardSnapshots = new Map<HTMLElement, { hidden: boolean }>();
 
     const hostSnapshot = Object.freeze({
       mainWorkspace: snapshotAttribute(main, 'data-workspace'),
@@ -190,7 +185,7 @@
     }
 
     function syncCards() {
-      const children = Array.from(rail.children || []);
+      const children = Array.from(rail.children || []) as HTMLElement[];
       for (const node of children) snapshotCard(node);
       if (current === 'chat') {
         restoreCards();
@@ -346,3 +341,5 @@
 
   return Object.freeze({ WORKSPACES, NAV_INDEX, CARD_IDS, INTRO_ID, STYLE_ID, STYLE_PATH, CHANGE_EVENT, normalizeWorkspace, allowedCardIds, isWorkspaceCard, workspaceCopy, resolveNavigation, createController, mount });
 });
+
+export {};

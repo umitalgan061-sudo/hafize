@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizeComposerHistorySettings(root) {
   'use strict';
   const PANEL_ID = 'composerHistorySettings';
@@ -33,3 +32,5 @@
   }
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

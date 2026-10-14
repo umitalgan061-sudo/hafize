@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptLibrarySafety(root) {
   'use strict';
 
@@ -110,7 +109,7 @@
     };
   }
 
-  function buildImportPlan(payload, currentItems = [], options = {}) {
+  function buildImportPlan(payload, currentItems = [], options: Record<string, any> = {}) {
     const current = api?.normalizeCollection?.(currentItems) || [];
     const incoming = normalizeIncoming(payload);
     const ids = new Set(current.map((item) => item.id));
@@ -209,20 +208,27 @@
     const ids = new Set();
     const duplicateIds = [];
     const invalidIndexes = [];
+    const invalid = [];
     let invalidBodies = 0;
     let invalidUseCounts = 0;
 
+    const markInvalid = (index, reason) => {
+      invalidIndexes.push(index);
+      invalid.push({ index, reason });
+    };
+
     rawItems.forEach((rawItem, index) => {
       if (!rawItem || typeof rawItem !== 'object') {
-        invalidIndexes.push(index);
+        markInvalid(index, 'nesne değil');
         return;
       }
       const itemId = typeof rawItem.id === 'string' ? rawItem.id : '';
       if (itemId && ids.has(itemId)) duplicateIds.push(itemId);
       if (itemId) ids.add(itemId);
-      if (typeof rawItem.body !== 'string' || !rawItem.body) invalidBodies += 1;
+      const bodyMissing = typeof rawItem.body !== 'string' || !rawItem.body;
+      if (bodyMissing) invalidBodies += 1;
       if (!Number.isFinite(rawItem.useCount) || rawItem.useCount < 0) invalidUseCounts += 1;
-      if (!api?.normalizeItem?.(rawItem)) invalidIndexes.push(index);
+      if (!api?.normalizeItem?.(rawItem)) markInvalid(index, bodyMissing ? 'body boş' : 'model sınırlarına uymuyor');
     });
 
     const promptIds = new Set(normalized.map((item) => item.id));
@@ -305,7 +311,7 @@
     return { ok: true, restored: payload.prompts.length };
   }
 
-  function applySafeRepair(storage = root.localStorage, options = {}) {
+  function applySafeRepair(storage = root.localStorage, options: Record<string, any> = {}) {
     const plan = buildSafeRepair(storage);
     if (!plan.report.storageReadable) return { ok: false, reason: 'PROMPT_STORAGE_UNREADABLE' };
     if (!createRepairCheckpoint(storage)) return { ok: false, reason: 'REPAIR_CHECKPOINT_FAILED' };
@@ -408,3 +414,5 @@
     undoLastRepair
   });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

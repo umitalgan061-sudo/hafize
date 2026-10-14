@@ -3,10 +3,15 @@ import { join, relative, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
+// Generated output and tooling caches are not sources; walking them would make
+// this gate fail right after `npm run build` writes public/typed-build.
+const SKIPPED_DIRECTORIES = new Set(['node_modules', '.git', 'typed-build', 'coverage', 'runtime', 'data']);
+
 async function walk(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
+    if (entry.isDirectory() && SKIPPED_DIRECTORIES.has(entry.name)) continue;
     const target = join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await walk(target));
     else if (entry.isFile()) files.push(target);

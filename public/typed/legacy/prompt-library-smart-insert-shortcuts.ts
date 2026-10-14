@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptSmartInsertShortcuts(root: HafizeLegacyRoot): void {
     'use strict';
     const CENTER_ID = 'promptLibrarySmartInsertCenter';
@@ -16,14 +15,14 @@ export function installPromptSmartInsertShortcuts(root: HafizeLegacyRoot): void 
       const center = root.document?.getElementById?.(CENTER_ID);
       if (!center) return false;
       center.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
-      const search = center.querySelector('[data-profile-center-search]');
+      const search = center.querySelector<HTMLInputElement>('[data-profile-center-search]');
       search?.focus?.();
       search?.select?.();
       return true;
     }
 
     function openFirstSmartInsert() {
-      const button = root.document?.querySelector?.('#promptLibraryCard [data-prompt-smart-insert]');
+      const button = root.document?.querySelector?.<HTMLButtonElement>('#promptLibraryCard [data-prompt-smart-insert]');
       if (!button) return false;
       button.click();
       return true;
@@ -32,7 +31,7 @@ export function installPromptSmartInsertShortcuts(root: HafizeLegacyRoot): void 
     function toggleHistory() {
       const section = root.document?.getElementById?.('promptLibrarySmartInsertHistory');
       if (!section) return false;
-      const list = section.querySelector('.prompt-smart-insert-history-list');
+      const list = section.querySelector<HTMLElement>('.prompt-smart-insert-history-list');
       const hidden = list?.hidden === true;
       if (list) list.hidden = !hidden;
       return true;
@@ -76,4 +75,4 @@ export function installPromptSmartInsertShortcuts(root: HafizeLegacyRoot): void 
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-installPromptSmartInsertShortcuts(globalThis as HafizeLegacyRoot);
+installPromptSmartInsertShortcuts(globalThis as unknown as HafizeLegacyRoot);

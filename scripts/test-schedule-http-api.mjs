@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createBearerPrincipalAuthenticator } from '../lib/server-auth.mjs';
 import { createScheduleCommandBoundary } from '../lib/schedule-command-boundary.mjs';
-import { createScheduleHttpApi } from '../lib/schedule-http-api.mjs';
+import { createScheduleHttpApi } from '../lib/schedule-http-api.ts';
 import { createTaskScheduleStore } from '../lib/task-schedule-store.mjs';
 
 const token = 'a'.repeat(48);

@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptSmartInsertActivity(root: HafizeLegacyRoot): void {
     'use strict';
     const HISTORY_KEY = 'hafize.prompt-library.smart-insert-history.v1';
@@ -10,7 +9,7 @@ export function installPromptSmartInsertActivity(root: HafizeLegacyRoot): void {
     const MAX_DAYS = 14;
     const MAX_ROWS = 7;
 
-    const make = (tag, text, className) => {
+    const make = (tag, text?, className?) => {
       const node = root.document.createElement(tag);
       if (className) node.className = className;
       if (text !== undefined) node.textContent = text;
@@ -126,4 +125,4 @@ export function installPromptSmartInsertActivity(root: HafizeLegacyRoot): void {
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-installPromptSmartInsertActivity(globalThis as HafizeLegacyRoot);
+installPromptSmartInsertActivity(globalThis as unknown as HafizeLegacyRoot);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizeComposerHistoryPanel(root) {
   'use strict';
   const PANEL_ID = 'composerHistoryPanel';
@@ -9,13 +8,13 @@
 
   function core() { return root.HafizeComposerHistory; }
   function controller() { return root.HafizeComposerHistoryController; }
-  function make(doc, tag, textValue, className) {
+  function make(doc, tag, textValue?, className?) {
     const node = doc.createElement(tag);
     if (className) node.className = className;
     if (textValue !== undefined) node.textContent = String(textValue);
     return node;
   }
-  function button(doc, label, className) {
+  function button(doc, label, className?) {
     const node = make(doc, 'button', label, className || 'mini-btn');
     node.type = 'button';
     node.textContent = label;
@@ -25,7 +24,7 @@
 
   function boot() {
     const doc = root.document;
-    const composer = doc?.getElementById?.(INPUT_ID);
+    const composer = doc?.getElementById?.(INPUT_ID) as HTMLTextAreaElement | null;
     const form = composer?.closest?.('form');
     if (!doc || !composer || !form || doc.getElementById(PANEL_ID)) return null;
 
@@ -145,3 +144,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function addScheduledTaskKeyboard(root) {
   'use strict';
   const openShortcut = (event) => {
@@ -14,3 +13,5 @@
   else boot();
   root.addEventListener?.('beforeunload', () => root.document?.removeEventListener?.('keydown', openShortcut), { once: true });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

@@ -1,13 +1,9 @@
-// @ts-nocheck
 (function exposeHafizeScreenShare(root, factory) {
   'use strict';
 
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else {
-    root.HafizeScreenShare = api;
-    if (root.document) api.mountScreenShare({ root });
-  }
+  root.HafizeScreenShare = api;
+  if (root.document) api.mountScreenShare({ root });
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeScreenShare() {
   'use strict';
 
@@ -33,7 +29,7 @@
 
   function waitForVideo(video) {
     if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       const cleanup = () => {
         video.removeEventListener('loadedmetadata', onReady);
         video.removeEventListener('error', onError);
@@ -45,8 +41,8 @@
     });
   }
 
-  function canvasToBlob(canvas) {
-    return new Promise((resolve, reject) => {
+  function canvasToBlob(canvas): Promise<Blob> {
+    return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (!blob || blob.type !== 'image/jpeg') return reject(new Error('SCREEN_CAPTURE_ENCODE_FAILED'));
         resolve(blob);
@@ -108,11 +104,11 @@
 
   function mountScreenShare({ root = globalThis } = {}) {
     const document = root.document;
-    const button = document?.querySelector?.('#screenShareBtn');
-    const panel = document?.querySelector?.('#screenSharePreview');
-    const image = document?.querySelector?.('#screenShareImage');
-    const status = document?.querySelector?.('#screenShareStatus');
-    const removeButton = document?.querySelector?.('#screenShareRemove');
+    const button = document?.querySelector?.('#screenShareBtn') as HTMLButtonElement | null;
+    const panel = document?.querySelector?.('#screenSharePreview') as HTMLElement | null;
+    const image = document?.querySelector?.('#screenShareImage') as HTMLImageElement | null;
+    const status = document?.querySelector?.('#screenShareStatus') as HTMLElement | null;
+    const removeButton = document?.querySelector?.('#screenShareRemove') as HTMLButtonElement | null;
     if (!button || !panel || !image || !status || !removeButton) return null;
 
     let objectUrl = null;
@@ -160,3 +156,5 @@
 
   return Object.freeze({ boundedSize, captureScreenFrame, mountScreenShare, stopStream });
 });
+
+export {};

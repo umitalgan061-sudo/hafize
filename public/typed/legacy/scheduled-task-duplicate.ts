@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskDuplicate(root) {
   'use strict';
   const WORKSPACE_ID = 'scheduledTasksWorkspace';
@@ -33,10 +32,10 @@
     const workspace = doc().getElementById(WORKSPACE_ID);
     const form = workspace && workspace.querySelector('.scheduled-tasks-create');
     if (!form) return false;
-    const agent = form.querySelector('#scheduledTaskAgent');
+    const agent = form.querySelector<HafizeValueControl>('#scheduledTaskAgent');
     const task = form.querySelector('textarea');
-    const when = form.querySelector('input[type="datetime-local"]');
-    const attempts = form.querySelector('select[aria-label="Maksimum deneme sayısı"]');
+    const when = form.querySelector<HTMLInputElement>('input[type="datetime-local"]');
+    const attempts = form.querySelector<HTMLSelectElement>('select[aria-label="Maksimum deneme sayısı"]');
     if (agent && row.dataset.agentId) agent.value = row.dataset.agentId;
     if (task) {
       const taskTitle = row.querySelector('.scheduled-task-row-head strong');
@@ -65,8 +64,8 @@
   function enhanceRows() {
     const workspace = doc()?.getElementById?.(WORKSPACE_ID);
     if (!workspace) return;
-    workspace.querySelectorAll(ROW_SELECTOR).forEach(function (row) {
-      const actions = row.querySelector('.scheduled-task-actions');
+    workspace.querySelectorAll<HTMLElement>(ROW_SELECTOR).forEach(function (row) {
+      const actions = row.querySelector<HTMLElement>('.scheduled-task-actions');
       if (!actions || actions.querySelector('[data-scheduled-duplicate]')) return;
       if (!['scheduled', 'completed', 'failed', 'cancelled'].includes(row.dataset.status)) return;
       actions.append(button('Tekrar planla'));
@@ -92,3 +91,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

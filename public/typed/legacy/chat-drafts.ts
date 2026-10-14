@@ -1,4 +1,3 @@
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -12,7 +11,7 @@
   const SAVE_DELAY = 250;
   const STATUS_ID = 'chatDraftStatus';
 
-  const input = document.querySelector(INPUT);
+  const input = document.querySelector<HafizeValueControl>(INPUT);
   const composer = document.querySelector(COMPOSER);
   const list = document.querySelector(CONVERSATION_LIST);
   if (!input || !composer || !list) return;
@@ -74,7 +73,7 @@
 
   function activeConversationId() {
     const row = list.querySelector('.conversation-row.active');
-    return row?.querySelector('.conversation-open')?.dataset?.conversationId || '';
+    return row?.querySelector<HTMLElement>('.conversation-open')?.dataset?.conversationId || '';
   }
 
   function getDraft(id = activeConversationId()) {
@@ -219,3 +218,5 @@
     getLastPersistedDraft: () => lastPersistedDraft
   });
 })();
+
+export {};

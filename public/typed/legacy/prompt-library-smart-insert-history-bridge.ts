@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function bridgePromptSmartInsertHistory(root: HafizeLegacyRoot): void {
     'use strict';
     let pending = null;
@@ -12,7 +11,7 @@ export function bridgePromptSmartInsertHistory(root: HafizeLegacyRoot): void {
       if (!card) return;
       installed = true;
       card.addEventListener('click', (event) => {
-        const button = event.target?.closest?.('[data-prompt-smart-insert]');
+        const button = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-prompt-smart-insert]') : null;
         if (!button) return;
         const row = button.closest('.prompt-item');
         const label = row?.querySelector('.prompt-item-header strong')?.textContent || 'İsimsiz istem';
@@ -31,4 +30,4 @@ export function bridgePromptSmartInsertHistory(root: HafizeLegacyRoot): void {
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-bridgePromptSmartInsertHistory(globalThis as HafizeLegacyRoot);
+bridgePromptSmartInsertHistory(globalThis as unknown as HafizeLegacyRoot);

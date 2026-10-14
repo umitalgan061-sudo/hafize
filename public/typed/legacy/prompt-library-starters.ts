@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function seedHafizePromptLibrary(root) {
   'use strict';
   const STARTERS = Object.freeze([
@@ -32,3 +31,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', () => seed(), { once: true });
   else seed();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

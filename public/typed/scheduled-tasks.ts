@@ -1,6 +1,5 @@
 // TypeScript migration wave 2026-09.
 // Behavior is preserved while the browser module moves behind the typed Vite boundary.
-// @ts-nocheck
 (function installScheduledTasksWorkspace(root) {
   'use strict';
 
@@ -18,7 +17,7 @@
   let controller = null;
 
   const doc = () => root.document;
-  const make = (tag, text, className) => {
+  const make = (tag, text, className?) => {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -34,14 +33,14 @@
   const statusText = (value) => ({ scheduled: 'Planlandı', running: 'Çalışıyor', completed: 'Tamamlandı', failed: 'Başarısız', cancelled: 'İptal edildi' })[value] || 'Bilinmiyor';
   const safeJson = async (response) => { try { return await response.json(); } catch { return null; } };
 
-  async function request(path = API_PATH, options = {}) {
+  async function request(path = API_PATH, options: Record<string, any> = {}) {
     controller?.abort?.();
     controller = typeof AbortController === 'function' ? new AbortController() : null;
     const headers = { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(options.headers || {}) };
     const response = await root.fetch(path, { ...options, credentials: 'same-origin', headers, signal: controller?.signal });
     const payload = await safeJson(response);
     if (!response.ok) {
-      const error = new Error(payload?.code || payload?.error || `HTTP_${response.status}`);
+      const error: Error & { status?: number; payload?: unknown } = new Error(payload?.code || payload?.error || `HTTP_${response.status}`);
       error.status = response.status;
       error.payload = payload;
       throw error;
@@ -50,7 +49,7 @@
   }
 
   function agentOptions() {
-    const select = doc().getElementById('agentSelect');
+    const select = doc().getElementById('agentSelect') as HTMLSelectElement | null;
     return select ? [...select.options].filter((option) => option.value).map((option) => ({ id: option.value, label: option.textContent?.trim() || option.value })) : [];
   }
 
@@ -222,7 +221,7 @@
 
   function boot() {
     if (mounted || !doc()) return;
-    const nav = [...doc().querySelectorAll('.nav-item')].find((node) => node.textContent?.includes('Görevler'));
+    const nav = [...doc().querySelectorAll<HTMLButtonElement>('.nav-item')].find((node) => node.textContent?.includes('Görevler'));
     if (!nav) return;
     build(); nav.disabled = false; nav.addEventListener('click', open); nav.setAttribute('aria-controls', PANEL_ID); nav.setAttribute('aria-expanded', 'false');
     mounted = true;
@@ -231,3 +230,5 @@
   root.ScheduledTasksWorkspace = Object.freeze({ open, close, refresh, request });
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizePromptSmartViewsBuilder(root) {
   'use strict';
 
@@ -324,3 +323,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

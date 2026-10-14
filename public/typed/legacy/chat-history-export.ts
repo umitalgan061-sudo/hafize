@@ -1,4 +1,3 @@
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -11,12 +10,14 @@
 
   if (!ui.block || !ui.history) return;
 
+  let announceTimeoutId = 0;
+
   function announce(message) {
     if (!ui.toast || !message) return;
     ui.toast.textContent = message;
     ui.toast.classList.remove('hidden');
-    window.clearTimeout(announce.timeoutId);
-    announce.timeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
+    window.clearTimeout(announceTimeoutId);
+    announceTimeoutId = window.setTimeout(() => ui.toast.classList.add('hidden'), 3200);
   }
 
   function readConversations() {
@@ -122,3 +123,5 @@
 
   Object.freeze({ buildMarkdown, buildJson, download });
 })();
+
+export {};

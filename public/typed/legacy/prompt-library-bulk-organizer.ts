@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for Prompt Library bulk organization.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptLibraryBulkOrganizer(root: HafizeLegacyRoot): void {
     'use strict';
 
@@ -15,7 +14,7 @@ export function installPromptLibraryBulkOrganizer(root: HafizeLegacyRoot): void 
     let mounted = false;
     let dialog = null;
 
-    const make = (tag, textValue, className) => {
+    const make = (tag, textValue?, className?) => {
       const node = root.document.createElement(tag);
       if (className) node.className = className;
       if (textValue !== undefined) node.textContent = textValue;
@@ -31,7 +30,7 @@ export function installPromptLibraryBulkOrganizer(root: HafizeLegacyRoot): void 
       const node = root.document.querySelector(`#${CARD_ID} .prompt-library-status`);
       if (node) node.textContent = String(message || '').slice(0, 180);
     };
-    const ids = () => [...root.document.querySelectorAll(`#${CARD_ID} [data-prompt-selection]:checked`)].map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
+    const ids = () => [...root.document.querySelectorAll<HTMLElement>(`#${CARD_ID} [data-prompt-selection]:checked`)].map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
 
     function readItems() { return api()?.loadItems?.(root.localStorage) || []; }
     function writeItems(items) {
@@ -119,4 +118,4 @@ export function installPromptLibraryBulkOrganizer(root: HafizeLegacyRoot): void 
 }
 
 // Preserve automatic startup while exposing a named module entrypoint.
-installPromptLibraryBulkOrganizer(globalThis as HafizeLegacyRoot);
+installPromptLibraryBulkOrganizer(globalThis as unknown as HafizeLegacyRoot);

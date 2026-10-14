@@ -1,7 +1,6 @@
 // TypeScript-first browser adapter for the Smart Insert feature.
 import type { HafizeLegacyRoot } from './prompt-library-smart-insert-contract.ts';
 
-// @ts-nocheck
 export function installPromptSmartInsertValidation(root: HafizeLegacyRoot): void {
     'use strict';
     const MAX_NAME = 32;
@@ -57,4 +56,4 @@ export function installPromptSmartInsertValidation(root: HafizeLegacyRoot): void
 }
 
 // Keep the historical auto-start contract while exposing a named module entrypoint.
-installPromptSmartInsertValidation(globalThis as HafizeLegacyRoot);
+installPromptSmartInsertValidation(globalThis as unknown as HafizeLegacyRoot);

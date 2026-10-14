@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptCollectionEnhancements(root) {
   'use strict';
   const CARD = '#promptLibraryCard';
@@ -13,7 +12,7 @@
   const storage = () => root.localStorage;
   const doc = () => root.document;
   const read = () => api()?.readCollections?.(storage()) || [];
-  const promptSelection = () => [...doc()?.querySelectorAll?.('#promptLibraryList [data-prompt-selection]:checked') || []]
+  const promptSelection = () => [...doc()?.querySelectorAll?.<HTMLElement>('#promptLibraryList [data-prompt-selection]:checked') || []]
     .map((node) => node.dataset.promptSelection).filter(Boolean).slice(0, MAX_SELECTION);
   const announce = (message) => {
     const node = doc()?.querySelector?.(`${COLLECTIONS} .prompt-library-collections-status`);
@@ -36,7 +35,7 @@
   }
 
   function clearSelection() {
-    doc()?.querySelectorAll?.('#promptLibraryList [data-prompt-selection]').forEach((node) => { node.checked = false; });
+    doc()?.querySelectorAll?.<HTMLInputElement>('#promptLibraryList [data-prompt-selection]').forEach((node) => { node.checked = false; });
     renderTools();
   }
 
@@ -77,7 +76,7 @@
     if (action === 'clear-selection') return clearSelection();
     if (action === 'duplicate' && collection) return duplicateCollection(collection);
     if (action === 'select-all') {
-      const rows = [...doc().querySelectorAll('#promptLibraryList .prompt-item [data-prompt-selection]')].slice(0, MAX_SELECTION);
+      const rows = [...doc().querySelectorAll<HTMLInputElement>('#promptLibraryList .prompt-item [data-prompt-selection]')].slice(0, MAX_SELECTION);
       rows.forEach((node) => { node.checked = true; });
       renderTools();
       return announce(`${rows.length} istem seçildi.`);
@@ -128,10 +127,12 @@
     const active = doc()?.activeElement;
     if (active?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
     event.preventDefault();
-    doc()?.querySelector?.(`${COLLECTIONS} input[type="search"]`)?.focus?.();
+    doc()?.querySelector?.<HTMLInputElement>(`${COLLECTIONS} input[type="search"]`)?.focus?.();
   }
 
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
   root.addEventListener?.('beforeunload', () => { observer?.disconnect?.(); for (const off of listeners.splice(0)) off(); });
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

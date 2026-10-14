@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-collections-enhancements.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-collections-enhancements.ts', 'utf8');
 assert.match(source, /Seçilenlerden koleksiyon/);
 assert.match(source, /Tümünü seç/);
 assert.match(source, /Seçimi kaldır/);

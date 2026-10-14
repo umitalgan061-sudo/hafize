@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptRevisionEnhancements(root) {
   'use strict';
   const PANEL = '#promptLibraryRevisions';
@@ -9,7 +8,7 @@
   const doc = () => root.document;
   const api = () => root.HafizePromptLibraryRevisions;
   const storage = () => root.localStorage;
-  const promptIds = () => [...doc()?.querySelectorAll?.('#promptLibraryList .prompt-item[data-prompt-id]') || []]
+  const promptIds = () => [...doc()?.querySelectorAll?.<HTMLElement>('#promptLibraryList .prompt-item[data-prompt-id]') || []]
     .map((row) => row.dataset.promptId).filter(Boolean);
 
   function status(message) {
@@ -38,12 +37,12 @@
     const target = event.target?.closest?.('[data-prompt-revision-action]');
     if (!target) return;
     if (target.dataset.promptRevisionAction === 'open-current') {
-      const selected = doc().querySelector(`${PANEL} select`);
+      const selected = doc().querySelector<HafizeValueControl>(`${PANEL} select`);
       if (selected?.value) jumpToPrompt(selected.value);
       return;
     }
     if (target.dataset.promptRevisionAction === 'clear-history') {
-      const selected = doc().querySelector(`${PANEL} select`);
+      const selected = doc().querySelector<HTMLSelectElement>(`${PANEL} select`);
       if (!selected?.value) return status('Önce bir istem seç.');
       if (!root.confirm?.('Bu istemin sürüm geçmişi temizlensin mi?')) return;
       if (!api()?.removePromptRevisions?.(selected.value, storage())) return status('Sürüm geçmişi temizlenemedi.');
@@ -108,7 +107,7 @@
     root.document.head?.append(link);
     loaded.add(STYLE);
   }
-  function loadScript(src, onload) {
+  function loadScript(src, onload?) {
     if (!root.document || loaded.has(src)) return;
     const script = root.document.createElement('script');
     script.src = src;
@@ -125,3 +124,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

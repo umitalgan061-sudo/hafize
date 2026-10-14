@@ -1,9 +1,7 @@
-// @ts-nocheck
 (function exposeMessageWorkspacePolicy(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizeMessageWorkspacePolicy = api;
+  root.HafizeMessageWorkspacePolicy = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createPolicy() {
   'use strict';
 
@@ -184,3 +182,5 @@
     isEmpty
   });
 });
+
+export {};

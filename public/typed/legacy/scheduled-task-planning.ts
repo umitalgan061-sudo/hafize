@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function enhanceScheduledTaskPlanning(root) {
   'use strict';
   const PANEL_ID = 'scheduledTasksWorkspace';
@@ -6,7 +5,7 @@
   let observer = null;
 
   const doc = function () { return root.document; };
-  const make = function (tag, text, className) {
+  const make = function (tag, text, className?) {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -42,9 +41,9 @@
     wrap.append(tomorrow);
     if (submit) create.insertBefore(wrap, submit);
   }
-  function addListControls(panel) {
-    const section = panel.querySelector('.scheduled-tasks-list-section');
-    const list = panel.querySelector('.scheduled-tasks-list');
+  function addListControls(panel: HTMLElement) {
+    const section = panel.querySelector<HTMLElement>('.scheduled-tasks-list-section');
+    const list = panel.querySelector<HTMLElement>('.scheduled-tasks-list');
     if (!section || !list || section.querySelector('.scheduled-task-list-controls')) return;
     const controls = make('div', undefined, 'scheduled-task-list-controls');
     const search = doc().createElement('input');
@@ -66,7 +65,7 @@
     function apply() {
       const query = String(search.value || '').trim().toLocaleLowerCase('tr-TR').slice(0, 120);
       const mode = sort.value;
-      const rows = Array.from(list.querySelectorAll('.scheduled-task-row'));
+      const rows = Array.from(list.querySelectorAll<HTMLElement>('.scheduled-task-row'));
       rows.forEach(function (row) {
         const title = row.querySelector('.scheduled-task-row-head strong')?.textContent || '';
         const haystack = (title + ' ' + (row.dataset.agentId || '') + ' ' + (row.dataset.status || '')).toLocaleLowerCase('tr-TR');
@@ -106,3 +105,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

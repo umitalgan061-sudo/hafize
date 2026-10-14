@@ -1,6 +1,5 @@
 // TypeScript migration wave 2026-09.
 // Behavior is preserved while the browser module moves behind the typed Vite boundary.
-// @ts-nocheck
 (() => {
   'use strict';
 
@@ -168,7 +167,7 @@
   }
 
   function currentConversationId() {
-    const active = document.querySelector('.conversation-row.active .conversation-open');
+    const active = document.querySelector<HTMLElement>('.conversation-row.active .conversation-open');
     return active?.dataset?.conversationId || '';
   }
 
@@ -535,7 +534,7 @@
   }
 
   function sweepMissingRecords() {
-    const live = new Set([...ui.messages.querySelectorAll('.message[data-message-id]')].map(article => article.dataset.messageId));
+    const live = new Set([...ui.messages.querySelectorAll<HTMLElement>('.message[data-message-id]')].map(article => article.dataset.messageId));
     const conversationId=currentConversationId();
     if (!conversationId) return;
     const before=runtime.records.length;
@@ -565,3 +564,5 @@
 
   init();
 })();
+
+export {};

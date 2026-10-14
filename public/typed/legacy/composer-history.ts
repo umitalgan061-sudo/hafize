@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installHafizeComposerHistory(root) {
   'use strict';
   const STORAGE_KEY = 'hafize.composer-history.v1';
@@ -24,7 +23,7 @@
   };
   function boot() {
     const documentRef = root.document;
-    const composer = documentRef?.getElementById?.(INPUT_ID);
+    const composer = documentRef?.getElementById?.(INPUT_ID) as HTMLTextAreaElement | null;
     if (!documentRef || !composer || composer.dataset.historyReady === 'true') return null;
     composer.dataset.historyReady = 'true';
     const api = root.HafizeComposerHistory;
@@ -93,3 +92,5 @@
   root.HafizeComposerHistory = api;
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

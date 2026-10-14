@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root=path.resolve(process.cwd());
-const sw=fs.readFileSync(path.join(root,'public/sw-policy.js'),'utf8');
+const sw=fs.readFileSync(path.join(root,'public/sw-policy.ts'),'utf8');
 const vite=fs.readFileSync(path.join(root,'vite.config.ts'),'utf8');
 const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');
 

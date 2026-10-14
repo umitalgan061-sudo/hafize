@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskStatusSummary(root) {
   'use strict';
   const PANEL_ID = 'scheduledTasksWorkspace';
@@ -9,7 +8,7 @@
   let timer = 0;
 
   const doc = function () { return root.document; };
-  const make = function (tag, text, className) {
+  const make = function (tag, text, className?) {
     const node = doc().createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -28,8 +27,9 @@
       panel.querySelector('.scheduled-tasks-filter')?.before(section);
     }
     const counts = new Map(statuses.map(function (entry) { return [entry[0], 0]; }));
-    list.querySelectorAll('.scheduled-task-row').forEach(function (row) {
-      if (counts.has(row.dataset.status)) counts.set(row.dataset.status, counts.get(row.dataset.status) + 1);
+    list.querySelectorAll<HTMLElement>('.scheduled-task-row').forEach(function (row) {
+      const status = row.dataset.status || '';
+      if (counts.has(status)) counts.set(status, (counts.get(status) || 0) + 1);
     });
     section.replaceChildren();
     statuses.forEach(function (entry) {
@@ -39,7 +39,7 @@
       item.dataset.status = entry[0];
       item.append(make('strong', String(counts.get(entry[0]) || 0)), make('span', entry[1]));
       item.addEventListener('click', function () {
-        const filter = panel.querySelector('.scheduled-tasks-filter select');
+        const filter = panel.querySelector<HTMLSelectElement>('.scheduled-tasks-filter select');
         if (!filter) return;
         filter.value = entry[0];
         filter.dispatchEvent(new Event('change', { bubbles: true }));
@@ -73,3 +73,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

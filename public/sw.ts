@@ -1,5 +1,7 @@
-// @ts-nocheck
+/// <reference lib="webworker" />
 import { CURRENT_CACHE, SHELL_ASSETS, classifyRequest, shouldDeleteCache } from './sw-policy.ts';
+
+declare const self: ServiceWorkerGlobalScope;
 
 async function matchShell(request) {
   const cache = await caches.open(CURRENT_CACHE);

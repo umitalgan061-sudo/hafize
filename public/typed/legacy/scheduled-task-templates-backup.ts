@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installScheduledTaskTemplateBackup(root) {
   'use strict';
   const STORAGE_KEY = 'hafize.scheduled-task-templates.v1';
@@ -157,3 +156,5 @@
   if (doc()?.readyState === 'loading') doc().addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

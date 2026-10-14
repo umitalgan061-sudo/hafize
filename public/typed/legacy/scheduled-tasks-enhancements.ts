@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function enhanceScheduledTasksWorkspace(root) {
   'use strict';
 
@@ -12,7 +11,7 @@
     ['Kontrol listesi', 'Verilen görev için tamamlanma kontrol listesi oluştur ve kritik adımları işaretle.']
   ]);
 
-  const make = (tag, text, className) => {
+  const make = (tag, text, className?) => {
     const node = root.document.createElement(tag);
     if (className) node.className = className;
     if (text !== undefined) node.textContent = String(text);
@@ -20,7 +19,7 @@
   };
 
   function status(message, tone = '') {
-    const target = root.document.querySelector(`#${PANEL_ID} .scheduled-tasks-status`);
+    const target = root.document.querySelector<HTMLElement>(`#${PANEL_ID} .scheduled-tasks-status`);
     if (!target) return;
     target.textContent = String(message).slice(0, 220);
     target.dataset.tone = tone;
@@ -73,7 +72,7 @@
   function onTemplate(event) {
     const target = event.target?.closest?.('[data-template-task]');
     if (!target) return;
-    const textarea = root.document.querySelector(`#${PANEL_ID} .scheduled-tasks-create textarea`);
+    const textarea = root.document.querySelector<HTMLTextAreaElement>(`#${PANEL_ID} .scheduled-tasks-create textarea`);
     if (!textarea) return;
     textarea.value = target.dataset.templateTask || '';
     textarea.focus();
@@ -104,3 +103,5 @@
   if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', boot, { once: true });
   else boot();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};

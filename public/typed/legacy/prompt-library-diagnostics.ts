@@ -1,4 +1,3 @@
-// @ts-nocheck
 (function installPromptLibraryDiagnostics(root) {
   'use strict';
 
@@ -20,7 +19,7 @@
     el.textContent = String(value == null ? '' : value);
     return el;
   };
-  const button = function (doc, label, className) {
+  const button = function (doc, label, className?) {
     const el = doc.createElement('button');
     el.type = 'button';
     el.className = className || 'mini-btn';
@@ -282,3 +281,5 @@
   if (root.document && root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })(typeof globalThis !== 'undefined' ? globalThis : self);
+
+export {};
