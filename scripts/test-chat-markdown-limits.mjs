@@ -3,9 +3,10 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createContainer, createDocument, findAll } from './markdown-dom-harness.mjs';
+import { loadBrowserModule } from './browser-module.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.ts');
+const markdown = await loadBrowserModule('public/markdown-renderer.ts', 'HafizeMarkdown');
 const { LIMITS } = markdown;
 
 const BUDGET_MS = 1500;

@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { loadBrowserModule } from './browser-module.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const policy = require(path.join(root, 'public/typed/legacy/message-workspace-policy.ts'));
+const policy = await loadBrowserModule('public/typed/legacy/message-workspace-policy.ts', 'HafizeMessageWorkspacePolicy');
 
 function raw(index, overrides = {}) {
   return {

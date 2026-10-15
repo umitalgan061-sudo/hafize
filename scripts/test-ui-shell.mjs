@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+
+import { installDomStub } from './browser-module.mjs';
+
 const require = createRequire(import.meta.url);
+// The module self-mounts at import time and reads `document` directly.
+installDomStub();
 const shell = require('../public/typed/ui-shell.ts');
 
 assert.equal(shell.resolveTheme('dark', false), 'dark');

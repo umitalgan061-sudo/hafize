@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { loadBrowserModule } from './browser-module.mjs';
 
-const require = createRequire(import.meta.url);
 const {
   HANDS_FREE_REVOKE_EVENT,
   MICROPHONE_DEVICE_REASON,
   REVOKED_ATTR,
   hasAudioInput,
   installHandsFreeBackgroundGuard
-} = require('../public/typed/hands-free-background-guard.ts');
+} = await loadBrowserModule('public/typed/hands-free-background-guard.ts', 'HafizeHandsFreeBackgroundGuard');
 
 class FakeTarget {
   constructor() { this.listeners = new Map(); }

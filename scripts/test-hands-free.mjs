@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { loadBrowserModule } from './browser-module.mjs';
 const require = createRequire(import.meta.url);
-const api = require('../public/typed/hands-free.ts');
+const api = await loadBrowserModule('public/typed/hands-free.ts', 'HafizeHandsFree');
 
 assert.equal(api.normalizeSpeech(' HAFİZE!!! '), 'hafize');
 assert.equal(api.containsWakePhrase('Merhaba Hafize nasılsın'), true);

@@ -3,9 +3,10 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createContainer, createDocument, findAll, findByClass } from './markdown-dom-harness.mjs';
+import { loadBrowserModule } from './browser-module.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.ts');
+const markdown = await loadBrowserModule('public/markdown-renderer.ts', 'HafizeMarkdown');
 
 // `chat-markdown.js` looks the renderer up on the global, the way the browser
 // wires the two script tags together.
@@ -26,7 +27,7 @@ const runFrames = () => {
   return queued.filter(Boolean).length;
 };
 
-const chat = require('../public/chat-markdown.ts');
+const chat = await loadBrowserModule('public/chat-markdown.ts', 'HafizeChatMarkdown');
 
 /* Every prefix of an answer renders without throwing -------------------- */
 

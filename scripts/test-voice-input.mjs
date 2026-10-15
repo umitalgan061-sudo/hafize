@@ -3,8 +3,12 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
+import { installDomStub } from './browser-module.mjs';
+
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The module self-mounts at import time and reads `document` directly.
+installDomStub();
 const voice = require(path.join(ROOT, 'public/typed/voice-input.ts'));
 
 assert.equal(voice.normalizeTranscript('  merhaba   dünya  '), 'merhaba dünya');
@@ -178,7 +182,7 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
   assert.equal(controller.isListening(), true);
   assert.equal(mic.getAttribute('aria-pressed'), 'true');
   assert.equal(mic.textContent, '●');
-  assert.equal(toast.textContent.includes('otomatik gönderilmez'), true);
+  assert.equal(toast.textContent.includes('otomatik gönderim yapılmaz'), true);
 
   recognition.emitResult(' yeni   cümle ');
   assert.equal(input.value, 'Önceki yeni cümle');

@@ -10,9 +10,10 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createContainer, createDocument, findAll, findAllByClass, walk } from './markdown-dom-harness.mjs';
+import { loadBrowserModule } from './browser-module.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.ts');
+const markdown = await loadBrowserModule('public/markdown-renderer.ts', 'HafizeMarkdown');
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /* No string ever becomes markup ---------------------------------------- */

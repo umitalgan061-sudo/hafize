@@ -2,9 +2,10 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createContainer, createDocument, find, findAll, findAllByClass, findByClass, outline } from './markdown-dom-harness.mjs';
+import { loadBrowserModule } from './browser-module.mjs';
 
 const require = createRequire(import.meta.url);
-const markdown = require('../public/markdown-renderer.ts');
+const markdown = await loadBrowserModule('public/markdown-renderer.ts', 'HafizeMarkdown');
 
 function render(source) {
   const documentRef = createDocument();

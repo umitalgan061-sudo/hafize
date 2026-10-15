@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+
+import { installDomStub } from './browser-module.mjs';
+
 const require = createRequire(import.meta.url);
+// The module self-mounts at import time and reads `document` directly.
+installDomStub();
 const voiceOutput = require('../public/typed/voice-output.ts');
 
 assert.equal(voiceOutput.normalizeSpeechText('  **Merhaba**   _Hafize_  '), 'Merhaba Hafize');

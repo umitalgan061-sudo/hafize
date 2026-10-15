@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
-const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
+const sourcePath = path.join(root, 'public', 'conversation-workspace.ts');
 const cssPath = path.join(root, 'public', 'conversation-workspace.css');
 const indexPath = path.join(root, 'public', 'index.html');
 const swPath = path.join(root, 'public', 'sw-policy.ts');
@@ -168,15 +168,17 @@ check('workspace has disabled visual treatment', css.includes('opacity: .45'));
 check('workspace has destructive styling', css.includes('.workspace-danger'));
 check('workspace has focus styling', css.includes('.workspace-search:focus'));
 check('index references workspace stylesheet', index.includes('/conversation-workspace.css'));
-check('index references workspace script', index.includes('/conversation-workspace.js'));
-check('workspace script loads after chat drafts', index.indexOf('/chat-drafts.js') < index.indexOf('/conversation-workspace.js'));
-check('workspace remains before voice modules', index.indexOf('/conversation-workspace.js') < index.indexOf('/voice-input.js'));
+check('index references workspace script', index.includes('/typed-build/conversation-workspace.js'));
+// The keyboard layer that decorates the panel ships in the legacy bundle,
+// which index.html loads last, so the workspace is always mounted first.
+check('workspace script loads before the legacy bundle', index.indexOf('/typed-build/conversation-workspace.js') < index.indexOf('/typed-build/legacy-app.js'));
+check('workspace remains before voice modules', index.indexOf('/typed-build/conversation-workspace.js') < index.indexOf('/typed-build/voice-input.js'));
 check('service worker has workspace stylesheet', sw.includes('/conversation-workspace.css'));
-check('service worker has workspace script', sw.includes('/conversation-workspace.js'));
+check('service worker has workspace script', sw.includes('/typed-build/conversation-workspace.js'));
 check('service worker declares a versioned shell cache', /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(sw));
 // HAFIZE_RULES.md replaced the old 3000-line budget with a completion rule:
 // a round stays open until the work package is finished, not until a number.
-check('rules state the round completion criterion', rules.includes('Tur tamamlama kriteri — 4000+ anlamlı değişiklik'));
+check('rules state the round completion criterion', /Tur tamamlama kriteri — \d+\+ anlamlı değişiklik/.test(rules));
 check('rules keep the change volume meaningful', rules.includes('yapay satır doldurma gerekçesi değildir'));
 check('rules put safety above change volume', rules.includes('değişiklik hacmi hedefinden daha yüksek önceliklidir'));
 

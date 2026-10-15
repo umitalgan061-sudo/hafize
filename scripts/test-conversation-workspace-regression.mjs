@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertAttributeDeclared, assertClassDeclared } from './source-contract.mjs';
+import { bundleUrlFor } from './legacy-bundle-contract.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname);
 const index = fs.readFileSync(path.join(root, 'public', 'index.html'), 'utf8');
-const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
+const workspace = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.ts'), 'utf8');
 const keyboard = fs.readFileSync(path.join(root, 'public/typed/legacy', 'conversation-workspace-keyboard.ts'), 'utf8');
 const drafts = fs.readFileSync(path.join(root, 'public/typed/legacy', 'chat-drafts.ts'), 'utf8');
 const historyManagement = fs.readFileSync(path.join(root, 'public/typed', 'chat-history-management.ts'), 'utf8');
@@ -21,12 +22,12 @@ function notHas(text, fragment, label = `must not contain ${fragment}`) {
 }
 
 const shellModules = [
-  ['/chat-history-search.js', 'history search remains loaded'],
-  ['/chat-history-export.js', 'history export remains loaded'],
-  ['/chat-history-management.js', 'history management remains loaded'],
-  ['/chat-drafts.js', 'chat drafts remain loaded'],
-  ['/conversation-workspace.js', 'workspace is loaded'],
-  ['/conversation-workspace-keyboard.js', 'workspace keyboard is loaded']
+  [bundleUrlFor('chat-history-search'), 'history search remains loaded'],
+  [bundleUrlFor('chat-history-export'), 'history export remains loaded'],
+  [bundleUrlFor('chat-history-management'), 'history management remains loaded'],
+  [bundleUrlFor('chat-drafts'), 'chat drafts remain loaded'],
+  [bundleUrlFor('conversation-workspace'), 'workspace is loaded'],
+  [bundleUrlFor('conversation-workspace-keyboard'), 'workspace keyboard is loaded']
 ];
 for (const [pathName, label] of shellModules) has(index, pathName, label);
 
@@ -40,16 +41,17 @@ const stylesheetModules = [
 ];
 for (const [pathName, label] of stylesheetModules) has(index, pathName, label);
 
+// Bundling collapsed the per-feature scripts, so only the order between the
+// surviving entries is still a contract: the shell first, then the features
+// that decorate it, and the legacy bundle last.
 const loadOrder = [
-  '/app.js',
-  '/chat-composer-features.js',
-  '/chat-history-search.js',
-  '/chat-history-export.js',
-  '/chat-history-management.js',
-  '/chat-drafts.js',
-  '/conversation-workspace.js',
-  '/conversation-workspace-keyboard.js',
-  '/voice-input.js'
+  '/typed-build/app-shell.js',
+  bundleUrlFor('chat-composer-features'),
+  bundleUrlFor('chat-history-search'),
+  bundleUrlFor('chat-history-management'),
+  bundleUrlFor('conversation-workspace'),
+  '/typed-build/voice-input.js',
+  '/typed-build/legacy-app.js'
 ];
 for (let i = 1; i < loadOrder.length; i += 1) {
   assert.ok(index.indexOf(loadOrder[i - 1]) < index.indexOf(loadOrder[i]), `script order keeps ${loadOrder[i - 1]} before ${loadOrder[i]}`);
@@ -192,7 +194,6 @@ const existingBehaviorFragments = [
 for (const [text, fragment, label] of existingBehaviorFragments) has(text, fragment, label);
 
 assert.equal(index.match(/conversation-workspace\.js/g)?.length, 1, 'workspace script is referenced exactly once');
-assert.equal(index.match(/conversation-workspace-keyboard\.js/g)?.length, 1, 'keyboard script is referenced exactly once');
 assert.equal(index.match(/conversation-workspace\.css/g)?.length, 1, 'workspace CSS is referenced exactly once');
 assert.equal(index.match(/conversation-workspace-keyboard\.css/g)?.length, 1, 'keyboard CSS is referenced exactly once');
 
