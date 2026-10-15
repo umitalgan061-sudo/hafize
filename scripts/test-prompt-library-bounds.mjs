@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-// public/prompt-library.js is a browser UMD bundle: it assigns `module.exports`
-// at runtime, which Node cannot statically analyse into named exports, so the
-// suite takes the default (CommonJS) export and destructures it.
-import promptLibrary from '../public/prompt-library.js';
+// public/typed/prompt-library.ts is a browser UMD module: under ESM it has no
+// static exports and publishes its API on the global instead, so the suite
+// imports it for the side effect and reads the global it installs.
+import '../public/typed/prompt-library.ts';
+
+const promptLibrary = globalThis.HafizePromptLibrary;
 const { LIMITS, normalizeItem, normalizeCollection, safeState } = promptLibrary;
 
 const item = normalizeItem({ title: 'x'.repeat(200), body: 'x'.repeat(9000), tags: Array.from({ length: 20 }, (_, i) => `tag-${i}`), variables: Array.from({ length: 20 }, (_, i) => `v-${i}`) });

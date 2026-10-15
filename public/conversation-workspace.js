@@ -1,1 +1,0 @@
-(function legacyConversationWorkspaceBridge(){'use strict';var boot=function(){return import('/typed-build/conversation-workspace.js');};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();})();

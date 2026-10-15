@@ -1,5 +1,5 @@
-const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v56`;
+export const CACHE_PREFIX = 'hafize-shell-';
+export const CURRENT_CACHE = `${CACHE_PREFIX}v58`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -20,7 +20,15 @@ export const SHELL_ASSETS = Object.freeze([
   "/conversation-workspace-keyboard.css",
   "/conversation-forks.css",
   "/message-workspace.css",
+  "/chat-markdown.css",
   "/prompt-library.css",
+  "/prompt-library-import-preview.css",
+  "/prompt-library-bulk-organizer.css",
+  "/prompt-library-smart-insert.css",
+  "/prompt-library-smart-insert-center.css",
+  "/prompt-library-smart-insert-history.css",
+  "/prompt-library-smart-insert-suggestions.css",
+  "/prompt-library-smart-insert-activity.css",
   "/system-readiness.css",
   "/prompt-library-smart-views.css",
   "/prompt-library-smart-views-extras.css",

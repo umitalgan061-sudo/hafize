@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { assertCssIncludes } from './source-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const source = await readFile(path.join(root, 'public/message-workspace.js'), 'utf8');
+const source = await readFile(path.join(root, 'public/typed/message-workspace.ts'), 'utf8');
 const css = await readFile(path.join(root, 'public/message-workspace.css'), 'utf8');
 
 function event({ ctrlKey=false, metaKey=false, shiftKey=false, key='' } = {}) {

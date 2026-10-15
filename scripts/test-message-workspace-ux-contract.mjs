@@ -7,7 +7,7 @@ import { assertClassDeclared } from './source-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
-const js = await read('public/message-workspace.js');
+const js = await read('public/typed/message-workspace.ts');
 const css = await read('public/message-workspace.css');
 const html = await read('public/index.html');
 

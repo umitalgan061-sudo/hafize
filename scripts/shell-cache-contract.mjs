@@ -20,14 +20,35 @@ export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.
 
 /** Source text of `public/sw-policy.ts`, for suites that assert on the file itself. */
 export function readSwPolicySource() {
-  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.js'), 'utf8');
+  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.ts'), 'utf8');
 }
 
-/** Local file backing a shell asset path, or null for the bare `/` entry. */
+/** Vite entry names declared in `vite.config.ts`, i.e. what the build emits. */
+export function buildEntryNames() {
+  const vite = readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
+  const block = /entry:\s*\{([\s\S]*?)\n      \}/.exec(vite);
+  assert.ok(block, 'vite.config.ts declares a library entry map');
+  return new Set([...block[1].matchAll(/'([\w-]+)':\s*resolve\(/g)].map((match) => match[1]));
+}
+
+/**
+ * Local file backing a shell asset path, or null for the bare `/` entry.
+ * `/typed-build/*.js` is produced by `npm run build`, so it is checked against
+ * the Vite entry map instead of the working tree.
+ */
 export function shellAssetFile(assetPath) {
   if (assetPath === '/') return path.join(PUBLIC_DIR, 'index.html');
   if (!assetPath.startsWith('/') || assetPath.includes('..')) return null;
   return path.join(PUBLIC_DIR, assetPath.slice(1));
+}
+
+const BUILD_PREFIX = '/typed-build/';
+
+/** True when a shell asset will exist once `npm run build` has run. */
+export function shellAssetIsBuildable(assetPath, entries = buildEntryNames()) {
+  if (!assetPath.startsWith(BUILD_PREFIX)) return false;
+  const name = assetPath.slice(BUILD_PREFIX.length).replace(/\.js$/, '');
+  return entries.has(name);
 }
 
 /** Same-origin CSS/JS URLs referenced by `public/index.html`. */
@@ -44,7 +65,15 @@ export function indexHtmlAssets() {
  * static assets referenced from the manifest.
  */
 export const NON_INDEX_SHELL_ASSETS = Object.freeze([
-  '/', '/index.html', '/offline.html', '/sw-policy.js', '/manifest.webmanifest', '/hafize.jpeg'
+  '/', '/index.html', '/offline.html', '/manifest.webmanifest', '/hafize.jpeg',
+  // Smart Insert styles are injected by `prompt-library-enhancements` the first
+  // time the panel mounts, so they are part of the shell without being linked
+  // from index.html.
+  '/prompt-library-smart-insert.css',
+  '/prompt-library-smart-insert-center.css',
+  '/prompt-library-smart-insert-history.css',
+  '/prompt-library-smart-insert-suggestions.css',
+  '/prompt-library-smart-insert-activity.css'
 ]);
 
 /**
@@ -57,7 +86,10 @@ export function assertShellCacheContract() {
   assert.match(swPolicy.CURRENT_CACHE, CACHE_VERSION_PATTERN, 'shell cache name carries a numeric version');
   assert.ok(Number.isInteger(CURRENT_CACHE_VERSION) && CURRENT_CACHE_VERSION > 0);
   assert.equal(swPolicy.CURRENT_CACHE, `${swPolicy.CACHE_PREFIX}v${CURRENT_CACHE_VERSION}`);
-  assert.ok(Object.isFrozen(swPolicy));
+  // The policy is an ES module now: its bindings cannot be reassigned from the
+  // outside, so the namespace is only non-extensible. The asset list is still
+  // frozen explicitly because a service worker holds on to it.
+  assert.equal(Object.isExtensible(swPolicy), false);
   assert.ok(Object.isFrozen(swPolicy.SHELL_ASSETS));
 
   assert.equal(swPolicy.SHELL_ASSETS.some((asset) => asset.startsWith('/api/')), false, 'API paths never enter the shell cache');
@@ -65,7 +97,12 @@ export function assertShellCacheContract() {
 
   // `cache.addAll()` rejects as a whole, so one stale path disables the
   // offline shell entirely: every entry must be backed by a real file.
+  const entries = buildEntryNames();
   for (const asset of swPolicy.SHELL_ASSETS) {
+    if (asset.startsWith(BUILD_PREFIX)) {
+      assert.ok(shellAssetIsBuildable(asset, entries), `shell asset ${asset} is emitted by a Vite entry`);
+      continue;
+    }
     const file = shellAssetFile(asset);
     assert.ok(file && existsSync(file), `shell asset ${asset} exists on disk`);
   }

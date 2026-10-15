@@ -18,7 +18,13 @@ for (const entry of ['auth', 'app-shell', 'ui-shell', 'voice-input', 'voice-outp
   assert.match(html, new RegExp(`typed-build/${entry}\\.js`));
   assert.match(sw, new RegExp(`typed-build/${entry}\\.js`));
 }
-for (const legacy of ['public/app.js', 'public/auth.js', 'public/ui-shell.js', 'public/voice-input.js', 'public/voice-output.js']) {
+// Every browser module is served from `public/typed-build/`; no hand-written
+// `public/*.js` entry or bridge shim may survive next to the TypeScript source.
+for (const legacy of [
+  'public/app.js', 'public/auth.js', 'public/ui-shell.js', 'public/voice-input.js', 'public/voice-output.js',
+  'public/chat-markdown.js', 'public/conversation-workspace.js', 'public/markdown-renderer.js',
+  'public/message-workspace.js', 'public/prompt-library.js', 'public/scheduled-tasks.js'
+]) {
   assert.equal(existsSync(join(root, legacy)), false, `legacy entry still exists: ${legacy}`);
 }
 assert.equal(existsSync(join(root, 'server.mjs')), false);

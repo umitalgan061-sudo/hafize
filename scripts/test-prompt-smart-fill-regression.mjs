@@ -9,7 +9,7 @@ const hints = read('public/prompt-library-smart-fill-hints.ts');
 const palette = read('public/prompt-library-command-palette.ts');
 const index = read('public/index.html');
 const sw = read('public/sw-policy.ts');
-const core = read('public/prompt-library.js');
+const core = read('public/typed/prompt-library.ts');
 
 assert.match(core,/hafize\.prompt-library\.v1/);
 assert.match(smart,/hafize\.prompt-library\.smart-fill\.v1/);
