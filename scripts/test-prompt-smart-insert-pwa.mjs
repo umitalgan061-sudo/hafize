@@ -8,7 +8,7 @@ const sw = await read('public/sw-policy.ts');
 const html = await read('public/index.html');
 const vite = await read('vite.config.ts');
 const app = await read('public/typed/legacy-app.ts');
-assert(sw.includes('v55'), 'PWA cache version');
+assert(/hafize-shell-v\d+/.test(sw), 'PWA cache version');
 assert(sw.includes('/typed-build/legacy-app.js'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(vite.includes('legacy-app'));

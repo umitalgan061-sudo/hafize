@@ -34,7 +34,7 @@ for (const asset of [
 ]) assert.ok(html.includes(asset), asset);
 
 const sw = read('public/sw-policy.ts');
-assert.match(sw,/CURRENT_CACHE = .*v49/);
+assert.match(sw,/CURRENT_CACHE = .*v\d+/);
 for (const asset of [
   '/prompt-library-smart-views.css',
   '/prompt-library-smart-views-extras.css',

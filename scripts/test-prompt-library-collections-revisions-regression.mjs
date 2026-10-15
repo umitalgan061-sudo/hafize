@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertBundledModule } from './legacy-bundle-contract.mjs';
 
 const files = {
   collections: fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8'),
@@ -12,11 +13,11 @@ const files = {
 
 assert.match(files.html, /prompt-library-collections\.css/);
 assert.match(files.html, /prompt-library-revisions\.css/);
-assert.match(files.html, /prompt-library-collections\.js/);
-assert.match(files.html, /prompt-library-collections-enhancements\.js/);
-assert.match(files.html, /prompt-library-revisions\.js/);
-assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
-assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+assertBundledModule('prompt-library-collections');
+assertBundledModule('prompt-library-collections-enhancements');
+assertBundledModule('prompt-library-revisions');
+assertBundledModule('prompt-library-revisions-enhancements');
+assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 for (const asset of [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',

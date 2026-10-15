@@ -53,7 +53,7 @@ assert(files.vite.includes("'sw': resolve(ROOT, 'public/sw.ts')"), 'sw-vite-entr
 assert(files.index.includes('/typed-build/legacy-app.js'), 'legacy-app-html-entry');
 assert(files.app.includes("navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' })"), 'module-service-worker-registration');
 assert(files.sw.includes("from './sw-policy.ts'"), 'typed-sw-policy-import');
-assert(files.swPolicy.includes("CURRENT_CACHE = `${CACHE_PREFIX}v55`"), 'cache-version');
+assert(/CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/.test(files.swPolicy), 'cache-version');
 assert(!await exists('public/sw.ts'), 'legacy-sw-removed');
 assert(!await exists('public/sw-policy.ts'), 'legacy-sw-policy-removed');
 

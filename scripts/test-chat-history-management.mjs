@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertBundledModule } from './legacy-bundle-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
@@ -40,7 +41,7 @@ assert.match(css, /prefers-reduced-motion/);
 assert.match(css, /\.conversation-row:focus-within/);
 assert.match(css, /flex-wrap:wrap/);
 assert.match(sw, /\/chat-history-management\.css/);
-assert.match(sw, /\/chat-history-management\.js/);
+assertBundledModule('chat-history-management');
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(docs, /pinned: true/);
 assert.match(docs, /80 karakter/);

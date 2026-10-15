@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertBundledModule } from './legacy-bundle-contract.mjs';
 
 const files = [
   'public/typed/legacy/prompt-library-collections.ts',
@@ -13,12 +14,12 @@ const files = [
 const source = Object.fromEntries(files.map((file) => [file, fs.readFileSync(file, 'utf8')]));
 
 for (const file of files) assert.ok(source[file].length > 0, `${file} is empty`);
-assert.match(source['public/index.html'], /prompt-library-collections\.js/);
-assert.match(source['public/index.html'], /prompt-library-revisions\.js/);
-assert.match(source['public/index.html'], /prompt-library-collections-enhancements\.js/);
-assert.match(source['public/index.html'], /prompt-library-revisions-enhancements\.js/);
-assert.match(source['public/sw-policy.ts'], /prompt-library-collections\.js/);
-assert.match(source['public/sw-policy.ts'], /prompt-library-revisions\.js/);
+assertBundledModule('prompt-library-collections');
+assertBundledModule('prompt-library-revisions');
+assertBundledModule('prompt-library-collections-enhancements');
+assertBundledModule('prompt-library-revisions-enhancements');
+assertBundledModule('prompt-library-collections');
+assertBundledModule('prompt-library-revisions');
 assert.match(source['public/sw-policy.ts'], /prompt-library-collections\.css/);
 assert.match(source['public/sw-policy.ts'], /prompt-library-revisions\.css/);
 assert.match(source['public/sw-policy.ts'], /v36/);

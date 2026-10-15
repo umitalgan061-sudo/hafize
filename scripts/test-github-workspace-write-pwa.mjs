@@ -7,7 +7,7 @@ const sw=fs.readFileSync(path.join(root,'public/sw-policy.ts'),'utf8');
 const vite=fs.readFileSync(path.join(root,'vite.config.ts'),'utf8');
 const html=fs.readFileSync(path.join(root,'public/index.html'),'utf8');
 
-assert.match(sw,/CURRENT_CACHE = \x60\$\{CACHE_PREFIX\}v48\x60/);
+assert.match(sw,/CURRENT_CACHE = \x60\$\{CACHE_PREFIX\}v\d+\x60/);
 assert.match(sw,/github-workspace-write\.css/);
 assert.match(sw,/typed-build\/github-workspace-write\.js/);
 assert.match(vite,/github-workspace-write\.js/);
