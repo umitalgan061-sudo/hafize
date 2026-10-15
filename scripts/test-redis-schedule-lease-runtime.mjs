@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createRedisScheduleLeaseRuntime } from '../lib/redis-schedule-lease-runtime.mjs';
+import { createRedisScheduleLeaseRuntime } from '../lib/redis-schedule-lease-runtime.ts';
 
 function leaseEnv(overrides = {}) {
   return {

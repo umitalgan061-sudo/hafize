@@ -12,7 +12,7 @@ const COMPOSER_HISTORY_ASSETS = [
 ];
 
 const html = fs.readFileSync('public/index.html', 'utf8');
-const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.ts', 'utf8');
 
 for (const asset of COMPOSER_HISTORY_ASSETS) {
   assert.match(html, new RegExp(asset.replaceAll('/', '\\/')), `index.html loads ${asset}`);

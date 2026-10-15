@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const s=require('node:fs').readFileSync('public/typed/conversation-forks.ts','utf8');
 for(const token of ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'innerHTML =', 'outerHTML =']) assert.equal(s.includes(token),false,token);
 assert.match(s,/textContent/);

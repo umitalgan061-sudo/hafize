@@ -17,13 +17,13 @@ const mustExist = [
   'public/typed/hafize-stream-state.ts'
 ];
 const legacyAbsent = [
-  'public/chat-composer-features.js',
-  'public/chat-history-search.js',
-  'public/chat-history-management.js',
-  'public/hands-free.js',
-  'public/hands-free-background-guard.js',
-  'public/settings-privacy.js',
-  'public/workspace-navigation.js'
+  'public/typed/chat-composer-features.ts',
+  'public/typed/chat-history-search.ts',
+  'public/typed/chat-history-management.ts',
+  'public/typed/hands-free.ts',
+  'public/typed/hands-free-background-guard.ts',
+  'public/typed/settings-privacy.ts',
+  'public/typed/workspace-navigation.ts'
 ];
 
 function assert(condition, message) {

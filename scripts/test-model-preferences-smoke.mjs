@@ -9,7 +9,7 @@ const state=read('public/typed/model-preferences.ts');
 const ui=read('public/typed/model-preferences-ui.ts');
 const shell=read('public/typed/app-shell.ts');
 const html=read('public/index.html');
-const sw=read('public/sw-policy.js');
+const sw=read('public/sw-policy.ts');
 const css=read('public/model-preferences.css');
 
 const stateContracts=[

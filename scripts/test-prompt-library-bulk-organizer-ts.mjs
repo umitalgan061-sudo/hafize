@@ -10,7 +10,7 @@ const app = await read('public/typed/legacy-app.ts');
 const html = await read('public/index.html');
 const sw = await read('public/sw-policy.ts');
 assert(await exists('public/typed/legacy/prompt-library-bulk-organizer.ts'));
-assert.equal(await exists('public/prompt-library-bulk-organizer.js'), false);
+assert.equal(await exists('public/typed/legacy/prompt-library-bulk-organizer.ts'), false);
 assert.match(source, /export function installPromptLibraryBulkOrganizer/);
 assert.match(source, /HafizeLegacyRoot/);
 assert.match(source, /@ts-nocheck/);

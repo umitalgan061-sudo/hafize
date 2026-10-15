@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const s=require('node:fs').readFileSync('public/typed/conversation-forks.ts','utf8');
 const dialog=s.slice(s.indexOf('function openDialog'),s.indexOf('function comparisonData'));
 const creation=s.slice(s.indexOf('function createFork'),s.indexOf('function decorateMessages'));

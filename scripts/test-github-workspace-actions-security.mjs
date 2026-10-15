@@ -13,5 +13,5 @@ assert.match(source, /cache: ['"]no-store['"]/);
 assert.doesNotMatch(source, /Authorization/);
 assert.doesNotMatch(source, /GITHUB_TOKEN/);
 assert.doesNotMatch(source, /method: ['"](POST|PATCH|DELETE)['"]/);
-assert.match(source, /https:\\/\\/github\\.com\\//);
+assert.match(source, /https:\/\/github\.com\//);
 console.log('github-workspace-actions-security: ok');

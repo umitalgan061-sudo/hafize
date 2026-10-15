@@ -3,8 +3,8 @@ import { createRequire } from 'node:module';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const require = createRequire(import.meta.url);
-const workspace = require('../public/workspace-navigation.js');
-const sw = require('../public/sw-policy.js');
+const workspace = require('../public/typed/workspace-navigation.ts');
+const sw = require('../public/sw-policy.ts');
 
 class FakeClassList {
   constructor(node) { this.node = node; }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-import-preview.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-import-preview.ts', 'utf8');
 assert.match(source, /MAX_FILE\s*=\s*1000000/);
 assert.match(source, /stopImmediatePropagation/);
 assert.match(source, /normalizeImportedPayload/);

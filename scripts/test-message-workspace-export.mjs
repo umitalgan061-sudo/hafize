@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
-const policy = require(path.join(root, 'public/message-workspace-policy.js'));
+const policy = require(path.join(root, 'public/typed/legacy/message-workspace-policy.ts'));
 const source = await readFile(path.join(root, 'public/message-workspace.js'), 'utf8');
 
 function record(index) {

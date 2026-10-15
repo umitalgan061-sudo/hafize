@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 const s=require('node:fs').readFileSync('vite.config.ts','utf8');
 assert.match(s,/replaceAll\('\/typed-build\/conversation-forks\.js', '\/typed\/conversation-forks\.ts'\)/);
 assert.match(s,/conversation-forks.*conversation-forks\.ts/);

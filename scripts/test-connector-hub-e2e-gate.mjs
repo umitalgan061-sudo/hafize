@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const files = {
-  hub: await readFile('public/connector-hub.js', 'utf8'),
+  hub: await readFile('public/typed/legacy/connector-hub.ts', 'utf8'),
   index: await readFile('public/index.html', 'utf8'),
-  nav: await readFile('public/workspace-navigation.js', 'utf8'),
-  sw: await readFile('public/sw-policy.js', 'utf8'),
+  nav: await readFile('public/typed/workspace-navigation.ts', 'utf8'),
+  sw: await readFile('public/sw-policy.ts', 'utf8'),
   server: await readFile('server.ts', 'utf8')
 };
 

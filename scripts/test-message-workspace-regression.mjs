@@ -8,7 +8,7 @@ const read = (file) => readFile(path.join(root, file), 'utf8');
 const app = await read('public/app.js');
 const workspace = await read('public/message-workspace.js');
 const index = await read('public/index.html');
-const sw = await read('public/sw-policy.js');
+const sw = await read('public/sw-policy.ts');
 
 assert.ok(app.includes("hafize.conversations.v1"));
 assert.ok(app.includes('function saveConversations()'));

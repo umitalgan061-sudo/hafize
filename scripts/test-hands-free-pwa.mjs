@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.js');
+const policy = require('../public/sw-policy.ts');
 const origin = 'https://hafize.example';
 
 assertVersionedCacheDeclaration();

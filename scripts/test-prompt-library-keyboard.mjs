@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync(new URL('../public/prompt-library-keyboard.js', import.meta.url), 'utf8');
+const source = fs.readFileSync(new URL('../public/typed/legacy/prompt-library-keyboard.ts', import.meta.url), 'utf8');
 assert.match(source, /ctrlKey/);
 assert.match(source, /metaKey/);
 assert.match(source, /shiftKey/);

@@ -691,6 +691,24 @@ const lineageOf = conversationLineage;
     createFork(last.id);
   }
 
+  // Local branch backup: the snapshot shape comes from the shared fork core so
+  // the exported file and the in-memory recovery snapshot can never drift apart.
+  function downloadConversation(conversation) {
+    try {
+      const snapshot = buildForkSnapshot(conversation);
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hafize-' + (cleanText(conversation?.title, 48) || 'sohbet') + '.json';
+      link.click();
+      globalThis.setTimeout?.(() => URL.revokeObjectURL(url), 0);
+      showToast('Dal yedeği indirildi.');
+    } catch {
+      showToast('Dal yedeği oluşturulamadı.');
+    }
+  }
+
   function boot() {
     if (mounted) return;
     mounted = true;
