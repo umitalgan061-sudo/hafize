@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-revisions-enhancements.ts', 'utf8');
 assert.match(source, /chat-markdown\.css/);
 assert.match(source, /markdown-renderer\.js/);
 assert.match(source, /chat-markdown\.js/);

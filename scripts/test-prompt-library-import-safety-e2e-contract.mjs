@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
 const files = await Promise.all([
-  fs.readFile('public/prompt-library-safety.js', 'utf8'),
-  fs.readFile('public/prompt-library-import-preview.js', 'utf8'),
-  fs.readFile('public/prompt-library-diagnostics.js', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-safety.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-import-preview.ts', 'utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-diagnostics.ts', 'utf8'),
   fs.readFile('public/prompt-library.css', 'utf8'),
   fs.readFile('public/index.html', 'utf8'),
-  fs.readFile('public/sw-policy.js', 'utf8')
+  fs.readFile('public/sw-policy.ts', 'utf8')
 ]);
 const [safety, preview, diagnostics, css, index, sw] = files;
 

@@ -6,13 +6,10 @@
 (function exposeHafizeHandsFreeBackgroundGuard(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) {
-    module.exports = api;
-    return;
-  }
   root.HafizeHandsFreeBackgroundGuard = api;
+  if (!root.document) return;
   const install = () => api.installHandsFreeBackgroundGuard(root.document, root);
-  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
+  if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
   else install();
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeHandsFreeBackgroundGuard() {
   'use strict';
@@ -303,3 +300,20 @@
     normalizePermissionState
   });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizehandsfreebackgroundguardApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeHandsFreeBackgroundGuard;
+export default hafizehandsfreebackgroundguardApi;
+export const {
+  HANDS_FREE_REVOKE_EVENT,
+  MICROPHONE_DEVICE_REASON,
+  MICROPHONE_PERMISSION_REASON,
+  REVOKED_ATTR,
+  REVOCATION_NOTICE,
+  createRevokeEvent,
+  hasAudioInput,
+  isHandsFreeEnabled,
+  installHandsFreeBackgroundGuard,
+  normalizePermissionState
+} = hafizehandsfreebackgroundguardApi;

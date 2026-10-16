@@ -13,11 +13,11 @@ const typed = [
 ];
 
 const bridges = [
-  'public/markdown-renderer.js',
-  'public/conversation-workspace.js',
-  'public/message-workspace.js',
-  'public/prompt-library.js',
-  'public/scheduled-tasks.js'
+  'public/markdown-renderer.ts',
+  'public/conversation-workspace.ts',
+  'public/typed/message-workspace.ts',
+  'public/typed/prompt-library.ts',
+  'public/typed/scheduled-tasks.ts'
 ];
 
 for (const path of typed) {

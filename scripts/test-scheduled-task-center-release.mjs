@@ -1,29 +1,30 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertShippedBrowserModule, assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const paths = [
   'public/index.html',
-  'public/sw-policy.js',
+  'public/sw-policy.ts',
   'README.md',
-  'public/scheduled-task-preview.js',
-  'public/scheduled-task-duplicate.js',
-  'public/scheduled-task-templates.js',
-  'public/scheduled-task-templates-backup.js',
-  'public/scheduled-task-draft.js',
-  'public/scheduled-task-planning.js',
-  'public/scheduled-task-status-summary.js',
-  'public/scheduled-task-preview-activity.js',
-  'public/scheduled-task-insights.js',
-  'public/scheduled-task-actions.js',
-  'public/scheduled-task-detail.js',
-  'public/scheduled-task-export.js'
+  'public/typed/legacy/scheduled-task-preview.ts',
+  'public/typed/legacy/scheduled-task-duplicate.ts',
+  'public/typed/legacy/scheduled-task-templates.ts',
+  'public/typed/legacy/scheduled-task-templates-backup.ts',
+  'public/typed/legacy/scheduled-task-draft.ts',
+  'public/typed/legacy/scheduled-task-planning.ts',
+  'public/typed/legacy/scheduled-task-status-summary.ts',
+  'public/typed/legacy/scheduled-task-preview-activity.ts',
+  'public/typed/legacy/scheduled-task-insights.ts',
+  'public/typed/legacy/scheduled-task-actions.ts',
+  'public/typed/legacy/scheduled-task-detail.ts',
+  'public/typed/legacy/scheduled-task-export.ts'
 ];
 const files = await Promise.all(paths.map((path) => readFile(new URL('../' + path, import.meta.url), 'utf8')));
 const [index, sw, readme, ...modules] = files;
 
-assert.ok(index.includes('scheduled-task-preview.js'));
-assert.ok(sw.includes('scheduled-task-preview.js'));
-assert.ok(sw.includes('v45') || sw.includes('v46') || sw.includes('v47'));
+assertShippedBrowserModule('scheduled-task-preview');
+assertShippedBrowserModule('scheduled-task-preview');
+assertCacheVersionAtLeast(45);
 assert.ok(readme.includes('Görevler'));
 assert.ok(modules.some((source) => source.includes('requestSubmit')));
 assert.ok(modules.some((source) => source.includes('localStorage')));

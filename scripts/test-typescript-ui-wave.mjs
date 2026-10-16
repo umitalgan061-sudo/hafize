@@ -7,7 +7,7 @@ const read = (path) => readFile(new URL(path, root), 'utf8');
 const packageData = JSON.parse(await read('package.json'));
 const vite = await read('vite.config.ts');
 const html = await read('public/index.html');
-const sw = await read('public/sw-policy.js');
+const sw = await read('public/sw-policy.ts');
 
 function check(condition, message) {
   assert.ok(condition, `typescript-ui-wave: ${message}`);

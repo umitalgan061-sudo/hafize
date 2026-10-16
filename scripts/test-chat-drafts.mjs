@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShippedBrowserModule, assertShippedStylesheet } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('public/index.html');
-const js = read('public/chat-drafts.js');
+const js = read('public/typed/legacy/chat-drafts.ts');
 const css = read('public/chat-drafts.css');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const docs = read('docs/CHAT_DRAFTS.md');
 
 assert.match(html, /chat-drafts\.css/);
-assert.match(html, /chat-drafts\.js/);
+assertShippedBrowserModule('chat-drafts');
 assert.match(html, /id="messageInput"/);
 assert.match(html, /chat-history-management\.js/);
 assert.match(js, /hafize\.chat-drafts\.v1/);
@@ -45,8 +46,8 @@ assert.match(css, /max-width: 680px/);
 assert.match(css, /prefers-reduced-motion/);
 assert.match(css, /ellipsis/);
 assert.match(css, /keyframes chat-draft-status-in/);
-assert.match(sw, /\/chat-drafts\.css/);
-assert.match(sw, /\/chat-drafts\.js/);
+assertShippedStylesheet('chat-drafts.css');
+assertShippedBrowserModule('chat-drafts');
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(docs, /12\.000 karakter/);
 assert.match(docs, /30 taslak/);

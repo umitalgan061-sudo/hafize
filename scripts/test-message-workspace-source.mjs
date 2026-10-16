@@ -3,14 +3,15 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertCssIncludes } from './source-contract.mjs';
+import { assertShippedBrowserModule } from './shell-cache-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (file) => readFile(path.join(root, file), 'utf8');
 const html = await read('public/index.html');
-const js = await read('public/message-workspace.js');
+const js = await read('public/typed/message-workspace.ts');
 const css = await read('public/message-workspace.css');
-const policy = await read('public/message-workspace-policy.js');
-const sw = await read('public/sw-policy.js');
+const policy = await read('public/typed/legacy/message-workspace-policy.ts');
+const sw = await read('public/sw-policy.ts');
 
 function count(text, needle) {
   return text.split(needle).length - 1;
@@ -32,7 +33,7 @@ for (const asset of [
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(sw, /SHELL_ASSETS = Object\.freeze\(\[/);
 assert.ok(sw.includes("'/message-workspace.css'"));
-assert.ok(sw.includes("'/message-workspace-policy.js'"));
+assertShippedBrowserModule('message-workspace-policy');
 assert.ok(sw.includes("'/message-workspace.js'"));
 
 assert.ok(js.includes("hafize.message-workspace.v1"));

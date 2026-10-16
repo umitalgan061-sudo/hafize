@@ -14,13 +14,13 @@ const require = createRequire(import.meta.url);
 
 export const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 export const PUBLIC_DIR = path.join(ROOT, 'public');
-export const swPolicy = require('../public/sw-policy.js');
+export const swPolicy = require('../public/sw-policy.ts');
 export const CACHE_VERSION_PATTERN = /^hafize-shell-v(\d+)$/;
 export const CURRENT_CACHE_VERSION = Number(CACHE_VERSION_PATTERN.exec(swPolicy.CURRENT_CACHE)?.[1] ?? NaN);
 
-/** Source text of `public/sw-policy.js`, for suites that assert on the file itself. */
+/** Source text of `public/sw-policy.ts`, for suites that assert on the file itself. */
 export function readSwPolicySource() {
-  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.js'), 'utf8');
+  return readFileSync(path.join(PUBLIC_DIR, 'sw-policy.ts'), 'utf8');
 }
 
 /** Local file backing a shell asset path, or null for the bare `/` entry. */
@@ -101,4 +101,132 @@ export function assertShellAssets(assetPaths, label = 'shell asset') {
 /** Asserts the service worker source still declares a versioned cache name. */
 export function assertVersionedCacheDeclaration(source = readSwPolicySource()) {
   assert.match(source, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/, 'service worker declares a versioned shell cache');
+}
+
+// --- Shipped browser modules -------------------------------------------------
+//
+// Before the TypeScript migration every browser module was its own
+// `<script src="/name.js">` tag, so suites asserted the asset path appeared in
+// index.html and in the precache list. Vite now bundles the typed sources into
+// a smaller set of entrypoints — most of the former standalone modules reach
+// the page through `typed-build/legacy-app.js` — so the literal path no longer
+// appears anywhere even though the module still ships. These helpers assert the
+// contract (the module reaches the browser, and the shell carrying it is
+// precached) instead of the spelling of one script tag.
+
+const readRepoFile = (relative) => readFileSync(path.join(ROOT, relative), 'utf8');
+
+/** Entry name -> typed source, for every entrypoint Vite builds. */
+function viteEntries() {
+  const config = readRepoFile('vite.config.ts');
+  const entries = new Map();
+  for (const match of config.matchAll(/'?([A-Za-z0-9-]+)'?\s*:\s*resolve\(ROOT,\s*'([^']+)'\)/g)) {
+    entries.set(match[1], match[2]);
+  }
+  return entries;
+}
+
+/** Typed sources imported by the unified legacy entrypoint. */
+function legacyBundleMembers() {
+  const source = readRepoFile('public/typed/legacy-app.ts');
+  return new Set(
+    [...source.matchAll(/import\s+'\.\/([A-Za-z0-9./-]+)\.ts';/g)].map((match) => match[1])
+  );
+}
+
+/**
+ * The typed source that replaced a legacy `name.js` browser module, or null
+ * when no such source exists.
+ */
+export function canonicalSource(name) {
+  const stem = String(name).replace(/^\/+/, '').replace(/\.(js|ts)$/, '');
+  for (const candidate of [
+    `public/${stem}.ts`,
+    `public/typed/${stem}.ts`,
+    `public/typed/legacy/${stem}.ts`
+  ]) {
+    if (existsSync(path.join(ROOT, candidate))) return candidate;
+  }
+  return null;
+}
+
+/**
+ * The built entrypoint that carries `name` into the browser: either its own
+ * Vite entry, or `legacy-app` when it is part of the unified legacy bundle.
+ */
+export function shippingEntry(name) {
+  const source = canonicalSource(name);
+  if (!source) return null;
+  for (const [entry, entrySource] of viteEntries()) {
+    if (entrySource === source) return entry;
+  }
+  const relative = source.replace(/^public\/typed\//, '').replace(/\.ts$/, '');
+  return legacyBundleMembers().has(relative) ? 'legacy-app' : null;
+}
+
+/**
+ * Assert that a browser module ships: it has a canonical typed source, a built
+ * entrypoint carries it, `index.html` loads that entrypoint, and the service
+ * worker precaches it.
+ */
+export function assertShippedBrowserModule(name, { html, sw } = {}) {
+  const source = canonicalSource(name);
+  assert.ok(source, `no canonical typed source for browser module: ${name}`);
+  const entry = shippingEntry(name);
+  assert.ok(entry, `browser module is not reachable from any built entrypoint: ${name}`);
+  const indexHtml = html ?? readRepoFile('public/index.html');
+  const swPolicy = sw ?? readRepoFile('public/sw-policy.ts');
+  assert.ok(
+    indexHtml.includes(`typed-build/${entry}.js`),
+    `index.html does not load the entrypoint carrying ${name}: typed-build/${entry}.js`
+  );
+  assert.ok(
+    swPolicy.includes(`typed-build/${entry}.js`),
+    `service worker does not precache the entrypoint carrying ${name}: typed-build/${entry}.js`
+  );
+  return { source, entry };
+}
+
+/** Assert that a stylesheet still ships through index.html and the precache list. */
+export function assertShippedStylesheet(name) {
+  const asset = `/${String(name).replace(/^\/+/, '')}`;
+  const file = shellAssetFile(asset);
+  assert.ok(file && existsSync(file), `missing stylesheet: public${asset}`);
+  assert.ok(indexHtmlAssets().includes(asset), `index.html does not load ${asset}`);
+  assertShellAssets([asset], 'stylesheet');
+}
+
+/**
+ * Assert the shell cache is at least `minimum`, the version at which a
+ * feature's assets entered the precache list. Pinning an exact version made
+ * every later PWA change fail unrelated suites, while the contract a feature
+ * actually needs is that the cache was bumped at or after its own release.
+ */
+export function assertCacheVersionAtLeast(minimum, label) {
+  assertVersionedCacheDeclaration();
+  assert.ok(
+    CURRENT_CACHE_VERSION >= minimum,
+    label ?? `shell cache should be at least v${minimum}, found v${CURRENT_CACHE_VERSION}`
+  );
+}
+
+/**
+ * Assert the mount order of several browser modules. Modules sharing one
+ * bundled entrypoint are ordered by their imports in that entrypoint; the
+ * legacy suites expressed the same contract as index.html script order.
+ */
+export function assertMountOrder(names) {
+  const app = readRepoFile('public/typed/legacy-app.ts');
+  const html = readRepoFile('public/index.html');
+  let previous = -1;
+  for (const name of names) {
+    const source = canonicalSource(name);
+    assert.ok(source, `no canonical typed source for browser module: ${name}`);
+    const relative = source.replace(/^public\/typed\//, '').replace(/\.ts$/, '');
+    const inBundle = app.indexOf(`import './${relative}.ts';`);
+    const index = inBundle >= 0 ? inBundle : html.indexOf(`typed-build/${path.basename(relative)}.js`);
+    assert.ok(index >= 0, `browser module has no mount position: ${name}`);
+    assert.ok(index > previous, `mount order regression at ${name}`);
+    previous = index;
+  }
 }

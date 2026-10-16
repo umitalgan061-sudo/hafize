@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-smart-fill.js', 'utf8');
+const source = fs.readFileSync('public/prompt-library-smart-fill.ts', 'utf8');
 const index = fs.readFileSync('public/index.html', 'utf8');
 
 const journey = [

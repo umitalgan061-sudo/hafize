@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.js'), 'utf8');
+const text = fs.readFileSync(path.join(process.cwd(), 'public/prompt-library-smart-fill.ts'), 'utf8');
 assert.doesNotMatch(text, /form\.submit\(/);
 assert.doesNotMatch(text, /requestSubmit\(/);
 assert.doesNotMatch(text, /\.submit\(\)/);

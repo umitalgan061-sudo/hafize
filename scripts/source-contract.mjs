@@ -49,3 +49,44 @@ export function cssIncludes(css, snippet) {
 export function assertCssIncludes(css, snippet, label = snippet) {
   assert.ok(cssIncludes(css, snippet), label);
 }
+
+/**
+ * Resolve the numeric value a source assigns to `name`, following one level of
+ * indirection through another constant. The TypeScript migration reformatted
+ * several limits (`1000000` -> `1_000_000`, or `MAX_BYTES = MAX_FILE`), so a
+ * suite asserting a bound reads the value instead of matching the literal.
+ */
+export function numericLimit(source, name) {
+  if (typeof source !== 'string') return null;
+  const assignment = new RegExp(`\\b${name}\\s*[=:]\\s*([A-Za-z_$][\\w$]*|[0-9][\\d_.e+]*)`);
+  const match = assignment.exec(source);
+  if (!match) return null;
+  const value = match[1];
+  if (/^[0-9]/.test(value)) {
+    const parsed = Number(value.replaceAll('_', ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return value === name ? null : numericLimit(source, value);
+}
+
+/** Assert that `source` bounds `name` to `expected`, whatever the spelling. */
+export function assertNumericLimit(source, name, expected, label) {
+  const actual = numericLimit(source, name);
+  assert.equal(actual, expected, label ?? `${name} should be bounded to ${expected}, found ${actual}`);
+}
+
+/**
+ * True when `source` declares `name`, as a binding, object property, exported
+ * member or string key. Used by suites that only need the symbol to survive a
+ * refactor, not a particular declaration syntax.
+ */
+export function symbolDeclared(source, name) {
+  if (typeof source !== 'string') return false;
+  return new RegExp(`(?:\\b(?:const|let|var|function|class)\\s+${name}\\b)`
+    + `|(?:\\b${name}\\s*[=:(])`
+    + `|(?:['"\`]${name}['"\`])`).test(source);
+}
+
+export function assertSymbolDeclared(source, name, label = `missing ${name}`) {
+  assert.ok(symbolDeclared(source, name), label);
+}

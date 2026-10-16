@@ -242,6 +242,12 @@ npm run precheck
 npm run check
 ```
 
+`npm run check` (ve eş komut `npm test`) `scripts/` altındaki tam regresyon
+kapısını çalıştırır. Bu kapı CI'da koşmadığı için TypeScript migration sırasında
+sessizce çürümüştü; `scripts/test-check-suite-integrity.mjs` artık her paketin
+çalışabilir olduğunu `check:modern` zinciri içinden doğrular. Turun ayrıntıları
+ve kalan iş `docs/CHECK_SUITE_REPAIR.md` dosyasındadır.
+
 Scheduled Tasks özel kontrolleri:
 
 ```bash

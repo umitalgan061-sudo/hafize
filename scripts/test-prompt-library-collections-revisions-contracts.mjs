@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertShippedBrowserModule, assertShippedStylesheet } from './shell-cache-contract.mjs';
 
 const read = (path) => fs.readFileSync(path, 'utf8');
-const collections = read('public/prompt-library-collections.js');
-const collectionEnh = read('public/prompt-library-collections-enhancements.js');
-const revisions = read('public/prompt-library-revisions.js');
-const revisionEnh = read('public/prompt-library-revisions-enhancements.js');
+const collections = read('public/typed/legacy/prompt-library-collections.ts');
+const collectionEnh = read('public/typed/legacy/prompt-library-collections-enhancements.ts');
+const revisions = read('public/typed/legacy/prompt-library-revisions.ts');
+const revisionEnh = read('public/typed/legacy/prompt-library-revisions-enhancements.ts');
 const html = read('public/index.html');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const collectionCss = read('public/prompt-library-collections.css');
 const revisionCss = read('public/prompt-library-revisions.css');
 
@@ -85,23 +86,19 @@ assert.match(revisionEnh, /open-current/);
 assert.match(revisionEnh, /clear-history/);
 assert.match(revisionEnh, /beforeunload/);
 
-for (const asset of [
-  '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
-]) assert.ok(html.includes(asset), `HTML missing ${asset}`);
+assertShippedStylesheet('prompt-library-collections.css');
+assertShippedStylesheet('prompt-library-revisions.css');
+assertShippedBrowserModule('prompt-library-collections');
+assertShippedBrowserModule('prompt-library-collections-enhancements');
+assertShippedBrowserModule('prompt-library-revisions');
+assertShippedBrowserModule('prompt-library-revisions-enhancements');
 
-for (const asset of [
-  '/prompt-library-collections.css',
-  '/prompt-library-revisions.css',
-  '/prompt-library-collections.js',
-  '/prompt-library-collections-enhancements.js',
-  '/prompt-library-revisions.js',
-  '/prompt-library-revisions-enhancements.js'
-]) assert.ok(sw.includes(asset), `SW missing ${asset}`);
+assertShippedStylesheet('prompt-library-collections.css');
+assertShippedStylesheet('prompt-library-revisions.css');
+assertShippedBrowserModule('prompt-library-collections');
+assertShippedBrowserModule('prompt-library-collections-enhancements');
+assertShippedBrowserModule('prompt-library-revisions');
+assertShippedBrowserModule('prompt-library-revisions-enhancements');
 
 assert.match(sw, /v36/);
 assert.match(sw, /pathname\.startsWith\('\/api\/'\)/);

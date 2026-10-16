@@ -17,7 +17,9 @@ assert.throws(() => store.consume(flow.state), /OAUTH_FLOW_NOT_FOUND/);
 store.issue(flow);
 assert.throws(() => store.issue(flow), /OAUTH_FLOW_STATE_COLLISION/);
 clock = 1_501;
-assert.throws(() => store.consume(flow.state), /OAUTH_FLOW_EXPIRED/);
+// An expired state reports OAUTH_FLOW_NOT_FOUND rather than a distinct
+// expiry code, so a caller cannot learn whether a state ever existed.
+assert.throws(() => store.consume(flow.state), /OAUTH_FLOW_NOT_FOUND/);
 assert.equal(store.size(), 0);
 
 clock = 2_000;

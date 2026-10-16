@@ -633,4 +633,7 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
 }
 
 const bootstrap = (): void => { mountWorkspaceBackup(); };
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrap, { once: true }); else bootstrap();
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootstrap, { once: true });
+  else bootstrap();
+}

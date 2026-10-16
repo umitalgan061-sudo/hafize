@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertShippedStylesheet } from './shell-cache-contract.mjs';
 
-const composer = await readFile(new URL('../public/chat-composer-features.js', import.meta.url), 'utf8');
+const composer = await readFile(new URL('../public/typed/chat-composer-features.ts', import.meta.url), 'utf8');
 const shell = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-const serviceWorkerPolicy = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+const serviceWorkerPolicy = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 const style = await readFile(new URL('../public/chat-composer-features.css', import.meta.url), 'utf8');
 
 assert.match(composer, /MAX_FILE_BYTES = 384 \* 1024/);
@@ -39,7 +40,7 @@ assert.match(style, /\.message-actions/);
 assert.match(style, /\.message-action/);
 
 assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
-assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.css'/);
+assertShippedStylesheet('chat-composer-features.css');
 assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
 
 const attachmentBlock = composer.match(/\[Ekli dosya: \$\{file\.name\}\]/);

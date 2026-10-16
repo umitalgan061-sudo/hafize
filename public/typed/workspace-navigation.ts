@@ -6,13 +6,10 @@
 (function exposeHafizeWorkspaceNavigation(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) {
-    module.exports = api;
-    return;
-  }
   root.HafizeWorkspaceNavigation = api;
+  if (!root.document) return;
   const install = () => api.mount(root.document, root);
-  if (root.document?.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
+  if (root.document.readyState === 'loading') root.document.addEventListener('DOMContentLoaded', install, { once: true });
   else install();
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeWorkspaceNavigation() {
   'use strict';
@@ -346,3 +343,24 @@
 
   return Object.freeze({ WORKSPACES, NAV_INDEX, CARD_IDS, INTRO_ID, STYLE_ID, STYLE_PATH, CHANGE_EVENT, normalizeWorkspace, allowedCardIds, isWorkspaceCard, workspaceCopy, resolveNavigation, createController, mount });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizeworkspacenavigationApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeWorkspaceNavigation;
+export default hafizeworkspacenavigationApi;
+export const {
+  WORKSPACES,
+  NAV_INDEX,
+  CARD_IDS,
+  INTRO_ID,
+  STYLE_ID,
+  STYLE_PATH,
+  CHANGE_EVENT,
+  normalizeWorkspace,
+  allowedCardIds,
+  isWorkspaceCard,
+  workspaceCopy,
+  resolveNavigation,
+  createController,
+  mount
+} = hafizeworkspacenavigationApi;

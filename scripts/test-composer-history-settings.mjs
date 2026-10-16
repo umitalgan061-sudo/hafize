@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-const source = fs.readFileSync('public/composer-history.js', 'utf8');
-const settings = fs.readFileSync('public/composer-history-settings.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/composer-history.ts', 'utf8');
+const settings = fs.readFileSync('public/typed/legacy/composer-history-settings.ts', 'utf8');
 assert.match(source, /hafize\.composer-history\.settings\.v1/);
 assert.match(source, /RETENTION_VALUES.*0, 10, 20, 40/);
 assert.match(source, /enabled: data\.enabled !== false/);

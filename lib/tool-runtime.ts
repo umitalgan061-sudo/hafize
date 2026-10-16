@@ -167,7 +167,7 @@ const CATALOG = new Map<string, ToolEntry>([
     permission: 'skill.invoke',
     kind: 'skill',
     timeoutMs: timeout(30_000, 30_000),
-    activity: { running: 'Hafize skill hazırlanıyor', success: 'Hafize skill hazırlandı', failure: 'Hafize skill hazırlanamadı' },
+    activity: { running: 'Hafize skill’i hazırlanıyor', success: 'Hafize skill’i hazırlandı', failure: 'Hafize skill’i hazırlanamadı' },
     definition: definition('skill_invoke', 'Registry içindeki güvenli Hafize skill yapısını çözümler.', {
       skillId: { type: 'string' },
       args: { type: 'object' }
@@ -199,12 +199,15 @@ function catalogEntries(): readonly ToolEntry[] {
 export function getAllowedNvidiaTools(
   agent: ToolAgent,
   context: ToolRuntimeContext,
-  options: { readonly allowedPermissions?: ReadonlySet<string> } = {}
+  // The skills runtime hands back a frozen array of granted permissions, so the
+  // scope is any iterable of names rather than a Set specifically.
+  options: { readonly allowedPermissions?: Iterable<string> } = {}
 ): readonly ToolDefinition[] {
+  const scope = options.allowedPermissions ? new Set(options.allowedPermissions) : null;
   const output: ToolDefinition[] = [];
   for (const entry of catalogEntries()) {
     if (entry.available && !entry.available(context)) continue;
-    if (options.allowedPermissions && !options.allowedPermissions.has(entry.permission)) continue;
+    if (scope && !scope.has(entry.permission)) continue;
     if (authorize(agent, entry.permission, Boolean(context.approvalGranted)).allowed) output.push(entry.definition);
   }
   return Object.freeze(output);

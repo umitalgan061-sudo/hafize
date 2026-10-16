@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const js = await readFile(new URL('../public/scheduled-task-duplicate.js', import.meta.url), 'utf8');
+const js = await readFile(new URL('../public/typed/legacy/scheduled-task-duplicate.ts', import.meta.url), 'utf8');
 const css = await readFile(new URL('../public/scheduled-task-duplicate.css', import.meta.url), 'utf8');
 
 assert.match(js, /aria-label/);
