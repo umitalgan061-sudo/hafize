@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-const source = fs.readFileSync('public/prompt-library-revisions.js', 'utf8');
+const source = fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8');
 assert.match(source, /function mount\(/);
 assert.match(source, /MutationObserver/);
 assert.match(source, /observer\?\.observe/);

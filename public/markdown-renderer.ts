@@ -5,8 +5,7 @@
 (function exposeHafizeMarkdown(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizeMarkdown = api;
+  root.HafizeMarkdown = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createHafizeMarkdown() {
   'use strict';
 
@@ -987,3 +986,21 @@
     sourceFor
   });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizemarkdownApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeMarkdown;
+export default hafizemarkdownApi;
+export const {
+  LIMITS,
+  SAFE_SCHEMES,
+  normalizeSource,
+  safeUrl,
+  hasMarkdown,
+  parseInline,
+  parseMarkdown,
+  toPlainText,
+  renderMarkdownInto,
+  renderPlainInto,
+  sourceFor
+} = hafizemarkdownApi;

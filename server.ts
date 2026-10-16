@@ -13,6 +13,7 @@ import {
   resolveAgent
 } from './lib/agent-runtime.ts';
 import { createAgentDelegator } from './lib/agent-delegation.ts';
+import { createBuiltinSkillsRuntimeSync } from './lib/skills-runtime.ts';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.ts';
 import { createAgentRunLedger } from './lib/agent-run-ledger.ts';
 import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.ts';
@@ -97,6 +98,7 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
 });
 const MAX_BODY_BYTES = 256 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
+const SKILLS_RUNTIME = createBuiltinSkillsRuntimeSync();
 const RUNTIME_METRICS = createRuntimeMetrics();
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
@@ -284,6 +286,7 @@ const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
   nvidiaConfigured: Boolean(NVIDIA_API_KEY),
   githubReadConfigured: GITHUB_READ_CONFIGURED,
   githubReadFile: GITHUB_READ_FILE,
+  skillsRuntime: SKILLS_RUNTIME,
   async complete(payload) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), SCHEDULE_RUN_TIMEOUT_MS);
@@ -516,7 +519,8 @@ async function handleAgentRun(req, res) {
       agent: delegatedAgent,
       task,
       traceId: delegatedTraceId,
-      parentTaskId: delegatedParentTaskId
+      parentTaskId: delegatedParentTaskId,
+      signal
     }) {
       return runDelegatedAgent({
         agent: delegatedAgent,
@@ -529,15 +533,22 @@ async function handleAgentRun(req, res) {
         maxTokens: boundedMaxTokens(body),
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         githubReadFile: GITHUB_READ_FILE,
-        complete: (payload) => nvidiaJsonCompletion(payload, requestAbort.signal)
+        skillsRuntime: SKILLS_RUNTIME,
+        signal,
+        complete: (payload, delegatedSignal) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal)
       });
     }
   });
 
+  // The advertised tool list must be built from the same context the tool call
+  // executes with: a tool is only offered when its reader is actually wired up,
+  // so omitting githubReadFile here would silently drop github_read_file.
   const tools = getAllowedNvidiaTools(agent, {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
+    githubReadFile: GITHUB_READ_FILE,
     delegateAgent: delegator.delegate,
-    ...connectorContext
+    ...connectorContext,
+    skillsRuntime: SKILLS_RUNTIME
   });
   const firstPayload = {
     model,
@@ -622,7 +633,8 @@ async function handleAgentRun(req, res) {
       delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
       approvalGranted: false,
       signal: requestAbort.signal,
-      ...connectorContext
+      ...connectorContext,
+      skillsRuntime: SKILLS_RUNTIME
     });
     runLedger.recordToolFinish(toolTask.taskId, result);
     if (!result.ok) anyToolFailed = true;
@@ -844,7 +856,7 @@ const buildReadinessReport = () => buildSystemReadiness({
   runtime: {
     auth: { status: 'ready' },
     pwa: { status: 'ready' },
-    skills: { status: AGENT_REGISTRY.agents.length ? 'ready' : 'blocked' },
+    skills: { status: SKILLS_RUNTIME.size > 0 ? 'ready' : 'blocked' },
     memory: { status: 'warning', detail: 'memory runtime health is not probed by the public health endpoint' },
     schedule: { status: SCHEDULE_HTTP_API ? (SCHEDULE_EXECUTION_RUNTIME.configured ? 'ready' : 'warning') : 'blocked' },
     connectors: { status: (CANVA_AGENT_RUNTIME.configured || GMAIL_AGENT_RUNTIME.configured || GITHUB_READ_CONFIGURED) ? 'ready' : 'warning' },
@@ -917,6 +929,7 @@ const server = createServer(async (req, res) => {
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
         nvidiaCircuit: NVIDIA_CIRCUIT.snapshot(),
         agents: AGENT_REGISTRY.agents.length,
+        skillsRuntimeConfigured: SKILLS_RUNTIME.size > 0,
         readiness
       });
       return;

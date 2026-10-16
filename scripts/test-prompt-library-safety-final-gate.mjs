@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 const [safety,preview,diag,index,sw]=await Promise.all([
-  fs.readFile('public/prompt-library-safety.js','utf8'),
-  fs.readFile('public/prompt-library-import-preview.js','utf8'),
-  fs.readFile('public/prompt-library-diagnostics.js','utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-safety.ts','utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-import-preview.ts','utf8'),
+  fs.readFile('public/typed/legacy/prompt-library-diagnostics.ts','utf8'),
   fs.readFile('public/index.html','utf8'),
-  fs.readFile('public/sw-policy.js','utf8')
+  fs.readFile('public/sw-policy.ts','utf8')
 ]);
 for(const token of ['buildImportPlan','applyImportPlan','buildRepairPreview','quarantineInvalidItems','undoLastRepair','exportRecoverySnapshot']) assert.match(safety,new RegExp(token));
 for(const token of ['MAX_FILE','stopImmediatePropagation','StorageEvent','role', 'aria-modal']) assert.ok(preview.includes(token));

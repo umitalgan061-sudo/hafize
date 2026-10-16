@@ -7,7 +7,7 @@ const files = [
   'public/typed/conversation-fork-core.test.ts',
   'public/conversation-forks.css',
   'public/index.html',
-  'public/sw-policy.js',
+  'public/sw-policy.ts',
   'vite.config.ts',
   'README.md'
 ];
@@ -18,7 +18,7 @@ const fork = readFileSync('public/typed/conversation-forks.ts', 'utf8');
 const core = readFileSync('public/typed/conversation-fork-core.ts', 'utf8');
 const app = readFileSync('public/typed/app-shell.ts', 'utf8');
 const html = readFileSync('public/index.html', 'utf8');
-const sw = readFileSync('public/sw-policy.js', 'utf8');
+const sw = readFileSync('public/sw-policy.ts', 'utf8');
 const vite = readFileSync('vite.config.ts', 'utf8');
 
 assert.match(fork, /hafize\.conversations\.v1/);

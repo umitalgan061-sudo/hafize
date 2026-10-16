@@ -1,22 +1,23 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertShippedBrowserModule, assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const files = {
-  collections: fs.readFileSync('public/prompt-library-collections.js', 'utf8'),
-  revisions: fs.readFileSync('public/prompt-library-revisions.js', 'utf8'),
-  collectionEnh: fs.readFileSync('public/prompt-library-collections-enhancements.js', 'utf8'),
-  revisionEnh: fs.readFileSync('public/prompt-library-revisions-enhancements.js', 'utf8'),
+  collections: fs.readFileSync('public/typed/legacy/prompt-library-collections.ts', 'utf8'),
+  revisions: fs.readFileSync('public/typed/legacy/prompt-library-revisions.ts', 'utf8'),
+  collectionEnh: fs.readFileSync('public/typed/legacy/prompt-library-collections-enhancements.ts', 'utf8'),
+  revisionEnh: fs.readFileSync('public/typed/legacy/prompt-library-revisions-enhancements.ts', 'utf8'),
   html: fs.readFileSync('public/index.html', 'utf8'),
-  sw: fs.readFileSync('public/sw-policy.js', 'utf8')
+  sw: fs.readFileSync('public/sw-policy.ts', 'utf8')
 };
 
 assert.match(files.html, /prompt-library-collections\.css/);
 assert.match(files.html, /prompt-library-revisions\.css/);
-assert.match(files.html, /prompt-library-collections\.js/);
-assert.match(files.html, /prompt-library-collections-enhancements\.js/);
-assert.match(files.html, /prompt-library-revisions\.js/);
-assert.match(files.html, /prompt-library-revisions-enhancements\.js/);
-assert.match(files.sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v36`/);
+assertShippedBrowserModule('prompt-library-collections');
+assertShippedBrowserModule('prompt-library-collections-enhancements');
+assertShippedBrowserModule('prompt-library-revisions');
+assertShippedBrowserModule('prompt-library-revisions-enhancements');
+assertCacheVersionAtLeast(36);
 for (const asset of [
   '/prompt-library-collections.css',
   '/prompt-library-revisions.css',

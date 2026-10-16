@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-const source = await readFile(new URL('../public/prompt-library-smart-insert-validation.js', import.meta.url), 'utf8');
-assert.match(source, /MAX_NAME\s*=\s*32/);
-assert.match(source, /MAX_VALUE\s*=\s*1000/);
-assert.match(source, /MAX_BODY\s*=\s*8000/);
+import { assertNumericLimit } from './source-contract.mjs';
+const source = await readFile(new URL('../public/typed/legacy/prompt-library-smart-insert-validation.ts', import.meta.url), 'utf8');
+assertNumericLimit(source, 'MAX_NAME', 32);
+assertNumericLimit(source, 'MAX_VALUE', 1000);
+assertNumericLimit(source, 'MAX_BODY', 8000);
 assert.match(source, /VARIABLE_RE/);
 assert.match(source, /inspect\(/);
 assert.match(source, /missing/);

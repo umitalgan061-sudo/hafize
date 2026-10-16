@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-const s=require('node:fs').readFileSync('public/typed/conversation-fork-core.ts','utf8');
+import { readFileSync } from 'node:fs';
+const s=readFileSync('public/typed/conversation-fork-core.ts','utf8');
 assert.match(s,/maxForkNote: 400/);
 assert.match(s,/forkNote/);
 assert.match(s,/note = ''/);

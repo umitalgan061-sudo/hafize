@@ -1,14 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { assertCacheVersionAtLeast, assertShippedBrowserModule, assertShippedStylesheet } from './shell-cache-contract.mjs';
 
-const source = fs.readFileSync('public/sw-policy.js','utf8');
-assert.match(source,/CURRENT_CACHE = .*v49/);
-for (const asset of [
-  '/prompt-library-smart-views.css',
-  '/prompt-library-smart-views-extras.css',
-  '/prompt-library-smart-views.js',
-  '/prompt-library-smart-views-history.js',
-  '/prompt-library-smart-views-builder.js'
-]) assert.ok(source.includes(asset), asset);
+const source = fs.readFileSync('public/sw-policy.ts','utf8');
+assertCacheVersionAtLeast(49);
+assertShippedStylesheet('prompt-library-smart-views.css');
+assertShippedStylesheet('prompt-library-smart-views-extras.css');
+assertShippedBrowserModule('prompt-library-smart-views');
+assertShippedBrowserModule('prompt-library-smart-views-history');
+assertShippedBrowserModule('prompt-library-smart-views-builder');
 assert.match(source,/pathname\.startsWith\('\/api\/'\)/);
 console.log('smart-view PWA contract: ok');

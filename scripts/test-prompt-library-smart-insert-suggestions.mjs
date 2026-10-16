@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-const source = await readFile(new URL('../public/prompt-library-smart-insert-suggestions.js', import.meta.url), 'utf8');
-assert.match(source, /MAX_SUGGESTIONS\s*=\s*5/);
+import { assertNumericLimit } from './source-contract.mjs';
+const source = await readFile(new URL('../public/typed/legacy/prompt-library-smart-insert-suggestions.ts', import.meta.url), 'utf8');
+assertNumericLimit(source, 'MAX_SUGGESTIONS', 5);
 assert.match(source, /score\(/); assert.match(source, /rank\(/); assert.match(source, /recommend\(/);
 assert.match(source, /fillValues\(/); assert.match(source, /hasMissing\(/); assert.match(source, /item\.variables/);
 assert.match(source, /Object\.keys\(profile\.values/); assert.doesNotMatch(source, /profile\.values\[[^\]]+\].*textContent/);

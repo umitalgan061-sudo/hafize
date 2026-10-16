@@ -15,9 +15,10 @@ export function createScheduledAgentExecutor(args:{
   readonly nvidiaConfigured?:boolean;
   readonly githubReadConfigured?:boolean;
   readonly githubReadFile?:unknown;
+  readonly skillsRuntime?:unknown;
   readonly runAgentTask?: typeof runDelegatedAgent;
 }){
-  const{registry,model,complete,maxTokens=2048,nvidiaConfigured=false,githubReadConfigured=false,githubReadFile,runAgentTask=runDelegatedAgent}=args;
+  const{registry,model,complete,maxTokens=2048,nvidiaConfigured=false,githubReadConfigured=false,githubReadFile,skillsRuntime,runAgentTask=runDelegatedAgent}=args;
   if(!Array.isArray(registry?.agents))throw new Error('INVALID_SCHEDULE_AGENT_EXECUTOR:registry');
   if(typeof complete!=='function')throw new Error('INVALID_SCHEDULE_AGENT_EXECUTOR:complete');
   if(typeof runAgentTask!=='function')throw new Error('INVALID_SCHEDULE_AGENT_EXECUTOR:runAgentTask');
@@ -45,7 +46,8 @@ export function createScheduledAgentExecutor(args:{
         complete,
         nvidiaConfigured: Boolean(nvidiaConfigured),
         githubReadConfigured: Boolean(githubReadConfigured),
-        githubReadFile
+        githubReadFile,
+        skillsRuntime
       };
       result=await runAgentTask(delegatedInput) as Record<string,unknown>;
     }catch{result={ok:false,error:'SCHEDULE_AGENT_RUN_FAILED'};}

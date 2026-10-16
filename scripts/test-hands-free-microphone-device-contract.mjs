@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const source = await readFile(new URL('../public/hands-free-background-guard.js', import.meta.url), 'utf8');
+const source = await readFile(new URL('../public/typed/hands-free-background-guard.ts', import.meta.url), 'utf8');
 const doc = await readFile(new URL('../docs/HANDS_FREE_MICROPHONE_DEVICE_CONTRACT.md', import.meta.url), 'utf8');
 
 assert.match(source, /MICROPHONE_DEVICE_REASON\s*=\s*'microphone-device-unavailable'/);

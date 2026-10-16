@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
+import { assertShippedBrowserModule } from './shell-cache-contract.mjs';
 
-const sw = fs.readFileSync('public/sw-policy.js', 'utf8');
-const enhancements = fs.readFileSync('public/prompt-library-enhancements.js', 'utf8');
-const usage = fs.readFileSync('public/prompt-library-usage.js', 'utf8');
+const sw = fs.readFileSync('public/sw-policy.ts', 'utf8');
+const enhancements = fs.readFileSync('public/typed/legacy/prompt-library-enhancements.ts', 'utf8');
+const usage = fs.readFileSync('public/typed/legacy/prompt-library-usage.ts', 'utf8');
 
 assertVersionedCacheDeclaration(sw);
-assert.match(sw, /\/prompt-library-usage\.js/);
+assertShippedBrowserModule('prompt-library-usage');
 assert.match(sw, /if \(pathname\.startsWith\('\/api\/'\)\) return 'network-only'/);
 assert.match(sw, /SHELL_PATHS = new Set\(SHELL_ASSETS\)/);
 assert.match(enhancements, /script\.src = '\/prompt-library-usage\.js'/);

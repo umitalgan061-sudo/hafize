@@ -2,8 +2,7 @@
 (function exposeMessageWorkspacePolicy(root, factory) {
   'use strict';
   const api = factory();
-  if (typeof module === 'object' && module?.exports) module.exports = api;
-  else root.HafizeMessageWorkspacePolicy = api;
+  root.HafizeMessageWorkspacePolicy = api;
 })(typeof globalThis !== 'undefined' ? globalThis : self, function createPolicy() {
   'use strict';
 
@@ -184,3 +183,33 @@
     isEmpty
   });
 });
+
+// The global above stays the browser contract; these exports let the same
+// module be imported directly by tests and other typed modules.
+const hafizemessageworkspacepolicyApi = (typeof globalThis !== 'undefined' ? globalThis : self).HafizeMessageWorkspacePolicy;
+export default hafizemessageworkspacepolicyApi;
+export const {
+  MAX_RECORDS,
+  MAX_NOTE,
+  MAX_TAG,
+  MAX_TAGS,
+  MAX_QUERY,
+  MAX_EXPORT,
+  text,
+  tag,
+  note,
+  feedback,
+  normalizeRecord,
+  normalizeRecords,
+  normalizeState,
+  canExport,
+  searchableText,
+  matches,
+  sort,
+  createPatch,
+  toggleSaved,
+  toggleFeedback,
+  replaceNote,
+  replaceTags,
+  isEmpty
+} = hafizemessageworkspacepolicyApi;

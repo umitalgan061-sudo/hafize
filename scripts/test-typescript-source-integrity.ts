@@ -3,10 +3,15 @@ import { join, relative, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
+// Generated and installed trees are not sources: walking them made this gate
+// depend on whether `npm run build` had already run.
+const SKIP_DIRECTORIES = new Set(['node_modules', '.git', 'typed-build', 'coverage', 'data']);
+
 async function walk(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];
   for (const entry of entries) {
+    if (entry.isDirectory() && SKIP_DIRECTORIES.has(entry.name)) continue;
     const target = join(directory, entry.name);
     if (entry.isDirectory()) files.push(...await walk(target));
     else if (entry.isFile()) files.push(target);

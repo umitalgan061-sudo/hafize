@@ -7,7 +7,7 @@ const read = (path) => readFileSync(join(root, path), 'utf8');
 const pkg = JSON.parse(read('package.json'));
 const vite = read('vite.config.ts');
 const html = read('public/index.html');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const runtime = read('tsconfig.runtime.json');
 
 assert.equal(pkg.scripts.start, 'node --import ./lib/production-guard.ts server.ts');

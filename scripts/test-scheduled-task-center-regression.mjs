@@ -1,28 +1,24 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { assertShippedBrowserModule, assertShippedStylesheet } from './shell-cache-contract.mjs';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
 
-for (const asset of [
-  'scheduled-task-preview.js',
-  'scheduled-task-preview.css',
-  'scheduled-task-duplicate.js',
-  'scheduled-task-duplicate.css',
-  'scheduled-task-templates.js',
-  'scheduled-task-templates.css',
-  'scheduled-task-templates-backup.js',
-  'scheduled-task-planning.js',
-  'scheduled-task-draft.js',
-  'scheduled-task-insights.js',
-  'scheduled-task-actions.js',
-  'scheduled-task-detail.js',
-  'scheduled-task-export.js'
-]) {
-  assert.ok(index.includes(asset), 'index missing: ' + asset);
-  assert.ok(sw.includes(asset), 'service worker missing: ' + asset);
-}
+assertShippedBrowserModule('scheduled-task-preview');
+assertShippedStylesheet('scheduled-task-preview.css');
+assertShippedBrowserModule('scheduled-task-duplicate');
+assertShippedStylesheet('scheduled-task-duplicate.css');
+assertShippedBrowserModule('scheduled-task-templates');
+assertShippedStylesheet('scheduled-task-templates.css');
+assertShippedBrowserModule('scheduled-task-templates-backup');
+assertShippedBrowserModule('scheduled-task-planning');
+assertShippedBrowserModule('scheduled-task-draft');
+assertShippedBrowserModule('scheduled-task-insights');
+assertShippedBrowserModule('scheduled-task-actions');
+assertShippedBrowserModule('scheduled-task-detail');
+assertShippedBrowserModule('scheduled-task-export');
 assert.ok(readme.includes('Zamanlanmış Görev Önizlemesi'));
 assert.ok(readme.includes('Tekrar Planlama'));
 assert.ok(readme.includes('Görev Şablonları ve Hızlı Planlama'));

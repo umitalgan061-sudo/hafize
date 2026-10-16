@@ -5,7 +5,7 @@ import path from 'node:path';
 const root = path.resolve(process.cwd());
 const index = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
 const vite = fs.readFileSync(path.join(root, 'vite.config.ts'), 'utf8');
-const sw = fs.readFileSync(path.join(root, 'public/sw-policy.js'), 'utf8');
+const sw = fs.readFileSync(path.join(root, 'public/sw-policy.ts'), 'utf8');
 const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
 
 assert.match(index, /github-workspace\.css/);

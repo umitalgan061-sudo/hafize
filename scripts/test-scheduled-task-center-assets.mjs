@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const index = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
-const sw = await readFile(new URL('../public/sw-policy.js', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../public/sw-policy.ts', import.meta.url), 'utf8');
 
 const assets = [
   'scheduled-task-preview.css',

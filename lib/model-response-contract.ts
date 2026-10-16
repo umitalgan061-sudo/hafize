@@ -4,6 +4,11 @@ const MAX_TOOL_ARGUMENT_LENGTH = 16_384;
 
 export type ModelFinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter' | 'unknown';
 
+/** Finish reasons the upstream model may report, plus the 'unknown' fallback. */
+const FINISH_REASONS = Object.freeze(
+  ['stop', 'length', 'tool_calls', 'content_filter', 'unknown'] as const
+);
+
 export interface ModelToolCall {
   readonly id: string;
   readonly name: string;
@@ -25,11 +30,24 @@ function text(value: unknown, max: number, code: string): string {
   return result;
 }
 
+/**
+ * Upstream content must be a string. Coercing a non-string to '' would hide a
+ * malformed provider response behind an empty assistant message, so the
+ * boundary rejects it instead.
+ */
+function content(value: unknown): string {
+  if (value == null) return '';
+  if (typeof value !== 'string') throw new Error('INVALID_MODEL_CONTENT');
+  return text(value, MAX_CONTENT_LENGTH, 'MODEL_CONTENT_TOO_LARGE');
+}
+
 function finishReason(value: unknown): ModelFinishReason {
   if (value == null) return 'unknown';
   if (typeof value !== 'string') throw new Error('INVALID_MODEL_FINISH_REASON');
   const reason = text(value, 80, 'INVALID_MODEL_FINISH_REASON').toLowerCase();
-  return (['stop','length','tool_calls','content_filter'].includes(reason) ? reason : 'unknown') as ModelFinishReason;
+  return (FINISH_REASONS.includes(reason as ModelFinishReason) && reason !== 'unknown'
+    ? reason
+    : 'unknown') as ModelFinishReason;
 }
 
 function usage(value: unknown): Readonly<Record<string, number>> | null {
@@ -53,10 +71,14 @@ function toolCalls(value: unknown): readonly ModelToolCall[] {
     const fn = call.function && typeof call.function === 'object' && !Array.isArray(call.function)
       ? call.function as Record<string, unknown>
       : call;
+    // A missing id or name is reported precisely: callers route tool results by
+    // id and authorize by name, so a generic code would hide which half failed.
     const id = text(call.id, 200, 'INVALID_MODEL_TOOL_CALL_ID');
+    if (!id) throw new Error('INVALID_MODEL_TOOL_CALL_ID');
     const name = text(fn.name, 120, 'INVALID_MODEL_TOOL_CALL_NAME');
+    if (!name) throw new Error('INVALID_MODEL_TOOL_CALL_NAME');
     const args = fn.arguments;
-    if (!id || !name || typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
+    if (typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
       throw new Error('INVALID_MODEL_TOOL_CALL');
     }
     return Object.freeze({ id, name, arguments: args });
@@ -67,7 +89,7 @@ export function normalizeModelResponse(value: unknown = {}): NormalizedModelResp
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('INVALID_MODEL_RESPONSE');
   const source = value as Record<string, unknown>;
   return Object.freeze({
-    content: source.content == null ? '' : text(source.content, MAX_CONTENT_LENGTH, 'INVALID_MODEL_CONTENT'),
+    content: content(source.content),
     finishReason: finishReason(source.finishReason),
     toolCalls: toolCalls(source.toolCalls),
     usage: usage(source.usage),
@@ -96,8 +118,19 @@ export function normalizeNvidiaChatCompletion(value: unknown = {}): NormalizedMo
   });
 }
 
+/**
+ * True when a response completes the turn. A `tool_calls` finish reason means
+ * the model is waiting for tool results, and `unknown` means the upstream
+ * response was not conclusive, so neither ends the turn.
+ */
+export function isTerminalModelResponse(value: unknown): boolean {
+  const normalized = normalizeModelResponse(value);
+  return normalized.finishReason !== 'tool_calls' && normalized.finishReason !== 'unknown';
+}
+
 export const MODEL_RESPONSE_CONTRACT = Object.freeze({
   maxContentLength: MAX_CONTENT_LENGTH,
   maxToolCalls: MAX_TOOL_CALLS,
-  maxToolArgumentLength: MAX_TOOL_ARGUMENT_LENGTH
+  maxToolArgumentLength: MAX_TOOL_ARGUMENT_LENGTH,
+  finishReasons: FINISH_REASONS
 });

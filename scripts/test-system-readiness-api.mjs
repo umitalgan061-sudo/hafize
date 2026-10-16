@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..');
+const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..', '..');
 const server = await readFile(resolve(ROOT, 'server.ts'), 'utf8');
 
 const healthBlock = server.slice(server.indexOf("url.pathname === '/api/health'"), server.indexOf("url.pathname === '/api/connectors/canva/status'"));

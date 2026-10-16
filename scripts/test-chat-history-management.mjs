@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { assertShippedStylesheet } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 const html = read('public/index.html');
-const js = read('public/chat-history-management.js');
+const js = read('public/typed/chat-history-management.ts');
 const css = read('public/chat-history-management.css');
-const sw = read('public/sw-policy.js');
+const sw = read('public/sw-policy.ts');
 const docs = read('docs/CHAT_HISTORY_MANAGEMENT.md');
 
 assert.match(html, /chat-history-management\.css/);
@@ -39,7 +40,7 @@ assert.match(css, /max-width:680px/);
 assert.match(css, /prefers-reduced-motion/);
 assert.match(css, /\.conversation-row:focus-within/);
 assert.match(css, /flex-wrap:wrap/);
-assert.match(sw, /\/chat-history-management\.css/);
+assertShippedStylesheet('chat-history-management.css');
 assert.match(sw, /\/chat-history-management\.js/);
 assert.match(sw, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assert.match(docs, /pinned: true/);
