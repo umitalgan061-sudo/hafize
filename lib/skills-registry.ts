@@ -2,7 +2,7 @@
 // Compatibility-preserving typed runtime path.
 // @ts-nocheck
 import { authorizeAgentTool } from './agent-runtime.mjs';
-import { containsSecretMaterial, normalizeSkillManifest } from './skills-manifest.ts';
+import { assertSkillParameters, containsSecretMaterial, normalizeSkillManifest } from './skills-manifest.ts';
 
 const SOURCE_RANK = Object.freeze({ builtin: 3, user: 2, project: 1 });
 const PROJECT_ID_PATTERN = /^[a-z0-9][a-z0-9._\/-]{0,119}$/i;
@@ -47,14 +47,15 @@ function normalizeArguments(skill, input = {}) {
   return Object.freeze(values);
 }
 
-function classifyTools(agent, tools, approvalGranted, intersectTools) {
+function classifyTools(agent, tools, requiredScopes, approvalGranted, approvedScopes, intersectTools) {
   const granted = [];
   const approvalPending = [];
-  for (const tool of tools) {
-    const decision = authorizeAgentTool(agent, tool, { approvalGranted });
-    if (decision.allowed) granted.push(tool);
-    else if (decision.reason === 'approval_required') approvalPending.push(tool);
-    else if (!intersectTools) fail(`SKILL_TOOL_ESCALATION:${tool}`);
+  for (const [name, isTool] of [...tools.map((tool) => [tool, true]), ...requiredScopes.map((scope) => [scope, false])]) {
+    const decision = authorizeAgentTool(agent, name, { approvalGranted: approvalGranted || approvedScopes.has(name) });
+    if (decision.allowed) { if (isTool) granted.push(name); }
+    else if (decision.reason === 'approval_required') approvalPending.push(name);
+    else if (!intersectTools) fail(`SKILL_TOOL_ESCALATION:${name}`);
+    else if (!isTool) fail(`SKILL_SCOPE_UNAUTHORIZED:${name}`);
   }
   // Intersection mode never widens a policy: a tool the agent cannot use is
   // dropped, and a skill with nothing left to run on is refused.
@@ -102,15 +103,24 @@ export function createSkillsRegistry({ allowedProjects = [] } = {}) {
   function listForAgent(agent, { intersectTools = false } = {}) {
     const visible = [];
     for (const entry of skills.values()) {
-      const decisions = entry.manifest.allowedTools.map((tool) => authorizeAgentTool(agent, tool, { approvalGranted: false }));
+      const toolDecisions = entry.manifest.allowedTools.map((tool) => authorizeAgentTool(agent, tool, { approvalGranted: false }));
+      const scopeDecisions = entry.manifest.requiredScopes.map((scope) => authorizeAgentTool(agent, scope, { approvalGranted: false }));
+      const decisions = [...toolDecisions, ...scopeDecisions];
       const usable = (decision) => decision.allowed || decision.reason === 'approval_required';
-      if (intersectTools ? !decisions.some(usable) : decisions.some((decision) => !usable(decision))) continue;
+      if (scopeDecisions.some((decision) => !usable(decision))) continue;
+      if (intersectTools ? !toolDecisions.some(usable) : toolDecisions.some((decision) => !usable(decision))) continue;
       visible.push(Object.freeze({
         name: entry.manifest.name,
         description: entry.manifest.description,
         triggers: entry.manifest.triggers,
         arguments: entry.manifest.arguments,
         execution: entry.manifest.execution,
+        parameters: entry.manifest.parameters,
+        returns: entry.manifest.returns,
+        requiredScopes: entry.manifest.requiredScopes,
+        sideEffects: entry.manifest.sideEffects,
+        riskLevel: entry.manifest.riskLevel,
+        rollbackHint: entry.manifest.rollbackHint,
         source: entry.source,
         requiresApproval: decisions.some((decision) => decision.reason === 'approval_required')
       }));
@@ -118,20 +128,29 @@ export function createSkillsRegistry({ allowedProjects = [] } = {}) {
     return Object.freeze(visible);
   }
 
-  function resolveInvocation({ agent, name, args, approvalGranted = false, intersectTools = false } = {}) {
+  function resolveInvocation({ agent, name, args, approvalGranted = false, consentGranted = false, approvedScopes = [], intersectTools = false } = {}) {
     if (!agent || typeof agent !== 'object') fail('INVALID_SKILL_AGENT');
     const skill = get(name);
     if (!skill) fail('UNKNOWN_SKILL');
 
     const values = normalizeArguments(skill, args);
-    const { granted, approvalPending } = classifyTools(agent, skill.manifest.allowedTools, approvalGranted === true, intersectTools === true);
+    assertSkillParameters(skill.manifest, values);
+    const approved = new Set(Array.isArray(approvedScopes) ? approvedScopes : []);
+    const { granted, approvalPending } = classifyTools(agent, skill.manifest.allowedTools, skill.manifest.requiredScopes, approvalGranted === true, approved, intersectTools === true);
     if (approvalPending.length) fail(`SKILL_APPROVAL_REQUIRED:${approvalPending[0]}`);
+    if ((skill.manifest.riskLevel !== 'low' || skill.manifest.sideEffects.mutates) && consentGranted !== true) fail('SKILL_CONSENT_REQUIRED');
 
     return Object.freeze({
       name: skill.manifest.name,
       source: skill.source,
       projectId: skill.projectId,
       execution: skill.manifest.execution,
+      parameters: skill.manifest.parameters,
+      returns: skill.manifest.returns,
+      requiredScopes: skill.manifest.requiredScopes,
+      sideEffects: skill.manifest.sideEffects,
+      riskLevel: skill.manifest.riskLevel,
+      rollbackHint: skill.manifest.rollbackHint,
       model: skill.manifest.model,
       tools: granted,
       arguments: values,

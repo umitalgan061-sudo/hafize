@@ -3,6 +3,7 @@
 .workspace-backup-title{font-weight:650}
 .workspace-backup-head .mini-btn{margin-left:auto}
 .workspace-backup-body{display:flex;flex-direction:column;gap:9px}
+.workspace-backup-body[hidden]{display:none}
 .workspace-backup-summary{display:flex;flex-direction:column;gap:3px;padding:9px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .workspace-backup-summary strong{font-size:11px}
 .workspace-backup-summary span{font-size:10px;color:var(--muted);line-height:1.45}

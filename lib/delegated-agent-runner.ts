@@ -20,6 +20,8 @@ export interface DelegatedAgentRunInput {
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: unknown;
   readonly skillsRuntime?: unknown;
+  readonly ownerId?: string;
+  readonly sessionId?: string;
   readonly signal?: AbortSignal;
 }
 
@@ -79,6 +81,8 @@ export async function runDelegatedAgent({
   githubReadConfigured = false,
   githubReadFile,
   skillsRuntime,
+  ownerId,
+  sessionId,
   signal
 }: DelegatedAgentRunInput = {}) {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || typeof traceId !== 'string' || !traceId.trim() || typeof parentTaskId !== 'string' || !parentTaskId.trim()) {
@@ -120,6 +124,8 @@ export async function runDelegatedAgent({
       githubReadConfigured,
       githubReadFile: typeof githubReadFile === 'function' ? githubReadFile as (args: unknown) => Promise<unknown> : undefined,
       skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
+      ownerId,
+      sessionId,
       signal: nestedSignal
     })
   });
@@ -130,7 +136,9 @@ export async function runDelegatedAgent({
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
     delegateAgent,
-    skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined
+    skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
+    ownerId,
+    sessionId
   });
   const messages = [buildAgentSystemMessage(agent, safeTraceId), { role: 'user' as const, content: task }];
   const firstPayload: Record<string, unknown> = {
@@ -172,6 +180,8 @@ export async function runDelegatedAgent({
       delegateAgent,
       approvalGranted: false,
       skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
+      ownerId,
+      sessionId,
       signal
     });
     runLedger.recordToolFinish(toolTask.taskId, result);

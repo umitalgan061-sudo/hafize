@@ -50,7 +50,8 @@ export function refreshCountdowns(documentRef: Document = root.document): void {
       node.className = 'scheduled-task-countdown';
       meta.append(' · ', node);
     }
-    node.textContent = countdownLabel(timestamp);
+    const label = countdownLabel(timestamp);
+    if (node.textContent !== label) node.textContent = label;
   });
 }
 

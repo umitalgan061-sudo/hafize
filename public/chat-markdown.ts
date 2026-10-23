@@ -100,8 +100,8 @@
   }
 
   function codeTextFor(button) {
-    const block = button?.closest?.('.md-code');
-    return block?.querySelector?.('.md-code-body code')?.textContent ?? '';
+    const block = button?.closest('.md-code');
+    return block?.querySelector('.md-code-body code')?.textContent ?? '';
   }
 
   async function copyText(text) {
@@ -148,7 +148,7 @@
   }
 
   function init(messagesNode) {
-    const node = messagesNode ?? root.document?.querySelector?.('#messages');
+    const node = messagesNode ?? root.document?.querySelector('#messages');
     if (!node || node.dataset?.mdCopyBound === 'true') return false;
     node.addEventListener('click', handleCopyClick);
     if (node.dataset) node.dataset.mdCopyBound = 'true';

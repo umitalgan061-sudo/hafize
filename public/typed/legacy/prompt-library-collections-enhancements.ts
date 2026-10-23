@@ -95,11 +95,14 @@
       toolbar.addEventListener('click', onClick);
       listeners.push(() => toolbar.removeEventListener('click', onClick));
     }
-    toolbar.replaceChildren(
-      button('Seçilenlerden koleksiyon', 'create-from-selection'),
-      button('Tümünü seç', 'select-all'),
-      button('Seçimi kaldır', 'clear-selection')
-    );
+    // Rewriting static buttons on every mutation re-triggers the card observers in an endless loop.
+    if (!toolbar.childElementCount) {
+      toolbar.append(
+        button('Seçilenlerden koleksiyon', 'create-from-selection'),
+        button('Tümünü seç', 'select-all'),
+        button('Seçimi kaldır', 'clear-selection')
+      );
+    }
 
     panel.querySelectorAll('[data-collection-id]').forEach((row) => {
       const actions = row.querySelector('.prompt-library-collection-actions');

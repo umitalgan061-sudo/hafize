@@ -92,6 +92,28 @@ const lineageOf = conversationLineage;
     return all.find((item) => item.id === id) || null;
   }
 
+  function downloadConversation(conversation) {
+    if (!conversation || typeof conversation !== 'object') return false;
+    const payload = JSON.stringify(conversation, null, 2);
+    const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const baseName = cleanText(conversation.title, MAX_TITLE)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, MAX_TITLE) || 'hafize-sohbet';
+    link.href = url;
+    link.download = baseName + '.json';
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  }
+
   function focusable(container) {
     return [...container.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])')];
   }

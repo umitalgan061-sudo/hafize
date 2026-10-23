@@ -12,6 +12,7 @@ export interface ContextMessage {
 }
 export interface ContextSummaryRequest {
   readonly model: string;
+  readonly provider?: 'nvidia' | 'local';
   readonly source: string;
   readonly messageCount: number;
   readonly signal?: AbortSignal;
@@ -91,7 +92,7 @@ export function createContextCompactor({
 
   async function prepare(
     messages: readonly ContextMessage[],
-    { model = '', signal }: { readonly model?: string; readonly signal?: AbortSignal } = {}
+    { model = '', provider = 'nvidia', signal }: { readonly model?: string; readonly provider?: 'nvidia' | 'local'; readonly signal?: AbortSignal } = {}
   ) {
     if (!Array.isArray(messages) || messages.length === 0) fail('messages');
     const beforeTokens = estimateMessageTokens(messages);
@@ -134,7 +135,7 @@ export function createContextCompactor({
 
     let summary = '';
     try {
-      summary = await summarize({ model, source, messageCount: oldMessages.length, signal });
+      summary = await summarize({ model, provider, source, messageCount: oldMessages.length, signal });
     } catch {
       return { messages, meta: Object.freeze({ ...base, attempted: true, reason: 'summary_failed' }) };
     }

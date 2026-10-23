@@ -10,7 +10,6 @@
   const STYLE_ID = 'privacyDataCenterStyle';
   const STYLE_PATH = '/settings-privacy.css';
   const CHANGE_EVENT = 'hafize:privacy-data-changed';
-  const SHORTCUT = 'r';
   const MAX_KEYS = 300;
   const MAX_REPORT_BYTES = 120000;
   const MAX_SEARCH = 80;
@@ -452,14 +451,6 @@
       if (event.key === null || classifyKey(event.key)) { render(); void refreshEstimate(); }
     });
     on(rootRef, CHANGE_EVENT, function () { render(); void refreshEstimate(); });
-    on(documentRef, 'keydown', function (event) {
-      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== SHORTCUT) return;
-      const active = documentRef.activeElement;
-      if (active?.closest?.('input,textarea,select,button,[contenteditable="true"]')) return;
-      event.preventDefault();
-      panel.scrollIntoView({ block: 'nearest' });
-      refresh.focus();
-    });
     on(collapse, 'click', function () {
       collapsed = !collapsed;
       body.hidden = collapsed;

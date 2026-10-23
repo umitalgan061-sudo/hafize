@@ -64,7 +64,10 @@
       toolbar.addEventListener('click', onClick);
       listeners.push(() => toolbar.removeEventListener('click', onClick));
     }
-    toolbar.replaceChildren(button('Mevcut isteme git', 'open-current'), button('Geçmişi temizle', 'clear-history'));
+    // Rewriting static buttons on every mutation re-triggers the card observers in an endless loop.
+    if (!toolbar.childElementCount) {
+      toolbar.append(button('Mevcut isteme git', 'open-current'), button('Geçmişi temizle', 'clear-history'));
+    }
   }
 
   function boot() {

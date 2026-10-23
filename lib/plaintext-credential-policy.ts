@@ -7,4 +7,8 @@ const FIELDS=new Set(['apikey','accesstoken','refreshtoken','authtoken','authori
 const fieldName=(value:unknown)=>typeof value==='string'?value.toLowerCase().replace(/[^a-z0-9]/g,''):'';
 export function isPlaintextCredentialField(name:unknown,value:unknown):boolean{return FIELDS.has(fieldName(name))&&typeof value==='string'&&value.trim().length>0;}
 export function containsPlaintextCredential(value:unknown):boolean{return typeof value==='string'&&(ASSIGNMENT.test(value)||AUTHORIZATION.test(value)||KNOWN.test(value)||GOOGLE.test(value)||PRIVATE_KEY.test(value));}
+const REDACTABLE=[ASSIGNMENT,AUTHORIZATION,KNOWN,GOOGLE,PRIVATE_KEY].map((pattern)=>new RegExp(pattern.source,pattern.flags.includes('g')?pattern.flags:pattern.flags+'g'));
+// Untrusted text (e.g. a fetched web page) is redacted rather than rejected, so one sample
+// "api_key=..." line in documentation does not make the whole page unreadable.
+export function redactPlaintextCredentials(value:string):string{let output=value;for(const pattern of REDACTABLE)output=output.replace(pattern,'[gizlendi]');return output;}
 export const PLAINTEXT_CREDENTIAL_POLICY=Object.freeze({fieldNames:Object.freeze([...FIELDS]),patterns:['assignment','authorization','known-token','google-oauth','private-key'] as const});

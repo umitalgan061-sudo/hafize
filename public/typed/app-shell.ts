@@ -42,6 +42,10 @@ interface Conversation {
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
+  // Written by the history-management and conversation-workspace modules.
+  pinned?: boolean;
+  archived?: boolean;
+  tags?: string[];
   forkOf?: string;
   forkMessageId?: string;
   forkDepth?: number;
@@ -60,6 +64,7 @@ interface AppUi {
   installBtn: HTMLButtonElement;
   toast: HTMLElement;
   modelSelect: HTMLSelectElement;
+  providerSelect: HTMLSelectElement;
   agentSelect: HTMLSelectElement;
   toolModeBtn: HTMLButtonElement;
 }
@@ -69,6 +74,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
   'use strict';
 
   const STORAGE_KEY = 'hafize.conversations.v1';
+  // Tool runs chain several model calls and web fetches before the answer streams.
+  const AGENT_RUN_TIMEOUT_MS = 180_000;
+  let serverDefaultModel = '';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const MESSAGE_PLACEHOLDER = '…';
@@ -93,6 +101,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     installBtn: document.querySelector('#installBtn'),
     toast: document.querySelector('#toast'),
     modelSelect: document.querySelector('#modelSelect'),
+    providerSelect: document.querySelector('#providerSelect'),
     agentSelect: document.querySelector('#agentSelect'),
     toolModeBtn: document.querySelector('#toolModeBtn')
   };
@@ -101,6 +110,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let persistenceWarningShown = false;
   let conversations = loadConversations();
   let activeConversationId = conversations[0]?.id ?? null;
+  queueMicrotask(() => rememberPersisted(conversations));
   let isStreaming = false;
   let availableAgents = [];
   let defaultAgentId = '';
@@ -178,10 +188,14 @@ interface JsonPayload { readonly [key: string]: unknown; }
       id: source.id.slice(0, 120),
       title: source.title.trim().slice(0, 80) || 'Yeni sohbet',
       agentId: typeof source.agentId === 'string' ? source.agentId.slice(0, 120) : '',
-      toolsEnabled: source.toolsEnabled === true,
+      // The tools toggle is not shown; every conversation uses live tools.
+      toolsEnabled: true,
       createdAt: typeof source.createdAt === 'string' ? source.createdAt.slice(0, 40) : now,
       updatedAt: typeof source.updatedAt === 'string' ? source.updatedAt.slice(0, 40) : now,
       messages,
+      ...(source.pinned === true ? { pinned: true } : {}),
+      ...(source.archived === true ? { archived: true } : {}),
+      ...(Array.isArray(source.tags) ? { tags: source.tags.filter((tag) => typeof tag === 'string' && tag.trim()).map((tag) => tag.trim().slice(0, 40)).slice(0, 12) } : {}),
       ...(typeof source.forkOf === 'string' && source.forkOf ? { forkOf: source.forkOf.slice(0, 120) } : {}),
       ...(typeof source.forkMessageId === 'string' && source.forkMessageId ? { forkMessageId: source.forkMessageId.slice(0, 120) } : {}),
       ...(Number.isFinite(source.forkDepth) && source.forkDepth >= 1 ? { forkDepth: Math.min(4, Math.floor(source.forkDepth)) } : {}),
@@ -200,10 +214,49 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
   }
 
+  // Other modules (rename/pin, archive/tags, delete, backup import, clear history) edit the stored
+  // list directly, while this module keeps its own copy in memory. Before every save, a three-way
+  // merge against what was last persisted keeps their edits instead of overwriting them.
+  const EXTERNAL_FIELDS = ['title', 'pinned', 'archived', 'tags'] as const;
+  let persistedFields = new Map<string, string[]>();
+  const fieldValue = (value: unknown) => JSON.stringify(value ?? null);
+  function rememberPersisted(list: Conversation[]) {
+    persistedFields = new Map(list.map((item) => [item.id, EXTERNAL_FIELDS.map((field) => fieldValue(item[field]))]));
+  }
+  function mergeExternalChanges() {
+    let stored: Conversation[];
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      if (!Array.isArray(raw)) return;
+      stored = raw.map((item) => normalizeConversation(item)).filter(Boolean);
+    } catch {
+      return;
+    }
+    const storedById = new Map(stored.map((item) => [item.id, item]));
+    conversations = conversations.filter((item) => !(persistedFields.has(item.id) && !storedById.has(item.id)));
+    for (const conversation of conversations) {
+      const external = storedById.get(conversation.id);
+      const base = persistedFields.get(conversation.id);
+      if (!external || !base) continue;
+      EXTERNAL_FIELDS.forEach((field, index) => {
+        const theirs = fieldValue(external[field]);
+        if (theirs !== base[index] && fieldValue(conversation[field]) === base[index]) {
+          if (external[field] === undefined) delete conversation[field];
+          else (conversation as Record<string, unknown>)[field] = external[field];
+        }
+      });
+    }
+    const known = new Set(conversations.map((item) => item.id));
+    for (const item of stored) if (!known.has(item.id) && !persistedFields.has(item.id)) conversations.push(item);
+    if (activeConversationId && !conversations.some((item) => item.id === activeConversationId)) activeConversationId = conversations[0]?.id ?? null;
+  }
+
   function saveConversations() {
     try {
+      mergeExternalChanges();
       conversations = conversations.map((item) => normalizeConversation(item)).filter(Boolean).slice(0, MAX_CONVERSATIONS);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+      rememberPersisted(conversations);
       persistenceWarningShown = false;
       return true;
     } catch {
@@ -230,7 +283,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       id: uid(),
       title: 'Yeni sohbet',
       agentId: defaultAgentId,
-      toolsEnabled: false,
+      toolsEnabled: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: []
@@ -438,6 +491,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   function renderConversationList() {
+    mergeExternalChanges();
     ui.conversationList.replaceChildren();
     if (!conversations.length) {
       const empty = document.createElement('div');
@@ -624,10 +678,16 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   function syncToolMode() {
-    const enabled = Boolean(getActiveConversation()?.toolsEnabled);
-    ui.toolModeBtn.disabled = isStreaming || !getConversationAgentId();
+    let enabled = Boolean(getActiveConversation()?.toolsEnabled);
+    ui.toolModeBtn.disabled = isStreaming || !getConversationAgentId() || ui.providerSelect.value === 'local';
+    if (ui.providerSelect.value === 'local' && enabled) {
+      const active = getActiveConversation();
+      if (active) active.toolsEnabled = false;
+      saveConversations();
+      enabled = false;
+    }
     ui.toolModeBtn.setAttribute('aria-pressed', String(enabled));
-    ui.toolModeBtn.textContent = enabled ? '⌘ Araçlar açık' : '⌘ Araçlar';
+    ui.toolModeBtn.textContent = ui.providerSelect.value === 'local' ? '⌘ Yerel · araçsız' : enabled ? '⌘ Araçlar açık' : '⌘ Araçlar';
     ui.toolModeBtn.title = enabled
       ? 'Araç çağrıları backend izin politikasıyla etkin'
       : 'Bu sohbet için backend tool-calling modunu aç';
@@ -654,23 +714,44 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   async function loadModels() {
-    ui.modelSelect.replaceChildren(new Option('NVIDIA modelleri yükleniyor…', ''));
+    const provider = ui.providerSelect.value === 'local' ? 'local' : 'nvidia';
+    const providerLabel = provider === 'local' ? 'Yerel modeller' : 'NVIDIA modelleri';
+    ui.modelSelect.replaceChildren(new Option(`${providerLabel} yükleniyor…`, ''));
     try {
-      const payload = await hafizeApi.models();
+      const payload = await hafizeApi.models(provider);
       const models = payload.models;
       ui.modelSelect.replaceChildren();
       if (!models.length) {
-        ui.modelSelect.append(new Option('NVIDIA modeli bulunamadı', ''));
+        ui.modelSelect.append(new Option(provider === 'local' ? 'Yerel model bulunamadı' : 'NVIDIA modeli bulunamadı', ''));
         return;
       }
       for (const model of models) ui.modelSelect.append(new Option(model, model));
+      serverDefaultModel = payload.defaultModel || '';
+      // The model picker is not shown, so the server's recommended model wins over an old saved choice.
       const preference = loadModelPreferences();
-      if (preference.selectedModel && models.includes(preference.selectedModel)) ui.modelSelect.value = preference.selectedModel;
+      if (payload.defaultModel) ui.modelSelect.value = payload.defaultModel;
+      else if (preference.selectedModel && models.includes(preference.selectedModel)) ui.modelSelect.value = preference.selectedModel;
       modelPreferencesController?.refresh();
     } catch (error) {
-      ui.modelSelect.replaceChildren(new Option('NVIDIA NIM bağlantısı bekleniyor', ''));
-      if (error instanceof Error && error.message !== 'NVIDIA_NOT_CONFIGURED') showToast('NVIDIA model listesi alınamadı.');
+      ui.modelSelect.replaceChildren(new Option(provider === 'local' ? 'Ollama bağlantısı bekleniyor' : 'NVIDIA NIM bağlantısı bekleniyor', ''));
+      if (error instanceof Error && error.message !== 'NVIDIA_NOT_CONFIGURED') showToast(provider === 'local' ? 'Yerel model listesi alınamadı. Ollama’nın çalıştığını kontrol et.' : 'NVIDIA model listesi alınamadı.');
     }
+  }
+
+  async function loadProviders() {
+    try {
+      const health = await hafizeApi.health();
+      const localOption = [...ui.providerSelect.options].find((option) => option.value === 'local');
+      if (localOption) localOption.hidden = !health.localModelEnabled;
+      const savedProvider = localStorage.getItem('hafize.model-provider.v1');
+      if (health.localModelEnabled && savedProvider === 'local') ui.providerSelect.value = 'local';
+      else if (health.localModelEnabled && !health.nvidiaConfigured) ui.providerSelect.value = 'local';
+      else ui.providerSelect.value = 'nvidia';
+    } catch {
+      ui.providerSelect.value = 'nvidia';
+    }
+    syncToolMode();
+    await loadModels();
   }
 
   async function loadAgents() {
@@ -765,11 +846,36 @@ interface JsonPayload { readonly [key: string]: unknown; }
       .map(({ role, content }) => ({ role, content }));
   }
 
-  function handleAssistantStreamEvent(
+  async function handleAssistantStreamEvent(
     event: HafizeSseEvent,
     assistantId: string,
     appendContent: (delta: string) => void
-  ): void {
+  ): Promise<void> {
+    if (event.type === 'hafize-skill-consent-required') {
+      const request = event.payload && typeof event.payload === 'object' ? event.payload as Record<string, any> : {};
+      const scopes = Array.isArray(request.scopes) ? request.scopes.filter((scope) => typeof scope === 'string') : [];
+      const skillId = typeof request.skillId === 'string' ? request.skillId : '';
+      const args = request.arguments && typeof request.arguments === 'object' ? JSON.stringify(request.arguments, null, 2).slice(0, 1_200) : '{}';
+      const summary = `${request.description || skillId}\n\nİstenen izinler: ${scopes.join(', ')}\nRisk: ${request.riskLevel || 'bilinmiyor'}\n\nArgümanlar:\n${args}\n\nBu çağrı için bir defalık izin verilsin mi?`;
+      if (!skillId || !scopes.length || typeof request.argsHash !== 'string' || !window.confirm(summary)) return;
+      const choice = window.prompt('İzin kapsamı: 1 = bu çağrı, 2 = bu oturum, 3 = her zaman, 4 = asla', '1');
+      const mode = ({ '1': 'once', '2': 'session', '3': 'always', '4': 'never' } as Record<string, string>)[String(choice || '').trim()];
+      if (!mode) return;
+      const auth = (globalThis as typeof globalThis & { HafizeAuth?: { fetch?: typeof fetch } }).HafizeAuth;
+      if (!auth?.fetch) { showToast('Onay akışı kullanılamıyor. Sayfayı yenileyip tekrar dene.'); return; }
+      const response = await auth.fetch('/api/skills/consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ skillId, scopes, mode, ...(mode === 'once' ? { argsHash: request.argsHash } : {}) })
+      });
+      if (!response.ok) { showToast('Skill izni kaydedilemedi.'); return; }
+      showToast(mode === 'never' ? 'Bu skill için izin kalıcı olarak reddedildi.' : 'Skill izni kaydedildi. Aynı isteği yeniden göndererek devam edebilirsin.');
+      return;
+    }
+    if (event.type === 'hafize-memory') {
+      applyMemoryUpdate(event.payload);
+      return;
+    }
     if (event.type === 'hafize-tool-activity') {
       appendToolActivity(assistantId, event.payload);
       return;
@@ -777,28 +883,91 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (event.type !== 'message' || !event.payload || typeof event.payload !== 'object') return;
     const payload = event.payload as Record<string, any>;
     if (typeof payload.error === 'string' && payload.error) throw new Error(payload.error);
+    // NVIDIA reports mid-stream failures as an error object; without this the turn ends as a blank reply.
+    if (payload.error && typeof payload.error === 'object') {
+      throw new Error(String(payload.error.message || payload.error.code || payload.error.type || 'NVIDIA_STREAM_ERROR').slice(0, 200));
+    }
     const delta = payload.choices?.[0]?.delta?.content;
     if (typeof delta === 'string' && delta) appendContent(delta);
+  }
+
+  // Long-term memory lives in this browser, next to the chat history; it is sent with each
+  // request so the model knows the user, and save/forget decisions come back as stream events.
+  const MEMORY_KEY = 'hafize.memory.v1';
+  function loadMemory(): { id: string; text: string; createdAt?: string }[] {
+    try {
+      const value = JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]');
+      return Array.isArray(value) ? value.filter((note) => note && typeof note.id === 'string' && typeof note.text === 'string').slice(0, 60) : [];
+    } catch {
+      return [];
+    }
+  }
+  function memoryForRequest() {
+    return loadMemory().map(({ id, text }) => ({ id, text }));
+  }
+  function applyMemoryUpdate(update) {
+    const notes = loadMemory();
+    if (update?.action === 'save' && typeof update.id === 'string' && typeof update.text === 'string') {
+      if (!notes.some((note) => note.id === update.id)) notes.push({ id: update.id, text: update.text.slice(0, 300), createdAt: new Date().toISOString() });
+      showToast(`Hafize bunu hatırlayacak: ${update.text.slice(0, 90)}`);
+    } else if (update?.action === 'forget' && typeof update.id === 'string') {
+      const index = notes.findIndex((note) => note.id === update.id);
+      if (index === -1) return;
+      notes.splice(index, 1);
+      showToast('Hafize bu bilgiyi unuttu.');
+    } else {
+      return;
+    }
+    try { localStorage.setItem(MEMORY_KEY, JSON.stringify(notes)); } catch {}
+    window.dispatchEvent(new CustomEvent('hafize:memory-changed'));
+  }
+
+  function describeChatFailure(error): string {
+    const code = String(error?.code || error?.message || '');
+    const status = Number(error?.status) || 0;
+    if (error?.message === 'OFFLINE') return 'İnternet bağlantısı bulunamadı.';
+    if (error?.message === 'MODEL_REQUIRED') return 'Bir NVIDIA modeli seçilmedi.';
+    if (error?.message === 'AGENT_REQUIRED') return 'Bir Hafize ajanı seçilmedi.';
+    if (status === 404 || status === 410) {
+      const failed = ui.modelSelect.value;
+      const fallback = serverDefaultModel && serverDefaultModel !== failed && [...ui.modelSelect.options].some((option) => option.value === serverDefaultModel)
+        ? serverDefaultModel
+        : '';
+      [...ui.modelSelect.options].find((option) => option.value === failed && failed !== serverDefaultModel)?.remove();
+      if (fallback) {
+        ui.modelSelect.value = fallback;
+        ui.modelSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        return `"${failed}" modeli NVIDIA'da şu an kullanılamıyor. Model "${fallback}" olarak değiştirildi; mesajını tekrar gönderebilir ya da "Yeniden dene"ye basabilirsin.`;
+      }
+      return `"${failed}" modeli NVIDIA'da şu an kullanılamıyor. Listeden başka bir model seç.`;
+    }
+    if (status === 429 || code === 'RATE_LIMITED') return 'Çok kısa sürede çok fazla istek gönderildi. Birkaç saniye bekleyip tekrar dene.';
+    if (code === 'SSE_TIMEOUT') return 'Yanıt çok uzun sürdü ve zaman aşımına uğradı. NVIDIA sunucuları yoğun olabilir; biraz sonra tekrar dene.';
+    if (code === 'SSE_NETWORK_ERROR') return 'Hafize sunucusuna ulaşılamadı. Sunucu penceresinin açık olduğundan emin ol.';
+    const detail = String(error?.message || '');
+    if (status >= 500 || [code, detail].some((value) => value === 'NVIDIA_CHAT_ERROR' || value === 'STREAM_INTERRUPTED' || value === 'NVIDIA_STREAM_ERROR')) return 'NVIDIA şu an yanıt vermedi ya da yanıt yarıda kesildi. Birkaç saniye sonra "Yeniden dene"ye bas.';
+    return `Yanıt alınamadı: ${error?.message || 'bilinmeyen hata'}`;
   }
 
   async function consumeAssistantStream(
     endpoint: string,
     payload: Record<string, unknown>,
     assistantId: string,
-    emptyMessage: string
+    emptyMessage: string,
+    timeoutMs = 60_000
   ): Promise<HafizeSseStats> {
     let content = '';
     streamState.begin();
     renderStreamStatus();
     try {
       const stats = await hafizeSse.stream(endpoint, payload, {
-      timeoutMs: 60_000,
+      timeoutMs,
       maxFrameChars: 128 * 1024,
       maxBufferChars: 256 * 1024,
       maxEvents: 20_000,
-        onEvent: (event) => {
+        onEvent: async (event) => {
           streamState.chunk(0, 1);
-          handleAssistantStreamEvent(event, assistantId, (delta) => {
+          await handleAssistantStreamEvent(event, assistantId, (delta) => {
             content += delta;
             updateMessage(assistantId, content);
           });
@@ -839,9 +1008,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/chat',
-      { model, agentId, messages: requestMessages, max_tokens: 2048 },
+      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, provider: ui.providerSelect.value },
       assistantId,
-      'NVIDIA modeli boş bir yanıt döndürdü.'
+      ui.providerSelect.value === 'local' ? 'Yerel model boş bir yanıt döndürdü.' : 'NVIDIA modeli boş bir yanıt döndürdü.',
+      ui.providerSelect.value === 'local' ? 180_000 : 60_000
     );
     const generated = conversation.messages.find((entry) => entry.id === assistantId);
     if (generated) {
@@ -869,9 +1039,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/agent/run',
-      { model, agentId, messages: requestMessages, max_tokens: 2048 },
+      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
       assistantId,
-      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
+      'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
+      AGENT_RUN_TIMEOUT_MS
     );
     const generated = conversation.messages.find((entry) => entry.id === assistantId);
     if (generated) {
@@ -902,6 +1073,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.messages.setAttribute('aria-busy', String(disabled));
     ui.messageInput.disabled = disabled;
     ui.agentSelect.disabled = disabled;
+    ui.providerSelect.disabled = disabled;
     ui.toolModeBtn.disabled = disabled;
     if (!disabled) {
       syncAgentSelect();
@@ -918,7 +1090,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (index < 0) return showToast('Yeniden üretilecek asistan yanıtı bulunamadı.');
     if (!canRegenerateResponse(conversation.messages, index)) return showToast('Yalnızca konuşmadaki son asistan yanıtı yeniden üretilebilir.');
     const model = ui.modelSelect.value;
-    if (!model) return showToast('Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
+    if (!model) return showToast(ui.providerSelect.value === 'local' ? 'Önce çalışan bir yerel model seç.' : 'Önce NVIDIA NIM bağlantısının hazır olması gerekiyor.');
     const agentId = getConversationAgentId(conversation);
     if (!agentId) return showToast('Önce Hafize ajan listesinin hazır olması gerekiyor.');
 
@@ -936,20 +1108,22 @@ interface JsonPayload { readonly [key: string]: unknown; }
     render();
 
     try {
-      const endpoint = conversation.toolsEnabled ? '/api/agent/run' : '/api/chat';
+      const useTools = conversation.toolsEnabled && ui.providerSelect.value !== 'local';
+      const endpoint = useTools ? '/api/agent/run' : '/api/chat';
       await consumeAssistantStream(
         endpoint,
-        { model, agentId, messages: requestMessages, max_tokens: 2048 },
+        { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, ...(useTools ? {} : { provider: ui.providerSelect.value }) },
         message.id,
-        conversation.toolsEnabled
+        useTools
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
-          : 'NVIDIA modeli boş bir yanıt döndürdü.'
+          : 'NVIDIA modeli boş bir yanıt döndürdü.',
+        useTools ? AGENT_RUN_TIMEOUT_MS : 60_000
       );
       message.alternates = rememberResponseAlternate(message.alternates, previousContent);
       message.generation = createGenerationSnapshot(
         model,
         agentId,
-        conversation.toolsEnabled,
+        useTools,
         performance.now() - startedAt
       );
       saveConversations();
@@ -1014,13 +1188,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
       else await streamAssistantReply();
     } catch (error) {
-      const message = error?.message === 'OFFLINE'
-        ? 'İnternet bağlantısı bulunamadı.'
-        : error?.message === 'MODEL_REQUIRED'
-        ? 'Bir NVIDIA modeli seçilmedi.'
-        : error?.message === 'AGENT_REQUIRED'
-          ? 'Bir Hafize ajanı seçilmedi.'
-          : `NVIDIA yanıtı alınamadı: ${error?.message || 'bilinmeyen hata'}`;
+      const message = describeChatFailure(error);
       const conversation = getActiveConversation();
       const last = conversation?.messages.at(-1);
       if (last?.role === 'assistant' && !last.content) updateMessage(last.id, message, { persist: true });
@@ -1066,10 +1234,18 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.messageInput.focus();
   });
 
-  ui.sidebarToggle.addEventListener('click', () => ui.sidebar.classList.toggle('open'));
   ui.newChatBtn.addEventListener('click', () => {
     if (isStreaming) return showToast('Yanıt sürerken yeni sohbet açılamaz.');
-    createConversation();
+    // Reuse an untouched empty chat instead of stacking "Yeni sohbet" entries.
+    const empty = conversations.find((conversation) => !conversation.messages.length);
+    if (empty) {
+      activeConversationId = empty.id;
+      render();
+      ui.messageInput.focus();
+    } else {
+      createConversation();
+    }
+    if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
   });
   ui.clearHistoryBtn.addEventListener('click', clearHistory);
   ui.agentSelect.addEventListener('change', () => {
@@ -1091,8 +1267,14 @@ interface JsonPayload { readonly [key: string]: unknown; }
     saveConversations();
     syncToolMode();
     showToast(conversation.toolsEnabled
-      ? 'Araç modu açık: uygun çağrılar backend izin politikasıyla çalışır.'
-      : 'Araç modu kapalı: gerçek zamanlı SSE sohbetine dönüldü.');
+      ? 'Araçlar açık: Hafize gerektiğinde internetten güncel bilgi alır.'
+      : 'Araçlar kapalı: Hafize internete bakmadan, yalnızca kendi bilgisiyle yanıt verir.');
+  });
+  ui.providerSelect.addEventListener('change', () => {
+    try { localStorage.setItem('hafize.model-provider.v1', ui.providerSelect.value); } catch {}
+    syncToolMode();
+    void loadModels();
+    showToast(ui.providerSelect.value === 'local' ? 'Yerel Ollama sağlayıcısı seçildi. Araç çağrıları yerel modelde kapalıdır.' : 'NVIDIA NIM sağlayıcısı seçildi.');
   });
   ui.messageInput.addEventListener('input', autoResizeComposer);
   ui.messageInput.addEventListener('keydown', (event) => {
@@ -1111,11 +1293,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
   });
 
   document.querySelectorAll('[data-prompt]').forEach((button) => {
-    button.addEventListener('click', () => submitMessage(button.dataset.prompt || ''));
+    button.addEventListener('click', () => {
+      ui.messageInput.value = button.dataset.prompt || '';
+      ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+      ui.messageInput.focus();
+    });
   });
-
-  document.querySelector('#attachBtn').addEventListener('click', () => showToast('Dosya ekleme sonraki küçük geliştirme turunda etkinleştirilecek.'));
-  document.querySelector('#micBtn').addEventListener('click', () => showToast('Sesli giriş sonraki küçük geliştirme turunda etkinleştirilecek.'));
 
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
@@ -1133,7 +1316,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       const serviceWorkerUrl = import.meta.env.DEV ? '/sw.ts' : '/typed-build/sw.js';
-      navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' }).catch(() => undefined);
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (navigator.serviceWorker.controller) globalThis.location.reload();
+      }, { once: true });
+      navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' })
+        .then((registration) => registration.update())
+        .catch(() => undefined);
     });
   }
 
@@ -1174,7 +1362,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
   });
 
-  loadModels();
+  void loadProviders();
   loadAgents();
 })();
 

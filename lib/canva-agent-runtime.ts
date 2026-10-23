@@ -44,7 +44,9 @@ export function createCanvaAgentRuntime({
   const authToken = envText(env, AUTH_TOKEN_ENV);
   const authSubject = envText(env, AUTH_SUBJECT_ENV);
   const ownerKey = envText(env, OWNER_KEY_ENV);
-  const configuredCount = [authToken, authSubject, ownerKey].filter(Boolean).length;
+  // A sample subject may be present in .env.example even while the optional
+  // connector credentials are blank. A subject alone must not activate OAuth.
+  const configuredCount = [authToken, ownerKey].filter(Boolean).length;
 
   if (configuredCount === 0) {
     return Object.freeze({
@@ -54,7 +56,7 @@ export function createCanvaAgentRuntime({
       status() { return Object.freeze({ configured: false, access: 'disabled' }); }
     });
   }
-  if (configuredCount !== 3) fail('config');
+  if (configuredCount !== 2 || !authSubject) fail('config');
   if (typeof fetchImpl !== 'function') fail('fetch');
 
   const authenticator = requireFactory(createAuthenticator, 'createAuthenticator')({

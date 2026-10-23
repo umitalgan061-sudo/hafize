@@ -22,7 +22,7 @@
       ],
       "toolPolicy": {
         "default": "deny",
-        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.status", "skill.invoke", "connector.canva.read", "connector.gmail.read", "device.system.info"],
+        "allow": ["agent.delegate", "agent.read_result", "task.read", "trace.write", "runtime.status", "skill.invoke", "fs.read", "connector.canva.read", "connector.gmail.read", "device.system.info", "web.weather.read", "web.search", "web.read", "web.wikipedia.read", "web.news.read", "web.rates.read", "memory.write"],
         "approvalRequired": ["external.write", "external.send", "repo.merge", "device.browser.open", "device.app.open"]
       },
       "outputContract": ["answer", "delegations", "warnings"]

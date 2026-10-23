@@ -36,6 +36,11 @@ const DEFAULT_MAX_FRAME_CHARS = 128 * 1024;
 const DEFAULT_MAX_BUFFER_CHARS = 256 * 1024;
 const DEFAULT_MAX_EVENTS = 20_000;
 
+function authorizedFetch(): typeof fetch {
+  const auth = (globalThis as typeof globalThis & { HafizeAuth?: { fetch?: typeof fetch } }).HafizeAuth;
+  return auth?.fetch || globalThis.fetch.bind(globalThis);
+}
+
 export class HafizeSseError extends Error {
   readonly code: string;
   readonly status: number;
@@ -289,7 +294,7 @@ export class HafizeSseClient {
   readonly baseUrl: string;
   readonly fetchImpl: typeof fetch;
 
-  constructor(baseUrl = '', fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)) {
+  constructor(baseUrl = '', fetchImpl: typeof fetch = authorizedFetch()) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.fetchImpl = fetchImpl;
   }

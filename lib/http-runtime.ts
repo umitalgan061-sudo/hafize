@@ -64,7 +64,8 @@ export function writeSseEvent(
   event: string,
   payload: unknown
 ): boolean {
-  if (!event || !writable(res) || !res.writable) return false;
+  // An SSE stream has already sent its headers, so only a closed stream refuses events.
+  if (!event || res.writableEnded || res.destroyed || !res.writable) return false;
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
   return true;
 }

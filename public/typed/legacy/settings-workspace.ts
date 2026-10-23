@@ -17,6 +17,23 @@
   const STYLE_ID = 'settingsWorkspaceStyle';
   const STYLE_PATH = '/settings-workspace.css';
   const WORKSPACE_ID = 'settingsWorkspace';
+  // Shared with app-shell.ts, which sends these notes with every request.
+  const MEMORY_KEY = 'hafize.memory.v1';
+  const MEMORY_MAX = 60;
+  const MEMORY_TEXT_MAX = 300;
+
+  function readMemory(storage) {
+    try {
+      const value = JSON.parse(storage?.getItem?.(MEMORY_KEY) || '[]');
+      return Array.isArray(value) ? value.filter((note) => note && typeof note.id === 'string' && typeof note.text === 'string').slice(0, MEMORY_MAX) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeMemory(storage, notes) {
+    return writeStorage(storage, MEMORY_KEY, notes.length ? JSON.stringify(notes) : null);
+  }
 
   function readTheme(storage, mediaMatch) {
     const stored = storage?.getItem?.(THEME_KEY);
@@ -149,6 +166,25 @@
     motion.control.append(motionSwitch.wrap);
     appearance.append(theme.row, motion.row);
 
+    const memory = buildPanel(documentRef, 'Hafıza', 'Hafize’nin senin hakkında hatırladığı notlar. Yalnızca bu tarayıcıda saklanır ve her mesajla birlikte Hafize’ye bağlam olarak verilir. Sohbette “bunu hatırla” ya da “bunu unut” da diyebilirsin.');
+    const memoryList = documentRef.createElement('ul');
+    memoryList.className = 'settings-memory-list';
+    const memoryAdd = documentRef.createElement('form');
+    memoryAdd.className = 'settings-memory-add';
+    const memoryInput = documentRef.createElement('input');
+    memoryInput.type = 'text';
+    memoryInput.maxLength = MEMORY_TEXT_MAX;
+    memoryInput.placeholder = 'Örn. Kısa ve maddeli yanıtları severim.';
+    memoryInput.setAttribute('aria-label', 'Hafızaya eklenecek not');
+    const memoryAddBtn = makeButton(documentRef, 'Ekle');
+    memoryAddBtn.type = 'submit';
+    memoryAdd.append(memoryInput, memoryAddBtn);
+    const memoryActions = documentRef.createElement('div');
+    memoryActions.className = 'settings-actions';
+    const memoryClearBtn = makeButton(documentRef, 'Tümünü unut', 'settings-danger');
+    memoryActions.append(memoryClearBtn);
+    memory.append(memoryList, memoryAdd, memoryActions);
+
     const data = buildPanel(documentRef, 'Yerel sohbet verileri', 'Sohbet geçmişi bu tarayıcının yerel depolamasında tutulur; bu ekran sunucuya veri göndermez.');
     const stats = buildRow(documentRef, 'Depolama özeti', 'Tarayıcıdaki mevcut yerel sohbet ve mesaj sayısını gösterir.');
     const statText = documentRef.createElement('span');
@@ -172,7 +208,63 @@
     shortcut.control.append(key);
     app.append(install.row, shortcut.row);
 
-    section.append(appearance, data, app);
+    section.append(appearance, memory, data, app);
+
+    function renderMemory() {
+      const notes = readMemory(storage);
+      memoryList.replaceChildren();
+      memoryClearBtn.disabled = !notes.length;
+      if (!notes.length) {
+        const empty = documentRef.createElement('li');
+        empty.className = 'settings-memory-empty';
+        empty.textContent = 'Henüz kayıtlı not yok.';
+        memoryList.append(empty);
+        return;
+      }
+      for (const note of notes) {
+        const item = documentRef.createElement('li');
+        const text = documentRef.createElement('span');
+        text.textContent = note.text;
+        const remove = makeButton(documentRef, 'Sil');
+        remove.setAttribute('aria-label', `Notu sil: ${note.text}`);
+        remove.addEventListener('click', () => {
+          writeMemory(storage, readMemory(storage).filter((entry) => entry.id !== note.id));
+          renderMemory();
+          announce('Not silindi.');
+        });
+        item.append(text, remove);
+        memoryList.append(item);
+      }
+    }
+
+    function onMemoryAdd(event) {
+      event.preventDefault();
+      const text = memoryInput.value.replace(/\s+/g, ' ').trim().slice(0, MEMORY_TEXT_MAX);
+      if (!text) return;
+      const notes = readMemory(storage);
+      if (notes.length >= MEMORY_MAX) return announce('Hafıza dolu; önce bir notu sil.');
+      if (!notes.some((note) => note.text.toLocaleLowerCase('tr') === text.toLocaleLowerCase('tr'))) {
+        notes.push({ id: `u${Date.now().toString(36)}`, text, createdAt: new Date().toISOString() });
+        if (!writeMemory(storage, notes)) return announce('Not kaydedilemedi.');
+      }
+      memoryInput.value = '';
+      renderMemory();
+      announce('Hafize bunu hatırlayacak.');
+    }
+
+    function onMemoryClear() {
+      if (!readMemory(storage).length) return;
+      if (!rootRef?.confirm?.('Hafize’nin hatırladığı tüm notlar silinsin mi?')) return;
+      writeMemory(storage, []);
+      renderMemory();
+      announce('Hafıza temizlendi.');
+    }
+
+    memoryAdd.addEventListener('submit', onMemoryAdd);
+    memoryClearBtn.addEventListener('click', onMemoryClear);
+    rootRef?.addEventListener?.('hafize:memory-changed', renderMemory);
+    rootRef?.addEventListener?.('storage', (event) => { if (event.key === MEMORY_KEY) renderMemory(); });
+    renderMemory();
 
     function announce(text) {
       const toast = documentRef.querySelector('#toast');
@@ -226,6 +318,9 @@
     }
 
     themeSelect.addEventListener('change', onThemeChange);
+    rootRef?.addEventListener?.('hafize:theme-changed', (event) => {
+      themeSelect.value = event?.detail?.theme === 'dark' ? 'dark' : 'light';
+    });
     motionSwitch.input.addEventListener('change', onMotionChange);
     refreshBtn.addEventListener('click', refreshStats);
     clearBtn.addEventListener('click', onClear);

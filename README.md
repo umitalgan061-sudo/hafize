@@ -24,6 +24,10 @@ Uygulama oturumları imzalı, HttpOnly ve SameSite=Strict cookie kullanır. Stat
 
 NVIDIA anahtarı server-side tutulur. GitHub okuma erişimi allowlist ile sınırlandırılır. Scheduled task API'si kullanıcı oturumundan ayrı olarak `HAFIZE_SCHEDULE_AUTH_TOKEN` ile korunur; böylece dış worker/cron çağrıları web oturum cookie'sine ihtiyaç duymaz.
 
+### Yerel Ollama modeli
+
+NVIDIA NIM anahtarı olmadan cihazındaki Ollama modelleriyle sohbet etmek için `.env` dosyasında `HAFIZE_LOCAL_MODEL_ENABLED=true` ayarla ve Ollama servisini varsayılan `http://127.0.0.1:11434` adresinde çalıştır. Sohbet alanındaki **Sağlayıcı** menüsünden **Yerel · Ollama** seçilir; kurulu modeller uygulama sunucusu üzerinden listelenir. Yerel sağlayıcıda araç çağrıları kapalıdır. İstekler yalnızca loopback adresine gider; tarayıcıya Ollama adresi veya kimlik bilgisi verilmez.
+
 ## Sohbet çalışma alanı
 
 Sidebar içindeki Conversation Workspace, yerel sohbet geçmişini toplu yönetmek için kullanılır. Mevcut tekli sabitleme/adlandırma/dışa aktarma yüzeylerinin yerine geçmez; onları tamamlar.

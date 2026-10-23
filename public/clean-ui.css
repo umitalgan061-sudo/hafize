@@ -1,0 +1,167 @@
+/* Focused chat UI: Hafize picks the model, agent and tools itself, so the controls for
+   choosing them and the power-user panels are hidden. Their code still runs; only the
+   chat view is simplified. The "Ayarlar" page (data-workspace="settings") is untouched. */
+
+/* --- Right rail: not shown next to the chat ------------------------------------- */
+.main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) > .utility-rail {
+  display: none !important;
+}
+.main .primary-column form#composer.composer {
+  left: 50%;
+}
+
+/* The settings page renders inside the rail; without this it was squeezed into the 272px
+   desktop side column with the rest of the screen empty. Mirrors the connections layout. */
+.main[data-workspace="settings"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.main[data-workspace="settings"] > .utility-rail {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  grid-template-columns: minmax(0, 1fr);
+  width: min(100%, 860px);
+  justify-self: center;
+  padding: 38px 18px 48px;
+}
+
+/* Several rail cards set display:flex/grid, which overrides the hidden attribute their own
+   scripts rely on; without this the settings page leaks unrelated cards. */
+.utility-rail [hidden] {
+  display: none !important;
+}
+
+/* --- Dark theme for the base palette ---------------------------------------------
+   Only the --premium-* variables had dark values; settings, toasts and the other cards that
+   use the original palette stayed light in dark mode (white headings on white cards). */
+:root {
+  --soft: #f1ece3;
+}
+html[data-theme="dark"] {
+  --bg: #202122;
+  --panel: #2a2927;
+  --card: #302f2c;
+  --ink: #f0ede8;
+  --muted: #a9a39b;
+  --line: rgba(255, 255, 255, 0.12);
+  --soft: rgba(255, 255, 255, 0.07);
+  --accent: #7fa594;
+  --accent-strong: #9cc2b1;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+/* --- Toasts sit above the fixed composer and stay readable in both themes ------------- */
+.toast {
+  z-index: 140;
+  bottom: var(--composer-space, 200px);
+}
+html[data-theme="dark"] .toast {
+  background: #f0ede8;
+  color: #1f1d1b;
+}
+@media (max-width: 900px) {
+  .toast {
+    left: 12px;
+    right: 12px;
+    max-width: none;
+  }
+}
+
+/* --- Header stays at the top while the chat scrolls --------------------------------
+   hafize-runtime.css sets .topbar{position:relative} after premium.css, which cancelled the
+   sticky header everywhere; and body{overflow-x:hidden} turns body into a scroll container,
+   which also breaks sticky. overflow-x:clip hides sideways overflow without that side effect. */
+body {
+  overflow-x: clip;
+}
+.main > .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 130;
+}
+
+/* --- Open sidebar: above the composer, over a dimmed backdrop (ui-shell.ts closes it on tap) - */
+body.sidebar-open::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 124;
+  background: rgba(24, 18, 14, 0.28);
+}
+body.sidebar-open #sidebar {
+  z-index: 126;
+}
+
+/* --- Chat ends above the fixed composer (ui-shell.ts measures --composer-space) ----- */
+.main .primary-column .chat-stage {
+  padding-bottom: var(--composer-space, 200px);
+}
+html {
+  scroll-padding-bottom: var(--composer-space, 200px);
+}
+
+/* --- Top bar: the agent is always "Hafize"; the online badge is an indicator only -- */
+.topbar .agent-compact,
+#hafizeRuntimeDetails {
+  display: none !important;
+}
+#hafizeRuntimeStatus {
+  pointer-events: none;
+}
+
+/* --- Composer: model, provider and tools are chosen automatically ------------------ */
+#composer .composer-provider,
+#composer .composer-model,
+#toolModeBtn,
+#screenShareBtn,
+#screenSharePreview,
+#modelPreferencesButton,
+#composerHistoryToggle,
+#composerHistoryHelp,
+#composerHistorySettings,
+#composerHistoryBackup,
+#composerHistoryPanel,
+#composer .stream-status {
+  display: none !important;
+}
+
+/* Room between the text box and the button row so the focus ring does not run under the send button. */
+#composer .composer-row {
+  margin-top: 10px;
+  align-items: center;
+}
+
+/* The disclaimer used to hang below the fixed composer and got clipped by the window edge;
+   with the pickers gone it fits inside the composer, next to the send button. */
+#composer .agent-hint {
+  position: static;
+  transform: none;
+  white-space: normal;
+  font-size: 11px;
+  text-align: right;
+}
+
+/* --- Messages: copy and retry are enough ------------------------------------------- */
+#messages[aria-busy="true"] .message:last-child .message-actions {
+  visibility: hidden;
+}
+.message .assistant-message-actions,
+.message .message-fork-actions,
+.message .message-workspace-actions {
+  display: none !important;
+}
+
+/* --- Sidebar: new chat, chat list, search and settings ----------------------------- */
+.nav-list .nav-item:nth-child(2),
+.nav-list .nav-item:nth-child(3),
+#hafizeConversationForkHub,
+#hafizeConversationForks,
+.history-block .conversation-workspace,
+.history-block .history-export,
+.conversation-row .workspace-row-check,
+#sidebar .brand-row,
+#sidebar .sidebar-footer small {
+  display: none !important;
+}

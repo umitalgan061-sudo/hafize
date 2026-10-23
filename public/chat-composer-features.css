@@ -44,6 +44,7 @@
   font-weight: 650;
   pointer-events: none;
 }
+#composer > textarea#messageInput { position: relative; z-index: 4; pointer-events: auto; user-select: text; -webkit-user-select: text; }
 .message-actions {
   display: flex;
   gap: 4px;

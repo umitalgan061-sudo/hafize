@@ -90,12 +90,34 @@ html[data-theme="light"] .theme-sun, html[data-theme="dark"] .theme-moon { backg
 .tool-activity { background: color-mix(in srgb, var(--premium-orange) 8%, var(--premium-surface)); color: var(--premium-text); border-color: var(--premium-line); }
 
 .composer {
-  position: sticky; left: auto; bottom: max(18px, env(safe-area-inset-bottom)); transform: none;
-  z-index: 12; width: min(790px, calc(100% - 18px)); margin: 10px auto 0; padding: 15px;
+  position: fixed; left: calc(50% - 147px); bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  z-index: 120; width: min(790px, calc(100vw - 36px)); margin: 0; padding: 15px;
   border: 1px solid color-mix(in srgb, var(--premium-orange) 18%, var(--premium-line)); border-radius: 20px;
-  background: var(--premium-surface); backdrop-filter: blur(22px); box-shadow: var(--premium-shadow);
+  background: var(--premium-surface); backdrop-filter: blur(22px); box-shadow: var(--premium-shadow); pointer-events: auto;
 }
-.composer textarea { min-height: 74px; padding: 5px 7px 10px; color: var(--premium-text); }
+/* composer-history.css has a later `.composer { position: relative }` rule for
+   its absolute popover. Keep the actual composer fixed and centered above it. */
+.main .primary-column form#composer.composer {
+  position: fixed;
+  left: calc(50% - 147px);
+  bottom: max(18px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 120;
+  width: min(790px, calc(100vw - 36px));
+  margin: 0;
+  pointer-events: auto;
+}
+.main .primary-column form#composer.composer textarea#messageInput {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  min-height: 74px;
+  pointer-events: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.composer textarea { min-height: 74px; padding: 5px 7px 10px; color: var(--premium-text); pointer-events: auto; }
 .composer textarea::placeholder { color: var(--premium-muted); }
 .composer-row { align-items: end; }
 .composer-tools .icon-btn { border: 1px solid var(--premium-line); background: transparent; }
@@ -135,10 +157,24 @@ html[data-theme="light"] .theme-sun, html[data-theme="dark"] .theme-moon { backg
 
 .toast { background: color-mix(in srgb, var(--premium-text) 88%, transparent); }
 
+/* Provider choice is intentionally adjacent to the model selector so users
+   can see where their prompt will be processed before sending it. */
+.composer-actions { flex-wrap: wrap; justify-content: flex-end; }
+.composer-provider select { max-width: 142px; }
+.composer-provider select:focus-visible,
+.composer-model select:focus-visible { outline: 2px solid var(--premium-orange); outline-offset: 2px; }
+@media (max-width: 680px) {
+  .composer-provider { display: flex; }
+  .composer-provider span { display: none; }
+  .composer-provider select { width: 112px; max-width: 112px; text-overflow: ellipsis; }
+  .composer-actions { gap: 5px; }
+}
+
 @media (max-width: 1040px) {
   .main { grid-template-columns: 1fr; padding-inline: 18px; }
   .utility-rail { grid-column: 1; grid-row: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px 18px 40px; max-width: 790px; width: 100%; justify-self: center; }
   .chat-stage { padding-top: 44px; }
+  .main .primary-column form#composer.composer { left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 680px) {
@@ -154,7 +190,7 @@ html[data-theme="light"] .theme-sun, html[data-theme="dark"] .theme-moon { backg
   .welcome h1 { font-size: 38px; }
   .welcome p { font-size: 14px; }
   .hero-logo { width: 54px; height: 54px; }
-  .composer { width: 100%; bottom: max(10px, env(safe-area-inset-bottom)); }
+  .main .primary-column form#composer.composer { width: calc(100vw - 24px); bottom: max(10px, env(safe-area-inset-bottom)); }
   .composer-row { align-items: center; }
   .composer-model select { width: 118px; max-width: 118px; text-overflow: ellipsis; }
   .agent-hint { display: none; }

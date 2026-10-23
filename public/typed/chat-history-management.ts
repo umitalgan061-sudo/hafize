@@ -12,7 +12,7 @@
   const MANAGE_CLASS = 'history-manage';
   const MANAGE_BUTTON = 'history-manage-btn';
   const RENAME_CLASS = 'history-rename';
-  const DELETE_BOUND = 'data-history-delete-bound';
+  const DELETE_BOUND = 'historyDeleteBound';
   const MAX_TITLE_LENGTH = 80;
 
   const ui = {
@@ -62,7 +62,7 @@
   }
 
   function getRowId(row) {
-    return row?.querySelector?.('.conversation-open')?.dataset?.conversationId || '';
+    return row?.querySelector('.conversation-open')?.dataset?.conversationId || '';
   }
 
   function assignMissingIds(rows, history) {
@@ -76,10 +76,11 @@
   function applyTitle(row, conversation) {
     const button = row.querySelector('.conversation-open');
     if (!button || typeof conversation?.title !== 'string') return;
-    button.dataset.conversationId = conversation.id;
-    button.classList.add('conversation-title');
-    button.textContent = conversation.title || 'Yeni sohbet';
-    button.title = conversation.title || 'Yeni sohbet';
+    const title = conversation.title || 'Yeni sohbet';
+    if (button.dataset.conversationId !== conversation.id) button.dataset.conversationId = conversation.id;
+    if (!button.classList.contains('conversation-title')) button.classList.add('conversation-title');
+    if (button.textContent !== title) button.textContent = title;
+    if (button.title !== title) button.title = title;
   }
 
   function createManagementButton(text, label) {
@@ -158,7 +159,20 @@
     row.classList.toggle('pinned', conversation.pinned === true);
     applyTitle(row, conversation);
     bindDeleteGuard(row, conversation);
-    row.querySelector(`.${MANAGE_CLASS}`)?.remove();
+    const existingManage = row.querySelector(`.${MANAGE_CLASS}`);
+    if (existingManage) {
+      const pin = existingManage.querySelector(`.${MANAGE_BUTTON}`);
+      if (pin) {
+        const label = conversation.pinned === true ? 'Sohbet sabitlemesini kaldır' : 'Sohbeti sabitle';
+        const title = conversation.pinned === true ? 'Sabitlemeyi kaldır' : 'Sabitle';
+        const text = conversation.pinned === true ? '◆' : '◇';
+        if (pin.textContent !== text) pin.textContent = text;
+        if (pin.getAttribute('aria-label') !== label) pin.setAttribute('aria-label', label);
+        if (pin.getAttribute('aria-pressed') !== String(conversation.pinned === true)) pin.setAttribute('aria-pressed', String(conversation.pinned === true));
+        if (pin.title !== title) pin.title = title;
+      }
+      return;
+    }
 
     const manage = document.createElement('div');
     manage.className = MANAGE_CLASS;
@@ -195,8 +209,9 @@
 
   function sortPinnedRows() {
     const rows = Array.from(ui.list.querySelectorAll(ROW_SELECTOR));
-    rows.sort((a, b) => Number(b.classList.contains('pinned')) - Number(a.classList.contains('pinned')));
-    rows.forEach((row) => ui.list.append(row));
+    const sorted = [...rows].sort((a, b) => Number(b.classList.contains('pinned')) - Number(a.classList.contains('pinned')));
+    if (sorted.every((row, index) => row === rows[index])) return;
+    sorted.forEach((row) => ui.list.append(row));
   }
 
   function sync() {

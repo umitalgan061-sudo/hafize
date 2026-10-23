@@ -6,10 +6,10 @@
 (() => {
   'use strict';
 
-  const MAX_FILE_BYTES = 384 * 1024;
-  const MAX_ATTACHMENTS = 3;
-  const MAX_ATTACHMENT_TEXT = 9000;
-  const ACCEPTED_EXTENSIONS = /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log)$/i;
+  const MAX_FILE_BYTES = 100 * 1024 * 1024;
+  const MAX_ATTACHMENTS = 10;
+  const MAX_ATTACHMENT_TEXT = 0;
+  const ACCEPTED_EXTENSIONS = /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log|pdf|png|jpg|jpeg|gif|webp|mp4|webm|mov|avi|mp3|wav|ogg)$/i;
   const ui = {
     composer: document.querySelector('#composer'),
     attachBtn: document.querySelector('#attachBtn'),
@@ -33,7 +33,7 @@
       && Number.isFinite(file.size)
       && file.size > 0
       && file.size <= MAX_FILE_BYTES
-      && (file.type.startsWith('text/') || file.type === 'application/json' || ACCEPTED_EXTENSIONS.test(file.name));
+      && (ACCEPTED_EXTENSIONS.test(file.name) || file.type.startsWith('text/') || file.type === 'application/json' || file.type.startsWith('image/') || file.type.startsWith('video/') || file.type.startsWith('audio/') || file.type === 'application/pdf');
   }
 
   function renderAttachmentStrip() {
@@ -75,11 +75,11 @@
   }
 
   function composeAttachment(file, text) {
-    const clipped = text.replace(/\r\n/g, '\n').slice(0, MAX_ATTACHMENT_TEXT);
-    const notice = text.length > MAX_ATTACHMENT_TEXT
-      ? `\n[Dosya içeriği ${MAX_ATTACHMENT_TEXT} karakterle sınırlandı.]\n`
-      : '';
-    return `\n\n[Ekli dosya: ${file.name}]\n---\n${clipped}${notice}---\n`;
+    if (!text) {
+      return `\n\n[Ekli dosya: ${file.name}]\n`;
+    }
+    const normalized = text.replace(/\r\n/g, '\n');
+    return `\n\n[Ekli dosya: ${file.name}]\n---\n${normalized}\n---\n`;
   }
 
   async function addFile(file) {
@@ -89,35 +89,36 @@
       return;
     }
     if (!acceptedFile(file)) {
-      announce('Bu dosya türü desteklenmiyor veya dosya 384 KB sınırını aşıyor.');
+      announce('Bu dosya türü desteklenmiyor veya dosya boyut sınırı aşıldı.');
       return;
     }
     if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
       announce('Bu dosya zaten eklendi.');
       return;
     }
+    const isTextFile = file.type.startsWith('text/') || file.type === 'application/json' || /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log)$/i.test(file.name);
+    let block = '';
     try {
-      const text = await file.text();
-      if (!text.trim()) {
-        announce(`${file.name} boş olduğu için eklenmedi.`);
-        return;
+      if (isTextFile) {
+        const text = await file.text();
+        if (!text.trim()) {
+          announce(`${file.name} boş olduğu için eklenmedi.`);
+          return;
+        }
+        block = composeAttachment(file, text);
+      } else {
+        block = composeAttachment(file, '');
       }
-      const fullBlock = composeAttachment(file, text);
       const before = ui.messageInput.value;
-      const nextValue = `${before}${fullBlock}`.slice(0, ui.messageInput.maxLength || 12000);
-      const appendedBlock = nextValue.slice(before.length);
-      if (!appendedBlock) {
-        announce('Mesaj alanı dolu. Dosya eklenebilmesi için biraz metin silmelisin.');
-        return;
-      }
-      files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: appendedBlock });
+      const nextValue = `${before}${block}`;
+      files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block });
       ui.messageInput.value = nextValue;
       ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
       renderAttachmentStrip();
       ui.messageInput.focus();
-      announce(`${file.name} mesaja eklendi. Dosya sunucuya ayrı bir yükleme olarak gönderilmedi.`);
+      announce(`${file.name} eklendi.`);
     } catch {
-      announce(`${file.name} okunamadı.`);
+      announce(`${file.name} işlenemedi.`);
     }
   }
 
@@ -132,7 +133,7 @@
     input.type = 'file';
     input.hidden = true;
     input.multiple = true;
-    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,text/plain,application/json';
+    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,.pdf,.png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.mov,.avi,.mp3,.wav,.ogg,text/plain,application/json,image/*,video/*,audio/*,application/pdf';
     input.addEventListener('change', async () => {
       for (const file of [...input.files].slice(0, MAX_ATTACHMENTS)) await addFile(file);
       input.remove();
@@ -252,8 +253,17 @@
   });
   ui.composer.addEventListener('drop', async (event) => {
     event.preventDefault();
+    event.stopPropagation();
     ui.composer.classList.remove('drag-active');
     for (const file of [...(event.dataTransfer?.files || [])].slice(0, MAX_ATTACHMENTS)) await addFile(file);
+  });
+  ui.messageInput.addEventListener('drop', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+  ui.messageInput.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
   });
   ui.messageInput.addEventListener('paste', async (event) => {
     const pastedFiles = [...(event.clipboardData?.files || [])];

@@ -38,6 +38,14 @@ assert.deepEqual(listToolPermissions().map(({ permission, name }) => ({ permissi
   { permission: 'repo.read', name: 'github_read_file' },
   { permission: 'connector.canva.read', name: 'canva_read' },
   { permission: 'connector.gmail.read', name: 'gmail_read' },
+  { permission: 'web.weather.read', name: 'weather_forecast' },
+  { permission: 'web.search', name: 'web_search' },
+  { permission: 'web.read', name: 'web_page_read' },
+  { permission: 'web.wikipedia.read', name: 'wikipedia_lookup' },
+  { permission: 'web.news.read', name: 'news_search' },
+  { permission: 'web.rates.read', name: 'exchange_rates' },
+  { permission: 'memory.write', name: 'memory_save' },
+  { permission: 'memory.write', name: 'memory_forget' },
   { permission: 'skill.invoke', name: 'skill_invoke' }
 ]);
 

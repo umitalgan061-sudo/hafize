@@ -16,6 +16,11 @@ const MAX_TIMEOUT_MS = 60_000;
 const MAX_RETRIES = 3;
 const MAX_RETRY_DELAY_MS = 1_500;
 
+function apiFetch(): typeof fetch {
+  const auth = (globalThis as typeof globalThis & { HafizeAuth?: { fetch?: typeof fetch } }).HafizeAuth;
+  return auth?.fetch || globalThis.fetch.bind(globalThis);
+}
+
 function delay(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = globalThis.setTimeout(resolve, ms);
@@ -65,7 +70,7 @@ export class HafizeApiClient {
   readonly baseUrl: string;
   readonly fetchImpl: typeof fetch;
 
-  constructor(baseUrl = '', fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)) {
+  constructor(baseUrl = '', fetchImpl: typeof fetch = apiFetch()) {
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.fetchImpl = fetchImpl;
   }
@@ -125,8 +130,8 @@ export class HafizeApiClient {
     return this.request('/api/health', { signal, timeoutMs: 8000, retry: 1 }).then(parseHealth);
   }
 
-  models(signal?: AbortSignal): Promise<ModelsResponse> {
-    return this.request('/api/models', { signal, timeoutMs: 12_000, retry: 1 }).then(parseModels);
+  models(provider: 'nvidia' | 'local' = 'nvidia', signal?: AbortSignal): Promise<ModelsResponse> {
+    return this.request(provider === 'local' ? '/api/models?provider=local' : '/api/models', { signal, timeoutMs: 12_000, retry: 1 }).then(parseModels);
   }
 
   agents(signal?: AbortSignal): Promise<AgentsResponse> {

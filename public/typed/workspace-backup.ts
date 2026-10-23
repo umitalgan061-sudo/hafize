@@ -1,6 +1,6 @@
 // TypeScript workspace backup center.
 // User-controlled local data only; server schedules, credentials and sessions are never exported.
-export type WorkspaceBackupKind = 'conversation' | 'message-workspace' | 'prompt-library' | 'prompt-library-state' | 'prompt-collections' | 'prompt-revisions' | 'prompt-smart-fill' | 'model-preferences' | 'composer-history' | 'composer-history-settings' | 'scheduled-task-templates' | 'scheduled-task-draft';
+export type WorkspaceBackupKind = 'conversation' | 'message-workspace' | 'prompt-library' | 'prompt-library-state' | 'prompt-collections' | 'prompt-revisions' | 'prompt-smart-fill' | 'model-preferences' | 'composer-history' | 'composer-history-settings' | 'scheduled-task-templates' | 'scheduled-task-draft' | 'memory';
 
 export interface WorkspaceBackupSection {
   id: string;
@@ -60,6 +60,7 @@ const STATIC_SURFACES: ReadonlyArray<Readonly<{
   { key: 'hafize.prompt-library.v1.state', kind: 'prompt-library-state', label: 'İstem filtreleri', description: 'Kütüphane arama, filtre ve sıralama durumu.' },
   { key: 'hafize.prompt-library.collections.v1', kind: 'prompt-collections', label: 'İstem koleksiyonları', description: 'Yerel koleksiyonlar ve üyelikleri.' },
   { key: 'hafize.prompt-library.revisions.v1', kind: 'prompt-revisions', label: 'İstem sürümleri', description: 'İstem sürüm geçmişi ve geri alma noktaları.' },
+  { key: 'hafize.memory.v1', kind: 'memory', label: 'Hafıza', description: 'Hafize’nin senin hakkında hatırladığı notlar.' },
   { key: 'hafize.model-preferences.v1', kind: 'model-preferences', label: 'Model tercihleri', description: 'Seçili model, ajan ve yerel profil tercihleri.' },
   { key: 'hafize.composer-history.v1', kind: 'composer-history', label: 'Composer geçmişi', description: 'Cihazdaki son yazılan mesajlar.' },
   { key: 'hafize.composer-history.settings.v1', kind: 'composer-history-settings', label: 'Composer ayarları', description: 'Geçmiş saklama tercihi.' },
@@ -415,20 +416,21 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   const header = make(documentRef, 'div', '', 'workspace-backup-head');
   const title = make(documentRef, 'strong', 'Çalışma alanı yedeği', 'workspace-backup-title');
   title.id = 'workspaceBackupTitle';
-  const collapse = button(documentRef, 'Gizle');
-  collapse.setAttribute('aria-expanded', 'true');
+  const collapse = button(documentRef, 'Göster');
+  collapse.setAttribute('aria-expanded', 'false');
   collapse.setAttribute('aria-controls', 'workspaceBackupBody');
   header.append(title, collapse);
   const body = make(documentRef, 'div');
+  body.hidden = true;
   body.id = 'workspaceBackupBody';
   body.className = 'workspace-backup-body';
   const summary = make(documentRef, 'div', '', 'workspace-backup-summary');
   const summaryTitle = make(documentRef, 'strong', 'Yerel veriler');
-  const summaryText = make(documentRef, '');
+  const summaryText = make(documentRef, 'p');
   summary.append(summaryTitle, summaryText);
   const exportScope = make(documentRef, 'div', '', 'workspace-backup-export-scope');
   const exportScopeTitle = make(documentRef, 'strong', 'Yedek kapsamı');
-  const exportScopeHint = make(documentRef, 'Hangi yerel yüzeylerin yedeğe gireceğini seçebilirsin.', '', 'workspace-backup-export-hint');
+  const exportScopeHint = make(documentRef, 'p', 'Hangi yerel yüzeylerin yedeğe gireceğini seçebilirsin.', 'workspace-backup-export-hint');
   const exportScopeActions = make(documentRef, 'div', '', 'workspace-backup-select-actions');
   const exportAll = button(documentRef, 'Tümünü seç');
   const exportNone = button(documentRef, 'Seçimleri temizle');
@@ -471,7 +473,7 @@ export function mountWorkspaceBackup(documentRef: Document = document, rootRef: 
   const on = (target: EventTarget, type: string, listener: EventListener) => { target.addEventListener(type, listener); listeners.push(() => target.removeEventListener(type, listener)); };
   let lastInspection: WorkspaceBackupInspection | null = null;
   let previousFocus: Element | null = null;
-  let hidden = false;
+  let hidden = true;
   let destroyed = false;
 
   const report = (message: string) => { status.textContent = text(message, 220); };

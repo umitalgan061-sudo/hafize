@@ -23,12 +23,24 @@ export function moveCalendarDate(year:number,month:number,day:number,key:string)
 function addListener(target:EventTarget,type:string,listener:EventListener,options?:AddEventListenerOptions):()=>void{target.addEventListener(type,listener,options);return()=>target.removeEventListener(type,listener,options);}
 export function installSidebarDisclosure(documentRef:Document):SidebarDisclosure|null{
  const sidebar=documentRef.querySelector<HTMLElement>('#sidebar'),toggle=documentRef.querySelector<HTMLButtonElement>('#sidebarToggle');if(!sidebar||!toggle)return null;
- let open=sidebar.classList.contains('open');
- const render=(next:boolean,focusToggle=false)=>{open=Boolean(next);sidebar.classList.toggle('open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-controls',sidebar.id||'sidebar');toggle.setAttribute('aria-label',open?'Menüyü kapat':'Menüyü aç');if(focusToggle)toggle.focus();};
- const onToggle=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();render(!open);};
- const onKeydown=(event:KeyboardEvent)=>{if(event.key==='Escape'&&open){event.preventDefault();render(false,true);}};
- toggle.addEventListener('click',onToggle,true);documentRef.addEventListener('keydown',onKeydown);render(open);
- return Object.freeze({isOpen:()=>open,close:()=>render(false),destroy(){toggle.removeEventListener('click',onToggle,true);documentRef.removeEventListener('keydown',onKeydown);}});
+ // Other modules close the sidebar by removing the class directly (e.g. after picking a chat), so the
+ // DOM is the source of truth; a cached flag here made the next ☰ tap a no-op.
+ const isOpen=()=>sidebar.classList.contains('open');
+ const syncToggle=()=>{const open=isOpen();documentRef.body?.classList.toggle('sidebar-open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-controls',sidebar.id||'sidebar');toggle.setAttribute('aria-label',open?'Menüyü kapat':'Menüyü aç');};
+ const render=(next:boolean,focusToggle=false)=>{sidebar.classList.toggle('open',Boolean(next));syncToggle();if(focusToggle)toggle.focus();};
+ const onToggle=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();render(!isOpen());};
+ const onKeydown=(event:KeyboardEvent)=>{if(event.key==='Escape'&&isOpen()){event.preventDefault();render(false,true);}};
+ const Observer=documentRef.defaultView?.MutationObserver;
+ const classObserver=Observer?new Observer(syncToggle):null;
+ classObserver?.observe(sidebar,{attributes:true,attributeFilter:['class']});
+ // The open sidebar floats over the page behind a dimmed backdrop; a tap anywhere outside it closes it.
+ // Ctrl/⌘+Shift+F (documented on the settings page): open the sidebar and focus chat search.
+ // Registered on the window in the capture phase so the hidden fork shortcut never fires instead.
+ const onSearchShortcut=(event:KeyboardEvent)=>{if(!(event.ctrlKey||event.metaKey)||!event.shiftKey||event.altKey||event.key.toLowerCase()!=='f')return;const search=documentRef.querySelector<HTMLInputElement>('#conversationSearchInput');if(!search)return;event.preventDefault();event.stopImmediatePropagation();render(true);search.focus();search.select();};
+ const view=documentRef.defaultView;view?.addEventListener('keydown',onSearchShortcut,true);
+ const onOutsideClick=(event:Event)=>{const target=event.target as Node|null;if(!isOpen()||!target||sidebar.contains(target)||toggle.contains(target))return;event.preventDefault();event.stopPropagation();render(false);};
+ toggle.addEventListener('click',onToggle,true);documentRef.addEventListener('keydown',onKeydown);documentRef.addEventListener('click',onOutsideClick,true);syncToggle();
+ return Object.freeze({isOpen,close:()=>render(false),destroy(){classObserver?.disconnect();toggle.removeEventListener('click',onToggle,true);documentRef.removeEventListener('keydown',onKeydown);documentRef.removeEventListener('click',onOutsideClick,true);view?.removeEventListener('keydown',onSearchShortcut,true);}});
 }
 export function installChatAccessibility(documentRef:Document):boolean{
  const stage=documentRef.querySelector<HTMLElement>('.chat-stage'),messages=documentRef.querySelector<HTMLElement>('#messages');if(!messages)return false;
@@ -43,7 +55,9 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  const themeToggle=documentRef.querySelector<HTMLButtonElement>('#themeToggle');
  const paintTheme=(next:Theme)=>{theme=next;html.dataset.theme=next;themeToggle?.setAttribute('aria-pressed',String(next==='dark'));themeToggle?.setAttribute('title',next==='dark'?'Gündüz moduna geç':'Gece moduna geç');documentRef.querySelector('meta[name="theme-color"]')?.setAttribute('content',next==='dark'?'#202122':'#f7f5f0');};
  paintTheme(theme);
- if(themeToggle)disposers.push(addListener(themeToggle,'click',()=>{const next:Theme=theme==='dark'?'light':'dark';try{storage?.setItem(THEME_KEY,next);}catch{}paintTheme(next);}));
+ // The settings page can change the theme too, so read the live value rather than the cached one,
+ // and announce the change so its theme picker stays in sync.
+ if(themeToggle)disposers.push(addListener(themeToggle,'click',()=>{const current:Theme=html.dataset.theme==='dark'?'dark':'light';const next:Theme=current==='dark'?'light':'dark';try{storage?.setItem(THEME_KEY,next);}catch{}paintTheme(next);root.dispatchEvent(new CustomEvent('hafize:theme-changed',{detail:{theme:next}}));}));
  const onMediaChange=()=>{if(!storage?.getItem(THEME_KEY))paintTheme(resolveTheme(null,media.matches));};
  disposers.push(addListener(media,'change',onMediaChange as EventListener));
  const monthLabel=documentRef.querySelector<HTMLElement>('#calendarMonth'),calendarGrid=documentRef.querySelector<HTMLElement>('#calendarGrid');
@@ -61,6 +75,16 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  if(prev)disposers.push(addListener(prev,'click',()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()-1,1);selectedDay=1;renderCalendar({focusSelected:true});}));
  if(next)disposers.push(addListener(next,'click',()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);selectedDay=1;renderCalendar({focusSelected:true});}));
  renderCalendar();
+ // The composer is fixed to the bottom of the window and grows with its text; publish the space it
+ // covers so the chat can end above it instead of scrolling underneath.
+ const composer=documentRef.querySelector<HTMLElement>('#composer');
+ const SizeObserver=(root as typeof globalThis).ResizeObserver;
+ if(composer&&typeof SizeObserver==='function'){
+  const applyComposerSpace=()=>{const top=composer.getBoundingClientRect().top;if(!top)return;html.style.setProperty('--composer-space',`${Math.max(96,Math.ceil(root.innerHeight-top+20))}px`);};
+  const sizeObserver=new SizeObserver(applyComposerSpace);sizeObserver.observe(composer);
+  disposers.push(()=>sizeObserver.disconnect(),addListener(root,'resize',applyComposerSpace));
+  applyComposerSpace();
+ }
  const mic=documentRef.querySelector<HTMLButtonElement>('#micBtn'),proxy=documentRef.querySelector<HTMLButtonElement>('#voiceProxy'),voiceCard=documentRef.querySelector<HTMLElement>('.voice-card');
  if(proxy)disposers.push(addListener(proxy,'click',()=>mic?.click()));
  const Observer=root.MutationObserver;

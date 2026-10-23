@@ -14,11 +14,13 @@ export interface AgentsResponse {
 
 export interface ModelsResponse {
   readonly models: readonly string[];
+  readonly defaultModel?: string;
 }
 
 export interface HealthResponse {
   readonly status: string;
   readonly nvidiaConfigured: boolean;
+  readonly localModelEnabled: boolean;
   readonly githubReadConfigured: boolean;
   readonly canvaReadConfigured: boolean;
   readonly gmailReadConfigured: boolean;
@@ -104,7 +106,8 @@ export function parseModels(value: unknown): ModelsResponse {
   const models = Array.isArray(source.models)
     ? source.models.filter((model): model is string => typeof model === 'string' && model.length > 0).map((model) => model.slice(0, 240)).slice(0, 200)
     : [];
-  return Object.freeze({ models: Object.freeze(models) });
+  const defaultModel = typeof source.defaultModel === 'string' && models.includes(source.defaultModel) ? source.defaultModel : undefined;
+  return Object.freeze({ models: Object.freeze(models), ...(defaultModel ? { defaultModel } : {}) });
 }
 
 export function parseHealth(value: unknown): HealthResponse {
@@ -112,6 +115,7 @@ export function parseHealth(value: unknown): HealthResponse {
   return Object.freeze({
     status: stringValue(source.status, 'unknown').slice(0, 80),
     nvidiaConfigured: booleanValue(source.nvidiaConfigured),
+    localModelEnabled: booleanValue(source.localModelEnabled),
     githubReadConfigured: booleanValue(source.githubReadConfigured),
     canvaReadConfigured: booleanValue(source.canvaReadConfigured),
     gmailReadConfigured: booleanValue(source.gmailReadConfigured),
@@ -128,5 +132,5 @@ export function connectivityFromHealth(health: HealthResponse | null, networkOnl
   if (!networkOnline) return 'offline';
   if (!health) return 'unknown';
   if (health.status !== 'ok') return 'degraded';
-  return health.nvidiaConfigured ? 'online' : 'degraded';
+  return health.nvidiaConfigured || health.localModelEnabled ? 'online' : 'degraded';
 }

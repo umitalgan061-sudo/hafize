@@ -209,7 +209,7 @@
     // A rendered answer is read through the markdown layer: block elements
     // concatenate in `textContent`, which would glue paragraphs together.
     const text = window.HafizeChatMarkdown?.plainTextFor?.(content) ?? content?.textContent;
-    return cleanText(text || '').slice(0, 12000);
+    return cleanText(text || '');
   }
 
   function ensureActionBar(article) {
@@ -253,25 +253,33 @@
     const note = bar.querySelector('.message-note');
     const tag = bar.querySelector('.message-tag');
     save?.classList.toggle('active', record?.saved === true);
-    save?.setAttribute('aria-pressed', String(record?.saved === true));
-    save && (save.textContent = record?.saved ? '★' : '☆');
+    const saved = String(record?.saved === true);
+    if (save && save.getAttribute('aria-pressed') !== saved) save.setAttribute('aria-pressed', saved);
+    const saveLabel = record?.saved ? '★' : '☆';
+    if (save && save.textContent !== saveLabel) save.textContent = saveLabel;
     up?.classList.toggle('active', record?.feedback === 'up');
-    up?.setAttribute('aria-pressed', String(record?.feedback === 'up'));
+    const positive = String(record?.feedback === 'up');
+    if (up && up.getAttribute('aria-pressed') !== positive) up.setAttribute('aria-pressed', positive);
     down?.classList.toggle('active', record?.feedback === 'down');
-    down?.setAttribute('aria-pressed', String(record?.feedback === 'down'));
+    const negative = String(record?.feedback === 'down');
+    if (down && down.getAttribute('aria-pressed') !== negative) down.setAttribute('aria-pressed', negative);
     note?.classList.toggle('active', Boolean(record?.note));
     tag?.classList.toggle('active', Boolean(record?.tags?.length));
-    const summary = article.querySelector('.message-workspace-summary');
-    summary?.remove();
+    let summary = article.querySelector('.message-workspace-summary');
     const marks = [];
     if (record?.note) marks.push(`Not: ${record.note.slice(0, 80)}`);
     if (record?.tags?.length) marks.push(`Etiket: ${record.tags.join(', ')}`);
     if (marks.length) {
-      const info = document.createElement('div');
-      info.className = 'message-workspace-summary';
-      info.textContent = marks.join(' · ');
-      info.title = marks.join(' · ');
-      article.append(info);
+      const text = marks.join(' · ');
+      if (!summary) {
+        summary = document.createElement('div');
+        summary.className = 'message-workspace-summary';
+        article.append(summary);
+      }
+      if (summary.textContent !== text) summary.textContent = text;
+      if (summary.title !== text) summary.title = text;
+    } else if (summary) {
+      summary.remove();
     }
     article.classList.toggle('message-workspace-saved', Boolean(record?.saved));
   }
@@ -508,7 +516,7 @@
     const selected = new Set(runtime.state.selected);
     const entries = recordEntries().filter(entry=>selected.has(entry.record.id)).slice(0,MAX_EXPORT);
     if (!entries.length) return announce('Önce en az bir mesaj seç.');
-    const payload = { schema:'hafize-message-workspace/v1', exportedAt:new Date().toISOString(), records:entries.map(entry=>({ record:entry.record, role:entry.role, content:entry.text.slice(0,12000) })) };
+    const payload = { schema:'hafize-message-workspace/v1', exportedAt:new Date().toISOString(), records:entries.map(entry=>({ record:entry.record, role:entry.role, content:entry.text })) };
     const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`hafize-messages-${new Date().toISOString().slice(0,10)}.json`; link.click(); URL.revokeObjectURL(url); announce(`${entries.length} mesaj dışa aktarıldı.`);
   }

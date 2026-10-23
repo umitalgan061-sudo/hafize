@@ -1,10 +1,17 @@
 // @ts-nocheck
 import { CURRENT_CACHE, SHELL_ASSETS, classifyRequest, shouldDeleteCache } from './sw-policy.ts';
 
+// Network first: the server is local, so this is fast, and a new build is picked up on the
+// next load instead of being shadowed by an older cached copy. The cache is only the offline fallback.
 async function matchShell(request) {
   const cache = await caches.open(CURRENT_CACHE);
-  const cached = await cache.match(request, { ignoreSearch: true });
-  return cached || fetch(request);
+  try {
+    const response = await fetch(request);
+    if (response.ok) cache.put(request, response.clone()).catch(() => undefined);
+    return response;
+  } catch {
+    return (await cache.match(request, { ignoreSearch: true })) || Response.error();
+  }
 }
 
 async function navigateWithOfflineFallback(request) {

@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { createHash, randomUUID } from 'node:crypto';
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createSessionAuth } from './session-auth.ts';
@@ -37,6 +38,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   const loginLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5, maxConcurrent: 1, maxEntries: 5000 });
   const apiLimit = createRateLimiter({ windowMs: 60 * 1000, max: 120, maxConcurrent: 8, maxEntries: 20000 });
   const chatLimit = createRateLimiter({ windowMs: 60 * 1000, max: 20, maxConcurrent: 2, maxEntries: 20000 });
+  const localSessionId = createHash('sha256').update(randomUUID()).digest('hex');
   const http = createRequire(import.meta.url)('node:http') as { createServer: (...args: unknown[]) => unknown };
   const original = http.createServer;
 
@@ -63,11 +65,31 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
         if (current.session && !safeMethod(req.method) && !checkCsrf(req, current.csrf)) {
           return send(res, 403, { error: 'CSRF_REQUIRED' });
         }
+        Object.defineProperty(req, '__hafizePrincipal', {
+          value: Object.freeze({
+            ownerId: current.subject || 'primary-user',
+            sessionId: createHash('sha256').update(current.session ? current.csrf || '' : current.subject || 'connector').digest('hex')
+          }),
+          configurable: false,
+          enumerable: false
+        });
         const limiter = path === '/api/chat' || path === '/api/agent/run' ? chatLimit : apiLimit;
         const decision = limiter.check((current.subject || 'anonymous') + ':' + path);
         if (!decision.ok) return rate(res, decision.retryAfterSeconds);
         res.once('close', decision.release);
         res.once('finish', decision.release);
+      } else if (!required && ['/api/agent/run','/api/chat','/api/skills/consent'].includes(path) && isLoopback(req)) {
+        Object.defineProperty(req, '__hafizePrincipal', {
+          value: Object.freeze({ ownerId: config.authSubject, sessionId: localSessionId }),
+          configurable: false,
+          enumerable: false
+        });
+        if (path === '/api/chat' || path === '/api/agent/run') {
+          const decision = chatLimit.check('ip:' + remoteKey(req));
+          if (!decision.ok) return rate(res, decision.retryAfterSeconds);
+          res.once('close', decision.release);
+          res.once('finish', decision.release);
+        }
       } else if (!required && (path === '/api/chat' || path === '/api/agent/run')) {
         const decision = chatLimit.check('ip:' + remoteKey(req));
         if (!decision.ok) return rate(res, decision.retryAfterSeconds);
@@ -81,7 +103,11 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   };
 
   function protectedPath(path: string): boolean {
-    return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/connectors/canva/status','/api/connectors/gmail/status','/api/github/workspace','/api/github/workspace/directory','/api/github/workspace/compare','/api/github/workspace/commit','/api/github/workspace/pull','/api/github/workspace/write/approval','/api/github/workspace/write'].includes(path);
+    return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/skills/consent','/api/connectors/canva/status','/api/connectors/gmail/status','/api/github/workspace','/api/github/workspace/directory','/api/github/workspace/compare','/api/github/workspace/commit','/api/github/workspace/pull','/api/github/workspace/write/approval','/api/github/workspace/write'].includes(path);
+  }
+  function isLoopback(req: IncomingMessage): boolean {
+    const address = String(req.socket?.remoteAddress || '').toLowerCase();
+    return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
   }
   function connectorPath(path: string): boolean {
     return path === '/api/agent/run' || path === '/api/connectors/canva/status' || path === '/api/connectors/gmail/status';

@@ -36,6 +36,10 @@
     const counts = { scheduled: 0, running: 0, completed: 0, failed: 0, cancelled: 0 };
     all.forEach((row) => { if (counts[row.dataset.status] !== undefined) counts[row.dataset.status] += 1; });
     const upcoming = all.filter((row) => row.dataset.status === 'scheduled').sort((a,b) => dateValue(a)-dateValue(b)).slice(0, MAX_ROWS);
+    // This observer watches the whole document, so rewriting unchanged content would re-trigger it forever.
+    const signature = JSON.stringify([all.length, counts, upcoming.map((row) => [row.querySelector('.scheduled-task-row-head strong')?.textContent || '', row.dataset.runAt || ''])]);
+    if (body.childElementCount && body.dataset.signature === signature) return;
+    body.dataset.signature = signature;
     body.replaceChildren();
     [['Toplam', all.length], ['Yaklaşan', counts.scheduled], ['Çalışıyor', counts.running], ['Başarısız', counts.failed]].forEach(function (entry) {
       const stat = make('div', undefined, 'scheduled-task-insight-stat');

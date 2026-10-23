@@ -31,6 +31,10 @@
     list.querySelectorAll('.scheduled-task-row').forEach(function (row) {
       if (counts.has(row.dataset.status)) counts.set(row.dataset.status, counts.get(row.dataset.status) + 1);
     });
+    // Re-rendering identical counts mutates the DOM and wakes every document observer again.
+    const signature = statuses.map(function (entry) { return counts.get(entry[0]) || 0; }).join(',');
+    if (section.childElementCount && section.dataset.signature === signature) return;
+    section.dataset.signature = signature;
     section.replaceChildren();
     statuses.forEach(function (entry) {
       const item = make('button', undefined, 'scheduled-task-status-summary-item');

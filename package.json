@@ -7,10 +7,10 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "start": "node --import ./lib/production-guard.ts server.ts",
+    "start": "node --use-system-ca --env-file-if-exists=.env --import ./lib/production-guard.ts server.ts",
     "prestart": "npm run build",
     "dev": "vite --host 127.0.0.1",
-    "dev:server": "node --import ./lib/production-guard.ts server.ts",
+    "dev:server": "node --use-system-ca --env-file-if-exists=.env --import ./lib/production-guard.ts server.ts",
     "build": "vite build",
     "typecheck": "npm run typecheck:runtime",
     "test:modern": "vitest run",
@@ -33,8 +33,8 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "7.0.2",
-    "vite": "8.3.0",
-    "vitest": "5.0.1"
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   },
   "type": "module"
 }

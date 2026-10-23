@@ -106,10 +106,13 @@
     }
 
     const total = rows.length;
+    const nextStatus = !total
+      ? 'Henüz sohbet yok.'
+      : !normalizedQuery
+        ? `${total} sohbet`
+        : `${visible} / ${total} sohbet eşleşti`;
     searchUi.clear.hidden = !normalizedQuery;
-    if (!total) searchUi.status.textContent = 'Henüz sohbet yok.';
-    else if (!normalizedQuery) searchUi.status.textContent = `${total} sohbet`;
-    else searchUi.status.textContent = `${visible} / ${total} sohbet eşleşti`;
+    if (searchUi.status.textContent !== nextStatus) searchUi.status.textContent = nextStatus;
 
     let empty = ui.history.querySelector('.history-search-empty');
     if (normalizedQuery && total > 0 && visible === 0) {
@@ -119,7 +122,8 @@
         empty.setAttribute('role', 'status');
         ui.history.append(empty);
       }
-      empty.textContent = 'Aramanla eşleşen sohbet bulunamadı.';
+      const emptyText = 'Aramanla eşleşen sohbet bulunamadı.';
+      if (empty.textContent !== emptyText) empty.textContent = emptyText;
     } else {
       empty?.remove();
     }

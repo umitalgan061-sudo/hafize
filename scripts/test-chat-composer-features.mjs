@@ -41,7 +41,7 @@ assert.match(style, /\.message-action/);
 
 assert.match(serviceWorkerPolicy, /CURRENT_CACHE = `\$\{CACHE_PREFIX\}v\d+`/);
 assertShippedStylesheet('chat-composer-features.css');
-assert.match(serviceWorkerPolicy, /'\/chat-composer-features\.js'/);
+assert.match(serviceWorkerPolicy, /"\/typed-build\/chat-composer-features\.js"/);
 
 const attachmentBlock = composer.match(/\[Ekli dosya: \$\{file\.name\}\]/);
 assert.ok(attachmentBlock);

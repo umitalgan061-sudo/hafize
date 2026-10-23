@@ -1,8 +1,14 @@
 import { authorizeAgentTool, type AgentDefinition } from './agent-runtime.ts';
+import { realpath, stat, readFile } from 'node:fs/promises';
+import { resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
 import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
 import { normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
 import { projectSafeToolExecutionResult } from './tool-execution-result-policy.ts';
+import { WEATHER_TOOL_DEFINITION } from './weather-tool.ts';
+import { WEB_TOOL_DEFINITIONS } from './web-tools.ts';
+import { MEMORY_TOOL_DEFINITIONS } from './memory-tools.ts';
 
 export interface ToolAgent {
   readonly id: string;
@@ -22,7 +28,14 @@ export interface ToolRuntimeContext {
   readonly gmailReadAuthenticated?: boolean;
   readonly gmailReadTool?: { readonly execute: (args: unknown) => Promise<unknown> };
   readonly skillsRuntime?: { readonly resolveForAgent: (args: unknown) => unknown };
+  readonly weatherLookup?: (args: unknown, signal?: AbortSignal) => Promise<unknown>;
+  readonly webTools?: Readonly<Partial<Record<'search' | 'readPage' | 'wikipedia' | 'news' | 'rates', (args: unknown, signal?: AbortSignal) => Promise<unknown>>>>;
+  readonly memory?: { readonly save: (args: unknown) => Promise<unknown>; readonly forget: (args: unknown) => Promise<unknown> };
   readonly signal?: AbortSignal;
+  /** Absolute workspace root used by the read-only fs.read tool. */
+  readonly workspaceRoot?: string;
+  readonly ownerId?: string;
+  readonly sessionId?: string;
 }
 
 export type ToolDefinition = Readonly<{
@@ -34,7 +47,7 @@ export type ToolDefinition = Readonly<{
   }>;
 }>;
 
-type ToolKind = 'diagnostic' | 'delegation' | 'connector' | 'repository' | 'skill';
+type ToolKind = 'diagnostic' | 'delegation' | 'connector' | 'repository' | 'skill' | 'web' | 'memory';
 type ToolActivity = Readonly<{ running: string; success: string; failure: string }>;
 
 export interface ToolEntry {
@@ -60,12 +73,14 @@ export interface ToolExecutionFailure {
   readonly reason?: string;
   readonly status?: number;
   readonly durationMs: number;
+  readonly consentRequest?: Readonly<Record<string, unknown>>;
 }
 export type ToolExecutionResult<T = unknown> = ToolExecutionSuccess<T> | ToolExecutionFailure;
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MIN_TIMEOUT_MS = 2_000;
 const MAX_TIMEOUT_MS = 120_000;
+const FS_READ_ENCODINGS = new Set<BufferEncoding>(['utf-8', 'utf8', 'ascii', 'latin1', 'base64', 'hex']);
 
 const definition = (name: string, description: string, properties: Record<string, unknown>): ToolDefinition =>
   Object.freeze({
@@ -100,6 +115,42 @@ function abortedReason(signal: AbortSignal | undefined): 'TOOL_ABORTED' | 'TOOL_
 }
 
 const CATALOG = new Map<string, ToolEntry>([
+  ['fs_read', {
+    permission: 'fs.read',
+    kind: 'repository',
+    timeoutMs: timeout(10_000, 10_000),
+    activity: { running: 'Workspace dosyası okunuyor', success: 'Workspace dosyası okundu', failure: 'Workspace dosyası okunamadı' },
+    definition: definition('fs_read', 'Workspace içindeki bir metin dosyasını güvenli ve salt-okunur okur.', {
+      path: { type: 'string' },
+      encoding: { type: 'string' },
+      maxBytes: { type: 'integer', minimum: 1, maximum: 1048576 }
+    }),
+    execute: async (args, context) => {
+      const path = args.path;
+      const encoding = args.encoding === undefined ? 'utf-8' : args.encoding;
+      const maxBytes = args.maxBytes === undefined ? 1_048_576 : args.maxBytes;
+      if (typeof path !== 'string' || !path.trim()) return { error: 'FS_READ_ERROR', code: 'INVALID_PATH', message: 'path argümanı zorunlu string olmalı' };
+      if (typeof maxBytes !== 'number' || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1_048_576) return { error: 'FS_READ_ERROR', code: 'INVALID_LIMIT', message: 'maxBytes 1 ile 1048576 arasında tam sayı olmalı' };
+      if (typeof encoding !== 'string' || (encoding !== 'utf-8' && encoding !== 'utf8' && encoding !== 'ascii' && encoding !== 'latin1' && encoding !== 'base64' && encoding !== 'hex')) return { error: 'FS_READ_ERROR', code: 'INVALID_ENCODING', message: 'Desteklenmeyen encoding' };
+      const workspaceRoot = context.workspaceRoot || fileURLToPath(new URL('../', import.meta.url));
+      const root = await realpath(resolve(workspaceRoot));
+      const requested = resolve(root, path.trim());
+      if (!requested.startsWith(root + sep) && requested !== root) return { error: 'FS_READ_ERROR', code: 'TRAVERSAL', message: 'Workspace dışına çıkış engellendi' };
+      try {
+        const resolved = await realpath(requested);
+        if (!resolved.startsWith(root + sep) && resolved !== root) return { error: 'FS_READ_ERROR', code: 'TRAVERSAL', message: 'Workspace dışına çıkış engellendi' };
+        const stats = await stat(resolved);
+        if (!stats.isFile()) return { error: 'FS_READ_ERROR', code: 'NOT_A_FILE', message: 'Belirtilen yol bir dosya değil' };
+        if (stats.size > maxBytes) return { error: 'FS_READ_ERROR', code: 'TOO_LARGE', message: `Dosya ${stats.size} bayt, limit ${maxBytes} bayt` };
+        const content = await readFile(resolved, encoding);
+        return { content, size: stats.size, encoding, path: path.trim() };
+      } catch (err) {
+        const error = err as NodeJS.ErrnoException;
+        const code = error.code === 'ENOENT' ? 'NOT_FOUND' : error.code === 'EACCES' ? 'PERMISSION_DENIED' : 'FS_READ_ERROR';
+        return { error: 'FS_READ_ERROR', code, message: error.message || 'Okuma başarısız' };
+      }
+    }
+  }],
   ['runtime_status', {
     permission: 'runtime.status',
     kind: 'diagnostic',
@@ -163,6 +214,48 @@ const CATALOG = new Map<string, ToolEntry>([
     available: (context) => context.gmailReadAuthenticated === true && Boolean(context.gmailReadTool),
     execute: async (args, context) => context.gmailReadTool!.execute(args)
   }],
+  ['weather_forecast', {
+    permission: 'web.weather.read',
+    kind: 'web',
+    timeoutMs: timeout(20_000, 20_000),
+    activity: { running: 'Hava durumu alınıyor', success: 'Hava durumu alındı', failure: 'Hava durumu alınamadı' },
+    definition: WEATHER_TOOL_DEFINITION as ToolDefinition,
+    available: (context) => typeof context.weatherLookup === 'function',
+    execute: async (args, context) => context.weatherLookup!(args, context.signal)
+  }],
+  ...([
+    ['web_search', 'search', 'web.search', 20_000, { running: 'İnternette aranıyor', success: 'İnternette arandı', failure: 'İnternet araması yapılamadı' }],
+    ['web_page_read', 'readPage', 'web.read', 25_000, { running: 'Web sayfası okunuyor', success: 'Web sayfası okundu', failure: 'Web sayfası okunamadı' }],
+    ['wikipedia_lookup', 'wikipedia', 'web.wikipedia.read', 15_000, { running: 'Vikipedi\'ye bakılıyor', success: 'Vikipedi\'ye bakıldı', failure: 'Vikipedi\'ye ulaşılamadı' }],
+    ['news_search', 'news', 'web.news.read', 15_000, { running: 'Haberler alınıyor', success: 'Haberler alındı', failure: 'Haberler alınamadı' }],
+    ['exchange_rates', 'rates', 'web.rates.read', 15_000, { running: 'Döviz kurları alınıyor', success: 'Döviz kurları alındı', failure: 'Döviz kurları alınamadı' }]
+  ] as const).map(([name, method, permission, timeoutMs, activity]): [string, ToolEntry] => [name, {
+    permission,
+    kind: 'web',
+    timeoutMs: timeout(timeoutMs, timeoutMs),
+    activity,
+    definition: WEB_TOOL_DEFINITIONS[name] as ToolDefinition,
+    available: (context) => typeof context.webTools?.[method] === 'function',
+    execute: async (args, context) => context.webTools![method]!(args, context.signal)
+  }]),
+  ['memory_save', {
+    permission: 'memory.write',
+    kind: 'memory',
+    timeoutMs: timeout(5_000, 5_000),
+    activity: { running: 'Hafızaya kaydediliyor', success: 'Hafızaya kaydedildi', failure: 'Hafızaya kaydedilemedi' },
+    definition: MEMORY_TOOL_DEFINITIONS.memory_save as ToolDefinition,
+    available: (context) => typeof context.memory?.save === 'function',
+    execute: async (args, context) => context.memory!.save(args)
+  }],
+  ['memory_forget', {
+    permission: 'memory.write',
+    kind: 'memory',
+    timeoutMs: timeout(5_000, 5_000),
+    activity: { running: 'Hafızadan siliniyor', success: 'Hafızadan silindi', failure: 'Hafızadan silinemedi' },
+    definition: MEMORY_TOOL_DEFINITIONS.memory_forget as ToolDefinition,
+    available: (context) => typeof context.memory?.forget === 'function',
+    execute: async (args, context) => context.memory!.forget(args)
+  }],
   ['skill_invoke', {
     permission: 'skill.invoke',
     kind: 'skill',
@@ -178,6 +271,9 @@ const CATALOG = new Map<string, ToolEntry>([
         agent: context.agent,
         skillId: args.skillId,
         args: args.args,
+        traceId: context.traceId,
+        ownerId: context.ownerId,
+        sessionId: context.sessionId,
         approvalGranted: context.approvalGranted === true
       }) as Record<string, unknown> | null;
       if (!invocation) throw new Error('UNKNOWN_SKILL');
@@ -187,6 +283,13 @@ const CATALOG = new Map<string, ToolEntry>([
         model: invocation.model,
         tools: invocation.tools,
         arguments: invocation.arguments,
+        parameters: invocation.parameters,
+        returns: invocation.returns,
+        requiredScopes: invocation.requiredScopes,
+        sideEffects: invocation.sideEffects,
+        riskLevel: invocation.riskLevel,
+        rollbackHint: invocation.rollbackHint,
+        consentId: invocation.consentId,
         prompt: invocation.prompt
       };
     }
@@ -280,6 +383,9 @@ export async function executeNvidiaToolCall(
       ok: false,
       tool: entry.definition.function.name,
       error: abortError || safe.code,
+      ...(error && typeof error === 'object' && 'consent' in error && error.consent && typeof error.consent === 'object'
+        ? { consentRequest: error.consent as Readonly<Record<string, unknown>> }
+        : {}),
       ...(safe.status !== null ? { status: safe.status } : {}),
       durationMs: Date.now() - startedAt
     };

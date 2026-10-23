@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v55`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v79`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -55,6 +55,8 @@ export const SHELL_ASSETS = Object.freeze([
   "/settings-privacy.css",
   "/typed-build/auth.js",
   "/typed-build/app-shell.js",
+  "/typed-build/chat-history-management.js",
+  "/typed-build/chat-composer-features.js",
   "/typed-build/markdown-renderer.js",
   "/typed-build/conversation-workspace.js",
   "/typed-build/conversation-forks.js",
@@ -77,6 +79,8 @@ export const SHELL_ASSETS = Object.freeze([
   "/typed-build/workspace-backup.js",
   "/typed-build/system-readiness-panel.js",
   "/typed-build/legacy-app.js",
+  "/clean-ui.css",
+  "/composer-focus-guard.js",
   "/manifest.webmanifest",
   "/hafize.jpeg"
 ]);

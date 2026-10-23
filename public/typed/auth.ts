@@ -1,9 +1,11 @@
 interface AuthState { required:boolean; authenticated:boolean; csrf:string; loading:Promise<AuthState>|null; modal:AuthModal|null; }
 interface AuthModal { backdrop:HTMLDivElement; form:HTMLFormElement; input:HTMLInputElement; error:HTMLElement; }
-interface AuthPublicApi { readonly ready:Promise<AuthState>; readonly login:()=>void; readonly state:()=>{readonly required:boolean;readonly authenticated:boolean}; }
-const rawFetch=globalThis.fetch.bind(globalThis);
+type AuthFetch=(input:RequestInfo|URL,init?:RequestInit)=>Promise<Response>;
+interface AuthPublicApi { readonly ready:Promise<AuthState>; readonly login:()=>void; readonly state:()=>{readonly required:boolean;readonly authenticated:boolean}; readonly fetch:AuthFetch; }
+const rawFetch:AuthFetch=globalThis.fetch.bind(globalThis);
 const state:AuthState={required:false,authenticated:false,csrf:'',loading:null,modal:null};
 const AUTH_PATHS=new Set(['/api/auth/session','/api/auth/login','/api/auth/logout']);
+const SESSION_TIMEOUT_MS=5000;
 
 function apiPath(value:RequestInfo|URL):boolean{try{const u=new URL(typeof value==='string'?value:value instanceof URL?value.toString():value.url,location.href);return u.origin===location.origin&&u.pathname.startsWith('/api/');}catch{return false;}}
 function authPath(value:RequestInfo|URL):boolean{try{const u=new URL(typeof value==='string'?value:value instanceof URL?value.toString():value.url,location.href);return AUTH_PATHS.has(u.pathname);}catch{return false;}}
@@ -32,12 +34,14 @@ function openModal():AuthModal{
 const openLogin=()=>{const value=openModal();if(!document.body.contains(value.backdrop))document.body.append(value.backdrop);value.input.focus();};
 async function refresh():Promise<AuthState>{
  if(state.loading)return state.loading;
- state.loading=(async()=>{const response=await rawFetch('/api/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'},cache:'no-store'});if(!response.ok)throw new Error('AUTH_SESSION_FAILED');const payload=await response.json();state.required=Boolean(payload?.required);state.authenticated=Boolean(payload?.authenticated);state.csrf=typeof payload?.csrf==='string'?payload.csrf:'';return state;})();
- try{return await state.loading;}finally{state.loading=null;}
+ const controller=new AbortController();
+ const timeout=globalThis.setTimeout(()=>controller.abort(new DOMException('Session request timeout','TimeoutError')),SESSION_TIMEOUT_MS);
+ const pending=(async()=>{const response=await rawFetch('/api/auth/session',{credentials:'same-origin',headers:{Accept:'application/json'},cache:'no-store',signal:controller.signal});if(!response.ok)throw new Error('AUTH_SESSION_FAILED');const payload=await response.json();state.required=Boolean(payload?.required);state.authenticated=Boolean(payload?.authenticated);state.csrf=typeof payload?.csrf==='string'?payload.csrf:'';return state;})();
+ state.loading=pending;
+ try{return await pending;}finally{globalThis.clearTimeout(timeout);if(state.loading===pending)state.loading=null;}
 }
-async function ensureAuth():Promise<void>{await refresh();if(!state.required||state.authenticated)return;openLogin();while(!state.authenticated){await new Promise<void>(resolve=>globalThis.setTimeout(resolve,200));await refresh();}}
+async function ensureAuth():Promise<void>{try{await refresh();}catch{state.required=false;state.authenticated=false;state.csrf='';return;}if(!state.required||state.authenticated)return;openLogin();while(!state.authenticated){await new Promise<void>(resolve=>globalThis.setTimeout(resolve,200));try{await refresh();}catch{state.required=false;state.authenticated=false;state.csrf='';return;}}}
 async function hafizeFetch(input:RequestInfo|URL,init:RequestInit={}){if(!apiPath(input)||authPath(input))return rawFetch(input,init);await ensureAuth();const next:RequestInit={...init,credentials:'same-origin'};const method=String(init.method||(input instanceof Request?input.method:'GET')).toUpperCase();if(!['GET','HEAD'].includes(method)){const headers=new Headers(next.headers||{});if(state.csrf)headers.set('X-Hafize-CSRF',state.csrf);next.headers=headers;}let response=await rawFetch(input,next);if(response.status!==401)return response;state.authenticated=false;state.csrf='';await ensureAuth();if(!['GET','HEAD'].includes(method)){const headers=new Headers(next.headers||{});if(state.csrf)headers.set('X-Hafize-CSRF',state.csrf);next.headers=headers;}return rawFetch(input,next);}
-globalThis.fetch=hafizeFetch;
-const api:AuthPublicApi=Object.freeze({ready:refresh().catch(()=>state),login:openLogin,state:()=>Object.freeze({required:state.required,authenticated:state.authenticated})});
+const api:AuthPublicApi=Object.freeze({ready:refresh().catch(()=>state),login:openLogin,state:()=>Object.freeze({required:state.required,authenticated:state.authenticated}),fetch:hafizeFetch});
 (globalThis as typeof globalThis & {HafizeAuth?:AuthPublicApi}).HafizeAuth=api;
 export { api as HafizeAuth };
