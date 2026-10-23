@@ -1,6 +1,6 @@
 import { authorizeAgentTool, type AgentDefinition } from './agent-runtime.ts';
 import { realpath, stat, readFile } from 'node:fs/promises';
-import { resolve, sep } from 'node:path';
+import { relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
 import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
@@ -114,6 +114,16 @@ function abortedReason(signal: AbortSignal | undefined): 'TOOL_ABORTED' | 'TOOL_
   return 'TOOL_ABORTED';
 }
 
+// Secrets never enter the agent context (registry policy secretsNeverEnterAgentContext): .env and
+// other dotfiles, key/credential-named files, runtime data (audit log, OAuth stores) and logs.
+const SENSITIVE_SEGMENT = /^(?:\.|node_modules$|data$)/i;
+const SENSITIVE_NAME = /(?:secret|token|credential|password|passwd|private|id_rsa|\.pem$|\.key$|\.p12$|\.pfx$|\.crt$|\.log$|\.jsonl$)/i;
+export function isSensitiveWorkspacePath(relativePath: string): boolean {
+  const segments = relativePath.split(/[\\/]+/).filter(Boolean);
+  if (!segments.length) return true;
+  return segments.some((segment) => SENSITIVE_SEGMENT.test(segment)) || SENSITIVE_NAME.test(segments[segments.length - 1]);
+}
+
 const CATALOG = new Map<string, ToolEntry>([
   ['fs_read', {
     permission: 'fs.read',
@@ -131,7 +141,8 @@ const CATALOG = new Map<string, ToolEntry>([
       const maxBytes = args.maxBytes === undefined ? 1_048_576 : args.maxBytes;
       if (typeof path !== 'string' || !path.trim()) return { error: 'FS_READ_ERROR', code: 'INVALID_PATH', message: 'path argümanı zorunlu string olmalı' };
       if (typeof maxBytes !== 'number' || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 1_048_576) return { error: 'FS_READ_ERROR', code: 'INVALID_LIMIT', message: 'maxBytes 1 ile 1048576 arasında tam sayı olmalı' };
-      if (typeof encoding !== 'string' || (encoding !== 'utf-8' && encoding !== 'utf8' && encoding !== 'ascii' && encoding !== 'latin1' && encoding !== 'base64' && encoding !== 'hex')) return { error: 'FS_READ_ERROR', code: 'INVALID_ENCODING', message: 'Desteklenmeyen encoding' };
+      // Text encodings only: base64/hex output would slip past the credential filter on tool results.
+      if (typeof encoding !== 'string' || (encoding !== 'utf-8' && encoding !== 'utf8')) return { error: 'FS_READ_ERROR', code: 'INVALID_ENCODING', message: 'Yalnızca utf-8 desteklenir' };
       const workspaceRoot = context.workspaceRoot || fileURLToPath(new URL('../', import.meta.url));
       const root = await realpath(resolve(workspaceRoot));
       const requested = resolve(root, path.trim());
@@ -139,6 +150,7 @@ const CATALOG = new Map<string, ToolEntry>([
       try {
         const resolved = await realpath(requested);
         if (!resolved.startsWith(root + sep) && resolved !== root) return { error: 'FS_READ_ERROR', code: 'TRAVERSAL', message: 'Workspace dışına çıkış engellendi' };
+        if (isSensitiveWorkspacePath(relative(root, resolved))) return { error: 'FS_READ_ERROR', code: 'SENSITIVE_PATH', message: 'Bu dosya gizli bilgi içerebileceği için okunamaz' };
         const stats = await stat(resolved);
         if (!stats.isFile()) return { error: 'FS_READ_ERROR', code: 'NOT_A_FILE', message: 'Belirtilen yol bir dosya değil' };
         if (stats.size > maxBytes) return { error: 'FS_READ_ERROR', code: 'TOO_LARGE', message: `Dosya ${stats.size} bayt, limit ${maxBytes} bayt` };

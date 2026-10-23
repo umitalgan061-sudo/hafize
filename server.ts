@@ -68,7 +68,7 @@ const WEB_TOOLS = createWebTools({
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
 const MAX_AGENT_TOOL_ROUNDS = 4;
-const UNTRUSTED_CONTENT_TOOLS = new Set(['web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate']);
+const UNTRUSTED_CONTENT_TOOLS = new Set(['web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read']);
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
 // until restart so the picker stops offering them.
 const UNAVAILABLE_NVIDIA_MODELS = new Set();
