@@ -2,6 +2,10 @@ export interface VoiceOutputController { readonly isSupported:boolean; readonly 
 export const STORAGE_KEY='hafize.voiceOutput.v1';
 /** hands-free.ts pauses its wake-word listener while Hafize speaks, so it never hears itself. */
 export const VOICE_OUTPUT_STATE_EVENT='hafize:voice-output-state';
+/** Per-chunk and per-word progress for voice-visual.ts (charIndex -1 = a new chunk started). */
+export const VOICE_OUTPUT_PROGRESS_EVENT='hafize:voice-output-progress';
+/** Anything (e.g. the visual's stop button) can ask the speech to stop. */
+export const VOICE_OUTPUT_STOP_EVENT='hafize:voice-output-stop';
 const MAX_SPEECH_LENGTH=2400,MAX_CHUNK_LENGTH=240;
 // Errors the browser reports when *we* stopped the speech (new answer, new message, mic); not failures.
 const SELF_INFLICTED_ERRORS=new Set(['interrupted','canceled','cancelled']);
@@ -38,6 +42,9 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
  const voice=()=>{try{return pickTurkishVoice(synth?.getVoices?.());}catch{return null;}};
  const next=(token:number)=>{if(token!==generation)return;if(!enabled||!supported||documentRef.hidden||!queue.length){speaking=false;render();return;}
   const utterance=new Utterance(queue.shift()!);utterance.lang='tr-TR';utterance.rate=1;utterance.pitch=1;const selected=voice();if(selected)utterance.voice=selected;
+  const text=utterance.text;const progress=(charIndex:number,charLength:number)=>{if(token!==generation)return;const Custom=(root as typeof globalThis).CustomEvent;if(typeof Custom!=='function'||typeof documentRef.dispatchEvent!=='function')return;documentRef.dispatchEvent(new Custom(VOICE_OUTPUT_PROGRESS_EVENT,{detail:{source:'voice-output',text,charIndex,charLength}}));};
+  utterance.onstart=()=>progress(-1,0);
+  utterance.onboundary=(event:{name?:string;charIndex?:number;charLength?:number})=>{if(event?.name&&event.name!=='word')return;const index=Number(event?.charIndex);if(!Number.isFinite(index)||index<0)return;const length=Number(event?.charLength)>0?Number(event.charLength):(text.slice(index).match(/^\S+/)?.[0].length||0);progress(index,length);};
   utterance.onend=()=>next(token);
   utterance.onerror=(event:{error?:string})=>{if(token!==generation)return;if(SELF_INFLICTED_ERRORS.has(String(event?.error||'')))return;queue=[];speaking=false;render();announce('Sesli yanıt tamamlanamadı.');};
   speaking=true;thinking=false;render();
@@ -51,12 +58,13 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
  const onToggle=()=>{const on=setEnabled(!enabled);if(supported)announce(on?'Sesli yanıt açık: Hafize yanıtlarını sesli okuyacak.':'Sesli yanıt kapatıldı.');};
  const onSubmit=()=>cancel(),onVisibility=()=>{if(documentRef.hidden)cancel();};
  const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'&&speaking){cancel();}};
- for(const toggle of toggles)toggle.addEventListener('click',onToggle);composer?.addEventListener('submit',onSubmit,true);documentRef.addEventListener('visibilitychange',onVisibility);documentRef.addEventListener('keydown',onKey);
+ const onStop=()=>{if(speaking)cancel();};
+ for(const toggle of toggles)toggle.addEventListener('click',onToggle);composer?.addEventListener('submit',onSubmit,true);documentRef.addEventListener('visibilitychange',onVisibility);documentRef.addEventListener('keydown',onKey);documentRef.addEventListener(VOICE_OUTPUT_STOP_EVENT,onStop);
  const Observer=root.MutationObserver;const micObserver=mic&&Observer?new Observer(()=>{if(mic.getAttribute('aria-pressed')==='true')cancel();}):null;micObserver?.observe(mic!,{attributes:true,attributeFilter:['aria-pressed']});
  const streamObserver=input&&Observer?new Observer(sync):null;streamObserver?.observe(input!,{attributes:true,attributeFilter:['disabled']});render();
- return Object.freeze({isSupported:supported,isEnabled:()=>enabled,isSpeaking:()=>speaking,setEnabled,speak,cancel,syncStreamState:sync,destroy(){cancel();micObserver?.disconnect();streamObserver?.disconnect();synth?.removeEventListener?.('voiceschanged',onVoicesChanged);if(toastTimer)clearTimeout(toastTimer);for(const toggle of toggles)toggle.removeEventListener('click',onToggle);composer?.removeEventListener('submit',onSubmit,true);documentRef.removeEventListener('visibilitychange',onVisibility);documentRef.removeEventListener('keydown',onKey);}});
+ return Object.freeze({isSupported:supported,isEnabled:()=>enabled,isSpeaking:()=>speaking,setEnabled,speak,cancel,syncStreamState:sync,destroy(){cancel();micObserver?.disconnect();streamObserver?.disconnect();synth?.removeEventListener?.('voiceschanged',onVoicesChanged);if(toastTimer)clearTimeout(toastTimer);for(const toggle of toggles)toggle.removeEventListener('click',onToggle);composer?.removeEventListener('submit',onSubmit,true);documentRef.removeEventListener('visibilitychange',onVisibility);documentRef.removeEventListener('keydown',onKey);documentRef.removeEventListener(VOICE_OUTPUT_STOP_EVENT,onStop);}});
 }
-const api=Object.freeze({STORAGE_KEY,VOICE_OUTPUT_STATE_EVENT,normalizeSpeechText,splitSpeechText,pickTurkishVoice,installVoiceOutput});
+const api=Object.freeze({STORAGE_KEY,VOICE_OUTPUT_STATE_EVENT,VOICE_OUTPUT_PROGRESS_EVENT,VOICE_OUTPUT_STOP_EVENT,normalizeSpeechText,splitSpeechText,pickTurkishVoice,installVoiceOutput});
 (globalThis as typeof globalThis & {HafizeVoiceOutput?:unknown}).HafizeVoiceOutput=api;
 const start=()=>installVoiceOutput(document,globalThis);
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();}

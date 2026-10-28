@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v86`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v87`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -79,6 +79,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/typed-build/scheduled-tasks-countdown.js",
   "/typed-build/voice-input.js",
   "/typed-build/voice-output.js",
+  "/typed-build/voice-visual.js",
   "/typed-build/hands-free.js",
   "/typed-build/hands-free-background-guard.js",
   "/typed-build/ui-shell.js",

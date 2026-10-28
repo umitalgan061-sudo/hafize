@@ -21,6 +21,7 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/prompt-library.js', '/typed/prompt-library.ts')
       .replaceAll('/typed-build/scheduled-tasks.js', '/typed/scheduled-tasks.ts')
       .replaceAll('/typed-build/voice-output.js', '/typed/voice-output.ts')
+      .replaceAll('/typed-build/voice-visual.js', '/typed/voice-visual.ts')
       .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
       .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
       .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
@@ -79,6 +80,7 @@ export default defineConfig({
         'ui-shell': resolve(ROOT, 'public/typed/ui-shell.ts'),
         'voice-input': resolve(ROOT, 'public/typed/voice-input.ts'),
         'voice-output': resolve(ROOT, 'public/typed/voice-output.ts'),
+        'voice-visual': resolve(ROOT, 'public/typed/voice-visual.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),
