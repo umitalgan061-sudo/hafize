@@ -25,10 +25,21 @@
     "typecheck:syntax": "tsc --noEmit --noCheck",
     "test:modernization": "node scripts/test-runtime-modernization.ts",
     "test:modern:gate": "vitest run lib/runtime-metrics.test.ts lib/upstream-circuit-breaker.test.ts lib/rate-limit.test.ts",
-    "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs"
+    "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs",
+    "eval": "node --use-system-ca --env-file-if-exists=.env scripts/eval.mjs run",
+    "eval:redteam": "node --use-system-ca --env-file-if-exists=.env scripts/eval.mjs run --suite redteam",
+    "skill": "node scripts/hafize-skill.mjs"
   },
   "dependencies": {
-    "redis": "^6.1.0"
+    "@viz-js/viz": "3.31.0",
+    "katex": "0.18.10",
+    "mermaid": "12.2.0",
+    "pdfjs-dist": "6.4.299",
+    "redis": "^6.1.0",
+    "vega": "6.4.0",
+    "vega-embed": "7.3.0",
+    "vega-interpreter": "2.3.2",
+    "vega-lite": "6.5.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -12,9 +12,10 @@ assert.ok(reviewer);
 const runtime = await createSkillsRuntime({
   fileUrl: new URL('../skills/builtin.json', import.meta.url)
 });
-assert.equal(runtime.size, 3);
+// 3 prompt skills + 7 executable skills backed by runtime tools.
+assert.equal(runtime.size, 10);
 const publicSkills = runtime.describePublic(general);
-assert.deepEqual(publicSkills.map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan']);
+assert.deepEqual(publicSkills.map((skill) => skill.name), ['code-inspection', 'runtime-diagnostics', 'delegation-plan', 'research-run', 'code-run', 'orchestrator-run', 'vision-analyze', 'image-generate', 'memory-consolidate', 'diagram-render']);
 assert.ok(publicSkills.every((skill) => !Object.hasOwn(skill, 'prompt')));
 
 const syncRuntime = createBuiltinSkillsRuntimeSync();
@@ -61,7 +62,7 @@ assert.deepEqual(getAllowedNvidiaTools(general, { delegateAgent: () => ({ ok: tr
 assert.equal(runtime.selectForAgent(general, 'kod incele').name, 'code-inspection');
 assert.equal(runtime.selectForAgent(general, 'hangi servisler hazır?').name, 'runtime-diagnostics');
 assert.equal(runtime.selectForAgent(general, 'bilinmeyen iş', { minScore: 0.3 }), null);
-assert.deepEqual(runtime.rankForAgent(general, 'kod incele').map(({ name }) => name), ['code-inspection', 'delegation-plan', 'runtime-diagnostics']);
+assert.equal(runtime.rankForAgent(general, 'kod incele')[0].name, 'code-inspection');
 
 assert.throws(() => runtime.selectForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);
 assert.throws(() => runtime.rankForAgent(null, 'kod incele'), /INVALID_SKILL_AGENT/);

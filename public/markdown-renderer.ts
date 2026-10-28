@@ -42,6 +42,7 @@
   const CODE_LANGUAGE_PATTERN = /^[A-Za-z0-9+#._-]{1,24}$/;
   const ESCAPABLE_PATTERN = /[\\`*_{}[\]()#+\-.!|~<>"']/;
   const WORD_CHARACTER_PATTERN = /[\p{L}\p{N}]/u;
+  const INTERNAL_IMAGE_PATTERN = /^\/api\/images\/img_[a-f0-9]{20}$/;
   const BARE_URL_PATTERN = /^https?:\/\/[^\s<>`]+/i;
   const AUTOLINK_PATTERN = /^<((?:https?|mailto):[^\s<>]{1,2048})>/i;
 
@@ -273,6 +274,21 @@
 
       const character = source[index];
 
+      // Math stays literal text ($$…$$, \(…\), \[…\]) so rich-content can typeset it: no
+      // emphasis inside formulas and no backslash escapes eaten.
+      if ((character === '$' && source[index + 1] === '$') || (character === '\\' && (source[index + 1] === '(' || source[index + 1] === '['))) {
+        const closer = character === '$' ? '$$' : source[index + 1] === '(' ? '\\)' : '\\]';
+        const close = source.indexOf(closer, index + 2);
+        const body = source.slice(index + 2, close);
+        // \[text\](url) is an escaped link label, not display math.
+        const looksLikeMath = character === '$' || (/[\\^_=+*/<>{}0-9]/.test(body) && source[close + 2] !== '(');
+        if (close > index + 2 && close - index <= 4000 && looksLikeMath && !body.includes('\n\n')) {
+          buffer += source.slice(index, close + 2);
+          index = close + 2;
+          continue;
+        }
+      }
+
       if (character === '\\' && ESCAPABLE_PATTERN.test(source[index + 1] ?? '')) {
         buffer += source[index + 1];
         index += 2;
@@ -315,6 +331,13 @@
         const labelStart = image ? index + 1 : index;
         const labelEnd = findLinkLabelEnd(source, labelStart);
         const target = labelEnd > 0 ? parseLinkTarget(source, labelEnd + 1) : null;
+        // Images Hafize itself stored (generated, uploaded, rendered diagrams) are same-origin and
+        // owner-checked, so they are shown inline; every other image stays a link.
+        if (image && target && INTERNAL_IMAGE_PATTERN.test(target.destination)) {
+          push({ type: 'image', src: target.destination, alt: source.slice(labelStart + 1, labelEnd).slice(0, 300) });
+          index = target.end;
+          continue;
+        }
         const href = target ? safeUrl(target.destination) : '';
         if (href) {
           const label = source.slice(labelStart + 1, labelEnd);
@@ -774,6 +797,21 @@
         const code = element(doc, 'code', 'md-inline-code');
         code.textContent = node.value;
         parent.appendChild(code);
+        continue;
+      }
+      if (node.type === 'image') {
+        if (!INTERNAL_IMAGE_PATTERN.test(node.src)) continue;
+        const frame = element(doc, 'a', 'md-image-link');
+        frame.setAttribute('href', node.src);
+        frame.setAttribute('target', '_blank');
+        frame.setAttribute('rel', 'noopener');
+        const img = element(doc, 'img', 'md-image');
+        img.setAttribute('src', node.src);
+        img.setAttribute('alt', node.alt || 'Görsel');
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('decoding', 'async');
+        frame.appendChild(img);
+        parent.appendChild(frame);
         continue;
       }
       if (node.type === 'link') {

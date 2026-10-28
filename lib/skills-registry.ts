@@ -29,6 +29,21 @@ function normalizeProjectId(value, allowedProjects) {
 
 function normalizeArguments(skill, input = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('INVALID_SKILL_ARGUMENTS_INPUT');
+  // Typed skills declare a JSON-Schema `parameters` block instead of string arguments; their values
+  // keep their types and are checked against the schema by the caller (assertSkillParameters).
+  if (!skill.manifest.arguments.length && Object.keys(skill.manifest.parameters?.properties || {}).length) {
+    let encoded;
+    try { encoded = JSON.stringify(input); } catch { fail('INVALID_SKILL_ARGUMENTS_INPUT'); }
+    if (encoded.length > MAX_ARGUMENT_LENGTH * 5) fail('INVALID_SKILL_ARGUMENT_VALUE');
+    const strings = [];
+    (function collect(value) {
+      if (typeof value === 'string') strings.push(value);
+      else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+    })(input);
+    if (strings.some((value) => value.includes('\0'))) fail('INVALID_SKILL_ARGUMENT_VALUE');
+    if (strings.some((value) => containsSecretMaterial(value))) fail('SKILL_ARGUMENT_SECRET_MATERIAL');
+    return Object.freeze(JSON.parse(encoded));
+  }
   const declared = new Set(skill.manifest.arguments.map((argument) => argument.name));
   for (const field of Object.keys(input)) if (!declared.has(field)) fail(`UNKNOWN_SKILL_ARGUMENT:${field}`);
 
@@ -128,7 +143,7 @@ export function createSkillsRegistry({ allowedProjects = [] } = {}) {
     return Object.freeze(visible);
   }
 
-  function resolveInvocation({ agent, name, args, approvalGranted = false, consentGranted = false, approvedScopes = [], intersectTools = false } = {}) {
+  function resolveInvocation({ agent, name, args, approvalGranted = false, approvedScopes = [], intersectTools = false } = {}) {
     if (!agent || typeof agent !== 'object') fail('INVALID_SKILL_AGENT');
     const skill = get(name);
     if (!skill) fail('UNKNOWN_SKILL');
@@ -138,7 +153,6 @@ export function createSkillsRegistry({ allowedProjects = [] } = {}) {
     const approved = new Set(Array.isArray(approvedScopes) ? approvedScopes : []);
     const { granted, approvalPending } = classifyTools(agent, skill.manifest.allowedTools, skill.manifest.requiredScopes, approvalGranted === true, approved, intersectTools === true);
     if (approvalPending.length) fail(`SKILL_APPROVAL_REQUIRED:${approvalPending[0]}`);
-    if ((skill.manifest.riskLevel !== 'low' || skill.manifest.sideEffects.mutates) && consentGranted !== true) fail('SKILL_CONSENT_REQUIRED');
 
     return Object.freeze({
       name: skill.manifest.name,
@@ -151,6 +165,8 @@ export function createSkillsRegistry({ allowedProjects = [] } = {}) {
       sideEffects: skill.manifest.sideEffects,
       riskLevel: skill.manifest.riskLevel,
       rollbackHint: skill.manifest.rollbackHint,
+      handler: skill.manifest.handler ?? null,
+      compensate: skill.manifest.compensate ?? null,
       model: skill.manifest.model,
       tools: granted,
       arguments: values,
@@ -158,7 +174,15 @@ export function createSkillsRegistry({ allowedProjects = [] } = {}) {
     });
   }
 
-  return Object.freeze({ register, get, listForAgent, resolveInvocation, get size() { return skills.size; } });
+  // Updated user/project skills replace their old version; builtin skills cannot be removed.
+  function unregister(name) {
+    const entry = get(name);
+    if (!entry || entry.source === 'builtin') return false;
+    skills.delete(entry.manifest.name);
+    return true;
+  }
+
+  return Object.freeze({ register, unregister, get, listForAgent, resolveInvocation, get size() { return skills.size; } });
 }
 
 export const SKILL_SOURCE_PRIORITY = SOURCE_RANK;

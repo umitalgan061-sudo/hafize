@@ -137,6 +137,96 @@ export class HafizeApiClient {
   agents(signal?: AbortSignal): Promise<AgentsResponse> {
     return this.request('/api/agents', { signal, timeoutMs: 8000, retry: 1 }).then(parseAgents);
   }
+
+  private send<T = unknown>(path: string, method: string, body?: unknown, timeoutMs = 15_000): Promise<T> {
+    return this.request<T>(path, {
+      method,
+      ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+      timeoutMs,
+      retry: method === 'GET' ? 1 : 0
+    });
+  }
+
+  resolveApproval(id: string, approved: boolean, mode = 'once'): Promise<unknown> {
+    return this.send(`/api/approvals/${encodeURIComponent(id)}`, 'POST', { approved, mode });
+  }
+
+  undoAction(id: string): Promise<{ undone?: boolean; summary?: string }> {
+    return this.send(`/api/actions/${encodeURIComponent(id)}/undo`, 'POST', {});
+  }
+
+  listActions(): Promise<{ actions?: Array<Record<string, unknown>> }> {
+    return this.send('/api/actions?limit=30', 'GET');
+  }
+
+  uploadImage(data: string, name: string): Promise<{ id: string; url: string; mime: string }> {
+    return this.send('/api/uploads/image', 'POST', { data, name }, 60_000);
+  }
+
+  /** Uploads a text/code document; only the returned reference reaches the composer. */
+  uploadDocument(content: string, name: string, mime: string): Promise<{ id: string; url: string; name: string; size: number }> {
+    return this.send('/api/uploads/document', 'POST', { content, name, mime }, 60_000);
+  }
+
+  listDocuments(): Promise<{ documents?: Array<Record<string, unknown>> }> {
+    return this.send('/api/documents', 'GET');
+  }
+
+  deleteDocument(id: string): Promise<{ removed?: boolean }> {
+    return this.send(`/api/documents/${encodeURIComponent(id)}`, 'DELETE');
+  }
+
+  sendFeedback(feedback: { messageId: string; rating: string; traceId?: string; variant?: string }): Promise<unknown> {
+    return this.send('/api/feedback', 'POST', feedback);
+  }
+
+  memoryList(kind = ''): Promise<{ records?: Array<Record<string, unknown>> }> {
+    return this.send(`/api/memory?limit=500${kind ? `&kind=${encodeURIComponent(kind)}` : ''}`, 'GET');
+  }
+
+  memoryAdd(content: string, kind = 'semantic', id?: string): Promise<{ record?: Record<string, unknown> }> {
+    return this.send('/api/memory', 'POST', { content, kind, ...(id ? { id } : {}) });
+  }
+
+  memoryDelete(id: string): Promise<unknown> {
+    return this.send(`/api/memory/${encodeURIComponent(id)}`, 'DELETE');
+  }
+
+  memoryPurge(): Promise<unknown> {
+    return this.send('/api/memory?confirm=all', 'DELETE');
+  }
+
+  memoryImportNotes(notes: ReadonlyArray<{ id: string; text: string }>): Promise<{ imported?: number }> {
+    return this.send('/api/memory/import', 'POST', { notes });
+  }
+
+  memoryExport(): Promise<string> {
+    return this.fetchImpl(this.buildUrlPublic('/api/memory/export'), { headers: { Accept: 'application/x-ndjson' } }).then((response) => {
+      if (!response.ok) throw new HafizeApiError('Hafıza dışa aktarılamadı.', { code: 'MEMORY_EXPORT_FAILED', status: response.status });
+      return response.text();
+    });
+  }
+
+  platform<T = Record<string, unknown>>(path: string, method = 'GET', body?: unknown): Promise<T> {
+    if (!/^\/api\/(capabilities|observability|experts|orchestrator|backup|actions|skills\/(catalog|updates)|prompts|images)(\/|\?|$)/.test(path)) return Promise.reject(new HafizeApiError('Geçersiz istek.', { code: 'INVALID_PLATFORM_PATH' }));
+    return this.send<T>(path, method, body, method === 'GET' ? 15_000 : 120_000);
+  }
+
+  private buildUrlPublic(path: string): string {
+    return `${this.baseUrl}${path}`;
+  }
+
+  // A consent grant is a write, so it is never retried.
+  grantSkillConsent(grant: { skillId: string; scopes: string[]; mode: string; argsHash?: string }, signal?: AbortSignal): Promise<unknown> {
+    return this.request('/api/skills/consent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(grant),
+      signal,
+      timeoutMs: 8000,
+      retry: 0
+    });
+  }
 }
 
 export const hafizeApi = new HafizeApiClient();

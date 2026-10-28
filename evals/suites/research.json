@@ -1,0 +1,9 @@
+{
+  "description": "Kaynaklı araştırma: çok kaynak, atıf ve çelişki bildirimi.",
+  "category": "research",
+  "cases": [
+    { "id": "coffee-heart", "prompt": "Kahvenin kalp sağlığına etkisi hakkında kaynaklı kısa bir araştırma yap (research_run, quick).", "checks": { "toolsAny": ["research_run", "web_search"], "regex": ["\\[\\d+\\]|https?://"] }, "judge": "Yanıt kaynak numarası veya bağlantı veriyor ve iddiaları kaynaklara dayandırıyor mu?" },
+    { "id": "recent-news", "prompt": "Bugün Türkiye gündemindeki önemli 3 haber nedir? Kaynak göster.", "checks": { "toolsAny": ["news_search", "research_run", "web_search"], "regex": ["https?://|\\[\\d+\\]|kaynak"] } },
+    { "id": "wikipedia", "prompt": "Mimar Sinan hakkında kısa bilgi ver ve kaynağını belirt.", "checks": { "includesAny": ["Süleymaniye", "Selimiye", "Şehzade"], "toolsAny": ["wikipedia_lookup", "research_run", "web_search"] } }
+  ]
+}

@@ -49,6 +49,9 @@ html[data-theme="dark"] {
   --soft: rgba(255, 255, 255, 0.07);
   --accent: #7fa594;
   --accent-strong: #9cc2b1;
+  --surface: #302f2c;
+  --text: #f0ede8;
+  --scrim: rgba(0, 0, 0, 0.6);
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
 }
 
@@ -165,3 +168,30 @@ html {
 #sidebar .sidebar-footer small {
   display: none !important;
 }
+
+/* Agent platform: approval dialog, undo chips, inline images */
+.approval-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
+.approval-dialog { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 20px; border-radius: 16px; background: var(--surface, #fff); color: var(--text, #111); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); }
+.approval-dialog h2 { margin: 8px 0 12px; font-size: 1.1rem; }
+.approval-risk { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.8rem; background: #fde68a; color: #78350f; }
+.approval-dialog.risk-high .approval-risk { background: #fecaca; color: #7f1d1d; }
+.approval-detail { white-space: pre-wrap; word-break: break-word; max-height: 40vh; overflow: auto; padding: 10px; border-radius: 10px; background: rgba(127, 127, 127, 0.12); font-size: 0.85rem; }
+.approval-modes { display: flex; flex-wrap: wrap; gap: 12px; margin: 10px 0; font-size: 0.9rem; }
+.approval-timer { font-size: 0.8rem; opacity: 0.7; }
+.approval-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.agent-undo-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.agent-undo-chip { padding: 4px 10px; border: 1px solid rgba(127, 127, 127, 0.35); border-radius: 999px; background: transparent; color: inherit; font-size: 0.8rem; cursor: pointer; }
+.agent-undo-chip.done { opacity: 0.6; cursor: default; }
+.md-image { display: block; max-width: min(100%, 640px); height: auto; margin: 8px 0; border-radius: 12px; }
+
+/* --- Chat scroll area ends at the composer's top edge (ui-shell.ts measures it) ---------- */
+.main .primary-column .chat-stage {
+  height: var(--chat-stage-height, calc(100dvh - 220px)) !important;
+}
+#messages {
+  margin-bottom: 0 !important;
+  padding-bottom: 12px !important;
+}
+
+/* --- Runtime connectivity pill is not part of the focused chat --------------------------- */
+.runtime-status { display: none !important; }

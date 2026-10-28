@@ -31,6 +31,7 @@ import { createScheduleHttpApi } from './lib/schedule-http-api.ts';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.ts';
 import { createScheduleWorker } from './lib/schedule-worker.ts';
+import { createRuleEngine } from './lib/rule-engine.ts';
 import { createScheduledAgentExecutor } from './lib/scheduled-agent-executor.ts';
 import { normalizeNvidiaChatCompletion } from './lib/model-response-contract.ts';
 import { deliverRequestFailure } from './lib/request-failure.ts';
@@ -53,6 +54,7 @@ import { createRuntimeMetrics } from './lib/runtime-metrics.ts';
 import { createRateLimiter } from './lib/rate-limit.ts';
 import { createUpstreamCircuitBreaker, UpstreamCircuitOpenError } from './lib/upstream-circuit-breaker.ts';
 import { createModelProviderRuntime } from './lib/model-provider-runtime.ts';
+import { createHafizePlatform } from './lib/hafize-platform.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -68,7 +70,8 @@ const WEB_TOOLS = createWebTools({
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
 const MAX_AGENT_TOOL_ROUNDS = 4;
-const UNTRUSTED_CONTENT_TOOLS = new Set(['web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read']);
+const UNTRUSTED_CONTENT_TOOLS = new Set(['web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
+const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
 // until restart so the picker stops offering them.
 const UNAVAILABLE_NVIDIA_MODELS = new Set();
@@ -87,6 +90,8 @@ const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
 const REQUEST_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_REQUEST_TIMEOUT_MS, 180_000, 30_000, 600_000);
+// Agent runs may research, orchestrate several steps and wait for the user's approval.
+const AGENT_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_AGENT_TIMEOUT_MS, 900_000, 60_000, 1_800_000);
 
 function hasMetricsAuthorization(req) {
   const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
@@ -121,8 +126,37 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   allowedRepositories: GITHUB_WRITE_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
+// Chat bodies carry long pasted texts and inlined file contents (the composer has no length cap).
+const CHAT_BODY_BYTES = 2 * 1024 * 1024;
 const AGENT_REGISTRY = await loadAgentRegistry();
 const SKILLS_RUNTIME = createBuiltinSkillsRuntimeSync();
+// Memory backend, research, orchestrator, experts, sandbox, media, local tools, backup, telemetry.
+const PLATFORM = createHafizePlatform({
+  root: ROOT,
+  env: process.env,
+  apiKey: NVIDIA_API_KEY,
+  nimBaseUrl: NIM_BASE_URL,
+  chat: (payload, signal) => nvidiaJsonCompletion(payload, signal),
+  webTools: WEB_TOOLS,
+  registry: AGENT_REGISTRY,
+  skillsRuntime: SKILLS_RUNTIME,
+  executeTool: executeNvidiaToolCall,
+  allowedTools: getAllowedNvidiaTools,
+  // A rule only decides *when* the owner's agent runs. The task itself is queued through the
+  // same schedule store the worker drains, so permissions stay the user's own.
+  // The store is created after the platform, so it is resolved lazily on first use.
+  scheduleRuleTask: async ({ ownerId, agentId, task }) => {
+    const agent = AGENT_REGISTRY.agents.find((item) => item.id === agentId) || AGENT_REGISTRY.agents.find((item) => item.id === AGENT_REGISTRY.defaultAgent);
+    if (!agent) throw new Error('RULE_AGENT_NOT_FOUND');
+    await TASK_SCHEDULE_STORE.add({
+      ownerId,
+      traceId: randomUUID(),
+      agentId: agent.id,
+      task,
+      runAt: new Date().toISOString()
+    });
+  }
+});
 const RUNTIME_METRICS = createRuntimeMetrics();
 const CANVA_AGENT_RUNTIME = createCanvaAgentRuntime();
 const GMAIL_AGENT_RUNTIME = createGmailAgentRuntime();
@@ -167,6 +201,12 @@ function acquireRateLimit(limiter, req, res) {
 const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
+  ['.mjs', 'text/javascript; charset=utf-8'],
+  ['.woff2', 'font/woff2'],
+  ['.woff', 'font/woff'],
+  ['.ttf', 'font/ttf'],
+  ['.webp', 'image/webp'],
+  ['.gif', 'image/gif'],
   ['.css', 'text/css; charset=utf-8'],
   ['.json', 'application/json; charset=utf-8'],
   ['.webmanifest', 'application/manifest+json; charset=utf-8'],
@@ -345,6 +385,8 @@ const SCHEDULE_WORKER = createScheduleWorker({
 });
 let scheduleTickPromise = null;
 let scheduleWorkerTimer = null;
+let ruleEngineTimer = null;
+const RULE_TICK_MS = 60_000;
 
 async function runScheduleTick() {
   if (scheduleTickPromise) return scheduleTickPromise;
@@ -368,6 +410,19 @@ function startScheduleWorkerLoop() {
   scheduleWorkerTimer.unref?.();
 }
 
+function startRuleEngineLoop() {
+  if (ruleEngineTimer) return;
+  ruleEngineTimer = setInterval(() => {
+    void PLATFORM.ruleEngine.tick().catch(() => {});
+  }, RULE_TICK_MS);
+  ruleEngineTimer.unref?.();
+}
+
+function stopRuleEngineLoop() {
+  if (!ruleEngineTimer) return;
+  clearInterval(ruleEngineTimer);
+  ruleEngineTimer = null;
+}
 function stopScheduleWorkerLoop() {
   if (!scheduleWorkerTimer) return;
   clearInterval(scheduleWorkerTimer);
@@ -375,6 +430,7 @@ function stopScheduleWorkerLoop() {
 }
 
 startScheduleWorkerLoop();
+startRuleEngineLoop();
 
 async function handleModels(res, url) {
   if ((url.searchParams.get('provider') || 'nvidia') === 'local') {
@@ -597,7 +653,7 @@ async function handleGitHubWorkspace(url, res) {
 }
 
 async function handleAgentRun(req, res) {
-  const body = await readJson(req);
+  const body = await readJson(req, CHAT_BODY_BYTES);
   const streamResponse = requestJsonAcceptsSse(req);
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const messages = normalizeClientMessages(body.messages);
@@ -613,16 +669,39 @@ async function handleAgentRun(req, res) {
   };
   const traceId = createTraceId();
   const runLedger = createAgentRunLedger({ traceId, agentId: agent.id });
-  const memorySession = createMemorySession(normalizeClientMemory(body.memory));
   res.setHeader('X-Hafize-Trace-Id', traceId);
-  const requestAbort = attachDisconnectAbort(req, REQUEST_TIMEOUT_MS);
+  const requestAbort = attachDisconnectAbort(req, AGENT_TIMEOUT_MS);
+  const principal = req.__hafizePrincipal || null;
+  const ownerId = principal?.ownerId || '';
+  const conversationId = typeof body.conversationId === 'string' && CONVERSATION_ID_PATTERN.test(body.conversationId) ? body.conversationId : '';
+  const emitEvent = streamResponse ? (type, payload) => { startSse(res); writeSseEvent(res, type, payload); } : null;
+  const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
+  const agentSpan = PLATFORM.telemetry.startSpan('agent.run', { traceId, attributes: { 'agent.id': agent.id, model, streaming: Boolean(streamResponse) } });
+  const lastUserIndex = messages.map((message) => message.role).lastIndexOf('user');
+  const lastUserText = lastUserIndex >= 0 ? messages[lastUserIndex].content : '';
+  const memoryPrep = await PLATFORM.prepareMemory(ownerId, normalizeClientMemory(body.memory), lastUserText);
+  const memorySession = createMemorySession(memoryPrep.notes, { persist: runContext.persistence });
+  // Images attached to the message are described by the vision model and handed to the main model as text.
+  const attachment = await PLATFORM.analyzeAttachments(ownerId, lastUserText, traceId, requestAbort.signal);
+  if (attachment.untrusted) memorySession.markUntrustedContent();
+  const attachmentText = attachment.text;
+  const modelMessages = attachmentText ? messages.map((message, index) => (index === lastUserIndex ? { ...message, content: message.content + attachmentText } : message)) : messages;
+  const promptVariant = PLATFORM.prompts.assign('assistant.style', conversationId || traceId);
+  if (promptVariant) res.setHeader('X-Hafize-Prompt-Variant', promptVariant.variant);
+  agentSpan.setAttribute('prompt.variant', promptVariant?.variant || 'none');
+  PLATFORM.recordTurn(ownerId, conversationId, 'user', lastUserText);
   const preparedConversation = await prepareConversation(
-    [buildAgentSystemMessage(agent, traceId, { tools: true, memory: memorySession.notes }), ...messages],
+    [buildAgentSystemMessage(agent, traceId, { tools: true, memory: memorySession.notes, recall: memoryPrep.recall, experts: PLATFORM.experts.promptCatalog(), addendum: promptVariant?.text || '' }), ...modelMessages],
     model,
     requestAbort.signal,
     res
   );
   const conversation = preparedConversation.messages;
+  // Context headers are set; the stream can start now.
+  if (emitEvent) {
+    emitEvent('hafize-run-meta', { traceId, variant: promptVariant?.variant || '' });
+    if (ownerId) emitEvent('hafize-memory-sync', { notes: memoryPrep.semantic });
+  }
   const contextMeta = preparedConversation.meta;
 
   const delegator = createAgentDelegator({
@@ -638,9 +717,13 @@ async function handleAgentRun(req, res) {
       parentTaskId: delegatedParentTaskId,
       signal
     }) {
-      return runDelegatedAgent({
-        agent: delegatedAgent,
-        task,
+      // Experts run with their own tools (web, research, sandbox, media) for up to three rounds;
+      // quota, output schema and the delegation audit are enforced around the run.
+      return PLATFORM.wrapDelegation(traceId, ({ agent: expert, task: expertTask, repair }) => runDelegatedAgent({
+        agent: expert,
+        task: repair ? `${expertTask}\n\n${repair}` : expertTask,
+        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry },
+        maxRounds: 3,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
         registry: AGENT_REGISTRY,
@@ -654,7 +737,7 @@ async function handleAgentRun(req, res) {
         sessionId: req.__hafizePrincipal?.sessionId,
         signal,
         complete: (payload, delegatedSignal) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal)
-      });
+      }))({ agent: delegatedAgent, task });
     }
   });
 
@@ -670,7 +753,8 @@ async function handleAgentRun(req, res) {
     skillsRuntime: SKILLS_RUNTIME,
     weatherLookup: WEATHER_LOOKUP,
     webTools: WEB_TOOLS,
-    memory: memorySession
+    memory: memorySession,
+    ...runContext.contextExtras
   });
   const toolContext = {
     traceId,
@@ -689,7 +773,8 @@ async function handleAgentRun(req, res) {
     skillsRuntime: SKILLS_RUNTIME,
     weatherLookup: WEATHER_LOOKUP,
     webTools: WEB_TOOLS,
-    memory: memorySession
+    memory: memorySession,
+    ...runContext.contextExtras
   };
   // Several rounds let the model chain tools (search, then read a result). A round without
   // tool calls is the answer; an empty answer or an exhausted budget falls through to one
@@ -704,19 +789,23 @@ async function handleAgentRun(req, res) {
   // and tool calls are reassembled from the stream. JSON clients keep the buffered path.
   // Text-written tool calls (`<tool_call>...`) are never shown; they are executed instead.
   let streamedAnswer = false;
+  let answerText = '';
   const writeAnswerDelta = (delta) => {
+    answerText += delta;
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`);
   };
   async function runRound(payload) {
     if (!streamResponse) {
-      const completion = normalizeRootCompletion(await nvidiaJsonCompletion(payload, requestAbort.signal));
+      const raw = await nvidiaJsonCompletion(payload, requestAbort.signal);
+      PLATFORM.telemetry.recordCompletionUsage(traceId, 'agent.round', model, raw);
+      const completion = normalizeRootCompletion(raw);
       return { content: completion.content, toolCalls: completion.toolCalls, wrote: false };
     }
     const upstream = await nvidiaFetch('/chat/completions', {
       method: 'POST',
       signal: requestAbort.signal,
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-      body: JSON.stringify({ ...payload, stream: true })
+      body: JSON.stringify({ ...payload, stream: true, stream_options: { include_usage: true } })
     });
     if (!upstream.ok || !upstream.body) {
       const detail = await upstream.text();
@@ -736,6 +825,7 @@ async function handleAgentRun(req, res) {
     });
     const round = await readNvidiaStream(upstream.body, (delta) => gate.push(delta));
     gate.flush();
+    if (round.usage) PLATFORM.telemetry.recordUsage({ traceId, model, purpose: 'agent.round', promptTokens: Number(round.usage.prompt_tokens), completionTokens: Number(round.usage.completion_tokens) });
     if (round.error) {
       const error = new Error('NVIDIA_CHAT_ERROR');
       error.status = 502;
@@ -744,11 +834,14 @@ async function handleAgentRun(req, res) {
     return { content: round.content, toolCalls: round.toolCalls, wrote };
   }
   const failRound = (error) => {
+    agentSpan.end('error', { 'error.code': String(error?.code || error?.message || 'AGENT_RUN_FAILED').slice(0, 80) });
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
     requestAbort.cancel();
     deliverRequestFailure(res, error);
   };
   const finishWithAnswer = (content, alreadyWritten) => {
+    agentSpan.end('ok', { 'tools.count': toolSummary.length, 'tools.failed': anyToolFailed });
+    PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : content);
     runLedger.finish({ ok: !anyToolFailed, detail: anyToolFailed ? 'tool_failed' : null });
     requestAbort.cancel();
     if (streamResponse) {
@@ -761,6 +854,7 @@ async function handleAgentRun(req, res) {
       traceId,
       agent: { id: agent.id, name: agent.name },
       content,
+      promptVariant: promptVariant?.variant || '',
       tools: toolSummary,
       memoryUpdates: memorySession.updates,
       context: contextMeta,
@@ -895,7 +989,7 @@ async function handleAgentRun(req, res) {
 }
 
 async function handleChat(req, res) {
-  const body = await readJson(req);
+  const body = await readJson(req, CHAT_BODY_BYTES);
   const model = typeof body.model === 'string' ? body.model.trim() : '';
   const messages = normalizeClientMessages(body.messages);
   const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
@@ -1025,12 +1119,14 @@ async function serveStatic(pathname, res, req) {
     }
 
     const etag = `W/"${metadata.size.toString(16)}-${Math.trunc(metadata.mtimeMs).toString(16)}"`;
-    const cacheControl = relative === 'index.html'
+    // Vite emits hashed chunk names (…-B869woxG.js) with mixed case; the app's own entry files are
+    // lowercase kebab-case. Only the hashed ones may be cached immutably — an un-hashed name keeps
+    // pointing at new content after every build, so it must revalidate (a cheap 304).
+    const basename = relative.slice(relative.lastIndexOf('/') + 1);
+    const isHashedAsset = /[A-Z]/.test(basename);
+    const cacheControl = relative === 'index.html' || !isHashedAsset
       ? 'no-cache'
-      : /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(relative)
-        ? 'public, max-age=31536000, immutable'
-        // Un-hashed app files keep their names across builds; revalidate (cheap 304) so a new build shows up at once.
-        : 'no-cache';
+      : 'public, max-age=31536000, immutable';
 
     setSecurityHeaders(res);
     res.setHeader('ETag', etag);
@@ -1115,6 +1211,12 @@ const server = createServer(async (req, res) => {
         sendJson(res, 401, { error: 'UNAUTHORIZED' });
         return;
       }
+      if (url.searchParams.get('format') === 'prometheus') {
+        setSecurityHeaders(res);
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(PLATFORM.telemetry.prometheus());
+        return;
+      }
       sendJson(res, 200, {
         schemaVersion: 1,
         ...RUNTIME_METRICS.snapshot()
@@ -1139,6 +1241,7 @@ const server = createServer(async (req, res) => {
         nvidiaCircuit: NVIDIA_CIRCUIT.snapshot(),
         agents: AGENT_REGISTRY.agents.length,
         skillsRuntimeConfigured: SKILLS_RUNTIME.size > 0,
+        memoryBackend: true,
         readiness
       });
       return;
@@ -1196,6 +1299,7 @@ const server = createServer(async (req, res) => {
       await handleGitHubWorkspaceDetails(url.pathname, url, res);
       return;
     }
+    if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
     if (req.method === 'GET' && url.pathname === '/api/models') {
       await handleModels(res, url);
       return;
@@ -1243,9 +1347,12 @@ function closeHttpServer() {
 }
 
 const SHUTDOWN = createShutdownCoordinator({
-  stopWorker: stopScheduleWorkerLoop,
+  stopWorker: () => { stopScheduleWorkerLoop(); stopRuleEngineLoop(); },
   waitForTick: () => scheduleTickPromise ?? Promise.resolve(),
-  closeLease: () => SCHEDULE_LEASE_RUNTIME.close(),
+  closeLease: async () => {
+    await PLATFORM.shutdown().catch(() => {});
+    return SCHEDULE_LEASE_RUNTIME.close();
+  },
   closeServer: closeHttpServer,
   logger: (message) => console.error(message)
 });

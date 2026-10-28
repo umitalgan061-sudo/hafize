@@ -1,0 +1,14 @@
+{
+  "description": "Temel yetenekler: bilgi, hesaplama, Türkçe, araç seçimi.",
+  "category": "basic",
+  "cases": [
+    { "id": "capital", "prompt": "Türkiye'nin başkenti neresidir? Tek kelimeyle yanıtla.", "checks": { "includesAll": ["Ankara"], "maxSeconds": 120 } },
+    { "id": "big-power", "prompt": "2 üzeri 64 tam olarak kaçtır?", "checks": { "includesAny": ["18446744073709551616", "18.446.744.073.709.551.616", "18,446,744,073,709,551,616"], "toolsAny": ["code_run"] } },
+    { "id": "prime-sum", "prompt": "1 ile 1000 arasındaki asal sayıların toplamını kesin olarak hesapla.", "checks": { "includesAny": ["76127", "76.127", "76,127"] } },
+    { "id": "weather", "prompt": "İzmir'de yarın hava nasıl olacak?", "checks": { "toolsUsed": ["weather_forecast"], "regex": ["°C|derece"] } },
+    { "id": "currency", "prompt": "Şu an 100 euro kaç Türk lirası ediyor?", "checks": { "toolsAny": ["exchange_rates", "orchestrator_run"], "regex": ["TL|lira|₺"] } },
+    { "id": "turkish-writing", "prompt": "Ev arkadaşıma bulaşıkları yıkaması için kibar ve kısa bir mesaj yaz.", "checks": { "excludes": ["as an ai"] }, "judge": "Mesaj Türkçe, kibar, kısa ve amaca uygun mu?" },
+    { "id": "diagram", "prompt": "Bir e-ticaret sipariş sürecini (sepet, ödeme, kargo, teslim) mermaid akış şeması olarak çiz.", "checks": { "regex": ["```mermaid|/api/images/img_"] } },
+    { "id": "probability", "prompt": "Torbada 5 kırmızı 3 mavi top var. İadesiz 2 top çekilince ikisinin de aynı renk olma olasılığı nedir?", "checks": { "includesAny": ["13/28", "0,464", "0.464", "%46"] } }
+  ]
+}

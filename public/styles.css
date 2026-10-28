@@ -1,3 +1,4 @@
+/* updated 2026-10-23T16:07:00Z */
 :root {
   --bg: #f7f5ef;
   --panel: #efede6;
@@ -8,9 +9,34 @@
   --accent: #5f7f70;
   --accent-strong: #3f6556;
   --shadow: 0 22px 60px rgba(43, 48, 43, 0.12);
+  /* Dialog surface and body text. Dozens of stylesheets reference these two; with no value they
+     fall back to a hard-coded white, which breaks every modal in dark mode. */
+  --surface: #fffdfa;
+  --text: #252824;
+  /* Scrim behind modal dialogs; dark mode needs a heavier one. */
+  --scrim: rgba(32, 28, 20, 0.34);
 }
 
 * { box-sizing: border-box; }
+
+/* Scrollbar styling - theme aware */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+*::-webkit-scrollbar-thumb:active { background: var(--accent); }
+*::-webkit-scrollbar-corner { background: transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+
+/* Firefox scrollbar */
+@supports (scrollbar-color: red blue) {
+  * { scrollbar-color: var(--line) transparent; }
+}
 html, body { min-height: 100%; margin: 0; }
 body {
   min-height: 100vh;
@@ -76,7 +102,9 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
 .top-actions { margin-left: auto; }
 .pill { padding: 6px 9px; border-radius: 999px; background: #e3ebe6; color: #355e4d; font-size: 12px; }
 
-.chat-stage { max-width: 970px; min-height: calc(100vh - 66px); min-height: calc(100dvh - 66px); margin: 0 auto; padding: 54px 24px 520px; }
+/* ui-shell.ts measures the composer's real top edge into --chat-stage-height, so the chat ends
+   exactly above the composer whatever its height (attachment strip, long text, small screens). */
+.chat-stage { max-width: 970px; margin: 0 auto; padding: 54px 24px 0 !important; display: flex; flex-direction: column; min-height: 0; height: var(--chat-stage-height, calc(100dvh - 220px)); }
 .welcome { max-width: 680px; margin: 8vh auto 50px; text-align: center; }
 .welcome img { width: 88px; height: 88px; object-fit: cover; border-radius: 28px; box-shadow: var(--shadow); }
 .welcome h1 { margin: 18px 0 10px; font-family: Georgia, serif; font-size: 42px; font-weight: 500; }
@@ -84,7 +112,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
 .suggestions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 21px; }
 .suggestions button { border: 1px solid var(--line); background: rgba(255,253,250,.8); border-radius: 999px; padding: 9px 12px; color: #565a53; }
 .suggestions button:hover { background: #fff; }
-.messages { display: grid; gap: 22px; margin-bottom: 40px; padding-bottom: 280px; }
+.messages { display: grid; gap: 22px; margin-bottom: 40px; padding-bottom: 0 !important; flex: 1 1 auto; overflow-y: auto; min-height: 0; }
 .message { max-width: 88%; line-height: 1.65; }
 .message.user { justify-self: end; padding: 13px 16px; border-radius: 16px 16px 4px 16px; background: #e9e5dc; white-space: pre-wrap; }
 .message.assistant { justify-self: start; padding: 6px 2px; }
@@ -113,6 +141,41 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
 .agent-hint { color: var(--muted); font-size: 11px; }
 .send-btn { border: 0; border-radius: 11px; padding: 10px 15px; background: var(--accent); color: #fff; font-weight: 650; }
 .send-btn:hover { background: var(--accent-strong); }
+
+/* --- Voice input: the mic needs an unmistakable "I am listening" state -----------------
+   voice-input.ts only swapped the glyph (◉ → ●), which is easy to miss and invisible to anyone
+   who cannot read the button. The ring + colour change is driven by aria-pressed, which the
+   script already maintains, so no JS change is required. */
+#micBtn { position: relative; transition: color .15s ease, background .15s ease; }
+#micBtn[aria-pressed="true"] {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+#micBtn[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  animation: micPulse 1.4s ease-out infinite;
+}
+#micBtn[aria-pressed="true"]::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  animation: micPulse 1.4s ease-out .35s infinite;
+}
+#micBtn:disabled { opacity: .5; }
+@keyframes micPulse {
+  0% { transform: scale(.72); opacity: .9; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #micBtn[aria-pressed="true"]::after,
+  #micBtn[aria-pressed="true"]::before { animation: none; opacity: .55; }
+}
 .toast { position: fixed; right: 18px; bottom: 18px; z-index: 50; max-width: 420px; padding: 11px 14px; border-radius: 11px; background: #2f473c; color: #fff; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
 .hidden { display: none !important; }
 
@@ -121,7 +184,7 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
   .sidebar { position: fixed; left: 0; top: 0; z-index: 20; width: 280px; transform: translateX(-105%); transition: transform .2s ease; }
   .sidebar.open { transform: translateX(0); box-shadow: 20px 0 50px rgba(0,0,0,.16); }
   .composer { left: 50%; width: calc(100vw - 24px); bottom: 12px; bottom: max(12px, env(safe-area-inset-bottom)); }
-  .chat-stage { padding: 30px 14px 480px; }
+  .chat-stage { padding: 30px 14px 0 !important; }
   .topbar { padding: 0 12px; }
   .model-wrap span, .pill { display: none; }
   .model-wrap { flex: 1; }
@@ -137,6 +200,131 @@ button:focus-visible, textarea:focus-visible, select:focus-visible {
   .agent-hint { display: none; }
 }
 
-.response-variant-dialog{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.26)}.response-variant-panel{width:min(900px,calc(100vw - 36px));max-height:min(80vh,760px);overflow:auto;border:1px solid var(--line);border-radius:16px;background:var(--card);box-shadow:var(--shadow);padding:16px}.response-variant-panel-head,.response-variant-card-head,.response-variant-dialog-actions{display:flex;align-items:center;gap:8px}.response-variant-panel-head h3{margin:0;font-size:15px}.response-variant-panel-head button{margin-left:auto}.response-variant-help{margin:6px 0 12px;color:var(--muted);font-size:11px}.response-variant-list{display:grid;gap:10px}.response-variant-card{border:1px solid var(--line);border-radius:11px;padding:10px;background:var(--panel)}.response-variant-card[data-active="true"]{border-color:var(--accent)}.response-variant-index{margin-left:auto;color:var(--muted);font-size:10px}.response-variant-preview{max-height:210px;overflow:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--card);color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:11px;line-height:1.5}.response-variant-dialog-actions{justify-content:flex-end;margin-top:12px}.response-variant-panel button:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}@media (max-width:700px){.response-variant-dialog{padding:10px}.response-variant-panel{width:calc(100vw - 20px);max-height:88vh;padding:12px}.response-variant-preview{max-height:180px}}@media (forced-colors:active){.response-variant-dialog{background:Canvas}.response-variant-panel,.response-variant-card,.response-variant-preview{border-color:CanvasText;background:Canvas;color:CanvasText}}
+.response-variant-dialog{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:18px;background:var(--scrim)}.response-variant-panel{width:min(900px,calc(100vw - 36px));max-height:min(80vh,760px);overflow:auto;border:1px solid var(--line);border-radius:16px;background:var(--card);box-shadow:var(--shadow);padding:16px}.response-variant-panel-head,.response-variant-card-head,.response-variant-dialog-actions{display:flex;align-items:center;gap:8px}.response-variant-panel-head h3{margin:0;font-size:15px}.response-variant-panel-head button{margin-left:auto}.response-variant-help{margin:6px 0 12px;color:var(--muted);font-size:11px}.response-variant-list{display:grid;gap:10px}.response-variant-card{border:1px solid var(--line);border-radius:11px;padding:10px;background:var(--panel)}.response-variant-card[data-active="true"]{border-color:var(--accent)}.response-variant-index{margin-left:auto;color:var(--muted);font-size:10px}.response-variant-preview{max-height:210px;overflow:auto;margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--card);color:var(--text);white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:11px;line-height:1.5}.response-variant-dialog-actions{justify-content:flex-end;margin-top:12px}.response-variant-panel button:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}@media (max-width:700px){.response-variant-dialog{padding:10px}.response-variant-panel{width:calc(100vw - 20px);max-height:88vh;padding:12px}.response-variant-preview{max-height:180px}}@media (forced-colors:active){.response-variant-dialog{background:Canvas}.response-variant-panel,.response-variant-card,.response-variant-preview{border-color:CanvasText;background:Canvas;color:CanvasText}}
 
-.response-regeneration-options{position:fixed;inset:0;z-index:75;display:grid;place-items:center;padding:16px;background:rgba(0,0,0,.26)}.response-regeneration-options-panel{width:min(600px,calc(100vw - 32px));max-height:80vh;overflow:auto;border:1px solid var(--line);border-radius:16px;background:var(--card);box-shadow:var(--shadow);padding:16px}.response-regeneration-options-head,.response-regeneration-options-footer{display:flex;align-items:center;gap:8px}.response-regeneration-options-head h3{margin:0;font-size:15px}.response-regeneration-options-head button{margin-left:auto}.response-regeneration-options-help{color:var(--muted);font-size:11px;line-height:1.5}.response-regeneration-preset-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.response-regeneration-preset{border:1px solid var(--line);border-radius:10px;padding:8px}.response-regeneration-preset .message-action{width:100%;text-align:left}.response-regeneration-custom-label{display:block;margin:10px 0 5px;color:var(--muted);font-size:11px}.response-regeneration-options-panel textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:74px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:9px;font:inherit;font-size:12px}.response-regeneration-options-panel textarea:focus-visible,.response-regeneration-options-panel button:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}.response-regeneration-options-footer{justify-content:flex-end;margin-top:12px}@media (max-width:700px){.response-regeneration-options{padding:8px}.response-regeneration-options-panel{width:calc(100vw - 16px);max-height:90vh;padding:12px}.response-regeneration-preset-list{grid-template-columns:1fr}}@media (forced-colors:active){.response-regeneration-options{background:Canvas}.response-regeneration-options-panel,.response-regeneration-options-panel textarea{border-color:CanvasText;background:Canvas;color:CanvasText}}
+.response-regeneration-options{position:fixed;inset:0;z-index:75;display:grid;place-items:center;padding:16px;background:var(--scrim)}.response-regeneration-options-panel{width:min(600px,calc(100vw - 32px));max-height:80vh;overflow:auto;border:1px solid var(--line);border-radius:16px;background:var(--card);box-shadow:var(--shadow);padding:16px}.response-regeneration-options-head,.response-regeneration-options-footer{display:flex;align-items:center;gap:8px}.response-regeneration-options-head h3{margin:0;font-size:15px}.response-regeneration-options-head button{margin-left:auto}.response-regeneration-options-help{color:var(--muted);font-size:11px;line-height:1.5}.response-regeneration-preset-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}.response-regeneration-preset{border:1px solid var(--line);border-radius:10px;padding:8px}.response-regeneration-preset .message-action{width:100%;text-align:left}.response-regeneration-custom-label{display:block;margin:10px 0 5px;color:var(--muted);font-size:11px}.response-regeneration-options-panel textarea{width:100%;box-sizing:border-box;resize:vertical;min-height:74px;border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:9px;font:inherit;font-size:12px}.response-regeneration-options-panel textarea:focus-visible,.response-regeneration-options-panel button:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}.response-regeneration-options-footer{justify-content:flex-end;margin-top:12px}@media (max-width:700px){.response-regeneration-options{padding:8px}.response-regeneration-options-panel{width:calc(100vw - 16px);max-height:90vh;padding:12px}.response-regeneration-preset-list{grid-template-columns:1fr}}@media (forced-colors:active){.response-regeneration-options{background:Canvas}.response-regeneration-options-panel,.response-regeneration-options-panel textarea{border-color:CanvasText;background:Canvas;color:CanvasText}}
+
+@keyframes thinkingDots{0%{content:""};33%{content:"."};66%{content:".."};100%{content:"..."}}
+
+.message.assistant .message-content:empty::after{content:"";animation:thinkingDots 1.2s steps(3,end) infinite;white-space:nowrap;margin-left:2px;color:var(--muted)}
+
+
+/* Modal/Dialog base styles - theme aware */
+.modal-overlay, .dialog-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: var(--scrim);
+  display: grid; place-items: center; padding: 20px;
+}
+.modal-overlay[hidden], .dialog-overlay[hidden] { display: none; }
+
+.modal, .dialog, .alert-dialog, .confirm-dialog, .approval-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 90vh;
+  overflow: auto;
+  padding: 24px;
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+.modal-header, .dialog-header, .alert-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.modal-title, .dialog-title, .alert-title {
+  margin: 0; font-size: 1.1rem; font-weight: 600; color: var(--ink);
+}
+.modal-close, .dialog-close {
+  background: transparent; border: 0; padding: 8px; cursor: pointer;
+  color: var(--muted); border-radius: 8px;
+}
+.modal-close:hover, .dialog-close:hover { background: var(--panel); color: var(--ink); }
+
+.modal-body, .dialog-body, .alert-body {
+  margin-top: 8px; color: var(--ink); line-height: 1.6;
+}
+
+.modal-actions, .dialog-actions, .alert-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);
+}
+
+.modal-actions button, .dialog-actions button, .alert-actions button {
+  padding: 10px 16px; border-radius: 10px; font-weight: 500;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.modal-actions button:hover, .dialog-actions button:hover, .alert-actions button:hover {
+  background: var(--panel); border-color: var(--muted);
+}
+.modal-actions button.primary, .dialog-actions button.primary, .alert-actions button.primary {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.modal-actions button.primary:hover, .dialog-actions button.primary:hover, .alert-actions button.primary:hover {
+  background: var(--accent-strong); border-color: var(--accent-strong);
+}
+.modal-actions button.danger, .dialog-actions button.danger, .alert-actions button.danger {
+  background: #fee2e2; border-color: #fecaca; color: #991b1b;
+}
+.modal-actions button.danger:hover, .dialog-actions button.danger:hover, .alert-actions button.danger:hover {
+  background: #fecaca; border-color: #fca5a5;
+}
+
+/* Toast improvements */
+.toast {
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+
+/* Approval dialog risk levels */
+.approval-dialog.risk-high { border-color: #fca5a5; }
+.approval-dialog.risk-medium { border-color: #fcd34d; }
+.approval-dialog.risk-low { border-color: var(--line); }
+
+.approval-dialog .risk-badge {
+  display: inline-block; padding: 4px 10px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+}
+.approval-dialog.risk-high .risk-badge { background: #fee2e2; color: #991b1b; }
+.approval-dialog.risk-medium .risk-badge { background: #fef3c7; color: #92400e; }
+.approval-dialog.risk-low .risk-badge { background: var(--panel); color: var(--muted); }
+
+/* Focus visible for all interactive elements in modals */
+.modal button:focus-visible,
+.dialog button:focus-visible,
+.alert button:focus-visible,
+.modal input:focus-visible,
+.dialog input:focus-visible,
+.modal textarea:focus-visible,
+.dialog textarea:focus-visible,
+.modal select:focus-visible,
+.dialog select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Dark mode adjustments */
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .dialog,
+html[data-theme="dark"] .alert-dialog {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .modal-actions button,
+html[data-theme="dark"] .dialog-actions button {
+  background: var(--card);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .modal-actions button:hover,
+html[data-theme="dark"] .dialog-actions button:hover {
+  background: var(--panel);
+  border-color: var(--muted);
+}

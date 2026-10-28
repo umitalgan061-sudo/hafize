@@ -129,4 +129,37 @@ assert.equal(unsupported.isSupported, false);
 assert.equal(unsupportedToggle.disabled, true);
 assert.match(unsupportedToggle.textContent, /desteklenmiyor/);
 
+{
+  // Cancelling for a new answer makes the browser report 'interrupted' on the old utterance;
+  // that must neither show an error nor wipe the new answer's queue.
+  const said = [];
+  const events = [];
+  const toastNode = new FakeNode();
+  toastNode.classList.remove = () => {}; toastNode.classList.add = () => {};
+  const doc = new FakeEventTarget();
+  doc.hidden = false;
+  doc.dispatchEvent = (event) => events.push(event.detail);
+  doc.querySelector = (selector) => ({ '#voiceOutputToggle': new FakeNode(), '#toast': toastNode })[selector] || null;
+  const r = new FakeEventTarget();
+  r.speechSynthesis = { speak(u) { said.push(u); }, cancel() {}, getVoices() { return []; } };
+  r.SpeechSynthesisUtterance = FakeUtterance;
+  r.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init.detail; } };
+  r.localStorage = { getItem() { return 'true'; }, setItem() {} };
+  const c = voiceOutput.installVoiceOutput(doc, r);
+  c.speak('Birinci yanıt.');
+  const first = said.at(-1);
+  c.speak('İkinci yanıt. Devamı da var.');
+  first.onerror?.({ error: 'interrupted' });
+  assert.equal(toastNode.textContent, '', 'kesilen konuşma hata uyarısı göstermemeli');
+  assert.equal(c.isSpeaking(), true, 'yeni yanıtın kuyruğu silinmemeli');
+  assert.deepEqual(events.at(-1), { source: 'voice-output', speaking: true });
+  said.at(-1).onerror?.({ error: 'synthesis-failed' });
+  assert.equal(toastNode.textContent, 'Sesli yanıt tamamlanamadı.');
+  assert.deepEqual(events.at(-1), { source: 'voice-output', speaking: false });
+  c.destroy();
+}
+assert.equal(voiceOutput.pickTurkishVoice([{ lang: 'tr-TR', name: 'Tolga' }, { lang: 'tr-TR', name: 'Emel Online (Natural)' }]).name, 'Emel Online (Natural)');
+assert.equal(voiceOutput.pickTurkishVoice([{ lang: 'en-US', name: 'X' }]), null);
+assert.equal(voiceOutput.normalizeSpeechText('## Başlık\n- [bağ](https://x.y) madde'), 'Başlık. bağ madde');
+
 console.log('Voice output OK: explicit opt-in, Turkish TTS, stream state and barge-in cancellation');

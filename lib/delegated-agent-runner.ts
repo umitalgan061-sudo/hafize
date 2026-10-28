@@ -1,7 +1,7 @@
 import { createAgentDelegator } from './agent-delegation.ts';
 import { buildAgentSystemMessage } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
-import { executeNvidiaToolCall, getAllowedNvidiaTools } from './tool-runtime.ts';
+import { executeNvidiaToolCall, getAllowedNvidiaTools, type ToolRuntimeContext } from './tool-runtime.ts';
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
 
@@ -23,6 +23,10 @@ export interface DelegatedAgentRunInput {
   readonly ownerId?: string;
   readonly sessionId?: string;
   readonly signal?: AbortSignal;
+  /** Extra tool wiring (web, research, sandbox...) for expert agents. */
+  readonly toolContext?: Partial<ToolRuntimeContext>;
+  /** Tool rounds before the final answer; 1 keeps the original single-round contract. */
+  readonly maxRounds?: number;
 }
 
 interface DelegatedToolCall {
@@ -83,7 +87,9 @@ export async function runDelegatedAgent({
   skillsRuntime,
   ownerId,
   sessionId,
-  signal
+  signal,
+  toolContext,
+  maxRounds = 1
 }: DelegatedAgentRunInput = {}) {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || typeof traceId !== 'string' || !traceId.trim() || typeof parentTaskId !== 'string' || !parentTaskId.trim()) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
@@ -126,92 +132,93 @@ export async function runDelegatedAgent({
       skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
       ownerId,
       sessionId,
-      signal: nestedSignal
+      signal: nestedSignal,
+      toolContext,
+      maxRounds
     })
   });
   const delegateAgent = (args: unknown) => nestedDelegator.delegate(args, { depth });
-  const tools = getAllowedNvidiaTools(agent, {
+  // Experts get their own tools wired in (web, research, sandbox...) through toolContext; the
+  // agent's tool policy still decides which of them it may call.
+  const baseContext = {
     traceId: safeTraceId,
     agent,
+    registry,
     nvidiaConfigured: Boolean(nvidiaConfigured),
     githubReadConfigured: Boolean(githubReadConfigured),
+    githubReadFile: typeof githubReadFile === 'function' ? githubReadFile as (args: unknown) => Promise<unknown> : undefined,
     delegateAgent,
+    approvalGranted: false,
     skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
     ownerId,
-    sessionId
-  });
-  const messages = [buildAgentSystemMessage(agent, safeTraceId), { role: 'user' as const, content: task }];
-  const firstPayload: Record<string, unknown> = {
-    model: safeModel,
-    messages,
-    stream: false,
-    max_tokens: maxTokens
+    sessionId,
+    signal,
+    ...(toolContext || {})
   };
-  if (tools.length) {
-    firstPayload.tools = tools;
-    firstPayload.tool_choice = 'auto';
-  }
-
-  const first = await normalizeCompletion(complete, firstPayload, signal);
-  if (!first) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
-
-  const rawCalls = first.toolCalls;
-  if (!rawCalls.length) {
-    return { ok: true, content: first.content };
-  }
-
-  const calls = normalizeToolCalls(rawCalls);
-  if (!calls.length) return { ok: false, error: 'INVALID_TOOL_CALL' };
-
-  const toolMessages: DelegatedToolMessage[] = [];
+  const tools = getAllowedNvidiaTools(agent, baseContext);
+  // Token usage of expert runs feeds the delegation audit and the expert's daily quota.
+  const completeRecorded: CompletionFn = async (payload, completionSignal) => {
+    const response = await complete(payload, completionSignal);
+    toolContext?.telemetry?.recordCompletionUsage(safeTraceId, `expert:${agent.id}`, safeModel, response);
+    return response;
+  };
+  const messages: unknown[] = [buildAgentSystemMessage(agent, safeTraceId, tools.length ? { tools: true } : {}), { role: 'user' as const, content: task }];
+  const rounds = Number.isInteger(maxRounds) && maxRounds > 0 ? Math.min(maxRounds, 5) : 1;
   let anyToolFailed = false;
-  for (const call of calls) {
-    const toolTask = runLedger.recordToolStart(call.function.name, {
-      parentTaskId: safeParentTaskId,
-      toolAgentId: agent.id
-    });
-    const result = await executeNvidiaToolCall(agent, call, {
-      traceId: safeTraceId,
-      agent,
-      registry,
-      nvidiaConfigured: Boolean(nvidiaConfigured),
-      githubReadConfigured: Boolean(githubReadConfigured),
-      githubReadFile: typeof githubReadFile === 'function' ? githubReadFile as (args: unknown) => Promise<unknown> : undefined,
-      delegateAgent,
-      approvalGranted: false,
-      skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
-      ownerId,
-      sessionId,
-      signal
-    });
-    runLedger.recordToolFinish(toolTask.taskId, result);
-    if (!result.ok) anyToolFailed = true;
-    toolMessages.push({
-      role: 'tool',
-      tool_call_id: call.id,
-      name: call.function.name,
-      content: JSON.stringify(result)
-    });
+  let usedTools = false;
+
+  for (let round = 0; round < rounds; round += 1) {
+    const payload: Record<string, unknown> = {
+      model: safeModel,
+      messages,
+      stream: false,
+      max_tokens: maxTokens
+    };
+    if (tools.length) {
+      payload.tools = tools;
+      payload.tool_choice = 'auto';
+    }
+    const completion = await normalizeCompletion(completeRecorded, payload, signal);
+    if (!completion) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
+    if (!completion.toolCalls.length) {
+      if (round === 0 || completion.content.trim()) return { ok: true, content: completion.content };
+      break;
+    }
+    const calls = normalizeToolCalls(completion.toolCalls);
+    if (!calls.length) return { ok: false, error: 'INVALID_TOOL_CALL' };
+    usedTools = true;
+    const toolMessages: DelegatedToolMessage[] = [];
+    for (const call of calls) {
+      const toolTask = runLedger.recordToolStart(call.function.name, {
+        parentTaskId: safeParentTaskId,
+        toolAgentId: agent.id
+      });
+      const result = await executeNvidiaToolCall(agent, call, baseContext);
+      runLedger.recordToolFinish(toolTask.taskId, result);
+      if (!result.ok) anyToolFailed = true;
+      toolMessages.push({
+        role: 'tool',
+        tool_call_id: call.id,
+        name: call.function.name,
+        content: JSON.stringify(result)
+      });
+    }
+    messages.push({ role: 'assistant', content: completion.content || null, tool_calls: calls }, ...toolMessages);
   }
 
-  const second = await normalizeCompletion(complete, {
+  const second = await normalizeCompletion(completeRecorded, {
     model,
-    messages: [
-      ...messages,
-      {
-        role: 'assistant',
-        content: first.content || null,
-        tool_calls: calls
-      },
-      ...toolMessages
-    ],
+    messages,
     stream: false,
     max_tokens: maxTokens,
     tools,
     tool_choice: 'none'
   }, signal);
   if (!second) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
-  if (anyToolFailed) return { ok: false, error: 'DELEGATED_TOOL_FAILED' };
+  // A single-round run keeps the strict contract: any failed tool fails the delegation. Multi-round
+  // experts already saw the failure and could work around it, so their answer stands.
+  if (anyToolFailed && (rounds === 1 || !second.content.trim())) return { ok: false, error: 'DELEGATED_TOOL_FAILED' };
+  if (!usedTools && !second.content.trim()) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
 
   return {
     ok: true,

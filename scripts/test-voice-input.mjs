@@ -24,7 +24,8 @@ const resultEvent = {
     [{ transcript: ' dünya ' }]
   ]
 };
-assert.equal(voice.readRecognitionText(resultEvent), 'merhaba dünya');
+// The whole session is read so already-final words survive when resultIndex moves on.
+assert.equal(voice.readRecognitionText(resultEvent), 'yok say merhaba dünya');
 
 class FakeClassList {
   constructor(initial = []) { this.values = new Set(initial); }
@@ -236,6 +237,19 @@ function createHarness({ supported = true, initialValue = 'Önceki', maxLength =
   recognition.emitError('not-allowed');
   assert.equal(toast.textContent.includes('Mikrofon izni'), true);
   recognition.end();
+}
+
+{
+  // hands-free.ts listens for this to pause its wake-word recognizer.
+  const { controller, documentRef, mic, root } = createHarness();
+  const events = [];
+  documentRef.dispatchEvent = (event) => events.push(event.detail);
+  root.CustomEvent = class { constructor(type, init) { this.type = type; this.detail = init.detail; } };
+  mic.clickCapture();
+  assert.deepEqual(events.at(-1), { source: 'voice-input', listening: true });
+  mic.clickCapture();
+  assert.deepEqual(events.at(-1), { source: 'voice-input', listening: false });
+  controller.destroy();
 }
 
 assert.equal(voice.getSpeechRecognitionConstructor({ webkitSpeechRecognition: FakeRecognition }), FakeRecognition);

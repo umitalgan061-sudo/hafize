@@ -13,8 +13,11 @@ import { buildRegenerationMessages } from './response-regeneration-options.ts';
 import { mountModelPreferences, type ModelPreferencesUiController } from './model-preferences-ui.ts';
 import { loadModelPreferences } from './model-preferences.ts';
 import { hafizeApi } from './hafize-api.ts';
+import { handleAgentEvent } from './agent-extras.ts';
 import { HafizeSseClient, type HafizeSseStats, type HafizeSseEvent } from './hafize-sse.ts';
 import { createHafizeStreamController, formatStreamBytes, formatStreamDuration, phaseLabel, phaseTone } from './hafize-stream-state.ts';
+import { mountChatScroll, type ChatScrollController } from './chat-scroll.ts';
+import { decorateUserAttachments } from './user-attachments.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -75,14 +78,15 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   const STORAGE_KEY = 'hafize.conversations.v1';
   // Tool runs chain several model calls and web fetches before the answer streams.
-  const AGENT_RUN_TIMEOUT_MS = 180_000;
+  const AGENT_RUN_TIMEOUT_MS = 900_000;
   let serverDefaultModel = '';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const MESSAGE_PLACEHOLDER = '…';
   const MAX_CONVERSATIONS = 30;
   const MAX_MESSAGES_PER_CONVERSATION = 100;
-  const MAX_MESSAGE_LENGTH = 12000;
+  // Same as the server limit (lib/agent-runtime.ts MAX_MESSAGE_CHARS): long pastes and answers survive a reload.
+  const MAX_MESSAGE_LENGTH = 200000;
   let networkOnline = globalThis.navigator?.onLine !== false;
   const hafizeSse = new HafizeSseClient();
   const streamState = createHafizeStreamController();
@@ -116,6 +120,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let defaultAgentId = '';
   let editingMessageId = null;
   let modelPreferencesController: ModelPreferencesUiController | null = null;
+  // Auto-follow while streaming, a jump-to-latest button when the user scrolls up, thinking bubble.
+  let chatScroll: ChatScrollController | null = null;
 
   function uid() {
     return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -342,6 +348,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
     // Deltas paint on the next frame; the final, persisted update paints now.
     if (node) paintContent(node, content, { role: message.role, streaming: !persist });
+      // Re-decorate so an edited user message keeps its attachment chips.
+      if (message.role === 'user') decorateUserAttachments(node, content);
+    // Every new line of the answer pulls the view down while the user is still at the bottom.
+    if (chatScroll) chatScroll.follow();
     if (persist) saveConversations();
   }
 
@@ -550,6 +560,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const content = document.createElement('div');
       content.className = 'content';
       paintContent(content, message.content, { role: message.role });
+      // User messages are painted as plain text; turn stored markdown references into chips.
+      if (message.role === 'user') decorateUserAttachments(content, message.content);
 
       article.append(meta);
       if (message.role === 'assistant') {
@@ -666,7 +678,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ui.messages.append(article);
     }
 
-    requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }));
+    // #messages is the element that scrolls; the window never does. `chatScroll` follows only while
+    // the user is already at the bottom, so reading history is never interrupted.
+    // The thinking bubble is re-attached here because replaceChildren() above detached it.
+    if (chatScroll) { chatScroll.attachTail(); chatScroll.refresh(); }
+    else requestAnimationFrame(() => { if (ui.messages) ui.messages.scrollTop = ui.messages.scrollHeight; });
   }
 
   function syncAgentSelect() {
@@ -851,6 +867,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     assistantId: string,
     appendContent: (delta: string) => void
   ): Promise<void> {
+    if (handleAgentEvent(event.type, event.payload, { assistantId, showToast })) return;
     if (event.type === 'hafize-skill-consent-required') {
       const request = event.payload && typeof event.payload === 'object' ? event.payload as Record<string, any> : {};
       const scopes = Array.isArray(request.scopes) ? request.scopes.filter((scope) => typeof scope === 'string') : [];
@@ -861,14 +878,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const choice = window.prompt('İzin kapsamı: 1 = bu çağrı, 2 = bu oturum, 3 = her zaman, 4 = asla', '1');
       const mode = ({ '1': 'once', '2': 'session', '3': 'always', '4': 'never' } as Record<string, string>)[String(choice || '').trim()];
       if (!mode) return;
-      const auth = (globalThis as typeof globalThis & { HafizeAuth?: { fetch?: typeof fetch } }).HafizeAuth;
-      if (!auth?.fetch) { showToast('Onay akışı kullanılamıyor. Sayfayı yenileyip tekrar dene.'); return; }
-      const response = await auth.fetch('/api/skills/consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ skillId, scopes, mode, ...(mode === 'once' ? { argsHash: request.argsHash } : {}) })
-      });
-      if (!response.ok) { showToast('Skill izni kaydedilemedi.'); return; }
+      try {
+        await hafizeApi.grantSkillConsent({ skillId, scopes, mode, ...(mode === 'once' ? { argsHash: request.argsHash } : {}) });
+      } catch {
+        showToast('Skill izni kaydedilemedi.');
+        return;
+      }
       showToast(mode === 'never' ? 'Bu skill için izin kalıcı olarak reddedildi.' : 'Skill izni kaydedildi. Aynı isteği yeniden göndererek devam edebilirsin.');
       return;
     }
@@ -1039,7 +1054,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/agent/run',
-      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
+      { model, agentId, conversationId: conversation.id, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
       AGENT_RUN_TIMEOUT_MS
@@ -1105,6 +1120,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     message.toolActivities = [];
     isStreaming = true;
     setGenerationUi(true);
+    chatScroll?.setThinking(true);
     render();
 
     try {
@@ -1112,7 +1128,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const endpoint = useTools ? '/api/agent/run' : '/api/chat';
       await consumeAssistantStream(
         endpoint,
-        { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, ...(useTools ? {} : { provider: ui.providerSelect.value }) },
+        { model, agentId, conversationId: conversation.id, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, ...(useTools ? {} : { provider: ui.providerSelect.value }) },
         message.id,
         useTools
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
@@ -1138,6 +1154,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     } finally {
       isStreaming = false;
       setGenerationUi(false);
+      chatScroll?.setThinking(false);
       ui.messageInput.focus();
     }
   }
@@ -1183,6 +1200,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     autoResizeComposer();
     isStreaming = true;
     setGenerationUi(true);
+    chatScroll?.setThinking(true);
 
     try {
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
@@ -1196,6 +1214,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     } finally {
       isStreaming = false;
       setGenerationUi(false);
+      chatScroll?.setThinking(false);
       ui.messageInput.focus();
     }
   }
@@ -1327,6 +1346,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   if (!activeConversationId) createConversation();
   else render();
+
+  // Auto-follow while the answer streams, jump button when the user scrolls up, thinking bubble.
+  chatScroll = mountChatScroll({ messages: ui.messages, documentRef: document });
+  if (chatScroll) chatScroll.refresh();
 
   modelPreferencesController = mountModelPreferences({
     modelSelect: ui.modelSelect,

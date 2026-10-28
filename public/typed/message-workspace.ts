@@ -209,7 +209,7 @@
     // A rendered answer is read through the markdown layer: block elements
     // concatenate in `textContent`, which would glue paragraphs together.
     const text = window.HafizeChatMarkdown?.plainTextFor?.(content) ?? content?.textContent;
-    return cleanText(text || '');
+    return cleanText(text || '').slice(0, 12000);
   }
 
   function ensureActionBar(article) {
@@ -516,7 +516,7 @@
     const selected = new Set(runtime.state.selected);
     const entries = recordEntries().filter(entry=>selected.has(entry.record.id)).slice(0,MAX_EXPORT);
     if (!entries.length) return announce('Önce en az bir mesaj seç.');
-    const payload = { schema:'hafize-message-workspace/v1', exportedAt:new Date().toISOString(), records:entries.map(entry=>({ record:entry.record, role:entry.role, content:entry.text })) };
+    const payload = { schema:'hafize-message-workspace/v1', exportedAt:new Date().toISOString(), records:entries.map(entry=>({ record:entry.record, role:entry.role, content:entry.text.slice(0,12000) })) };
     const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download=`hafize-messages-${new Date().toISOString().slice(0,10)}.json`; link.click(); URL.revokeObjectURL(url); announce(`${entries.length} mesaj dışa aktarıldı.`);
   }

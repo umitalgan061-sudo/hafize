@@ -14,7 +14,7 @@ import {
 
 const registry = await loadAgentRegistry();
 assert.equal(registry.defaultAgent, 'hafize-general');
-assert.equal(listPublicAgents(registry).length, 4);
+assert.equal(listPublicAgents(registry).length, 13);
 assert.equal('toolPolicy' in listPublicAgents(registry)[0], false);
 
 const fixtureDirectory = await mkdtemp(join(tmpdir(), 'hafize-agent-registry-'));

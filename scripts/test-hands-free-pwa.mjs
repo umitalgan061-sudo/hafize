@@ -6,7 +6,7 @@ const policy = require('../public/sw-policy.ts');
 const origin = 'https://hafize.example';
 
 assertVersionedCacheDeclaration();
-for (const asset of ['/screen-share.css', '/screen-share.js', '/hands-free.css', '/hands-free.js']) {
+for (const asset of ['/screen-share.css', '/hands-free.css', '/voice-states.css', '/typed-build/hands-free.js', '/typed-build/hands-free-background-guard.js']) {
   assert.ok(policy.SHELL_ASSETS.includes(asset));
   assert.equal(policy.classifyRequest({
     url: new URL(asset, origin).href,

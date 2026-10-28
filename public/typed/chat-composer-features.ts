@@ -3,16 +3,18 @@
  * The browser/global contract is intentionally preserved during the migration.
  */
 // @ts-nocheck
+import { hafizeApi } from './hafize-api.ts';
 (() => {
   'use strict';
 
-  // The model only reads text: the file's text is inlined into the message. The server accepts
-  // up to 50 000 characters per message, so attachments are clipped well below that.
-  const MAX_FILE_BYTES = 1024 * 1024;
-  const MAX_ATTACHMENTS = 3;
-  const MAX_ATTACHMENT_TEXT = 30000;
+  // A text/code attachment is stored server-side, so the practical limit is what the upload endpoint
+  // accepts (50 MB). Media (images/PDF/video) keeps its own limits in rich-content.ts.
+  const MAX_FILE_BYTES = 50 * 1024 * 1024;
+  const MAX_ATTACHMENTS = 20;
+  // Pasted text longer than this becomes a document instead of flooding the composer.
+  const PASTE_TO_FILE_CHARS = 4000;
+  const MEDIA_EXTENSIONS = /\.(?:pdf|png|jpe?g|gif|webp|heic|bmp|svg|mp4|webm|mov|avi|mkv|mp3|wav|ogg|m4a|docx?|xlsx?|pptx?|zip)$/i;
   const ACCEPTED_EXTENSIONS = /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log)$/i;
-  const UNREADABLE_MEDIA = /\.(?:pdf|png|jpe?g|gif|webp|heic|bmp|svg|mp4|webm|mov|avi|mp3|wav|ogg|m4a|docx?|xlsx?|pptx?|zip)$/i;
   const ui = {
     composer: document.querySelector('#composer'),
     attachBtn: document.querySelector('#attachBtn'),
@@ -36,7 +38,7 @@
       && Number.isFinite(file.size)
       && file.size > 0
       && file.size <= MAX_FILE_BYTES
-      && (ACCEPTED_EXTENSIONS.test(file.name) || file.type.startsWith('text/') || file.type === 'application/json');
+      && (file.type.startsWith('text/') || file.type === 'application/json' || ACCEPTED_EXTENSIONS.test(file.name));
   }
 
   function renderAttachmentStrip() {
@@ -77,11 +79,27 @@
     }
   }
 
-  function composeAttachment(file, text) {
-    const normalized = text.replace(/\r\n/g, '\n');
-    const clipped = normalized.slice(0, MAX_ATTACHMENT_TEXT);
-    const notice = normalized.length > MAX_ATTACHMENT_TEXT ? `\n[Dosyanın ilk ${MAX_ATTACHMENT_TEXT} karakteri eklendi.]` : '';
-    return `\n\n[Ekli dosya: ${file.name}]\n---\n${clipped}${notice}\n---\n`;
+  /** A compact, human-readable reference; the content never enters the composer. */
+  function composeAttachment(file, url) {
+    return `\n[Ekli dosya: ${file.name}](${url})\n`;
+  }
+
+  function insertAttachment(file, fullBlock, message) {
+    const files = ui.composer._hafizeAttachments || (ui.composer._hafizeAttachments = []);
+    const before = ui.messageInput.value;
+    // No maxlength on the textarea, so there is no hard cap to enforce here.
+    const nextValue = `${before}${fullBlock}`;
+    const appendedBlock = nextValue.slice(before.length);
+    if (!appendedBlock) {
+      announce('Mesaj alanı dolu. Dosya eklenebilmesi için biraz metin silmelisin.');
+      return;
+    }
+    files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: appendedBlock });
+    ui.messageInput.value = nextValue;
+    ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    renderAttachmentStrip();
+    ui.messageInput.focus();
+    announce(message);
   }
 
   async function addFile(file) {
@@ -90,12 +108,30 @@
       announce(`En fazla ${MAX_ATTACHMENTS} dosya ekleyebilirsin.`);
       return;
     }
-    if (file && (UNREADABLE_MEDIA.test(file.name) || /^(image|video|audio)\//.test(file.type) || file.type === 'application/pdf')) {
-      announce(`${file.name} eklenemedi: Hafize şu an yalnızca metin ve kod dosyalarını okuyabiliyor (PDF, görsel, ses ve video okuyamıyor).`);
+    // Images, PDFs and videos are prepared by rich-content.ts (upload for the vision model, PDF text,
+    // video key frames); the composer only inserts the block it returns.
+    const media = /^(image|video|audio)\//.test(file.type) || file.type === 'application/pdf' || MEDIA_EXTENSIONS.test(file.name);
+    if (media) {
+      const handler = window.HafizeMediaAttachments;
+      if (!handler || !handler.supports(file)) {
+        announce(`${file.name} eklenemedi: bu dosya türü desteklenmiyor (görsel, PDF ve video eklenebilir).`);
+        return;
+      }
+      if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
+        announce('Bu dosya zaten eklendi.');
+        return;
+      }
+      announce(`${file.name} hazırlanıyor…`);
+      try {
+        const prepared = await handler.prepare(file);
+        insertAttachment(file, prepared.block, prepared.message);
+      } catch (error) {
+        announce(`${file.name} eklenemedi: ${String(error?.message || 'dosya işlenemedi').slice(0, 120)}`);
+      }
       return;
     }
     if (!acceptedFile(file)) {
-      announce(file && file.size > MAX_FILE_BYTES ? `${file.name} 1 MB sınırını aşıyor.` : 'Bu dosya türü desteklenmiyor.');
+      announce(`${file.name} eklenemedi: bu dosya türü desteklenmiyor veya 50 MB sınırını aşıyor.`);
       return;
     }
     if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
@@ -108,21 +144,12 @@
         announce(`${file.name} boş olduğu için eklenmedi.`);
         return;
       }
-      const before = ui.messageInput.value;
-      const nextValue = `${before}${composeAttachment(file, text)}`.slice(0, ui.messageInput.maxLength > 0 ? ui.messageInput.maxLength : 40000);
-      const block = nextValue.slice(before.length);
-      if (!block) {
-        announce('Mesaj alanı dolu. Dosya eklenebilmesi için biraz metin silmelisin.');
-        return;
-      }
-      files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block });
-      ui.messageInput.value = nextValue;
-      ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-      renderAttachmentStrip();
-      ui.messageInput.focus();
-      announce(`${file.name} eklendi.`);
-    } catch {
-      announce(`${file.name} işlenemedi.`);
+      // The file is uploaded and only a reference is inserted: the composer stays readable while the
+      // model still receives the content, which the server expands from the reference.
+      const stored = await hafizeApi.uploadDocument(text, file.name, file.type || 'text/plain');
+      insertAttachment(file, composeAttachment(file, stored.url), `${file.name} eklendi; içeriği sohbete yazılmadı, Hafize dosyayı okuyacak.`);
+    } catch (error) {
+      announce(`${file.name} yüklenemedi: ${String(error?.message || 'dosya işlenemedi').slice(0, 120)}`);
     }
   }
 
@@ -137,7 +164,7 @@
     input.type = 'file';
     input.hidden = true;
     input.multiple = true;
-    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,text/plain,application/json';
+    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,text/plain,application/json,image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
     input.addEventListener('change', async () => {
       for (const file of [...input.files].slice(0, MAX_ATTACHMENTS)) await addFile(file);
       input.remove();
@@ -257,23 +284,42 @@
   });
   ui.composer.addEventListener('drop', async (event) => {
     event.preventDefault();
+    // The drop must not reach the textarea, or the browser also pastes the file text.
     event.stopPropagation();
+    event.stopImmediatePropagation();
     ui.composer.classList.remove('drag-active');
     for (const file of [...(event.dataTransfer?.files || [])].slice(0, MAX_ATTACHMENTS)) await addFile(file);
   });
+
+  // A file dropped straight onto the textarea becomes an attachment, never pasted text.
   ui.messageInput.addEventListener('drop', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+    if (event.dataTransfer?.files?.length) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    }
   });
   ui.messageInput.addEventListener('dragover', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
+    if (event.dataTransfer?.files?.length) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   });
   ui.messageInput.addEventListener('paste', async (event) => {
     const pastedFiles = [...(event.clipboardData?.files || [])];
-    if (!pastedFiles.length) return;
+    if (pastedFiles.length) {
+      event.preventDefault();
+      for (const file of pastedFiles.slice(0, MAX_ATTACHMENTS)) await addFile(file);
+      return;
+    }
+    // A long paste becomes a document instead of flooding the composer: the message box keeps only a
+    // one-line reference, exactly like a dropped file, and the model still receives the content.
+    const text = typeof event.clipboardData?.getData?.('text/plain') === 'string' ? event.clipboardData.getData('text/plain') : '';
+    if (text.length < PASTE_TO_FILE_CHARS) return;
     event.preventDefault();
-    for (const file of pastedFiles.slice(0, MAX_ATTACHMENTS)) await addFile(file);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const file = new File([text], `yapistirilan-metin-${stamp}.txt`, { type: 'text/plain' });
+    await addFile(file);
   });
   ui.composer.addEventListener('submit', clearAttachments, true);
 

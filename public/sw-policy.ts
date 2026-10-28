@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v79`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v86`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -9,6 +9,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/voice-output.css",
   "/screen-share.css",
   "/hands-free.css",
+  "/voice-states.css",
   "/workspace-navigation.css",
   "/chat-composer-features.css",
   "/chat-history-search.css",
@@ -42,6 +43,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/scheduled-task-actions.css",
   "/scheduled-task-detail.css",
   "/hafize-runtime.css",
+  "/chat-scroll.css",
   "/prompt-library-collections.css",
   "/prompt-library-revisions.css",
   "/github-workspace.css",
@@ -53,6 +55,9 @@ export const SHELL_ASSETS = Object.freeze([
   "/model-preferences.css",
   "/workspace-backup.css",
   "/settings-privacy.css",
+  "/agent-platform.css",
+  "/typed-build/rich-content.js",
+  "/typed-build/platform-panel.js",
   "/typed-build/auth.js",
   "/typed-build/app-shell.js",
   "/typed-build/chat-history-management.js",
@@ -74,12 +79,17 @@ export const SHELL_ASSETS = Object.freeze([
   "/typed-build/scheduled-tasks-countdown.js",
   "/typed-build/voice-input.js",
   "/typed-build/voice-output.js",
+  "/typed-build/hands-free.js",
+  "/typed-build/hands-free-background-guard.js",
   "/typed-build/ui-shell.js",
   "/typed-build/app-runtime.js",
   "/typed-build/workspace-backup.js",
   "/typed-build/system-readiness-panel.js",
   "/typed-build/legacy-app.js",
   "/clean-ui.css",
+  "/chat-markdown.css",
+  "/polish.css",
+  "/theme-init.js",
   "/composer-focus-guard.js",
   "/manifest.webmanifest",
   "/hafize.jpeg"

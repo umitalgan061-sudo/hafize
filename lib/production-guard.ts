@@ -78,7 +78,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
         if (!decision.ok) return rate(res, decision.retryAfterSeconds);
         res.once('close', decision.release);
         res.once('finish', decision.release);
-      } else if (!required && ['/api/agent/run','/api/chat','/api/skills/consent'].includes(path) && isLoopback(req)) {
+      } else if (!required && (['/api/agent/run','/api/chat','/api/skills/consent'].includes(path) || platformPath(path)) && isLoopback(req)) {
         Object.defineProperty(req, '__hafizePrincipal', {
           value: Object.freeze({ ownerId: config.authSubject, sessionId: localSessionId }),
           configurable: false,
@@ -102,7 +102,13 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
     return original.apply(http, args);
   };
 
+  // Everything the platform layer serves (memory, images, approvals, orchestrator, experts,
+  // observability, backup, skills) is owner data: it always needs a principal.
+  function platformPath(path: string): boolean {
+    return ['/api/memory','/api/images','/api/uploads','/api/approvals','/api/actions','/api/orchestrator','/api/experts','/api/observability','/api/feedback','/api/backup','/api/skills','/api/capabilities','/api/prompts'].some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+  }
   function protectedPath(path: string): boolean {
+    if (platformPath(path)) return true;
     return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/skills/consent','/api/connectors/canva/status','/api/connectors/gmail/status','/api/github/workspace','/api/github/workspace/directory','/api/github/workspace/compare','/api/github/workspace/commit','/api/github/workspace/pull','/api/github/workspace/write/approval','/api/github/workspace/write'].includes(path);
   }
   function isLoopback(req: IncomingMessage): boolean {

@@ -1,0 +1,15 @@
+# Hafize metriklerini toplamak için örnek Prometheus yapılandırması.
+# .env içine HAFIZE_METRICS_TOKEN=<uzun-rastgele-değer> ekleyip sunucuyu yeniden başlatın;
+# aynı değeri aşağıdaki credentials alanına yazın.
+global:
+  scrape_interval: 60s
+scrape_configs:
+  - job_name: hafize
+    metrics_path: /api/metrics
+    params:
+      format: [prometheus]
+    authorization:
+      type: Bearer
+      credentials: DEGISTIR-HAFIZE_METRICS_TOKEN
+    static_configs:
+      - targets: ['127.0.0.1:4173']

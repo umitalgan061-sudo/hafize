@@ -2,6 +2,23 @@
 
 Hafize, NVIDIA NIM destekli kişisel yapay zekâ çalışma alanıdır. Uygulama Claude-benzeri bir sohbet deneyimi, agent registry/delegation, tool-calling, context compaction, kişisel memory, scheduled tasks, Redis lease, PWA, ses özellikleri ve kullanıcı izinli GitHub / Google / Gmail / Canva bağlantıları için backend runtime içerir.
 
+## Yetenekler
+
+### Kalıcı hafıza
+Uzun vadeli hafıza hybrid arama ile çalışır: yoğun vektör (embedding cosine) + seyrek BM25/FTS. Kayıtlar `semantic`, `episodic` ve `procedural` türlerine ayrılır; sahibi ve ad alanına göre şifrelenir. Zaman boyutlu sorgu desteklenir (`filter.since`), TTL dolan kayıtlar budanır ve `memory_consolidate` ham konuşmaları özetleyip semantic ad alanına yazar. Detay: [docs/ENCRYPTED_PERSONAL_MEMORY.md](docs/ENCRYPTED_PERSONAL_MEMORY.md), [docs/MEMORY_CONSOLIDATION.md](docs/MEMORY_CONSOLIDATION.md).
+
+### Skill yazımı (`skill_create`)
+Ajan tekrarlanabilir bir beceriyi bir kez tanımlayıp kalıcı hâle getirebilir. Manifest built-in skill'lerle aynı doğrulayıcıdan geçer; ajan kendi yetkisinden geniş bir skill yazamaz, sandbox kodlu skill'ler kaydedilmeden önce sağlık kontrolünden geçirilir ve başarısızlıkta önceki dosyalar geri yüklenir. Kaydedilen skill `skill_invoke` ile çağrılır ve `action_undo` ile geri alınabilir. Detay: [docs/SKILL_AUTHORING.md](docs/SKILL_AUTHORING.md).
+
+### Proaktif davranış (kural motoru)
+Cron takvimi ve olay tabanlı tetikleyiciler sayesinde Hafize yalnızca sorulduğunda değil, kurala dayalı olarak da çalışır: "bu dosya değişince testleri koş", "her sabah 09:00'de özet çıkar". Kurallar sahip başına tutulur, cooldown ve guard ile sınırlandırılır ve hiçbir yetkiyi genişletmez. Detay: [docs/RULE_ENGINE.md](docs/RULE_ENGINE.md).
+
+### Geliştirici araçları
+### Dosya ekleri
+Metin ve kod dosyalari eklenince ham icerik sohbet kutusuna yazilmaz. Dosya sunucuda sifreli saklanir, metin kutusuna yalnizca tek satirlik bir referans gider ve icerik modele istek aninda iletilir. Sonuc: ek alani okunabilir kalir, Hafize dosyayi yine de okur. Detay: [docs/DOCUMENT_ATTACHMENTS.md](docs/DOCUMENT_ATTACHMENTS.md).
+
+`test_run` yalnızca bilinen test komutlarını koşturur ve sonucu `runId` ile saklar; `test_read_result` o sonucu geri okur. `git_run` çalışma klasöründeki depoda yalnız salt-okunur git komutlarını çalıştırır; yazma işlemleri reddedilir ve `shell_run` + kullanıcı onayı ile yapılmalıdır. Detay: [docs/DEV_TOOLS.md](docs/DEV_TOOLS.md).
+
 ## Çalıştırma
 
 Node.js ile:

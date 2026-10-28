@@ -80,7 +80,10 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  const composer=documentRef.querySelector<HTMLElement>('#composer');
  const SizeObserver=(root as typeof globalThis).ResizeObserver;
  if(composer&&typeof SizeObserver==='function'){
-  const applyComposerSpace=()=>{const top=composer.getBoundingClientRect().top;if(!top)return;html.style.setProperty('--composer-space',`${Math.max(96,Math.ceil(root.innerHeight-top+20))}px`);};
+  // The chat scrolls inside .chat-stage; its height ends exactly at the composer's top edge so the
+  // last message is never hidden behind the fixed composer, whatever the composer's height.
+  const stage=documentRef.querySelector<HTMLElement>('.chat-stage');
+  const applyComposerSpace=()=>{const top=composer.getBoundingClientRect().top;if(!top)return;html.style.setProperty('--composer-space',`${Math.max(320,Math.ceil(root.innerHeight-top+20))}px`);if(stage){const stageTop=stage.getBoundingClientRect().top;if(stageTop>=0&&top>stageTop)html.style.setProperty('--chat-stage-height',`${Math.floor(top-stageTop-8)}px`);}};
   const sizeObserver=new SizeObserver(applyComposerSpace);sizeObserver.observe(composer);
   disposers.push(()=>sizeObserver.disconnect(),addListener(root,'resize',applyComposerSpace));
   applyComposerSpace();

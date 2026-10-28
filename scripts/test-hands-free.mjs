@@ -115,4 +115,52 @@ const unsupported = api.installHandsFree(unsupportedDoc, {});
 assert.equal(unsupported.isSupported, false);
 assert.equal(unsupportedToggle.disabled, true);
 
+
+// Words after the wake phrase in the same utterance are kept as the start of the request.
+assert.equal(api.textAfterWakePhrase('Hafize, yarın hava nasıl?'), 'yarın hava nasıl?');
+assert.equal(api.textAfterWakePhrase('tamam HAFİZE'), '');
+assert.equal(api.textAfterWakePhrase('merhaba dünya'), '');
+
+{
+  // The composer icon button and the rail toggle share [data-voice-toggle] and one state.
+  const railToggle = element();
+  const iconToggle = element();
+  iconToggle.id = 'handsFreeBtn';
+  const composer = element();
+  composer.removeAttribute = function (name) { delete this.attrs[name]; };
+  const wakeInput = element();
+  wakeInput.value = '';
+  wakeInput.dispatchEvent = function (event) { this.lastEvent = event.type; };
+  const wakeMic = element();
+  const doc = {
+    hidden: false,
+    documentElement: { lang: 'tr' },
+    querySelector(selector) {
+      return ({ '#handsFreeToggle': railToggle, '#handsFreeIndicator': element(), '#micBtn': wakeMic, '#messageInput': wakeInput, '#toast': element(), '#composer': composer })[selector] || null;
+    },
+    querySelectorAll(selector) { return selector === '[data-voice-toggle="handsfree"]' ? [iconToggle, railToggle] : []; },
+    addEventListener() {}, removeEventListener() {}
+  };
+  const wakeRecognitions = [];
+  class WakeRecognition {
+    constructor() { wakeRecognitions.push(this); }
+    start() { this.onstart?.(); }
+    stop() { this.onend?.(); }
+    abort() { this.onend?.(); }
+  }
+  const wake = api.installHandsFree(doc, { ...root, SpeechRecognition: WakeRecognition, Event: class { constructor(type) { this.type = type; } } });
+  iconToggle.fire('click');
+  assert.equal(wake.isEnabled(), true);
+  assert.equal(railToggle.attrs['aria-pressed'], 'true');
+  assert.equal(iconToggle.attrs['aria-pressed'], 'true');
+  assert.equal(composer.attrs['data-hands-free'], 'true');
+  assert.match(composer.attrs['data-hands-free-status'], /Hafize/);
+  wakeRecognitions[0].onresult?.({ resultIndex: 0, results: [[{ transcript: 'Hafize bugün hava nasıl' }]] });
+  assert.equal(wakeInput.value, 'bugün hava nasıl');
+  assert.equal(wakeInput.lastEvent, 'input');
+  assert.equal(wakeMic.clicked, 1);
+  wake.destroy();
+  assert.equal(composer.attrs['data-hands-free-status'], undefined);
+}
+
 console.log('hands-free tests passed');

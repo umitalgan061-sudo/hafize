@@ -54,16 +54,17 @@ function buildRuntime(raw, allowedProjects, createRegistry = createSkillsRegistr
     const id = typeof skillId === 'string' ? skillId.trim() : '';
     if (!id) return null;
     const idemKeyEffective = typeof idemKey === 'string' && idemKey.trim() ? idemKey.trim() : hashInvocation(id, args, agent?.id, sessionId);
-    if (idempotencyStore?.has(idemKeyEffective)) {
-      const cached = idempotencyStore.get(idemKeyEffective);
-      auditLog.record({ stage: 'resolved', traceId, agentId: agent?.id, skillId: id, arguments: args, result: { idempotent: true } });
-      return cached;
-    }
     try {
       const registered = registry.get(id);
       if (!registered) fail('UNKNOWN_SKILL');
       const manifest = registered.manifest;
       const consentRequired = manifest.riskLevel !== 'low' || manifest.sideEffects.mutates;
+      // The cached result may only short-circuit skills that need no consent; otherwise a revoked
+      // or "never" consent would be bypassed for the cache lifetime.
+      if (!consentRequired && idempotencyStore?.has(idemKeyEffective)) {
+        auditLog.record({ stage: 'resolved', traceId, agentId: agent?.id, skillId: id, arguments: args, result: { idempotent: true } });
+        return idempotencyStore.get(idemKeyEffective);
+      }
       const scopes = manifest.requiredScopes.length ? manifest.requiredScopes : manifest.allowedTools;
       const invocation = Object.freeze(registry.resolveInvocation({
         agent,
@@ -72,7 +73,6 @@ function buildRuntime(raw, allowedProjects, createRegistry = createSkillsRegistr
         approvalGranted: approvalGranted === true,
         // Resolution only prepares a prompt and permission set. The actual tool
         // calls remain independently checked by the tool executor.
-        consentGranted: consentRequired,
         approvedScopes: consentRequired ? scopes : [],
         intersectTools: true
       }));

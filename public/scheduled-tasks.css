@@ -1,4 +1,4 @@
-.scheduled-tasks-overlay{position:fixed;inset:0;z-index:900;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.42)}
+.scheduled-tasks-overlay{position:fixed;inset:0;z-index:900;display:grid;place-items:center;padding:18px;background:var(--scrim)}
 .scheduled-tasks-overlay[hidden]{display:none}
 .scheduled-tasks-shell{width:min(760px,100%);max-height:min(90vh,860px);overflow:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--text);box-shadow:0 24px 76px rgba(0,0,0,.2)}
 .scheduled-tasks-head{display:flex;align-items:center;gap:7px}.scheduled-tasks-title{font-size:15px;margin-right:auto}.scheduled-tasks-section-title{font-size:11px;font-weight:650;color:var(--muted)}

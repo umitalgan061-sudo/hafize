@@ -1,0 +1,110 @@
+/* Rich answers (diagrams, math, images) and the "Gelişmiş" settings panel. */
+.md-diagram {
+  width: 100%;
+  box-sizing: border-box;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  overflow-x: auto;
+}
+.md-diagram[aria-busy="true"]::before {
+  content: "Diyagram çiziliyor…";
+  color: #666;
+  font-size: 12px;
+}
+.md-diagram-canvas svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.md-diagram-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.md-diagram-tools button {
+  border: 1px solid #d7d0c4;
+  border-radius: 999px;
+  background: #fff;
+  color: #333;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.md-diagram-tools button::before { content: attr(data-label); }
+.md-diagram-error { color: #a12d2d; font-size: 12px; }
+.md-code.md-code-collapsed .md-code-body { display: none; }
+.md-image-link { display: inline-block; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+.platform-panel .platform-section {
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+.platform-panel .platform-section:first-of-type { margin-top: 12px; }
+.platform-panel summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+.platform-panel .platform-hint { margin: 6px 0 8px; }
+.platform-panel .platform-body { display: grid; gap: 10px; }
+.platform-panel .platform-body button {
+  justify-self: start;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.platform-table-wrap { overflow-x: auto; }
+.platform-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.platform-table th, .platform-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.platform-table th { color: var(--muted); font-weight: 600; }
+.platform-kpis { font-size: 12px; color: var(--ink) !important; }
+.platform-error { color: #a12d2d !important; }
+.platform-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; }
+.platform-gallery figure { margin: 0; display: grid; gap: 4px; font-size: 11px; }
+.platform-gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); }
+@media (max-width: 680px) {
+  .platform-table th, .platform-table td { padding: 5px 6px; }
+}
+
+/* Approval dialog buttons (explicit: the dialog lives outside the app's button styles). */
+.approval-dialog { background: var(--card, #fffdfa); color: var(--ink, #252824); }
+.approval-actions button {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 110px;
+  border-radius: 11px;
+  padding: 10px 16px;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.approval-actions .approval-deny,
+.approval-actions .approval-never {
+  border: 1px solid var(--line, #dedbd2);
+  background: transparent;
+  color: var(--ink, #252824);
+}
+.approval-actions .approval-never { color: #a12d2d; }
+.approval-actions .approval-approve {
+  border: 0;
+  background: #d9774f;
+  color: #fff;
+}
+.approval-actions .approval-approve:hover { filter: brightness(0.95); }
+.approval-actions button:focus-visible { outline: 3px solid rgba(217, 119, 79, 0.45); outline-offset: 2px; }
+@media (max-width: 480px) {
+  .approval-actions { flex-direction: column-reverse; }
+  .approval-actions button { width: 100%; }
+}

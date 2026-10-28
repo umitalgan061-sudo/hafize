@@ -33,6 +33,7 @@ assert.ok(engineer);
 // (kind, timeout), so the assertion pins the permission-to-tool mapping and
 // its order rather than the whole descriptor.
 assert.deepEqual(listToolPermissions().map(({ permission, name }) => ({ permission, name })), [
+  { permission: 'fs.read', name: 'fs_read' },
   { permission: 'runtime.status', name: 'runtime_status' },
   { permission: 'agent.delegate', name: 'agent_delegate' },
   { permission: 'repo.read', name: 'github_read_file' },
@@ -46,7 +47,30 @@ assert.deepEqual(listToolPermissions().map(({ permission, name }) => ({ permissi
   { permission: 'web.rates.read', name: 'exchange_rates' },
   { permission: 'memory.write', name: 'memory_save' },
   { permission: 'memory.write', name: 'memory_forget' },
-  { permission: 'skill.invoke', name: 'skill_invoke' }
+  { permission: 'research.run', name: 'research_run' },
+  { permission: 'code.run', name: 'code_run' },
+  { permission: 'orchestrator.run', name: 'orchestrator_run' },
+  { permission: 'orchestrator.run', name: 'orchestrator_resume' },
+  { permission: 'memory.read', name: 'memory_search' },
+  { permission: 'memory.consolidate', name: 'memory_consolidate' },
+  { permission: 'agent.discover', name: 'expert_find' },
+  { permission: 'vision.analyze', name: 'vision_analyze' },
+  { permission: 'image.generate', name: 'image_generate' },
+  { permission: 'diagram.render', name: 'diagram_render' },
+  { permission: 'web.render', name: 'web_page_render' },
+  { permission: 'action.undo', name: 'action_undo' },
+  { permission: 'workspace.files', name: 'workspace_files' },
+  { permission: 'workspace.sqlite', name: 'workspace_sqlite' },
+  { permission: 'shell.run', name: 'shell_run' },
+  { permission: 'skill.invoke', name: 'skill_invoke' },
+  { permission: 'test.run', name: 'test_run' },
+  { permission: 'test.read_result', name: 'test_read_result' },
+  { permission: 'git.worktree', name: 'git_run' },
+  { permission: 'rule.create', name: 'rule_create' },
+  { permission: 'rule.read', name: 'rule_list' },
+  { permission: 'rule.create', name: 'rule_remove' },
+  { permission: 'rule.create', name: 'rule_set_enabled' },
+  { permission: 'skill.create', name: 'skill_create' }
 ]);
 
 assertActivity(getPublicToolRunningActivity('runtime_status'), { label: 'Runtime durumu kontrol ediliyor', state: 'running' });

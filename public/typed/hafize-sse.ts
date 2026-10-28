@@ -31,7 +31,8 @@ export interface HafizeSseOptions extends HafizeSseLimits {
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
-const MAX_TIMEOUT_MS = 300_000;
+// Agent runs (research, orchestration, approvals) can take up to 15 minutes.
+const MAX_TIMEOUT_MS = 900_000;
 const DEFAULT_MAX_FRAME_CHARS = 128 * 1024;
 const DEFAULT_MAX_BUFFER_CHARS = 256 * 1024;
 const DEFAULT_MAX_EVENTS = 20_000;

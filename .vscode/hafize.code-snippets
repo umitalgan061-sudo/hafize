@@ -1,0 +1,41 @@
+{
+  "Hafize skill manifest": {
+    "prefix": "hafize-skill",
+    "description": "Sandbox içinde çalışan bir Hafize becerisi (skills/user/<ad>.json)",
+    "scope": "json",
+    "body": [
+      "{",
+      "  \"name\": \"${1:beceri-adi}\",",
+      "  \"description\": \"${2:Ne yaptığını tek cümleyle yaz.}\",",
+      "  \"triggers\": [\"${3:tetikleyici ifade}\"],",
+      "  \"allowedTools\": [\"code.run\"],",
+      "  \"parameters\": { \"type\": \"object\", \"properties\": { \"${4:metin}\": { \"type\": \"string\", \"maxLength\": 4000 } }, \"required\": [\"${4:metin}\"], \"additionalProperties\": false },",
+      "  \"returns\": { \"type\": \"object\", \"properties\": { \"result\": { \"type\": \"string\" } }, \"required\": [\"result\"] },",
+      "  \"sideEffects\": { \"idempotent\": true, \"mutates\": false, \"external\": false },",
+      "  \"riskLevel\": \"low\",",
+      "  \"handler\": { \"type\": \"sandbox\", \"file\": \"${1:beceri-adi}.js\", \"network\": false, \"timeoutMs\": 5000 },",
+      "  \"execution\": \"inline\",",
+      "  \"prompt\": \"${5:Sonucu kullanıcıya açıkla.}\"",
+      "}"
+    ]
+  },
+  "Hafize skill handler": {
+    "prefix": "hafize-handler",
+    "description": "Beceri kodu: input.args ile gelir, sonucu return eder (ağ/dosya yok)",
+    "scope": "javascript",
+    "body": [
+      "// input.args: becerinin argümanları",
+      "const { ${1:metin} } = input.args;",
+      "$0",
+      "return { result: String(${1:metin}) };"
+    ]
+  },
+  "Hafize eval vakası": {
+    "prefix": "hafize-eval-case",
+    "description": "evals/suites/*.json içine bir test vakası",
+    "scope": "json",
+    "body": [
+      "{ \"id\": \"${1:vaka}\", \"prompt\": \"${2:soru}\", \"checks\": { \"includesAny\": [\"${3:beklenen}\"] }, \"judge\": \"${4:ölçüt (isteğe bağlı)}\" }"
+    ]
+  }
+}

@@ -52,6 +52,19 @@
     return ` ${speech} `.includes(` ${wake} `);
   }
 
+  /** Words spoken after the wake phrase in the same breath ("Hafize, yarın hava nasıl?"). */
+  function textAfterWakePhrase(value, wakePhrase = DEFAULT_WAKE_PHRASE) {
+    if (typeof value !== 'string') return '';
+    const wake = normalizeSpeech(wakePhrase).split(' ').filter(Boolean);
+    if (!wake.length) return '';
+    const words = value.trim().split(/\s+/);
+    for (let index = 0; index + wake.length <= words.length; index += 1) {
+      const matches = wake.every((part, offset) => normalizeSpeech(words[index + offset]) === part);
+      if (matches) return words.slice(index + wake.length).join(' ').replace(/^[\s,.:;!?…-]+/u, '').trim();
+    }
+    return '';
+  }
+
   function readRecognitionText(event) {
     if (!event?.results) return '';
     const chunks = [];
@@ -163,17 +176,25 @@
   }
 
   function installHandsFree(documentRef, root) {
-    const toggle = documentRef?.querySelector?.('#handsFreeToggle');
+    // The rail toggle is hidden in the chat view; the composer's icon button is the one people
+    // actually click, so every [data-voice-toggle="handsfree"] button drives the same state.
+    const toggle = documentRef?.querySelector?.('#handsFreeToggle') || null;
+    const toggles = typeof documentRef?.querySelectorAll === 'function'
+      ? [...documentRef.querySelectorAll('[data-voice-toggle="handsfree"]')]
+      : [];
+    if (toggle && !toggles.includes(toggle)) toggles.push(toggle);
+    const composer = documentRef?.querySelector?.('#composer');
     const indicator = documentRef?.querySelector?.('#handsFreeIndicator');
     const micButton = documentRef?.querySelector?.('#micBtn');
     const input = documentRef?.querySelector?.('#messageInput');
     const toast = documentRef?.querySelector?.('#toast') || null;
-    if (!toggle || !indicator || !micButton || !input) return null;
-    if (ACTIVE_INSTALLATIONS.has(toggle)) throw new Error('HANDS_FREE_ALREADY_INSTALLED');
+    if (!toggles.length || !indicator || !micButton || !input) return null;
+    const primary = toggle || toggles[0];
+    if (ACTIVE_INSTALLATIONS.has(primary)) throw new Error('HANDS_FREE_ALREADY_INSTALLED');
 
-    const hostState = snapshotHostState(toggle, indicator, toast);
+    const hostState = snapshotHostState(primary, indicator, toast);
     const owner = Object.freeze({});
-    ACTIVE_INSTALLATIONS.set(toggle, owner);
+    ACTIVE_INSTALLATIONS.set(primary, owner);
 
     const Recognition = getRecognitionConstructor(root);
     let enabled = false;
@@ -193,18 +214,56 @@
     let destroyed = false;
     let observer = null;
     let listenersBound = false;
+    let toastTimer = null;
 
     function announce(message) {
       if (!toast || !message) return;
       toast.textContent = message;
       toast.classList?.remove?.('hidden');
+      if (typeof root?.setTimeout !== 'function') return;
+      if (toastTimer != null) root.clearTimeout?.(toastTimer);
+      toastTimer = root.setTimeout(() => {
+        toastTimer = null;
+        if (toast.textContent === message) toast.classList?.add?.('hidden');
+      }, 5200);
+    }
+
+    function statusText() {
+      if (!enabled) return '';
+      if (voiceInputListening) return 'Seni dinliyorum…';
+      if (handoffWaiting) return 'Mikrofon açılıyor…';
+      if (voiceOutputSpeaking) return 'Hafize konuşuyor';
+      if (coolingDown) return 'Yankı koruması';
+      if (restartTimer && restartDelayMs > RESTART_DELAY_MS) return 'Yeniden bağlanıyor…';
+      if (listening) return '“Hafize” de, dinliyorum';
+      return 'Eller serbest beklemede';
     }
 
     function render() {
       if (destroyed) return;
-      toggle.setAttribute?.('aria-pressed', String(enabled));
-      toggle.disabled = !Recognition;
-      toggle.textContent = enabled ? 'Eller serbest açık' : 'Eller serbest kapalı';
+      const status = statusText();
+      if (composer) {
+        composer.classList?.toggle?.('hands-free', enabled);
+        composer.setAttribute?.('data-hands-free', String(enabled));
+        // polish.css shows this as a small status pill above the composer.
+        if (enabled) composer.setAttribute?.('data-hands-free-status', status);
+        else composer.removeAttribute?.('data-hands-free-status');
+        composer.setAttribute?.('data-hands-free-listening', String(enabled && listening && !voiceInputListening));
+      }
+      for (const target of toggles) {
+        if (!target || typeof target.setAttribute !== 'function') continue;
+        target.setAttribute('aria-pressed', String(enabled));
+        target.disabled = !Recognition;
+        target.classList?.toggle?.('is-active', enabled);
+        target.setAttribute('data-hands-free-state', enabled ? 'on' : 'off');
+        target.title = !Recognition
+          ? 'Bu tarayıcı eller serbest modunu desteklemiyor'
+          : enabled ? `Eller serbest açık · ${status}` : 'Eller serbest: “Hafize” deyince mikrofon açılır';
+        if (target.id === 'handsFreeBtn') target.setAttribute('aria-label', enabled ? 'Eller serbest modu kapat' : 'Eller serbest modu aç');
+        else target.textContent = enabled ? 'Eller serbest açık' : 'Eller serbest kapalı';
+      }
+      const label = documentRef.querySelector?.('[data-hands-free-label]');
+      if (label) label.textContent = enabled ? 'Eller serbest açık' : 'Eller serbest kapalı';
       indicator.hidden = !enabled;
       indicator.textContent = enabled
         ? (voiceInputListening
@@ -417,6 +476,13 @@
         const transcript = readRecognitionText(event);
         if (transcript) resetRecognitionRecovery();
         if (coolingDown || voiceOutputSpeaking || !containsWakePhrase(transcript)) return;
+        // "Hafize, yarın hava nasıl?" in one breath: keep the request instead of making the user repeat it.
+        const request = textAfterWakePhrase(transcript);
+        if (request && !input.disabled) {
+          const before = typeof input.value === 'string' ? input.value.replace(/\s+$/u, '') : '';
+          input.value = before ? `${before} ${request}` : request;
+          if (typeof root?.Event === 'function') input.dispatchEvent?.(new root.Event('input', { bubbles: true }));
+        }
         beginVoiceHandoff();
       };
       current.onerror = (event) => {
@@ -530,7 +596,7 @@
     function unbindListeners() {
       if (!listenersBound) return;
       listenersBound = false;
-      toggle.removeEventListener?.('click', handleToggle);
+      for (const target of toggles) target.removeEventListener?.('click', handleToggle);
       documentRef.removeEventListener?.('visibilitychange', handleVisibility);
       documentRef.removeEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
       documentRef.removeEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
@@ -538,11 +604,11 @@
     }
 
     function releaseOwnership() {
-      if (ACTIVE_INSTALLATIONS.get(toggle) === owner) ACTIVE_INSTALLATIONS.delete(toggle);
+      if (ACTIVE_INSTALLATIONS.get(primary) === owner) ACTIVE_INSTALLATIONS.delete(primary);
     }
 
     try {
-      toggle.addEventListener?.('click', handleToggle);
+      for (const target of toggles) target.addEventListener?.('click', handleToggle);
       documentRef.addEventListener?.('visibilitychange', handleVisibility);
       documentRef.addEventListener?.(VOICE_INPUT_STATE_EVENT, handleVoiceInputState);
       documentRef.addEventListener?.(VOICE_OUTPUT_STATE_EVENT, handleVoiceOutputState);
@@ -574,7 +640,7 @@
       clearRestart();
       recognition = null;
       listening = false;
-      restoreHostState(toggle, indicator, toast, hostState);
+      restoreHostState(primary, indicator, toast, hostState);
       releaseOwnership();
       throw error;
     }
@@ -603,7 +669,11 @@
         clearHandoff();
         clearCooldown();
         clearRestart();
+        if (toastTimer != null) root?.clearTimeout?.(toastTimer);
+        toastTimer = null;
         observer?.disconnect?.();
+        composer?.removeAttribute?.('data-hands-free-status');
+        composer?.removeAttribute?.('data-hands-free-listening');
         const active = recognition;
         recognition = null;
         listening = false;
@@ -611,7 +681,7 @@
           try { active.abort?.(); } catch { /* already stopped */ }
         }
         unbindListeners();
-        restoreHostState(toggle, indicator, toast, hostState);
+        restoreHostState(primary, indicator, toast, hostState);
         releaseOwnership();
       }
     });
@@ -635,7 +705,8 @@
     normalizeRecognitionError,
     normalizeSpeech,
     readRecognitionText,
-    terminalRecognitionMessage
+    terminalRecognitionMessage,
+    textAfterWakePhrase
   });
 });
 
@@ -661,5 +732,6 @@ export const {
   normalizeRecognitionError,
   normalizeSpeech,
   readRecognitionText,
-  terminalRecognitionMessage
+  terminalRecognitionMessage,
+  textAfterWakePhrase
 } = hafizehandsfreeApi;

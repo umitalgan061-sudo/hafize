@@ -73,6 +73,53 @@
   font-size: 11px;
 }
 .composer-editing .message-action { margin-left: auto; }
+
+/* --- Attachment chips inside user messages -------------------------------------------
+   The composer stores attachments as markdown references (the server expands them). User messages
+   are painted as plain text, so without this the transcript showed raw "[Ekli dosya: …](…)". */
+.user-attachment-chip,
+.user-attachment-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 3px 4px 3px 0;
+  padding: 4px 9px 4px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.35;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.user-attachment-chip:hover { border-color: var(--accent); }
+.user-attachment-icon { flex: none; font-size: 12px; line-height: 1; }
+.user-attachment-name { min-width: 0; }
+
+.user-attachment-image {
+  padding: 3px;
+  border-radius: 12px;
+  background: transparent;
+}
+.user-attachment-image img {
+  display: block;
+  max-width: min(100%, 260px);
+  max-height: 190px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+}
+
+html[data-theme="dark"] .user-attachment-chip {
+  background: var(--soft, rgba(255, 255, 255, 0.07));
+}
+
+@media (max-width: 560px) {
+  .user-attachment-chip { font-size: 10px; padding: 3px 8px 3px 6px; }
+  .user-attachment-image img { max-width: min(100%, 190px); max-height: 150px; }
+}
 @media (max-width: 560px) {
   .attachment-chip { font-size: 10px; }
   .message-actions { margin-top: 5px; }

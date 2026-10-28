@@ -166,7 +166,7 @@
     motion.control.append(motionSwitch.wrap);
     appearance.append(theme.row, motion.row);
 
-    const memory = buildPanel(documentRef, 'Hafıza', 'Hafize’nin senin hakkında hatırladığı notlar. Yalnızca bu tarayıcıda saklanır ve her mesajla birlikte Hafize’ye bağlam olarak verilir. Sohbette “bunu hatırla” ya da “bunu unut” da diyebilirsin.');
+    const memory = buildPanel(documentRef, 'Hafıza', 'Hafize’nin senin hakkında hatırladığı notlar. Bu bilgisayardaki Hafize sunucusunda şifreli saklanır; geçmiş sohbet özetleri ve kayıtlı şablonlar da burada tutulur. Sohbette “bunu hatırla” ya da “bunu unut” da diyebilirsin.');
     const memoryList = documentRef.createElement('ul');
     memoryList.className = 'settings-memory-list';
     const memoryAdd = documentRef.createElement('form');
@@ -182,7 +182,8 @@
     const memoryActions = documentRef.createElement('div');
     memoryActions.className = 'settings-actions';
     const memoryClearBtn = makeButton(documentRef, 'Tümünü unut', 'settings-danger');
-    memoryActions.append(memoryClearBtn);
+    const memoryExportBtn = makeButton(documentRef, 'Dışa aktar (JSONL)');
+    memoryActions.append(memoryExportBtn, memoryClearBtn);
     memory.append(memoryList, memoryAdd, memoryActions);
 
     const data = buildPanel(documentRef, 'Yerel sohbet verileri', 'Sohbet geçmişi bu tarayıcının yerel depolamasında tutulur; bu ekran sunucuya veri göndermez.');
@@ -229,6 +230,7 @@
         remove.setAttribute('aria-label', `Notu sil: ${note.text}`);
         remove.addEventListener('click', () => {
           writeMemory(storage, readMemory(storage).filter((entry) => entry.id !== note.id));
+          notifyRemote({ action: 'delete', id: note.id });
           renderMemory();
           announce('Not silindi.');
         });
@@ -244,8 +246,10 @@
       const notes = readMemory(storage);
       if (notes.length >= MEMORY_MAX) return announce('Hafıza dolu; önce bir notu sil.');
       if (!notes.some((note) => note.text.toLocaleLowerCase('tr') === text.toLocaleLowerCase('tr'))) {
-        notes.push({ id: `u${Date.now().toString(36)}`, text, createdAt: new Date().toISOString() });
+        const id = `u${Date.now().toString(36)}`;
+        notes.push({ id, text, createdAt: new Date().toISOString() });
         if (!writeMemory(storage, notes)) return announce('Not kaydedilemedi.');
+        notifyRemote({ action: 'add', id, text });
       }
       memoryInput.value = '';
       renderMemory();
@@ -256,12 +260,18 @@
       if (!readMemory(storage).length) return;
       if (!rootRef?.confirm?.('Hafize’nin hatırladığı tüm notlar silinsin mi?')) return;
       writeMemory(storage, []);
+      notifyRemote({ action: 'purge' });
       renderMemory();
       announce('Hafıza temizlendi.');
     }
 
+    function notifyRemote(detail) {
+      try { rootRef?.dispatchEvent?.(new rootRef.CustomEvent('hafize:memory-remote', { detail })); } catch {}
+    }
+
     memoryAdd.addEventListener('submit', onMemoryAdd);
     memoryClearBtn.addEventListener('click', onMemoryClear);
+    memoryExportBtn.addEventListener('click', () => notifyRemote({ action: 'export' }));
     rootRef?.addEventListener?.('hafize:memory-changed', renderMemory);
     rootRef?.addEventListener?.('storage', (event) => { if (event.key === MEMORY_KEY) renderMemory(); });
     renderMemory();

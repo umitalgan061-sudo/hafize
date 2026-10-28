@@ -1,0 +1,19 @@
+{
+  "prompts": [
+    {
+      "id": "assistant.style",
+      "active": "1.0.0",
+      "versions": [
+        { "version": "1.0.0", "file": "assistant-style-1.0.0.md", "note": "Dengeli: önce doğrudan yanıt, sonra gerekirse ayrıntı." },
+        { "version": "1.1.0", "file": "assistant-style-1.1.0.md", "note": "Daha kısa: maddeli, özet odaklı." }
+      ],
+      "experiment": {
+        "enabled": true,
+        "variants": [
+          { "name": "A", "version": "1.0.0", "weight": 50 },
+          { "name": "B", "version": "1.1.0", "weight": 50 }
+        ]
+      }
+    }
+  ]
+}

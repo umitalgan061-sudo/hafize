@@ -1,0 +1,321 @@
+/* Visual polish layer, loaded last. Fixes dark-mode leftovers from the original light palette,
+   unifies the accent colour and adds small, motion-safe touches. No markup or controls are added. */
+
+/* --- One accent colour ----------------------------------------------------------------
+   The base palette used a sage green (--accent) while the brand, logo and send button are orange,
+   so focus rings, the mic state and dialog buttons looked like they came from another app. */
+:root {
+  --accent: var(--premium-orange);
+  --accent-strong: var(--premium-orange-strong);
+  --hover: rgba(70, 61, 52, 0.06);
+  --hover-strong: rgba(70, 61, 52, 0.09);
+  --user-bubble: color-mix(in srgb, var(--premium-orange) 9%, var(--premium-surface-strong));
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-theme="dark"] {
+  --accent: var(--premium-orange);
+  --accent-strong: var(--premium-orange-strong);
+  --hover: rgba(255, 255, 255, 0.06);
+  --hover-strong: rgba(255, 255, 255, 0.1);
+  --user-bubble: color-mix(in srgb, var(--premium-orange) 10%, var(--premium-surface-strong));
+}
+
+/* ui-shell.ts applies the saved theme after first paint; with premium.css's .25s body transition
+   every dark-mode load faded through a grey half-state. The switch is now instant. */
+body { transition: none; }
+
+::selection { background: color-mix(in srgb, var(--premium-orange) 26%, transparent); }
+
+/* --- Hover / active states that were hard-coded white --------------------------------- */
+.icon-btn:hover,
+.mini-btn:hover,
+.nav-item:not(:disabled):hover,
+.conversation-row:hover { background: var(--hover); color: var(--premium-text); }
+.conversation-row.active {
+  background: color-mix(in srgb, var(--premium-orange) 12%, transparent);
+  box-shadow: inset 2px 0 0 var(--premium-orange);
+}
+.conversation-row.active .conversation-open { color: var(--premium-text); font-weight: 600; }
+.nav-item { color: var(--premium-text); transition: background 0.15s ease; }
+.new-chat { transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s var(--ease-out); }
+.new-chat:hover {
+  background: color-mix(in srgb, var(--premium-orange) 18%, var(--premium-surface-strong));
+  border-color: color-mix(in srgb, var(--premium-orange) 50%, var(--premium-line));
+}
+.new-chat:active { transform: scale(0.985); }
+.soft-btn { background: var(--premium-surface); }
+.soft-btn:hover { background: var(--hover-strong); }
+.conversation-delete { opacity: 0.55; transition: opacity 0.15s ease, color 0.15s ease; }
+.conversation-row:hover .conversation-delete,
+.conversation-delete:focus-visible { opacity: 1; }
+.conversation-delete:hover { color: var(--premium-orange-strong); }
+
+/* --- Edge beams: subtler, so they read as ambience rather than a rendering glitch ------- */
+.edge-beam { opacity: 0.32; }
+
+/* --- Welcome screen ------------------------------------------------------------------ */
+.welcome { animation: polishRise 0.6s var(--ease-out) both; }
+.hero-logo { animation: polishBloom 0.9s var(--ease-out) both, polishSpin 60s linear 1s infinite; transform-origin: 50% 50%; }
+.welcome h1::after { transform-origin: left center; animation: polishDraw 0.8s var(--ease-out) 0.35s both; }
+.suggestions button {
+  color: var(--premium-text);
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s var(--ease-out), box-shadow 0.18s ease;
+}
+.suggestions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--premium-orange) 14%, transparent);
+}
+.suggestions button:active { transform: translateY(0); }
+.suggestions button:nth-child(1) { animation: polishRise 0.5s var(--ease-out) 0.15s both; }
+.suggestions button:nth-child(2) { animation: polishRise 0.5s var(--ease-out) 0.22s both; }
+.suggestions button:nth-child(3) { animation: polishRise 0.5s var(--ease-out) 0.29s both; }
+.suggestions button:nth-child(4) { animation: polishRise 0.5s var(--ease-out) 0.36s both; }
+
+/* --- Messages ------------------------------------------------------------------------
+   #messages sits in a flex column with margin:auto, so without a width it shrank to its
+   content and every chat had a different, often narrow, column. */
+/* align-content:start stops the grid rows stretching to fill a short chat (tall, empty bubbles). */
+#messages { width: 100%; align-content: start; }
+/* Answers use the full column like a document; fit-content made a code block or table only as
+   wide as its longest line. User bubbles keep their right-aligned, content-sized shape. */
+.message.assistant { width: 100%; max-width: 100%; }
+/* Only the newest message animates; the list is re-rendered on send and history switches. */
+.message:last-child { animation: polishRise 0.32s var(--ease-out) both; }
+.message.user {
+  background: var(--user-bubble);
+  color: var(--premium-text);
+  border-radius: 18px 18px 6px 18px;
+}
+.message.assistant .meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.message.assistant .meta::before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--premium-orb);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--premium-orange) 14%, transparent);
+}
+.tool-activity { color: var(--premium-text); }
+.tool-activity.failed { background: color-mix(in srgb, #c0392b 10%, transparent); color: var(--premium-text); }
+.assistant-message-actions { opacity: 0.6; transition: opacity 0.15s ease; }
+.message:hover .assistant-message-actions,
+.assistant-message-actions:focus-within { opacity: 1; }
+.assistant-message-actions .message-action { color: var(--premium-muted); }
+.assistant-message-actions .message-action:hover { color: var(--premium-text); background: var(--hover); }
+
+/* Code blocks get a touch more depth; inline code keeps the orange tint. */
+.md-code { box-shadow: 0 1px 0 var(--md-line), 0 6px 18px rgba(40, 32, 24, 0.05); }
+.md-heading { color: var(--premium-text); }
+
+/* --- Composer ------------------------------------------------------------------------ */
+.main .primary-column form#composer.composer {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.main .primary-column form#composer.composer:focus-within {
+  border-color: color-mix(in srgb, var(--premium-orange) 45%, var(--premium-line));
+  box-shadow: var(--premium-shadow), 0 0 0 4px color-mix(in srgb, var(--premium-orange) 12%, transparent);
+}
+/* The whole composer shows focus now, so the inner ring around the textarea is redundant. */
+.composer textarea:focus-visible { outline: none; }
+.composer-tools .icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 10px;
+  color: var(--premium-muted);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.composer-tools .icon-btn:hover { color: var(--premium-text); border-color: color-mix(in srgb, var(--premium-orange) 30%, var(--premium-line)); }
+.send-btn {
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--premium-orange) 30%, transparent);
+  transition: background 0.15s ease, transform 0.15s var(--ease-out), box-shadow 0.15s ease, opacity 0.15s ease;
+}
+.send-btn:hover { transform: translateY(-1px); }
+.send-btn:active { transform: translateY(0) scale(0.96); }
+/* Empty box: the button stays clickable but recedes until there is something to send. */
+#composer:has(#messageInput:placeholder-shown) .send-btn:not(:focus-visible) {
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+/* --- Top bar ------------------------------------------------------------------------- */
+/* ☀ fell back to the colour emoji on Windows: a grey disc that made the inactive sun look selected. */
+.theme-toggle span {
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Apple Symbols", sans-serif;
+  font-variant-emoji: text;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+#sidebarToggle { width: 38px; height: 38px; display: inline-grid; place-items: center; padding: 0; color: var(--premium-text); }
+.flower-logo { transition: transform 0.6s var(--ease-out); }
+.brand-inline:hover .flower-logo { transform: rotate(45deg); }
+
+/* --- Sidebar ------------------------------------------------------------------------- */
+.sidebar { transition: transform 0.26s var(--ease-out), box-shadow 0.26s ease; }
+body.sidebar-open::after {
+  background: rgba(24, 18, 14, 0.28);
+  animation: polishFade 0.2s ease both;
+}
+html[data-theme="dark"] body.sidebar-open::after { background: rgba(0, 0, 0, 0.45); }
+.history-head { text-transform: uppercase; letter-spacing: 0.06em; font-size: 10.5px; }
+
+/* --- Toast --------------------------------------------------------------------------- */
+.toast:not(.hidden) { animation: polishRise 0.25s var(--ease-out) both; border-radius: 14px; }
+
+/* --- Dialogs ------------------------------------------------------------------------- */
+.approval-dialog, .modal, .dialog { animation: polishPop 0.22s var(--ease-out) both; }
+
+/* --- Native controls ------------------------------------------------------------------
+   Without color-scheme, checkboxes, selects and date pickers stayed white in dark mode. */
+html[data-theme="light"] { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+input[type="checkbox"], input[type="radio"], input[type="range"], progress { accent-color: var(--premium-orange); }
+.settings-switch input { accent-color: var(--premium-orange); }
+
+/* --- Settings ------------------------------------------------------------------------ */
+.settings-panel {
+  background: var(--premium-surface);
+  border-color: var(--premium-line);
+  box-shadow: 0 1px 0 var(--premium-line), 0 10px 30px rgba(32, 28, 20, 0.05);
+  transition: border-color 0.2s ease;
+}
+.settings-panel:hover { border-color: color-mix(in srgb, var(--premium-orange) 22%, var(--premium-line)); }
+.settings-panel h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; font-size: 18px; }
+.settings-control select, .settings-control button, .settings-actions button,
+.settings-memory-list button, .settings-memory-add button, .settings-memory-add input {
+  background: var(--premium-surface-strong);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.settings-control select:focus-visible, .settings-memory-add input:focus-visible {
+  outline: none;
+  border-color: var(--premium-orange);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--premium-orange) 16%, transparent);
+}
+.settings-actions button:not(:disabled):hover, .settings-control button:hover,
+.settings-memory-add button:hover { background: var(--hover-strong); }
+html[data-theme="dark"] .settings-danger { color: #ef8a80 !important; }
+
+/* --- Sidebar row tools: shown on hover/focus so titles have room to breathe ------------- */
+@media (hover: hover) {
+  .conversation-row .history-manage { opacity: 0; transition: opacity 0.15s ease; }
+  .conversation-row:hover .history-manage,
+  .conversation-row:focus-within .history-manage,
+  .conversation-row.active .history-manage { opacity: 1; }
+}
+.history-manage-btn { border-color: transparent; }
+.history-manage-btn:hover, .history-manage-btn:focus-visible { outline: none; border-color: var(--premium-line); background: var(--hover-strong); }
+
+/* --- Composer voice toggles: colour emoji next to monochrome glyphs looked out of place --- */
+.composer-tools [data-voice-toggle] { filter: grayscale(1); opacity: 0.75; transition: filter 0.15s ease, opacity 0.15s ease; }
+.composer-tools [data-voice-toggle]:hover { opacity: 1; }
+.composer-tools [data-voice-toggle][aria-pressed="true"] {
+  filter: none;
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--premium-orange) 45%, var(--premium-line));
+  background: color-mix(in srgb, var(--premium-orange) 14%, transparent);
+}
+
+/* --- Voice assistant states -------------------------------------------------------------
+   voice-states.css used three unrelated colours (red / purple / green) and a ring that pulsed
+   for as long as a toggle was on. Here every state uses the brand orange, motion only runs while
+   something is actually happening, and a status pill above the composer says what that is. */
+#composer[data-voice-listening="true"],
+#composer[data-hands-free="true"],
+#composer.voice-speaking {
+  border-color: color-mix(in srgb, var(--premium-orange) 55%, var(--premium-line));
+  box-shadow: var(--premium-shadow), 0 0 0 4px color-mix(in srgb, var(--premium-orange) 14%, transparent);
+}
+#composer[data-voice-listening="true"] { animation: voiceGlow 1.6s ease-in-out infinite; }
+#composer::before {
+  content: none;
+  position: absolute;
+  left: 16px;
+  bottom: calc(100% + 8px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 12px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--premium-orange) 30%, var(--premium-line));
+  border-radius: 999px;
+  background: var(--premium-surface-strong);
+  box-shadow: 0 6px 18px rgba(40, 32, 24, 0.1);
+  color: var(--premium-text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  animation: polishRise 0.22s var(--ease-out) both;
+}
+/* Priority: the open microphone, then speech, then the hands-free wait state. */
+#composer[data-hands-free-status]::before { content: "◌  " attr(data-hands-free-status); }
+#composer[data-hands-free-listening="true"]::before { content: "◉  " attr(data-hands-free-status); }
+#composer.voice-speaking::before { content: "♪  Hafize konuşuyor · Esc ile durdur"; }
+#composer[data-voice-listening="true"]::before { content: "●  Dinliyorum… bitirince bir kez daha bas"; color: var(--premium-orange-strong); }
+
+/* The mic is disabled while an answer streams; that is "wait", not "broken". */
+#micBtn[disabled] { text-decoration: none; }
+#micBtn[data-voice-supported="false"] { opacity: 0.5; }
+#micBtn[aria-pressed="true"] { color: #fff; background: var(--premium-orange); border-color: var(--premium-orange); }
+
+#voiceOutputBtn[aria-pressed="true"],
+#handsFreeBtn[aria-pressed="true"] {
+  color: var(--premium-orange-strong);
+  background: color-mix(in srgb, var(--premium-orange) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--premium-orange) 45%, transparent);
+}
+#handsFreeBtn[data-hands-free-state="on"]::after,
+#voiceOutputBtn[data-voice-output-state="on"]::after { animation: none; opacity: 0; }
+#voiceOutputBtn[data-speaking="true"]::after,
+#composer[data-hands-free-listening="true"] #handsFreeBtn::after {
+  border-color: color-mix(in srgb, var(--premium-orange) 60%, transparent);
+  animation: voice-toggle-pulse 1.4s ease-in-out infinite;
+  opacity: 1;
+}
+
+/* Rail voice card (settings/tasks views) follows the same palette. */
+.hands-free-status { color: var(--premium-muted); }
+.hands-free-status[data-listening="true"] { color: var(--premium-orange-strong); }
+
+@keyframes voiceGlow {
+  0%, 100% { box-shadow: var(--premium-shadow), 0 0 0 3px color-mix(in srgb, var(--premium-orange) 12%, transparent); }
+  50% { box-shadow: var(--premium-shadow), 0 0 0 7px color-mix(in srgb, var(--premium-orange) 22%, transparent); }
+}
+
+/* --- Thinking bubble and jump-to-latest button in the brand colour --------------------- */
+.chat-thinking { background: var(--premium-surface); border-color: var(--premium-line); }
+.chat-scroll-button {
+  background: var(--premium-surface-strong);
+  border-color: var(--premium-line);
+  color: var(--premium-orange-strong);
+  backdrop-filter: blur(12px);
+  animation: polishPop 0.2s var(--ease-out) both;
+}
+
+/* --- Motion -------------------------------------------------------------------------- */
+@keyframes polishRise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes polishFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes polishPop { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes polishBloom { from { opacity: 0; transform: scale(0.7) rotate(-40deg); } to { opacity: 1; transform: none; } }
+@keyframes polishSpin { to { transform: rotate(360deg); } }
+@keyframes polishDraw { from { transform: rotate(-2deg) scaleX(0); } to { transform: rotate(-2deg) scaleX(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome, .hero-logo, .welcome h1::after, .suggestions button, .message, .toast,
+  .approval-dialog, .modal, .dialog, body.sidebar-open::after, .chat-scroll-button,
+  #composer[data-voice-listening="true"], #composer::before,
+  #voiceOutputBtn[data-speaking="true"]::after,
+  #composer[data-hands-free-listening="true"] #handsFreeBtn::after { animation: none !important; }
+  .suggestions button:hover, .send-btn:hover, .brand-inline:hover .flower-logo { transform: none; }
+}

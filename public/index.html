@@ -6,14 +6,17 @@
   <meta name="theme-color" content="#f7f5f0" />
   <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
   <title>Hafize</title>
+  <script src="/theme-init.js"></script>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/hafize.jpeg" />
   <link rel="apple-touch-icon" href="/hafize.jpeg" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/styles.css?v=11" />
   <link rel="stylesheet" href="/premium.css" />
+  <link rel="stylesheet" href="/chat-markdown.css" />
   <link rel="stylesheet" href="/voice-output.css" />
   <link rel="stylesheet" href="/screen-share.css" />
   <link rel="stylesheet" href="/hands-free.css" />
+  <link rel="stylesheet" href="/voice-states.css" />
   <link rel="stylesheet" href="/workspace-navigation.css" />
   <link rel="stylesheet" href="/chat-composer-features.css" />
   <link rel="stylesheet" href="/chat-history-search.css" />
@@ -60,6 +63,8 @@
   <link rel="stylesheet" href="/settings-privacy.css" />
   <link rel="stylesheet" href="/stream-status.css" />
   <link rel="stylesheet" href="/clean-ui.css" />
+  <link rel="stylesheet" href="/agent-platform.css" />
+  <link rel="stylesheet" href="/polish.css" />
 </head>
 <body>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
@@ -116,13 +121,15 @@
         </section>
 
         <form class="composer" id="composer">
-          <textarea id="messageInput" rows="1" maxlength="40000" placeholder="Bugün neye ihtiyacın var?" aria-label="Mesaj"></textarea>
+          <textarea id="messageInput" rows="1" spellcheck="false" autocomplete="off" placeholder="Bugün neye ihtiyacın var?" aria-label="Mesaj"></textarea>
           <div class="composer-row">
             <div class="composer-tools">
               <button id="attachBtn" class="icon-btn" type="button" aria-label="Dosya ekle" title="Metin veya kod dosyası ekle">＋</button>
               <button id="screenShareBtn" class="icon-btn" type="button" aria-label="Ekran görüntüsü paylaş" aria-pressed="false">▣</button>
               <button id="toolModeBtn" class="icon-btn" type="button" aria-label="Araç modunu aç/kapat" aria-pressed="false" disabled>⌘ Araçlar</button>
               <button id="micBtn" class="icon-btn" type="button" aria-label="Sesli giriş" aria-pressed="false">◉</button>
+              <button id="voiceOutputBtn" class="icon-btn" type="button" data-voice-toggle="output" aria-label="Sesli yanıt" aria-pressed="false" title="Sesli yanıt kapalı">🔈</button>
+              <button id="handsFreeBtn" class="icon-btn" type="button" data-voice-toggle="handsfree" aria-label="Eller serbest mod" aria-pressed="false" title="Eller serbest kapalı">🎙</button>
             </div>
           <div class="composer-actions">
               <label class="model-wrap composer-provider" for="providerSelect"><span>Sağlayıcı</span><select id="providerSelect" aria-label="Yapay zekâ sağlayıcısı"><option value="nvidia">NVIDIA NIM</option><option value="local" hidden>Yerel · Ollama</option></select></label>
@@ -151,8 +158,8 @@
           <div class="utility-head"><span class="mini-icon">≋</span><span>Sesli asistan</span></div>
           <div class="voice-orb-wrap"><div class="voice-orb" aria-hidden="true"></div></div>
           <button id="voiceProxy" class="voice-proxy" type="button">Dinlemek için dokun</button>
-          <button id="voiceOutputToggle" class="voice-output-toggle" type="button" aria-pressed="false">Sesli yanıt kapalı</button>
-          <button id="handsFreeToggle" class="voice-output-toggle" type="button" aria-pressed="false">Eller serbest kapalı</button>
+          <button id="voiceOutputToggle" class="voice-output-toggle" type="button" data-voice-toggle="output" aria-pressed="false">Sesli yanıt kapalı</button>
+          <button id="handsFreeToggle" class="voice-output-toggle" type="button" data-voice-toggle="handsfree" aria-pressed="false">Eller serbest kapalı</button>
           <small id="handsFreeIndicator" class="hands-free-status" role="status" hidden></small>
         </section>
       </aside>
@@ -162,9 +169,11 @@
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/composer-focus-guard.js"></script>
   <script type="module" src="/typed-build/auth.js"></script>
-  <script type="module" src="/typed-build/app-shell.js"></script>
-  <script type="module" src="/typed-build/chat-markdown.js"></script>
+  <!-- The renderer must exist before app-shell paints saved chats, or they show raw markdown. -->
   <script type="module" src="/typed-build/markdown-renderer.js"></script>
+  <script type="module" src="/typed-build/chat-markdown.js"></script>
+  <script type="module" src="/typed-build/app-shell.js"></script>
+  <script type="module" src="/typed-build/rich-content.js"></script>
   <script type="module" src="/typed-build/chat-composer-features.js"></script>
   <script type="module" src="/typed-build/chat-history-search.js"></script>
   
@@ -236,5 +245,6 @@
   <script type="module" src="/typed-build/workspace-backup.js"></script>
   <script type="module" src="/typed-build/system-readiness-panel.js"></script>
   <script type="module" src="/typed-build/legacy-app.js"></script>
+  <script type="module" src="/typed-build/platform-panel.js"></script>
 </body>
 </html>

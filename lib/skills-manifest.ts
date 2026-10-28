@@ -5,7 +5,7 @@ const NAME_PATTERN = /^[a-z][a-z0-9-]{1,63}$/;
 const ARGUMENT_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
 const TOOL_PATTERN = /^[a-z][a-z0-9_.:-]{0,119}$/;
 const MODEL_PATTERN = /^[a-z0-9][a-z0-9._\/-]{0,119}$/i;
-const TOP_FIELDS = new Set(['name', 'description', 'triggers', 'allowedTools', 'arguments', 'parameters', 'returns', 'requiredScopes', 'sideEffects', 'riskLevel', 'rollbackHint', 'model', 'execution', 'prompt']);
+const TOP_FIELDS = new Set(['name', 'description', 'triggers', 'allowedTools', 'arguments', 'parameters', 'returns', 'requiredScopes', 'sideEffects', 'riskLevel', 'rollbackHint', 'handler', 'compensate', 'model', 'execution', 'prompt']);
 const ARGUMENT_FIELDS = new Set(['name', 'required', 'description']);
 const SIDE_EFFECT_FIELDS = new Set(['idempotent', 'mutates', 'external']);
 const SCHEMA_FIELDS = new Set(['type', 'description', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'const', 'minimum', 'maximum', 'minLength', 'maxLength', 'pattern']);
@@ -178,6 +178,27 @@ function normalizeRiskLevel(value, sideEffects) {
   return risk;
 }
 
+// An executable skill names how it runs: a built-in tool of the runtime, or user code that runs in
+// the sandbox (network only when declared). compensate names the undo action for mutating skills.
+const HANDLER_TOOL_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
+const HANDLER_FILE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}.js$/;
+function normalizeHandler(value, label) {
+  if (value === undefined || value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`INVALID_SKILL_${label}`);
+  for (const field of Object.keys(value)) if (!['type', 'tool', 'file', 'network', 'timeoutMs'].includes(field)) fail(`INVALID_SKILL_${label}_FIELD`);
+  if (value.type === 'tool') {
+    if (!HANDLER_TOOL_PATTERN.test(String(value.tool || ''))) fail(`INVALID_SKILL_${label}_TOOL`);
+    return Object.freeze({ type: 'tool', tool: String(value.tool) });
+  }
+  if (value.type === 'sandbox') {
+    if (!HANDLER_FILE_PATTERN.test(String(value.file || ''))) fail(`INVALID_SKILL_${label}_FILE`);
+    const timeoutMs = value.timeoutMs === undefined ? 5000 : Number(value.timeoutMs);
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) fail(`INVALID_SKILL_${label}_TIMEOUT`);
+    return Object.freeze({ type: 'sandbox', file: String(value.file), network: value.network === true, timeoutMs });
+  }
+  fail(`INVALID_SKILL_${label}_TYPE`);
+}
+
 function normalizeRollbackHint(value) {
   if (value === undefined) return '';
   if (typeof value !== 'string' || value.length > 500 || /[\0\r\n]/.test(value)) fail('INVALID_SKILL_ROLLBACK_HINT');
@@ -213,6 +234,7 @@ export function normalizeSkillManifest(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('INVALID_SKILL_MANIFEST');
   for (const field of Object.keys(input)) if (!TOP_FIELDS.has(field)) fail('INVALID_SKILL_FIELD');
   const allowedTools = normalizeTools(input.allowedTools);
+  const execution = normalizeExecution(input.execution, allowedTools);
   const sideEffects = normalizeSideEffects(input.sideEffects, allowedTools);
   const riskLevel = normalizeRiskLevel(input.riskLevel, sideEffects);
   const argumentsContract = normalizeArguments(input.arguments);
@@ -222,8 +244,12 @@ export function normalizeSkillManifest(input) {
     : normalizeSchema(input.parameters, 'PARAMETERS');
   if (parameters.type !== 'object') fail('INVALID_SKILL_PARAMETERS_SCHEMA');
   const returns = input.returns === undefined ? null : normalizeSchema(input.returns, 'RETURNS');
-  if (riskLevel === 'high' && sideEffects.mutates && !normalizeRollbackHint(input.rollbackHint)) fail('SKILL_ROLLBACK_HINT_REQUIRED');
-  const requiredScopes = normalizeScopes(input.requiredScopes);
+  // Only manifests that declare their side effects are held to the rollback contract.
+  if (input.sideEffects !== undefined && riskLevel === 'high' && sideEffects.mutates && !normalizeRollbackHint(input.rollbackHint)) fail('SKILL_ROLLBACK_HINT_REQUIRED');
+  // Legacy manifests predate requiredScopes; a risky one then asks consent for every declared tool.
+  const requiredScopes = input.requiredScopes === undefined && (riskLevel !== 'low' || sideEffects.mutates)
+    ? Object.freeze([...allowedTools])
+    : normalizeScopes(input.requiredScopes);
   if ((riskLevel !== 'low' || sideEffects.mutates) && allowedTools.some((tool) => !requiredScopes.includes(tool))) fail('SKILL_REQUIRED_SCOPE_MISSING');
   return Object.freeze({
     name: normalizeName(input.name),
@@ -238,8 +264,10 @@ export function normalizeSkillManifest(input) {
     riskLevel,
     rollbackHint: normalizeRollbackHint(input.rollbackHint),
     model: normalizeModel(input.model),
-    execution: normalizeExecution(input.execution, allowedTools),
-    prompt: normalizePrompt(input.prompt)
+    execution,
+    prompt: normalizePrompt(input.prompt),
+    handler: normalizeHandler(input.handler, 'HANDLER'),
+    compensate: normalizeHandler(input.compensate, 'COMPENSATE')
   });
 }
 

@@ -10,6 +10,8 @@ export interface StreamRoundResult {
   readonly toolCalls: readonly StreamedToolCall[];
   readonly finishReason: string | null;
   readonly error: unknown;
+  /** Token usage, when the upstream reports it (stream_options.include_usage). */
+  readonly usage?: { readonly prompt_tokens?: number; readonly completion_tokens?: number };
 }
 
 const MAX_LINE_CHARS = 512 * 1024;
@@ -96,6 +98,7 @@ export async function readNvidiaStream(
   let content = '';
   let finishReason: string | null = null;
   let error: unknown = null;
+  let usage: { prompt_tokens?: number; completion_tokens?: number } | null = null;
   let done = false;
 
   const handleLine = (line: string): void => {
@@ -106,6 +109,7 @@ export async function readNvidiaStream(
     let payload: Record<string, any>;
     try { payload = JSON.parse(data); } catch { return; }
     if (payload?.error) { error = payload.error; return; }
+    if (payload?.usage && typeof payload.usage === 'object') usage = payload.usage;
     const choice = Array.isArray(payload?.choices) ? payload.choices[0] : null;
     if (!choice) return;
     const delta = choice.delta || {};
@@ -141,5 +145,5 @@ export async function readNvidiaStream(
   const toolCalls = calls
     .map((call, index) => ({ id: call.id || `call_${index}`, name: call.name, arguments: call.arguments || '{}' }))
     .filter((call) => call.name);
-  return { content, toolCalls, finishReason, error };
+  return { content, toolCalls, finishReason, error, ...(usage ? { usage } : {}) };
 }

@@ -34,7 +34,7 @@ export function setSecurityHeaders(res: ServerResponse): void {
   res.setHeader('Origin-Agent-Cluster', '?1');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https: wss:; media-src 'self' blob:; worker-src 'self' blob:"
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: wss:; media-src 'self' blob:; worker-src 'self' blob:"
   );
 }
 

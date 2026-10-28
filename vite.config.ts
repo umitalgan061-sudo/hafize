@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
+import { cpSync, mkdirSync } from 'node:fs';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 
@@ -36,14 +37,30 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/chat-history-search.js', '/typed/chat-history-search.ts')
       .replaceAll('/typed-build/chat-history-management.js', '/typed/chat-history-management.ts')
       .replaceAll('/typed-build/hands-free-background-guard.js', '/typed/hands-free-background-guard.ts')
-      .replaceAll('/typed-build/workspace-navigation.js', '/typed/workspace-navigation.ts');
+      .replaceAll('/typed-build/workspace-navigation.js', '/typed/workspace-navigation.ts')
+      .replaceAll('/typed-build/rich-content.js', '/typed/rich-content.ts')
+      .replaceAll('/typed-build/platform-panel.js', '/typed/platform-panel.ts');
+  }
+});
+
+// Files the browser loads by URL at runtime (KaTeX stylesheet + fonts, the pdf.js worker) are
+// copied next to the build output instead of being bundled.
+const vendorAssetsPlugin = (): Plugin => ({
+  name: 'hafize-vendor-assets',
+  apply: 'build',
+  closeBundle() {
+    const out = resolve(ROOT, 'public/typed-build/vendor');
+    mkdirSync(resolve(out, 'katex'), { recursive: true });
+    cpSync(resolve(ROOT, 'node_modules/katex/dist/katex.min.css'), resolve(out, 'katex/katex.min.css'));
+    cpSync(resolve(ROOT, 'node_modules/katex/dist/fonts'), resolve(out, 'katex/fonts'), { recursive: true });
+    cpSync(resolve(ROOT, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs'), resolve(out, 'pdf.worker.min.mjs'));
   }
 });
 
 export default defineConfig({
   root: resolve(ROOT, 'public'),
   publicDir: false,
-  plugins: [typedDevEntryPlugin()],
+  plugins: [typedDevEntryPlugin(), vendorAssetsPlugin()],
   server: {
     host: '127.0.0.1',
     fs: { strict: true },
@@ -89,7 +106,9 @@ export default defineConfig({
         'conversation-workspace': resolve(ROOT, 'public/conversation-workspace.ts'),
         'message-workspace': resolve(ROOT, 'public/typed/message-workspace.ts'),
         'prompt-library': resolve(ROOT, 'public/typed/prompt-library.ts'),
-        'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts')
+        'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts'),
+        'rich-content': resolve(ROOT, 'public/typed/rich-content.ts'),
+        'platform-panel': resolve(ROOT, 'public/typed/platform-panel.ts')
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`

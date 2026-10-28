@@ -1,0 +1,91 @@
+/* Voice assistant state styling: composer reactions + composer toolbar toggles.
+   Theme aware via the shared surface/accent variables defined in styles.css. */
+
+#composer[data-voice-listening="true"] {
+  border-color: color-mix(in srgb, var(--danger, #e5484d) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger, #e5484d) 22%, transparent);
+}
+
+#composer[data-hands-free="true"] {
+  border-color: color-mix(in srgb, var(--accent, #7c6cf0) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #7c6cf0) 20%, transparent);
+}
+
+#composer.voice-speaking {
+  border-color: color-mix(in srgb, var(--success, #30a46c) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success, #30a46c) 18%, transparent);
+}
+
+#composer[data-voice-listening="true"] .composer-hint::after {
+  content: " · dinliyor";
+  color: var(--danger, #e5484d);
+  font-weight: 600;
+}
+
+#composer[data-hands-free="true"] .composer-hint::after {
+  content: " · eller serbest";
+  color: var(--accent, #7c6cf0);
+  font-weight: 600;
+}
+
+#composer.voice-speaking .composer-hint::after {
+  content: " · sesli yanıt";
+  color: var(--success, #30a46c);
+  font-weight: 600;
+}
+
+/* Composer toolbar toggles mirror the rail buttons. */
+#voiceOutputBtn,
+#handsFreeBtn {
+  position: relative;
+  transition: color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+#voiceOutputBtn[aria-pressed="true"],
+#handsFreeBtn[aria-pressed="true"] {
+  color: var(--accent, #7c6cf0);
+  background: color-mix(in srgb, var(--accent, #7c6cf0) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #7c6cf0) 45%, transparent);
+}
+
+#handsFreeBtn[data-hands-free-state="on"]::after,
+#voiceOutputBtn[data-voice-output-state="on"]::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  border: 2px solid color-mix(in srgb, var(--accent, #7c6cf0) 60%, transparent);
+  animation: voice-toggle-pulse 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes voice-toggle-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.06); }
+}
+
+#voiceOutputBtn:disabled,
+#handsFreeBtn:disabled,
+#micBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Disabled mic reads as "unsupported", never as broken. */
+#micBtn[disabled] {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--danger, #e5484d) 80%, transparent);
+}
+
+#voiceOutputBtn.is-active,
+#handsFreeBtn.is-active {
+  color: var(--accent, #7c6cf0);
+  background: color-mix(in srgb, var(--accent, #7c6cf0) 16%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #handsFreeBtn[data-hands-free-state="on"]::after,
+  #voiceOutputBtn[data-voice-output-state="on"]::after {
+    animation: none;
+  }
+}
