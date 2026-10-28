@@ -152,10 +152,10 @@ assert.match(unsupportedToggle.textContent, /desteklenmiyor/);
   first.onerror?.({ error: 'interrupted' });
   assert.equal(toastNode.textContent, '', 'kesilen konuşma hata uyarısı göstermemeli');
   assert.equal(c.isSpeaking(), true, 'yeni yanıtın kuyruğu silinmemeli');
-  assert.deepEqual(events.at(-1), { source: 'voice-output', speaking: true });
+  assert.deepEqual(events.at(-1), { source: 'voice-output', speaking: true, origin: 'auto' });
   said.at(-1).onerror?.({ error: 'synthesis-failed' });
   assert.equal(toastNode.textContent, 'Sesli yanıt tamamlanamadı.');
-  assert.deepEqual(events.at(-1), { source: 'voice-output', speaking: false });
+  assert.deepEqual(events.at(-1), { source: 'voice-output', speaking: false, origin: '' });
   c.destroy();
 }
 assert.equal(voiceOutput.pickTurkishVoice([{ lang: 'tr-TR', name: 'Tolga' }, { lang: 'tr-TR', name: 'Emel Online (Natural)' }]).name, 'Emel Online (Natural)');

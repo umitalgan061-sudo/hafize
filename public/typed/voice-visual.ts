@@ -196,7 +196,8 @@ export function installVoiceVisual(documentRef: Document, root: typeof globalThi
   };
 
   const render = () => {
-    const next: VoiceVisualState = listening ? 'listening' : speaking ? 'speaking' : 'idle';
+    const voiceMode = documentRef.documentElement?.dataset?.voiceMode === 'true';
+    const next: VoiceVisualState = voiceMode ? 'idle' : listening ? 'listening' : speaking ? 'speaking' : 'idle';
     if (next === state) return;
     const previous = state;
     state = next;

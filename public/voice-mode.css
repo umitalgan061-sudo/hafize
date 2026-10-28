@@ -1,0 +1,301 @@
+/* Voice chat screen (voice-mode.ts). A calm, full-screen stage around the WebGL orb:
+   dark by default, warm cream in the light theme, everything else in the brand orange. */
+
+.voice-mode {
+  --vm-bg: #0d0b0a;
+  --vm-fg: #f6f0e9;
+  --vm-muted: rgba(246, 240, 233, 0.58);
+  --vm-surface: rgba(255, 255, 255, 0.055);
+  --vm-surface-strong: rgba(255, 255, 255, 0.09);
+  --vm-line: rgba(255, 255, 255, 0.12);
+  --vm-panel: #1b1816;
+  --vm-close-bg: #f6f0e9;
+  --vm-close-fg: #171412;
+  --vm-orange: var(--premium-orange, #dd7a52);
+  --vm-orange-strong: var(--premium-orange-strong, #ee8d64);
+  --vm-energy: 0;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  /* Without minmax(0, 1fr) the column grows to the input's intrinsic width and pushes the
+     buttons off a phone screen. */
+  grid-template-columns: minmax(0, 1fr);
+  background: var(--vm-bg);
+  color: var(--vm-fg);
+  opacity: 0;
+  transition: opacity 0.26s ease;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-theme="light"] .voice-mode {
+  --vm-bg: #f7f1ea;
+  --vm-fg: #2c2723;
+  --vm-muted: rgba(44, 39, 35, 0.58);
+  --vm-surface: rgba(60, 40, 20, 0.045);
+  --vm-surface-strong: rgba(60, 40, 20, 0.08);
+  --vm-line: rgba(60, 40, 20, 0.12);
+  --vm-panel: #fffdfa;
+  --vm-close-bg: #2c2723;
+  --vm-close-fg: #f7f1ea;
+  --vm-orange: var(--premium-orange, #d9774f);
+  --vm-orange-strong: var(--premium-orange-strong, #c85e36);
+}
+.voice-mode[hidden] { display: none; }
+.voice-mode.vm-visible { opacity: 1; }
+body.voice-mode-open { overflow: hidden; }
+
+/* Ambient light behind the orb, breathing with its energy. */
+.vm-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 34% at 50% 46%, color-mix(in srgb, var(--vm-orange) calc(10% + var(--vm-energy) * 14%), transparent), transparent 70%),
+    radial-gradient(80% 60% at 50% 120%, color-mix(in srgb, var(--vm-orange) 7%, transparent), transparent 70%);
+  transition: background 0.2s linear;
+}
+.voice-mode[data-state="thinking"] .vm-backdrop { animation: vmAmbient 2.4s ease-in-out infinite; }
+
+/* --- Top bar ----------------------------------------------------------------------------- */
+.vm-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: max(16px, env(safe-area-inset-top)) 20px 0;
+}
+.vm-title { display: grid; justify-items: center; line-height: 1.15; }
+.vm-title strong { font-family: Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 500; letter-spacing: 0.01em; }
+.vm-title span { color: var(--vm-muted); font-size: 11.5px; letter-spacing: 0.06em; text-transform: lowercase; }
+.vm-icon, .vm-plus, .vm-send, .vm-mic, .vm-close {
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--vm-line);
+  border-radius: 50%;
+  background: var(--vm-surface);
+  color: var(--vm-fg);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, color 0.18s ease;
+}
+.vm-icon { width: 48px; height: 48px; color: color-mix(in srgb, var(--vm-orange) 55%, var(--vm-fg)); }
+.vm-icon:hover, .vm-plus:hover { background: var(--vm-surface-strong); }
+.vm-icon[aria-pressed="false"] { color: var(--vm-muted); }
+.vm-icon[aria-expanded="true"] { border-color: color-mix(in srgb, var(--vm-orange) 55%, transparent); }
+.voice-mode svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.voice-mode button:focus-visible, .voice-mode input:focus-visible, .voice-mode select:focus-visible {
+  outline: 2px solid var(--vm-orange);
+  outline-offset: 3px;
+}
+
+/* --- Settings popover -------------------------------------------------------------------- */
+.vm-settings {
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + 58px);
+  right: 20px;
+  z-index: 2;
+  display: grid;
+  gap: 14px;
+  width: min(320px, calc(100vw - 40px));
+  padding: 16px;
+  border: 1px solid var(--vm-line);
+  border-radius: 20px;
+  background: var(--vm-panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: vmPop 0.18s ease both;
+}
+.vm-settings[hidden] { display: none; }
+.vm-field { display: grid; gap: 8px; font-size: 13px; font-weight: 600; }
+.vm-field > span { display: flex; justify-content: space-between; align-items: baseline; }
+.vm-field output { color: var(--vm-orange-strong); font-variant-numeric: tabular-nums; }
+.vm-field input[type="range"] { width: 100%; accent-color: var(--vm-orange); }
+.vm-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--vm-line);
+  border-radius: 12px;
+  background: var(--vm-surface);
+  color: var(--vm-fg);
+  font: inherit;
+  font-weight: 500;
+}
+.vm-sample {
+  justify-self: start;
+  padding: 8px 14px;
+  border: 1px solid color-mix(in srgb, var(--vm-orange) 45%, var(--vm-line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vm-orange) 12%, transparent);
+  color: var(--vm-fg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- Stage: orb, status, caption --------------------------------------------------------- */
+.vm-stage {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0;
+  min-height: 0;
+  padding: 12px 24px;
+}
+.vm-orb {
+  --vm-size: min(64vw, 46vh, 360px);
+  position: relative;
+  width: var(--vm-size);
+  height: var(--vm-size);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transform: scale(0.86);
+  opacity: 0;
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease;
+}
+.vm-visible .vm-orb { transform: scale(1); opacity: 1; }
+.vm-orb:focus-visible { outline-offset: 10px; }
+/* The canvas is larger than the orb so the glow has room; the shader draws the orb at 60%. */
+.vm-canvas { position: absolute; left: 50%; top: 50%; width: 166%; height: 166%; transform: translate(-50%, -50%); pointer-events: none; }
+.vm-orb-fallback {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(60% 55% at 32% 30%, rgba(255, 244, 228, 0.9), transparent 60%),
+    conic-gradient(from 200deg at 50% 55%, #f07a45, #ffb88a, #f59a9f, #ffcf9e, #e8643c, #f07a45);
+  box-shadow: 0 0 calc(40px + var(--vm-energy) * 50px) color-mix(in srgb, var(--vm-orange) 55%, transparent);
+  filter: saturate(1.05) blur(0.3px);
+  transform: scale(calc(1 + var(--vm-energy) * 0.06));
+  animation: vmSwirl 14s linear infinite;
+}
+.vm-webgl .vm-orb-fallback { display: none; }
+
+.vm-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  margin: clamp(18px, 4vh, 36px) 0 0;
+  color: var(--vm-muted);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+.vm-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vm-muted);
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.voice-mode[data-state="listening"] .vm-status { color: var(--vm-fg); }
+.voice-mode[data-state="listening"] .vm-status::before { opacity: 1; background: var(--vm-orange); animation: vmDot 1.2s ease-in-out infinite; }
+.voice-mode[data-state="thinking"] .vm-status::before { opacity: 1; animation: vmDot 0.8s ease-in-out infinite; }
+.voice-mode[data-state="speaking"] .vm-status::before { opacity: 1; background: var(--vm-orange-strong); }
+
+.vm-caption {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: min(640px, 100%);
+  min-height: 3.2em;
+  margin: 14px 0 0;
+  color: var(--vm-fg);
+  font-size: clamp(17px, 2.3vw, 21px);
+  line-height: 1.5;
+  text-align: center;
+  text-wrap: balance;
+  transition: opacity 0.2s ease;
+}
+.vm-caption.is-empty { opacity: 0; }
+.vm-caption[data-kind="user"] { color: var(--vm-muted); font-style: italic; }
+.vm-caption mark {
+  padding: 0 4px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vm-orange) 30%, transparent);
+  color: inherit;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.vm-caption mark:empty { display: none; }
+.vm-no-captions .vm-caption { visibility: hidden; }
+
+/* --- Bottom bar -------------------------------------------------------------------------- */
+.vm-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 12px 20px max(20px, env(safe-area-inset-bottom));
+}
+.vm-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 56px;
+  padding: 0 8px;
+  border: 1px solid var(--vm-line);
+  border-radius: 999px;
+  background: var(--vm-surface);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.vm-input:focus-within { border-color: color-mix(in srgb, var(--vm-orange) 55%, var(--vm-line)); background: var(--vm-surface-strong); }
+.vm-plus { flex: 0 0 auto; width: 40px; height: 40px; border-color: transparent; background: transparent; }
+.vm-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--vm-fg);
+  font: inherit;
+  font-size: 16px;
+}
+.vm-text::placeholder { color: var(--vm-muted); }
+.vm-input .vm-text:focus-visible { outline: none; }
+.vm-send { flex: 0 0 auto; width: 40px; height: 40px; border: 0; background: var(--vm-orange); color: #fff; }
+.vm-send[hidden] { display: none; }
+.vm-mic {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border: 1.5px solid color-mix(in srgb, var(--vm-orange) 70%, transparent);
+  background: color-mix(in srgb, var(--vm-orange) 16%, transparent);
+  color: var(--vm-orange-strong);
+  box-shadow: 0 0 0 calc(var(--vm-energy) * 8px) color-mix(in srgb, var(--vm-orange) 18%, transparent);
+}
+.voice-mode:not([data-state="listening"]) .vm-mic { box-shadow: none; }
+.vm-mic[aria-pressed="true"] { border-color: var(--vm-line); background: var(--vm-surface); color: var(--vm-muted); }
+.vm-close { flex: 0 0 auto; width: 56px; height: 56px; border: 0; background: var(--vm-close-bg); color: var(--vm-close-fg); }
+.vm-mic:active, .vm-close:active, .vm-icon:active, .vm-send:active { transform: scale(0.94); }
+
+@keyframes vmSwirl { to { filter: saturate(1.05) blur(0.3px) hue-rotate(360deg); } }
+@keyframes vmDot { 0%, 100% { transform: scale(0.8); opacity: 0.5; } 50% { transform: scale(1.25); opacity: 1; } }
+@keyframes vmAmbient { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+@keyframes vmPop { from { opacity: 0; transform: translateY(-6px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 560px) {
+  .vm-top { padding-inline: 16px; }
+  .vm-orb { --vm-size: min(72vw, 40vh); }
+  .vm-bar { gap: 10px; padding-inline: 14px; }
+  .vm-input { height: 52px; }
+  .vm-mic, .vm-close { width: 52px; height: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-mode, .vm-orb, .vm-caption { transition: none; }
+  .vm-orb-fallback, .vm-status::before, .vm-backdrop, .vm-settings { animation: none !important; }
+}
+html[data-reduced-motion="true"] .vm-orb-fallback { animation: none; }

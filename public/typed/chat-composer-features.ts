@@ -241,9 +241,51 @@ import { hafizeApi } from './hafize-api.ts';
       ui.composer.requestSubmit();
     });
 
-    actions.append(copy, retry);
+    actions.append(copy);
+    const speak = createSpeakButton(article, content);
+    if (speak) actions.append(speak);
+    actions.append(retry);
     article.append(actions);
   }
+
+  // "Seslendir": reads one answer aloud on request, even when automatic voice replies are off.
+  // voice-output.ts does the speaking; this button only asks and mirrors its state.
+  const SPEAK_EVENT = 'hafize:voice-output-speak';
+  const STOP_EVENT = 'hafize:voice-output-stop';
+  let speakingButton = null;
+  function setSpeakLabel(button, active) {
+    button.textContent = active ? '■ Durdur' : '🔊 Seslendir';
+    button.setAttribute('aria-pressed', String(active));
+    button.setAttribute('aria-label', active ? 'Seslendirmeyi durdur' : 'Hafize yanıtını sesli oku');
+    button.title = active ? 'Seslendirmeyi durdur (Esc)' : 'Bu yanıtı sesli oku';
+  }
+  function createSpeakButton(article, content) {
+    if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') return null;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'message-action message-speak';
+    setSpeakLabel(button, false);
+    const origin = `message:${article.dataset.messageId || Math.random().toString(36).slice(2)}`;
+    button.dataset.speakOrigin = origin;
+    button.addEventListener('click', () => {
+      if (speakingButton === button) {
+        document.dispatchEvent(new CustomEvent(STOP_EVENT));
+        return;
+      }
+      const text = window.HafizeChatMarkdown?.sourceFor?.(content) ?? content.textContent;
+      if (!String(text || '').trim()) return announce('Seslendirilecek metin bulunamadı.');
+      document.dispatchEvent(new CustomEvent(SPEAK_EVENT, { detail: { text: String(text), origin } }));
+    });
+    return button;
+  }
+  document.addEventListener('hafize:voice-output-state', (event) => {
+    const detail = event.detail || {};
+    if (speakingButton) setSpeakLabel(speakingButton, false);
+    speakingButton = null;
+    if (!detail.speaking || typeof detail.origin !== 'string') return;
+    const button = ui.messages.querySelector(`[data-speak-origin="${CSS.escape(detail.origin)}"]`);
+    if (button) { speakingButton = button; setSpeakLabel(button, true); }
+  });
 
   function enhanceUserArticle(article) {
     if (!article || !article.classList.contains('user') || article.querySelector('.message-actions')) return;
