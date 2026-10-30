@@ -4,6 +4,7 @@
  */
 // @ts-nocheck
 import { hafizeApi } from './hafize-api.ts';
+import { xlsxToText } from './xlsx-text.ts';
 (() => {
   'use strict';
 
@@ -65,11 +66,6 @@ import { hafizeApi } from './hafize-api.ts';
       remove.setAttribute('aria-label', `${file.name} ekini kaldır`);
       remove.textContent = '×';
       remove.addEventListener('click', () => {
-        const at = ui.messageInput.value.lastIndexOf(file.block);
-        if (at >= 0) {
-          ui.messageInput.value = `${ui.messageInput.value.slice(0, at)}${ui.messageInput.value.slice(at + file.block.length)}`;
-          ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
         files.splice(index, 1);
         renderAttachmentStrip();
         ui.messageInput.focus();
@@ -84,28 +80,52 @@ import { hafizeApi } from './hafize-api.ts';
     return `\n[Ekli dosya: ${file.name}](${url})\n`;
   }
 
+  // The reference waits beside the composer, shown as a chip, and joins the text only when the message
+  // goes out: the box holds what the user wrote and nothing else.
   function insertAttachment(file, fullBlock, message) {
     const files = ui.composer._hafizeAttachments || (ui.composer._hafizeAttachments = []);
-    const before = ui.messageInput.value;
-    // No maxlength on the textarea, so there is no hard cap to enforce here.
-    const nextValue = `${before}${fullBlock}`;
-    const appendedBlock = nextValue.slice(before.length);
-    if (!appendedBlock) {
-      announce('Mesaj alanı dolu. Dosya eklenebilmesi için biraz metin silmelisin.');
-      return;
-    }
-    files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: appendedBlock });
-    ui.messageInput.value = nextValue;
-    ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
+    files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: fullBlock });
     renderAttachmentStrip();
     ui.messageInput.focus();
     announce(message);
+  }
+
+  /** The workbook is read here and only its text is uploaded, like any other text attachment. */
+  async function addSpreadsheet(file, files) {
+    if (file.size > MAX_FILE_BYTES) {
+      announce(`${file.name} eklenemedi: 50 MB sınırını aşıyor.`);
+      return;
+    }
+    if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
+      announce('Bu dosya zaten eklendi.');
+      return;
+    }
+    announce(`${file.name} hazırlanıyor…`);
+    try {
+      const text = await xlsxToText(new Uint8Array(await file.arrayBuffer()));
+      if (!text.trim()) {
+        announce(`${file.name} boş olduğu için eklenmedi.`);
+        return;
+      }
+      const stored = await hafizeApi.uploadDocument(text, file.name, 'text/tab-separated-values');
+      insertAttachment(file, composeAttachment(file, stored.url), `${file.name} eklendi; Hafize tablonun içeriğini okuyacak.`);
+    } catch (error) {
+      announce(`${file.name} eklenemedi: ${String(error?.message || 'dosya işlenemedi').slice(0, 120)}`);
+    }
   }
 
   async function addFile(file) {
     const files = ui.composer._hafizeAttachments || (ui.composer._hafizeAttachments = []);
     if (files.length >= MAX_ATTACHMENTS) {
       announce(`En fazla ${MAX_ATTACHMENTS} dosya ekleyebilirsin.`);
+      return;
+    }
+    if (/\.xls$/i.test(file.name)) {
+      announce(`${file.name} eski Excel biçiminde. Excel'de .xlsx olarak kaydedip yeniden ekle.`);
+      return;
+    }
+    if (/\.xlsx$/i.test(file.name)) {
+      await addSpreadsheet(file, files);
       return;
     }
     // Images, PDFs and videos are prepared by rich-content.ts (upload for the vision model, PDF text,
@@ -153,7 +173,9 @@ import { hafizeApi } from './hafize-api.ts';
     }
   }
 
-  function clearAttachments() {
+  function sendAttachments() {
+    const blocks = (ui.composer._hafizeAttachments || []).map((file) => file.block).join('');
+    if (blocks) ui.messageInput.value = `${ui.messageInput.value}${blocks}`;
     ui.composer._hafizeAttachments = [];
     renderAttachmentStrip();
   }
@@ -164,7 +186,7 @@ import { hafizeApi } from './hafize-api.ts';
     input.type = 'file';
     input.hidden = true;
     input.multiple = true;
-    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,text/plain,application/json,image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
+    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,.xlsx,.xls,text/plain,application/json,image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
     input.addEventListener('change', async () => {
       for (const file of [...input.files].slice(0, MAX_ATTACHMENTS)) await addFile(file);
       input.remove();
@@ -363,7 +385,8 @@ import { hafizeApi } from './hafize-api.ts';
     const file = new File([text], `yapistirilan-metin-${stamp}.txt`, { type: 'text/plain' });
     await addFile(file);
   });
-  ui.composer.addEventListener('submit', clearAttachments, true);
+  // Capture phase: this runs before the app shell reads the box.
+  ui.composer.addEventListener('submit', sendAttachments, true);
 
   const observer = new MutationObserver(() => {
     for (const article of ui.messages.querySelectorAll('.message.assistant')) enhanceArticle(article);

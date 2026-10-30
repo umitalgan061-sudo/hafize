@@ -142,7 +142,7 @@ body { transition: none; }
 .send-btn:hover { transform: translateY(-1px); }
 .send-btn:active { transform: translateY(0) scale(0.96); }
 /* Empty box: the button stays clickable but recedes until there is something to send. */
-#composer:has(#messageInput:placeholder-shown) .send-btn:not(:focus-visible) {
+#composer:has(#messageInput:placeholder-shown):not(:has(.attachment-chip)) .send-btn:not(:focus-visible) {
   opacity: 0.55;
   box-shadow: none;
 }
