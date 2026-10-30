@@ -202,6 +202,7 @@ const MIME = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
   ['.mjs', 'text/javascript; charset=utf-8'],
+  ['.wasm', 'application/wasm'],
   ['.woff2', 'font/woff2'],
   ['.woff', 'font/woff'],
   ['.ttf', 'font/ttf'],

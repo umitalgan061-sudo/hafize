@@ -6,6 +6,7 @@
 // voice panel stay out of the way. Dictation into the composer remains on Ctrl+Shift+M.
 
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
+import { PIPER_PREFIX, downloadedKeys, loadCatalog } from './voice-library.ts';
 
 export type VoiceModeState = 'closed' | 'idle' | 'listening' | 'thinking' | 'speaking' | 'paused';
 export interface VoiceModeController { readonly state: () => VoiceModeState; readonly open: () => void; readonly close: () => void; readonly destroy: () => void; }
@@ -339,6 +340,20 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       voiceSelect.append(option);
     }
     voiceSelect.value = voices.some((v) => v.voiceURI === saved) ? saved : '';
+    // Voices downloaded in Settings; the full library lives there, this is only the quick switch.
+    loadCatalog().then(async (catalog) => {
+      const owned = await downloadedKeys(catalog);
+      const current = read(VOICE_KEY) || '';
+      for (const entry of catalog.filter((voice) => owned.has(voice.key) || `${PIPER_PREFIX}${voice.key}` === current)) {
+        const value = `${PIPER_PREFIX}${entry.key}`;
+        if ([...voiceSelect.options].some((option) => option.value === value)) continue;
+        const option = documentRef.createElement('option');
+        option.value = value;
+        option.textContent = `${entry.name} · ${entry.langName} · indirilen ses`;
+        voiceSelect.append(option);
+      }
+      if ([...voiceSelect.options].some((option) => option.value === current)) voiceSelect.value = current;
+    }).catch(() => { /* the catalog is optional here */ });
   };
   const renderRate = () => {
     const value = Number(read(RATE_KEY));

@@ -34,6 +34,7 @@
     "@viz-js/viz": "3.31.0",
     "katex": "0.18.10",
     "mermaid": "12.2.0",
+    "onnxruntime-web": "1.20.1",
     "pdfjs-dist": "6.4.299",
     "redis": "^6.1.0",
     "vega": "6.4.0",

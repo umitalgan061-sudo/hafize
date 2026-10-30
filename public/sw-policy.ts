@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v89`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v90`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -81,6 +81,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/typed-build/voice-output.js",
   "/typed-build/voice-visual.js",
   "/typed-build/voice-mode.js",
+  "/typed-build/voice-settings.js",
   "/typed-build/hands-free.js",
   "/typed-build/hands-free-background-guard.js",
   "/typed-build/ui-shell.js",
@@ -92,6 +93,8 @@ export const SHELL_ASSETS = Object.freeze([
   "/chat-markdown.css",
   "/polish.css",
   "/voice-mode.css",
+  "/voice-settings.css",
+  "/piper-voices.json",
   "/theme-init.js",
   "/composer-focus-guard.js",
   "/manifest.webmanifest",

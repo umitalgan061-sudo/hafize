@@ -23,6 +23,7 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/voice-output.js', '/typed/voice-output.ts')
       .replaceAll('/typed-build/voice-visual.js', '/typed/voice-visual.ts')
       .replaceAll('/typed-build/voice-mode.js', '/typed/voice-mode.ts')
+      .replaceAll('/typed-build/voice-settings.js', '/typed/voice-settings.ts')
       .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
       .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
       .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
@@ -56,6 +57,9 @@ const vendorAssetsPlugin = (): Plugin => ({
     cpSync(resolve(ROOT, 'node_modules/katex/dist/katex.min.css'), resolve(out, 'katex/katex.min.css'));
     cpSync(resolve(ROOT, 'node_modules/katex/dist/fonts'), resolve(out, 'katex/fonts'), { recursive: true });
     cpSync(resolve(ROOT, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs'), resolve(out, 'pdf.worker.min.mjs'));
+    // Piper voices run on the ONNX runtime, loaded by the worker only when such a voice speaks.
+    mkdirSync(resolve(out, 'ort'), { recursive: true });
+    for (const file of ['ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.wasm']) cpSync(resolve(ROOT, 'node_modules/onnxruntime-web/dist', file), resolve(out, 'ort', file));
   }
 });
 
@@ -83,6 +87,8 @@ export default defineConfig({
         'voice-output': resolve(ROOT, 'public/typed/voice-output.ts'),
         'voice-visual': resolve(ROOT, 'public/typed/voice-visual.ts'),
         'voice-mode': resolve(ROOT, 'public/typed/voice-mode.ts'),
+        'voice-settings': resolve(ROOT, 'public/typed/voice-settings.ts'),
+        'piper-worker': resolve(ROOT, 'public/typed/piper-worker.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),

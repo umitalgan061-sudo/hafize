@@ -27,3 +27,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Piper voices (optional, downloaded on request)
+
+`public/vendor/piper-phonemize/` holds the browser build of the Piper phonemizer from the npm package
+`piper-tts-web` 1.1.2 (MIT, Poket-Jony). It bundles `piper-phonemize` and the `espeak-ng` data, and espeak-ng is
+licensed under GPL-3.0-or-later: anyone distributing Hafize with these files must meet that license.
+Voice models are not part of this repository. They are downloaded from `rhasspy/piper-voices` on Hugging Face
+only when the user asks for one, and each voice has its own license on its model card.
+The ONNX runtime is `onnxruntime-web` (MIT, Microsoft).
