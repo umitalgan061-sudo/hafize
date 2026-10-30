@@ -648,7 +648,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
           if (!bytes.length || bytes.length > SCREEN_LIMITS.maxFrameBytes) { sendJson(res, 413, { error: 'FRAME_TOO_LARGE' }); return true; }
           const mime = sniffImageType(bytes);
           if (!mime) { sendJson(res, 415, { error: 'UNSUPPORTED_IMAGE_TYPE' }); return true; }
-          const seen = await screenWatch.observe({ ownerId, bytes, mime, question: typeof body.question === 'string' ? body.question : '' });
+          const seen = await screenWatch.observe({ ownerId, bytes, mime, question: typeof body.question === 'string' ? body.question : '', source: body.source === 'camera' ? 'camera' : 'screen' });
           sendJson(res, 200, seen);
           return true;
         }

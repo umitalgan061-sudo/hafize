@@ -159,6 +159,7 @@
       { value: 'light', label: 'Açık' },
       { value: 'dark', label: 'Koyu' }
     ], themeStored === 'light' || themeStored === 'dark' ? themeStored : 'system');
+    themeSelect.setAttribute('aria-label', 'Tema');
     theme.control.append(themeSelect);
 
     const motion = buildRow(documentRef, 'Azaltılmış hareket', 'Animasyonları ve geçişleri mümkün olduğunca azalt.');

@@ -148,11 +148,39 @@ function start(documentRef: Document, root: typeof globalThis): void {
     return panel;
   };
 
+  const modelPanel = () => {
+    const panel = el('section', 'settings-panel model-status');
+    panel.append(el('h2', '', 'Yapay zekâ ve bağlantı'), el('p', '', 'Hafize her zaman en üstteki modelle yanıtlar. Model yanıt veremez, kullanım sınırı ya da paketi dolarsa kendiliğinden bir alttakine geçer, düzelince en üste döner.'));
+    const line = el('p', 'app-install-state');
+    const list = el('ol', 'model-status-list');
+    panel.append(line, list);
+    const reasons: Readonly<Record<string, string>> = { quota: 'paket doldu', rate: 'sınıra takıldı', missing: 'erişilemiyor', failing: 'hata veriyor', slow: 'yavaş kaldı' };
+    const refresh = async () => {
+      try {
+        const response = await api('/api/models/status');
+        if (!response.ok) return;
+        const data = await response.json();
+        line.textContent = data.internet ? 'İnternet bağlantısı var: arama, haber, hava durumu ve sayfa okuma açık.' : 'Bu bilgisayar şu an internete ulaşamıyor; web araçları bağlantı gelince yeniden çalışır.';
+        list.replaceChildren(...(data.chain ?? []).map((item: { model: string; ready: boolean; lastFailure: string | null; retryInSeconds: number }) => {
+          const row = el('li', [item.model === data.current ? 'is-current' : '', item.ready ? '' : 'is-resting'].filter(Boolean).join(' '));
+          const note = item.ready ? (item.model === data.current ? 'kullanılıyor' : '') : `${reasons[item.lastFailure ?? ''] ?? 'dinleniyor'}, ${Math.max(1, Math.ceil(item.retryInSeconds / 60))} dk sonra yeniden denenecek`;
+          row.append(el('span', 'model-status-dot'), el('span', 'model-status-name', item.model), el('small', '', note));
+          return row;
+        }));
+      } catch { /* the panel simply keeps its last state */ }
+    };
+    void refresh();
+    setInterval(() => { if (panel.isConnected && panel.offsetParent !== null) void refresh(); }, SERVER_POLL_MS);
+    return panel;
+  };
+
   const attach = (host: Element) => {
     if (host.querySelector('.app-install')) return;
     const first = host.querySelector('.settings-panel');
     if (first?.nextSibling) host.insertBefore(installPanel(), first.nextSibling); else host.append(installPanel());
-    const results = host.querySelector('.task-results') ?? host.querySelector('.app-install');
+    const install = host.querySelector('.app-install');
+    if (install?.nextSibling) host.insertBefore(modelPanel(), install.nextSibling); else host.append(modelPanel());
+    const results = host.querySelector('.task-results') ?? install;
     const servers = serversPanel();
     if (results?.nextSibling) host.insertBefore(servers, results.nextSibling); else host.append(servers);
   };

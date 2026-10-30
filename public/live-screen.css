@@ -1,9 +1,9 @@
 /* Live screen sharing (live-screen.ts) and the two Settings panels of app-install.ts. */
-#liveScreenBtn svg { width: 17px; height: 17px; display: block; }
-#liveScreenBtn[aria-pressed="true"] { color: var(--premium-orange); border-color: color-mix(in srgb, var(--premium-orange) 55%, transparent); background: color-mix(in srgb, var(--premium-orange) 14%, transparent); }
+#liveScreenBtn svg, #liveCameraBtn svg { width: 17px; height: 17px; display: block; }
+#liveScreenBtn[aria-pressed="true"], #liveCameraBtn[aria-pressed="true"] { color: var(--premium-orange); border-color: color-mix(in srgb, var(--premium-orange) 55%, transparent); background: color-mix(in srgb, var(--premium-orange) 14%, transparent); }
 
 .live-screen-chip {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
   margin: 0 0 10px; padding: 6px 8px 6px 6px;
   border: 1px solid color-mix(in srgb, var(--premium-orange) 35%, var(--line));
   border-radius: 14px; background: color-mix(in srgb, var(--premium-surface) 88%, transparent);
@@ -17,8 +17,8 @@
 .live-screen-text strong { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--ink); }
 .live-screen-text strong::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: #e5484d; animation: live-screen-pulse 1.6s ease-in-out infinite; }
 .live-screen-text span { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.live-screen-stop { min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font-size: 12.5px; cursor: pointer; }
-.live-screen-stop:hover { background: var(--hover-strong, rgb(127 127 127 / 0.14)); }
+.live-screen-stop, .live-camera-flip { min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); font-size: 12.5px; cursor: pointer; }
+.live-screen-stop:hover, .live-camera-flip:hover { background: var(--hover-strong, rgb(127 127 127 / 0.14)); }
 @keyframes live-screen-pulse { 50% { opacity: 0.35; } }
 
 .live-screen-sheet { max-width: min(92vw, 420px); padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--premium-surface); color: var(--ink); }
@@ -50,6 +50,16 @@
 .local-server-head a { font-size: 12px; color: var(--premium-orange); overflow-wrap: anywhere; }
 .local-server-head small { font-size: 11.5px; color: var(--muted); }
 
-@media (max-width: 400px) { .live-screen-chip { grid-template-columns: minmax(0, 1fr) auto; padding-left: 12px; } .live-screen-chip video { position: absolute; width: 1px; height: 1px; opacity: 0; } }
+@media (max-width: 400px) { .live-screen-chip { grid-template-columns: minmax(0, 1fr) auto auto; padding-left: 12px; gap: 6px; } .live-screen-chip video { position: absolute; width: 1px; height: 1px; opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) { .live-screen-text strong::before { animation: none; } .live-screen-chip { transition: none; } }
+.live-camera-flip[hidden] { display: none; }
+
+/* "Yapay zekâ ve bağlantı" panel */
+.model-status-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; }
+.model-status-list li { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 9px; font-size: 12.5px; }
+.model-status-list li.is-current { background: color-mix(in srgb, var(--premium-orange) 12%, transparent); font-weight: 600; }
+.model-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #3fb36b; }
+.model-status-list li.is-resting .model-status-dot { background: #d9a13b; }
+.model-status-list small { color: var(--muted); font-weight: 400; }
+.model-status-name { overflow-wrap: anywhere; }

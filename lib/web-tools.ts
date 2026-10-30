@@ -201,14 +201,23 @@ export async function fetchPublicPage(rawUrl: string, signal?: AbortSignal): Pro
   throw new WebToolError('WEB_TOO_MANY_REDIRECTS', 508);
 }
 
+const RETRY_DELAY_MS = 400;
+
 // --- fixed-host JSON/text helpers ---------------------------------------------------
 async function getText(fetchImpl: FetchLike, url: string, signal: AbortSignal | undefined, init: RequestInit = {}): Promise<string> {
   let response: Response;
+  const request = () => fetchImpl(url, { ...init, signal, headers: { 'User-Agent': API_USER_AGENT, ...(init.headers as Record<string, string> || {}) } });
   try {
-    response = await fetchImpl(url, { ...init, signal, headers: { 'User-Agent': API_USER_AGENT, ...(init.headers as Record<string, string> || {}) } });
+    response = await request();
   } catch (error) {
     if (signal?.aborted) throw error;
-    throw new WebToolError('WEB_SERVICE_UNAVAILABLE', 502);
+    try {
+      await new Promise((done) => setTimeout(done, RETRY_DELAY_MS));
+      response = await request();
+    } catch (retryError) {
+      if (signal?.aborted) throw retryError;
+      throw new WebToolError('WEB_SERVICE_UNAVAILABLE', 502);
+    }
   }
   if (!response.ok) throw new WebToolError(response.status === 429 ? 'WEB_SERVICE_RATE_LIMITED' : 'WEB_SERVICE_UNAVAILABLE', response.status === 429 ? 429 : 502);
   return response.text();
@@ -249,6 +258,61 @@ export function parseDuckDuckGoHtml(html: string, limit: number): SearchResult[]
   return results;
 }
 
+/** Bing wraps result links in a redirect whose u parameter is "a1" + base64url of the target. */
+function bingTarget(href: string): string {
+  try {
+    const url = new URL(decodeEntities(href));
+    const wrapped = url.searchParams.get('u');
+    if (url.hostname.endsWith('bing.com') && wrapped?.startsWith('a1')) return Buffer.from(wrapped.slice(2), 'base64url').toString('utf8');
+    return url.href;
+  } catch { return ''; }
+}
+
+export function parseBingHtml(html: string, limit: number): SearchResult[] {
+  const results: SearchResult[] = [];
+  for (const block of html.split(/<li class="b_algo"/).slice(1)) {
+    const link = block.match(/<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/);
+    if (!link) continue;
+    const url = bingTarget(link[1]!);
+    if (!/^https?:\/\//.test(url)) continue;
+    const snippet = stripTags(block.match(/<p[^>]*>([\s\S]*?)<\/p>/)?.[1] || '');
+    results.push({ title: stripTags(link[2]!).slice(0, 200), url: url.slice(0, MAX_URL), snippet: snippet.slice(0, 400) });
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
+export function parseDuckDuckGoLite(html: string, limit: number): SearchResult[] {
+  const results: SearchResult[] = [];
+  const links = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]+class=['"]result-link['"][^>]*>([\s\S]*?)<\/a>/g)];
+  const snippets = [...html.matchAll(/<td[^>]+class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/g)];
+  for (const [index, link] of links.entries()) {
+    const url = ddgTarget(link[1]!);
+    if (!/^https?:\/\//.test(url)) continue;
+    results.push({ title: stripTags(link[2]!).slice(0, 200), url: url.slice(0, MAX_URL), snippet: stripTags(snippets[index]?.[1] || '').slice(0, 400) });
+    if (results.length >= limit) break;
+  }
+  return results;
+}
+
+const BLOCKED_PAGE = /anomaly-modal|challenge-form/i;
+const keylessSearchEngines: readonly { readonly name: string; readonly run: (fetchImpl: FetchLike, query: string, limit: number, signal?: AbortSignal) => Promise<SearchResult[]> }[] = Object.freeze([
+  { name: 'DuckDuckGo', async run(fetchImpl, query, limit, signal) {
+    const html = await getText(fetchImpl, 'https://html.duckduckgo.com/html/', signal, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': USER_AGENT }, body: new URLSearchParams({ q: query, kl: 'tr-tr' }).toString() });
+    if (BLOCKED_PAGE.test(html)) throw new WebToolError('WEB_SEARCH_BLOCKED', 429);
+    return parseDuckDuckGoHtml(html, limit);
+  } },
+  { name: 'Bing', async run(fetchImpl, query, limit, signal) {
+    const html = await getText(fetchImpl, `https://www.bing.com/search?${new URLSearchParams({ q: query, setlang: 'tr', cc: 'TR' })}`, signal, { headers: { 'User-Agent': USER_AGENT, 'Accept-Language': 'tr-TR,tr;q=0.9' } });
+    return parseBingHtml(html, limit);
+  } },
+  { name: 'DuckDuckGo Lite', async run(fetchImpl, query, limit, signal) {
+    const html = await getText(fetchImpl, 'https://lite.duckduckgo.com/lite/', signal, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': USER_AGENT }, body: new URLSearchParams({ q: query, kl: 'tr-tr' }).toString() });
+    if (BLOCKED_PAGE.test(html)) throw new WebToolError('WEB_SEARCH_BLOCKED', 429);
+    return parseDuckDuckGoLite(html, limit);
+  } }
+]);
+
 export interface WebToolsOptions {
   readonly fetchImpl?: FetchLike;
   readonly tavilyApiKey?: string;
@@ -282,13 +346,20 @@ export function createWebTools(options: WebToolsOptions = {}) {
       });
       results = (Array.isArray(record(data.web).results) ? record(data.web).results as unknown[] : []).map(record).map((item) => ({ title: stripTags(String(item.title || '')).slice(0, 200), url: String(item.url || '').slice(0, MAX_URL), snippet: stripTags(String(item.description || '')).slice(0, 400) }));
     } else {
-      const html = await getText(fetchImpl, 'https://html.duckduckgo.com/html/', signal, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': USER_AGENT },
-        body: new URLSearchParams({ q: query, kl: 'tr-tr' }).toString()
-      });
-      if (/anomaly-modal|challenge-form/i.test(html)) throw new WebToolError('WEB_SEARCH_BLOCKED', 429);
-      results = parseDuckDuckGoHtml(html, limit);
+      // No single search engine is reliable from one address: when one blocks or finds nothing, ask
+      // the next. Only when all of them fail does the tool report a failure.
+      results = [];
+      let lastError: unknown = null;
+      for (const engine of keylessSearchEngines) {
+        try {
+          const found = await engine.run(fetchImpl, query, limit, signal);
+          if (found.length) { provider = engine.name; results = found; break; }
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          lastError = error;
+        }
+      }
+      if (!results.length && lastError) throw lastError;
     }
     return { provider, query, results: results.filter((item) => item.url).slice(0, limit), note: 'Ayrıntı için ilgili sonucu web_page_read ile okuyabilirsin.' };
   }

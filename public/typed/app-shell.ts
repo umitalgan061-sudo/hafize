@@ -963,6 +963,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (code === 'SSE_NETWORK_ERROR') return 'Hafize sunucusuna ulaşılamadı. Sunucu penceresinin açık olduğundan emin ol.';
     const detail = String(error?.message || '');
     if (status >= 500 || [code, detail].some((value) => value === 'NVIDIA_CHAT_ERROR' || value === 'STREAM_INTERRUPTED' || value === 'NVIDIA_STREAM_ERROR')) return 'NVIDIA şu an yanıt vermedi ya da yanıt yarıda kesildi. Birkaç saniye sonra "Yeniden dene"ye bas.';
+    if (/network|failed to fetch/i.test(detail)) return 'Bağlantı kesildi, yanıt tamamlanamadı. Yeniden dene.';
     return `Yanıt alınamadı: ${error?.message || 'bilinmeyen hata'}`;
   }
 
@@ -1126,7 +1127,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     render();
 
     try {
-      const useTools = conversation.toolsEnabled && ui.providerSelect.value !== 'local';
+      const useTools = ui.providerSelect.value !== 'local';
       const endpoint = useTools ? '/api/agent/run' : '/api/chat';
       await consumeAssistantStream(
         endpoint,
@@ -1206,7 +1207,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
     try {
       await globalThis.HafizeLiveScreen?.beforeSend?.(clean);
-      if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
+      if (ui.providerSelect.value !== 'local') await runAssistantWithTools();
       else await streamAssistantReply();
     } catch (error) {
       const message = describeChatFailure(error);

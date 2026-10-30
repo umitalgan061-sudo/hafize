@@ -46,6 +46,7 @@ export function captureSupport(root: { isSecureContext?: boolean; navigator?: { 
 
 function install(documentRef: Document, root: typeof globalThis): void {
   const button = documentRef.querySelector<HTMLButtonElement>('#liveScreenBtn');
+  const cameraButton = documentRef.querySelector<HTMLButtonElement>('#liveCameraBtn');
   const composer = documentRef.querySelector<HTMLElement>('#composer');
   if (!button || !composer) return;
 
@@ -63,6 +64,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
   let statusLine: HTMLElement | null = null;
   let video: HTMLVideoElement | null = null;
   let source: Source = 'screen';
+  let facing: 'environment' | 'user' = 'environment';
   let sampler: ReturnType<typeof setInterval> | null = null;
   let signature: Uint8ClampedArray | null = null;
   let lastSentAt = 0;
@@ -95,7 +97,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     if (!data) return false;
     signature = readSignature();
     lastSentAt = Date.now();
-    const response = await api('/api/screen/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data, question }) });
+    const response = await api('/api/screen/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data, question, source }) });
     return response.ok;
   };
   const sample = () => {
@@ -120,6 +122,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     signature = null;
     lastSentAt = 0;
     button.setAttribute('aria-pressed', 'false');
+    cameraButton?.setAttribute('aria-pressed', 'false');
     composer.removeAttribute('data-live-screen');
     if (notify) void api('/api/screen', { method: 'DELETE' }).catch(() => {});
   };
@@ -144,19 +147,52 @@ function install(documentRef: Document, root: typeof globalThis): void {
     stopButton.className = 'live-screen-stop';
     stopButton.textContent = 'Durdur';
     stopButton.addEventListener('click', () => stop());
-    chip.append(video, text, stopButton);
+    chip.append(video, text);
+    if (source === 'camera') {
+      const flip = documentRef.createElement('button');
+      flip.type = 'button';
+      flip.className = 'live-camera-flip';
+      flip.textContent = 'Çevir';
+      flip.hidden = true;
+      flip.setAttribute('aria-label', 'Ön ve arka kamera arasında geçiş yap');
+      flip.addEventListener('click', () => { void flipCamera(); });
+      void root.navigator.mediaDevices.enumerateDevices?.().then((devices) => { flip.hidden = devices.filter((device) => device.kind === 'videoinput').length < 2; }).catch(() => {});
+      chip.append(flip);
+    }
+    chip.append(stopButton);
     composer.prepend(chip);
+  };
+
+  const cameraStream = (facing: 'environment' | 'user') => root.navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 } }, audio: false });
+  const flipCamera = async () => {
+    if (!stream || !video) return;
+    const next = facing === 'environment' ? 'user' : 'environment';
+    for (const track of stream.getTracks()) track.stop();
+    try {
+      stream = await cameraStream(next);
+      facing = next;
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      stream.getVideoTracks()[0]?.addEventListener('ended', () => stop());
+      signature = null;
+      lastSentAt = 0;
+    } catch { stop(); toast('Kamera değiştirilemedi.'); }
   };
 
   const start = async (kind: Source) => {
     const devices = root.navigator.mediaDevices;
+    if (stream) stop(false);
     try {
       stream = kind === 'screen'
         ? await devices.getDisplayMedia({ video: { frameRate: { ideal: 2, max: 5 } }, audio: false })
-        : await devices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false });
+        : await cameraStream(facing);
     } catch (error) {
       stream = null;
-      if ((error as Error)?.name !== 'NotAllowedError' && (error as Error)?.name !== 'AbortError') toast('Görüntü paylaşımı başlatılamadı.');
+      const name = (error as Error)?.name;
+      if (kind === 'camera' && (name === 'NotFoundError' || name === 'OverconstrainedError')) toast('Bu cihazda kamera bulunamadı.');
+      else if (kind === 'camera' && name === 'NotAllowedError') toast('Kamera izni verilmedi. Adres çubuğundaki kilit simgesinden izin verebilirsin.');
+      else if (kind === 'camera' && name === 'NotReadableError') toast('Kamera şu an başka bir uygulama tarafından kullanılıyor.');
+      else if (name !== 'NotAllowedError' && name !== 'AbortError') toast('Görüntü paylaşımı başlatılamadı.');
       return;
     }
     source = kind;
@@ -164,7 +200,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     video!.srcObject = stream;
     await video!.play().catch(() => {});
     stream.getVideoTracks()[0]?.addEventListener('ended', () => stop());
-    button.setAttribute('aria-pressed', 'true');
+    (kind === 'camera' ? cameraButton : button)?.setAttribute('aria-pressed', 'true');
     composer.setAttribute('data-live-screen', 'true');
     toast('Görüntüler analiz için NVIDIA’ya gider, kaydedilmez. Parola gibi bilgileri ekranda açık bırakma.');
     // A reload ends sharing without a goodbye; descriptions from then must not read as the present.
@@ -204,8 +240,15 @@ function install(documentRef: Document, root: typeof globalThis): void {
     dialog.showModal();
   };
 
+  cameraButton?.addEventListener('click', () => {
+    if (stream && source === 'camera') { stop(); return; }
+    const support = captureSupport(root);
+    if (!support.secure) { toast('Kamera güvenli bağlantı ister. Ayarlar > Uygulamayı yükle bölümündeki HTTPS adresini kullan.'); return; }
+    if (!support.camera) { toast('Bu tarayıcı kamerayı desteklemiyor.'); return; }
+    void start('camera');
+  });
   button.addEventListener('click', () => {
-    if (stream) { stop(); return; }
+    if (stream && source === 'screen') { stop(); return; }
     const support = captureSupport(root);
     if (!support.secure) { toast('Görüntü paylaşımı güvenli bağlantı ister. Ayarlar > Uygulamayı yükle bölümündeki HTTPS adresini kullan.'); return; }
     if (support.screen) void start('screen');

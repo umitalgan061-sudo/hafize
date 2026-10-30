@@ -1,5 +1,7 @@
 // @ts-nocheck
 import { createServer } from 'node:http';
+import { promisify } from 'node:util';
+import { brotliCompress, constants as zlibConstants, gzip } from 'node:zlib';
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
@@ -56,6 +58,8 @@ import { createUpstreamCircuitBreaker, UpstreamCircuitOpenError } from './lib/up
 import { createModelProviderRuntime } from './lib/model-provider-runtime.ts';
 import { createHafizePlatform } from './lib/hafize-platform.ts';
 import { startLocalHttps } from './lib/local-tls.ts';
+import { createModelRouter, parseModelChain } from './lib/model-router.ts';
+import { MODEL_SERVICE_DEFAULTS } from './lib/model-services.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -64,7 +68,12 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
 const NIM_BASE_URL = (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
-const NVIDIA_DEFAULT_MODEL = (process.env.NVIDIA_DEFAULT_MODEL || '').trim();
+const MODEL_ROUTER = createModelRouter({
+  chain: parseModelChain(process.env.HAFIZE_MODEL_CHAIN),
+  // Background helpers stay on the quick model unless it is unavailable.
+  keepFirst: [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
+});
+const NVIDIA_DEFAULT_MODEL = MODEL_ROUTER.top();
 const WEATHER_LOOKUP = createWeatherLookup();
 const WEB_TOOLS = createWebTools({
   tavilyApiKey: process.env.TAVILY_API_KEY || '',
@@ -233,13 +242,21 @@ async function nvidiaFetch(pathname, init = {}) {
   const finishMetric = RUNTIME_METRICS.startNvidia();
   try {
     NVIDIA_CIRCUIT.beforeRequest();
-    const response = await fetch(`${NIM_BASE_URL}${pathname}`, {
+    const deliver = (body, signal) => fetch(`${NIM_BASE_URL}${pathname}`, {
       ...init,
+      body,
+      signal,
       headers: {
         Authorization: `Bearer ${NVIDIA_API_KEY}`,
         ...(init.headers || {})
       }
     });
+    let payload = null;
+    if (pathname === '/chat/completions' && typeof init.body === 'string') { try { payload = JSON.parse(init.body); } catch { payload = null; } }
+    // One bad model must not trip the breaker for the rest; only a chain that failed as a whole counts.
+    const response = payload && MODEL_ROUTER.shouldRoute(payload)
+      ? await MODEL_ROUTER.send(init.body, deliver, init.signal)
+      : await deliver(init.body, init.signal);
     if (response.ok) {
       NVIDIA_CIRCUIT.recordSuccess();
     } else if (response.status === 408 || response.status === 429 || response.status >= 500) {
@@ -296,6 +313,20 @@ const MODEL_PROVIDER_RUNTIME = createModelProviderRuntime({
   env: process.env,
   nvidiaComplete: nvidiaJsonCompletion
 });
+
+// A quick look at whether this server can reach the web, for the Settings page. Cached so that
+// opening the page never costs more than one small request a minute.
+let internetCheck = { at: 0, ok: false };
+async function internetStatus() {
+  if (Date.now() - internetCheck.at < 60_000) return internetCheck.ok;
+  let ok = false;
+  try {
+    const response = await fetch('https://www.bing.com/', { method: 'HEAD', signal: AbortSignal.timeout(5_000), redirect: 'manual' });
+    ok = response.status < 500;
+  } catch { ok = false; }
+  internetCheck = { at: Date.now(), ok };
+  return ok;
+}
 
 function boundedMaxTokens(body) {
   return Number.isInteger(body.max_tokens) ? Math.min(Math.max(body.max_tokens, 1), 8192) : 2048;
@@ -470,10 +501,11 @@ async function handleModels(res, url) {
     }
     return;
   }
-  const upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } });
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    sendJson(res, upstream.status, { error: 'NVIDIA_MODELS_ERROR', detail: text.slice(0, 1000) });
+  let upstream = null;
+  try { upstream = await nvidiaFetch('/models', { headers: { Accept: 'application/json' } }); } catch { upstream = null; }
+  const text = upstream ? await upstream.text() : '';
+  if (!upstream?.ok) {
+    sendJson(res, 200, { models: MODEL_ROUTER.status().chain.map((item) => item.model), defaultModel: NVIDIA_DEFAULT_MODEL });
     return;
   }
 
@@ -488,7 +520,7 @@ async function handleModels(res, url) {
   const models = Array.isArray(payload.data)
     ? payload.data.map((item) => item?.id).filter((id) => typeof id === 'string' && id.length > 0 && !UNAVAILABLE_NVIDIA_MODELS.has(id))
     : [];
-  sendJson(res, 200, models.includes(NVIDIA_DEFAULT_MODEL) ? { models, defaultModel: NVIDIA_DEFAULT_MODEL } : { models });
+  sendJson(res, 200, { models: models.includes(NVIDIA_DEFAULT_MODEL) ? models : [NVIDIA_DEFAULT_MODEL, ...models], defaultModel: NVIDIA_DEFAULT_MODEL });
 }
 
 function handleAgents(res) {
@@ -851,6 +883,8 @@ async function handleAgentRun(req, res) {
     if (round.error) {
       const error = new Error('NVIDIA_CHAT_ERROR');
       error.status = 502;
+      // Nothing reached the user yet, so the round can start over on the next model.
+      error.retryRound = !wrote;
       throw error;
     }
     return { content: round.content, toolCalls: round.toolCalls, wrote };
@@ -900,8 +934,14 @@ async function handleAgentRun(req, res) {
     try {
       completion = await runRound(roundPayload);
     } catch (error) {
-      failRound(error);
-      return;
+      if (!error?.retryRound) { failRound(error); return; }
+      MODEL_ROUTER.penalizeCurrent();
+      try {
+        completion = await runRound(roundPayload);
+      } catch (retryError) {
+        failRound(retryError);
+        return;
+      }
     }
 
     let calls = completion.toolCalls;
@@ -1118,6 +1158,28 @@ async function handleChat(req, res) {
   }
 }
 
+const brotli = promisify(brotliCompress);
+const gzipAsync = promisify(gzip);
+const COMPRESSIBLE = new Set(['.js', '.mjs', '.css', '.html', '.json', '.svg', '.webmanifest', '.map', '.txt']);
+const MIN_COMPRESS_BYTES = 1024;
+const MAX_COMPRESS_CACHE = 400;
+// Compressed once per file version: the ETag changes with every build, so old entries are never served.
+const compressedStatic = new Map();
+async function compressStatic(relative, etag, content, acceptEncoding, extension) {
+  if (!COMPRESSIBLE.has(extension) || content.length < MIN_COMPRESS_BYTES) return null;
+  const accepted = String(acceptEncoding || '').toLowerCase();
+  const encoding = /\bbr\b/.test(accepted) ? 'br' : /\bgzip\b/.test(accepted) ? 'gzip' : '';
+  if (!encoding) return null;
+  const key = `${encoding}:${relative}:${etag}`;
+  let body = compressedStatic.get(key);
+  if (!body) {
+    body = encoding === 'br' ? await brotli(content, { params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 } }) : await gzipAsync(content);
+    if (compressedStatic.size >= MAX_COMPRESS_CACHE) compressedStatic.delete(compressedStatic.keys().next().value);
+    compressedStatic.set(key, body);
+  }
+  return { encoding, body };
+}
+
 async function serveStatic(pathname, res, req) {
   let decoded;
   try {
@@ -1166,9 +1228,14 @@ async function serveStatic(pathname, res, req) {
     }
 
     const content = await readFile(filePath);
-    res.writeHead(200, {
-      'Content-Type': MIME.get(extname(filePath).toLowerCase()) || 'application/octet-stream'
-    });
+    const contentType = MIME.get(extname(filePath).toLowerCase()) || 'application/octet-stream';
+    const encoded = await compressStatic(relative, etag, content, req.headers['accept-encoding'], extname(filePath).toLowerCase());
+    if (encoded) {
+      res.writeHead(200, { 'Content-Type': contentType, 'Content-Encoding': encoded.encoding, Vary: 'Accept-Encoding' });
+      res.end(encoded.body);
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': contentType, Vary: 'Accept-Encoding' });
     res.end(content);
   } catch {
     sendJson(res, 404, { error: 'NOT_FOUND' });
@@ -1333,6 +1400,10 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
+    if (req.method === 'GET' && url.pathname === '/api/models/status') {
+      sendJson(res, 200, { ...MODEL_ROUTER.status(), internet: await internetStatus() });
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/api/models') {
       await handleModels(res, url);
       return;
