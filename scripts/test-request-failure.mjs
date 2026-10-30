@@ -56,7 +56,7 @@ assert.equal(bodyTooLarge.writeHeadCalls[0].headers['Cache-Control'], 'no-store'
 assert.equal(bodyTooLarge.headers.get('X-Content-Type-Options'), 'nosniff');
 assert.equal(bodyTooLarge.headers.get('X-Frame-Options'), 'DENY');
 assert.equal(bodyTooLarge.headers.get('Referrer-Policy'), 'no-referrer');
-assert.equal(bodyTooLarge.headers.get('Permissions-Policy'), 'camera=(), geolocation=()');
+assert.equal(bodyTooLarge.headers.get('Permissions-Policy'), 'camera=(self), geolocation=()');
 
 const invalidJson = new FakeResponse();
 assert.equal(deliverRequestFailure(invalidJson, new SyntaxError('Unexpected token secret')), 'json');

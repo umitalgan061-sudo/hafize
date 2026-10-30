@@ -725,6 +725,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   function autoResizeComposer() {
+    // An empty box is always its resting size, whatever the layout looked like when it was cleared.
+    if (!ui.messageInput.value) { ui.messageInput.style.height = ''; return; }
     ui.messageInput.style.height = 'auto';
     ui.messageInput.style.height = `${Math.min(ui.messageInput.scrollHeight, 180)}px`;
   }
@@ -1203,6 +1205,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     chatScroll?.setThinking(true);
 
     try {
+      await globalThis.HafizeLiveScreen?.beforeSend?.(clean);
       if (getActiveConversation()?.toolsEnabled) await runAssistantWithTools();
       else await streamAssistantReply();
     } catch (error) {
@@ -1338,7 +1341,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (navigator.serviceWorker.controller) globalThis.location.reload();
       }, { once: true });
-      navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' })
+      // The script lives under /typed-build/, so without an explicit scope it never controlled the app.
+      navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module', scope: '/' })
         .then((registration) => registration.update())
         .catch(() => undefined);
     });

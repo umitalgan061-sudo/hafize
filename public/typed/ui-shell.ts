@@ -53,7 +53,13 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  const storage=root.localStorage,media=root.matchMedia('(prefers-color-scheme: dark)');
  let theme=resolveTheme(storage?.getItem(THEME_KEY),Boolean(media.matches));
  const themeToggle=documentRef.querySelector<HTMLButtonElement>('#themeToggle');
- const paintTheme=(next:Theme)=>{theme=next;html.dataset.theme=next;themeToggle?.setAttribute('aria-pressed',String(next==='dark'));themeToggle?.setAttribute('title',next==='dark'?'Gündüz moduna geç':'Gece moduna geç');documentRef.querySelector('meta[name="theme-color"]')?.setAttribute('content',next==='dark'?'#202122':'#f7f5f0');};
+ const paintTheme=(next:Theme)=>{
+  // A single cross-fade instead of every surface animating on its own, where the browser can do it.
+  const docWithTransition=documentRef as Document&{startViewTransition?:(update:()=>void)=>unknown};
+  const calm=documentRef.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const apply=()=>{theme=next;html.dataset.theme=next;};
+  if(html.dataset.theme&&html.dataset.theme!==next&&!calm&&docWithTransition.startViewTransition)docWithTransition.startViewTransition(apply);else apply();
+  themeToggle?.setAttribute('aria-pressed',String(next==='dark'));themeToggle?.setAttribute('title',next==='dark'?'Gündüz moduna geç':'Gece moduna geç');documentRef.querySelector('meta[name="theme-color"]')?.setAttribute('content',next==='dark'?'#202122':'#f7f5f0');};
  paintTheme(theme);
  // The settings page can change the theme too, so read the live value rather than the cached one,
  // and announce the change so its theme picker stays in sync.

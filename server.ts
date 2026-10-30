@@ -55,6 +55,7 @@ import { createRateLimiter } from './lib/rate-limit.ts';
 import { createUpstreamCircuitBreaker, UpstreamCircuitOpenError } from './lib/upstream-circuit-breaker.ts';
 import { createModelProviderRuntime } from './lib/model-provider-runtime.ts';
 import { createHafizePlatform } from './lib/hafize-platform.ts';
+import { startLocalHttps } from './lib/local-tls.ts';
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
@@ -70,7 +71,7 @@ const WEB_TOOLS = createWebTools({
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
 const MAX_AGENT_TOOL_ROUNDS = 4;
-const UNTRUSTED_CONTENT_TOOLS = new Set(['web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
+const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
 // until restart so the picker stops offering them.
@@ -1153,6 +1154,7 @@ async function serveStatic(pathname, res, req) {
     res.setHeader('ETag', etag);
     res.setHeader('Last-Modified', metadata.mtime.toUTCString());
     res.setHeader('Cache-Control', cacheControl);
+    if (relative === join('typed-build', 'sw.js')) res.setHeader('Service-Worker-Allowed', '/');
 
     const incomingTag = Array.isArray(req.headers['if-none-match'])
       ? req.headers['if-none-match'][0]
@@ -1320,6 +1322,16 @@ const server = createServer(async (req, res) => {
       await handleGitHubWorkspaceDetails(url.pathname, url, res);
       return;
     }
+    if (req.method === 'GET' && url.pathname === '/hafize-ca.crt' && LOCAL_HTTPS) {
+      setSecurityHeaders(res);
+      res.writeHead(200, { 'Content-Type': 'application/x-x509-ca-cert', 'Content-Disposition': 'attachment; filename="hafize-ca.crt"', 'Cache-Control': 'no-store' });
+      res.end(LOCAL_HTTPS.caCertificate());
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/install-info') {
+      sendJson(res, 200, { https: LOCAL_HTTPS?.info() ?? null });
+      return;
+    }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
     if (req.method === 'GET' && url.pathname === '/api/models') {
       await handleModels(res, url);
@@ -1381,4 +1393,11 @@ SHUTDOWN.installSignals();
 
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
+});
+// Off unless asked for: this is the only listener that reaches beyond this computer.
+const LOCAL_HTTPS = startLocalHttps({
+  httpServer: server,
+  port: Number(process.env.HAFIZE_HTTPS_PORT || 0),
+  dataDir: process.env.HAFIZE_DATA_DIR || join(ROOT, 'data'),
+  authRequired: process.env.HAFIZE_AUTH_REQUIRED === 'true'
 });

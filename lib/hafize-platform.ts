@@ -32,6 +32,8 @@ import { createDevTools } from './dev-tools.ts';
 import { createRuleEngine, type Rule, type RuleEngine } from './rule-engine.ts';
 import { createWorkspaceWatcher } from './workspace-watcher.ts';
 import { createTaskResults } from './task-results.ts';
+import { createLocalhostServers } from './localhost-servers.ts';
+import { createScreenWatch, SCREEN_LIMITS } from './screen-watch.ts';
 import { createIdempotencyStore } from './skill-idempotency.ts';
 import { createSkillUpdateChannel, installBundle, loadTrustedKeys } from './skill-bundles.ts';
 import { createBackupService, folderTarget, webdavTarget, type BackupTarget } from './backup.ts';
@@ -119,9 +121,11 @@ export function createHafizePlatform(deps: PlatformDeps) {
   const images = createImageStore({ db, dir: join(dataDir, 'images') });
   const documents = createDocumentStore({ db });
   const media = createMediaTools({ models, images, browser });
+  const screenWatch = createScreenWatch({ vision: models.vision });
   const research = createResearchAgent({ webTools: deps.webTools, sources: createResearchSources(), models });
   const orchestrator = createOrchestrator({ db, models });
   const localTools = createLocalTools({ workspaceDir: env.HAFIZE_WORKSPACE_DIR || join(root, 'workspace') });
+  const localhostServers = createLocalhostServers({ workspaceDir: env.HAFIZE_WORKSPACE_DIR || join(root, 'workspace') });
   // Developer-environment tools (test runner + read-only git) share the workspace boundary.
   const devTools = createDevTools({ workspaceDir: env.HAFIZE_WORKSPACE_DIR || join(root, 'workspace') });
   // Proactive rule engine: cron and event triggers that schedule agent tasks. Rules never widen
@@ -340,6 +344,9 @@ export function createHafizePlatform(deps: PlatformDeps) {
       },
       workspaceSqlite: async (args, context) => localTools.sqlite({ path: args.path, sql: args.sql, params: args.params }, context.requestApproval),
       shellRun: async (args, context) => localTools.shell({ command: args.command, timeoutMs: args.timeoutMs }, context.requestApproval, context.signal),
+      localhostStart: async (args, context) => localhostServers.start(owner(context), args, context.requestApproval, context.signal),
+      localhostList: async (_args, context) => ({ servers: localhostServers.list(owner(context)) }),
+      localhostStop: async (args, context) => ({ stopped: localhostServers.stop(owner(context), args.id) }),
       skillExecute: async (args, context) => requestContext.run(context, () => skillExecutor.invoke({
         agent: context.agent, skillId: args.skillId, args: args.args ?? {}, traceId: context.traceId, ownerId: context.ownerId, sessionId: context.sessionId, idemKey: args.idemKey,
         approveConsent: (context as { approveConsent?: never }).approveConsent, signal: context.signal
@@ -537,6 +544,8 @@ export function createHafizePlatform(deps: PlatformDeps) {
         parts.push('\n\n[Ekli görsel analiz edilemedi.]');
       }
     }
+    const screen = screenWatch.contextFor(ownerId);
+    if (screen) { parts.push(screen); untrusted = true; }
     return { text: parts.join(''), untrusted };
   }
 
@@ -610,7 +619,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
   // --- HTTP API ---
   async function handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
     const path = url.pathname;
-    if (!/^\/api\/(memory|images|documents|uploads|approvals|actions|orchestrator|experts|observability|feedback|backup|task-results|skills\/(catalog|bundles|updates)|capabilities|prompts)(\/|$)/.test(path)) return false;
+    if (!/^\/api\/(memory|images|documents|uploads|approvals|actions|orchestrator|experts|observability|feedback|backup|task-results|localhost|screen|skills\/(catalog|bundles|updates)|capabilities|prompts)(\/|$)/.test(path)) return false;
     const principal = (req as { __hafizePrincipal?: Principal }).__hafizePrincipal;
     if (!principal?.ownerId) { sendJson(res, 401, { error: 'AUTH_REQUIRED' }); return true; }
     const ownerId = principal.ownerId;
@@ -623,6 +632,26 @@ export function createHafizePlatform(deps: PlatformDeps) {
         if (!segments[1] && method === 'GET') { sendJson(res, 200, { results: taskResults.list(ownerId) }); return true; }
         if (segments[1] === 'read' && method === 'POST') { const body = await readJson(req); sendJson(res, 200, { updated: taskResults.markRead(ownerId, typeof body.id === 'string' ? body.id : undefined) }); return true; }
         if (segments[1] && method === 'DELETE') { sendJson(res, 200, { removed: taskResults.remove(ownerId, segments[1]) }); return true; }
+      }
+
+      if (segments[0] === 'localhost') {
+        if (!segments[1] && method === 'GET') { sendJson(res, 200, { servers: localhostServers.list(ownerId) }); return true; }
+        if (segments[1] && segments[2] === 'stop' && method === 'POST') { const stopped = localhostServers.stop(ownerId, segments[1]); sendJson(res, stopped ? 200 : 404, stopped ? { stopped } : { error: 'LOCALHOST_NOT_FOUND' }); return true; }
+      }
+
+      if (segments[0] === 'screen') {
+        if (!segments[1] && method === 'GET') { sendJson(res, 200, screenWatch.status(ownerId)); return true; }
+        if (!segments[1] && method === 'DELETE') { screenWatch.end(ownerId); sendJson(res, 200, { ended: true }); return true; }
+        if (segments[1] === 'frame' && method === 'POST') {
+          const body = await readJson(req, Math.ceil(SCREEN_LIMITS.maxFrameBytes * 1.4) + 4_096);
+          const bytes = Buffer.from(String(body.data || '').replace(/^data:[^;,]+;base64,/, ''), 'base64');
+          if (!bytes.length || bytes.length > SCREEN_LIMITS.maxFrameBytes) { sendJson(res, 413, { error: 'FRAME_TOO_LARGE' }); return true; }
+          const mime = sniffImageType(bytes);
+          if (!mime) { sendJson(res, 415, { error: 'UNSUPPORTED_IMAGE_TYPE' }); return true; }
+          const seen = await screenWatch.observe({ ownerId, bytes, mime, question: typeof body.question === 'string' ? body.question : '' });
+          sendJson(res, 200, seen);
+          return true;
+        }
       }
 
       if (segments[0] === 'approvals' && segments[1] && method === 'POST') {
@@ -801,6 +830,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
   async function shutdown(): Promise<void> {
     for (const timer of timers) clearInterval(timer);
     workspaceWatcher.stop();
+    localhostServers.stopAll();
     skillUpdates.stop();
     browser.shutdown();
     await telemetry.flush().catch(() => {});

@@ -60,7 +60,7 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
     show(`${title}: ${body}`);
     if (typeof root.Notification !== 'function' || root.Notification.permission !== 'granted') return;
     try {
-      const notice = new root.Notification(title, { body, tag: result.id, icon: '/hafize.jpeg' });
+      const notice = new root.Notification(title, { body, tag: result.id, icon: '/icons/icon-192.png' });
       notice.onclick = () => { root.focus(); openPanel(); notice.close(); };
     } catch { /* some platforms only allow notifications from a service worker */ }
   };

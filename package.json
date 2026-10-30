@@ -36,6 +36,7 @@
     "mermaid": "12.2.0",
     "onnxruntime-web": "1.20.1",
     "pdfjs-dist": "6.4.299",
+    "qrcode-generator": "^2.0.4",
     "redis": "^6.1.0",
     "vega": "6.4.0",
     "vega-embed": "7.3.0",

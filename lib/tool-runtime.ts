@@ -16,6 +16,9 @@ export type ToolService = (args: Record<string, unknown>, context: ToolRuntimeCo
 export interface ToolServices {
   readonly research?: ToolService;
   readonly codeRun?: ToolService;
+  readonly localhostStart?: ToolService;
+  readonly localhostList?: ToolService;
+  readonly localhostStop?: ToolService;
   readonly orchestrate?: ToolService;
   readonly orchestrateResume?: ToolService;
   readonly memorySearch?: ToolService;
@@ -456,6 +459,37 @@ const CATALOG = new Map<string, ToolEntry>([
     definition: strictDefinition('shell_run', "Kullanıcının bilgisayarında (çalışma klasöründe) bir kabuk komutu çalıştırır (Windows: PowerShell). Her komut çalıştırılmadan önce kullanıcıya gösterilip onayı alınır. Yalnızca kullanıcı açıkça istediğinde kullan.", {"command":{"type":"string","maxLength":4000},"timeoutMs":{"type":"integer","minimum":1000,"maximum":60000}}, ["command"]),
     available: (context) => typeof context.services?.shellRun === 'function',
     execute: async (args, context) => context.services!.shellRun!(args, context)
+  }],
+  ['localhost_start', {
+    permission: 'shell.run',
+    kind: 'local',
+    timeoutMs: timeout(100_000, 100_000),
+    activity: { running: 'Yerel sunucu başlatılıyor', success: 'Yerel sunucu başlatıldı', failure: 'Yerel sunucu başlatılamadı' },
+    definition: strictDefinition('localhost_start', "Bu bilgisayarda localhost üzerinde bir web sunucusu başlatır ve adresini döndürür. Aynı anda çalışan sunucu sayısında sınır yoktur, her biri kendi portunu alır. Yalnızca path verilirse çalışma klasöründeki o klasör statik site olarak yayınlanır (onay gerekmez). command da verilirse (npm run dev, node app.js gibi) komut o klasörde kullanıcı onayıyla çalışır; PORT ve HOST ortam değişkenleri hazır gelir. Adresi yanıtında bağlantı olarak ver.", {
+      "path":{"type":"string","maxLength":500,"description":"Çalışma klasörüne göre klasör yolu; boşsa klasörün kendisi."},
+      "command":{"type":"string","maxLength":2000,"description":"Sunucuyu başlatan komut; statik site için boş bırak."},
+      "name":{"type":"string","maxLength":80}
+    }, []),
+    available: (context) => typeof context.services?.localhostStart === 'function',
+    execute: async (args, context) => context.services!.localhostStart!(args, context)
+  }],
+  ['localhost_list', {
+    permission: 'shell.run',
+    kind: 'local',
+    timeoutMs: timeout(5_000, 5_000),
+    activity: { running: 'Yerel sunucular listeleniyor', success: 'Yerel sunucular listelendi', failure: 'Yerel sunucular listelenemedi' },
+    definition: strictDefinition('localhost_list', 'Hafize tarafından başlatılan yerel sunucuları, adreslerini ve durumlarını listeler.', {}, []),
+    available: (context) => typeof context.services?.localhostList === 'function',
+    execute: async (args, context) => context.services!.localhostList!(args, context)
+  }],
+  ['localhost_stop', {
+    permission: 'shell.run',
+    kind: 'local',
+    timeoutMs: timeout(15_000, 15_000),
+    activity: { running: 'Yerel sunucu durduruluyor', success: 'Yerel sunucu durduruldu', failure: 'Yerel sunucu durdurulamadı' },
+    definition: strictDefinition('localhost_stop', 'localhost_start ile başlatılmış bir sunucuyu durdurur.', { "id":{"type":"string","maxLength":40} }, ["id"]),
+    available: (context) => typeof context.services?.localhostStop === 'function',
+    execute: async (args, context) => context.services!.localhostStop!(args, context)
   }],
   ['skill_invoke', {
     permission: 'skill.invoke',

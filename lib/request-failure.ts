@@ -71,7 +71,7 @@ export function deliverRequestFailure(res: ServerResponse, error: unknown): Requ
       res.setHeader('X-Content-Type-Options', 'nosniff');
       res.setHeader('X-Frame-Options', 'DENY');
       res.setHeader('Referrer-Policy', 'no-referrer');
-      res.setHeader('Permissions-Policy', 'camera=(), geolocation=()');
+      res.setHeader('Permissions-Policy', 'camera=(self), geolocation=()');
       const retryAfterMs = Number((error as FailureError | null)?.retryAfterMs);
       if (response.status === 503 && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
         res.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryAfterMs / 1000))));

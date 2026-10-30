@@ -25,6 +25,8 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/voice-mode.js', '/typed/voice-mode.ts')
       .replaceAll('/typed-build/voice-settings.js', '/typed/voice-settings.ts')
       .replaceAll('/typed-build/task-notifications.js', '/typed/task-notifications.ts')
+      .replaceAll('/typed-build/live-screen.js', '/typed/live-screen.ts')
+      .replaceAll('/typed-build/app-install.js', '/typed/app-install.ts')
       .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
       .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
       .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
@@ -90,6 +92,8 @@ export default defineConfig({
         'voice-mode': resolve(ROOT, 'public/typed/voice-mode.ts'),
         'voice-settings': resolve(ROOT, 'public/typed/voice-settings.ts'),
         'task-notifications': resolve(ROOT, 'public/typed/task-notifications.ts'),
+        'live-screen': resolve(ROOT, 'public/typed/live-screen.ts'),
+        'app-install': resolve(ROOT, 'public/typed/app-install.ts'),
         'piper-worker': resolve(ROOT, 'public/typed/piper-worker.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),

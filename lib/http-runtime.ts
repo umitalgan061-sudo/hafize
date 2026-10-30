@@ -28,7 +28,7 @@ export function setSecurityHeaders(res: ServerResponse): void {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('Permissions-Policy', 'camera=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=()');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
   res.setHeader('Origin-Agent-Cluster', '?1');

@@ -1,14 +1,94 @@
 {
+  "id": "/",
   "name": "Hafize",
   "short_name": "Hafize",
-  "description": "NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı",
+  "description": "Kişisel yapay zekâ çalışma alanın: sohbet, sesli asistan, canlı ekran paylaşımı ve arka plan görevleri.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f7f5ef",
-  "theme_color": "#f7f5ef",
+  "orientation": "any",
+  "background_color": "#202122",
+  "theme_color": "#202122",
   "lang": "tr",
+  "dir": "ltr",
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
+  "launch_handler": {
+    "client_mode": [
+      "focus-existing",
+      "auto"
+    ]
+  },
   "icons": [
-    { "src": "/hafize.jpeg", "sizes": "191x191", "type": "image/jpeg" }
-  ]
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/screen-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Masaüstünde Hafize"
+    },
+    {
+      "src": "/icons/screen-narrow.png",
+      "sizes": "412x892",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Telefonda Hafize"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Yeni sohbet",
+      "url": "/?action=new",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Sesli sohbet",
+      "url": "/?action=voice",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    },
+    "enctype": "application/x-www-form-urlencoded"
+  }
 }

@@ -445,3 +445,39 @@ html[data-theme="dark"] .settings-danger { color: #ef8a80 !important; }
   .voice-visual, .voice-visual-core, .voice-visual-wave i { transition: none !important; }
   .suggestions button:hover, .send-btn:hover, .brand-inline:hover .flower-logo { transform: none; }
 }
+
+/* ---- Installed app and modern platform polish (2026-10-30) ---- */
+h1, h2, h3, .welcome h1 { text-wrap: balance; }
+p, .message li, .settings-panel > p { text-wrap: pretty; }
+html { interpolate-size: allow-keywords; -webkit-tap-highlight-color: transparent; }
+.welcome h1::after { margin: 7px auto 0; }
+.settings-panel { scroll-margin-top: 84px; }
+.settings-panel, .message { overflow-wrap: anywhere; }
+.topbar { padding-top: max(var(--topbar-pad, 0px), env(safe-area-inset-top)); padding-inline: max(14px, env(safe-area-inset-left)) max(14px, env(safe-area-inset-right)); }
+
+/* A theme switch is one cross-fade (ui-shell.ts); the old per-surface transition would fight it. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.26s; animation-timing-function: var(--ease-out, ease); }
+
+/* Toast: readable on any background and clear of the composer. */
+html[data-theme="light"] .toast { background: #2b2926; color: #f7f5f0; }
+html[data-theme="dark"] .toast { background: #f0ede8; color: #1f1d1b; }
+.toast:not(.hidden) { box-shadow: 0 10px 32px rgb(0 0 0 / 0.28); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); text-wrap: pretty; line-height: 1.45; }
+
+/* Phones: suggestions as a compact grid, and targets a finger can hit. */
+@media (max-width: 560px) {
+  .suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: min(100%, 340px); margin-inline: auto; }
+  .suggestions button { width: 100%; justify-content: center; }
+}
+@media (pointer: coarse) {
+  .composer-tools .icon-btn { min-width: 40px; min-height: 40px; }
+  .composer-tools { flex-wrap: wrap; }
+  .settings-panel button, .settings-panel a[role="button"] { min-height: 40px; }
+}
+
+/* Installed: no browser chrome around it, so it should stop behaving like a web page. */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior: none; }
+  #installBtn { display: none !important; }
+  .topbar, .composer-tools, .suggestions, .nav-item { -webkit-user-select: none; user-select: none; }
+}
+

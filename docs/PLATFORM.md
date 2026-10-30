@@ -14,6 +14,9 @@ dış servis olarak yalnızca NVIDIA (modeller) ve açık web/akademik kaynaklar
 | Araştırma | `lib/research-agent.ts`, `lib/research-sources.ts` | 6 motor, güvenilirlik puanı, iddia kümeleme, çelişki tespiti, APA/IEEE/ISO 690 kaynakça |
 | Görev yürütücü | `lib/orchestrator.ts` | Plan (DAG) → paralel adımlar → denetçi → kayıt noktası → bütçe sınırları → insan onayı |
 | Uzmanlar | `agents/registry.json`, `lib/expert-registry.ts` | Ajan kartları, keşif, sağlık/SLO, günlük kota, çıktı şeması doğrulama, denetim kaydı |
+| Yerel sunucular | `lib/localhost-servers.ts` | `localhost_start/list/stop`: klasörü statik yayınlar, komutu onayla çalıştırır; sayı sınırı yok, yalnız 127.0.0.1 |
+| Canlı ekran | `lib/screen-watch.ts`, `public/typed/live-screen.ts` | Değişen kareler görsel modelle metne çevrilir; kare saklanmaz, metin bellekte kalır |
+| Telefona kurulum | `lib/local-tls.ts`, `public/typed/app-install.ts` | `HAFIZE_HTTPS_PORT` ile yerel ağda HTTPS; CA yalnız özel adreslerle sınırlı |
 | Sandbox | `lib/sandbox-runner.ts` | İzin modeli kısıtlı ayrı Node süreci + vm; dosya/süreç/ağ yok, bellek ve süre sınırı |
 | Beceriler | `lib/skill-executor.ts`, `lib/skill-sdk.ts`, `lib/skill-bundles.ts` | Onay, idempotency, şema, denetim, geri alma; Ed25519 imzalı paketler ve güncelleme kanalı |
 | Medya | `lib/media-tools.ts`, `lib/headless-browser.ts` | Görsel üretimi (güvenlik denetimli), görsel analiz, diyagram (SVG/PNG), JS sayfa okuma |

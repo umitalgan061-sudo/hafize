@@ -41,3 +41,7 @@ Three Turkish voices come from community repositories on Hugging Face, each pinn
 `public/piper-voices.json`: `speaches-ai/piper-tr_TR-fahrettin-medium`, `speaches-ai/piper-tr_TR-fettah-medium` and
 `99eren99/piper-turkish-tts`. None of them states a license, so their terms of use are unknown; they are
 only downloaded on the user's request and are labelled as community voices in Settings.
+
+## qrcode-generator
+
+Copyright (c) 2009 Kazuhiko Arase. MIT License. Used to draw the install QR code on the Settings page.
