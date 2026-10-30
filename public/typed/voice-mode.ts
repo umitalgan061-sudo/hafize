@@ -46,7 +46,18 @@ export function readTranscript(results: ArrayLike<ArrayLike<{ transcript?: unkno
   return { final: clean(final), interim: clean(interim) };
 }
 
-/** [before, word, after] around the spoken word, roughly two lines long. */
+/** How many characters fit in the caption's lines, so text is trimmed on purpose, not clipped mid-line. */
+export function captionCapacity(width: number, fontSize: number, lines = 3): number {
+  if (!(width > 0) || !(fontSize > 0)) return 180;
+  return Math.max(40, Math.min(240, Math.floor(width / (fontSize * 0.56)) * lines));
+}
+
+/** The latest words of what the user is saying; the start scrolls away, not the newest words. */
+export function captionTail(text: string, size: number): string {
+  return text.length > size ? `…${text.slice(text.length - size + 1).trimStart()}` : text;
+}
+
+/** [before, word, after] around the spoken word, sized by captionCapacity. */
 export function captionWindow(text: unknown, charIndex: number, charLength: number, size = 180): [string, string, string] {
   const value = typeof text === 'string' ? text : '';
   if (!value) return ['', '', ''];
@@ -167,6 +178,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let samples: Uint8Array<ArrayBuffer> | null = null;
   let captionsOn = read(CAPTIONS_KEY) !== 'false';
 
+  const captionSize = () => captionCapacity(captionEl.clientWidth, parseFloat(root.getComputedStyle(captionEl).fontSize));
   const setCaption = (parts: [string, string, string], kind: 'user' | 'hafize' | '' = '') => {
     capBefore.textContent = parts[0];
     capWord.textContent = parts[1];
@@ -294,7 +306,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (recognition !== current) return;
       ({ final, interim } = readTranscript(event.results));
       const spoken = [final, interim].filter(Boolean).join(' ');
-      setCaption([spoken, '', ''], 'user');
+      setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
       energy = Math.max(energy, 0.5);
     };
     current.onerror = (event) => { errorCode = String(event?.error || ''); };
@@ -438,7 +450,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const detail = (event as CustomEvent).detail;
     if (state !== 'speaking' || detail?.source !== 'voice-output') return;
     const index = Number(detail.charIndex);
-    setCaption(captionWindow(detail.text, index, Number(detail.charLength)), 'hafize');
+    setCaption(captionWindow(detail.text, index, Number(detail.charLength), captionSize()), 'hafize');
     if (index >= 0) energy = Math.max(energy, 0.75);
   };
   const onKey = (event: KeyboardEvent) => {
@@ -508,7 +520,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   });
 }
 
-const api = Object.freeze({ statusText, readTranscript, captionWindow, installVoiceMode });
+const api = Object.freeze({ statusText, readTranscript, captionCapacity, captionTail, captionWindow, installVoiceMode });
 (globalThis as typeof globalThis & { HafizeVoiceMode?: unknown }).HafizeVoiceMode = api;
 const start = () => installVoiceMode(document, globalThis);
 if (typeof document !== 'undefined') {

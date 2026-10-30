@@ -111,7 +111,7 @@ body.voice-mode-open { overflow: hidden; }
 .vm-field { display: grid; gap: 8px; font-size: 13px; font-weight: 600; }
 .vm-field > span { display: flex; justify-content: space-between; align-items: baseline; }
 .vm-field output { color: var(--vm-orange-strong); font-variant-numeric: tabular-nums; }
-.vm-field input[type="range"] { width: 100%; accent-color: var(--vm-orange); }
+.vm-field input[type="range"] { width: 100%; height: 36px; margin: -6px 0; accent-color: var(--vm-orange); }
 .vm-field select {
   width: 100%;
   padding: 10px 12px;
@@ -124,6 +124,7 @@ body.voice-mode-open { overflow: hidden; }
 }
 .vm-sample {
   justify-self: start;
+  min-height: 40px;
   padding: 8px 14px;
   border: 1px solid color-mix(in srgb, var(--vm-orange) 45%, var(--vm-line));
   border-radius: 999px;
@@ -145,7 +146,7 @@ body.voice-mode-open { overflow: hidden; }
   padding: 12px 24px;
 }
 .vm-orb {
-  --vm-size: min(64vw, 46vh, 360px);
+  --vm-size: min(64vw, 46vh, 460px);
   position: relative;
   width: var(--vm-size);
   height: var(--vm-size);
@@ -176,10 +177,8 @@ body.voice-mode-open { overflow: hidden; }
 }
 .vm-webgl .vm-orb-fallback { display: none; }
 
+/* Block + inline dot, not flex: when the line wraps on a narrow phone the dot stays with the text. */
 .vm-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   min-height: 22px;
   margin: clamp(18px, 4vh, 36px) 0 0;
   color: var(--vm-muted);
@@ -189,6 +188,9 @@ body.voice-mode-open { overflow: hidden; }
 }
 .vm-status::before {
   content: "";
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: 0.12em;
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -206,7 +208,8 @@ body.voice-mode-open { overflow: hidden; }
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  max-width: min(640px, 100%);
+  width: 100%; /* a stable width: voice-mode.ts measures it to size the text window */
+  max-width: 640px;
   min-height: 3.2em;
   margin: 14px 0 0;
   color: var(--vm-fg);
@@ -293,6 +296,38 @@ body.voice-mode-open { overflow: hidden; }
   .vm-bar { gap: 10px; padding-inline: 14px; }
   .vm-input { height: 52px; }
   .vm-mic, .vm-close { width: 52px; height: 52px; }
+  .vm-status { font-size: 14px; }
+}
+/* Short laptop windows: a smaller orb leaves the caption its three full lines. */
+@media (max-height: 680px) and (min-height: 501px) {
+  .vm-orb { --vm-size: min(64vw, 40vh); }
+  .vm-status { margin-top: 14px; }
+  .vm-caption { margin-top: 8px; }
+}
+/* A phone on its side has no room to stack: orb on the left, words on the right, slimmer bars,
+   and room for the notch. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .vm-top { padding: 8px max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+  .vm-icon { width: 40px; height: 40px; }
+  .vm-title strong { font-size: 16px; }
+  .vm-settings { top: 54px; max-height: calc(100dvh - 62px); overflow-y: auto; }
+  .vm-stage {
+    grid-template-columns: auto minmax(0, 1fr);
+    /* max-content: an overflow-hidden caption would otherwise get a row shorter than its 3 lines. */
+    grid-template-rows: 1fr max-content max-content 1fr;
+    column-gap: clamp(20px, 5vw, 48px);
+    justify-items: start;
+    align-content: stretch;
+    width: min(760px, 100%);
+    margin: 0 auto;
+    padding: 2px max(24px, env(safe-area-inset-right)) 2px max(24px, env(safe-area-inset-left));
+  }
+  .vm-orb { --vm-size: min(56dvh, 34vw); grid-column: 1; grid-row: 1 / -1; align-self: center; }
+  .vm-status { grid-column: 2; grid-row: 2; margin: 0; text-align: left; }
+  .vm-caption { grid-column: 2; grid-row: 3; min-height: 0; margin: 6px 0 0; font-size: 16px; line-height: 1.5; text-align: left; }
+  .vm-bar { padding: 4px max(16px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .vm-input { height: 46px; }
+  .vm-mic, .vm-close { width: 46px; height: 46px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .voice-mode, .vm-orb, .vm-caption { transition: none; }

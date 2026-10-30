@@ -22,6 +22,15 @@ const [before, word, after] = mode.captionWindow(long, long.indexOf('HEDEF'), 5,
 assert.equal(word, 'HEDEF');
 assert.ok(before.startsWith('…') && after.endsWith('…'));
 
+// The text window follows the caption's real size, and the newest spoken words stay visible.
+assert.equal(mode.captionCapacity(0, 16), 180);
+assert.equal(mode.captionCapacity(280, 17), Math.floor(280 / (17 * 0.56)) * 3);
+assert.equal(mode.captionCapacity(5000, 16), 240);
+assert.equal(mode.captionCapacity(40, 20), 40);
+assert.equal(mode.captionTail('kısa', 20), 'kısa');
+const tail = mode.captionTail(`${'eski '.repeat(40)}yeni söz`, 30);
+assert.ok(tail.startsWith('…') && tail.endsWith('yeni söz') && tail.length <= 30);
+
 // Without speech recognition (or the composer) the screen is not installed, so the microphone
 // keeps its dictation fallback and its "unsupported" explanation.
 assert.equal(mode.installVoiceMode({ querySelector: () => null, body: {} }, {}), null);

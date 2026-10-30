@@ -58,7 +58,9 @@ void main(){
   // Faded out before the canvas edge, or the glow shows a square outline.
   float glow=exp(-max(0.,d-R)*(7.-3.*uEnergy))*(.22+.45*uEnergy)*(1.-smoothstep(.72,.98,d));
   vec3 glowCol=mix(orange,rose,rosiness*.6);
-  float ga=glow*(1.-color.a);
+  // A little dither: 8-bit alpha otherwise draws faint rings in the wide, soft falloff.
+  float grain=fract(52.9829189*fract(dot(gl_FragCoord.xy,vec2(.06711056,.00583715))))-.5;
+  float ga=max(0.,glow+grain*2./255.*step(.002,glow))*(1.-color.a);
   gl_FragColor=vec4(color.rgb*color.a+glowCol*ga,color.a+ga);
 }`;
 
