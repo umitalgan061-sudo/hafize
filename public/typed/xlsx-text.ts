@@ -6,10 +6,11 @@ const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
 const MAX_ROWS_PER_SHEET = 20_000;
 const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30);
 const DAY_MS = 86_400_000;
-// Excel's built-in date and time formats.
-const BUILTIN_DATE_FORMATS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 45, 46, 47]);
+// Excel's built-in formats that show a number as a date, a time of day, or a running total of time.
+const BUILTIN_FORMATS: Readonly<Record<number, TimeKind>> = Object.freeze({ 14: 'date', 15: 'date', 16: 'date', 17: 'date', 22: 'date', 18: 'time', 19: 'time', 20: 'time', 21: 'time', 45: 'time', 47: 'time', 46: 'elapsed' });
 
 type Inflate = (bytes: Uint8Array) => Promise<Uint8Array>;
+type TimeKind = 'date' | 'time' | 'elapsed';
 
 export class XlsxError extends Error {}
 
@@ -78,21 +79,39 @@ function columnIndex(reference: string): number {
   return index - 1;
 }
 
-/** Indexes of the cell styles that show a number as a date or time. */
-function dateStyles(xml: string): ReadonlySet<number> {
-  const custom = new Set<number>();
+/** What a custom number format shows. [h]:mm is a running total, the rest of its kind are clock or calendar. */
+export function formatKind(formatCode: string): TimeKind | null {
+  const quoted = formatCode.replace(/"[^"]*"|\\./g, '');
+  if (/\[(h+|m+|s+)\]/i.test(quoted)) return 'elapsed';
+  // Date codes use y, m, d or h outside quoted text and [colour] sections; "0.00" and "#,##0" do not.
+  const code = quoted.replace(/\[[^\]]*\]/g, '');
+  if (/[yd]/i.test(code)) return 'date';
+  if (/[hs]/i.test(code)) return 'time';
+  return /m/i.test(code) ? 'date' : null;
+}
+
+/** Which cell styles show a number as a date or a time, by style index. */
+function timeStyles(xml: string): ReadonlyMap<number, TimeKind> {
+  const custom = new Map<number, TimeKind>();
   for (const match of xml.matchAll(/<numFmt\b[^>]*>/g)) {
-    // Date codes use y, m, d or h outside quoted text and [colour] sections; "0.00" and "#,##0" do not.
-    const code = decodeXml(attribute(match[0], 'formatCode')).replace(/"[^"]*"|\[[^\]]*\]|\\./g, '');
-    if (/[ymdh]/i.test(code)) custom.add(Number(attribute(match[0], 'numFmtId')));
+    const kind = formatKind(decodeXml(attribute(match[0], 'formatCode')));
+    if (kind) custom.set(Number(attribute(match[0], 'numFmtId')), kind);
   }
-  const dates = new Set<number>();
+  const styles = new Map<number, TimeKind>();
   const section = /<cellXfs\b[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml)?.[1] ?? '';
   [...section.matchAll(/<xf\b[^>]*>/g)].forEach((match, index) => {
     const format = Number(attribute(match[0], 'numFmtId'));
-    if (BUILTIN_DATE_FORMATS.has(format) || custom.has(format)) dates.add(index);
+    const kind = BUILTIN_FORMATS[format] ?? custom.get(format);
+    if (kind) styles.set(index, kind);
   });
-  return dates;
+  return styles;
+}
+
+/** 1.0625 days of [h]:mm reads 25:30, however long the total grows. */
+export function excelElapsed(serial: number): string {
+  const minutes = Math.round(Math.abs(serial) * 1440);
+  const text = `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  return serial < 0 ? `-${text}` : text;
 }
 
 export function excelDate(serial: number): string {
@@ -101,7 +120,12 @@ export function excelDate(serial: number): string {
   return Number.isInteger(serial) ? whole.slice(0, 10) : `${whole.slice(0, 10)} ${whole.slice(11, 16)}`;
 }
 
-function sheetRows(xml: string, shared: readonly string[], dates: ReadonlySet<number>): { rows: string[]; truncated: boolean } {
+function timeText(serial: number, kind: TimeKind): string {
+  if (kind === 'elapsed') return excelElapsed(serial);
+  return kind === 'time' ? excelDate(serial - Math.floor(serial)) : excelDate(serial);
+}
+
+function sheetRows(xml: string, shared: readonly string[], styles: ReadonlyMap<number, TimeKind>): { rows: string[]; truncated: boolean } {
   const rows: string[] = [];
   let truncated = false;
   for (const rowMatch of xml.matchAll(/<row\b[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g)) {
@@ -117,7 +141,10 @@ function sheetRows(xml: string, shared: readonly string[], dates: ReadonlySet<nu
       else if (type === 'inlineStr') value = textRuns(body);
       else if (type === 'str' || type === 'e') value = decodeXml(raw);
       else if (type === 'b') value = raw === '1' ? 'DOĞRU' : 'YANLIŞ';
-      else if (raw !== '') value = dates.has(Number(attribute(head, 's'))) && Number.isFinite(Number(raw)) ? excelDate(Number(raw)) : raw;
+      else if (raw !== '') {
+        const kind = styles.get(Number(attribute(head, 's')));
+        value = kind && Number.isFinite(Number(raw)) ? timeText(Number(raw), kind) : raw;
+      }
       const column = attribute(head, 'r') ? columnIndex(attribute(head, 'r')) : cells.length;
       cells[column] = value.replace(/[\t\r\n]+/g, ' ').trim();
     }
@@ -135,13 +162,13 @@ export async function xlsxToText(bytes: Uint8Array, inflate: Inflate = inflateRa
   const workbook = read('xl/workbook.xml');
   if (!workbook) throw new XlsxError('Bu dosya geçerli bir .xlsx değil.');
   const shared = [...read('xl/sharedStrings.xml').matchAll(/<si\b[^>]*>([\s\S]*?)<\/si>/g)].map((match) => textRuns(match[1]!));
-  const dates = dateStyles(read('xl/styles.xml'));
+  const styles = timeStyles(read('xl/styles.xml'));
   const targets = new Map([...read('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b[^>]*>/g)].map((match) => [attribute(match[0], 'Id'), attribute(match[0], 'Target')] as const));
   const parts: string[] = [];
   for (const match of workbook.matchAll(/<sheet\b[^>]*>/g)) {
     const target = targets.get(attribute(match[0], 'r:id')) ?? '';
     const path = target.startsWith('/') ? target.slice(1) : `xl/${target}`;
-    const { rows, truncated } = sheetRows(read(path), shared, dates);
+    const { rows, truncated } = sheetRows(read(path), shared, styles);
     if (!rows.length) continue;
     parts.push(`# Sayfa: ${decodeXml(attribute(match[0], 'name'))}\n${rows.join('\n')}${truncated ? `\n[Bu sayfanın yalnızca ilk ${MAX_ROWS_PER_SHEET} satırı eklendi.]` : ''}`);
   }

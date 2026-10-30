@@ -1,6 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { excelDate, readZip, XlsxError, xlsxToText } from './xlsx-text.ts';
+import { excelDate, excelElapsed, formatKind, readZip, XlsxError, xlsxToText } from './xlsx-text.ts';
 
 /** A real zip container, so the central-directory reader is exercised rather than mocked. */
 function zip(files: Record<string, string>, { store = false } = {}): Uint8Array {
@@ -73,6 +73,28 @@ describe('xlsx to text', () => {
     expect(excelDate(46325)).toBe('2026-10-30');
     expect(excelDate(46325.5)).toBe('2026-10-30 12:00');
     expect(excelDate(0.75)).toBe('18:00');
+  });
+
+  it('tells running totals from clock times and dates', () => {
+    expect(formatKind('[h]:mm')).toBe('elapsed');
+    expect(formatKind('[hh]:mm:ss')).toBe('elapsed');
+    expect(formatKind('hh:mm')).toBe('time');
+    expect(formatKind('dd\\.mm\\.yyyy')).toBe('date');
+    expect(formatKind('[Red]0.00')).toBeNull();
+    expect(formatKind('#,##0.00" TL"')).toBeNull();
+    expect(excelElapsed(1.0625)).toBe('25:30');
+    expect(excelElapsed(0.9375)).toBe('22:30');
+    expect(excelElapsed(5)).toBe('120:00');
+  });
+
+  it('shows a total over 24 hours as hours, never as a date in 1899', async () => {
+    const text = await xlsxToText(zip({
+      ...workbook,
+      'xl/styles.xml': '<styleSheet><numFmts><numFmt numFmtId="170" formatCode="[h]:mm"/><numFmt numFmtId="171" formatCode="hh:mm"/></numFmts><cellXfs><xf numFmtId="0"/><xf numFmtId="170"/><xf numFmtId="171"/></cellXfs></styleSheet>',
+      'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" s="1"><v>1.0625</v></c><c r="B1" s="2"><v>0.75</v></c></row></sheetData></worksheet>'
+    }));
+    expect(text).toContain('25:30\t18:00');
+    expect(text).not.toContain('1899');
   });
 
   it('refuses what is not an xlsx, in Turkish', async () => {
