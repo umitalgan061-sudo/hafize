@@ -105,7 +105,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   // Everything the platform layer serves (memory, images, approvals, orchestrator, experts,
   // observability, backup, skills) is owner data: it always needs a principal.
   function platformPath(path: string): boolean {
-    return ['/api/memory','/api/images','/api/uploads','/api/approvals','/api/actions','/api/orchestrator','/api/experts','/api/observability','/api/feedback','/api/backup','/api/skills','/api/capabilities','/api/prompts'].some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+    return ['/api/memory','/api/images','/api/uploads','/api/approvals','/api/actions','/api/orchestrator','/api/experts','/api/observability','/api/feedback','/api/backup','/api/task-results','/api/skills','/api/capabilities','/api/prompts'].some((prefix) => path === prefix || path.startsWith(prefix + '/'));
   }
   function protectedPath(path: string): boolean {
     if (platformPath(path)) return true;

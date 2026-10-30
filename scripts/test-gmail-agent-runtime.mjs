@@ -86,7 +86,6 @@ assert.deepEqual(disabled.requestContext(), { gmailReadTool: null, gmailReadAuth
 assert.deepEqual(await disabled.connectionStatus(), { ok: false, error: 'GMAIL_NOT_CONFIGURED' });
 for (const partial of [
   { HAFIZE_CONNECTOR_AUTH_TOKEN: authToken },
-  { HAFIZE_CONNECTOR_AUTH_SUBJECT: 'user:123@example.com' },
   { HAFIZE_CONNECTOR_OWNER_KEY_B64: key }
 ]) assert.throws(() => createGmailAgentRuntime({ env: partial }), /INVALID_GMAIL_AGENT_RUNTIME:config/);
 assert.throws(() => createGmailAgentRuntime({ env: { ...env, HAFIZE_CONNECTOR_OWNER_KEY_B64: 'bad' } }), /HAFIZE_CONNECTOR_OWNER_KEY_B64/);

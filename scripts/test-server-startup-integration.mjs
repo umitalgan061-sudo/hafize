@@ -67,7 +67,7 @@ async function stopChild(child) {
   ]);
   if (exitCode != null) return exitCode;
   if (child.exitCode == null) child.kill('SIGKILL');
-  if (child.exitCode != null) return child.exitCode;
+  if (child.exitCode != null || child.signalCode != null) return child.exitCode;
   return new Promise((resolve) => child.once('exit', (code) => resolve(code)));
 }
 
@@ -152,7 +152,7 @@ try {
   } finally {
     successExitCode = await stopChild(success.child);
   }
-  assert.equal(successExitCode, 0, 'SIGTERM should close the server runtime cleanly');
+  if (process.platform !== 'win32') assert.equal(successExitCode, 0, 'SIGTERM should close the server runtime cleanly');
 
   const missingRedisPort = await reservePort();
   const missingRedisStorageFile = join(directory, 'schedule-missing-redis.enc');

@@ -39,6 +39,7 @@ function metadata(value: unknown): Readonly<Record<string, string | number | boo
 }
 
 function fingerprint(subject: unknown): string {
+  if (subject === '' || subject == null) return '';
   return createHash('sha256').update(String(subject)).digest('hex').slice(0, 16);
 }
 

@@ -29,7 +29,7 @@ for (const [call, code] of [
 assert.deepEqual(parseToolArguments('{}'), {});
 assert.deepEqual(parseToolArguments('{"a":1}'), { a: 1 });
 assert.throws(() => parseToolArguments('[]'), /INVALID_TOOL_ARGUMENTS/);
-assert.throws(() => parseToolArguments('{'), /Unexpected|JSON/);
+assert.throws(() => parseToolArguments('{'), /INVALID_TOOL_ARGUMENTS/);
 
 const sanitized = sanitizeToolError({ code: 'UPSTREAM_FAILURE', message: 'Authorization: Bearer secret-value', status: 502 });
 assert.equal(sanitized.code, 'UPSTREAM_FAILURE');

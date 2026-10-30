@@ -1,8 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const root = resolve(new URL('../', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const read = (path) => readFile(resolve(root, path), 'utf8');
 const names = ['prompt-library-smart-insert','prompt-library-smart-insert-center','prompt-library-smart-insert-activity','prompt-library-smart-insert-history-bridge','prompt-library-smart-insert-shortcuts'];
 const domBuilders = new Set(['prompt-library-smart-insert','prompt-library-smart-insert-center','prompt-library-smart-insert-activity']);

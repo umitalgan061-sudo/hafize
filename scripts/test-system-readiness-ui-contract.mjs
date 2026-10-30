@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertNumericLimit } from './source-contract.mjs';
 
-const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..', '..');
+const ROOT = resolve(fileURLToPath(new URL(import.meta.url)), '..');
 const source = await readFile(resolve(ROOT, '../public/system-readiness-panel.ts'), 'utf8');
 const css = await readFile(resolve(ROOT, '../public/system-readiness.css'), 'utf8');
 const index = await readFile(resolve(ROOT, '../public/index.html'), 'utf8');

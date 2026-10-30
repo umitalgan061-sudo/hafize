@@ -150,6 +150,26 @@ const MIGRATIONS: readonly string[] = [
     created_at INTEGER NOT NULL
   );
     CREATE INDEX documents_owner ON documents (owner_id, created_at DESC);
+  `,
+  // Proactive rules used to live only in memory and vanished on every restart. Background task
+  // answers were not kept at all. Both hold personal text, so the body is encrypted per owner.
+  ` CREATE TABLE rules (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    data_enc TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX rules_owner ON rules (owner_id);
+  CREATE TABLE task_results (
+    id TEXT PRIMARY KEY,
+    owner_id TEXT NOT NULL,
+    ok INTEGER NOT NULL,
+    body_enc TEXT NOT NULL,
+    error TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    read_at INTEGER
+  );
+  CREATE INDEX task_results_owner ON task_results (owner_id, created_at DESC);
   `
 ];
 

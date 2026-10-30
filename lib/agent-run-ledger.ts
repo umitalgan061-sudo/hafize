@@ -19,6 +19,7 @@ export function createAgentRunLedger({traceId,agentId,action='agent.run',now}:Op
   const root=ledger.add({agentId,action,status:'running'});
   const parent=(taskId:string):TaskLedgerEntry=>{const entry=ledger.read(taskId);if(!entry)throw new Error('TASK_PARENT_NOT_FOUND');assertTraceContinuity(context.traceId,entry.traceId);return entry;};
   function recordToolStart(toolName: unknown, opts: { readonly parentTaskId?: string; readonly toolAgentId?: string } = {}): TaskLedgerEntry {
+    if (opts === null || typeof opts !== 'object') throw new Error('INVALID_TOOL_TASK_OPTIONS');
     const entryParent=parent(opts.parentTaskId||root.taskId);
     const relation=normalizeTaskRelation({traceId:context.traceId,taskId:root.taskId+':tool:'+String(toolName).replace(/[^a-zA-Z0-9._:-]/g,'_').slice(0,80),parentTaskId:entryParent.taskId});
     const entry=ledger.add({agentId:opts.toolAgentId||String(agentId),action:'tool:'+String(toolName),status:'running',parentTaskId:relation.parentTaskId});
@@ -33,6 +34,7 @@ export function createAgentRunLedger({traceId,agentId,action='agent.run',now}:Op
     return ledger.update(entry.taskId,{status:ok?'completed':'failed',detail:ok?'ok':String(value.error||'TASK_EXECUTION_FAILED').slice(0,120)});
   }
   function recordDelegationStart(targetAgentId: unknown, opts: { readonly parentTaskId?: string } = {}): TaskLedgerEntry {
+    if (opts === null || typeof opts !== 'object') throw new Error('INVALID_DELEGATION_OPTIONS');
     const entryParent=parent(opts.parentTaskId||root.taskId);
     const entry=ledger.add({agentId:String(targetAgentId),action:'agent.delegate',status:'running',parentTaskId:entryParent.taskId});
     assertTraceContinuity(context.traceId,entry.traceId);return entry;

@@ -87,6 +87,14 @@ export function webdavTarget({ url, username = '', password = '', fetchImpl = gl
   };
 }
 
+/** Creation time encoded in a snapshot name, or null for a name this service did not write. */
+export function snapshotTime(name: string | undefined): number | null {
+  const match = /^hafize-backup-(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})\.hzb$/.exec(name ?? '');
+  if (!match) return null;
+  const time = Date.parse(`${match[1]}T${match[2]}:${match[3]}:${match[4]}Z`);
+  return Number.isNaN(time) ? null : time;
+}
+
 export function createBackupService({ db, memory, imagesDir, userSkillsDir, target, passphrase, now = () => new Date() }: {
   readonly db: DatabaseSync; readonly memory: MemoryBackend; readonly imagesDir: string; readonly userSkillsDir: string;
   readonly target: BackupTarget | null; readonly passphrase: string; readonly now?: () => Date;
@@ -121,6 +129,15 @@ export function createBackupService({ db, memory, imagesDir, userSkillsDir, targ
     for (const old of all.slice(0, Math.max(0, all.length - KEEP_SNAPSHOTS))) await target.remove(old).catch(() => {});
     lastResult = { name, bytes: data.length, memories: snapshot.memories.length, images: snapshot.images.length, skills: snapshot.skills.length, at: snapshot.createdAt, target: target.kind };
     return lastResult;
+  }
+
+  // The newest snapshot on the target decides, not process uptime: a timer alone would never fire
+  // on a server that restarts more often than the interval.
+  async function backupIfDue(intervalMs: number) {
+    if (!target) return null;
+    const latest = snapshotTime((await target.list()).at(-1));
+    if (latest != null && now().getTime() - latest < intervalMs) return null;
+    return backupNow();
   }
 
   async function restore(name?: string) {
@@ -163,6 +180,6 @@ export function createBackupService({ db, memory, imagesDir, userSkillsDir, targ
 
   async function list() { return target ? target.list() : []; }
 
-  return Object.freeze({ backupNow, restore, list, collect, get last() { return lastResult; }, configured: Boolean(target && passphrase) });
+  return Object.freeze({ backupNow, backupIfDue, restore, list, collect, get last() { return lastResult; }, configured: Boolean(target && passphrase) });
 }
 export type BackupService = ReturnType<typeof createBackupService>;

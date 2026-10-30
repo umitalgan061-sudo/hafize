@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { createServer } from 'node:http';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,7 +84,8 @@ function rememberUnavailableModel(body) {
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';
 const SCHEDULE_AUTH_SUBJECT = process.env.HAFIZE_SCHEDULE_AUTH_SUBJECT || '';
-const SCHEDULE_MODEL = (process.env.HAFIZE_SCHEDULE_MODEL || '').trim();
+// Without a model the schedule worker never starts, and rules would queue tasks nothing ever runs.
+const SCHEDULE_MODEL = (process.env.HAFIZE_SCHEDULE_MODEL || NVIDIA_DEFAULT_MODEL || '').trim();
 const METRICS_TOKEN = (process.env.HAFIZE_METRICS_TOKEN || '').trim();
 const SCHEDULE_TICK_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_TICK_MS, 30_000, 5_000, 300_000);
 const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RUN_TIMEOUT_MS, 120_000, 10_000, 300_000);
@@ -368,14 +369,31 @@ const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
     const timeout = setTimeout(() => controller.abort(), SCHEDULE_RUN_TIMEOUT_MS);
     timeout.unref?.();
     try {
-      return await nvidiaJsonCompletion(payload, requestAbort.signal);
+      return await nvidiaJsonCompletion(payload, controller.signal);
     } finally {
       clearTimeout(timeout);
     }
   }
 });
+// The worker only records "done", and the runtime's public face strips the answer down to ok/error,
+// so the answer is kept here, right at the source. A failure is reported once, after the last
+// retry; a busy lease never reaches this point because the lease guard sits above the executor.
+const SCHEDULE_RECORDING_EXECUTOR = Object.freeze({
+  configured: SCHEDULED_AGENT_EXECUTOR.configured,
+  async executeAgentTask(input) {
+    const startedAt = Date.now();
+    console.log(`hafize.schedule start ${JSON.stringify({ scheduleId: input.scheduleId, attempt: input.attempt })}`);
+    const result = await SCHEDULED_AGENT_EXECUTOR.executeAgentTask(input);
+    console.log(`hafize.schedule end ${JSON.stringify({ scheduleId: input.scheduleId, ok: Boolean(result?.ok), error: result?.error ?? null, ms: Date.now() - startedAt })}`);
+    try {
+      if (result?.ok) PLATFORM.taskResults.record({ ownerId: input.ownerId, task: input.task, ok: true, content: result.content });
+      else if (input.finalAttempt) PLATFORM.taskResults.record({ ownerId: input.ownerId, task: input.task, ok: false, error: result?.error });
+    } catch { console.error('Hafize task result could not be stored'); }
+    return result;
+  }
+});
 const SCHEDULE_EXECUTION_RUNTIME = createScheduleExecutionRuntime({
-  executor: SCHEDULED_AGENT_EXECUTOR,
+  executor: SCHEDULE_RECORDING_EXECUTOR,
   lease: SCHEDULE_LEASE_RUNTIME.lease,
   renewIntervalMs: SCHEDULE_LEASE_RUNTIME.renewIntervalMs
 });
@@ -414,7 +432,9 @@ function startScheduleWorkerLoop() {
 function startRuleEngineLoop() {
   if (ruleEngineTimer) return;
   ruleEngineTimer = setInterval(() => {
-    void PLATFORM.ruleEngine.tick().catch(() => {});
+    void PLATFORM.ruleEngine.tick().then((outcomes) => {
+      for (const outcome of outcomes) console.log(`hafize.rule ${JSON.stringify({ id: outcome.id, fired: outcome.fired, reason: outcome.reason ?? null })}`);
+    }).catch(() => {});
   }, RULE_TICK_MS);
   ruleEngineTimer.unref?.();
 }

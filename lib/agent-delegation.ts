@@ -44,13 +44,13 @@ export function createAgentDelegator(args:{
     try{
       if(lifecycle){
         const run=lifecycle.start({runId:task.taskId,parentRunId:parentTaskId,parentSignal,execute:({signal})=>executeAgent({agent:target,task:String(input.task),traceId:String(traceId).trim(),depth:Number(depth)+1,parentTaskId:task.taskId,signal})});
-        const completed=await run.promise;result=completed.value;
+        const completed=await run.promise;result=completed?.value;
         if(run.snapshot().state==='cancelled')result=fail('DELEGATION_CANCELLED');
         if(!result)result=fail(String(run.snapshot().error||'DELEGATED_AGENT_FAILED'));
       }else{
         result=await executeAgent({agent:target,task:String(input.task),traceId:String(traceId).trim(),depth:Number(depth)+1,parentTaskId:task.taskId});
       }
-    }catch{result=fail('DELEGATED_AGENT_FAILED');}
+    }catch(error){result=fail(String((error as {message?:unknown})?.message)==='AGENT_CONCURRENCY_EXCEEDED'?'DELEGATION_CONCURRENCY_EXCEEDED':'DELEGATED_AGENT_FAILED');}
     if(!result?.ok){
       const error=clean(result?.error,120)||'DELEGATED_AGENT_FAILED';
       runLedger.recordDelegationFinish(task.taskId,{ok:false,error});return fail(error);

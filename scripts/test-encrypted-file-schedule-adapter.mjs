@@ -32,7 +32,7 @@ assert.equal(typeof encoded.ciphertext, 'string');
 
 assert.deepEqual(await adapter.load(), envelope);
 const fileStat = await stat(filePath);
-assert.equal(fileStat.mode & 0o777, 0o600);
+if (process.platform !== 'win32') assert.equal(fileStat.mode & 0o777, 0o600);
 
 const wrongKeyAdapter = createEncryptedFileScheduleAdapter({ filePath, key: otherKey });
 await assert.rejects(() => wrongKeyAdapter.load(), /ENCRYPTED_SCHEDULE_LOAD_FAILED/);

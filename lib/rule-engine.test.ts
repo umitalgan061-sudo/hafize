@@ -44,7 +44,9 @@ describe('glob matching', () => {
     expect(globToRegExp('*.md').test('a.md')).toBe(true);
     expect(globToRegExp('*.md').test('dir/a.md')).toBe(false);
     expect(globToRegExp('src/**/*.ts').test('src/a/b.ts')).toBe(true);
-    expect(globToRegExp('src/**/*.ts').test('src/a.ts')).toBe(false); // ** requires at least one directory
+    expect(globToRegExp('src/**/*.ts').test('src/a.ts')).toBe(true); // standard glob: ** may be empty
+    expect(globToRegExp('src/**/*.ts').test('lib/a.ts')).toBe(false);
+    expect(globToRegExp('**/*.md').test('a.md')).toBe(true);
     expect(globToRegExp('file?.txt').test('file1.txt')).toBe(true);
   });
 });

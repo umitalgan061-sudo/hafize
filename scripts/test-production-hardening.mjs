@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createRateLimiter } from '../lib/rate-limit.mjs';
 import { createSessionAuth } from '../lib/session-auth.mjs';
 
@@ -30,8 +31,8 @@ assert.equal(limiter.check('user', 61_002).ok, false);
 const root = new URL('..', import.meta.url);
 const inlineServer = `import { createServer } from 'node:http';\nconst server=createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({ok:true,path:req.url}));});server.listen(process.env.PORT,'127.0.0.1');`;
 const port = 43100 + Math.floor(Math.random() * 500);
-const child = spawn(process.execPath, ['--import', new URL('../lib/production-guard.mjs', import.meta.url).pathname, '--input-type=module', '-e', inlineServer], {
-  cwd: root.pathname.replace(/\/$/, ''),
+const child = spawn(process.execPath, ['--import', new URL('../lib/production-guard.mjs', import.meta.url).href, '--input-type=module', '-e', inlineServer], {
+  cwd: fileURLToPath(root),
   env: {
     ...process.env,
     HOST: '127.0.0.1',

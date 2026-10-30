@@ -1,9 +1,10 @@
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertAttributeDeclared } from './source-contract.mjs';
 
-const root = path.resolve(new URL('..', import.meta.url).pathname);
+const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const css = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.css'), 'utf8');
 const keyboardCss = fs.readFileSync(path.join(root, 'public', 'conversation-workspace-keyboard.css'), 'utf8');
 const keyboard = fs.readFileSync(path.join(root, 'public', 'typed', 'legacy', 'conversation-workspace-keyboard.ts'), 'utf8');

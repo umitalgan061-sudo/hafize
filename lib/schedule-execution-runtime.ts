@@ -15,13 +15,14 @@ function projected(value:unknown):unknown{
   if(ok!==false)return value;
   return Object.freeze({ok:false,error:descriptors.error?.value,...(Object.prototype.hasOwnProperty.call(descriptors,'retryAt')?{retryAt:descriptors.retryAt?.value}: {})});
 }
-export function createScheduleExecutionRuntime({executor,lease=null,renewIntervalMs,createGuard=createScheduleLeaseGuardedExecutor}:{readonly executor:ScheduleTaskExecutor;readonly lease?:unknown;readonly renewIntervalMs?:number;readonly createGuard?:Function}){
+export function createScheduleExecutionRuntime({executor,lease=null,renewIntervalMs,createGuard=createScheduleLeaseGuardedExecutor}:{readonly executor:ScheduleTaskExecutor;readonly lease?:unknown;readonly renewIntervalMs?:number;readonly createGuard?:Function}={executor:null as never}){
   if(typeof executor?.executeAgentTask!=='function')throw new Error('INVALID_SCHEDULE_EXECUTION_RUNTIME:executor');
   const face=(fn:(input:unknown)=>Promise<unknown>)=>async(input:unknown)=>projected(await fn(input));
   if(lease==null)return Object.freeze({configured:Boolean(executor.configured),leaseGuarded:false,executeAgentTask:face(executor.executeAgentTask)});
   if(typeof createGuard!=='function')throw new Error('INVALID_SCHEDULE_EXECUTION_RUNTIME:createGuard');
-  const guarded=createGuard({lease,executeAgentTask:executor.executeAgentTask,renewIntervalMs});
+  let guarded:{executeAgentTask?:unknown}|null;
+  try{guarded=createGuard({lease,executeAgentTask:executor.executeAgentTask,renewIntervalMs});}catch{throw new Error('SCHEDULE_EXECUTION_RUNTIME_STARTUP_FAILED');}
   if(typeof guarded?.executeAgentTask!=='function')throw new Error('SCHEDULE_EXECUTION_RUNTIME_STARTUP_FAILED');
-  return Object.freeze({configured:Boolean(executor.configured),leaseGuarded:true,executeAgentTask:face(guarded.executeAgentTask)});
+  return Object.freeze({configured:Boolean(executor.configured),leaseGuarded:true,executeAgentTask:face(guarded!.executeAgentTask as (input:unknown)=>Promise<unknown>)});
 }
 export { projected as projectWorkerResult };

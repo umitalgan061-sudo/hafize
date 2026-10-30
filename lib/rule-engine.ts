@@ -29,7 +29,7 @@ function fail(code: string, status = 400): never {
 
 export type RuleTrigger =
   | { readonly kind: 'cron'; readonly expression: string }
-  | { readonly kind: 'event'; readonly event: string };
+  | { readonly kind: 'event'; readonly event: string; readonly path?: string };
 
 export interface Rule {
   readonly id: string;
@@ -61,11 +61,19 @@ export interface RuleRunContext {
   readonly payload?: Record<string, unknown>;
 }
 
+export interface RuleStore {
+  readonly load: () => readonly Rule[];
+  readonly save: (rule: Rule) => void;
+  readonly remove: (id: string) => void;
+}
+
 export interface RuleEngineDeps {
   readonly now?: () => Date;
   readonly newId?: () => string;
   /** Runs the rule's task. Must throw or return {ok:false} to signal failure. */
   readonly run: (context: RuleRunContext) => Promise<unknown>;
+  /** Optional persistence: without it rules last only as long as the process. */
+  readonly store?: RuleStore;
   /** Optional guard: return false to skip this firing (e.g. feature flags). */
   readonly guard?: (context: RuleRunContext) => boolean | Promise<boolean>;
 }
@@ -115,9 +123,12 @@ export function cronMatches(parsed: ReturnType<typeof parseCron>, at: Date): boo
 export function globToRegExp(glob: string): RegExp {
   const source = String(glob || '')
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    // `src/**/*.ts` must also match `src/a.ts`: a double star before a slash may be empty.
+    .replace(/\*\*\//g, '\u0001')
     .replace(/\*\*/g, '\u0000')
     .replace(/\*/g, '[^/]*')
     .replace(/\?/g, '[^/]')
+    .replace(/\u0001/g, '(?:.*/)?')
     .replace(/\u0000/g, '.*');
   return new RegExp(`^${source}$`);
 }
@@ -134,7 +145,10 @@ function normalizeTrigger(value: unknown): RuleTrigger {
   if (trigger.kind === 'event') {
     const event = typeof trigger.event === 'string' ? trigger.event.trim() : '';
     if (!EVENT_PATTERN.test(event)) fail('INVALID_RULE_EVENT');
-    return { kind: 'event', event };
+    if (trigger.path === undefined || trigger.path === '') return { kind: 'event', event };
+    const path = typeof trigger.path === 'string' ? trigger.path.trim().replace(/\\/g, '/') : '';
+    if (!path || path.length > 200 || path.startsWith('/') || path.split('/').includes('..')) fail('INVALID_RULE_PATH');
+    return { kind: 'event', event, path };
   }
   fail('INVALID_RULE_TRIGGER_KIND');
 }
@@ -151,6 +165,15 @@ export function createRuleEngine(deps: RuleEngineDeps) {
   const newId = deps.newId ?? (() => `rule_${Math.random().toString(36).slice(2, 10)}`);
   const rules = new Map<string, Rule>();
   const compiled = new Map<string, ReturnType<typeof parseCron>>();
+  const persist = (rule: Rule) => { try { deps.store?.save(rule); } catch { /* the rule keeps working for this session */ } };
+  for (const stored of deps.store?.load() ?? []) {
+    try {
+      const trigger = normalizeTrigger(stored.trigger);
+      const rule: Rule = Object.freeze({ ...stored, trigger });
+      rules.set(rule.id, rule);
+      if (trigger.kind === 'cron') compiled.set(rule.id, parseCron(trigger.expression));
+    } catch { /* one damaged rule must not stop the others from loading */ }
+  }
 
   function assertOwned(id: string, ownerId: string): Rule {
     const rule = rules.get(id);
@@ -178,6 +201,7 @@ export function createRuleEngine(deps: RuleEngineDeps) {
       enabled: true, createdAt: now().toISOString(), lastFiredAt: null, fireCount: 0
     });
     rules.set(rule.id, rule);
+    persist(rule);
     if (rule.trigger.kind === 'cron') compiled.set(rule.id, parseCron(rule.trigger.expression));
     return rule;
   }
@@ -191,6 +215,7 @@ export function createRuleEngine(deps: RuleEngineDeps) {
     const rule = assertOwned(String(id || '').trim(), ownerId);
     rules.delete(rule.id);
     compiled.delete(rule.id);
+    try { deps.store?.remove(rule.id); } catch { /* removed for this session at least */ }
     return rule;
   }
 
@@ -198,6 +223,7 @@ export function createRuleEngine(deps: RuleEngineDeps) {
     const rule = assertOwned(String(id || '').trim(), ownerId);
     const updated: Rule = Object.freeze({ ...rule, enabled: enabled === true });
     rules.set(updated.id, updated);
+    persist(updated);
     return updated;
   }
 
@@ -216,7 +242,9 @@ export function createRuleEngine(deps: RuleEngineDeps) {
       if (!allowed) return { fired: false, reason: 'guard' };
     }
     // Mark as fired before running so a slow task cannot be re-entered by a concurrent event.
-    rules.set(rule.id, Object.freeze({ ...rule, lastFiredAt: at.toISOString(), fireCount: rule.fireCount + 1 }));
+    const fired: Rule = Object.freeze({ ...rule, lastFiredAt: at.toISOString(), fireCount: rule.fireCount + 1 });
+    rules.set(rule.id, fired);
+    persist(fired);
     try {
       await deps.run(context);
       return { fired: true };
@@ -245,6 +273,7 @@ export function createRuleEngine(deps: RuleEngineDeps) {
     for (const rule of [...rules.values()]) {
       // Disabled rules are reported (not skipped) so callers can show why nothing ran.
       if (rule.trigger.kind !== 'event' || rule.trigger.event !== name) continue;
+      if (rule.trigger.path && !globToRegExp(rule.trigger.path).test(String(payload?.path ?? ''))) continue;
       results.push({ id: rule.id, ...(await fire(rule, 'event', at, payload)) });
     }
     return Object.freeze(results);

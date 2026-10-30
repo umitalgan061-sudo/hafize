@@ -1,9 +1,10 @@
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { assertAttributeDeclared } from './source-contract.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const root = path.resolve(new URL('..', import.meta.url).pathname);
+const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const sourcePath = path.join(root, 'public', 'conversation-workspace.js');
 const cssPath = path.join(root, 'public', 'conversation-workspace.css');
 const indexPath = path.join(root, 'public', 'index.html');

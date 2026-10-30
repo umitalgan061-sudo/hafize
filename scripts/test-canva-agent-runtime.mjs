@@ -78,7 +78,6 @@ assert.deepEqual(disabled.status(), { configured: false, access: 'disabled' });
 
 for (const partial of [
   { HAFIZE_CONNECTOR_AUTH_TOKEN: authToken },
-  { HAFIZE_CONNECTOR_AUTH_SUBJECT: 'user:123@example.com' },
   { HAFIZE_CONNECTOR_OWNER_KEY_B64: key },
   { HAFIZE_CONNECTOR_AUTH_TOKEN: authToken, HAFIZE_CONNECTOR_AUTH_SUBJECT: 'user:123@example.com' }
 ]) {

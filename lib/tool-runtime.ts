@@ -118,6 +118,8 @@ const MIN_TIMEOUT_MS = 2_000;
 const MAX_TIMEOUT_MS = 120_000;
 const FS_READ_ENCODINGS = new Set<BufferEncoding>(['utf-8', 'utf8', 'ascii', 'latin1', 'base64', 'hex']);
 
+const HANDOFF_LIST = Object.freeze({ type: 'array', maxItems: 8, items: Object.freeze({ type: 'string', maxLength: 500 }) });
+
 const definition = (name: string, description: string, properties: Record<string, unknown>): ToolDefinition =>
   Object.freeze({
     type: 'function',
@@ -232,12 +234,18 @@ const CATALOG = new Map<string, ToolEntry>([
     activity: { running: 'Uzman ajan çalıştırılıyor', success: 'Uzman ajan çalıştırıldı', failure: 'Uzman ajan çalıştırılamadı' },
     definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder.', {
       agentId: { type: 'string' },
-      task: { type: 'string' }
+      task: { type: 'string' },
+      successCriteria: HANDOFF_LIST,
+      constraints: HANDOFF_LIST,
+      evidenceRequired: HANDOFF_LIST
     }),
     available: (context) => typeof context.delegateAgent === 'function',
     execute: async (args, context) => {
       const result = await context.delegateAgent!(args) as { ok?: boolean; error?: unknown; value?: unknown };
-      if (result?.ok !== true) throw new Error(typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED');
+      if (result?.ok !== true) {
+        const code = typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED';
+        throw Object.assign(new Error(code), { code });
+      }
       return result.value;
     }
   }],
@@ -528,10 +536,10 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'orchestrator',
     timeoutMs: timeout(30_000, 30_000),
     activity: { running: 'Kural kaydediliyor', success: 'Kural kaydedildi', failure: 'Kural kaydedilemedi' },
-    definition: strictDefinition('rule_create', "Proaktif bir kural tanımlar: zamana (cron) veya olaya (file.changed gibi) bağlı olarak kendi başına çalışır. Örnek: her sabah 09:00\'de özet çıkar, veya bir dosya değişince testleri koş. Kural yalnızca ne zaman çalışacağını belirler; işlem sahibinin kendi ajan politikasıyla koşar, yetkiyi genişletmez.", {
+    definition: strictDefinition('rule_create', "Proaktif bir kural tanımlar: zamana (cron) veya çalışma klasöründeki dosya değişikliğine (file.changed) bağlı olarak kendi başına çalışır; başka olay türü yoktur. Örnek: her sabah 09:00\'de özet çıkar, veya src altındaki bir dosya değişince testleri koş. Sonuç kullanıcıya Ayarlar > Görev sonuçları altında ve bildirimle ulaşır. Kural yalnızca ne zaman çalışacağını belirler; işlem sahibinin kendi ajan politikasıyla koşar, yetkiyi genişletmez.", {
       "name":{"type":"string","maxLength":64},
       "description":{"type":"string","maxLength":300},
-      "trigger":{"type":"object","description":"{kind:'cron', expression:'0 9 * * *'} veya {kind:'event', event:'file.changed'}"},
+      "trigger":{"type":"object","description":"{kind:'cron', expression:'0 9 * * *'} veya {kind:'event', event:'file.changed', path:'src/**/*.ts'} (path isteğe bağlıdır, çalışma klasörüne görelidir)"},
       "task":{"type":"string","maxLength":4000},
       "agentId":{"type":"string","maxLength":120},
       "cooldownMs":{"type":"integer","minimum":0,"maximum":86400000}

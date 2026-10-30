@@ -3,7 +3,7 @@
 // @ts-nocheck
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { decryptOAuthTokenRecord, encryptOAuthTokenRecord } from './oauth-token-encryption.ts';
 
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024;
@@ -41,7 +41,7 @@ function recordKey(ownerId, provider) {
 function assertInside(root, target) {
   const normalizedRoot = resolve(root);
   const normalizedTarget = resolve(target);
-  if (!normalizedTarget.startsWith(`${normalizedRoot}/`) && normalizedTarget !== normalizedRoot) fail('path');
+  if (!normalizedTarget.startsWith(`${normalizedRoot}${sep}`) && normalizedTarget !== normalizedRoot) fail('path');
   return normalizedTarget;
 }
 

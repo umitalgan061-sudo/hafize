@@ -1,8 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const root = resolve(new URL('../', import.meta.url).pathname);
+const root = resolve(fileURLToPath(new URL('../', import.meta.url)));
 const read = (path) => readFile(resolve(root, path), 'utf8');
 const exists = async (path) => { try { await access(resolve(root, path)); return true; } catch { return false; } };
 const source = await read('public/typed/legacy/prompt-library-bulk-organizer.ts');

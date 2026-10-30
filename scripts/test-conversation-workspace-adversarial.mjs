@@ -1,8 +1,9 @@
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const root = path.resolve(new URL('..', import.meta.url).pathname);
+const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const source = fs.readFileSync(path.join(root, 'public', 'conversation-workspace.js'), 'utf8');
 const docs = fs.readFileSync(path.join(root, 'docs', 'CONVERSATION_WORKSPACE.md'), 'utf8');
 
