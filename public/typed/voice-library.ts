@@ -2,7 +2,9 @@
 // and playback. Nothing heavy loads until a Piper voice is actually used, and a voice is only
 // ever downloaded when the user asks for it in Settings. Speech never leaves this browser.
 
-export interface PiperVoice { key: string; name: string; lang: string; family: string; langName: string; country: string; quality: string; speakers: number; size: number; path: string; }
+// url/configUrl are set on community voices, which live outside the official repository and are
+// pinned to one commit; source and license are shown so the user can see where a voice comes from.
+export interface PiperVoice { key: string; name: string; lang: string; family: string; langName: string; country: string; quality: string; speakers: number; size: number; path: string; url?: string; configUrl?: string; source?: string; license?: string; }
 export interface SpeakHandle { stop(): void; }
 export interface SpeakCallbacks { onstart?(): void; onword?(charIndex: number, charLength: number): void; onend?(): void; onerror?(error: Error): void; }
 
@@ -21,7 +23,8 @@ const SAMPLES: Record<string, string> = {
 export const isPiperVoice = (id: unknown): id is string => typeof id === 'string' && id.startsWith(PIPER_PREFIX);
 export const piperKey = (id: string) => id.slice(PIPER_PREFIX.length);
 export const sampleFor = (family: string) => SAMPLES[family] || SAMPLES.en;
-export const modelUrl = (voice: Pick<PiperVoice, 'path'>) => VOICE_BASE + voice.path;
+export const modelUrl = (voice: Pick<PiperVoice, 'path' | 'url'>) => voice.url ?? VOICE_BASE + voice.path;
+export const configUrl = (voice: Pick<PiperVoice, 'path' | 'url' | 'configUrl'>) => voice.configUrl ?? `${modelUrl(voice)}.json`;
 
 export function formatSize(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '';
@@ -75,7 +78,7 @@ const memory = new Map<string, ArrayBuffer>();
 const openCache = async () => (typeof caches === 'undefined' ? null : caches.open(CACHE_NAME));
 export const canStoreVoices = () => typeof caches !== 'undefined';
 
-export async function isDownloaded(voice: Pick<PiperVoice, 'path'>): Promise<boolean> {
+export async function isDownloaded(voice: Pick<PiperVoice, 'path' | 'url'>): Promise<boolean> {
   const url = modelUrl(voice);
   if (memory.has(url)) return true;
   const cache = await openCache();
@@ -105,8 +108,8 @@ async function readWithProgress(response: Response, onProgress: (received: numbe
 
 export async function downloadVoice(voice: PiperVoice, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<void> {
   const url = modelUrl(voice);
-  const configUrl = `${url}.json`;
-  const [configResponse, modelResponse] = await Promise.all([fetch(configUrl, { signal }), fetch(url, { signal })]);
+  const configAddress = configUrl(voice);
+  const [configResponse, modelResponse] = await Promise.all([fetch(configAddress, { signal }), fetch(url, { signal })]);
   if (!configResponse.ok || !modelResponse.ok) throw new Error('VOICE_DOWNLOAD_FAILED');
   const config = await configResponse.blob();
   const model = await readWithProgress(modelResponse, (received) => onProgress(Math.min(1, received / Math.max(1, voice.size))));
@@ -115,21 +118,22 @@ export async function downloadVoice(voice: PiperVoice, onProgress: (fraction: nu
   const cache = await openCache();
   if (cache) {
     await navigator.storage?.persist?.().catch(() => false);
-    await cache.put(configUrl, new Response(config));
+    await cache.put(configAddress, new Response(config));
     await cache.put(url, new Response(model));
   } else {
-    memory.set(configUrl, await config.arrayBuffer());
+    memory.set(configAddress, await config.arrayBuffer());
     memory.set(url, await model.arrayBuffer());
   }
 }
 
-export async function removeVoice(voice: Pick<PiperVoice, 'path'>): Promise<void> {
+export async function removeVoice(voice: Pick<PiperVoice, 'path' | 'url' | 'configUrl'>): Promise<void> {
   const url = modelUrl(voice);
+  const configAddress = configUrl(voice);
   memory.delete(url);
-  memory.delete(`${url}.json`);
+  memory.delete(configAddress);
   const cache = await openCache();
   await cache?.delete(url);
-  await cache?.delete(`${url}.json`);
+  await cache?.delete(configAddress);
   loaded.delete(url);
 }
 
@@ -184,7 +188,7 @@ function ensureLoaded(voice: PiperVoice): Promise<VoiceConfig> {
   if (!entry) {
     ready ||= callModel({ type: 'init', wasmPaths: '/typed-build/vendor/ort/' });
     entry = (async () => {
-      const [configBytes, model] = await Promise.all([readStored(`${url}.json`), readStored(url)]);
+      const [configBytes, model] = await Promise.all([readStored(configUrl(voice)), readStored(url)]);
       await ready;
       // Memory-only voices must stay readable, so the worker gets a copy of those.
       await callModel({ type: 'load', key: voice.key, model: memory.has(url) ? model.slice(0) : model }, memory.has(url) ? [] : [model]);

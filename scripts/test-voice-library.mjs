@@ -11,7 +11,14 @@ const { voices } = JSON.parse(readFileSync(new URL('../public/piper-voices.json'
 assert.ok(voices.length >= 100, 'the whole Piper library is listed');
 for (const voice of voices) {
   assert.match(voice.key, /^[a-zA-Z]{2,3}_[A-Z0-9]+-/);
-  assert.ok(voice.path.endsWith(`${voice.key}.onnx`), voice.key);
+  if (voice.source) {
+    // Community voices: pinned to a commit, so a later upload cannot change what gets downloaded.
+    assert.match(voice.url, /^https:\/\/huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/model\.onnx$/, voice.key);
+    assert.match(voice.configUrl, /^https:\/\/huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/config\.json$/, voice.key);
+  } else {
+    assert.ok(voice.path.endsWith(`${voice.key}.onnx`), voice.key);
+    assert.equal(voice.url, undefined, voice.key);
+  }
   assert.ok(voice.size > 1e6, voice.key);
   assert.ok(voice.speakers >= 1, voice.key);
 }
@@ -26,6 +33,10 @@ assert.equal(library.piperKey('piper:tr_TR-dfki-medium'), 'tr_TR-dfki-medium');
 assert.equal(library.formatSize(63201294), '63 MB');
 assert.equal(library.formatSize(0), '');
 assert.equal(library.modelUrl({ path: 'tr/x.onnx' }), 'https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/x.onnx');
+assert.equal(library.configUrl({ path: 'tr/x.onnx' }), 'https://huggingface.co/rhasspy/piper-voices/resolve/main/tr/x.onnx.json');
+assert.equal(library.modelUrl({ path: 'r/model.onnx', url: 'https://example.test/m.onnx' }), 'https://example.test/m.onnx');
+assert.equal(library.configUrl({ path: 'r/model.onnx', url: 'https://example.test/m.onnx', configUrl: 'https://example.test/c.json' }), 'https://example.test/c.json');
+assert.match(settings.describeVoice({ langName: 'Türkçe', country: 'Turkey', quality: 'medium', size: 63e6, speakers: 1, source: 'speaches-ai' }), /topluluk: speaches-ai · lisans belirtilmemiş/);
 assert.match(library.sampleFor('tr'), /Hafize/);
 assert.equal(library.sampleFor('zz'), library.sampleFor('en'));
 

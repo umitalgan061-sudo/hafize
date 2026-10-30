@@ -160,6 +160,7 @@ assert.match(unsupportedToggle.textContent, /desteklenmiyor/);
 }
 assert.equal(voiceOutput.pickTurkishVoice([{ lang: 'tr-TR', name: 'Tolga' }, { lang: 'tr-TR', name: 'Emel Online (Natural)' }]).name, 'Emel Online (Natural)');
 assert.equal(voiceOutput.pickTurkishVoice([{ lang: 'en-US', name: 'X' }]), null);
+assert.equal(voiceOutput.normalizeSpeechText('Ben **Hafize**. Merhaba **dünya**, nasılsın?'), 'Ben Hafize. Merhaba dünya, nasılsın?');
 assert.equal(voiceOutput.normalizeSpeechText('## Başlık\n- [bağ](https://x.y) madde'), 'Başlık. bağ madde');
 
 console.log('Voice output OK: explicit opt-in, Turkish TTS, stream state and barge-in cancellation');

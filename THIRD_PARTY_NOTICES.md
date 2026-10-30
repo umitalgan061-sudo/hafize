@@ -36,3 +36,8 @@ licensed under GPL-3.0-or-later: anyone distributing Hafize with these files mus
 Voice models are not part of this repository. They are downloaded from `rhasspy/piper-voices` on Hugging Face
 only when the user asks for one, and each voice has its own license on its model card.
 The ONNX runtime is `onnxruntime-web` (MIT, Microsoft).
+
+Three Turkish voices come from community repositories on Hugging Face, each pinned to one commit in
+`public/piper-voices.json`: `speaches-ai/piper-tr_TR-fahrettin-medium`, `speaches-ai/piper-tr_TR-fettah-medium` and
+`99eren99/piper-turkish-tts`. None of them states a license, so their terms of use are unknown; they are
+only downloaded on the user's request and are labelled as community voices in Settings.

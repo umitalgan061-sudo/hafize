@@ -26,6 +26,7 @@ export function languageOptions(voices: readonly PiperVoice[]): Array<{ family: 
 export function describeVoice(voice: PiperVoice): string {
   const parts = [`${voice.langName} (${voice.country})`, `${QUALITY[voice.quality] || voice.quality} kalite`, formatSize(voice.size)];
   if (voice.speakers > 1) parts.push(`${voice.speakers} konuşmacı`);
+  if (voice.source) parts.push(`topluluk: ${voice.source}`, voice.license ? `lisans: ${voice.license}` : 'lisans belirtilmemiş');
   return parts.join(' · ');
 }
 
@@ -59,7 +60,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   const deviceList = el('ul', 'voice-list');
 
   const libraryTitle = el('h3', 'voice-group-title', 'Ses kütüphanesi (Piper)');
-  const libraryHint = el('p', 'voice-hint', 'Ücretsiz, indirilince internetsiz çalışır; metnin bu tarayıcıdan çıkmaz. Yalnızca "İndir" dediğinde Hugging Face\'ten iner. Her ses kendi dilinde doğru okur; Türkçe metin için Türkçe ses seç.');
+  const libraryHint = el('p', 'voice-hint', 'Ücretsiz, indirilince internetsiz çalışır; metnin bu tarayıcıdan çıkmaz. Yalnızca "İndir" dediğinde Hugging Face\'ten iner. Her ses kendi dilinde doğru okur; Türkçe metin için Türkçe ses seç. "Topluluk" etiketli sesler resmî katalogda değildir, başkalarının yayımladığı modellerdir.');
   const filters = el('div', 'voice-filters');
   const familySelect = el('select');
   familySelect.setAttribute('aria-label', 'Dil');
