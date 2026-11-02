@@ -113,7 +113,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let installPrompt = null;
   let persistenceWarningShown = false;
   let conversations = loadConversations();
-  let activeConversationId = conversations[0]?.id ?? null;
+  // Entering the app always lands on a new chat; earlier ones wait in the sidebar.
+  let activeConversationId = conversations.find((item) => !item.messages?.length)?.id ?? null;
   queueMicrotask(() => rememberPersisted(conversations));
   let isStreaming = false;
   let availableAgents = [];
@@ -1351,6 +1352,19 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   if (!activeConversationId) createConversation();
   else render();
+
+  // A phone keeps the app alive in the background, so coming back is an entry too. A short look at
+  // another app (copying something) stays in the chat.
+  const RESUME_AS_NEW_MS = 60_000;
+  let hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (!hiddenAt || Date.now() - hiddenAt < RESUME_AS_NEW_MS || isStreaming || document.documentElement.dataset.voiceMode === 'true') return;
+    if (!conversations.find((item) => item.id === activeConversationId)?.messages?.length) return;
+    if (editingMessageId) cancelMessageEdit();
+    const empty = conversations.find((conversation) => !conversation.messages.length);
+    if (empty) { activeConversationId = empty.id; render(); } else createConversation();
+  });
 
   // Auto-follow while the answer streams, jump button when the user scrolls up, thinking bubble.
   chatScroll = mountChatScroll({ messages: ui.messages, documentRef: document });

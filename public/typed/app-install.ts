@@ -47,7 +47,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
 
   const installPanel = () => {
     const panel = el('section', 'settings-panel app-install');
-    panel.append(el('h2', '', 'Uygulamayı yükle'), el('p', '', 'Hafize kendi penceresinde, tarayıcı çubuğu olmadan açılır. Veriler yine bu bilgisayardaki sunucuda kalır.'));
+    panel.append(el('h2', '', 'Uygulamayı yükle'), el('p', '', 'Hafize kendi penceresinde, tarayıcı çubuğu olmadan açılır.'));
     const device = el('div', 'app-install-device');
     const phone = el('div', 'app-install-phone');
     panel.append(device, phone);

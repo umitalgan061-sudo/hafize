@@ -9,6 +9,9 @@ type Source = 'screen' | 'camera';
 const MAX_FRAME_WIDTH = 1600;
 const JPEG_QUALITY = 0.72;
 const SAMPLE_MS = 1_000;
+const PREVIEW_MAX_WIDTH = 132;
+const PREVIEW_MAX_HEIGHT = 148;
+const NOTICE_KEY = 'hafize.liveScreen.noticeSeen.v1';
 const MIN_FRAME_GAP_MS = 12_000;
 // Share of pixels that must change. A screen is still until a line of text moves; a camera never is.
 const CHANGE_THRESHOLD: Readonly<Record<Source, number>> = Object.freeze({ screen: 0.4, camera: 6 });
@@ -74,6 +77,13 @@ function install(documentRef: Document, root: typeof globalThis): void {
   small.height = SIGNATURE_HEIGHT;
   const large = documentRef.createElement('canvas');
 
+  // Only the preview is mirrored, as a selfie camera is expected to look; the frames Hafize reads stay true,
+  // so writing in them is not backwards. A webcam that does not report a direction faces the person.
+  const applyMirror = () => {
+    if (!video) return;
+    const reported = stream?.getVideoTracks()[0]?.getSettings?.().facingMode;
+    video.classList.toggle('is-mirrored', source === 'camera' && (reported ? reported === 'user' : true));
+  };
   const setStatus = (text: string) => { if (statusLine) statusLine.textContent = text; };
   const readSignature = (): Uint8ClampedArray | null => {
     if (!video?.videoWidth) return null;
@@ -135,6 +145,15 @@ function install(documentRef: Document, root: typeof globalThis): void {
     video.muted = true;
     video.playsInline = true;
     video.setAttribute('aria-hidden', 'true');
+    // The preview takes the shape of the picture, so everything Hafize sees is visible here too.
+    const fit = () => {
+      if (!video?.videoWidth) return;
+      applyMirror();
+      video.style.aspectRatio = `${video.videoWidth} / ${video.videoHeight}`;
+      video.style.width = `${Math.round(Math.min(PREVIEW_MAX_WIDTH, PREVIEW_MAX_HEIGHT * (video.videoWidth / video.videoHeight)))}px`;
+    };
+    video.addEventListener('loadedmetadata', fit);
+    video.addEventListener('resize', fit);
     const text = documentRef.createElement('div');
     text.className = 'live-screen-text';
     const title = documentRef.createElement('strong');
@@ -147,7 +166,9 @@ function install(documentRef: Document, root: typeof globalThis): void {
     stopButton.className = 'live-screen-stop';
     stopButton.textContent = 'Durdur';
     stopButton.addEventListener('click', () => stop());
-    chip.append(video, text);
+    const actions = documentRef.createElement('div');
+    actions.className = 'live-screen-actions';
+    chip.append(video, text, actions);
     if (source === 'camera') {
       const flip = documentRef.createElement('button');
       flip.type = 'button';
@@ -157,9 +178,9 @@ function install(documentRef: Document, root: typeof globalThis): void {
       flip.setAttribute('aria-label', 'Ön ve arka kamera arasında geçiş yap');
       flip.addEventListener('click', () => { void flipCamera(); });
       void root.navigator.mediaDevices.enumerateDevices?.().then((devices) => { flip.hidden = devices.filter((device) => device.kind === 'videoinput').length < 2; }).catch(() => {});
-      chip.append(flip);
+      actions.append(flip);
     }
-    chip.append(stopButton);
+    actions.append(stopButton);
     composer.prepend(chip);
   };
 
@@ -173,6 +194,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
       facing = next;
       video.srcObject = stream;
       await video.play().catch(() => {});
+      applyMirror();
       stream.getVideoTracks()[0]?.addEventListener('ended', () => stop());
       signature = null;
       lastSentAt = 0;
@@ -202,7 +224,10 @@ function install(documentRef: Document, root: typeof globalThis): void {
     stream.getVideoTracks()[0]?.addEventListener('ended', () => stop());
     (kind === 'camera' ? cameraButton : button)?.setAttribute('aria-pressed', 'true');
     composer.setAttribute('data-live-screen', 'true');
-    toast('Görüntüler analiz için NVIDIA’ya gider, kaydedilmez. Parola gibi bilgileri ekranda açık bırakma.');
+    // Said once on this device; repeating it every time only gets in the way.
+    let noticed = false;
+    try { noticed = root.localStorage.getItem(NOTICE_KEY) === '1'; root.localStorage.setItem(NOTICE_KEY, '1'); } catch { /* private mode: the notice just repeats */ }
+    if (!noticed) toast('Görüntüler yalnızca analiz için gönderilir, kaydedilmez. Parola gibi bilgileri ekranda açık bırakma.');
     // A reload ends sharing without a goodbye; descriptions from then must not read as the present.
     await api('/api/screen', { method: 'DELETE' }).catch(() => {});
     await new Promise((done) => root.setTimeout(done, 300));

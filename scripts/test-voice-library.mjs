@@ -8,7 +8,7 @@ const output = require('../public/typed/voice-output.ts');
 
 // Catalog shipped with the app: complete, well-formed and pointing at real model paths.
 const { voices } = JSON.parse(readFileSync(new URL('../public/piper-voices.json', import.meta.url), 'utf8'));
-assert.ok(voices.length >= 100, 'the whole Piper library is listed');
+assert.ok(voices.length >= 4 && voices.every((voice) => voice.family === 'tr'), 'only Turkish voices are offered');
 for (const voice of voices) {
   assert.match(voice.key, /^[a-zA-Z]{2,3}_[A-Z0-9]+-/);
   if (voice.source) {

@@ -167,7 +167,7 @@
     motion.control.append(motionSwitch.wrap);
     appearance.append(theme.row, motion.row);
 
-    const memory = buildPanel(documentRef, 'Hafıza', 'Hafize’nin senin hakkında hatırladığı notlar. Bu bilgisayardaki Hafize sunucusunda şifreli saklanır; geçmiş sohbet özetleri ve kayıtlı şablonlar da burada tutulur. Sohbette “bunu hatırla” ya da “bunu unut” da diyebilirsin.');
+    const memory = buildPanel(documentRef, 'Hafıza', 'Hafize’nin senin hakkında hatırladığı notlar. Yalnızca sana açık olarak saklanır; geçmiş sohbet özetleri ve kayıtlı şablonlar da burada tutulur. Sohbette “bunu hatırla” ya da “bunu unut” da diyebilirsin.');
     const memoryList = documentRef.createElement('ul');
     memoryList.className = 'settings-memory-list';
     const memoryAdd = documentRef.createElement('form');

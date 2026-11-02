@@ -2,7 +2,7 @@
 // browser offers and from the downloadable Piper library. Selecting a voice writes the same keys
 // voice-output.ts reads, so replies, "Seslendir" and the voice chat screen all follow it.
 
-import { PIPER_PREFIX, SPEAKER_KEY, canStoreVoices, downloadVoice, downloadedKeys, filterVoices, formatSize, isPiperVoice, loadCatalog, removeVoice, sampleFor, type PiperVoice } from './voice-library.ts';
+import { PIPER_PREFIX, SPEAKER_KEY, canStoreVoices, downloadVoice, downloadedKeys, formatSize, isPiperVoice, loadCatalog, removeOtherVoices, removeVoice, sampleFor, type PiperVoice } from './voice-library.ts';
 
 const VOICE_KEY = 'hafize.voiceOutput.voice.v1';
 const RATE_KEY = 'hafize.voiceOutput.rate.v1';
@@ -56,23 +56,17 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   currentRow.append(currentLabel, rateLabel);
 
   const deviceTitle = el('h3', 'voice-group-title', 'Bu cihazdaki sesler');
-  const deviceHint = el('p', 'voice-hint', 'İndirme gerektirmez. Çeşidi tarayıcına ve Windows dil paketlerine bağlıdır.');
+  const deviceHint = el('p', 'voice-hint', 'İndirme gerektirmez. Çeşidi cihazına ve tarayıcına bağlıdır.');
   const deviceList = el('ul', 'voice-list');
 
-  const libraryTitle = el('h3', 'voice-group-title', 'Ses kütüphanesi (Piper)');
-  const libraryHint = el('p', 'voice-hint', 'Ücretsiz, indirilince internetsiz çalışır; metnin bu tarayıcıdan çıkmaz. Yalnızca "İndir" dediğinde Hugging Face\'ten iner. Her ses kendi dilinde doğru okur; Türkçe metin için Türkçe ses seç. "Topluluk" etiketli sesler resmî katalogda değildir, başkalarının yayımladığı modellerdir.');
-  const filters = el('div', 'voice-filters');
-  const familySelect = el('select');
-  familySelect.setAttribute('aria-label', 'Dil');
-  const search = el('input');
-  search.type = 'search'; search.placeholder = 'Ses veya dil ara'; search.setAttribute('aria-label', 'Ses ara');
-  filters.append(familySelect, search);
+  const libraryTitle = el('h3', 'voice-group-title', 'İndirilebilir Türkçe sesler');
+  const libraryHint = el('p', 'voice-hint', 'Ücretsiz; indirilince internetsiz çalışır ve metnin bu cihazdan çıkmaz. "Topluluk" etiketli sesleri gönüllüler yayımlamıştır.');
   const libraryList = el('ul', 'voice-list');
   const more = el('button', 'voice-more', 'Daha fazla göster');
   more.type = 'button';
   const status = el('p', 'voice-status');
   status.setAttribute('role', 'status');
-  panel.append(currentRow, deviceTitle, deviceHint, deviceList, libraryTitle, libraryHint, filters, libraryList, more, status);
+  panel.append(currentRow, deviceTitle, deviceHint, deviceList, libraryTitle, libraryHint, libraryList, more, status);
 
   // After "Görünüm", so it is near the top of the page.
   const first = host.querySelector('.settings-panel');
@@ -131,13 +125,12 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   const renderDevice = () => {
     const voices = browserVoices();
     const turkish = voices.filter((voice) => voice.lang.toLowerCase().startsWith('tr'));
-    const others = voices.filter((voice) => !voice.lang.toLowerCase().startsWith('tr'));
-    deviceList.replaceChildren();
+        deviceList.replaceChildren();
     const auto = row('Otomatik', 'Bu cihazdaki en doğal Türkçe sesi kullanır', !chosen());
     if (chosen()) auto.actions.append(button('Seç', () => select('')));
     else auto.actions.append(el('span', 'voice-badge', 'Seçili'));
     deviceList.append(auto.item);
-    for (const voice of [...turkish, ...others]) {
+    for (const voice of turkish) {
       const entry = row(voice.name.replace(/^Microsoft\s+/i, ''), `${voice.lang}${voice.localService ? '' : ' · çevrimiçi'}`, chosen() === voice.voiceURI);
       entry.actions.append(button(previewLabel(voice.voiceURI), () => preview(voice.voiceURI, sampleFor(voice.lang.slice(0, 2).toLowerCase()))));
       if (chosen() === voice.voiceURI) entry.actions.append(el('span', 'voice-badge', 'Seçili'));
@@ -147,7 +140,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   };
 
   const renderLibrary = () => {
-    const matches = filterVoices(catalog, familySelect.value, search.value);
+    const matches = catalog;
     libraryList.replaceChildren();
     for (const voice of matches.slice(0, visible)) {
       const id = `${PIPER_PREFIX}${voice.key}`;
@@ -213,8 +206,6 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
     say(`${voice.name} silindi.`);
   };
 
-  on(familySelect, 'change', () => { visible = PAGE_SIZE; renderLibrary(); });
-  on(search, 'input', () => { visible = PAGE_SIZE; renderLibrary(); });
   on(more, 'click', () => { visible += PAGE_SIZE; renderLibrary(); });
   on(rateInput, 'input', () => { write(RATE_KEY, rateInput.value); rateText.textContent = `Hız ${Number(rateInput.value).toFixed(2)}×`; });
   on(documentRef, STATE_EVENT, (event) => {
@@ -229,11 +220,10 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   if (!canStoreVoices()) libraryHint.textContent += ' Bu bağlantı güvenli olmadığı için indirilen sesler sayfa yenilenince silinir.';
   loadCatalog().then(async (voices) => {
     catalog = voices;
-    for (const option of languageOptions(voices)) { const node = el('option', '', `${option.label} (${option.count})`); node.value = option.family; familySelect.append(node); }
-    const all = el('option', '', `Tüm diller (${voices.length})`);
-    all.value = '';
-    familySelect.append(all);
-    familySelect.value = 'tr';
+    void removeOtherVoices(voices).catch(() => undefined);
+    // A voice chosen before the foreign ones were removed would only fall back with a warning.
+    const saved = chosen();
+    if (isPiperVoice(saved) && !voices.some((voice) => `${PIPER_PREFIX}${voice.key}` === saved)) { write(VOICE_KEY, null); write(SPEAKER_KEY, null); }
     owned = await downloadedKeys(voices);
     render();
   }).catch(() => { libraryHint.textContent = 'Ses kütüphanesi şu an yüklenemedi.'; more.hidden = true; });

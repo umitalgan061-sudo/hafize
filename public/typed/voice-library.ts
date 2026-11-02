@@ -91,6 +91,14 @@ export async function downloadedKeys(voices: readonly PiperVoice[]): Promise<Set
   return new Set(voices.filter((voice) => stored.has(modelUrl(voice)) || memory.has(modelUrl(voice))).map((voice) => voice.key));
 }
 
+/** Frees the space of voices no longer offered (foreign languages downloaded before they were removed). */
+export async function removeOtherVoices(voices: readonly PiperVoice[]): Promise<void> {
+  const cache = await openCache();
+  if (!cache || !voices.length) return;
+  const keep = new Set(voices.flatMap((voice) => [modelUrl(voice), configUrl(voice)]));
+  await Promise.all((await cache.keys()).filter((request) => !keep.has(request.url)).map((request) => cache.delete(request)));
+}
+
 async function readWithProgress(response: Response, onProgress: (received: number) => void): Promise<Blob> {
   if (!response.body) return response.blob();
   const reader = response.body.getReader();

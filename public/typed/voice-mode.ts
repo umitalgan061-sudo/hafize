@@ -6,7 +6,20 @@
 // voice panel stay out of the way. Dictation into the composer remains on Ctrl+Shift+M.
 
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
-import { PIPER_PREFIX, downloadedKeys, loadCatalog } from './voice-library.ts';
+import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, findVoice, isPiperVoice, loadCatalog, synthesize } from './voice-library.ts';
+
+/** The next whole sentences of a reply still being written, from `from` on; everything once it is done. */
+export function nextSpeakable(text: string, from: number, done = false): { piece: string; end: number } {
+  if (done) return { piece: text.slice(from), end: Math.max(from, text.length) };
+  // An open code block is read as one piece once it closes.
+  const fences = text.match(/```/g)?.length ?? 0;
+  const safe = fences % 2 ? text.lastIndexOf('```') : text.length;
+  const pending = text.slice(from, Math.max(from, safe));
+  let end = -1;
+  // "1. madde" and "2026. yılda" are not the end of a sentence.
+  for (const match of pending.matchAll(/(?<!\d)[.!?…]+["'”’)]*\s+|\n+/g)) end = match.index + match[0].length;
+  return end < 0 ? { piece: '', end: from } : { piece: pending.slice(0, end), end: from + end };
+}
 
 export type VoiceModeState = 'closed' | 'idle' | 'listening' | 'thinking' | 'speaking' | 'paused';
 export interface VoiceModeController { readonly state: () => VoiceModeState; readonly open: () => void; readonly close: () => void; readonly destroy: () => void; }
@@ -21,6 +34,7 @@ const VOICE_KEY = 'hafize.voiceOutput.voice.v1';
 const CAPTIONS_KEY = 'hafize.voiceMode.captions.v1';
 const ORIGIN = 'voice-mode';
 const SEND_TIMEOUT_MS = 4000;
+const FEED_INTERVAL_MS = 150;
 const MAX_SILENT_RETRIES = 1;
 
 export function statusText(state: VoiceModeState): string {
@@ -167,6 +181,11 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let silentRetries = 0;
   let awaitingReply = false;
   let sawBusy = false;
+  let spokenUpTo = 0;
+  let streamStarted = false;
+  let streamStopped = false;
+  let nodeBeforeSend: Element | null = null;
+  let feedTimer: ReturnType<typeof setInterval> | null = null;
   let sendTimer: ReturnType<typeof setTimeout> | null = null;
   let resumeTimer: ReturnType<typeof setTimeout> | null = null;
   let returnFocus: HTMLElement | null = null;
@@ -234,6 +253,10 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const Context = (root as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).AudioContext || (root as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (micStream || !media?.getUserMedia || !Context || reduceMotion()) return;
     try {
+      // This stream only animates the orb. Listening asks for the microphone by itself, so unless access
+      // is already granted it must not become one more question; the orb has a gentle pulse without it.
+      const access = await root.navigator.permissions?.query?.({ name: 'microphone' as PermissionName }).catch(() => null);
+      if (access?.state !== 'granted' || state === 'closed') return;
       const stream = await media.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       if (state === 'closed') { stream.getTracks().forEach((track) => track.stop()); return; }
       const context = new Context();
@@ -261,11 +284,26 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
   };
 
-  const latestReply = () => {
+  const latestReplyNode = () => {
     const nodes = messages?.querySelectorAll('.message.assistant .content');
-    const node = nodes && nodes.length ? nodes[nodes.length - 1] : null;
+    return nodes && nodes.length ? nodes[nodes.length - 1] : null;
+  };
+  const latestReply = () => {
+    const node = latestReplyNode();
     if (!node) return '';
     return (root as typeof globalThis & { HafizeChatMarkdown?: { sourceFor?: (n: Element) => string } }).HafizeChatMarkdown?.sourceFor?.(node) || node.textContent || '';
+  };
+
+  // The reply is spoken a sentence at a time as it arrives, instead of after the whole of it is written.
+  const stopFeeding = () => { if (feedTimer) { clearInterval(feedTimer); feedTimer = null; } };
+  const feedSpeech = (done = false) => {
+    if (!awaitingReply || streamStopped || latestReplyNode() === nodeBeforeSend) return;
+    const { piece, end } = nextSpeakable(latestReply(), spokenUpTo, done);
+    const Custom = root.CustomEvent;
+    if (!piece.trim() || typeof Custom !== 'function') return;
+    spokenUpTo = end;
+    if (!streamStarted) { streamStarted = true; setCaption(['', '', ''], 'hafize'); }
+    documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: piece, origin: ORIGIN, append: true } }));
   };
 
   const send = (text: string) => {
@@ -280,8 +318,14 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     setCaption([message, '', ''], 'user');
     awaitingReply = true;
     sawBusy = false;
+    spokenUpTo = 0;
+    streamStarted = false;
+    streamStopped = false;
+    nodeBeforeSend = latestReplyNode();
     setState('thinking');
     composer.requestSubmit();
+    stopFeeding();
+    feedTimer = setInterval(() => feedSpeech(), FEED_INTERVAL_MS);
     sendTimer = setTimeout(() => {
       sendTimer = null;
       if (awaitingReply && !sawBusy && !input.disabled) { awaitingReply = false; setState('idle', 'Mesaj gönderilemedi. Tekrar dene.'); }
@@ -374,6 +418,16 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
 
   // ---- open / close ----------------------------------------------------------------------------
+  // A downloaded voice loads its model on first use; do that now, not while the first answer waits.
+  const warmVoice = () => {
+    const chosen = read(VOICE_KEY);
+    if (!chosen || !isPiperVoice(chosen)) return;
+    const speaker = Number(read(SPEAKER_KEY));
+    loadCatalog().then(async (catalog) => {
+      const voice = await findVoice(chosen);
+      if (voice && (await downloadedKeys(catalog)).has(voice.key)) await synthesize(voice, Number.isInteger(speaker) && speaker >= 0 ? speaker : 0, 'Tamam.', 1);
+    }).catch(() => { /* speaking reports its own failure */ });
+  };
   const open = (handoffText = '') => {
     if (state !== 'closed') return;
     const active = documentRef.activeElement as HTMLElement | null;
@@ -393,12 +447,14 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     root.requestAnimationFrame(() => screen.classList.add('vm-visible'));
     orbButton.focus({ preventScroll: true });
     openMic();
+    warmVoice();
     if (handoffText.trim()) send(handoffText);
     else listen();
   };
   const close = () => {
     if (state === 'closed') return;
     clearTimers();
+    stopFeeding();
     awaitingReply = false;
     stopRecognition(true);
     if (state === 'speaking') stopSpeech();
@@ -433,7 +489,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     open(handoff);
   };
   const onOrb = () => {
-    if (state === 'speaking') { stopSpeech(); listen(); }
+    if (state === 'speaking') { streamStopped = awaitingReply; stopSpeech(); listen(); }
     else if (state === 'listening') stopRecognition(false);
     else if (state === 'idle' || state === 'paused') { if (muted) { muted = false; renderMute(); } listen(); }
   };
@@ -441,8 +497,15 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (state === 'closed') return;
     if (input.disabled) { if (awaitingReply) sawBusy = true; if (state !== 'speaking') setState('thinking'); return; }
     if (!awaitingReply) { if (state === 'thinking') listen(); return; }
-    awaitingReply = false;
+    stopFeeding();
     if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
+    if (streamStarted || streamStopped) {
+      feedSpeech(true);
+      awaitingReply = false;
+      if (state !== 'speaking') listen();
+      return;
+    }
+    awaitingReply = false;
     const reply = latestReply();
     const Custom = root.CustomEvent;
     if (reply && root.speechSynthesis && typeof Custom === 'function') {
@@ -457,6 +520,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (state === 'closed' || detail?.source !== 'voice-output') return;
     if (detail.speaking && detail.origin === ORIGIN) { if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); return; }
     if (!detail.speaking && state === 'speaking') {
+      // Spoke faster than the reply is arriving: the next sentence is on its way.
+      if (awaitingReply) { setState('thinking'); return; }
       setState(muted ? 'paused' : 'idle');
       resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, 350);
     }
