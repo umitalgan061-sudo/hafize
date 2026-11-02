@@ -83,11 +83,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const MESSAGE_PLACEHOLDER = '…';
-  // Every opening starts a new chat and Hafize searches old ones, so 30 would be gone within days.
-  const MAX_CONVERSATIONS = 200;
-  const MAX_MESSAGES_PER_CONVERSATION = 100;
+  // No practical cap: what ends a chat is the device's storage, see writeWithinQuota.
+  const MAX_CONVERSATIONS = 100000;
+  const MAX_MESSAGES_PER_CONVERSATION = 100000;
   // Same as the server limit (lib/agent-runtime.ts MAX_MESSAGE_CHARS): long pastes and answers survive a reload.
-  const MAX_MESSAGE_LENGTH = 200000;
+  const MAX_MESSAGE_LENGTH = 5000000;
   let networkOnline = globalThis.navigator?.onLine !== false;
   const hafizeSse = new HafizeSseClient();
   const streamState = createHafizeStreamController();

@@ -24,7 +24,7 @@ function raw(index, overrides = {}) {
 
 const records = Array.from({ length: 400 }, (_, index) => raw(index));
 const normalized = policy.normalizeRecords(records);
-assert.equal(normalized.length, 240);
+assert.equal(normalized.length, 400);
 assert.equal(normalized.some(item => !item.saved && !item.feedback && !item.note && !item.tags.length), false);
 assert.equal(new Set(normalized.map(item => item.id)).size, normalized.length);
 

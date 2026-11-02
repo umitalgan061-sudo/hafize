@@ -6,7 +6,7 @@ const voiceOutput = require('../public/typed/voice-output.ts');
 assert.equal(voiceOutput.normalizeSpeechText('  **Merhaba**   _Hafize_  '), 'Merhaba Hafize');
 assert.equal(voiceOutput.normalizeSpeechText('Örnek: `const x = 1` https://example.com'), 'Örnek: const x = 1 bağlantı');
 assert.match(voiceOutput.normalizeSpeechText('Önce ```js\nalert(1)\n``` sonra devam.'), /Kod bloğu atlandı/);
-assert.ok(voiceOutput.normalizeSpeechText('x'.repeat(3000)).length <= 2400);
+assert.ok(voiceOutput.normalizeSpeechText('x'.repeat(300000)).length <= 200000);
 const chunks = voiceOutput.splitSpeechText('Birinci cümle kısa. İkinci cümle de kısa. Üçüncü cümle biraz daha uzundur.', 80);
 assert.ok(chunks.length >= 1);
 assert.ok(chunks.every((chunk) => chunk.length <= 80));

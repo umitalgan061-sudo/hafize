@@ -11,8 +11,8 @@ export interface ResponseAlternateState {
   alternates: string[];
 }
 
-export const MAX_RESPONSE_ALTERNATES = 3;
-export const MAX_RESPONSE_LENGTH = 12000;
+export const MAX_RESPONSE_ALTERNATES = 20;
+export const MAX_RESPONSE_LENGTH = 5000000;
 export const MAX_GENERATION_MODEL = 160;
 export const MAX_GENERATION_AGENT = 120;
 

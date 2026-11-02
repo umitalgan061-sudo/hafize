@@ -6,8 +6,8 @@
 
   const API_PATH = '/api/schedules';
   const PANEL_ID = 'scheduledTasksWorkspace';
-  const MAX_TASK = 20_000;
-  const MAX_LIST = 128;
+  const MAX_TASK = 200_000;
+  const MAX_LIST = 10000;
   const MAX_ATTEMPTS = 5;
   const REFRESH_MS = 30_000;
   let panel = null;

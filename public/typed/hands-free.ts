@@ -20,7 +20,7 @@
   const RESTART_DELAY_MS = 350;
   const HANDOFF_TIMEOUT_MS = 1500;
   const POST_OUTPUT_COOLDOWN_MS = 1800;
-  const SESSION_LIMIT_MS = 30 * 60 * 1000;
+  const SESSION_LIMIT_MS = 24 * 60 * 60 * 1000;
   const NETWORK_RETRY_DELAYS_MS = Object.freeze([2_000, 5_000, 15_000, 30_000, 60_000]);
   const TERMINAL_RECOGNITION_ERRORS = new Set([
     'audio-capture',

@@ -8,12 +8,12 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const WORKSPACE_KEY = 'hafize.conversation-workspace.v1';
   const WORKSPACE_EVENT = 'hafize:conversation-workspace-changed';
-  const MAX_CONVERSATIONS = 200;
+  const MAX_CONVERSATIONS = 100000;
   const MAX_TITLE = 80;
   const MAX_TAG = 24;
   const MAX_TAGS = 8;
   const MAX_IMPORT_BYTES = 1024 * 1024;
-  const MAX_IMPORT_CONVERSATIONS = 30;
+  const MAX_IMPORT_CONVERSATIONS = 100000;
   const MAX_IMPORT_MESSAGES = 200;
   const MAX_MESSAGE_LENGTH = 12000;
   const MAX_IMPORTED_MESSAGE_LENGTH = 12000;
@@ -370,7 +370,7 @@
       for (const button of [archive, restore, pin, unpin, clone, tagButton, deleteButton, exportButton]) button.disabled = disabled;
       clear.disabled = selected === 0;
       const percent = Math.min(100, (conversations.length / MAX_CONVERSATIONS) * 100);
-      quotaLabel.textContent = `Yerel sınır: ${conversations.length}/${MAX_CONVERSATIONS} sohbet · ${estimateStorage(conversations)} KB`;
+      quotaLabel.textContent = `${conversations.length} sohbet · ${estimateStorage(conversations)} KB`;
       quotaFill.style.width = `${percent}%`;
       quotaFill.setAttribute('aria-valuenow', String(Math.round(percent)));
       quotaBar.setAttribute('role', 'progressbar');

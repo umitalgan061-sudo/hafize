@@ -38,8 +38,8 @@ export interface WorkspaceBackupRestoreResult {
   warnings: string[];
 }
 
-const MAX_BACKUP_BYTES = 2_000_000;
-const MAX_SECTION_BYTES = 1_200_000;
+const MAX_BACKUP_BYTES = 100_000_000;
+const MAX_SECTION_BYTES = 50_000_000;
 const MAX_SECTIONS = 32;
 const MAX_SMART_FILL_ENTRIES = 24;
 const MAX_KEY_LENGTH = 180;

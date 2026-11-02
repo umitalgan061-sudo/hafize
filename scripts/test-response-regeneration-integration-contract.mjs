@@ -14,7 +14,7 @@ assert.match(app, /response-variants-ui\.ts/);
 assert.match(app, /response-regeneration-options-ui\.ts/);
 assert.match(app, /response-regeneration-options\.ts/);
 
-assert.match(variants, /MAX_RESPONSE_ALTERNATES = 3/);
+assert.match(variants, /MAX_RESPONSE_ALTERNATES = 20/);
 assert.match(variants, /selectResponseVariant/);
 assert.match(variants, /createGenerationSnapshot/);
 

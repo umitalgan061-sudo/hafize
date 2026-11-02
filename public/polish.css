@@ -547,8 +547,12 @@ html[data-theme="light"] { --premium-muted: #6b665f; --muted: #5f625b; }
   .settings-panel:has(.app-install-primary), .settings-panel:has(.settings-kbd) { display: none; }
 }
 
-/* The bottom edge when installed. Some phones leave the page a little short of the screen's end, so whatever
-   sits at the bottom paints past it and the page behind has the same colour: no strip can show. */
+/* The bottom edge when installed. On iOS 26 the page's viewport is short of the screen by the top inset, and
+   WebKit stops drawing fixed content at that short edge. A page at least as tall as the screen gets the full
+   viewport, on every phone whatever its size; min() keeps other platforms from scrolling (WebKit 301108). */
+@media (display-mode: standalone) {
+  html { min-height: min(100lvh, calc(100% + env(safe-area-inset-top))); }
+}
 html { background: var(--bg); }
 html[data-voice-mode="true"], html[data-voice-mode="true"] body { background: #0d0b0a; }
 html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-voice-mode="true"] body { background: #f7f1ea; }

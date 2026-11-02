@@ -13,7 +13,7 @@ export const VOICE_OUTPUT_SPEAK_EVENT='hafize:voice-output-speak';
 export const RATE_KEY='hafize.voiceOutput.rate.v1';
 export const VOICE_KEY='hafize.voiceOutput.voice.v1';
 export function readRate(storage:Storage|null|undefined):number{try{const value=Number(storage?.getItem(RATE_KEY));return Number.isFinite(value)&&value>=0.7&&value<=1.5?value:1;}catch{return 1;}}
-const MAX_SPEECH_LENGTH=2400,MAX_CHUNK_LENGTH=240;
+const MAX_SPEECH_LENGTH=200000,MAX_CHUNK_LENGTH=240;
 // Piper renders a whole chunk before any of it plays, so shorter chunks mean a much quicker first word.
 const PIPER_CHUNK_LENGTH=110;
 // Errors the browser reports when *we* stopped the speech (new answer, new message, mic); not failures.

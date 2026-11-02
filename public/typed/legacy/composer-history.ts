@@ -4,8 +4,8 @@
   const STORAGE_KEY = 'hafize.composer-history.v1';
   const SETTINGS_KEY = 'hafize.composer-history.settings.v1';
   const INPUT_ID = 'messageInput';
-  const MAX_ITEMS = 40;
-  const MAX_TEXT = 12000;
+  const MAX_ITEMS = 1000;
+  const MAX_TEXT = 5000000;
   const RETENTION_VALUES = Object.freeze([0, 10, 20, 40]);
   const normalize = (value) => String(value ?? '').replace(/\0/g, '').slice(0, MAX_TEXT);
   const loadSettings = () => {

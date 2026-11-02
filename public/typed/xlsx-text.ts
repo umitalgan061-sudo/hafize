@@ -3,7 +3,7 @@
 // any other text attachment, so the file itself never leaves this device.
 
 const MAX_INFLATED_BYTES = 64 * 1024 * 1024;
-const MAX_ROWS_PER_SHEET = 20_000;
+const MAX_ROWS_PER_SHEET = 1_000_000;
 const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30);
 const DAY_MS = 86_400_000;
 // Excel's built-in formats that show a number as a date, a time of day, or a running total of time.

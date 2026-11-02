@@ -37,20 +37,20 @@ assert.deepEqual(JSON.parse(storage.getItem('hafize.conversations.v1')), ['başk
 history.saveSettings({ enabled: false, maxItems: 20 });
 assert.equal(storage.getItem(HISTORY_KEY), null);
 assert.deepEqual(JSON.parse(storage.getItem('hafize.prompt-library.v1')), [{ id: 'p1' }]);
-history.saveSettings({ enabled: true, maxItems: 40 });
+history.saveSettings({ enabled: true, maxItems: 1000 });
 
 // An unreadable settings entry falls back to the defaults rather than throwing.
 storage.setItem(SETTINGS_KEY, 'kırık json');
-assert.deepEqual(history.loadSettings(), { enabled: true, maxItems: 40 });
+assert.deepEqual(history.loadSettings(), { enabled: true, maxItems: 1000 });
 storage.setItem(SETTINGS_KEY, JSON.stringify({ enabled: true, maxItems: 9999 }));
-assert.equal(history.loadSettings().maxItems, 40, 'an out-of-range retention value falls back to the default');
+assert.equal(history.loadSettings().maxItems, 1000, 'an out-of-range retention value falls back to the default');
 
 // A store that throws is reported through the return value, never as an error.
 globalThis.localStorage = createThrowingStorage(['setItem']);
 assert.equal(history.saveSettings({ enabled: true, maxItems: 10 }), false);
 assert.equal(history.save(['x']), false);
 globalThis.localStorage = createThrowingStorage(['getItem']);
-assert.deepEqual(history.loadSettings(), { enabled: true, maxItems: 40 });
+assert.deepEqual(history.loadSettings(), { enabled: true, maxItems: 1000 });
 assert.deepEqual(history.load(), []);
 globalThis.localStorage = undefined;
 assert.deepEqual(history.load(), []);

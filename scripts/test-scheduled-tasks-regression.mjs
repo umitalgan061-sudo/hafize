@@ -17,8 +17,8 @@ const [client, css, enhance, keyboard, countdown, index, sw, readme] = await Pro
 
 assert.match(client, /\/api\/schedules/);
 assert.match(client, /credentials:\s*'same-origin'/);
-assert.match(client, /MAX_TASK = 20_000/);
-assert.match(client, /MAX_LIST = 128/);
+assert.match(client, /MAX_TASK = 200_000/);
+assert.match(client, /MAX_LIST = 10000/);
 assert.match(client, /MAX_ATTEMPTS = 5/);
 assert.match(client, /statusText/);
 assert.match(client, /Date\.parse\(runAt\) <= Date\.now\(\)/);

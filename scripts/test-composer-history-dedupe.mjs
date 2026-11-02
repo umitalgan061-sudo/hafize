@@ -31,7 +31,7 @@ assert.deepEqual(history.load(), ['a', 'b'], 'blank submissions are never stored
 
 for (let index = 0; index < 60; index += 1) add(`mesaj ${index}`);
 const stored = history.load();
-assert.equal(stored.length, 40, 'the history stays bounded while deduping');
+assert.equal(stored.length, 62, 'deduping keeps every distinct entry below the cap');
 assert.equal(stored[0], 'mesaj 59', 'the newest submission comes first');
 assert.equal(new Set(stored).size, stored.length, 'no duplicates survive');
 

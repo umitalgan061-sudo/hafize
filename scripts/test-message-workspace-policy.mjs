@@ -26,7 +26,7 @@ function baseRecord(overrides = {}) {
 
 const source = await readFile(path.join(root, 'public/typed/legacy/message-workspace-policy.ts'), 'utf8');
 
-assert.equal(policy.MAX_RECORDS, 240);
+assert.equal(policy.MAX_RECORDS, 10000);
 assert.equal(policy.MAX_NOTE, 600);
 assert.equal(policy.MAX_TAG, 24);
 assert.equal(policy.MAX_TAGS, 8);

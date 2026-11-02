@@ -10,8 +10,8 @@ import { xlsxToText } from './xlsx-text.ts';
 
   // A text/code attachment is stored server-side, so the practical limit is what the upload endpoint
   // accepts (50 MB). Media (images/PDF/video) keeps its own limits in rich-content.ts.
-  const MAX_FILE_BYTES = 50 * 1024 * 1024;
-  const MAX_ATTACHMENTS = 20;
+  const MAX_FILE_BYTES = 500 * 1024 * 1024;
+  const MAX_ATTACHMENTS = 1000;
   // Pasted text longer than this becomes a document instead of flooding the composer.
   const PASTE_TO_FILE_CHARS = 4000;
   const MEDIA_EXTENSIONS = /\.(?:pdf|png|jpe?g|gif|webp|heic|bmp|svg|mp4|webm|mov|avi|mkv|mp3|wav|ogg|m4a|docx?|xlsx?|pptx?|zip)$/i;

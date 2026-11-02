@@ -6,7 +6,7 @@
 
   const STORAGE_KEY = 'hafize.message-workspace.v1';
   const STORAGE_EVENT = 'hafize:message-workspace-changed';
-  const MAX_RECORDS = 240;
+  const MAX_RECORDS = 10000;
   const MAX_NOTE = 600;
   const MAX_TAG = 24;
   const MAX_TAGS = 8;

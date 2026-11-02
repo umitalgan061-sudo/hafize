@@ -7,8 +7,8 @@
   const CONVERSATION_LIST = '#conversationList';
   const COMPOSER = '#composer';
   const INPUT = '#messageInput';
-  const MAX_DRAFT_LENGTH = 12000;
-  const MAX_DRAFTS = 30;
+  const MAX_DRAFT_LENGTH = 5000000;
+  const MAX_DRAFTS = 1000;
   const SAVE_DELAY = 250;
   const STATUS_ID = 'chatDraftStatus';
 

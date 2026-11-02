@@ -26,12 +26,12 @@ const lineageOf = conversationLineage;
   const STORAGE_KEY = 'hafize.conversations.v1';
   const PANEL_ID = 'hafizeConversationForks';
   const DIALOG_ID = 'hafizeConversationForkDialog';
-  const MAX_CONVERSATIONS = 200;
-  const MAX_MESSAGES = 100;
-  const MAX_MESSAGE_LENGTH = 12000;
+  const MAX_CONVERSATIONS = 100000;
+  const MAX_MESSAGES = 100000;
+  const MAX_MESSAGE_LENGTH = 5000000;
   const MAX_TITLE = 80;
-  const MAX_BRANCHES_PER_PARENT = 8;
-  const MAX_FORK_DEPTH = 4;
+  const MAX_BRANCHES_PER_PARENT = 1000;
+  const MAX_FORK_DEPTH = 100;
   const MAX_SNIPPET = 180;
 
   const ui = {

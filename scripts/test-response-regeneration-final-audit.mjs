@@ -18,7 +18,7 @@ const required = [
 ];
 for (const token of required) assert.match(app, new RegExp(token));
 
-assert.match(variants, /MAX_RESPONSE_ALTERNATES = 3/);
+assert.match(variants, /MAX_RESPONSE_ALTERNATES = 20/);
 assert.match(variants, /restoreLatestResponseAlternate/);
 assert.match(variants, /selectResponseVariant/);
 assert.match(options, /MAX_REGENERATION_INSTRUCTION = 600/);

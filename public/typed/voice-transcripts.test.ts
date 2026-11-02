@@ -63,7 +63,7 @@ describe('voice-output speech preparation', () => {
   });
 
   it('caps the spoken text', () => {
-    expect(normalizeSpeechText('x'.repeat(5000))).toHaveLength(2400);
+    expect(normalizeSpeechText('x'.repeat(300000))).toHaveLength(200000);
   });
 
   it('splits long text into speakable chunks under the limit', () => {
