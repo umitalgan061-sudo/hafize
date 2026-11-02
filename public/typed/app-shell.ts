@@ -114,8 +114,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let installPrompt = null;
   let persistenceWarningShown = false;
   let conversations = loadConversations();
-  // Entering the app always lands on a new chat; earlier ones wait in the sidebar.
-  let activeConversationId = conversations.find((item) => !item.messages?.length)?.id ?? null;
+  // Entering the app always lands on a new chat; earlier ones wait in the sidebar. A tab the browser put to sleep
+  // to save memory reloads when it is looked at again, and that is not an entry.
+  const ACTIVE_SESSION_KEY = 'hafize.active-conversation';
+  const sleptOnId = (document as Document & { wasDiscarded?: boolean }).wasDiscarded ? globalThis.sessionStorage?.getItem(ACTIVE_SESSION_KEY) : null;
+  let activeConversationId = conversations.find((item) => item.id === sleptOnId)?.id ?? conversations.find((item) => !item.messages?.length)?.id ?? null;
   queueMicrotask(() => rememberPersisted(conversations));
   let isStreaming = false;
   let availableAgents = [];
@@ -1368,8 +1371,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const serviceWorkerUrl = import.meta.env.DEV ? '/sw.ts' : '/typed-build/sw.js';
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!navigator.serviceWorker.controller) return;
+        // A reload lands on a new chat, so an update waits for the next opening while a chat is open.
         document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'hidden' && !isStreaming) globalThis.location.reload();
+          if (document.visibilityState === 'hidden' && !isStreaming && !getActiveConversation()?.messages?.length) globalThis.location.reload();
         });
       }, { once: true });
       // The script lives under /typed-build/, so without an explicit scope it never controlled the app.
@@ -1382,13 +1386,18 @@ interface JsonPayload { readonly [key: string]: unknown; }
   if (!activeConversationId) createConversation();
   else render();
 
-  // A phone keeps the app alive in the background, so coming back is an entry too. A short look at
-  // another app (copying something) stays in the chat.
+  // A phone keeps an installed app alive in the background, so coming back is an entry too. A short look at
+  // another app (copying something) stays in the chat. Another tab or a minimized window is not leaving.
   const RESUME_AS_NEW_MS = 60_000;
+  const isPhoneApp = () => (globalThis.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true) && globalThis.matchMedia?.('(pointer: coarse)').matches;
   let hiddenAt = 0;
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { hiddenAt = Date.now(); return; }
-    if (!hiddenAt || Date.now() - hiddenAt < RESUME_AS_NEW_MS || isStreaming || document.documentElement.dataset.voiceMode === 'true') return;
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      try { if (activeConversationId) globalThis.sessionStorage?.setItem(ACTIVE_SESSION_KEY, activeConversationId); } catch { /* private mode */ }
+      return;
+    }
+    if (!isPhoneApp() || !hiddenAt || Date.now() - hiddenAt < RESUME_AS_NEW_MS || isStreaming || document.documentElement.dataset.voiceMode === 'true') return;
     if (!conversations.find((item) => item.id === activeConversationId)?.messages?.length) return;
     if (editingMessageId) cancelMessageEdit();
     const empty = conversations.find((conversation) => !conversation.messages.length);
