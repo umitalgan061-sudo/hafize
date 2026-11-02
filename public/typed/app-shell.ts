@@ -268,9 +268,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
   function saveConversations() {
     try {
       mergeExternalChanges();
-      conversations = conversations.map((item) => normalizeConversation(item)).filter(Boolean).slice(0, MAX_CONVERSATIONS);
+      const normalized = conversations.map((item) => normalizeConversation(item)).filter(Boolean).slice(0, MAX_CONVERSATIONS);
+      // An answer being written is still empty, and cleaning drops empty messages. A save from elsewhere in that moment,
+      // such as the previous chat getting its name, must not take the message out from under the answer.
+      if (!isStreaming) conversations = normalized;
       // A full device never costs a chat: what leaves this list is recorded as deleted and leaves every device too.
-      const stored = JSON.stringify(conversations);
+      const stored = JSON.stringify(normalized);
       localStorage.setItem(STORAGE_KEY, stored);
       if (stored.length > STORAGE_WARNING_CHARS && !storageWarningShown) {
         storageWarningShown = true;
@@ -1017,7 +1020,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         endedAt: Date.now()
       });
       renderStreamStatus();
-      updateMessage(assistantId, content || emptyMessage, { persist: true });
+      updateMessage(assistantId, content.trim() ? content : emptyMessage, { persist: true });
       return stats;
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error
