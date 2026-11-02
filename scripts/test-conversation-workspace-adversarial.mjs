@@ -80,7 +80,7 @@ const forbidden = [
 for (const [fragment, label] of forbidden) mustNot(fragment, label);
 
 const modelChecks = [
-  [/const\s+MAX_CONVERSATIONS\s*=\s*30/, 'conversation cap is literal'],
+  [/const\s+MAX_CONVERSATIONS\s*=\s*200/, 'conversation cap is literal'],
   [/const\s+MAX_TITLE\s*=\s*80/, 'title cap is literal'],
   [/const\s+MAX_TAG\s*=\s*24/, 'tag cap is literal'],
   [/const\s+MAX_TAGS\s*=\s*8/, 'tag count cap is literal'],

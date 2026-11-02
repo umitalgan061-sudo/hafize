@@ -41,7 +41,7 @@
 
   function writeHistory(conversations) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.slice(0, 30)));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations.slice(0, 200)));
       return true;
     } catch {
       announce('Sohbet geçmişi bu cihazda güncellenemedi.');

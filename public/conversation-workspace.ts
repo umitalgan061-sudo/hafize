@@ -8,7 +8,7 @@
   const STORAGE_KEY = 'hafize.conversations.v1';
   const WORKSPACE_KEY = 'hafize.conversation-workspace.v1';
   const WORKSPACE_EVENT = 'hafize:conversation-workspace-changed';
-  const MAX_CONVERSATIONS = 30;
+  const MAX_CONVERSATIONS = 200;
   const MAX_TITLE = 80;
   const MAX_TAG = 24;
   const MAX_TAGS = 8;

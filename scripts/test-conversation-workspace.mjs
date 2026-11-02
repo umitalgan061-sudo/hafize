@@ -38,7 +38,7 @@ check('workspace uses strict mode', source.includes("'use strict'"));
 check('workspace uses conversation storage key', source.includes("hafize.conversations.v1"));
 check('workspace uses separate UI state key', source.includes("hafize.conversation-workspace.v1"));
 check('workspace defines public event', source.includes("hafize:conversation-workspace-changed"));
-check('workspace defines 30 conversation bound', source.includes('MAX_CONVERSATIONS = 30'));
+check('workspace defines 200 conversation bound', source.includes('MAX_CONVERSATIONS = 200'));
 check('workspace defines 80 title bound', source.includes('MAX_TITLE = 80'));
 check('workspace defines 24 tag bound', source.includes('MAX_TAG = 24'));
 check('workspace defines 8 tag bound', source.includes('MAX_TAGS = 8'));
