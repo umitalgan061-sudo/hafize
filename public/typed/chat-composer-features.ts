@@ -278,8 +278,8 @@ import { xlsxToText } from './xlsx-text.ts';
   function setSpeakLabel(button, active) {
     button.textContent = active ? '■ Durdur' : '🔊 Seslendir';
     button.setAttribute('aria-pressed', String(active));
-    button.setAttribute('aria-label', active ? 'Seslendirmeyi durdur' : 'Hafize yanıtını sesli oku');
-    button.title = active ? 'Seslendirmeyi durdur (Esc)' : 'Bu yanıtı sesli oku';
+    button.setAttribute('aria-label', active ? 'Seslendirmeyi durdur' : 'Bu mesajı sesli oku');
+    button.title = active ? 'Seslendirmeyi durdur (Esc)' : 'Bu mesajı sesli oku';
   }
   function createSpeakButton(article, content) {
     if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance !== 'function') return null;
@@ -329,7 +329,23 @@ import { xlsxToText } from './xlsx-text.ts';
       }));
     });
 
-    actions.append(edit);
+    // The owner's own words can be taken away or heard back just like an answer.
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'message-action';
+    copy.textContent = 'Kopyala';
+    copy.setAttribute('aria-label', 'Mesajımı kopyala');
+    copy.title = 'Bu mesajı panoya kopyala';
+    copy.addEventListener('click', async () => {
+      if (await copyText(String(content.textContent || '').trim())) {
+        copy.textContent = 'Kopyalandı';
+        window.setTimeout(() => { copy.textContent = 'Kopyala'; }, 1400);
+      } else announce('Mesaj panoya kopyalanamadı.');
+    });
+
+    actions.append(edit, copy);
+    const speak = createSpeakButton(article, content);
+    if (speak) actions.append(speak);
     article.append(actions);
   }
 
