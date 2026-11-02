@@ -113,6 +113,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   let installPrompt = null;
   let persistenceWarningShown = false;
+  let storageWarningShown = false;
+  const STORAGE_WARNING_CHARS = 4_000_000;
+  let generationAbort: AbortController | null = null;
   let conversations = loadConversations();
   // Entering the app always lands on a new chat; earlier ones wait in the sidebar. A tab the browser put to sleep
   // to save memory reloads when it is looked at again, and that is not an entry.
@@ -262,33 +265,24 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (activeConversationId && !conversations.some((item) => item.id === activeConversationId)) activeConversationId = conversations[0]?.id ?? null;
   }
 
-  // The device filling up costs the oldest chat, not the message being saved. The list is newest first.
-  function writeWithinQuota() {
-    for (;;) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-        return;
-      } catch (error) {
-        const full = error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
-        const oldest = full ? conversations.findLast((item) => !item.pinned && item.id !== activeConversationId) : null;
-        if (!oldest) throw error;
-        conversations = conversations.filter((item) => item !== oldest);
-      }
-    }
-  }
-
   function saveConversations() {
     try {
       mergeExternalChanges();
       conversations = conversations.map((item) => normalizeConversation(item)).filter(Boolean).slice(0, MAX_CONVERSATIONS);
-      writeWithinQuota();
+      // A full device never costs a chat: what leaves this list is recorded as deleted and leaves every device too.
+      const stored = JSON.stringify(conversations);
+      localStorage.setItem(STORAGE_KEY, stored);
+      if (stored.length > STORAGE_WARNING_CHARS && !storageWarningShown) {
+        storageWarningShown = true;
+        showToast('Cihazın depolama alanı dolmak üzere. Hiçbir sohbet kendiliğinden silinmez; yer açmak için eskilerden silebilirsin.');
+      }
       rememberPersisted(conversations);
       persistenceWarningShown = false;
       return true;
     } catch {
       if (!persistenceWarningShown) {
         persistenceWarningShown = true;
-        showToast('Yerel sohbet geçmişi bu cihazda kalıcı olarak kaydedilemedi.');
+        showToast('Cihazın depolama alanı doldu, son değişiklikler kaydedilemedi. Hiçbir sohbet kendiliğinden silinmedi; eski sohbetlerden silersen kayıt sürer.');
       }
       return false;
     }
@@ -995,10 +989,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
     timeoutMs = 60_000
   ): Promise<HafizeSseStats> {
     let content = '';
+    const stopper = new AbortController();
+    generationAbort = stopper;
     streamState.begin();
     renderStreamStatus();
     try {
       const stats = await hafizeSse.stream(endpoint, payload, {
+      signal: stopper.signal,
       timeoutMs,
       maxFrameChars: 128 * 1024,
       maxBufferChars: 256 * 1024,
@@ -1029,8 +1026,34 @@ interface JsonPayload { readonly [key: string]: unknown; }
       if (code === 'SSE_ABORTED' || code === 'AbortError') streamState.abort(error);
       else streamState.fail(error);
       renderStreamStatus();
+      // The owner's own stop is not a failure: what was written so far stays.
+      if (stopper.signal.aborted) {
+        updateMessage(assistantId, content || 'Yanıt durduruldu.', { persist: true });
+        return { durationMs: 0 } as HafizeSseStats;
+      }
       throw error;
+    } finally {
+      generationAbort = null;
     }
+  }
+
+  /** A chat's first message makes a poor name for it, so after the first answer it gets a short one. Renamed chats keep theirs. */
+  function nameConversation(id) {
+    const conversation = conversations.find((item) => item.id === id);
+    const [question, answer] = conversation?.messages ?? [];
+    if (conversation?.messages.length !== 2 || !question?.content || !answer?.content) return;
+    const automatic = question.content.trim().replace(/\s+/g, ' ').slice(0, 48);
+    if (conversation.title !== automatic) return;
+    fetch('/api/title', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ soru: question.content.slice(0, 600), yanit: answer.content.slice(0, 600) }) })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const current = conversations.find((item) => item.id === id);
+        if (!data?.baslik || current?.title !== automatic) return;
+        current.title = data.baslik;
+        saveConversations();
+        renderConversationList();
+      })
+      .catch(() => undefined);
   }
 
   async function streamAssistantReply() {
@@ -1092,6 +1115,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         durationMs: Math.max(0, Math.round(stats.durationMs || performance.now() - startedAt))
       };
       saveConversations();
+      nameConversation(conversation.id);
     }
   }
 
@@ -1113,6 +1137,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.agentSelect.disabled = disabled;
     ui.providerSelect.disabled = disabled;
     ui.toolModeBtn.disabled = disabled;
+    const send = document.querySelector('.send-btn');
+    if (send) {
+      send.classList.toggle('is-stop', disabled);
+      send.textContent = disabled ? '■' : '↑';
+      send.setAttribute('aria-label', disabled ? 'Yanıtı durdur' : 'Gönder');
+    }
     if (!disabled) {
       syncAgentSelect();
       syncToolMode();
@@ -1332,8 +1362,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
   });
   ui.composer.addEventListener('submit', (event) => {
     event.preventDefault();
+    if (isStreaming) { generationAbort?.abort(); return; }
     submitMessage(ui.messageInput.value);
   });
+  window.addEventListener('hafize:notice', (event) => showToast(String((event as CustomEvent).detail ?? '')));
 
   document.querySelectorAll('[data-prompt]').forEach((button) => {
     button.addEventListener('click', () => {

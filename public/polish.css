@@ -579,3 +579,8 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
 }
 .voice-mode::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 140px; background: var(--vm-bg); pointer-events: none; }
 .voice-mode .vm-bar { padding-bottom: max(10px, calc(env(safe-area-inset-bottom) - 12px)); }
+
+/* A reply being written has nothing to copy or retry yet. */
+#messages[aria-busy="true"] .message.assistant:last-of-type .message-actions,
+#messages[aria-busy="true"] .message.assistant:last-of-type .assistant-message-actions { display: none; }
+.send-btn.is-stop { opacity: 1 !important; }
