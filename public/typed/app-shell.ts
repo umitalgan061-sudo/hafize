@@ -1353,11 +1353,24 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.installBtn.hidden = true;
   });
 
+  // Chats synced from another device come into the open page. Settings read at start apply from the next opening.
+  window.addEventListener('hafize:state-synced', () => {
+    if (isStreaming) return;
+    const fresh = loadConversations();
+    conversations = fresh;
+    rememberPersisted(conversations);
+    if (activeConversationId && !conversations.some((item) => item.id === activeConversationId)) activeConversationId = conversations.find((item) => !item.messages?.length)?.id ?? null;
+    render();
+  });
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       const serviceWorkerUrl = import.meta.env.DEV ? '/sw.ts' : '/typed-build/sw.js';
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (navigator.serviceWorker.controller) globalThis.location.reload();
+        if (!navigator.serviceWorker.controller) return;
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden' && !isStreaming) globalThis.location.reload();
+        });
       }, { once: true });
       // The script lives under /typed-build/, so without an explicit scope it never controlled the app.
       navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module', scope: '/' })
