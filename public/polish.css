@@ -516,7 +516,13 @@ html[data-theme="light"] { --premium-muted: #6b665f; --muted: #5f625b; }
 }
 
 /* Mobile finish, from going through every screen at phone size (2026-10-30). */
-.conversation-row { overflow: hidden; }
+.sidebar { overflow-y: auto; overscroll-behavior: contain; }
+.sidebar > * { flex-shrink: 0; }
+.history-block { flex: 1 0 auto; height: 0; min-height: 300px; display: flex; flex-direction: column; }
+.conversation-list { flex: 1 1 auto; min-height: 0; max-height: none; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.conversation-row { flex: 0 0 auto; min-height: 44px; flex-wrap: nowrap; overflow: hidden; }
+.conversation-row .conversation-open { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conversation-row .conversation-delete, .conversation-row .history-manage { flex: 0 0 auto; }
 .conversation-row .history-manage { min-width: 0; }
 .composer-tools .icon-btn { display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
 .settings-panel .app-install-primary { margin-top: 12px; }
@@ -546,6 +552,17 @@ html[data-theme="light"] { --premium-muted: #6b665f; --muted: #5f625b; }
 @media (display-mode: standalone) {
   .settings-panel:has(.app-install-primary), .settings-panel:has(.settings-kbd) { display: none; }
 }
+
+/* A long code line or a wide table must scroll inside its own box. Left to itself it stretched the whole message
+   past the screen, cutting the right side off every paragraph and pushing the copy button out of reach. */
+.primary-column, .chat-stage, .messages, .message, .message > *, .message .content { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.message .content { overflow-wrap: anywhere; }
+.message.user { width: fit-content; }
+.md-code, .md-table-wrap, .md-table-scroll { max-width: 100%; min-width: 0; }
+.md-code pre { max-width: 100%; overflow-x: auto; }
+.md-table th, .md-table td { overflow-wrap: normal; min-width: 84px; }
+.md-code-head { position: sticky; left: 0; }
+.md-code-copy, .history-search-clear { min-height: 32px; min-width: 34px; }
 
 /* The bottom edge when installed. On iOS 26 the page's viewport is short of the screen by the top inset, and
    WebKit stops drawing fixed content at that short edge. A page at least as tall as the screen gets the full
