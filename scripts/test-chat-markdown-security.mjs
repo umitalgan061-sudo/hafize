@@ -65,6 +65,9 @@ for (const url of ACCEPTED_URLS) {
 
 assert.equal(markdown.safeUrl(`https://example.com/${'a'.repeat(markdown.LIMITS.MAX_URL_LENGTH)}`), '', 'an over-long URL is refused');
 assert.equal(markdown.safeUrl(null), '');
+// A generated file is the only own route a message can link to, in exactly this form.
+assert.equal(markdown.safeUrl('/api/files/file_0123456789abcdef0123'), '/api/files/file_0123456789abcdef0123');
+for (const url of ['/api/files/file_0123456789abcdef0123/x', '/api/files/../memory', '/api/files/file_x', '/api/memory', '//evil.example/api/files/file_0123456789abcdef0123']) assert.equal(markdown.safeUrl(url), '', url);
 assert.equal(markdown.safeUrl({ toString: () => 'javascript:alert(1)' }), '');
 
 /* Hostile answers render as inert text --------------------------------- */

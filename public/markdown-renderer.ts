@@ -64,8 +64,9 @@
     if (/[\u0000-\u0020\u007f]/.test(raw)) return '';
     const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(raw);
     // Relative destinations are dropped as well: a model has no business
-    // linking into the application's own routes.
-    if (!scheme) return '';
+    // linking into the application's own routes. The one exception is a file
+    // it just made, which only ever downloads and has no other effect.
+    if (!scheme) return /^\/api\/files\/file_[a-f0-9]{20}$/.test(raw) ? raw : '';
     return SAFE_SCHEMES.includes(`${scheme[1].toLowerCase()}:`) ? raw : '';
   }
 
