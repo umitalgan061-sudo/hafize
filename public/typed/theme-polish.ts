@@ -15,6 +15,14 @@ const CSS = `
 ::-webkit-scrollbar-thumb{border:3px solid transparent;border-radius:999px;background:color-mix(in srgb,var(--hz-orange) 42%,transparent);background-clip:padding-box}
 ::-webkit-scrollbar-thumb:hover{background-color:color-mix(in srgb,var(--hz-orange) 70%,transparent)}
 ::-webkit-scrollbar-corner{background:transparent}
+/* One scrollbar in the chat, on the screen's right edge. On a phone the list reaches both edges of the screen while
+   its words stay where they were; the chat's scroll no longer runs on into the page, whose own bar (the page is a
+   little taller than the screen in the installed app, see polish.css) stays out of sight. */
+#messages{overscroll-behavior-y:contain}
+@media (max-width:700px){
+  #messages.hz-edge{width:auto!important;max-width:none!important;margin-left:calc(-1 * var(--hz-edge-l,0px))!important;margin-right:calc(-1 * var(--hz-edge-r,0px))!important;padding-left:var(--hz-edge-l,0px)!important;padding-right:var(--hz-edge-r,0px)!important;box-sizing:border-box!important}
+}
+@media (display-mode:standalone){html,body{scrollbar-width:none}html::-webkit-scrollbar,body::-webkit-scrollbar{display:none;width:0;height:0}}
 ::selection{background:color-mix(in srgb,var(--hz-orange) 32%,transparent)}
 
 /* "12 sn düşündü", "Bulutta 2 dk çalıştı" beside the name above a message. */
@@ -145,6 +153,25 @@ function install(): void {
   (document.body ?? document.documentElement).append(frame);
 }
 
+/** How far the chat list stands from the screen's edges, measured, so on a phone it can reach them (see the CSS). */
+function fitChatToEdges(): void {
+  const messages = document.getElementById('messages');
+  const host = messages?.parentElement;
+  if (!messages || !host) return;
+  const measure = () => {
+    if (!matchMedia('(max-width: 700px)').matches) { messages.classList.remove('hz-edge'); return; }
+    const box = host.getBoundingClientRect();
+    const left = Math.max(0, Math.round(box.left + (parseFloat(getComputedStyle(host).paddingLeft) || 0)));
+    const right = Math.max(0, Math.round(document.documentElement.clientWidth - box.right + (parseFloat(getComputedStyle(host).paddingRight) || 0)));
+    messages.style.setProperty('--hz-edge-l', `${left}px`);
+    messages.style.setProperty('--hz-edge-r', `${right}px`);
+    messages.classList.add('hz-edge');
+  };
+  measure();
+  new ResizeObserver(measure).observe(document.documentElement);
+  addEventListener('resize', measure);
+}
+
 /** A short run of the light, for a moment worth noticing, such as background work finishing. */
 export function flashFrame(ms = 2400): void {
   const root = document.documentElement;
@@ -264,5 +291,9 @@ export async function tell(message: string, options: AskOptions = {}): Promise<v
 }
 
 install();
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fitChatToEdges, { once: true });
+  else fitChatToEdges();
+}
 // For the scripts that are not modules, and for the layer that replaces the server.
 Object.assign(globalThis, { HafizeAsk: Object.freeze({ confirm: askConfirm, text: askText, choice: askChoice, tell, flash: flashFrame }) });
