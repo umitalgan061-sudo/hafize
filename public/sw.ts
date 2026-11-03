@@ -46,3 +46,23 @@ self.addEventListener('fetch', (event) => {
   }
   if (strategy === 'shell') event.respondWith(matchShell(event.request));
 });
+
+// A push carries nothing (see hafize-worker/src/push.js), so the line is fixed and the result is read in the app.
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Someone looking at Hafize already sees it there; a phone in a pocket does not.
+    if (open.some((client) => client.visibilityState === 'visible' && client.focused)) return;
+    await self.registration.showNotification('Hafize', { body: 'Arka plandaki bir işin bitti. Sonucu görmek için dokun.', icon: '/icons/icon-192.png', badge: '/icons/icon-192.png', tag: 'hafize-arka-plan', renotify: true });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil((async () => {
+    const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const app = open.find((client) => new URL(client.url).origin === self.location.origin);
+    if (app) { await app.focus(); app.postMessage({ type: 'hafize:push-open' }); return; }
+    await self.clients.openWindow('/');
+  })());
+});
