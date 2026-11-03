@@ -1252,6 +1252,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
     } else {
       addMessage('user', clean);
     }
+    // Sending always brings the chat down to the new message, even if the owner had scrolled up to read.
+    chatScroll?.follow({ force: true });
     ui.messageInput.value = '';
     autoResizeComposer();
     isStreaming = true;

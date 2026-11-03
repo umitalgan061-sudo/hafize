@@ -99,26 +99,51 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
     if (thinking.parentElement !== messages) messages.append(thinking);
   }
 
-  // The user's own scroll always wins: while they are reading history the list stays put.
+  // The user's own scroll always wins: while they are reading history the list stays put. Only the user stops the
+  // following. A scroll event arrives a frame late, when the answer may already have grown past the bottom; read as
+  // "not at the bottom" that used to switch following off by itself mid-answer, and the chat stayed stuck. So the list
+  // stops following only when it is above the place it was last put, which content growing below cannot do.
   let following = true;
+  let pinnedTop = 0;
+  let frame = 0;
   let labelIndex = 0;
   let labelTimer: number | undefined;
 
-  const onScroll = () => {
-    following = atBottom(messages);
-    button.hidden = following;
-  };
-  messages.addEventListener('scroll', onScroll, { passive: true });
-
+  function pin(): void {
+    messages.scrollTop = messages.scrollHeight;
+    pinnedTop = messages.scrollTop;
+  }
   function paintButton(): void {
     button.hidden = following;
   }
+  // Text is painted a frame after it arrives, pictures load later still, and the keyboard changes the height:
+  // each of these moves the bottom, so the list is put back there on the next frame while following.
+  function schedule(): void {
+    if (frame) return;
+    const raf = (doc.defaultView ?? globalThis).requestAnimationFrame ?? ((callback: () => void) => setTimeout(callback, 16));
+    frame = raf(() => { frame = 0; if (following) pin(); paintButton(); });
+  }
+
+  const onScroll = () => {
+    if (atBottom(messages)) following = true;
+    else if (messages.scrollTop < pinnedTop - 4) following = false;
+    else if (following) schedule();
+    paintButton();
+  };
+  messages.addEventListener('scroll', onScroll, { passive: true });
+  const View = doc.defaultView ?? globalThis;
+  const mutations = typeof View.MutationObserver === 'function' ? new View.MutationObserver(schedule) : null;
+  mutations?.observe(messages, { childList: true, subtree: true, characterData: true });
+  const resizes = typeof View.ResizeObserver === 'function' ? new View.ResizeObserver(schedule) : null;
+  resizes?.observe(messages);
+  // A picture's load does not bubble, so it is caught on the way down.
+  messages.addEventListener('load', schedule, true);
 
   function follow({ force = false }: { readonly force?: boolean } = {}): void {
     if (force) following = true;
     if (!following) { paintButton(); return; }
-    // Scroll the container that actually scrolls.
-    messages.scrollTop = messages.scrollHeight;
+    pin();
+    schedule();
     paintButton();
   }
 
@@ -129,6 +154,7 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
       return;
     }
     thinking.hidden = false;
+    schedule();
     const labelNode = thinking.querySelector('.chat-thinking-label');
     const labels = options.labelFor ? THINKING_LABELS.map((_, index) => options.labelFor!(index)) : [...THINKING_LABELS];
     if (labelNode) labelNode.textContent = label ?? labels[0] ?? 'Düşünüyor';
@@ -143,10 +169,10 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
 
   function refresh(): void {
     attachTail();
-    if (following) { messages.scrollTop = messages.scrollHeight; }
+    if (following) { pin(); schedule(); }
     paintButton();
   }
 
   follow({ force: true });
-  return Object.freeze({ follow, setThinking, refresh, attachTail, destroy: () => { messages.removeEventListener('scroll', onScroll); button.remove(); thinking.remove(); if (labelTimer !== undefined) clearInterval(labelTimer); } });
+  return Object.freeze({ follow, setThinking, refresh, attachTail, destroy: () => { messages.removeEventListener('scroll', onScroll); messages.removeEventListener('load', schedule, true); mutations?.disconnect(); resizes?.disconnect(); button.remove(); thinking.remove(); if (labelTimer !== undefined) clearInterval(labelTimer); } });
 }
