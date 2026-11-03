@@ -1,0 +1,19 @@
+name: Hafize sunucu yoklaması
+on:
+  push:
+    branches: [claude/cloudflare-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe
+        run: |
+          for u in https://hafize-23465.web.app https://hafize-23465.firebaseapp.com https://hafize.hafize-worker.workers.dev; do
+            for p in / /api/health /api/models /api/auth/session /__/firebase/init.json; do
+              echo "===== $u$p"
+              curl -sS -m 20 -D - -o /tmp/body "$u$p" | grep -iE '^(HTTP|content-type|server|x-powered-by|location|set-cookie|x-cloud-trace|via|x-served-by|x-cache)' || true
+              head -c 400 /tmp/body; echo
+            done
+          done
