@@ -26,6 +26,19 @@ const CSS = `
 /* The short notices: in the theme's own colours with an orange edge, instead of a negative of the page. */
 html[data-theme] .toast:not(.hidden),html .toast:not(.hidden){background:color-mix(in srgb,var(--panel,var(--card,#fff)) 90%,transparent);color:var(--text,inherit);border:1px solid color-mix(in srgb,var(--hz-orange) 45%,transparent);border-left:4px solid var(--hz-orange);box-shadow:0 12px 34px rgb(0 0 0/.26);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3)}
 
+/* A background job's raw output: a quiet line, folded, under which Hafize writes the answer. Not the owner's message,
+   so it has none of a message's buttons. */
+.message.is-background-output,.message.user.is-background-output{justify-self:start;align-self:flex-start;width:auto;max-width:100%;margin-block:2px;padding:0;border:0;border-radius:0;background:none;box-shadow:none;opacity:.9}
+.message.is-background-output>:not(.meta):not(.content){display:none!important}
+.message.is-background-output .meta{display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:6px}
+.message.is-background-output .content{font-size:.9em;white-space:normal}
+.message.is-background-output .background-output[open]{padding:10px 12px;border:1px solid var(--line,#ccc);border-radius:14px;background:var(--card,transparent)}
+.background-output>summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--muted,inherit);font-size:13px;list-style:none;padding:4px 11px;border:1px solid var(--line,#ccc);border-radius:999px}
+.background-output>summary::-webkit-details-marker{display:none}
+.background-output>summary::before{content:"▸";transition:transform .15s ease}
+.background-output[open]>summary::before{transform:rotate(90deg)}
+.background-output[open]>summary{margin-bottom:8px}
+
 /* The light around the screen. */
 @property --hz-frame-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
 .hz-frame{position:fixed;inset:0;z-index:2147483000;pointer-events:none;opacity:0;transition:opacity .6s ease}
