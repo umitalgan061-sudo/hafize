@@ -149,6 +149,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const ANSWER_IN_CLOUD = 'Yanıtın hazırlanıyor, birazdan buraya yazılacak.';
   // The cloud finished this turn first, and the page's own half-written answer gives way to it.
   let cloudTakesOver = '';
+  let sendingNow = false;
+  let seenFor = '';
+  let seenMessages = new Set<string>();
   let availableAgents = [];
   let defaultAgentId = '';
   let editingMessageId = null;
@@ -404,6 +407,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     message.content = content;
     conversation.updatedAt = new Date().toISOString();
     const node = ui.messages.querySelector(`[data-message-id="${CSS.escape(id)}"] .content`);
+    if (content && content !== MESSAGE_PLACEHOLDER) node?.closest('.message')?.classList.remove('is-waiting');
     // Deltas paint on the next frame; the final, persisted update paints now.
     if (node) paintContent(node, content, { role: message.role, streaming: !persist });
       // Re-decorate so an edited user message keeps its attachment chips.
@@ -601,6 +605,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   function renderMessages() {
     ui.messages.replaceChildren();
     const conversation = getActiveConversation();
+    if (seenFor !== (conversation?.id ?? '')) { seenFor = conversation?.id ?? ''; seenMessages = new Set((conversation?.messages ?? []).map((item) => item.id)); }
     ui.messages.dataset.conversationId = conversation?.id ?? '';
     ui.messages.setAttribute('aria-busy', String(isStreaming));
     const messages = conversation?.messages ?? [];
@@ -637,6 +642,15 @@ interface JsonPayload { readonly [key: string]: unknown; }
         fold.append(summary, ...content.childNodes);
         content.replaceChildren(fold);
         article.classList.add('is-background-output');
+      }
+
+      // New messages come in softly; a chat that is opened or redrawn does not replay that for what it already had.
+      if (seenFor === conversation?.id && !seenMessages.has(message.id)) article.classList.add('is-new');
+      seenMessages.add(message.id);
+      // The answer being written: a skeleton until its first words, then a caret after the last one.
+      if (isStreaming && message.role === 'assistant' && message.id === messages.at(-1)?.id) {
+        article.classList.add('is-streaming');
+        if (!message.content || message.content === MESSAGE_PLACEHOLDER) article.classList.add('is-waiting');
       }
 
       article.append(meta);
@@ -754,11 +768,38 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ui.messages.append(article);
     }
 
+    // A question left without an answer (the connection dropped, the page was closed) says so and offers one.
+    const lastMessage = messages.at(-1);
+    if (lastMessage?.role === 'user' && !lastMessage.worked && !isStreaming && !sendingNow && handoff?.userMessageId !== lastMessage.id && !answerPending(lastMessage.id)) {
+      const row = document.createElement('div');
+      row.className = 'unanswered-row';
+      const note = document.createElement('span');
+      note.textContent = 'Bu soru yanıtsız kaldı.';
+      const again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'unanswered-btn';
+      again.textContent = 'Yanıtla';
+      again.addEventListener('click', () => {
+        if (isStreaming || !networkOnline) return showToast(networkOnline ? 'Yanıt sürüyor.' : 'İnternet bağlantısı yok.');
+        if (!ui.modelSelect.value || !getConversationAgentId()) return showToast('Hafize henüz hazır değil, birazdan dene.');
+        void answerTurn();
+      });
+      row.append(note, again);
+      ui.messages.append(row);
+    }
+
     // #messages is the element that scrolls; the window never does. `chatScroll` follows only while
     // the user is already at the bottom, so reading history is never interrupted.
     // The thinking bubble is re-attached here because replaceChildren() above detached it.
     if (chatScroll) { chatScroll.attachTail(); chatScroll.refresh(); }
     else requestAnimationFrame(() => { if (ui.messages) ui.messages.scrollTop = ui.messages.scrollHeight; });
+  }
+
+  /** Whether the cloud is still writing the answer to this question (hafize-uyum/src/index.js keeps that list). */
+  function answerPending(userMessageId: string): boolean {
+    const detail = { userMessageId, pending: false };
+    window.dispatchEvent(new CustomEvent('hafize:answer-pending', { detail }));
+    return detail.pending;
   }
 
   function syncAgentSelect() {
@@ -1313,24 +1354,32 @@ interface JsonPayload { readonly [key: string]: unknown; }
       return;
     }
 
+    // Between the question appearing and its answer starting, it is not one left without an answer.
+    sendingNow = true;
     if (editingMessageId) {
-      if (!replaceEditedTurn(editingMessageId, clean)) return;
+      if (!replaceEditedTurn(editingMessageId, clean)) { sendingNow = false; return; }
     } else {
       addMessage('user', clean);
     }
-    const turnChat = getActiveConversation();
-    currentTurn = turnChat ? { conversationId: turnChat.id, userMessageId: turnChat.messages.findLast((item) => item.role === 'user')?.id ?? '' } : null;
     // Sending always brings the chat down to the new message, even if the owner had scrolled up to read.
     chatScroll?.follow({ force: true });
     ui.messageInput.value = '';
     autoResizeComposer();
+    await answerTurn(clean);
+  }
+
+  /** Answers the last question of the chat on screen: just sent, or left without an answer earlier. */
+  async function answerTurn(clean = '') {
+    const turnChat = getActiveConversation();
+    currentTurn = turnChat ? { conversationId: turnChat.id, userMessageId: turnChat.messages.findLast((item) => item.role === 'user')?.id ?? '' } : null;
     isStreaming = true;
+    sendingNow = false;
     setGenerationUi(true);
     chatScroll?.setThinking(true);
 
     const turn = currentTurn;
     try {
-      await globalThis.HafizeLiveScreen?.beforeSend?.(clean);
+      if (clean) await globalThis.HafizeLiveScreen?.beforeSend?.(clean);
       if (ui.providerSelect.value !== 'local') await runAssistantWithTools();
       else await streamAssistantReply();
       // Stopping a stream ends it quietly, so a takeover by the cloud lands here too: the half answer makes way.
@@ -1359,6 +1408,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       currentTurn = null;
       cloudTakesOver = '';
       isStreaming = false;
+      for (const node of ui.messages.querySelectorAll('.message.is-streaming, .message.is-waiting')) node.classList.remove('is-streaming', 'is-waiting');
       setGenerationUi(false);
       chatScroll?.setThinking(false);
       ui.messageInput.focus();

@@ -63,6 +63,36 @@ html[data-theme] .toast:not(.hidden),html .toast:not(.hidden){background:color-m
 .background-output[open]>summary::before{transform:rotate(90deg)}
 .background-output[open]>summary{margin-bottom:8px}
 
+/* A new message comes in softly. */
+.message.is-new{animation:hz-msg-in .32s cubic-bezier(.2,.8,.3,1) both}
+.message.user.is-new{animation-name:hz-msg-in-user}
+@keyframes hz-msg-in{from{opacity:0;transform:translateY(8px)}}
+@keyframes hz-msg-in-user{from{opacity:0;transform:translateY(8px) scale(.98)}}
+/* Before the first words: three soft lines that shimmer, instead of a bare "…". */
+.message.assistant.is-waiting .content{position:relative;min-height:50px;color:transparent}
+.message.assistant.is-waiting .content>*{visibility:hidden}
+.message.assistant.is-waiting .content::before{content:"";position:absolute;inset:6px 0 auto 0;height:44px;max-width:min(380px,100%);background:linear-gradient(90deg,color-mix(in srgb,var(--hz-orange) 7%,transparent) 0%,color-mix(in srgb,var(--hz-orange) 18%,transparent) 50%,color-mix(in srgb,var(--hz-orange) 7%,transparent) 100%) 0 0/200% 100%;-webkit-mask:linear-gradient(#000 0 0) 0 0/94% 9px no-repeat,linear-gradient(#000 0 0) 0 17px/76% 9px no-repeat,linear-gradient(#000 0 0) 0 34px/48% 9px no-repeat;mask:linear-gradient(#000 0 0) 0 0/94% 9px no-repeat,linear-gradient(#000 0 0) 0 17px/76% 9px no-repeat,linear-gradient(#000 0 0) 0 34px/48% 9px no-repeat;animation:hz-skeleton 1.4s ease-in-out infinite}
+@keyframes hz-skeleton{from{background-position:100% 0}to{background-position:-100% 0}}
+/* While the answer is being written, a caret after its last word. */
+.message.assistant.is-streaming:not(.is-waiting) .content>:is(p,h1,h2,h3,h4,blockquote):last-child::after,.message.assistant.is-streaming:not(.is-waiting) .content>:is(ul,ol):last-child>li:last-child::after{content:"";display:inline-block;width:.48em;height:1.05em;margin-left:3px;vertical-align:-.16em;border-radius:2px;background:var(--hz-orange);animation:hz-caret 1s steps(2,jump-none) infinite}
+@keyframes hz-caret{50%{opacity:0}}
+/* The steps Hafize took are a quiet line above the answer, not loud buttons. */
+.tool-activities{gap:5px!important;margin:0 0 9px!important}
+.tool-activity{display:inline-flex;align-items:center;gap:5px;padding:2px 9px!important;border:1px solid color-mix(in srgb,var(--hz-orange) 18%,transparent)!important;border-radius:999px!important;background:transparent!important;color:var(--muted,inherit)!important;font-size:11.5px!important;font-weight:500;line-height:1.6}
+.tool-activity::before{content:"✓";color:var(--hz-orange);font-size:10px;font-weight:700}
+.tool-activity.failed::before{content:"!";color:#e5484d}
+/* The message box lights up a little when it is being written in. */
+#composer{transition:box-shadow .2s ease,border-color .2s ease}
+#composer:focus-within{border-color:color-mix(in srgb,var(--hz-orange) 55%,var(--line,#ccc))!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--hz-orange) 14%,transparent),0 14px 40px rgb(0 0 0/.18)!important}
+.send-btn{transition:transform .12s ease,filter .15s ease,box-shadow .2s ease}
+.send-btn:not(:disabled):hover{filter:brightness(1.06);box-shadow:0 6px 18px color-mix(in srgb,var(--hz-orange) 35%,transparent)}
+.send-btn:not(:disabled):active{transform:scale(.94)}
+/* A question left without an answer. */
+.unanswered-row{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:-10px;color:var(--muted,inherit);font-size:13px}
+.unanswered-btn{min-height:34px;padding:0 14px;border:1px solid color-mix(in srgb,var(--hz-orange) 45%,transparent);border-radius:999px;background:color-mix(in srgb,var(--hz-orange) 12%,transparent);color:var(--hz-orange);font:inherit;font-weight:650;cursor:pointer}
+.unanswered-btn:hover{background:color-mix(in srgb,var(--hz-orange) 20%,transparent)}
+@media (prefers-reduced-motion:reduce){.message.is-new,.message.assistant.is-waiting .content::before{animation:none}.message.assistant.is-streaming .content :is(p,h1,h2,h3,h4,blockquote,li)::after{animation:none}}
+
 /* The light around the screen. */
 @property --hz-frame-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
 .hz-frame{position:fixed;inset:0;z-index:2147483000;pointer-events:none;opacity:0;transition:opacity .6s ease}
