@@ -20,6 +20,12 @@ const CSS = `
 /* "12 sn düşündü", "Bulutta 2 dk çalıştı" beside the name above a message. */
 .message-took{display:inline-flex;align-items:center;gap:5px;margin-left:9px;padding:1px 9px;border:1px solid color-mix(in srgb,var(--hz-orange) 22%,transparent);border-radius:999px;background:color-mix(in srgb,var(--hz-orange) 8%,transparent);color:var(--muted,inherit);font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;vertical-align:1px}
 .message-took::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--hz-orange);opacity:.75}
+/* "Düşünüyor · 3 sn": only as wide as its words, on every browser, with the words lit like the task line. */
+#messages .chat-thinking{display:inline-flex;box-sizing:border-box;width:max-content;max-width:calc(100% - 16px);justify-self:start;align-self:start;margin:2px 0 6px;padding:7px 14px 7px 12px;gap:9px;border:1px solid color-mix(in srgb,var(--hz-orange) 28%,transparent);border-radius:999px;background:color-mix(in srgb,var(--hz-orange) 9%,transparent);box-shadow:none;font-size:13px;white-space:nowrap}
+#messages .chat-thinking[hidden]{display:none}
+#messages .chat-thinking .chat-thinking-label{font-weight:600;background:linear-gradient(100deg,var(--hz-orange) 0%,var(--hz-orange) 38%,#ffd9c4 50%,var(--hz-orange) 62%,var(--hz-orange) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hz-think-shimmer 2.2s linear infinite}
+@keyframes hz-think-shimmer{from{background-position:125% 0}to{background-position:-125% 0}}
+@media (prefers-reduced-motion:reduce){#messages .chat-thinking .chat-thinking-label{animation:none;background:none;color:var(--hz-orange)}}
 .chat-thinking-time{margin-left:2px;color:var(--muted,inherit);font-size:.92em;font-variant-numeric:tabular-nums}
 .chat-thinking-time:not(:empty)::before{content:"· "}
 
