@@ -8,11 +8,12 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch
+      - name: CORS
         run: |
-          B=https://hafize-23465.web.app
-          for p in /index.html /hafize-uyum.js; do
-            echo "@@@@@ BEGIN $p"
-            curl -sS -m 30 "$B$p" | base64 -w0; echo
-            echo "@@@@@ END $p"
+          A=https://hafize-api.hafize-worker.workers.dev
+          for o in https://hafize-23465.web.app https://hafize.hafize-worker.workers.dev; do
+            echo "===== OPTIONS /chat Origin=$o"
+            curl -sS -m 20 -X OPTIONS -D - -o /dev/null "$A/chat" -H "Origin: $o" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: authorization,content-type" | grep -iE '^(HTTP|access-control)' || true
           done
+          echo "===== GET /"
+          curl -sS -m 20 -D - "$A/" | head -c 600; echo
