@@ -1,0 +1,77 @@
+name: Hafize Cloudflare yayını
+
+on:
+  push:
+    branches: [main, claude/cloudflare-yayin]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hafize-cloudflare-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Cloudflare Workers'a yayınla
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Production build
+        run: npm run build
+
+      - name: Prepare Cloudflare assets
+        run: node scripts/prepare-cloudflare-assets.mjs
+
+      - name: Check token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN gizli değeri bu depoda yok."
+            exit 1
+          fi
+          curl -fsS https://api.cloudflare.com/client/v4/user/tokens/verify \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | grep -q '"status":"active"' \
+            || { echo "::error::Cloudflare anahtarı geçersiz ya da etkin değil."; exit 1; }
+          echo "Anahtar etkin."
+
+      - name: Deploy
+        id: deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT_ID_SECRET: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -n "$ACCOUNT_ID_SECRET" ]; then export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID_SECRET"; fi
+          npx --yes wrangler@4 deploy 2>&1 | tee deploy.log
+          status=${PIPESTATUS[0]}
+          url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          exit $status
+
+      - name: Smoke test
+        if: steps.deploy.outputs.url != ''
+        env:
+          SITE: ${{ steps.deploy.outputs.url }}
+        run: |
+          echo "Yayın adresi: $SITE"
+          for i in 1 2 3 4 5 6; do
+            if curl -fsS "$SITE/" | grep -q '<title>'; then break; fi
+            sleep 10
+          done
+          curl -fsS "$SITE/" | grep -q '<title>'
+          curl -fsS -o /dev/null "$SITE/typed-build/app-shell.js"
+          curl -fsSI "$SITE/typed-build/sw.js" | grep -qi '^service-worker-allowed: /'
+          echo "### Hafize yayında: $SITE" >> "$GITHUB_STEP_SUMMARY"

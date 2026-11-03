@@ -1,0 +1,21 @@
+// Hafize'nin Cloudflare Workers yayını. Yayını .github/workflows/cloudflare.yml yapar:
+// önce `npm run build`, sonra scripts/prepare-cloudflare-assets.mjs ile dist-cf/ hazırlanır.
+{
+  "name": "hafize",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist-cf",
+    "binding": "ASSETS",
+    "not_found_handling": "none",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "vars": {
+    // Hafize Node sunucusunun (server.ts) herkese açık adresi, ör. "https://sunucu.ornek.com".
+    // Boş kalırsa arayüz açılır ama /api istekleri 503 döner.
+    "HAFIZE_API_ORIGIN": ""
+  },
+  "observability": { "enabled": true }
+}

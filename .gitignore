@@ -28,3 +28,7 @@ skills/keys/
 skills/dist/
 evals/results/
 workspace/
+
+# Cloudflare yayın çıktısı (scripts/prepare-cloudflare-assets.mjs)
+dist-cf/
+.wrangler/
