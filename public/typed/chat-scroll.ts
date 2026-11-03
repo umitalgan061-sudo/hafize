@@ -57,6 +57,19 @@ export interface ChatScrollController {
   destroy(): void;
 }
 
+/** The strip above the message box where things that are going on are shown; made once, by whoever comes first. */
+export function dockFor(doc: Any): Any {
+  const existing = doc.getElementById('hafizeDock');
+  if (existing) return existing;
+  const composer = doc.getElementById('composer');
+  if (!composer) return null;
+  const dock = doc.createElement('div');
+  dock.id = 'hafizeDock';
+  dock.className = 'hz-dock';
+  composer.append(dock);
+  return dock;
+}
+
 export function mountChatScroll(options: { readonly messages: Any; readonly documentRef?: Any; readonly labelFor?: (index: number) => string }): ChatScrollController | null {
   const doc = options.documentRef ?? (typeof document !== 'undefined' ? document : null);
   const messages = options.messages;
@@ -95,8 +108,12 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
   // renderMessages() wipes #messages with replaceChildren(), so the bubble is re-attached after
   // every render rather than being silently detached.
   }
+  // The bubble stays in one place, just above the message box on the left, instead of riding the end of the chat up
+  // and down. It shares that place with the background task line (hafize-uyum/src/background-panel.js).
+  const dock = dockFor(doc);
   function attachTail(): void {
-    if (thinking.parentElement !== messages) messages.append(thinking);
+    const home = dock ?? messages;
+    if (thinking.parentElement !== home) home.append(thinking);
   }
 
   // The user's own scroll always wins: while they are reading history the list stays put. Only the user stops the
