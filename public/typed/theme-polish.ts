@@ -21,18 +21,27 @@ const CSS = `
 .message-took{display:inline-flex;align-items:center;gap:5px;margin-left:9px;padding:1px 9px;border:1px solid color-mix(in srgb,var(--hz-orange) 22%,transparent);border-radius:999px;background:color-mix(in srgb,var(--hz-orange) 8%,transparent);color:var(--muted,inherit);font-size:11.5px;font-weight:500;letter-spacing:0;text-transform:none;vertical-align:1px}
 .message-took::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--hz-orange);opacity:.75}
 /* The strip just above the message box, on the left: "Düşünüyor · 3 sn" nearest the box, a background task above it. */
-.hz-dock{position:absolute;left:12px;right:12px;bottom:calc(100% + 10px);z-index:6;display:flex;flex-direction:column-reverse;align-items:flex-start;gap:8px;pointer-events:none}
+/* The strip just above the message box, on the left, in one line: "Düşünüyor · 3 sn" and "1 görev çalışıyor" side by
+   side; with both there, they read as a single pill, the way a terminal assistant shows its status. */
+.hz-dock{position:absolute;left:12px;right:12px;bottom:calc(100% + 10px);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px;pointer-events:none}
 .hz-dock>*{pointer-events:auto}
 .hz-dock>.chat-thinking{order:0}.hz-dock>.hz-bg-line{order:1}
 .hz-dock:empty{display:none}
+.hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden])){right:auto;max-width:calc(100% - 24px);gap:0;padding:0 4px 0 0;border:1px solid color-mix(in srgb,var(--hz-orange) 32%,transparent);border-radius:999px;background:color-mix(in srgb,var(--bg,#fff) 82%,var(--hz-orange) 8%);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 6px 20px rgb(0 0 0/.16);flex-wrap:nowrap}
+.hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden]))>*{border:0!important;background:none!important;box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;animation:none}
+.hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden]))>.chat-thinking{padding-right:6px}
+.hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden]))>.hz-bg-line{padding-left:0;min-width:0}
+.hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden]))>.hz-bg-line .hz-bg-glyph{display:none}
+.hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden]))>.hz-bg-line .hz-bg-name::before{content:"· ";color:var(--muted,inherit);-webkit-text-fill-color:var(--muted,currentColor)}
 /* Room at the end of the chat, so its last lines are never under the strip. */
 html.hafize-working #messages::after,body.hz-bg-on #messages::after{content:"";display:block;height:58px}
-html.hafize-working body.hz-bg-on #messages::after{height:110px}
 /* Only as wide as its words, on every browser, with the words lit like the task line. */
 .chat-thinking,#messages .chat-thinking{display:inline-flex;box-sizing:border-box;width:max-content;max-width:100%;justify-self:start;align-self:flex-start;margin:0;padding:7px 14px 7px 12px;gap:9px;border:1px solid color-mix(in srgb,var(--hz-orange) 32%,transparent);border-radius:999px;background:color-mix(in srgb,var(--bg,#fff) 82%,var(--hz-orange) 8%);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 6px 20px rgb(0 0 0/.16);font-size:13px;white-space:nowrap;animation:hz-think-in .28s cubic-bezier(.2,.9,.3,1.2)}
 .chat-thinking[hidden]{display:none}
 @keyframes hz-think-in{from{opacity:0;transform:translateY(6px) scale(.97)}}
 html .chat-thinking .chat-thinking-label{font-weight:600;background:linear-gradient(100deg,var(--hz-orange) 0%,var(--hz-orange) 38%,#ffd9c4 50%,var(--hz-orange) 62%,var(--hz-orange) 100%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:hz-think-shimmer 2.2s linear infinite}
+/* On a light page a pale highlight washes the words out; there the light runs darker. */
+html[data-theme="light"] .chat-thinking .chat-thinking-label,html[data-theme="light"] .hz-bg-name{background-image:linear-gradient(100deg,var(--hz-orange) 0%,var(--hz-orange) 38%,#9c3d17 50%,var(--hz-orange) 62%,var(--hz-orange) 100%)}
 @keyframes hz-think-shimmer{from{background-position:125% 0}to{background-position:-125% 0}}
 @media (prefers-reduced-motion:reduce){html .chat-thinking .chat-thinking-label{animation:none;background:none;color:var(--hz-orange)}}
 .chat-thinking-time{margin-left:2px;color:var(--muted,inherit);font-size:.92em;font-variant-numeric:tabular-nums}
