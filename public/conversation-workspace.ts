@@ -2,6 +2,7 @@
 // Runtime behavior remains compatible with the previous browser-global surface.
 // The module is bundled by Vite/Rolldown and loaded as a generated entrypoint.
 // @ts-nocheck
+import { askConfirm, askText } from './typed/theme-polish.ts';
 (() => {
   'use strict';
 
@@ -453,11 +454,11 @@
       }, pinned ? 'Seçili sohbetler sabitlendi.' : 'Sabitlenen sohbetler güncellendi.');
     }
 
-    function onDelete() {
+    async function onDelete() {
       const selected = new Set(state.selected);
       if (!selected.size) return;
+      if (!await askConfirm('Bu işlem geri alınamaz.', { title: `${selected.size} sohbet kalıcı olarak silinsin mi?`, danger: true })) return;
       const conversations = readConversations();
-      if (!globalThis.confirm(`${selected.size} sohbet kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`)) return;
       const kept = conversations.filter((conversation) => !selected.has(conversation.id));
       writeConversations(kept, `${selected.size} sohbet silindi.`);
       state.selected = [];
@@ -488,10 +489,10 @@
       window.setTimeout(() => window.location.reload(), 50);
     }
 
-    function onTag() {
+    async function onTag() {
       const selected = selectedConversations();
       if (!selected.length) return;
-      const value = globalThis.prompt('Eklenecek etiket:', state.tag || '');
+      const value = await askText('', state.tag || '', { title: 'Eklenecek etiket', ok: 'Ekle' });
       if (value === null) return;
       const tagValue = cleanTag(value);
       if (!tagValue) return announce('Etiket boş olamaz.');

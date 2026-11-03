@@ -1,6 +1,7 @@
 // TypeScript migration wave 2026-09.
 // Behavior is preserved while the browser module moves behind the typed Vite boundary.
 // @ts-nocheck
+import { askChoice, askText } from './theme-polish.ts';
 (() => {
   'use strict';
 
@@ -313,10 +314,10 @@
     mutateRecord(article, record => { record.feedback = record.feedback === value ? '' : value; }, 'feedback');
   }
 
-  function editNote(article) {
+  async function editNote(article) {
     const record = findRecordOrCreate(article);
     if (!record) return;
-    const next = globalThis.prompt('Bu mesaja kısa bir not ekle (en fazla 600 karakter):', record.note || '');
+    const next = await askText('En fazla 600 karakter.', record.note || '', { title: 'Bu mesaja not ekle', ok: 'Kaydet', maxLength: 600 });
     if (next === null) return;
     record.note = cleanNote(next);
     record.updatedAt = new Date().toISOString();
@@ -326,10 +327,10 @@
     renderResults();
   }
 
-  function editTags(article) {
+  async function editTags(article) {
     const record = findRecordOrCreate(article);
     if (!record) return;
-    const next = globalThis.prompt('Etiketleri virgülle ayır (en fazla 8 etiket):', (record.tags || []).join(', '));
+    const next = await askText('Virgülle ayır, en fazla 8 etiket.', (record.tags || []).join(', '), { title: 'Etiketler', ok: 'Kaydet', placeholder: 'iş, fikir, önemli' });
     if (next === null) return;
     record.tags = [...new Set(String(next).split(',').map(cleanTag).filter(Boolean))].slice(0, MAX_TAGS);
     record.updatedAt = new Date().toISOString();
@@ -339,9 +340,14 @@
     renderResults();
   }
 
-  function openMessageMenu(article) {
+  async function openMessageMenu(article) {
     const record = recordForArticle(article);
-    const choice = globalThis.prompt('Mesaj işlemi: 1=Kaydı kaldır, 2=Notu temizle, 3=Etiketleri temizle, 4=Seçime ekle', '');
+    const choice = await askChoice('', [
+      { key: '4', label: 'Seçime ekle ya da çıkar' },
+      { key: '2', label: 'Notu temizle' },
+      { key: '3', label: 'Etiketleri temizle' },
+      { key: '1', label: 'Kaydı kaldır', danger: true }
+    ], { title: 'Mesaj işlemleri' });
     if (!choice) return;
     if (choice === '1') {
       if (!record) return announce('Bu mesaj için kayıt yok.');

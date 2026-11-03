@@ -1,3 +1,4 @@
+import { askConfirm, askText } from './theme-polish.ts';
 import {
   MODEL_PREFERENCES_LIMITS,
   createProfile,
@@ -231,8 +232,8 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
       render();
       status(`“${profile.name}” uygulandı.`);
     },
-    (profile) => {
-      const nextName = globalThis.prompt('Yeni profil adı:', profile.name);
+    async (profile) => {
+      const nextName = await askText('', profile.name, { title: 'Profilin yeni adı', ok: 'Kaydet' });
       if (nextName === null || !nextName.trim()) return;
       state = renameProfile(state, profile.id, nextName);
       saveModelPreferences(state);
@@ -246,8 +247,8 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
       render();
       status('Profil çoğaltıldı.');
     },
-    (profile) => {
-      if (!globalThis.confirm(`“${profile.name}” profili silinsin mi?`)) return;
+    async (profile) => {
+      if (!await askConfirm('Bu profil kalıcı olarak silinir.', { title: `“${profile.name}” profili silinsin mi?`, danger: true })) return;
       state = removeProfile(state, profile.id);
       saveModelPreferences(state);
       render();
@@ -274,10 +275,10 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
   open.addEventListener('click', show);
   dialog.close.addEventListener('click', close);
 
-  dialog.add.addEventListener('click', () => {
+  dialog.add.addEventListener('click', async () => {
     const nowSelection = current();
     const defaultName = nowSelection.model ? `${nowSelection.model.split('/').at(-1) || nowSelection.model.slice(0, 24)} profili` : 'Yeni profil';
-    const name = globalThis.prompt('Profil adı:', defaultName);
+    const name = await askText('', defaultName, { title: 'Profil adı', ok: 'Kaydet' });
     if (name === null) return;
     if (state.profiles.length >= MODEL_PREFERENCES_LIMITS.maxProfiles) return status('En fazla 6 profil kaydedebilirsin.');
     const profile = createProfile(name, nowSelection.model, nowSelection.agentId, nowSelection.toolsEnabled);
@@ -289,8 +290,8 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
     status('Profil kaydedildi.');
   });
 
-  dialog.clear.addEventListener('click', () => {
-    if (!globalThis.confirm('Tüm model/ajan profilleri ve son seçim temizlensin mi?')) return;
+  dialog.clear.addEventListener('click', async () => {
+    if (!await askConfirm('Bütün model ve ajan profilleri ile son seçim temizlenir.', { title: 'Tercihler sıfırlansın mı?', danger: true, ok: 'Sıfırla' })) return;
     state = { version: 1, selectedModel: '', selectedAgentId: '', profiles: [], updatedAt: new Date().toISOString() };
     saveModelPreferences(state);
     render();
@@ -328,11 +329,12 @@ export function mountModelPreferences(options: Options): ModelPreferencesUiContr
             : 'Import dosyasında profil bulunamadı.'
         );
       }
-      const approved = globalThis.confirm(
+      const approved = await askConfirm(
         preview.willImport + ' profil alınacak; ' +
         preview.rejectedCount + ' kayıt reddedilecek; ' +
         preview.collisionCount + ' ID çakışması yeni ID ile korunacak. ' +
-        preview.capacityRemaining + ' kapasite mevcut. Devam edilsin mi?'
+        preview.capacityRemaining + ' kapasite mevcut.',
+        { title: 'Profiller içe aktarılsın mı?', ok: 'İçe aktar' }
       );
       if (!approved) return status('Import iptal edildi.');
       const result = importModelPreferences(state, parsed);

@@ -1,6 +1,7 @@
 // "Gelişmiş" section of Settings: what the server-side platform is doing. Every part is a
 // collapsed <details> that loads its data only when opened, so Settings stays light.
 import { hafizeApi } from './hafize-api.ts';
+import { askConfirm } from './theme-polish.ts';
 
 type Json = Record<string, any>;
 
@@ -181,7 +182,7 @@ function buildPanel(): HTMLElement {
     }
     body.append(el('p', 'platform-kpis', data.last ? `Son yedek: ${date(data.last.at)} · ${data.last.memories} not, ${data.last.images} görsel` : 'Bu oturumda henüz yedek alınmadı.'));
     body.append(table(['Yedek dosyası', ''], (data.snapshots || []).slice(-10).reverse().map((name: string) => [name, button('Geri yükle', async () => {
-      if (!window.confirm(`${name} geri yüklensin mi? Daha yeni kayıtların üzerine yazılmaz.`)) return;
+      if (!await askConfirm('Daha yeni kayıtların üzerine yazılmaz.', { title: `${name} geri yüklensin mi?`, ok: 'Geri yükle' })) return;
       const result = await hafizeApi.platform<Json>('/api/backup/restore', 'POST', { name });
       toast(`Geri yüklendi: ${result.memories} not, ${result.images} görsel.`);
     })])));

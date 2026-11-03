@@ -90,7 +90,7 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
     thinking.className = 'chat-thinking';
     thinking.hidden = true;
     thinking.setAttribute('aria-live', 'polite');
-    thinking.innerHTML = '<span class="chat-thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="chat-thinking-label">Düşünüyor</span>';
+    thinking.innerHTML = '<span class="chat-thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="chat-thinking-label">Düşünüyor</span><span class="chat-thinking-time" aria-hidden="true"></span>';
 
   // renderMessages() wipes #messages with replaceChildren(), so the bubble is re-attached after
   // every render rather than being silently detached.
@@ -147,13 +147,26 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
     paintButton();
   }
 
+  // A clock beside the label, so a long tool chain shows it is moving: "Araştırıyor · 1 dk 4 sn".
+  let clockTimer: number | undefined;
+  let startedAt = 0;
+  const paintClock = () => {
+    const node = thinking.querySelector('.chat-thinking-time');
+    if (!node) return;
+    const seconds = Math.floor((Date.now() - startedAt) / 1000);
+    node.textContent = seconds < 1 ? '' : seconds < 60 ? `${seconds} sn` : `${Math.floor(seconds / 60)} dk ${seconds % 60} sn`;
+  };
   function setThinking(active: boolean, label?: string): void {
     if (!active) {
       thinking.hidden = true;
       if (labelTimer !== undefined) { clearInterval(labelTimer); labelTimer = undefined; }
+      if (clockTimer !== undefined) { clearInterval(clockTimer); clockTimer = undefined; }
+      doc.documentElement.classList.remove('hafize-working');
       return;
     }
     thinking.hidden = false;
+    doc.documentElement.classList.add('hafize-working');
+    if (clockTimer === undefined) { startedAt = Date.now(); paintClock(); clockTimer = setInterval(paintClock, 1000) as unknown as number; }
     schedule();
     const labelNode = thinking.querySelector('.chat-thinking-label');
     const labels = options.labelFor ? THINKING_LABELS.map((_, index) => options.labelFor!(index)) : [...THINKING_LABELS];
@@ -174,5 +187,5 @@ export function mountChatScroll(options: { readonly messages: Any; readonly docu
   }
 
   follow({ force: true });
-  return Object.freeze({ follow, setThinking, refresh, attachTail, destroy: () => { messages.removeEventListener('scroll', onScroll); messages.removeEventListener('load', schedule, true); mutations?.disconnect(); resizes?.disconnect(); button.remove(); thinking.remove(); if (labelTimer !== undefined) clearInterval(labelTimer); } });
+  return Object.freeze({ follow, setThinking, refresh, attachTail, destroy: () => { if (clockTimer !== undefined) clearInterval(clockTimer); messages.removeEventListener('scroll', onScroll); messages.removeEventListener('load', schedule, true); mutations?.disconnect(); resizes?.disconnect(); button.remove(); thinking.remove(); if (labelTimer !== undefined) clearInterval(labelTimer); } });
 }

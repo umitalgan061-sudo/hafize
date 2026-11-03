@@ -3,6 +3,7 @@
  * The browser/global contract is intentionally preserved during the migration.
  */
 // @ts-nocheck
+import { askConfirm } from './theme-polish.ts';
 (() => {
   'use strict';
 
@@ -100,12 +101,16 @@
     const remove = row.querySelector('.conversation-delete');
     if (!remove || remove.dataset[DELETE_BOUND] === 'true') return;
     remove.dataset[DELETE_BOUND] = 'true';
-    remove.addEventListener('click', (event) => {
-      const current = findConversation(conversation.id) || conversation;
-      const title = current.title || 'Yeni sohbet';
-      if (window.confirm(`"${title}" sohbeti silinsin mi? Bu işlem geri alınamaz.`)) return;
+    // The click is held back while the owner decides, and sent again once they say yes.
+    remove.addEventListener('click', async (event) => {
+      if (remove.dataset.hzConfirmed === 'true') { delete remove.dataset.hzConfirmed; return; }
       event.preventDefault();
       event.stopImmediatePropagation();
+      const current = findConversation(conversation.id) || conversation;
+      const title = current.title || 'Yeni sohbet';
+      if (!await askConfirm('Bu işlem geri alınamaz.', { title: `"${title}" sohbeti silinsin mi?`, danger: true })) return;
+      remove.dataset.hzConfirmed = 'true';
+      remove.click();
     }, true);
   }
 
