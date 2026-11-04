@@ -5,6 +5,7 @@
 // @ts-nocheck
 import { hafizeApi } from './hafize-api.ts';
 import { xlsxToText } from './xlsx-text.ts';
+import { docxToText } from './docx-text.ts';
 (() => {
   'use strict';
 
@@ -91,6 +92,29 @@ import { xlsxToText } from './xlsx-text.ts';
   }
 
   /** The workbook is read here and only its text is uploaded, like any other text attachment. */
+  async function addWordDocument(file, files) {
+    if (file.size > MAX_FILE_BYTES) {
+      announce(`${file.name} eklenemedi: 50 MB sınırını aşıyor.`);
+      return;
+    }
+    if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
+      announce('Bu dosya zaten eklendi.');
+      return;
+    }
+    announce(`${file.name} hazırlanıyor…`);
+    try {
+      const text = await docxToText(new Uint8Array(await file.arrayBuffer()));
+      if (!text.trim()) {
+        announce(`${file.name} boş olduğu için eklenmedi.`);
+        return;
+      }
+      const stored = await hafizeApi.uploadDocument(text, file.name, 'text/plain');
+      insertAttachment(file, composeAttachment(file, stored.url), `${file.name} eklendi; Hafize belgenin içeriğini okuyacak.`);
+    } catch (error) {
+      announce(`${file.name} eklenemedi: ${String(error?.message || 'dosya işlenemedi').slice(0, 120)}`);
+    }
+  }
+
   async function addSpreadsheet(file, files) {
     if (file.size > MAX_FILE_BYTES) {
       announce(`${file.name} eklenemedi: 50 MB sınırını aşıyor.`);
@@ -126,6 +150,14 @@ import { xlsxToText } from './xlsx-text.ts';
     }
     if (/\.xlsx$/i.test(file.name)) {
       await addSpreadsheet(file, files);
+      return;
+    }
+    if (/\.doc$/i.test(file.name)) {
+      announce(`${file.name} eski Word biçiminde. Word'de .docx olarak kaydedip yeniden ekle.`);
+      return;
+    }
+    if (/\.docx$/i.test(file.name)) {
+      await addWordDocument(file, files);
       return;
     }
     // Images, PDFs and videos are prepared by rich-content.ts (upload for the vision model, PDF text,
@@ -186,7 +218,7 @@ import { xlsxToText } from './xlsx-text.ts';
     input.type = 'file';
     input.hidden = true;
     input.multiple = true;
-    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,.xlsx,.xls,text/plain,application/json,image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
+    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,.xlsx,.xls,.docx,.doc,text/plain,application/json,image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
     input.addEventListener('change', async () => {
       for (const file of [...input.files].slice(0, MAX_ATTACHMENTS)) await addFile(file);
       input.remove();

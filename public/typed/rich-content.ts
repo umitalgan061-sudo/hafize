@@ -4,6 +4,8 @@
 // go to the vision model as images) and videos (key frames as one contact sheet). The heavy
 // libraries load only when needed.
 import { hafizeApi } from './hafize-api.ts';
+import { xlsxToText } from './xlsx-text.ts';
+import { docxToText } from './docx-text.ts';
 
 type Any = any;
 const DIAGRAM_LANGUAGES: Record<string, 'mermaid' | 'vega-lite' | 'graphviz'> = { mermaid: 'mermaid', 'vega-lite': 'vega-lite', vegalite: 'vega-lite', 'vega_lite': 'vega-lite', dot: 'graphviz', graphviz: 'graphviz' };
@@ -181,6 +183,33 @@ function kindOf(file: File): 'image' | 'pdf' | 'video' | null {
     throw new Error('desteklenmeyen dosya türü');
   }
 });
+
+// The text of a file Hafize was handed as bytes, such as an e-mail attachment: the same readers the composer uses for
+// a file the owner adds. A scanned PDF has no text to give; pictures are looked at by the vision model instead.
+const MAX_FILE_TEXT = 200_000;
+async function fileText(bytes: Uint8Array, name = '', mime = ''): Promise<{ metin?: string; sayfa?: number; hata?: string }> {
+  try {
+    if (/pdf$/i.test(mime) || /\.pdf$/i.test(name)) {
+      const pdfjs = await loadPdfjs();
+      const pdf = await pdfjs.getDocument({ data: bytes, isEvalSupported: false }).promise;
+      let text = '';
+      for (let number = 1; number <= pdf.numPages && text.length < MAX_FILE_TEXT; number += 1) {
+        const content = await (await pdf.getPage(number)).getTextContent();
+        const pageText = content.items.map((item: Any) => (typeof item.str === 'string' ? item.str + (item.hasEOL ? '\n' : ' ') : '')).join('').replace(/[ \t]+\n/g, '\n').trim();
+        if (pageText) text += `\n[Sayfa ${number}]\n${pageText}\n`;
+      }
+      if (text.replace(/\[Sayfa \d+\]/g, '').trim().length < 40) return { hata: 'Bu PDF taranmış görünüyor, içinde okunacak metin yok. Kullanıcı açıp sohbete eklerse sayfalarına görüntü olarak bakılabilir.' };
+      return { metin: text.trim().slice(0, MAX_FILE_TEXT), sayfa: pdf.numPages };
+    }
+    if (/\.xlsx$/i.test(name) || /spreadsheetml/.test(mime)) return { metin: (await xlsxToText(bytes)).slice(0, MAX_FILE_TEXT) };
+    if (/\.docx$/i.test(name) || /wordprocessingml/.test(mime)) return { metin: (await docxToText(bytes)).slice(0, MAX_FILE_TEXT) };
+    if (/^text\/|json|xml|csv/.test(mime) || /\.(txt|csv|tsv|md|json|xml|html?|log)$/i.test(name)) return { metin: new TextDecoder().decode(bytes).slice(0, MAX_FILE_TEXT) };
+    return { hata: `Bu ek türü okunamıyor (${mime || name}). PDF, Excel (.xlsx), Word (.docx), metin ve görsel ekler okunabilir.` };
+  } catch (error) {
+    return { hata: `Ek okunamadı: ${String((error as Error)?.message || error).slice(0, 160)}` };
+  }
+}
+(window as Any).HafizeFileText = Object.freeze({ read: fileText });
 
 // --- diagrams ----------------------------------------------------------------------------
 const svgCache = new Map<string, string>();
