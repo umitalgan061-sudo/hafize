@@ -52,6 +52,11 @@
 .settings-memory-list li span { min-width: 0; overflow-wrap: anywhere; }
 .settings-memory-list li button { flex: none; padding: 5px 9px; font-size: 12px; }
 .settings-memory-list .settings-memory-empty { color: var(--muted); border-style: dashed; }
+.settings-memory-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+.settings-memory-filters[hidden] { display: none; }
+.settings-memory-filter { padding: 4px 10px; font-size: 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: inherit; cursor: pointer; }
+.settings-memory-filter[aria-pressed="true"] { background: var(--soft); font-weight: 600; }
+.settings-memory-tag { display: inline-block; margin-left: 4px; padding: 1px 7px; font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; white-space: nowrap; }
 .settings-memory-add { display: flex; gap: 8px; margin-top: 10px; }
 .settings-memory-add input { flex: 1; min-width: 0; }
 .settings-kbd {

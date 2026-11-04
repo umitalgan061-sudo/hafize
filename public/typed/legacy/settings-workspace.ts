@@ -185,7 +185,13 @@
     const memoryClearBtn = makeButton(documentRef, 'Tümünü unut', 'settings-danger');
     const memoryExportBtn = makeButton(documentRef, 'Dışa aktar (JSONL)');
     memoryActions.append(memoryExportBtn, memoryClearBtn);
-    memory.append(memoryList, memoryAdd, memoryActions);
+    // Labels Hafize put on the notes; choosing one shows only those notes.
+    const memoryFilters = documentRef.createElement('div');
+    memoryFilters.className = 'settings-memory-filters';
+    memoryFilters.setAttribute('role', 'group');
+    memoryFilters.setAttribute('aria-label', 'Notları etikete göre süz');
+    let memoryFilter = '';
+    memory.append(memoryFilters, memoryList, memoryAdd, memoryActions);
 
     const data = buildPanel(documentRef, 'Yerel sohbet verileri', 'Sohbet geçmişi bu tarayıcının yerel depolamasında tutulur; bu ekran sunucuya veri göndermez.');
     const stats = buildRow(documentRef, 'Depolama özeti', 'Tarayıcıdaki mevcut yerel sohbet ve mesaj sayısını gösterir.');
@@ -213,13 +219,25 @@
     section.append(appearance, memory, data, app);
 
     function renderMemory() {
-      const notes = readMemory(storage);
+      const all = readMemory(storage);
+      const tagsOf = (note) => (Array.isArray(note.tags) ? note.tags.map(String) : []);
+      const tags = [...new Set(all.flatMap(tagsOf))];
+      if (memoryFilter && !tags.includes(memoryFilter)) memoryFilter = '';
+      memoryFilters.replaceChildren();
+      memoryFilters.hidden = !tags.length;
+      for (const tag of ['', ...tags]) {
+        const choose = makeButton(documentRef, tag || 'Tümü', 'settings-memory-filter');
+        choose.setAttribute('aria-pressed', String(tag === memoryFilter));
+        choose.addEventListener('click', () => { memoryFilter = tag; renderMemory(); });
+        memoryFilters.append(choose);
+      }
+      const notes = memoryFilter ? all.filter((note) => tagsOf(note).includes(memoryFilter)) : all;
       memoryList.replaceChildren();
-      memoryClearBtn.disabled = !notes.length;
+      memoryClearBtn.disabled = !all.length;
       if (!notes.length) {
         const empty = documentRef.createElement('li');
         empty.className = 'settings-memory-empty';
-        empty.textContent = 'Henüz kayıtlı not yok.';
+        empty.textContent = all.length ? 'Bu etikette not yok.' : 'Henüz kayıtlı not yok.';
         memoryList.append(empty);
         return;
       }
@@ -227,6 +245,12 @@
         const item = documentRef.createElement('li');
         const text = documentRef.createElement('span');
         text.textContent = note.text;
+        for (const tag of tagsOf(note)) {
+          const label = documentRef.createElement('span');
+          label.className = 'settings-memory-tag';
+          label.textContent = tag;
+          text.append(' ', label);
+        }
         const remove = makeButton(documentRef, 'Sil');
         remove.setAttribute('aria-label', `Notu sil: ${note.text}`);
         remove.addEventListener('click', () => {

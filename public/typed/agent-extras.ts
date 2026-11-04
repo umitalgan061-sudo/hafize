@@ -172,7 +172,7 @@ function updateProgress(messageId: string, progress: Json): void {
 }
 
 // --- memory cache ---------------------------------------------------------------------
-function readCache(): Array<{ id: string; text: string; createdAt?: string }> {
+function readCache(): Array<{ id: string; text: string; tags?: string[]; createdAt?: string }> {
   try {
     const value = JSON.parse(localStorage.getItem(MEMORY_KEY) || '[]');
     return Array.isArray(value) ? value.filter((note) => note && typeof note.id === 'string' && typeof note.text === 'string') : [];
@@ -180,9 +180,9 @@ function readCache(): Array<{ id: string; text: string; createdAt?: string }> {
 }
 
 /** The server is the source of truth; the browser keeps a copy for the settings list. */
-function replaceMemoryCache(notes: ReadonlyArray<{ id: string; text: string }>): void {
+function replaceMemoryCache(notes: ReadonlyArray<{ id: string; text: string; tags?: string[] }>): void {
   const previous = new Map(readCache().map((note) => [note.id, note]));
-  const next = notes.slice(0, 200).map((note) => ({ id: note.id, text: String(note.text).slice(0, 300), createdAt: previous.get(note.id)?.createdAt || new Date().toISOString() }));
+  const next = notes.slice(0, 200).map((note) => ({ id: note.id, text: String(note.text).slice(0, 300), tags: (note.tags ?? previous.get(note.id)?.tags ?? []).slice(0, 8), createdAt: previous.get(note.id)?.createdAt || new Date().toISOString() }));
   try { localStorage.setItem(MEMORY_KEY, JSON.stringify(next)); } catch {}
   window.dispatchEvent(new CustomEvent('hafize:memory-changed'));
 }
@@ -190,7 +190,7 @@ function replaceMemoryCache(notes: ReadonlyArray<{ id: string; text: string }>):
 async function refreshMemoryCache(): Promise<void> {
   try {
     const result = await hafizeApi.memoryList('semantic');
-    if (Array.isArray(result.records)) replaceMemoryCache(result.records.map((record) => ({ id: String(record.id), text: String(record.content) })));
+    if (Array.isArray(result.records)) replaceMemoryCache(result.records.map((record) => ({ id: String(record.id), text: String(record.content), tags: Array.isArray(record.tags) ? record.tags.map(String) : [] })));
   } catch { /* offline or signed out: keep the cache */ }
 }
 
