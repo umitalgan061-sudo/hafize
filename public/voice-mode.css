@@ -59,20 +59,6 @@ body.voice-mode-open { overflow: hidden; }
 }
 .voice-mode[data-state="thinking"] .vm-backdrop { animation: vmAmbient 2.4s ease-in-out infinite; }
 
-/* Northern lights (voice-aurora.ts), a trial switched on in the voice settings: under the orange glow and the orb. */
-.vm-aurora {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  filter: blur(20px) saturate(1.15);
-  opacity: 0.9;
-}
-.vm-aurora[hidden] { display: none; }
-.vm-aurora-toggle { grid-template-columns: 1fr auto; align-items: center; }
-
 /* --- Top bar ----------------------------------------------------------------------------- */
 .vm-top {
   display: flex;
