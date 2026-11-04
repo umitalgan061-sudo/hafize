@@ -19,7 +19,8 @@
   const WORKSPACE_ID = 'settingsWorkspace';
   // Shared with app-shell.ts, which sends these notes with every request.
   const MEMORY_KEY = 'hafize.memory.v1';
-  const MEMORY_MAX = 60;
+  // The server keeps the notes now; this only bounds the copy shown here, which agent-extras fills with up to 200.
+  const MEMORY_MAX = 200;
   const MEMORY_TEXT_MAX = 300;
 
   function readMemory(storage) {
