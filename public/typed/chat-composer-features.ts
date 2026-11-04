@@ -5,14 +5,14 @@
 // @ts-nocheck
 import { hafizeApi } from './hafize-api.ts';
 import { xlsxToText } from './xlsx-text.ts';
-import { docxToText } from './docx-text.ts';
+import { docxToText, pptxToText, zipListing } from './docx-text.ts';
 (() => {
   'use strict';
 
-  // A text/code attachment is stored server-side, so the practical limit is what the upload endpoint
-  // accepts (50 MB). Media (images/PDF/video) keeps its own limits in rich-content.ts.
-  const MAX_FILE_BYTES = 500 * 1024 * 1024;
-  const MAX_ATTACHMENTS = 1000;
+  // No set limit on how many files or how large: what is left is this device's memory and the storage of the
+  // owner's Firebase plan, and a long file is read piece by piece.
+  const MAX_FILE_BYTES = Infinity;
+  const MAX_ATTACHMENTS = Infinity;
   // Pasted text longer than this becomes a document instead of flooding the composer.
   const PASTE_TO_FILE_CHARS = 4000;
   const MEDIA_EXTENSIONS = /\.(?:pdf|png|jpe?g|gif|webp|heic|bmp|svg|mp4|webm|mov|avi|mkv|mp3|wav|ogg|m4a|docx?|xlsx?|pptx?|zip)$/i;
@@ -39,8 +39,37 @@ import { docxToText } from './docx-text.ts';
     return Boolean(file)
       && Number.isFinite(file.size)
       && file.size > 0
-      && file.size <= MAX_FILE_BYTES
       && (file.type.startsWith('text/') || file.type === 'application/json' || ACCEPTED_EXTENSIONS.test(file.name));
+  }
+
+  /** Text when the bytes look like text: no zero bytes and few control characters in the first part. */
+  function looksLikeText(bytes) {
+    const sample = bytes.subarray(0, 65_536);
+    let odd = 0;
+    for (const byte of sample) { if (byte === 0) return false; if (byte < 9 || (byte > 13 && byte < 32)) odd += 1; }
+    return odd <= sample.length * 0.02;
+  }
+
+  // Any file is accepted. What can be read becomes text Hafize reads (a presentation's slides, a zip's contents, any
+  // file that is text inside); what cannot is still added with its name, kind and size, so Hafize knows it is there.
+  async function addAnyFile(file, files) {
+    if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
+      announce('Bu dosya zaten eklendi.');
+      return;
+    }
+    announce(`${file.name} hazırlanıyor…`);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let text = '';
+      if (/\.pptx$/i.test(file.name)) text = await pptxToText(bytes);
+      else if (/\.zip$/i.test(file.name)) text = `Zip içeriği:\n${zipListing(bytes)}`;
+      else if (looksLikeText(bytes)) text = new TextDecoder().decode(bytes);
+      if (!text.trim()) text = `[${file.name}: ${file.type || 'bilinmeyen tür'}, ${Math.max(1, Math.round(file.size / 1024))} KB. Bu dosyanın içeriği metin olarak okunamıyor; Hafize yalnızca adını, türünü ve boyutunu biliyor.]`;
+      const stored = await hafizeApi.uploadDocument(text, file.name, 'text/plain');
+      insertAttachment(file, composeAttachment(file, stored.url), `${file.name} eklendi.`);
+    } catch (error) {
+      announce(`${file.name} eklenemedi: ${String(error?.message || 'dosya işlenemedi').slice(0, 120)}`);
+    }
   }
 
   function renderAttachmentStrip() {
@@ -140,8 +169,8 @@ import { docxToText } from './docx-text.ts';
 
   async function addFile(file) {
     const files = ui.composer._hafizeAttachments || (ui.composer._hafizeAttachments = []);
-    if (files.length >= MAX_ATTACHMENTS) {
-      announce(`En fazla ${MAX_ATTACHMENTS} dosya ekleyebilirsin.`);
+    if (/\.(?:pptx|zip)$/i.test(file.name)) {
+      await addAnyFile(file, files);
       return;
     }
     if (/\.xls$/i.test(file.name)) {
@@ -165,8 +194,9 @@ import { docxToText } from './docx-text.ts';
     const media = /^(image|video|audio)\//.test(file.type) || file.type === 'application/pdf' || MEDIA_EXTENSIONS.test(file.name);
     if (media) {
       const handler = window.HafizeMediaAttachments;
+      // A kind the media reader does not know (a sound, an odd picture format) is still added, as whatever can be read of it.
       if (!handler || !handler.supports(file)) {
-        announce(`${file.name} eklenemedi: bu dosya türü desteklenmiyor (görsel, PDF ve video eklenebilir).`);
+        await addAnyFile(file, files);
         return;
       }
       if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
@@ -183,7 +213,7 @@ import { docxToText } from './docx-text.ts';
       return;
     }
     if (!acceptedFile(file)) {
-      announce(`${file.name} eklenemedi: bu dosya türü desteklenmiyor veya 50 MB sınırını aşıyor.`);
+      await addAnyFile(file, files);
       return;
     }
     if (files.some((item) => item.name === file.name && item.size === file.size && item.lastModified === file.lastModified)) {
@@ -218,7 +248,7 @@ import { docxToText } from './docx-text.ts';
     input.type = 'file';
     input.hidden = true;
     input.multiple = true;
-    input.accept = '.txt,.md,.markdown,.json,.csv,.tsv,.html,.css,.js,.mjs,.cjs,.jsx,.tsx,.py,.java,.c,.h,.cpp,.hpp,.xml,.yaml,.yml,.toml,.ini,.log,.xlsx,.xls,.docx,.doc,text/plain,application/json,image/png,image/jpeg,image/webp,image/gif,.pdf,application/pdf,video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov';
+    // Every kind of file can be chosen; whatever cannot be read is still added by name.
     input.addEventListener('change', async () => {
       for (const file of [...input.files].slice(0, MAX_ATTACHMENTS)) await addFile(file);
       input.remove();
@@ -401,6 +431,24 @@ import { docxToText } from './docx-text.ts';
     event.stopImmediatePropagation();
     ui.composer.classList.remove('drag-active');
     for (const file of [...(event.dataTransfer?.files || [])].slice(0, MAX_ATTACHMENTS)) await addFile(file);
+  });
+
+  // A file dropped anywhere on the page is added too; without this the browser would open it instead of Hafize.
+  const carriesFiles = (event) => [...(event.dataTransfer?.types || [])].includes('Files');
+  document.addEventListener('dragover', (event) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    ui.composer.classList.add('drag-active');
+  });
+  document.addEventListener('dragleave', (event) => {
+    if (!event.relatedTarget) ui.composer.classList.remove('drag-active');
+  });
+  document.addEventListener('drop', async (event) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    ui.composer.classList.remove('drag-active');
+    for (const file of [...(event.dataTransfer?.files || [])]) await addFile(file);
   });
 
   // A file dropped straight onto the textarea becomes an attachment, never pasted text.

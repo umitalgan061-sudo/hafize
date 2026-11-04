@@ -12,10 +12,10 @@ const DIAGRAM_LANGUAGES: Record<string, 'mermaid' | 'vega-lite' | 'graphviz'> = 
 const VENDOR = '/typed-build/vendor';
 const IMAGE_TYPES = /^image\/(png|jpeg|webp|gif|bmp)$/;
 const MAX_IMAGE_SIDE = 2048;
-const MAX_PDF_BYTES = 500 * 1024 * 1024;
+const MAX_PDF_BYTES = Infinity;
 const MAX_PDF_PAGES = 100000;
 const MAX_PDF_TEXT = 5_000_000;
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_BYTES = Infinity;
 const VIDEO_FRAMES = 6;
 
 // --- helpers -----------------------------------------------------------------------------
