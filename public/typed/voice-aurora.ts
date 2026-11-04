@@ -5,6 +5,14 @@
 
 const KEY = 'hafize.vm-aurora';
 const SCALE = 6; // one canvas pixel per this many screen pixels
+// Where the curtains lie, top to bottom, with their slant, waviness, drift and colour.
+const CURTAINS: ReadonlyArray<{ y: number; slant: number; wave: number; speed: number; power: number; seed: number; colour: readonly [number, number, number] }> = [
+  { y: 0.16, slant: -0.12, wave: 2.2, speed: 0.9, power: 1, seed: 11, colour: [70, 240, 150] },
+  { y: 0.34, slant: 0.18, wave: 3.1, speed: 1.2, power: 0.85, seed: 23, colour: [60, 220, 210] },
+  { y: 0.55, slant: -0.22, wave: 2.6, speed: 0.8, power: 0.7, seed: 37, colour: [150, 110, 255] },
+  { y: 0.72, slant: 0.1, wave: 3.6, speed: 1.0, power: 0.65, seed: 41, colour: [90, 245, 140] },
+  { y: 0.88, slant: -0.08, wave: 2.0, speed: 1.4, power: 0.55, seed: 53, colour: [230, 110, 200] }
+];
 
 const on = (): boolean => { try { return localStorage.getItem(KEY) === 'on'; } catch { return false; } };
 const setOn = (value: boolean): void => { try { localStorage.setItem(KEY, value ? 'on' : 'off'); } catch { /* private mode */ } };
@@ -49,28 +57,34 @@ function attach(screen: HTMLElement): void {
     const data = image.data;
     const light = document.documentElement.dataset.theme === 'light';
     const t = seconds * 0.06;
+    // Scattered curtains over the whole screen: each has its own height, slant, colour and drift, and breaks into
+    // pieces along its length, so the light is spread about rather than one band across the top.
+    const curtains = CURTAINS.map((curtain) => ({ ...curtain, base: curtain.y + 0.1 * (noise(curtain.seed, t * 0.5, 1) - 0.5) }));
+    data.fill(0);
     for (let x = 0; x < width; x += 1) {
       const u = x / width;
-      // Each column has its curtain's height, its brightness and fine vertical rays, all drifting slowly.
-      // Two curtains, each with its own height, brightness and fine vertical rays, all drifting slowly.
-      const centre = 0.32 + 0.18 * (noise(u * 2.2, t, 0) - 0.5) + 0.08 * (noise(u * 5, t * 1.7, 3) - 0.5);
-      const strength = 0.35 + 0.95 * noise(u * 1.6, t * 0.8, 6);
-      const second = 0.2 + 0.14 * (noise(u * 1.8, t * 0.7, 12) - 0.5);
-      const secondStrength = 0.2 + 0.7 * noise(u * 2.4, t * 0.9, 15);
-      const rays = 0.6 + 0.4 * noise(u * 26, t * 2.4, 9);
+      const rays = 0.55 + 0.45 * noise(u * 24, t * 2.2, 9);
+      const columns = curtains.map((curtain) => {
+        const sway = curtain.base + curtain.slant * (u - 0.5) + 0.12 * (noise(u * curtain.wave + curtain.seed, t * curtain.speed, 2) - 0.5);
+        // Where along its length a curtain shows: some stretches fade out, so the pieces lie apart.
+        const piece = Math.max(0, noise(u * 2.6 + curtain.seed * 3, t * 0.6, 5) - 0.42) * 2.4;
+        return { centre: sway, strength: piece * curtain.power, colour: curtain.colour };
+      });
       for (let y = 0; y < height; y += 1) {
         const v = y / height;
-        const below = v - centre;
-        const belowSecond = v - second;
-        // Light hangs from a bright lower edge and fades slowly upward, as aurora curtains do.
-        const curtain = (d: number): number => (d >= 0 ? Math.exp(-(d * d) / 0.003) : Math.exp(-(d * d) / 0.05));
-        const glow = Math.min(1, (curtain(below) * strength + curtain(belowSecond) * secondStrength * 0.7) * rays);
-        const top = Math.min(1, Math.max(0, -below * 3.2));
+        let r = 0; let g = 0; let b = 0; let a = 0;
+        for (const column of columns) {
+          if (!column.strength) continue;
+          const d = v - column.centre;
+          // A bright lower edge with light hanging upward from it, as aurora curtains do.
+          const fall = d >= 0 ? Math.exp(-(d * d) / 0.0012) : Math.exp(-(d * d) / 0.012);
+          const glow = fall * column.strength * rays;
+          r += column.colour[0] * glow; g += column.colour[1] * glow; b += column.colour[2] * glow; a += glow;
+        }
+        if (!a) continue;
         const index = (y * width + x) * 4;
-        data[index] = 40 + 120 * top;
-        data[index + 1] = 235 - 120 * top;
-        data[index + 2] = 150 + 100 * top;
-        data[index + 3] = glow * (light ? 120 : 220);
+        data[index] = r / a; data[index + 1] = g / a; data[index + 2] = b / a;
+        data[index + 3] = Math.min(1, a) * (light ? 120 : 210);
       }
     }
     draw.putImageData(image, 0, 0);
