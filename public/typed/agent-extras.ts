@@ -194,6 +194,20 @@ async function refreshMemoryCache(): Promise<void> {
   } catch { /* offline or signed out: keep the cache */ }
 }
 
+// The list in Settings shows this copy. It used to be refreshed only after the old server's memory tools, which no
+// longer run, so notes Hafize saved never appeared. Now it follows the server when the page opens, when it comes back
+// into view, and whenever a note is saved.
+let memoryRefreshAt = 0;
+function refreshMemorySoon(): void {
+  if (Date.now() - memoryRefreshAt < 5_000) return;
+  memoryRefreshAt = Date.now();
+  void refreshMemoryCache();
+}
+window.addEventListener('hafize:memory-saved', () => { memoryRefreshAt = 0; refreshMemorySoon(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshMemorySoon(); });
+// Signing in takes a moment after the page opens; a request before it is simply tried again.
+for (const delay of [1_500, 6_000, 15_000]) window.setTimeout(() => { memoryRefreshAt = 0; refreshMemorySoon(); }, delay);
+
 window.addEventListener('hafize:memory-remote', (event) => {
   const detail = (event as CustomEvent).detail || {};
   const toast = (text: string) => {
