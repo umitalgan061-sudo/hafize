@@ -1,6 +1,6 @@
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-import { DocxError, docxToText, documentXmlToText } from './docx-text.ts';
+import { DocxError, docxToText, documentXmlToText, pptxToText, zipListing } from './docx-text.ts';
 
 /** A real zip container with deflated entries, as Word writes them. */
 function zip(files: Record<string, string>): Uint8Array {
@@ -49,6 +49,17 @@ describe('docx text', () => {
   it('puts table cells side by side, one row per line', () => {
     const xml = body('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>Ad</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Gün</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Ali</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>5</w:t></w:r></w:p></w:tc></w:tr></w:tbl>');
     expect(documentXmlToText(xml)).toBe('Ad\tGün\nAli\t5');
+  });
+
+  it('reads a presentation slide by slide, in slide order', async () => {
+    const slide = (text: string) => `<p:sld xmlns:a="a"><a:p><a:r><a:t>${text}</a:t></a:r></a:p><a:p><a:r><a:t>alt satır</a:t></a:r></a:p></p:sld>`;
+    const deck = zip({ 'ppt/slides/slide10.xml': slide('Onuncu'), 'ppt/slides/slide2.xml': slide('İkinci'), 'ppt/presentation.xml': '<p/>' });
+    expect(await pptxToText(deck)).toBe('[Slayt 1]\nİkinci\nalt satır\n\n[Slayt 2]\nOnuncu\nalt satır');
+  });
+
+  it('lists what is inside a zip without unpacking it', () => {
+    expect(zipListing(zip({ 'rapor.pdf': 'xx', 'klasor/not.txt': 'abc' }))).toBe('2 öğe:\nrapor.pdf (2 bayt)\nklasor/not.txt (3 bayt)');
+    expect(() => zipListing(new Uint8Array(10))).toThrow('zip');
   });
 
   it('refuses a file that is not a Word document', async () => {
