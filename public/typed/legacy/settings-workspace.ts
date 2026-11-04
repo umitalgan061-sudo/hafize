@@ -220,7 +220,8 @@
 
     function renderMemory() {
       const all = readMemory(storage);
-      const tagsOf = (note) => (Array.isArray(note.tags) ? note.tags.map(String) : []);
+      // "otomatik" says who wrote the note, not what it is about, and nearly every note has it.
+      const tagsOf = (note) => (Array.isArray(note.tags) ? note.tags.map(String).filter((tag) => tag !== 'otomatik') : []);
       const tags = [...new Set(all.flatMap(tagsOf))];
       if (memoryFilter && !tags.includes(memoryFilter)) memoryFilter = '';
       memoryFilters.replaceChildren();
