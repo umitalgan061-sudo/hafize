@@ -70,6 +70,8 @@ html[data-theme] .toast:not(.hidden),html .toast:not(.hidden){background:color-m
 .background-output>summary::before{content:"▸";transition:transform .15s ease}
 .background-output[open]>summary::before{transform:rotate(90deg)}
 .background-output[open]>summary{margin-bottom:8px}
+.background-output-text.is-sentence{font:14px/1.5 inherit;font-family:inherit;color:var(--muted,inherit)}
+.background-output-text{margin:0;max-height:40dvh;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--text,inherit)}
 
 /* A new message comes in softly. */
 .message.is-new{animation:hz-msg-in .32s cubic-bezier(.2,.8,.3,1) both}

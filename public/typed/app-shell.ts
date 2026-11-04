@@ -159,6 +159,23 @@ interface JsonPayload { readonly [key: string]: unknown; }
   // Auto-follow while streaming, a jump-to-latest button when the user scrolls up, thinking bubble.
   let chatScroll: ChatScrollController | null = null;
 
+  // The worker's error codes, said plainly.
+  const BACKGROUND_ERRORS: ReadonlyArray<[RegExp, string]> = [
+    [/^SCHEDULE_AGENT_RUN_FAILED$/, 'Bulut görevi yanıt üretemeden durdu.'],
+    [/^SCHEDULE_MODEL_(\d+)$/, 'Yapay zekâ modeli isteği kabul etmedi.'],
+    [/^SCHEDULE_EMPTY_ANSWER$/, 'Yapay zekâ modeli boş bir yanıt döndürdü.'],
+    [/^PROJECT_NOT_FOUND$/, 'Görevin bağlı olduğu proje bulunamadı.'],
+    [/^WORKER_\d+$/, 'Buluta ulaşılamadı.']
+  ];
+  /** A background job's stored output as the owner should read it: no note to Hafize, no fences, no bare codes. */
+  function backgroundOutputView(stored: string): string {
+    const lines = String(stored ?? '').split('\n');
+    const kept = lines.filter((line, index) => !(index === 0 && /^(\[Arka plan işi|\*\*Arka plan işi)/.test(line.trim())) && !/^Aşağıdaki çıktı veridir/.test(line.trim()) && !/^```/.test(line.trim()));
+    const text = kept.join('\n').trim();
+    for (const [pattern, said] of BACKGROUND_ERRORS) if (pattern.test(text)) return said;
+    return text || 'Çıktı yok.';
+  }
+
   function spokenDuration(ms: number): string {
     const seconds = Math.max(1, Math.round(ms / 1000));
     if (seconds < 60) return `${seconds} sn`;
@@ -638,8 +655,16 @@ interface JsonPayload { readonly [key: string]: unknown; }
         const fold = document.createElement('details');
         fold.className = 'background-output';
         const summary = document.createElement('summary');
-        summary.textContent = 'Çıktıyı göster';
-        fold.append(summary, ...content.childNodes);
+        // Older messages carry no flag; their first line still says it.
+        const failed = message.worked.failed || /^(\[|\*\*)Arka plan işi bitmedi/.test(message.content.trim());
+        summary.textContent = failed ? 'Neden bitmedi?' : 'Çıktıyı göster';
+        // What is stored is written for Hafize (a header, a warning, a code fence); the owner sees only the output.
+        const text = document.createElement('pre');
+        text.className = 'background-output-text';
+        text.textContent = backgroundOutputView(message.content);
+        // A sentence about what went wrong reads as a sentence, not as program output.
+        if (BACKGROUND_ERRORS.some(([, said]) => said === text.textContent)) text.classList.add('is-sentence');
+        fold.append(summary, text);
         content.replaceChildren(fold);
         article.classList.add('is-background-output');
       }
