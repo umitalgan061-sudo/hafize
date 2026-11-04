@@ -33,6 +33,7 @@ const CSS = `
    side; with both there, they read as a single pill, the way a terminal assistant shows its status. */
 .hz-dock{position:absolute;left:12px;right:12px;bottom:calc(100% + 10px);z-index:6;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:8px;pointer-events:none}
 .hz-dock>*{pointer-events:auto}
+@media (min-width:900px){.hz-dock{left:calc((100% - 100vw) / 2 + 56px)}}
 .hz-dock>.chat-thinking{order:0}.hz-dock>.hz-bg-line{order:1}
 .hz-dock:empty{display:none}
 .hz-dock:has(>.chat-thinking:not([hidden])):has(>.hz-bg-line:not([hidden])){right:auto;max-width:calc(100% - 24px);gap:0;padding:0 4px 0 0;border:1px solid color-mix(in srgb,var(--hz-orange) 32%,transparent);border-radius:999px;background:color-mix(in srgb,var(--bg,#fff) 82%,var(--hz-orange) 8%);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 6px 20px rgb(0 0 0/.16);flex-wrap:nowrap}

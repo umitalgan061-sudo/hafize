@@ -89,14 +89,26 @@ import { docxToText, pptxToText, zipListing } from './docx-text.ts';
     for (const [index, file] of files.entries()) {
       const chip = document.createElement('span');
       chip.className = 'attachment-chip';
-      chip.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+      if (file.preview) {
+        chip.classList.add('has-preview');
+        const thumb = document.createElement(file.kind === 'video' ? 'video' : 'img');
+        thumb.className = 'attachment-thumb';
+        thumb.src = file.preview;
+        if (file.kind === 'video') { thumb.muted = true; thumb.preload = 'metadata'; } else { thumb.alt = ''; }
+        chip.append(thumb);
+      }
+      const label = document.createElement('span');
+      label.className = 'attachment-label';
+      label.textContent = `${file.name} · ${(file.size / 1024).toFixed(1)} KB`;
+      chip.append(label);
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'attachment-remove';
       remove.setAttribute('aria-label', `${file.name} ekini kaldır`);
       remove.textContent = '×';
       remove.addEventListener('click', () => {
-        files.splice(index, 1);
+        const [gone] = files.splice(index, 1);
+        if (gone?.preview) URL.revokeObjectURL(gone.preview);
         renderAttachmentStrip();
         ui.messageInput.focus();
       });
@@ -114,7 +126,10 @@ import { docxToText, pptxToText, zipListing } from './docx-text.ts';
   // goes out: the box holds what the user wrote and nothing else.
   function insertAttachment(file, fullBlock, message) {
     const files = ui.composer._hafizeAttachments || (ui.composer._hafizeAttachments = []);
-    files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: fullBlock });
+    // Pictures and videos show a small preview in the chip, so the user sees what is going out, not only its name.
+    const kind = /^image\//.test(file.type || '') ? 'image' : /^video\//.test(file.type || '') ? 'video' : '';
+    const preview = kind && typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : '';
+    files.push({ name: file.name, size: file.size, lastModified: file.lastModified, block: fullBlock, preview, kind });
     renderAttachmentStrip();
     ui.messageInput.focus();
     announce(message);
@@ -238,6 +253,7 @@ import { docxToText, pptxToText, zipListing } from './docx-text.ts';
   function sendAttachments() {
     const blocks = (ui.composer._hafizeAttachments || []).map((file) => file.block).join('');
     if (blocks) ui.messageInput.value = `${ui.messageInput.value}${blocks}`;
+    for (const file of ui.composer._hafizeAttachments || []) if (file.preview) setTimeout(() => URL.revokeObjectURL(file.preview), 0);
     ui.composer._hafizeAttachments = [];
     renderAttachmentStrip();
   }

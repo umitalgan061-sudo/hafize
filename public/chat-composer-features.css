@@ -17,6 +17,18 @@
   font-size: 11px;
   overflow-wrap: anywhere;
 }
+/* A picture or video waiting to be sent shows itself, small, beside its name. */
+.attachment-chip.has-preview { padding: 4px 8px 4px 4px; }
+.attachment-thumb {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 7px;
+  object-fit: cover;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.attachment-label { min-width: 0; }
 .attachment-remove {
   border: 0;
   border-radius: 7px;
