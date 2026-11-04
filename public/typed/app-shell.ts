@@ -123,23 +123,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
   // Entering the app always lands on a new chat; earlier ones wait in the sidebar. A tab the browser put to sleep
   // to save memory reloads when it is looked at again, and that is not an entry.
   const ACTIVE_SESSION_KEY = 'hafize.active-conversation';
-  // The chat that was open stays open until the app is closed. A phone puts an app in the background and may unload it
-  // to save memory; opened again, it reloads and must come back to the same chat. The session store lives exactly as
-  // long as the window: it survives a reload and a phone's unloading, and is gone once the app or tab is closed.
-  // iPhones do not always keep it through an unloading, so a home-screen app also remembers the chat for a while.
-  const RESUME_KEY = 'hafize.resume-conversation';
-  const RESUME_WINDOW_MS = 6 * 60 * 60_000;
-  const homeScreenApp = () => globalThis.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  const resumeId = (() => {
-    try {
-      const own = globalThis.sessionStorage?.getItem(ACTIVE_SESSION_KEY);
-      if (own) return own;
-      if (!homeScreenApp()) return null;
-      const saved = JSON.parse(localStorage.getItem(RESUME_KEY) || 'null');
-      return saved && Date.now() - Number(saved.at) < RESUME_WINDOW_MS ? String(saved.id) : null;
-    } catch { return null; }
-  })();
-  const sleptOnId = resumeId;
+  // The chat that was open stays open until the app is closed, and a closed app opens on a new chat. Put in the
+  // background, the page stays alive and simply carries on. The session store lives exactly as long as the window:
+  // it survives a reload or a browser putting the tab to sleep, and is gone once the app or tab is closed. Nothing
+  // longer-lived is used, because a phone does not say whether the owner closed the app or it unloaded it itself.
+  const sleptOnId = (() => { try { return globalThis.sessionStorage?.getItem(ACTIVE_SESSION_KEY) ?? null; } catch { return null; } })();
+  try { localStorage.removeItem('hafize.resume-conversation'); } catch { /* private mode */ }
   let activeConversationId = conversations.find((item) => item.id === sleptOnId)?.id ?? conversations.find((item) => !item.messages?.length)?.id ?? null;
   queueMicrotask(() => rememberPersisted(conversations));
   let isStreaming = false;
@@ -1686,12 +1675,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   // A phone keeps an installed app alive in the background, so coming back is an entry too. A short look at
   // another app (copying something) stays in the chat. Another tab or a minimized window is not leaving.
-  // Remembered whenever the app leaves the screen, so it can come back to the same chat (see resumeId above).
+  // Remembered whenever the app leaves the screen, so a reload comes back to the same chat (see sleptOnId above).
   function rememberActiveChat() {
     try {
       if (activeConversationId) globalThis.sessionStorage?.setItem(ACTIVE_SESSION_KEY, activeConversationId);
       else globalThis.sessionStorage?.removeItem(ACTIVE_SESSION_KEY);
-      if (homeScreenApp() && activeConversationId) localStorage.setItem(RESUME_KEY, JSON.stringify({ id: activeConversationId, at: Date.now() }));
     } catch { /* private mode */ }
   }
   document.addEventListener('visibilitychange', () => {
