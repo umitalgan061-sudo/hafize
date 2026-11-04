@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v152`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v153`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
