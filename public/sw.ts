@@ -60,9 +60,15 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
+    const data = event.notification.data || {};
+    const deepLink = data.deepLink || '/';  // payload'dan deepLink oku, yoksa ana sayfa
     const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const app = open.find((client) => new URL(client.url).origin === self.location.origin);
-    if (app) { await app.focus(); app.postMessage({ type: 'hafize:push-open' }); return; }
-    await self.clients.openWindow('/');
+    if (app) {
+      await app.focus();
+      app.postMessage({ type: 'hafize:push-open', deepLink });
+      return;
+    }
+    await self.clients.openWindow(deepLink);
   })());
 });
