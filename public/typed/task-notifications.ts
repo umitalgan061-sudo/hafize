@@ -6,6 +6,11 @@ export interface TaskResult { readonly id: string; readonly task: string; readon
 
 const POLL_MS = 60_000;
 const SEEN_KEY = 'hafize.taskResults.seen.v1';
+// The owner's "no notices" choice, shared with the Hafize layer (hafize-uyum), which sets it from Settings or the chat.
+export const MUTED_KEY = 'hafize.bildirim.kapali';
+// As many ids as the worker keeps results (1000), with room to spare. Remembering only 200 of them made every other
+// unread result look new again each minute: with a full list that was 800 notices a minute, for ever (2026-11-11).
+const MAX_SEEN = 3000;
 const ERRORS: Record<string, string> = {
   SCHEDULE_AGENT_RUN_FAILED: 'Görev çalıştırılamadı.',
   SCHEDULE_MODEL_NOT_CONFIGURED: 'Model ayarlı olmadığı için görev çalışmadı.',
@@ -39,7 +44,8 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
   };
   const api = (path: string, init?: RequestInit) => ((root as typeof globalThis & { HafizeAuth?: { fetch: typeof fetch } }).HafizeAuth?.fetch ?? root.fetch.bind(root))(path, init);
   const readSeen = () => { try { return new Set<string>(JSON.parse(root.localStorage.getItem(SEEN_KEY) || '[]')); } catch { return new Set<string>(); } };
-  const writeSeen = (seen: Set<string>) => { try { root.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-200))); } catch { /* private mode */ } };
+  const writeSeen = (seen: Set<string>) => { try { root.localStorage.setItem(SEEN_KEY, JSON.stringify([...seen].slice(-MAX_SEEN))); } catch { /* private mode */ } };
+  const muted = () => { try { return root.localStorage.getItem(MUTED_KEY) === '1'; } catch { return false; } };
 
   let results: TaskResult[] = [];
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -54,13 +60,16 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
     toast.classList.remove('hidden');
     root.setTimeout(() => { if (toast.textContent === message) toast.classList.add('hidden'); }, 6000);
   };
-  const notify = (result: TaskResult) => {
-    const title = result.ok ? 'Hafize görevi tamamlandı' : 'Hafize görevi başarısız';
-    const body = taskTitle(result.task);
+  // One notice however many results came in together: the list in Settings has each of them.
+  const notify = (fresh: readonly TaskResult[]) => {
+    if (!fresh.length || muted()) return;
+    const last = fresh[fresh.length - 1];
+    const title = fresh.length > 1 ? `Hafize: ${fresh.length} görev sonucu` : last.ok ? 'Hafize görevi tamamlandı' : 'Hafize görevi başarısız';
+    const body = taskTitle(last.task);
     show(`${title}: ${body}`);
     if (typeof root.Notification !== 'function' || root.Notification.permission !== 'granted') return;
     try {
-      const notice = new root.Notification(title, { body, tag: result.id, icon: '/icons/icon-192.png' });
+      const notice = new root.Notification(title, { body, tag: 'hafize-gorev-sonucu', icon: '/icons/icon-192.png' });
       notice.onclick = () => { root.focus(); openPanel(); notice.close(); };
     } catch { /* some platforms only allow notifications from a service worker */ }
   };
@@ -121,9 +130,9 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
     // Results from before this browser ever looked are history, not news.
     const fresh = firstLoad && !root.localStorage.getItem(SEEN_KEY) ? [] : newResults(results, seen);
     firstLoad = false;
-    for (const result of fresh) notify(result);
-    for (const result of results) seen.add(result.id);
-    writeSeen(seen);
+    notify(fresh);
+    // Only what is still listed is remembered, so the memory never outgrows the list.
+    writeSeen(new Set(results.map((result) => result.id)));
     renderList();
   };
 
@@ -157,7 +166,7 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
   return () => { if (timer) clearInterval(timer); watcher?.disconnect(); panel?.remove(); };
 }
 
-const api = Object.freeze({ errorText, installTaskNotifications, newResults, taskTitle });
+const api = Object.freeze({ errorText, installTaskNotifications, newResults, taskTitle, MUTED_KEY });
 (globalThis as typeof globalThis & { HafizeTaskNotifications?: unknown }).HafizeTaskNotifications = api;
 if (typeof document !== 'undefined') {
   const start = () => installTaskNotifications(document, globalThis);
