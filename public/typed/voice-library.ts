@@ -190,6 +190,13 @@ let ready: Promise<unknown> | null = null;
 const loaded = new Map<string, Promise<VoiceConfig>>();
 type VoiceConfig = { audio: { sample_rate: number }; inference: { noise_scale: number; length_scale: number; noise_w: number }; num_speakers?: number; espeak: { voice: string }; phoneme_id_map: Record<string, number[]> };
 
+const RUNNER_FILE = '/typed-build/vendor/ort/ort-wasm-simd-threaded.wasm';
+let runnerWarm: Promise<void> | null = null;
+function warmRunner(): Promise<void> {
+  runnerWarm ||= fetch(RUNNER_FILE).then((response) => response.arrayBuffer()).then(() => undefined).catch(() => { runnerWarm = null; });
+  return runnerWarm;
+}
+
 function ensureLoaded(voice: PiperVoice): Promise<VoiceConfig> {
   const url = modelUrl(voice);
   let entry = loaded.get(url);
@@ -198,6 +205,9 @@ function ensureLoaded(voice: PiperVoice): Promise<VoiceConfig> {
     entry = (async () => {
       const [configBytes, model] = await Promise.all([readStored(configUrl(voice)), readStored(url)]);
       await ready;
+      // The model runner fetches its 11 MB file by its own name, so it cannot be handed a stored copy. Read whole
+      // here first, with no clock on it, it is in the browser's cache when the worker asks, and that costs no download.
+      await warmRunner();
       // Memory-only voices must stay readable, so the worker gets a copy of those.
       await callModel({ type: 'load', key: voice.key, model: memory.has(url) ? model.slice(0) : model }, memory.has(url) ? [] : [model]);
       return JSON.parse(new TextDecoder().decode(configBytes)) as VoiceConfig;
@@ -208,15 +218,75 @@ function ensureLoaded(voice: PiperVoice): Promise<VoiceConfig> {
   return entry;
 }
 
+// ---- the engine's own files ------------------------------------------------------------------
+// The phonemizer needs an 18 MB data file and the model runner an 11 MB one. A worker used to fetch them itself, under
+// a clock that also covered the download: on a slow line the clock ran out first, the worker was thrown away with the
+// download unfinished (so nothing was kept), and the next sentence started it all again. One afternoon of voice mode
+// sent gigabytes that way and took every site of the project over its quota (2026-11-09). So the page fetches each
+// file once, with no clock on it, keeps it in Cache Storage, and workers are given the stored copy.
+// Bump the name when the files under /vendor/piper-phonemize change.
+const ENGINE_CACHE = 'hafize-voice-engine-v1';
+const ENGINE_TYPES: Record<string, string> = { wasm: 'application/wasm', data: 'application/octet-stream' };
+type EngineDeps = { openStore(): Promise<Pick<Cache, 'match' | 'put'> | null>; fetchFile(path: string): Promise<Response>; toUrl(blob: Blob): string };
+const engineDeps: EngineDeps = {
+  openStore: async () => (typeof caches === 'undefined' ? null : caches.open(ENGINE_CACHE)),
+  fetchFile: (path) => fetch(path),
+  toUrl: (blob) => URL.createObjectURL(blob)
+};
+/** One address per file for the life of the page; however often it is asked for, it is downloaded at most once. */
+export function createEngineFiles(deps: EngineDeps = engineDeps) {
+  const held = new Map<string, Promise<string>>();
+  return (path: string): Promise<string> => {
+    let entry = held.get(path);
+    if (!entry) {
+      entry = (async () => {
+        const type = ENGINE_TYPES[path.split('.').pop() ?? ''] ?? 'application/octet-stream';
+        const store = await deps.openStore().catch(() => null);
+        let body = await (await store?.match(path))?.blob();
+        if (!body) {
+          const fresh = await deps.fetchFile(path);
+          if (!fresh.ok) throw new Error('VOICE_ENGINE_UNAVAILABLE');
+          body = await fresh.blob();
+          // A full store must not stop speech: the copy in hand still works for this page.
+          await store?.put(path, new Response(body, { headers: { 'Content-Type': type } })).catch(() => undefined);
+        }
+        return deps.toUrl(new Blob([body], { type }));
+      })();
+      entry.catch(() => held.delete(path));
+      held.set(path, entry);
+    }
+    return entry;
+  };
+}
+const engineFile = createEngineFiles();
+
+/**
+ * Stops the engine being tried over and over when it keeps failing: after `limit` failures in a row it is left alone
+ * for `restMs`, and callers hear at once that it is resting, so speech falls back to a browser voice.
+ */
+export function createBreaker({ limit = 2, restMs = 10 * 60_000, now = () => Date.now() } = {}) {
+  let failures = 0;
+  let restUntil = 0;
+  return {
+    open: () => now() < restUntil,
+    succeeded() { failures = 0; },
+    failed() { failures += 1; if (failures >= limit) { failures = 0; restUntil = now() + restMs; } }
+  };
+}
+const engineBreaker = createBreaker();
+
 // The phonemizer prints one result per call, so calls run strictly one after another.
 let phonemeWorker: Worker | null = null;
 let phonemeQueue: Promise<unknown> = Promise.resolve();
 function phonemize(text: string, config: VoiceConfig): Promise<number[]> {
-  const run = () => new Promise<number[]>((resolve, reject) => {
+  const run = async () => {
+    // Before the clock starts: a download is not the worker being stuck.
+    const [wasm, data] = await Promise.all([engineFile(`${PHONEMIZER}piper_phonemize.wasm`), engineFile(`${PHONEMIZER}piper_phonemize.data`)]);
+    return new Promise<number[]>((resolve, reject) => {
     if (!phonemeWorker) {
       phonemeWorker = new Worker(`${PHONEMIZER}PhonemizeWebWorker.js`, { type: 'module' });
       phonemeWorker.postMessage({ type: 'constructor', data: {} });
-      phonemeWorker.postMessage({ type: 'loadModule', data: [`${PHONEMIZER}piper_phonemize.wasm`, `${PHONEMIZER}piper_phonemize.data`] });
+      phonemeWorker.postMessage({ type: 'loadModule', data: [wasm, data] });
     }
     const worker = phonemeWorker;
     const fail = (error: Error) => { clearTimeout(timer); worker.terminate(); if (phonemeWorker === worker) phonemeWorker = null; reject(error); };
@@ -224,7 +294,8 @@ function phonemize(text: string, config: VoiceConfig): Promise<number[]> {
     worker.onerror = (event) => fail(new Error(event.message || 'PHONEMIZER_FAILED'));
     worker.onmessage = ({ data }) => { if (data && Array.isArray(data.phoneme_ids)) { clearTimeout(timer); resolve(data.phoneme_ids); } };
     worker.postMessage({ type: 'phonemize', data: [text, [{ espeak: config.espeak, phoneme_id_map: config.phoneme_id_map }]] });
-  });
+    });
+  };
   const result = phonemeQueue.then(run, run);
   phonemeQueue = result.catch(() => undefined);
   return result;
@@ -237,12 +308,20 @@ export function synthesize(voice: PiperVoice, speaker: number, text: string, rat
   let entry = prepared.get(id);
   if (!entry) {
     entry = (async () => {
-      const config = await ensureLoaded(voice);
-      const ids = keepKnownPhonemes(await phonemize(text, config), config.phoneme_id_map);
-      if (!ids.length) throw new Error('VOICE_EMPTY_OUTPUT');
-      const { pcm } = await callModel({ type: 'run', key: voice.key, ids, config: { audio: config.audio, inference: config.inference, num_speakers: config.num_speakers }, rate, speaker });
-      if (!pcm?.length) throw new Error('VOICE_EMPTY_OUTPUT');
-      return { pcm, sampleRate: config.audio.sample_rate };
+      if (engineBreaker.open()) throw new Error('VOICE_ENGINE_RESTING');
+      try {
+        const config = await ensureLoaded(voice);
+        const ids = keepKnownPhonemes(await phonemize(text, config), config.phoneme_id_map);
+        if (!ids.length) throw new Error('VOICE_EMPTY_OUTPUT');
+        const { pcm } = await callModel({ type: 'run', key: voice.key, ids, config: { audio: config.audio, inference: config.inference, num_speakers: config.num_speakers }, rate, speaker });
+        if (!pcm?.length) throw new Error('VOICE_EMPTY_OUTPUT');
+        engineBreaker.succeeded();
+        return { pcm, sampleRate: config.audio.sample_rate };
+      } catch (error) {
+        // Text with nothing to say is not the engine failing.
+        if ((error as Error)?.message !== 'VOICE_EMPTY_OUTPUT') engineBreaker.failed();
+        throw error;
+      }
     })();
     entry.catch(() => prepared.delete(id));
     prepared.set(id, entry);
