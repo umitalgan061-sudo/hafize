@@ -62,3 +62,31 @@ describe('task result notices', () => {
     p.stop?.();
   });
 });
+
+describe('the result list in Settings', () => {
+  it('builds rows for the newest results only, however long the log is', async () => {
+    vi.useFakeTimers();
+    const rows: unknown[] = [];
+    const node = () => {
+      const self: Record<string, unknown> & { children: unknown[] } = { children: [], className: '', textContent: '', type: '',
+        append: (...items: unknown[]) => { self.children.push(...items); }, replaceChildren: (...items: unknown[]) => { self.children = items; },
+        setAttribute: () => undefined, addEventListener: () => undefined, querySelector: () => null, insertBefore: (item: unknown) => { self.children.push(item); }, remove: () => undefined, scrollIntoView: () => undefined };
+      return self;
+    };
+    const host = node();
+    const made: Array<ReturnType<typeof node>> = [];
+    const documentRef = { querySelector: (selector: string) => (selector === '.settings-workspace' ? host : null), querySelectorAll: () => [], documentElement: {},
+      createElement: () => { const item = node(); made.push(item); return item; } } as unknown as Document;
+    const store = new Map([[SEEN_KEY, '[]']]);
+    const root = { localStorage: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value); } },
+      fetch: async () => new Response(JSON.stringify({ results: Array.from({ length: 1000 }, (_, index) => result(index)) })), setTimeout: () => 0 } as unknown as typeof globalThis;
+    const stop = installTaskNotifications(documentRef, root);
+    await vi.advanceTimersByTimeAsync(0);
+    rows.push(...made.filter((item) => item.className === 'task-result' || item.className === 'task-result is-failed'));
+    expect(rows.length).toBe(20);
+    expect(made.some((item) => item.textContent === 'Kalan 980 sonucu göster')).toBe(true);
+    expect(made.some((item) => item.textContent === 'Tümünü temizle')).toBe(true);
+    stop?.();
+    vi.useRealTimers();
+  });
+});

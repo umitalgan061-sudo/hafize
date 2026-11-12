@@ -5,6 +5,8 @@
 export interface TaskResult { readonly id: string; readonly task: string; readonly ok: boolean; readonly content: string; readonly error: string; readonly createdAt: string; readonly readAt: string | null; }
 
 const POLL_MS = 60_000;
+// A list of a thousand results was a thousand rows to build and scroll past on a phone.
+const SHOWN_AT_FIRST = 20;
 const SEEN_KEY = 'hafize.taskResults.seen.v1';
 // The owner's "no notices" choice, shared with the Hafize layer (hafize-uyum), which sets it from Settings or the chat.
 export const MUTED_KEY = 'hafize.bildirim.kapali';
@@ -53,6 +55,32 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
   let list: HTMLElement | null = null;
   let permissionRow: HTMLElement | null = null;
   let firstLoad = true;
+  let showAll = false;
+  let toolbar: HTMLElement | null = null;
+  const ask = (message: string): Promise<boolean> => {
+    const themed = (root as typeof globalThis & { HafizeAsk?: { confirm(message: string, options?: Record<string, unknown>): Promise<boolean | null> } }).HafizeAsk;
+    return themed ? themed.confirm(message, { ok: 'Temizle', danger: true }).then(Boolean) : Promise.resolve(root.confirm(message));
+  };
+  const renderToolbar = () => {
+    if (!toolbar) return;
+    toolbar.replaceChildren();
+    if (!results.length) return;
+    toolbar.append(el('span', 'task-note', `${results.length} sonuç`));
+    const clear = el('button', '', 'Tümünü temizle');
+    clear.type = 'button';
+    clear.addEventListener('click', () => {
+      void ask(`${results.length} görev sonucunun hepsi silinsin mi? Bu geri alınamaz.`).then(async (yes) => {
+        if (!yes) return;
+        const response = await api('/api/task-results', { method: 'DELETE' }).catch(() => null);
+        if (!response?.ok) { show('Görev sonuçları temizlenemedi.'); return; }
+        results = [];
+        showAll = false;
+        renderList();
+        show('Görev sonuçları temizlendi.');
+      });
+    });
+    toolbar.append(clear);
+  };
 
   const show = (message: string) => {
     if (!toast) return;
@@ -95,9 +123,11 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
   };
   const renderList = () => {
     if (!list) return;
+    renderToolbar();
     list.replaceChildren();
     if (!results.length) { list.append(el('li', 'settings-memory-empty', 'Henüz arka plan görevi çalışmadı.')); return; }
-    for (const result of results) {
+    const visible = showAll ? results : results.slice(0, SHOWN_AT_FIRST);
+    for (const result of visible) {
       const item = el('li', result.ok ? 'task-result' : 'task-result is-failed');
       const head = el('div', 'task-result-head');
       const when = new Date(result.createdAt);
@@ -116,6 +146,14 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
       });
       item.append(remove);
       list.append(item);
+    }
+    if (visible.length < results.length) {
+      const more = el('li', 'settings-memory-empty');
+      const button = el('button', '', `Kalan ${results.length - visible.length} sonucu göster`);
+      button.type = 'button';
+      button.addEventListener('click', () => { showAll = true; renderList(); });
+      more.append(button);
+      list.append(more);
     }
   };
 
@@ -141,8 +179,9 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
     panel = el('section', 'settings-panel task-results');
     panel.append(el('h2', '', 'Görev sonuçları'), el('p', '', 'Kuralların ve zamanlanmış görevlerin arka planda ürettiği yanıtlar burada toplanır.'));
     permissionRow = el('div', 'settings-actions');
+    toolbar = el('div', 'settings-actions task-results-toolbar');
     list = el('ul', 'settings-memory-list task-result-list');
-    panel.append(permissionRow, list);
+    panel.append(permissionRow, toolbar, list);
     const voices = host.querySelector('.voice-library');
     const anchor = voices ?? host.querySelector('.settings-panel');
     if (anchor?.nextSibling) host.insertBefore(panel, anchor.nextSibling); else host.append(panel);

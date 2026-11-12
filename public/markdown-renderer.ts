@@ -838,6 +838,58 @@
     }
   }
 
+  // ---- colours for code -------------------------------------------------------------------------
+  // A small tokenizer of our own, so no library is fetched for it: comments, strings, numbers, keywords and
+  // constants, which is what makes code readable at a glance. It only ever splits the text into pieces; the pieces
+  // put together are the text again, so copying and reading aloud see the code exactly as it was written.
+  const CODE_FAMILIES = Object.freeze({
+    c: ['js', 'javascript', 'jsx', 'mjs', 'cjs', 'ts', 'typescript', 'tsx', 'java', 'c', 'h', 'cpp', 'c++', 'cs', 'csharp', 'go', 'rust', 'rs', 'php', 'swift', 'kotlin', 'kt', 'dart', 'scala', 'json', 'jsonc', 'css', 'scss'],
+    hash: ['py', 'python', 'sh', 'bash', 'shell', 'zsh', 'yaml', 'yml', 'toml', 'ruby', 'rb', 'r', 'powershell', 'ps1', 'dockerfile', 'makefile', 'ini', 'conf', 'perl'],
+    sql: ['sql', 'mysql', 'postgres', 'postgresql', 'plsql', 'sqlite'],
+    markup: ['html', 'xml', 'svg', 'vue']
+  });
+  const CODE_KEYWORDS = new Set(('abstract as async await break case catch class const continue debugger def default del delete do elif else enum except export extends ' +
+    'final finally fn for from func function global go if impl implements import in instanceof interface is lambda let match mod mut namespace new not of or and package pass ' +
+    'private protected pub public raise readonly return static struct super switch then this throw trait try type typeof use using var void where while with yield ' +
+    'select insert update into values set create table alter drop join left right inner outer on group by order having limit union distinct ' +
+    'echo fi done esac local end begin unless until elsif module require include param foreach').split(' '));
+  const CODE_CONSTANTS = new Set(['true', 'false', 'null', 'undefined', 'None', 'True', 'False', 'nil', 'NaN', 'Infinity', 'self', 'NULL', 'TRUE', 'FALSE']);
+  const CODE_PATTERNS = Object.freeze({
+    c: /(\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$))|("(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?|`(?:\\[\s\S]|[^`\\])*`?)|(\b(?:0[xX][\da-fA-F_]+|\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?)\b)|([A-Za-z_$][\w$]*)/g,
+    hash: /(#[^\n]*)|("""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?)|(\b(?:0[xX][\da-fA-F_]+|\d[\d_]*(?:\.\d+)?(?:[eE][+-]?\d+)?)\b)|([A-Za-z_][\w]*)/g,
+    sql: /(--[^\n]*|\/\*[\s\S]*?(?:\*\/|$))|('(?:''|[^'])*'?|"(?:[^"])*"?)|(\b\d+(?:\.\d+)?\b)|([A-Za-z_][\w]*)/g,
+    markup: /(<!--[\s\S]*?(?:-->|$))|("(?:[^"\n])*"?|'(?:[^'\n])*'?)|(\b\d+(?:\.\d+)?\b)|(<\/?[A-Za-z][\w:-]*|\/?>)/g
+  });
+  const MAX_HIGHLIGHT_CHARS = 40_000;
+
+  /** Code as [text, kind] pieces: kind is '', 'c' (comment), 's' (string), 'n' (number), 'k' (keyword) or 'l' (constant). */
+  function tokenizeCode(text, language) {
+    const source = String(text ?? '');
+    const name = String(language ?? '').toLowerCase();
+    const family = Object.keys(CODE_FAMILIES).find((key) => CODE_FAMILIES[key].includes(name));
+    if (!family || source.length > MAX_HIGHLIGHT_CHARS) return [[source, '']];
+    const pattern = new RegExp(CODE_PATTERNS[family].source, 'g');
+    const pieces = [];
+    let at = 0;
+    const plain = (upTo) => { if (upTo > at) pieces.push([source.slice(at, upTo), '']); };
+    for (let match = pattern.exec(source); match; match = pattern.exec(source)) {
+      if (!match[0]) { pattern.lastIndex += 1; continue; }
+      let kind = match[1] !== undefined ? 'c' : match[2] !== undefined ? 's' : match[3] !== undefined ? 'n' : '';
+      if (match[4] !== undefined) {
+        const word = match[4];
+        if (family === 'markup') kind = 'k';
+        else if (CODE_CONSTANTS.has(word)) kind = 'l';
+        else if (CODE_KEYWORDS.has(family === 'sql' ? word.toLowerCase() : word)) kind = 'k';
+      }
+      if (!kind) continue;
+      plain(match.index);
+      pieces.push([match[0], kind]);
+      at = match.index + match[0].length;
+    }
+    plain(source.length);
+    return pieces.length ? pieces : [[source, '']];
+  }
+
   function renderCodeBlock(doc, block) {
     const figure = element(doc, 'div', 'md-code');
     if (block.language) figure.setAttribute('data-language', block.language);
@@ -850,6 +902,8 @@
     // output and the message workspace read it.
     label.setAttribute('data-language', block.language || 'kod');
     label.setAttribute('aria-hidden', 'true');
+    // Shown in capitals by the stylesheet; without this a Turkish page writes JAVASCRİPT, with a dotted İ.
+    label.setAttribute('lang', 'en');
 
     const copy = element(doc, 'button', 'md-code-copy');
     copy.setAttribute('type', 'button');
@@ -864,7 +918,12 @@
     const pre = element(doc, 'pre', 'md-code-body');
     const code = element(doc, 'code');
     if (block.language) code.setAttribute('data-language', block.language);
-    code.textContent = block.text;
+    for (const [text, kind] of tokenizeCode(block.text, block.language)) {
+      if (!kind) { code.appendChild(doc.createTextNode(text)); continue; }
+      const piece = element(doc, 'span', `tok-${kind}`);
+      piece.textContent = text;
+      code.appendChild(piece);
+    }
     pre.appendChild(code);
 
     figure.appendChild(head);
@@ -1020,6 +1079,7 @@
     parseInline,
     parseMarkdown,
     toPlainText,
+    tokenizeCode,
     renderMarkdownInto,
     renderPlainInto,
     sourceFor
@@ -1039,6 +1099,7 @@ export const {
   parseInline,
   parseMarkdown,
   toPlainText,
+  tokenizeCode,
   renderMarkdownInto,
   renderPlainInto,
   sourceFor

@@ -8,6 +8,12 @@
   --md-code-bg: #f3f0e9;
   --md-code-head-bg: #e9e5db;
   --md-code-ink: #33352f;
+  /* Code colours: warm and quiet on paper, the same hues lifted for the dark page. */
+  --md-tok-c: #8a857a;
+  --md-tok-s: #4f7a3a;
+  --md-tok-n: #a8551f;
+  --md-tok-k: #8d3fa0;
+  --md-tok-l: #1f6f8b;
   --md-quote-bar: color-mix(in srgb, var(--premium-orange, #d9774f) 55%, transparent);
   --md-line: var(--premium-line, rgba(70, 61, 52, .13));
   --md-muted: var(--premium-muted, #8c877f);
@@ -18,6 +24,11 @@ html[data-theme="dark"] {
   --md-code-bg: #1b1c1d;
   --md-code-head-bg: #26272a;
   --md-code-ink: #e9e6e0;
+  --md-tok-c: #8b8880;
+  --md-tok-s: #a5c98a;
+  --md-tok-n: #f0a070;
+  --md-tok-k: #d49be6;
+  --md-tok-l: #7cc7e0;
   --md-inline-code-bg: color-mix(in srgb, var(--premium-orange, #dd7a52) 18%, transparent);
 }
 
@@ -151,6 +162,11 @@ ol.md-list { list-style: decimal; }
   tab-size: 2;
 }
 .md-code-body code { white-space: pre; }
+.md-code-body .tok-c { color: var(--md-tok-c); font-style: italic; }
+.md-code-body .tok-s { color: var(--md-tok-s); }
+.md-code-body .tok-n { color: var(--md-tok-n); }
+.md-code-body .tok-k { color: var(--md-tok-k); }
+.md-code-body .tok-l { color: var(--md-tok-l); }
 
 /* While a fenced block is still streaming its closing fence is missing; the
  * bar keeps the block visibly "in progress" instead of looking finished. */
