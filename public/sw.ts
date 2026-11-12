@@ -61,7 +61,8 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   event.waitUntil((async () => {
     const data = event.notification.data || {};
-    const deepLink = data.deepLink || '/';  // payload'dan deepLink oku, yoksa ana sayfa
+    // The push itself carries nothing, so the address says "opened from a notice" and the app looks up what it was.
+    const deepLink = data.deepLink || '/?bildirim=1';
     const open = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const app = open.find((client) => new URL(client.url).origin === self.location.origin);
     if (app) {

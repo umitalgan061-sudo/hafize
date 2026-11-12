@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installTaskNotifications, MUTED_KEY, type TaskResult } from './task-notifications.ts';
+import { installTaskNotifications, MUTED_KEY, noticeChat, type TaskResult } from './task-notifications.ts';
 
 const SEEN_KEY = 'hafize.taskResults.seen.v1';
 const result = (index: number): TaskResult => ({ id: `result_${index}`, task: `görev ${index}`, ok: true, content: 'x', error: '', createdAt: '2026-11-09T05:30:00.000Z', readAt: null });
 
 /** A page with the given unread results on the server and notification permission already given. */
-function page(results: TaskResult[], stored: Record<string, string> = { [SEEN_KEY]: '[]' }) {
+function page(results: TaskResult[], stored: Record<string, string> = { [SEEN_KEY]: '[]' }, visible = false) {
   const store = new Map(Object.entries(stored));
   const shown: Array<{ title: string; tag?: string }> = [];
+  const chats: Array<Record<string, unknown>> = [];
+  const marked: string[][] = [];
   class FakeNotification {
     static permission = 'granted';
     onclick: (() => void) | null = null;
@@ -17,13 +19,16 @@ function page(results: TaskResult[], stored: Record<string, string> = { [SEEN_KE
   const root = {
     Notification: FakeNotification,
     localStorage: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value); } },
-    fetch: async () => new Response(JSON.stringify({ results })),
+    fetch: async (path: string, init?: RequestInit) => { if (String(path).endsWith('/read')) { marked.push(JSON.parse(String(init?.body)).ids); return new Response('{}'); } return new Response(JSON.stringify({ results })); },
+    // The chat screen's side: it takes the notice and says it has the conversation.
+    dispatchEvent: (event: CustomEvent) => { chats.push(event.detail); event.detail.found = true; if (event.detail.open) event.detail.opened = true; return true; },
+    document: { visibilityState: visible ? 'visible' : 'hidden' },
     setTimeout: () => 0,
     focus: () => undefined
   } as unknown as typeof globalThis;
   const documentRef = { querySelector: () => null, querySelectorAll: () => [], documentElement: {}, createElement: () => ({}) } as unknown as Document;
   const stop = installTaskNotifications(documentRef, root);
-  return { shown, store, stop };
+  return { shown, store, stop, chats, marked };
 }
 
 describe('task result notices', () => {
@@ -88,5 +93,48 @@ describe('the result list in Settings', () => {
     expect(made.some((item) => item.textContent === 'Tümünü temizle')).toBe(true);
     stop?.();
     vi.useRealTimers();
+  });
+});
+
+describe('a finished task as a conversation', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('new results become one chat, are marked read, and raise no notice while Hafize is on the screen', async () => {
+    const p = page([result(1), result(2)], { [SEEN_KEY]: '[]' }, true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(p.chats.length).toBe(1);
+    expect(p.chats[0].open).toBe(false);
+    expect(String(p.chats[0].id)).toMatch(/^bildirim-result_/);
+    expect(p.marked).toEqual([['result_2', 'result_1']]);
+    expect(p.shown.length).toBe(0);
+    p.stop?.();
+  });
+
+  it('with notices turned off the chat is still made, quietly', async () => {
+    const p = page([result(1)], { [SEEN_KEY]: '[]', [MUTED_KEY]: '1' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(p.chats.length).toBe(1);
+    expect(p.shown.length).toBe(0);
+    p.stop?.();
+  });
+
+  it('says what the task was, when it ran and what came of it', () => {
+    const chat = noticeChat([{ ...result(7), task: 'Her sabah hava durumunu özetle', content: 'Ankara 12°, parçalı bulutlu.' }]);
+    expect(chat?.id).toBe('bildirim-result_7');
+    expect(chat?.title).toBe('Her sabah hava durumunu özetle');
+    expect(chat?.content).toContain('**Görev:** Her sabah hava durumunu özetle');
+    expect(chat?.content).toContain('Ankara 12°, parçalı bulutlu.');
+    expect(chat?.content).toContain('**Sonuç:** tamamlandı');
+  });
+
+  it('tells a failed task as failed, and several results in one chat', () => {
+    const failed = noticeChat([{ ...result(1), ok: false, error: 'SCHEDULE_AGENT_RUN_FAILED', content: '' }]);
+    expect(failed?.content).toContain('Bu görev tamamlanamadı: Görev çalıştırılamadı.');
+    const many = noticeChat(Array.from({ length: 12 }, (_, index) => result(index)));
+    expect(many?.title).toBe('12 görev sonucu');
+    expect(many?.ids.length).toBe(12);
+    expect((many?.content.match(/^### /gm) ?? []).length).toBe(8);
+    expect(noticeChat([])).toBe(null);
   });
 });

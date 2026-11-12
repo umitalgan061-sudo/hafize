@@ -1646,6 +1646,31 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
     if (changed) { saveConversations(); render(); }
   });
+  // A finished task tells its story in a chat of its own instead of a pop-up: made once per result (the id is
+  // derived from the result, so two devices make the same conversation, not two), opened when the owner asks for it.
+  window.addEventListener('hafize:notice-chat', (event) => {
+    const detail = (event as CustomEvent).detail ?? {};
+    const id = typeof detail.id === 'string' ? detail.id : '';
+    let conversation = id ? conversations.find((item) => item.id === id) : undefined;
+    if (!conversation && id && typeof detail.content === 'string' && detail.content.trim()) {
+      const at = new Date().toISOString();
+      conversation = { id, title: String(detail.title || 'Görev sonucu').slice(0, 80), agentId: defaultAgentId, toolsEnabled: true, createdAt: at, updatedAt: at, messages: [{ id: uid(), role: 'assistant', content: detail.content, at }] } as Conversation;
+      conversations.unshift(conversation);
+      saveConversations();
+      detail.created = true;
+    }
+    // No id: the newest notice chat there is.
+    if (!conversation && !id) conversation = conversations.find((item) => item.id.startsWith('bildirim-'));
+    if (!conversation) { if (detail.created !== true) detail.created = false; return; }
+    detail.found = true;
+    if (!detail.open || isStreaming) { if (detail.created) render(); return; }
+    if (editingMessageId) cancelMessageEdit();
+    activeConversationId = conversation.id;
+    render();
+    [...document.querySelectorAll<HTMLElement>('.nav-item')].find((item) => item.textContent?.includes('Sohbet'))?.click();
+    if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
+    detail.opened = true;
+  });
   window.addEventListener('hafize:background-result', (event) => {
     const detail = (event as CustomEvent).detail;
     if (detail?.job) detail.kabul = placeBackgroundResult(detail.job);

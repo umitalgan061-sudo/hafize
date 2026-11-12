@@ -31,6 +31,22 @@ export function errorText(code: unknown): string {
   return ERRORS[String(code)] ?? 'Görev tamamlanamadı.';
 }
 
+const MAX_IN_ONE_NOTICE = 8;
+const MAX_NOTICE_CHARS = 6000;
+/** The conversation a group of results is told in: its id (the same on every device), title and what Hafize says. */
+export function noticeChat(results: readonly TaskResult[], locale = 'tr-TR'): { id: string; title: string; content: string; ids: string[] } | null {
+  if (!results.length) return null;
+  const newestFirst = [...results].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const shown = newestFirst.slice(0, MAX_IN_ONE_NOTICE);
+  const when = (result: TaskResult) => { const date = new Date(result.createdAt); return Number.isNaN(date.getTime()) ? '' : date.toLocaleString(locale, { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); };
+  const body = (result: TaskResult) => (result.ok ? (result.content || 'Görev tamamlandı, yanıt boş.') : `Bu görev tamamlanamadı: ${errorText(result.error)}`).slice(0, MAX_NOTICE_CHARS);
+  const one = (result: TaskResult) => `**Görev:** ${taskTitle(result.task, 160)}\n**Ne zaman:** ${when(result)}\n**Sonuç:** ${result.ok ? 'tamamlandı' : 'başarısız'}\n\n${body(result)}`;
+  const content = shown.length === 1
+    ? `Arka planda yürüttüğüm bir görev bitti.\n\n${one(shown[0])}`
+    : `Arka planda yürüttüğüm ${results.length} görevin sonucu geldi${results.length > shown.length ? `; en yeni ${shown.length} tanesi aşağıda, hepsi Ayarlar > Görev sonuçları'nda` : ''}.\n\n${shown.map((result, index) => `### ${index + 1}. ${taskTitle(result.task, 80)}\n${one(result)}`).join('\n\n---\n\n')}`;
+  return { id: `bildirim-${newestFirst[0].id}`, title: shown.length === 1 ? taskTitle(shown[0].task, 60) : `${results.length} görev sonucu`, content, ids: results.map((result) => result.id) };
+}
+
 /** Results newer than what this browser has already announced, oldest first. */
 export function newResults(results: readonly TaskResult[], seen: ReadonlySet<string>): TaskResult[] {
   return results.filter((result) => !result.readAt && !seen.has(result.id)).reverse();
@@ -89,17 +105,41 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
     root.setTimeout(() => { if (toast.textContent === message) toast.classList.add('hidden'); }, 6000);
   };
   // One notice however many results came in together: the list in Settings has each of them.
+  const send = (detail: Record<string, unknown>) => { root.dispatchEvent?.(new CustomEvent('hafize:notice-chat', { detail })); return detail; };
+  /** The results told in a conversation of their own; true when it was made (or was there already). */
+  const tell = (fresh: readonly TaskResult[], open: boolean): boolean => {
+    const chat = noticeChat(fresh);
+    if (!chat) return false;
+    const detail = send({ ...chat, open });
+    if (detail.found !== true) return false;
+    void api('/api/task-results/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: chat.ids }) }).catch(() => null);
+    return true;
+  };
+  // No pop-up inside the app: new results become a chat in the list. With the page out of sight and notices allowed,
+  // one system notice says so, and a tap on it opens that chat.
   const notify = (fresh: readonly TaskResult[]) => {
-    if (!fresh.length || muted()) return;
+    if (!fresh.length) return;
+    const made = tell(fresh, false);
+    if (!made || muted()) return;
+    if (typeof root.Notification !== 'function' || root.Notification.permission !== 'granted') return;
+    if (root.document?.visibilityState === 'visible') return;
     const last = fresh[fresh.length - 1];
     const title = fresh.length > 1 ? `Hafize: ${fresh.length} görev sonucu` : last.ok ? 'Hafize görevi tamamlandı' : 'Hafize görevi başarısız';
-    const body = taskTitle(last.task);
-    show(`${title}: ${body}`);
-    if (typeof root.Notification !== 'function' || root.Notification.permission !== 'granted') return;
     try {
-      const notice = new root.Notification(title, { body, tag: 'hafize-gorev-sonucu', icon: '/icons/icon-192.png' });
-      notice.onclick = () => { root.focus(); openPanel(); notice.close(); };
+      const notice = new root.Notification(title, { body: taskTitle(last.task), tag: 'hafize-gorev-sonucu', icon: '/icons/icon-192.png' });
+      notice.onclick = () => { root.focus(); send({ open: true }); notice.close(); };
     } catch { /* some platforms only allow notifications from a service worker */ }
+  };
+  /** A tap on a phone notice: the newest notice chat is opened; when there is none yet, the unread results make one. */
+  const openFromNotice = async () => {
+    if (send({ open: true }).opened === true && !results.some((result) => !result.readAt)) return;
+    try {
+      const response = await api('/api/task-results');
+      if (response.ok) { const data = await response.json(); results = Array.isArray(data?.results) ? data.results : results; }
+    } catch { /* what is already known is used */ }
+    const unread = results.filter((result) => !result.readAt);
+    if (unread.length) { tell([...unread].reverse(), true); writeSeen(new Set(results.map((result) => result.id))); renderList(); }
+    else send({ open: true });
   };
   const openPanel = () => {
     [...documentRef.querySelectorAll<HTMLElement>('.nav-item')].find((item) => item.textContent?.includes('Ayarlar'))?.click();
@@ -202,10 +242,20 @@ export function installTaskNotifications(documentRef: Document, root: typeof glo
 
   void refresh();
   timer = setInterval(() => { void refresh(); }, POLL_MS);
+  // Opened by a tap on a notice: from the service worker when the app was already open, from the address when not.
+  root.navigator?.serviceWorker?.addEventListener?.('message', (event: MessageEvent) => { if (event.data?.type === 'hafize:push-open') void openFromNotice(); });
+  try {
+    const url = new URL(root.location.href);
+    if (url.searchParams.has('bildirim')) {
+      url.searchParams.delete('bildirim');
+      root.history?.replaceState?.(null, '', `${url.pathname}${url.search}${url.hash}`);
+      void openFromNotice();
+    }
+  } catch { /* no address to read, as in a test */ }
   return () => { if (timer) clearInterval(timer); watcher?.disconnect(); panel?.remove(); };
 }
 
-const api = Object.freeze({ errorText, installTaskNotifications, newResults, taskTitle, MUTED_KEY });
+const api = Object.freeze({ errorText, installTaskNotifications, newResults, noticeChat, taskTitle, MUTED_KEY });
 (globalThis as typeof globalThis & { HafizeTaskNotifications?: unknown }).HafizeTaskNotifications = api;
 if (typeof document !== 'undefined') {
   const start = () => installTaskNotifications(document, globalThis);
