@@ -16,6 +16,7 @@ import { docxToText, pptxToText, zipListing } from './docx-text.ts';
   // Pasted text longer than this becomes a document instead of flooding the composer.
   const PASTE_TO_FILE_CHARS = 4000;
   const MEDIA_EXTENSIONS = /\.(?:pdf|png|jpe?g|gif|webp|heic|bmp|svg|mp4|webm|mov|avi|mkv|mp3|wav|ogg|m4a|docx?|xlsx?|pptx?|zip)$/i;
+  const AUDIO_FILE = /\.(?:mp3|wav|ogg|oga|opus|m4a|aac|flac|weba|amr|3gp)$/i;
   const ACCEPTED_EXTENSIONS = /\.(?:txt|md|markdown|json|csv|tsv|html?|css|js|mjs|cjs|jsx|tsx|py|java|c|h|cpp|hpp|xml|yaml|yml|toml|ini|log)$/i;
   const ui = {
     composer: document.querySelector('#composer'),
@@ -58,6 +59,20 @@ import { docxToText, pptxToText, zipListing } from './docx-text.ts';
       return;
     }
     announce(`${file.name} hazırlanıyor…`);
+    // A recording's words are written out (Whisper on the worker), so Hafize can read, summarise and translate it.
+    if (AUDIO_FILE.test(file.name) || file.type.startsWith('audio/')) {
+      try {
+        announce(`${file.name} yazıya dökülüyor…`);
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = '';
+        for (let at = 0; at < bytes.length; at += 0x8000) binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
+        const stored = await hafizeApi.uploadAudio(btoa(binary), file.name);
+        insertAttachment(file, composeAttachment(file, stored.url), stored.yazildi === false ? `${file.name} eklendi ama yazıya dökülemedi: ${String(stored.hata || '').slice(0, 120)}` : `${file.name} yazıya döküldü; Hafize konuşulanları okuyacak.`);
+      } catch (error) {
+        announce(`${file.name} eklenemedi: ${String(error?.message || 'dosya işlenemedi').slice(0, 120)}`);
+      }
+      return;
+    }
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       let text = '';

@@ -163,6 +163,11 @@ export class HafizeApiClient {
     return this.send('/api/uploads/image', 'POST', { data, name }, 60_000);
   }
 
+  /** A voice recording: written out on the worker (Whisper) and kept as a document; only the reference reaches the composer. */
+  uploadAudio(data: string, name: string): Promise<{ id: string; url: string; name: string; size: number; yazildi?: boolean; hata?: string }> {
+    return this.send('/api/uploads/audio', 'POST', { data, name }, 180_000);
+  }
+
   /** Uploads a text/code document; only the returned reference reaches the composer. */
   uploadDocument(content: string, name: string, mime: string): Promise<{ id: string; url: string; name: string; size: number }> {
     return this.send('/api/uploads/document', 'POST', { content, name, mime }, 60_000);
