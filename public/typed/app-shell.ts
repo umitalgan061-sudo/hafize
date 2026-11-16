@@ -81,8 +81,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
   'use strict';
 
   const STORAGE_KEY = 'hafize.conversations.v1';
-  // Tool runs chain several model calls and web fetches before the answer streams.
-  const AGENT_RUN_TIMEOUT_MS = 900_000;
+  // Tool runs chain several model calls and web fetches before the answer streams. A self-update (write, branch
+  // tests, release, live check) takes 20-40 minutes; while the agent works it sends a heartbeat every 15 s, so the run
+  // is given up after 4 silent minutes, not at a fixed time (16 Kasım 2026: one was cut at 15 minutes as "NVIDIA busy").
+  const AGENT_RUN_TIMEOUT_MS = 3_600_000;
+  const AGENT_IDLE_TIMEOUT_MS = 240_000;
   let serverDefaultModel = '';
   const MAX_TOOL_ACTIVITIES = 4;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
@@ -1095,7 +1098,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       return `"${failed}" modeli NVIDIA'da şu an kullanılamıyor. Listeden başka bir model seç.`;
     }
     if (status === 429 || code === 'RATE_LIMITED') return 'Çok kısa sürede çok fazla istek gönderildi. Birkaç saniye bekleyip tekrar dene.';
-    if (code === 'SSE_TIMEOUT') return 'Yanıt çok uzun sürdü ve zaman aşımına uğradı. NVIDIA sunucuları yoğun olabilir; biraz sonra tekrar dene.';
+    if (code === 'SSE_IDLE_TIMEOUT') return 'Hafize 4 dakikadır hiçbir işaret vermedi, bu yüzden bekleme durduruldu. Buraya kadar yapılan adımlar yukarıda ve araç kaydında duruyor; "Yeniden dene" ya da "devam et" ile kaldığı yerden sürdürebilirsin.';
+    if (code === 'SSE_TIMEOUT') return 'Bu iş bir saati aştığı için durduruldu. Buraya kadar yapılan adımlar yukarıda ve araç kaydında duruyor; işi daha küçük parçalara bölüp "devam et" diyebilirsin.';
     if (code === 'SSE_NETWORK_ERROR') return 'Hafize sunucusuna ulaşılamadı. Sunucu penceresinin açık olduğundan emin ol.';
     const detail = String(error?.message || '');
     if (status >= 500 || [code, detail].some((value) => value === 'NVIDIA_CHAT_ERROR' || value === 'STREAM_INTERRUPTED' || value === 'NVIDIA_STREAM_ERROR')) return 'NVIDIA şu an yanıt vermedi ya da yanıt yarıda kesildi. Birkaç saniye sonra "Yeniden dene"ye bas.';
@@ -1108,7 +1112,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
     payload: Record<string, unknown>,
     assistantId: string,
     emptyMessage: string,
-    timeoutMs = 60_000
+    timeoutMs = 60_000,
+    idleTimeoutMs?: number
   ): Promise<HafizeSseStats> {
     let content = '';
     const stopper = new AbortController();
@@ -1119,6 +1124,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const stats = await hafizeSse.stream(endpoint, payload, {
       signal: stopper.signal,
       timeoutMs,
+      ...(idleTimeoutMs ? { idleTimeoutMs } : {}),
       maxFrameChars: 128 * 1024,
       maxBufferChars: 256 * 1024,
       maxEvents: 20_000,
@@ -1226,7 +1232,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       { model, agentId, conversationId: conversation.id, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
-      AGENT_RUN_TIMEOUT_MS
+      AGENT_RUN_TIMEOUT_MS,
+      AGENT_IDLE_TIMEOUT_MS
     );
     const generated = conversation.messages.find((entry) => entry.id === assistantId);
     if (generated) {
@@ -1311,7 +1318,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
         useTools
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
           : 'NVIDIA modeli boş bir yanıt döndürdü.',
-        useTools ? AGENT_RUN_TIMEOUT_MS : 60_000
+        useTools ? AGENT_RUN_TIMEOUT_MS : 60_000,
+        useTools ? AGENT_IDLE_TIMEOUT_MS : undefined
       );
       message.alternates = rememberResponseAlternate(message.alternates, previousContent);
       message.generation = createGenerationSnapshot(

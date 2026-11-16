@@ -26,13 +26,21 @@ export interface HafizeSseLimits {
 export interface HafizeSseOptions extends HafizeSseLimits {
   readonly signal?: AbortSignal;
   readonly timeoutMs?: number;
+  /**
+   * With this, the stream is given up only after this long without a single byte (the agent sends a heartbeat every
+   * 15 s while it works), not at a fixed time from the start: a self-update that writes a feature, waits for its tests
+   * and puts it live takes 20-40 minutes and was cut at 15 as "NVIDIA busy" (16 Kasım 2026).
+   */
+  readonly idleTimeoutMs?: number;
   readonly headers?: HeadersInit;
   readonly onEvent?: (event: HafizeSseEvent) => void | Promise<void>;
+  /** Called for every piece read from the stream, heartbeats included. */
+  readonly onChunk?: () => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
-// Agent runs (research, orchestration, approvals) can take up to 15 minutes.
-const MAX_TIMEOUT_MS = 900_000;
+// Agent runs (research, orchestration, a self-update with its tests and release) can take up to an hour.
+const MAX_TIMEOUT_MS = 3_600_000;
 const DEFAULT_MAX_FRAME_CHARS = 128 * 1024;
 const DEFAULT_MAX_BUFFER_CHARS = 256 * 1024;
 const DEFAULT_MAX_EVENTS = 20_000;
@@ -207,6 +215,7 @@ export async function consumeSseResponse(
         });
       }
       const chunk = await reader.read();
+      options.onChunk?.();
       if (options.signal?.aborted) {
         const reason = options.signal.reason;
         if (reason instanceof DOMException && reason.name === 'TimeoutError') {
@@ -357,15 +366,29 @@ export class HafizeSseClient {
     const timeoutMs = Math.min(MAX_TIMEOUT_MS, Math.max(1_000, Math.floor(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)));
     const controller = new AbortController();
     const timer = globalThis.setTimeout(() => controller.abort(new DOMException('Request timeout', 'TimeoutError')), timeoutMs);
+    const idleMs = options.idleTimeoutMs ? Math.max(1_000, Math.floor(options.idleTimeoutMs)) : 0;
+    let idleTimer: ReturnType<typeof setTimeout> | undefined;
+    let idled = false;
+    const awake = (): void => {
+      if (!idleMs) return;
+      globalThis.clearTimeout(idleTimer);
+      idleTimer = globalThis.setTimeout(() => { idled = true; controller.abort(new DOMException('Stream idle', 'TimeoutError')); }, idleMs);
+    };
     const parentSignal = options.signal;
     const abortParent = () => controller.abort(parentSignal?.reason ?? new DOMException('Aborted', 'AbortError'));
 
     try {
       if (parentSignal?.aborted) abortParent();
       else parentSignal?.addEventListener('abort', abortParent, { once: true });
-      const response = await this.open(path, payload, { ...options, signal: controller.signal });
-      return await consumeSseResponse(response, { ...options, signal: controller.signal });
+      awake();
+      const response = await this.open(path, payload, { ...options, timeoutMs, signal: controller.signal });
+      awake();
+      return await consumeSseResponse(response, { ...options, signal: controller.signal, onChunk: () => { awake(); options.onChunk?.(); } });
     } catch (error) {
+      // Silence, not length: said apart so the screen can tell the owner which it was.
+      if (idled) {
+        throw new HafizeSseError('SSE akışı uzun süre sessiz kaldı.', { code: 'SSE_IDLE_TIMEOUT', retryable: true, cause: error });
+      }
       if (error instanceof HafizeSseError) throw error;
       throw new HafizeSseError(error instanceof Error ? error.message : 'SSE akışı başarısız.', {
         code: error instanceof DOMException && error.name === 'TimeoutError' ? 'SSE_TIMEOUT' : 'SSE_STREAM_ERROR',
@@ -374,6 +397,7 @@ export class HafizeSseClient {
       });
     } finally {
       globalThis.clearTimeout(timer);
+      globalThis.clearTimeout(idleTimer);
       parentSignal?.removeEventListener('abort', abortParent);
     }
   }

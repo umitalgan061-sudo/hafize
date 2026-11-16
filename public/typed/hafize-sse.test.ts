@@ -204,3 +204,34 @@ describe('HafizeSseClient', () => {
     }
   });
 });
+
+// 16 Kasım 2026: a self-update that was still working was cut at 15 minutes as "NVIDIA busy". A long run now lives as
+// long as the agent's heartbeat keeps coming and is given up only after a silence.
+describe('hafize-sse idle timeout', () => {
+  const encoder = new TextEncoder();
+  const timed = (steps: ReadonlyArray<readonly [number, string | null]>) => async () => new Response(new ReadableStream<Uint8Array>({
+    async start(controller) {
+      for (const [wait, text] of steps) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+        if (text === null) return;
+        controller.enqueue(encoder.encode(text));
+      }
+      controller.close();
+    }
+  }), { status: 200 });
+
+  it('keeps a run going past the idle limit while heartbeats come', async () => {
+    const beats = Array.from({ length: 6 }, () => [300, ': canli\n\n'] as const);
+    const client = new HafizeSseClient('', timed([...beats, [50, 'data: {"choices":[{"delta":{"content":"bitti"}}]}\n\n'], [10, 'data: [DONE]\n\n']]) as unknown as typeof fetch);
+    const seen: string[] = [];
+    await client.stream('/api/agent/run', {}, { timeoutMs: 60_000, idleTimeoutMs: 1_000, onEvent: (event) => { seen.push(event.data); } });
+    expect(seen).toEqual(['{"choices":[{"delta":{"content":"bitti"}}]}']);
+  });
+
+  it('gives up after a silence and says it was silence, not length', async () => {
+    const client = new HafizeSseClient('', timed([[10, ': canli\n\n'], [5_000, null]]) as unknown as typeof fetch);
+    const failed = await client.stream('/api/agent/run', {}, { timeoutMs: 60_000, idleTimeoutMs: 1_000 }).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(HafizeSseError);
+    expect((failed as HafizeSseError).code).toBe('SSE_IDLE_TIMEOUT');
+  });
+});
