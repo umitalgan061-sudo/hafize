@@ -22,8 +22,8 @@ const files = {
 
 assert(files.package.engines?.node === '>=24.21.0', 'node-engine');
 assert(files.package.devDependencies?.typescript === '7.0.2', 'typescript-toolchain');
-assert(files.package.devDependencies?.vite === '8.3.0', 'vite-toolchain');
-assert(files.package.devDependencies?.vitest === '5.0.1', 'vitest-toolchain');
+assert(files.package.devDependencies?.vite === '^8.3.5', 'vite-toolchain');
+assert(files.package.devDependencies?.vitest === '^5.0.5', 'vitest-toolchain');
 assert(files.package.scripts?.build === 'vite build', 'vite-build-script');
 assert(files.package.scripts?.typecheck === 'npm run typecheck:runtime', 'runtime-typecheck-script');
 assert(files.package.scripts?.['typecheck:syntax'] === 'tsc --noEmit --noCheck', 'syntax-typecheck-script');
@@ -51,9 +51,9 @@ assert(files.metricsTest.includes('records aborts and upstream failures'), 'metr
 assert(files.vite.includes("'legacy-app': resolve(ROOT, 'public/typed/legacy-app.ts')"), 'legacy-app-vite-entry');
 assert(files.vite.includes("'sw': resolve(ROOT, 'public/sw.ts')"), 'sw-vite-entry');
 assert(files.index.includes('/typed-build/legacy-app.js'), 'legacy-app-html-entry');
-assert(files.app.includes("navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module' })"), 'module-service-worker-registration');
+assert(files.app.includes("navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module', scope: '/' })"), 'module-service-worker-registration');
 assert(files.sw.includes("from './sw-policy.ts'"), 'typed-sw-policy-import');
-assert(files.swPolicy.includes("CURRENT_CACHE = `${CACHE_PREFIX}v55`"), 'cache-version');
+assert(files.swPolicy.includes("CURRENT_CACHE = `${CACHE_PREFIX}v168`"), 'cache-version');
 assert(!await exists('public/sw.js'), 'legacy-sw-removed');
 assert(!await exists('public/sw-policy.js'), 'legacy-sw-policy-removed');
 
