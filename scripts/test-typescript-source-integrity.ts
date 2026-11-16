@@ -37,8 +37,17 @@ for (const file of libMjs) {
 }
 
 const publicJs = all.filter((p) => p.startsWith(join(ROOT, 'public') + '/') && p.endsWith('.js'));
+// Classic scripts that must run before any module, so they cannot be dynamic-import bridges. Exact paths only:
+// a new file here fails the gate until it is listed with its reason.
+const EARLY_BOOT_CLASSIC_SCRIPTS = new Map([
+  // Sets data-theme before first paint; a bridge would import() after paint and bring back the light flash.
+  ['public/theme-init.js', 'theme-before-first-paint'],
+  // Its capture listeners must be registered before the deferred modules add theirs.
+  ['public/composer-focus-guard.js', 'composer-focus-recovery']
+]);
 for (const file of publicJs) {
   if (file.endsWith('/chat-markdown.js')) continue;
+  if (EARLY_BOOT_CLASSIC_SCRIPTS.has(relative(ROOT, file))) continue;
   const source = await readFile(file, 'utf8');
   if (!source.includes('/typed-build/') && !source.includes('typed/')) fail('public-js-not-bridge=' + relative(ROOT, file));
 }

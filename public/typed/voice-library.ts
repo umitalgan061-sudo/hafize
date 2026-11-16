@@ -12,7 +12,7 @@ export const PIPER_PREFIX = 'piper:';
 export const SPEAKER_KEY = 'hafize.voiceOutput.speaker.v1';
 const CACHE_NAME = 'hafize-voices-v1';
 const VOICE_BASE = 'https://huggingface.co/rhasspy/piper-voices/resolve/main/';
-const PHONEMIZER = '/vendor/piper-phonemize/';
+const PHONEMIZER = '/typed-build/vendor/piper-phonemize/';
 const SAMPLES: Record<string, string> = {
   tr: 'Merhaba, ben Hafize. Sesim böyle duyuluyor.', en: 'Hello, I am Hafize. This is how I sound.', de: 'Hallo, ich bin Hafize. So klingt meine Stimme.',
   fr: 'Bonjour, je suis Hafize. Voici ma voix.', es: 'Hola, soy Hafize. Así suena mi voz.', it: 'Ciao, sono Hafize. Questa è la mia voce.',
@@ -224,12 +224,18 @@ function ensureLoaded(voice: PiperVoice): Promise<VoiceConfig> {
 // download unfinished (so nothing was kept), and the next sentence started it all again. One afternoon of voice mode
 // sent gigabytes that way and took every site of the project over its quota (2026-11-09). So the page fetches each
 // file once, with no clock on it, keeps it in Cache Storage, and workers are given the stored copy.
-// Bump the name when the files under /vendor/piper-phonemize change.
-const ENGINE_CACHE = 'hafize-voice-engine-v1';
+// Bump the name when the files under vendor/piper-phonemize change (v2: served from /typed-build/vendor/).
+const ENGINE_CACHE = 'hafize-voice-engine-v2';
+// v1 held the same 18 MB under the old /vendor/ URLs; nothing else evicts it, so drop it once here.
+const RETIRED_ENGINE_CACHES = ['hafize-voice-engine-v1'];
 const ENGINE_TYPES: Record<string, string> = { wasm: 'application/wasm', data: 'application/octet-stream' };
 type EngineDeps = { openStore(): Promise<Pick<Cache, 'match' | 'put'> | null>; fetchFile(path: string): Promise<Response>; toUrl(blob: Blob): string };
 const engineDeps: EngineDeps = {
-  openStore: async () => (typeof caches === 'undefined' ? null : caches.open(ENGINE_CACHE)),
+  openStore: async () => {
+    if (typeof caches === 'undefined') return null;
+    await Promise.all(RETIRED_ENGINE_CACHES.map((name) => caches.delete(name).catch(() => false)));
+    return caches.open(ENGINE_CACHE);
+  },
   fetchFile: (path) => fetch(path),
   toUrl: (blob) => URL.createObjectURL(blob)
 };

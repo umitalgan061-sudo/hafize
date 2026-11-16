@@ -63,6 +63,8 @@ const vendorAssetsPlugin = (): Plugin => ({
     // Piper voices run on the ONNX runtime, loaded by the worker only when such a voice speaks.
     mkdirSync(resolve(out, 'ort'), { recursive: true });
     for (const file of ['ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.wasm']) cpSync(resolve(ROOT, 'node_modules/onnxruntime-web/dist', file), resolve(out, 'ort', file));
+    // The phonemizer is vendored (not on npm) and kept outside public/, so public/ holds only typed-build bridges.
+    cpSync(resolve(ROOT, 'vendor/piper-phonemize'), resolve(out, 'piper-phonemize'), { recursive: true });
   }
 });
 

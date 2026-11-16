@@ -76,7 +76,7 @@ assert.equal(output.pickTurkishVoice(browser, 'gone').voiceURI, 't');
 
 // Files the browser loads by URL must exist; nothing is committed in the build output.
 for (const file of ['PhonemizeWebWorker.js', 'piper_phonemize.wasm', 'piper_phonemize.data']) {
-  assert.ok(statSync(new URL(`../public/vendor/piper-phonemize/${file}`, import.meta.url)).size > 1000, file);
+  assert.ok(statSync(new URL(`../vendor/piper-phonemize/${file}`, import.meta.url)).size > 1000, file);
 }
 const source = readFileSync(new URL('../public/typed/voice-library.ts', import.meta.url), 'utf8');
 assert.match(source, /PhonemizeWebWorker\.js`, \{ type: 'module' \}/, 'the phonemizer is an ES module worker');
