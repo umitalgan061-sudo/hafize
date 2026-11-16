@@ -62,3 +62,21 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Full Vitest suite
         run: npm run test:modern
+
+  windows-process-tree:
+    # Local servers start through PowerShell and are stopped with taskkill on Windows, the
+    # platform Hafize ships on. Linux covers the /bin/sh path in the full suite above.
+    name: Windows local servers
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Local reach tests
+        run: npx vitest run lib/local-reach.test.ts lib/fs-read-tool.test.ts

@@ -1,11 +1,24 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadAgentRegistry, resolveAgent } from './agent-runtime.ts';
 import { executeNvidiaToolCall, getAllowedNvidiaTools, isSensitiveWorkspacePath } from './tool-runtime.ts';
 
 const workspaceRoot = fileURLToPath(new URL('../', import.meta.url));
 const reader = { id: 'fs-test', name: 'FS Test', description: 'test', toolPolicy: { default: 'deny' as const, allow: ['fs.read'], deny: [], approvalRequired: [] } };
-const read = (args: Record<string, unknown>) => executeNvidiaToolCall(reader, { id: 'c1', type: 'function', function: { name: 'fs_read', arguments: JSON.stringify(args) } }, { traceId: '00000000-0000-4000-8000-000000000001', agent: reader, workspaceRoot });
+// A throwaway workspace with a real .env, so the secret guard is exercised on every machine
+// (CI checkouts have no .env) without ever touching a developer's own .env.
+let fixtureRoot = '';
+beforeAll(() => {
+  fixtureRoot = mkdtempSync(join(tmpdir(), 'hafize-fs-read-'));
+  writeFileSync(join(fixtureRoot, '.env'), 'NVIDIA_API_KEY=fixture-not-a-secret\n');
+  writeFileSync(join(fixtureRoot, 'README.md'), '# Fixture workspace\n\nUsed by fs-read-tool.test.ts.\n');
+  mkdirSync(join(fixtureRoot, 'lib'));
+});
+afterAll(() => { if (fixtureRoot) rmSync(fixtureRoot, { recursive: true, force: true }); });
+const read = (args: Record<string, unknown>) => executeNvidiaToolCall(reader, { id: 'c1', type: 'function', function: { name: 'fs_read', arguments: JSON.stringify(args) } }, { traceId: '00000000-0000-4000-8000-000000000001', agent: reader, workspaceRoot: fixtureRoot });
 
 describe('fs_read', () => {
   it('flags secret-bearing paths', () => {
