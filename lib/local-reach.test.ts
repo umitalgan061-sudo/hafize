@@ -72,7 +72,9 @@ describe('localhost servers', () => {
     process.env.NVIDIA_API_KEY = 'sizmamali';
     const servers = createLocalhostServers({ workspaceDir: dir });
     try {
-      const started = await servers.start('me', { command: `& "${process.execPath}" app.mjs` }, async () => true);
+      // The server runs commands in PowerShell on Windows and in /bin/sh elsewhere; each gets its own way to start node.
+      const command = process.platform === 'win32' ? `& "${process.execPath}" app.mjs` : `"${process.execPath}" app.mjs`;
+      const started = await servers.start('me', { command }, async () => true);
       expect(started.status).toBe('running');
       expect(await (await fetch(started.url)).text()).toBe('temiz');
       expect(servers.stop('me', started.id)).toBe(true);

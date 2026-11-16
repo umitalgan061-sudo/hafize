@@ -198,6 +198,9 @@ const CATALOG = new Map<string, ToolEntry>([
       const root = await realpath(resolve(workspaceRoot));
       const requested = resolve(root, path.trim());
       if (!requested.startsWith(root + sep) && requested !== root) return { error: 'FS_READ_ERROR', code: 'TRAVERSAL', message: 'Workspace dışına çıkış engellendi' };
+      // Before the file is looked up: answering "not found" for a missing .env and "sensitive" for a present one told
+      // whether the secret file exists. The check after realpath stays for a link that points at a secret.
+      if (isSensitiveWorkspacePath(relative(root, requested))) return { error: 'FS_READ_ERROR', code: 'SENSITIVE_PATH', message: 'Bu dosya gizli bilgi içerebileceği için okunamaz' };
       try {
         const resolved = await realpath(requested);
         if (!resolved.startsWith(root + sep) && resolved !== root) return { error: 'FS_READ_ERROR', code: 'TRAVERSAL', message: 'Workspace dışına çıkış engellendi' };
