@@ -584,3 +584,4 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
 #messages[aria-busy="true"] .message.assistant:last-of-type .message-actions,
 #messages[aria-busy="true"] .message.assistant:last-of-type .assistant-message-actions { display: none; }
 .send-btn.is-stop { opacity: 1 !important; }
+.tool-activity.tool-activity-more { opacity: 0.75; font-variant-numeric: tabular-nums; cursor: help; }

@@ -87,7 +87,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
   const AGENT_RUN_TIMEOUT_MS = 3_600_000;
   const AGENT_IDLE_TIMEOUT_MS = 240_000;
   let serverDefaultModel = '';
-  const MAX_TOOL_ACTIVITIES = 4;
+  // A self-update runs dozens of steps; the screen kept the first 4 and dropped the rest, so a working Hafize looked
+  // stuck (16 Kasım 2026). The newest steps are shown, the earlier ones counted.
+  const MAX_TOOL_ACTIVITIES = 40;
+  const VISIBLE_TOOL_ACTIVITIES = 6;
   const MAX_TOOL_ACTIVITY_LABEL_LENGTH = 80;
   const MESSAGE_PLACEHOLDER = '…';
   // No practical cap: what ends a chat is the device's storage, see writeWithinQuota.
@@ -234,7 +237,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ...(Array.isArray(source.toolActivities) ? {
         toolActivities: source.toolActivities
           .filter((item) => item && typeof item === 'object' && typeof item.label === 'string')
-          .slice(0, MAX_TOOL_ACTIVITIES)
+          .slice(-MAX_TOOL_ACTIVITIES)
           .map((item) => ({
             label: item.label.slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH),
             state: item.state === 'running' || item.state === 'failure' ? item.state : 'success'
@@ -520,12 +523,20 @@ interface JsonPayload { readonly [key: string]: unknown; }
     return message.toolActivities
       .map((activity) => normalizeToolActivity(activity))
       .filter(Boolean)
-      .slice(0, MAX_TOOL_ACTIVITIES);
+      .slice(-MAX_TOOL_ACTIVITIES);
   }
 
   function renderToolActivities(container, activities) {
     container.replaceChildren();
-    for (const activity of activities) {
+    const hidden = Math.max(0, activities.length - VISIBLE_TOOL_ACTIVITIES);
+    if (hidden) {
+      const more = document.createElement('span');
+      more.className = 'tool-activity tool-activity-more';
+      more.textContent = `+${hidden} adım`;
+      more.title = activities.slice(0, hidden).map((item) => `${item.state === 'failure' ? '✗' : '✓'} ${item.label}`).join('\n');
+      container.append(more);
+    }
+    for (const activity of activities.slice(hidden)) {
       const badge = document.createElement('span');
       badge.className = `tool-activity${activity.state === 'failure' ? ' failed' : ''}`;
       badge.textContent = activity.label;
@@ -546,8 +557,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     let nextActivities;
     if (activity.state === 'running') {
       if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
-      if (activities.length >= MAX_TOOL_ACTIVITIES) return;
-      nextActivities = [...activities, activity];
+      nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
     } else {
       let runningIndex = -1;
       for (let index = activities.length - 1; index >= 0; index -= 1) {
@@ -561,8 +571,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         nextActivities[runningIndex] = activity;
       } else {
         if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
-        if (activities.length >= MAX_TOOL_ACTIVITIES) return;
-        nextActivities = [...activities, activity];
+        nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
       }
     }
 
