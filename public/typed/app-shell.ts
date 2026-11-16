@@ -19,6 +19,7 @@ import { createHafizeStreamController, formatStreamBytes, formatStreamDuration, 
 import { mountChatScroll, type ChatScrollController } from './chat-scroll.ts';
 import { decorateUserAttachments } from './user-attachments.ts';
 import { askChoice, askConfirm } from './theme-polish.ts';
+import { NOTICE_FOLLOW_MS, noticeTarget, shouldFollowNotice, type PlacedResult } from './notice-target.ts';
 type Role = 'user' | 'assistant';
 interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
@@ -1600,7 +1601,27 @@ interface JsonPayload { readonly [key: string]: unknown; }
     conversations.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     saveConversations();
     render();
-    if (conversation.id !== activeConversationId) showToast(`Yanıtın "${conversation.title}" sohbetine yazıldı.`);
+    if (!resultPlaced(conversation) && conversation.id !== activeConversationId) showToast(`Yanıtın "${conversation.title}" sohbetine yazıldı.`);
+    return true;
+  }
+  // A tap on a phone notice lands where the result was written (notice-target.ts): the last chat a result went into is
+  // remembered, and for a while after a tap a result still on its way (the page was asleep) opens its own chat.
+  let lastPlaced: PlacedResult | null = null;
+  let followNoticeUntil = 0;
+  let tapOpenedId: string | null = null;
+  function showConversation(conversation: Conversation) {
+    if (editingMessageId) cancelMessageEdit();
+    activeConversationId = conversation.id;
+    render();
+    [...document.querySelectorAll<HTMLElement>('.nav-item')].find((item) => item.textContent?.includes('Sohbet'))?.click();
+    if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
+  }
+  /** Notes where a result was written; true when it was also opened because the owner had just tapped a notice. */
+  function resultPlaced(conversation: Conversation): boolean {
+    lastPlaced = { id: conversation.id, at: Date.now() };
+    if (!shouldFollowNotice({ now: Date.now(), followUntil: followNoticeUntil, activeId: activeConversationId, tapOpenedId, busy: isStreaming || Boolean(editingMessageId), draft: ui.messageInput?.value ?? '' })) return false;
+    followNoticeUntil = 0;
+    showConversation(conversation);
     return true;
   }
   function placeBackgroundResult(job: Record<string, unknown>): boolean {
@@ -1629,7 +1650,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     conversations.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     saveConversations();
     render();
-    if (!active) showToast(`Arka plan işi bitti, sonucu "${conversation.title}" sohbetine yazıldı.`);
+    if (!resultPlaced(conversation) && !active) showToast(`Arka plan işi bitti, sonucu "${conversation.title}" sohbetine yazıldı.`);
     if (canContinue) void continueAfterBackground();
     return true;
   }
@@ -1659,16 +1680,17 @@ interface JsonPayload { readonly [key: string]: unknown; }
       saveConversations();
       detail.created = true;
     }
-    // No id: the newest notice chat there is.
-    if (!conversation && !id) conversation = conversations.find((item) => item.id.startsWith('bildirim-'));
+    // No id: a tap on a phone notice. It opens where the last result was written — the newest notice chat or the chat
+    // that background work last wrote into — and a result still on its way may take the screen for a while.
+    if (!conversation && !id) {
+      conversation = noticeTarget(conversations, lastPlaced);
+      if (detail.open) { followNoticeUntil = Date.now() + NOTICE_FOLLOW_MS; tapOpenedId = null; }
+    }
     if (!conversation) { if (detail.created !== true) detail.created = false; return; }
     detail.found = true;
     if (!detail.open || isStreaming) { if (detail.created) render(); return; }
-    if (editingMessageId) cancelMessageEdit();
-    activeConversationId = conversation.id;
-    render();
-    [...document.querySelectorAll<HTMLElement>('.nav-item')].find((item) => item.textContent?.includes('Sohbet'))?.click();
-    if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
+    showConversation(conversation);
+    if (Date.now() < followNoticeUntil) tapOpenedId = conversation.id;
     detail.opened = true;
   });
   window.addEventListener('hafize:background-result', (event) => {
