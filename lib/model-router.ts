@@ -94,13 +94,12 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
     for (const [index, model] of attempts.entries()) {
       const isLast = index === attempts.length - 1;
       const attempt = new AbortController();
-      const onCallerAbort = () => attempt.abort(signal?.reason);
-      if (signal?.aborted) onCallerAbort();
-      else signal?.addEventListener('abort', onCallerAbort, { once: true });
+      signal?.throwIfAborted();
+      const requestSignal = signal ? AbortSignal.any([signal, attempt.signal]) : attempt.signal;
       let timedOut = false;
       const timer = isLast ? null : setTimeout(() => { timedOut = true; attempt.abort(); }, streaming ? FIRST_RESPONSE_MS.stream : FIRST_RESPONSE_MS.whole);
       try {
-        const response = await deliver(bodyFor(payload, model), attempt.signal);
+        const response = await deliver(bodyFor(payload, model), requestSignal);
         if (timer) clearTimeout(timer);
         if (response.ok) {
           const entry = state(model);
@@ -114,7 +113,8 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         const reason = failureReason(response.status);
         // A rejected key or a malformed request fails the same way everywhere.
         if (!reason) return response;
-        const retryAfter = Number(response.headers.get('retry-after')) * 1000;
+        const wait = response.headers.get('retry-after')?.trim() ?? '';
+        const retryAfter = /^\d+$/.test(wait) ? Number(wait) * 1000 : Date.parse(wait) - now();
         penalize(model, reason, Number.isFinite(retryAfter) ? retryAfter : 0);
         if (isLast) return response;
         log(`hafize.model ${JSON.stringify({ skipped: model, reason, status: response.status })}`);
@@ -128,8 +128,6 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         const reason: FailureReason = timedOut ? 'slow' : 'failing';
         penalize(model, reason);
         log(`hafize.model ${JSON.stringify({ skipped: model, reason })}`);
-      } finally {
-        signal?.removeEventListener('abort', onCallerAbort);
       }
     }
     throw lastError instanceof Error ? lastError : new Error('MODEL_CHAIN_EMPTY');

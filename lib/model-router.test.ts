@@ -158,3 +158,17 @@ describe('model router', () => {
     expect(failureReason(200)).toBeNull();
   });
 });
+
+it('keeps the response stream cancellable after headers arrive', async () => {
+  const {router} = setup({});
+  const controller = new AbortController();
+  let captured: AbortSignal | undefined;
+  await router.send(request(), async (_body, signal) => { captured = signal; return answer(200); }, controller.signal);
+  controller.abort();
+  expect(captured?.aborted).toBe(true);
+});
+it('respects a retry deadline sent as an HTTP date', async () => {
+  const {router,deliver} = setup({top:()=>answer(429,{'retry-after':new Date(1_300_000).toUTCString()})});
+  await router.send(request(),deliver);
+  expect(router.status().chain[0]?.retryInSeconds).toBe(300);
+});
