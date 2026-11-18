@@ -79,6 +79,20 @@ export function validatePlan(raw: unknown, toolNames: ReadonlySet<string>, maxSt
       checkpoint: step.checkpoint !== false
     };
   });
+  // A generated-result reference is also a scheduling dependency, even when the planner
+  // omitted it from dependsOn. This prevents a consumer racing its producer.
+  for (const [index, step] of steps.entries()) {
+    const dependencies = new Set(step.dependsOn);
+    function collect(value: unknown): void {
+      if (typeof value === 'string') {
+        for (const match of value.matchAll(/\{\{\s*([a-z0-9_-]+)(?:\.[a-zA-Z0-9_-]+)*\s*\}\}/g)) dependencies.add(match[1]!);
+      } else if (value && typeof value === 'object') {
+        Object.values(value).forEach(collect);
+      }
+    }
+    collect(step.args);
+    steps[index] = { ...step, dependsOn: [...dependencies] };
+  }
   const ids = new Set<string>();
   for (const step of steps) {
     if (ids.has(step.id)) throw new OrchestratorError('PLAN_DUPLICATE_STEP_ID');
@@ -105,9 +119,21 @@ export function validatePlan(raw: unknown, toolNames: ReadonlySet<string>, maxSt
 export function bindArgs(args: Json, outputs: Readonly<Record<string, unknown>>): Json {
   const render = (value: unknown): unknown => {
     if (typeof value === 'string') {
-      const whole = value.match(/^\{\{\s*([a-z0-9_-]+)\s*\}\}$/);
-      if (whole && whole[1]! in outputs) return outputs[whole[1]!];
-      return value.replace(/\{\{\s*([a-z0-9_-]+)\s*\}\}/g, (match, id: string) => (id in outputs ? summarize(outputs[id], 2_000) : match));
+      const pattern = /\{\{\s*([a-z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*)\s*\}\}/g;
+      function resolve(path: string, original: string): unknown {
+        let item: unknown = outputs;
+        for (const key of path.split('.')) {
+          if (!item || typeof item !== 'object' || !Object.hasOwn(item, key)) {
+            if (path.includes('.')) throw new OrchestratorError('PLAN_RESULT_PATH_MISSING:' + path);
+            return original;
+          }
+          item = (item as Json)[key];
+        }
+        return item;
+      }
+      const first = pattern.exec(value);
+      if (first && first[0] === value) return resolve(first[1]!, value);
+      return value.replace(pattern, (match, path: string) => summarize(resolve(path, match), 2_000));
     }
     if (Array.isArray(value)) return value.map(render);
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, render(item)]));
@@ -152,7 +178,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
         system: [
           'Sen bir görev planlayıcısısın. Hedefi, verilen araçlarla çalıştırılabilir küçük adımlara böl.',
           `Şema: {"steps": [{"id": "s1", "title": string, "tool": string, "args": object, "dependsOn": string[], "retryPolicy": {"maxAttempts": number}, "timeoutMs": number, "checkpoint": boolean}]}`,
-          `En fazla ${maxSteps} adım. Bağımsız adımları paralel olacak şekilde (dependsOn boş) planla. Bir adım önceki bir adımın çıktısına ihtiyaç duyuyorsa dependsOn'a yaz ve args içinde "{{s1}}" gibi yer tutucu kullan.`,
+          `En fazla ${maxSteps} adım. Bağımsız adımları paralel olacak şekilde (dependsOn boş) planla. Bir adım önceki bir adımın çıktısına ihtiyaç duyuyorsa dependsOn'a yaz ve args içinde "{{s1}}" veya yalnız gereken alan için "{{s1.results.0.url}}" kullan.`,
           'Yalnızca listedeki araç adlarını ve her aracın args imzasındaki argüman adlarını kullan (* zorunlu demektir); başka argüman ekleme. Son adım genellikle sonuçları birleştiren bir "reason" adımıdır.',
           'Araçlar:', catalog
         ].join('\n'),

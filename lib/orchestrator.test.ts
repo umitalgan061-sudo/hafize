@@ -103,3 +103,13 @@ describe('orchestrator', () => {
     expect(finished.steps.s2).toMatchObject({ status: 'skipped', error: 'NOT_NEEDED' });
   });
 });
+
+describe('generated result dependencies', () => {
+  it('waits for referenced outputs, including nested arguments', () => {
+    const plan = validatePlan([{id:'fetch', tool:'reason'}, {id:'use', tool:'reason', args:{links:['{{fetch.rows.0.url}}']}}], names, 4);
+    expect(plan[1]?.dependsOn).toEqual(['fetch']);
+    expect(bindArgs({ value: '{{fetch.rows.0.score}}' }, { fetch: {rows:[{score:0}]} })).toEqual({value:0});
+    expect(() => bindArgs({value:'{{fetch.missing}}'},{fetch:{}})).toThrow('PLAN_RESULT_PATH_MISSING');
+    expect(() => validatePlan([{id:'a',tool:'reason',args:{v:'{{b}}'}},{id:'b',tool:'reason',args:{v:'{{a}}'}}], names, 4)).toThrow('PLAN_HAS_CYCLE');
+  });
+});
