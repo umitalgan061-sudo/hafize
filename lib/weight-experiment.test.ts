@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { reviewExperiment } from './weight-experiment.ts';
+import { probeWeights, reviewExperiment } from './weight-experiment.ts';
 
 const sample = {
   "model": "linear-2d-v1",
@@ -94,4 +94,11 @@ it('rejects a changed score and a rollback without history', () => {
   changed.audit[0]!.after = 0;
   expect(() => reviewExperiment(JSON.stringify(changed))).toThrow();
   expect(() => reviewExperiment(JSON.stringify({...sample,audit:sample.audit.slice(-1)}))).toThrow();
+});
+
+it('checks the accepted weights on a separate 25-point grid', () => {
+  expect(probeWeights([2,-3,1])).toMatchObject({count:25,rmse:0,maximum:0});
+  const result=reviewExperiment(JSON.stringify(sample));
+  expect(result.probe).toEqual(probeWeights([0,0,0]));
+  expect(result.probe.maximum).toBe(23.5);
 });
