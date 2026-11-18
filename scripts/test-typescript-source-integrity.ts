@@ -37,14 +37,22 @@ for (const file of libMjs) {
 }
 
 const publicJs = all.filter((p) => p.startsWith(join(ROOT, 'public') + '/') && p.endsWith('.js'));
-// These two files intentionally stay as standalone browser scripts rather than TS bridges:
-// chat-markdown owns its legacy markdown bootstrap, while composer-focus-guard must install
-// a synchronous pointer listener before the application ES modules execute.
-const publicJsStandalone = new Set(['chat-markdown.js', 'composer-focus-guard.js']);
+// These standalone scripts are intentionally not TypeScript bridges:
+// - chat-markdown is a classic-script compatibility entrypoint.
+// - composer-focus-guard must install pointer handlers before app modules run.
+// - theme-init must apply the saved theme before the first paint.
+// - Piper's worker is vendored third-party runtime code, not an app source module.
+const publicJsStandalone = new Set([
+  'public/chat-markdown.js',
+  'public/composer-focus-guard.js',
+  'public/theme-init.js',
+  'public/vendor/piper-phonemize/PhonemizeWebWorker.js'
+]);
 for (const file of publicJs) {
-  if (publicJsStandalone.has(file.split(/[\\/]/).pop() ?? '')) continue;
+  const relativeFile = relative(ROOT, file).replaceAll('\\\\', '/');
+  if (publicJsStandalone.has(relativeFile)) continue;
   const source = await readFile(file, 'utf8');
-  if (!source.includes('/typed-build/') && !source.includes('typed/')) fail('public-js-not-bridge=' + relative(ROOT, file));
+  if (!source.includes('/typed-build/') && !source.includes('typed/')) fail('public-js-not-bridge=' + relativeFile);
 }
 
 const server = await readFile(join(ROOT, 'server.ts'), 'utf8');
