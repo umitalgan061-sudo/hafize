@@ -48,6 +48,7 @@ import { createWeatherLookup } from './lib/weather-tool.ts';
 import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
+import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
@@ -835,6 +836,7 @@ async function handleAgentRun(req, res) {
   // final streamed completion with tools disabled, so the user never gets a blank reply.
   const workingMessages = [...conversation];
   const toolSummary = [];
+  const toolLoopGuard = createToolLoopGuard();
   const pendingSkillInvocations = new Map();
   let anyToolFailed = false;
   let memoryUpdatesSent = 0;
@@ -976,6 +978,12 @@ async function handleAgentRun(req, res) {
     const results = await Promise.all(normalizedCalls.map(async (call) => {
       const toolTask = runLedger.recordToolStart(call.function.name);
       if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolRunningActivity(call.function.name));
+      if (!toolLoopGuard.shouldRun(call.function.name, call.function.arguments)) {
+        const result = { ok: false, tool: call.function.name, error: 'REPEATED_TOOL_CALL', reason: 'same_call_already_completed', durationMs: 0 };
+        runLedger.recordToolFinish(toolTask.taskId, result);
+        if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
+        return result;
+      }
       const skillInvocation = pendingSkillInvocations.get(call.function.name);
       if (skillInvocation) SKILLS_RUNTIME.auditLog.record({
         stage: 'started', traceId, agentId: agent.id, skillId: skillInvocation.skillId,
