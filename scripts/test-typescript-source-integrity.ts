@@ -49,7 +49,7 @@ const publicJsStandalone = new Set([
   'public/vendor/piper-phonemize/PhonemizeWebWorker.js'
 ]);
 for (const file of publicJs) {
-  const relativeFile = relative(ROOT, file).replaceAll('\\\\', '/');
+  const relativeFile = relative(ROOT, file).replaceAll(String.fromCharCode(92), '/');
   if (publicJsStandalone.has(relativeFile)) continue;
   const source = await readFile(file, 'utf8');
   if (!source.includes('/typed-build/') && !source.includes('typed/')) fail('public-js-not-bridge=' + relativeFile);
