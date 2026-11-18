@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ses ve montaj stüdyosu · Hafize</title><link rel="stylesheet" href="/studio.css"><script type="module" src="/studio.js"></script></head>
+<body><main><a href="/">← Hafize</a><h1>Ses ve montaj stüdyosu</h1><p>Sahnelerin başlama ve bitiş zamanlarını saniye cinsinden gir. Seslendirmeyi dinleyebilir, zaman çizelgesini altyazı olarak indirebilirsin.</p>
+<section id="scenes" aria-label="Sahneler"></section><button id="add">Sahne ekle</button>
+<h2>Seslendirme</h2><label>Ses <select id="voice"><option value="">Cihaz varsayılanı</option></select></label>
+<label>Okuma hızı <select id="rate"><option>0.8</option><option selected>1</option><option>1.2</option><option>1.5</option></select></label>
+<button id="read">Sırayla dinle</button><button id="stop">Durdur</button>
+<h2>Altyazı</h2><button id="srt">SRT indir</button><button id="vtt">WebVTT indir</button><p id="status" role="status"></p></main>
+<template id="scene"><fieldset><legend></legend><label>Başlangıç (sn) <input type="number" min="0" step="0.001" required></label><label>Bitiş (sn) <input type="number" min="0" step="0.001" required></label><label>Metin<textarea rows="3" required></textarea></label><button type="button">Sahneyi kaldır</button></fieldset></template></body></html>
