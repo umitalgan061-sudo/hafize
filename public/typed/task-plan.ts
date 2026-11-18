@@ -1,3 +1,4 @@
+import { reviewExperiment } from '../../lib/weight-experiment.ts';
 import { validatePlan } from '../../lib/task-plan.ts';
 
 const input = document.querySelector<HTMLTextAreaElement>('#tasks')!;
@@ -25,3 +26,25 @@ function inspect() {
 }
 document.querySelector('#check')!.addEventListener('click', inspect);
 inspect();
+
+const picker = document.querySelector<HTMLInputElement>('#experiment-file')!;
+const report = document.querySelector<HTMLElement>('#review')!;
+picker.addEventListener('change', async () => {
+  const file = picker.files?.[0];
+  report.textContent = '';
+  if (!file) return;
+  try {
+    if (file.size>2_000_000) throw Error('Dosya 2 MB sınırını aşıyor.');
+    const result = reviewExperiment(await file.text());
+    if (picker.files?.[0] !== file) return;
+    report.textContent = [
+      'Deney yeniden hesaplandı.',
+      'Deneme: '+result.evaluated+' · Kabul: '+result.accepted+' · Geri alma: '+result.rolledBack,
+      'Başlangıç hatası: '+result.baselineMse.toPrecision(6),
+      'Etkin ağırlıkların hatası: '+result.activeMse.toPrecision(6),
+      'Etkin ağırlıklar: '+result.weights.map(w=>w.toPrecision(6)).join(', ')
+    ].join('\n');
+  } catch (error) {
+    if (picker.files?.[0] === file) report.textContent = error instanceof SyntaxError ? 'Geçerli bir JSON dosyası seç.' : String(error instanceof Error ? error.message : error);
+  }
+});
