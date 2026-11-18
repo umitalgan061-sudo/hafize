@@ -42,7 +42,11 @@ picker.addEventListener('change', async () => {
       'Deneme: '+result.evaluated+' · Kabul: '+result.accepted+' · Geri alma: '+result.rolledBack,
       'Başlangıç hatası: '+result.baselineMse.toPrecision(6),
       'Etkin ağırlıkların hatası: '+result.activeMse.toPrecision(6),
-      'Etkin ağırlıklar: '+result.weights.map(w=>w.toPrecision(6)).join(', ')
+      'Etkin ağırlıklar: '+result.weights.map(w=>w.toPrecision(6)).join(', '),
+      '',
+      'Ek sınama · '+result.probe.count+' ayrı örnek',
+      'Kök ortalama karesel hata (RMSE): '+result.probe.rmse.toPrecision(6),
+      'En büyük mutlak hata: '+result.probe.maximum.toPrecision(6)+' · Girdi: ('+result.probe.worstPoint.join(', ')+')'
     ].join('\n');
   } catch (error) {
     if (picker.files?.[0] === file) report.textContent = error instanceof SyntaxError ? 'Geçerli bir JSON dosyası seç.' : String(error instanceof Error ? error.message : error);

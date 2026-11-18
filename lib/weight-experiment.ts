@@ -26,6 +26,25 @@ function same(actual: unknown, expected: number): boolean {
 function equalWeights(data: unknown,w: Weights) {
   return Array.isArray(data) && data.length === 3 && w.every((value,i)=>same(data[i],value));
 }
+// Half-integer points are disjoint from both integer-valued datasets used by the lab.
+export function probeWeights(weights: Weights) {
+  const coordinates = [-4.5,-2.5,0.5,2.5,4.5];
+  let totalSquared = 0;
+  let maximum = -1;
+  let worstPoint = [0,0];
+  for (const x of coordinates) {
+    for (const y of coordinates) {
+      const absolute = Math.abs(residual(weights,[x,y]));
+      totalSquared += absolute ** 2;
+      if (absolute > maximum) {
+        maximum = absolute;
+        worstPoint = [x,y];
+      }
+    }
+  }
+  return { count: coordinates.length**2, rmse: Math.sqrt(totalSquared/coordinates.length**2), maximum, worstPoint };
+}
+
 export function reviewExperiment(raw: string) {
   if (raw.length > 2_000_000) throw Error('Dosya 2 MB sınırını aşıyor.');
   const doc = JSON.parse(raw);
@@ -52,5 +71,5 @@ export function reviewExperiment(raw: string) {
       current=history.pop()!; candidate=null; rolledBack++;
     } else throw invalid();
   }
-  return { evaluated, accepted, rolledBack, activeMse:mse(current), baselineMse:mse([0,0,0]), weights:current };
+  return { evaluated, accepted, rolledBack, activeMse:mse(current), baselineMse:mse([0,0,0]), weights:current, probe:probeWeights(current) };
 }
