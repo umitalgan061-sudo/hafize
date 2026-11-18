@@ -1,24 +1,28 @@
-const byId = id => document.getElementById(id);
+function byId(id: 'voice' | 'rate'): HTMLSelectElement;
+function byId(id: 'scene'): HTMLTemplateElement;
+function byId(id: 'read' | 'stop'): HTMLButtonElement;
+function byId(id: string): HTMLElement;
+function byId(id: string) { return document.getElementById(id)!; }
 const scenes = byId('scenes');
 const synth = window.speechSynthesis;
-const status = message => { byId('status').textContent = message; };
+const status = (message: string) => { byId('status').textContent = message; };
 let generation = 0;
 
 function addScene() {
   const previous = scenes.lastElementChild;
-  const start = Number(previous?.querySelectorAll('input')[1].value || 0);
-  const row = byId('scene').content.firstElementChild.cloneNode(true);
+  const start = Number(previous?.querySelectorAll('input')[1]?.value || 0);
+  const row = byId('scene').content.firstElementChild!.cloneNode(true) as HTMLFieldSetElement;
   const [from, to] = row.querySelectorAll('input');
   from.value = start;
   to.value = start + 5;
   scenes.append(row);
-  row.querySelector('button').onclick = () => { stop(); row.remove(); numberScenes(); };
+  row.querySelector('button')!.onclick = () => { stop(); row.remove(); numberScenes(); };
   numberScenes();
-  row.querySelector('textarea').focus();
+  row.querySelector('textarea')!.focus();
 }
 
 function numberScenes() {
-  [...scenes.children].forEach((row, i) => { row.querySelector('legend').textContent = 'Sahne ' + (i + 1); });
+  [...scenes.children].forEach((row, i) => { row.querySelector('legend')!.textContent = 'Sahne ' + (i + 1); });
 }
 
 function timeline() {
@@ -26,7 +30,7 @@ function timeline() {
   if (!scenes.children.length) throw Error('En az bir sahne ekle.');
   return [...scenes.children].map((row, i) => {
     const [from, to] = [...row.querySelectorAll('input')].map(input => Math.round(input.valueAsNumber * 1000));
-    const text = row.querySelector('textarea').value.trim();
+    const text = row.querySelector('textarea')!.value.trim();
     if (!text || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < last || to <= from)
       throw Error('Sahne ' + (i + 1) + ' için metni ve zaman aralığını kontrol et. Sahneler çakışamaz.');
     last = to;
@@ -34,13 +38,13 @@ function timeline() {
   });
 }
 
-function timestamp(ms, decimal) {
-  const pad = n => String(n).padStart(2, '0');
+function timestamp(ms: number, decimal: string) {
+  const pad = (n: number) => String(n).padStart(2, '0');
   return pad(Math.floor(ms / 3600000)) + ':' + pad(Math.floor(ms / 60000) % 60) + ':' +
     pad(Math.floor(ms / 1000) % 60) + decimal + String(ms % 1000).padStart(3, '0');
 }
 
-function download(ext) {
+function download(ext: 'vtt' | 'srt') {
   const vtt = ext === 'vtt';
   const decimal = vtt ? '.' : ',';
   const cues = timeline().map(({from, to, text}, index) => {
@@ -66,7 +70,7 @@ function read() {
   stop();
   const token = generation;
   const voice = synth.getVoices().find(v => v.voiceURI === byId('voice').value);
-  function next(i) {
+  function next(i: number) {
     if (token !== generation) return;
     if (i === entries.length) { status('Seslendirme tamamlandı.'); return; }
     const utterance = new SpeechSynthesisUtterance(entries[i].text);
@@ -87,7 +91,7 @@ function refreshVoices() {
   for (const voice of synth.getVoices()) menu.add(new Option(voice.name + ' · ' + voice.lang, voice.voiceURI));
   menu.value = [...menu.options].some(option => option.value === selected) ? selected : '';
 }
-const guarded = action => () => { try { action(); } catch (err) { status(err.message); } };
+const guarded = (action: () => void) => () => { try { action(); } catch (err) { status(err instanceof Error ? err.message : String(err)); } };
 byId('add').onclick = addScene;
 byId('srt').onclick = guarded(() => download('srt'));
 byId('vtt').onclick = guarded(() => download('vtt'));
