@@ -59,6 +59,7 @@ import { createUpstreamCircuitBreaker, UpstreamCircuitOpenError } from './lib/up
 import { createModelProviderRuntime } from './lib/model-provider-runtime.ts';
 import { createHafizePlatform } from './lib/hafize-platform.ts';
 import { startLocalHttps } from './lib/local-tls.ts';
+import { freeLlmGateway } from './lib/freellm-gateway.ts';
 import { createModelRouter, parseModelChain } from './lib/model-router.ts';
 import { MODEL_SERVICE_DEFAULTS } from './lib/model-services.ts';
 
@@ -66,13 +67,14 @@ const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PUBLIC_DIR = join(ROOT, 'public');
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number.parseInt(process.env.PORT || '4173', 10);
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || '';
-const NIM_BASE_URL = (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
+const gateway = freeLlmGateway(process.env);
+const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');
+const NIM_BASE_URL = gateway?.baseUrl ?? (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
 const MODEL_ROUTER = createModelRouter({
-  chain: parseModelChain(process.env.HAFIZE_MODEL_CHAIN),
+  chain: gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN),
   // Background helpers stay on the quick model unless it is unavailable.
-  keepFirst: [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
+  keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
 });
 const NVIDIA_DEFAULT_MODEL = MODEL_ROUTER.top();
 const WEATHER_LOOKUP = createWeatherLookup();
@@ -146,8 +148,8 @@ const SKILLS_RUNTIME = createBuiltinSkillsRuntimeSync();
 const PLATFORM = createHafizePlatform({
   root: ROOT,
   env: process.env,
-  apiKey: NVIDIA_API_KEY,
-  nimBaseUrl: NIM_BASE_URL,
+  apiKey: process.env.NVIDIA_API_KEY || '',
+  nimBaseUrl: (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, ''),
   chat: (payload, signal) => nvidiaJsonCompletion(payload, signal),
   webTools: WEB_TOOLS,
   registry: AGENT_REGISTRY,

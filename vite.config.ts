@@ -10,6 +10,7 @@ const typedDevEntryPlugin = (): Plugin => ({
   transformIndexHtml(html, context) {
     if (!context.server) return html;
     return html
+      .replaceAll('/typed-build/studio.js', '/typed/studio.ts')
       .replaceAll('/typed-build/auth.js', '/typed/auth.ts')
       .replaceAll('/typed-build/app-shell.js', '/typed/app-shell.ts')
       .replaceAll('/typed-build/ui-shell.js', '/typed/ui-shell.ts')
@@ -110,6 +111,7 @@ export default defineConfig({
         'system-readiness-panel': resolve(ROOT, 'public/system-readiness-panel.ts'),
         'legacy-app': resolve(ROOT, 'public/typed/legacy-app.ts'),
         'sw': resolve(ROOT, 'public/sw.ts'),
+        'studio': resolve(ROOT, 'public/typed/studio.ts'),
         'chat-composer-features': resolve(ROOT, 'public/typed/chat-composer-features.ts'),
         'chat-history-search': resolve(ROOT, 'public/typed/chat-history-search.ts'),
         'chat-history-management': resolve(ROOT, 'public/typed/chat-history-management.ts'),
