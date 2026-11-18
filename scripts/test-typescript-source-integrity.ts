@@ -37,8 +37,12 @@ for (const file of libMjs) {
 }
 
 const publicJs = all.filter((p) => p.startsWith(join(ROOT, 'public') + '/') && p.endsWith('.js'));
+// These two files intentionally stay as standalone browser scripts rather than TS bridges:
+// chat-markdown owns its legacy markdown bootstrap, while composer-focus-guard must install
+// a synchronous pointer listener before the application ES modules execute.
+const publicJsStandalone = new Set(['chat-markdown.js', 'composer-focus-guard.js']);
 for (const file of publicJs) {
-  if (file.endsWith('/chat-markdown.js')) continue;
+  if (publicJsStandalone.has(file.split(/[\\/]/).pop() ?? '')) continue;
   const source = await readFile(file, 'utf8');
   if (!source.includes('/typed-build/') && !source.includes('typed/')) fail('public-js-not-bridge=' + relative(ROOT, file));
 }
