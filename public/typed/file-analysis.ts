@@ -59,3 +59,12 @@ byId('chat').onclick=()=>run(()=>{
   if(draft.length>16000)throw Error('Sohbet özeti çok uzun. Daha dar bir veri kümesi seç.');
   sessionStorage.setItem('hafize.analysis.draft',draft);location.assign('/#dosya-analizi');
 });
+
+byId('download').onclick=()=>run(()=>{
+  const table=output.querySelector('table');
+  if(!table)throw Error('Önce bir dosya incele.');
+  const records=Array.from(table.rows,row=>Array.from(row.cells,cell=>cell.textContent??''));
+  const blob=new Blob([JSON.stringify({summary:status.textContent,columns:records[0],rows:records.slice(1)},null,2)],{type:'application/json'});
+  const link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='hafize-analiz.json';link.click();
+  setTimeout(()=>URL.revokeObjectURL(link.href),1000);
+});
