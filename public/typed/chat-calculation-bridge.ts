@@ -1,3 +1,4 @@
+import { revisionContext } from '../../lib/chat-revision.ts';
 import { conversationCalculation } from '../../lib/chat-calculation.ts';
 
 /** Add a computed reference to simple text-only arithmetic requests at the chat boundary. */
@@ -12,6 +13,8 @@ export function withCalculation(base:typeof fetch):typeof fetch {
       const last=Array.isArray(data.messages)?data.messages.at(-1):null;
       if(last?.role==='user'&&typeof last.content==='string'){
         const reference=conversationCalculation(data.messages);
+        const revision=revisionContext(data.messages);
+        if(revision){last.content+='\n\n[Hafize düzenleme bağlamı: '+revision+']';body=JSON.stringify(data);}
         if(reference){last.content+='\n\n[Hafize yerel hesap sonucu: '+reference+']';body=JSON.stringify(data);}
       }
     } catch { /* Non-JSON requests continue through the normal transport. */ }
