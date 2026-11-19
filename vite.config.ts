@@ -10,6 +10,8 @@ const typedDevEntryPlugin = (): Plugin => ({
   transformIndexHtml(html, context) {
     if (!context.server) return html;
     return html
+      .replaceAll('/typed-build/file-analysis.js', '/typed/file-analysis.ts')
+      .replaceAll('/typed-build/analysis-draft.js', '/typed/analysis-draft.ts')
       .replaceAll('/typed-build/task-plan.js', '/typed/task-plan.ts')
       .replaceAll('/typed-build/studio.js', '/typed/studio.ts')
       .replaceAll('/typed-build/auth.js', '/typed/auth.ts')
@@ -112,6 +114,8 @@ export default defineConfig({
         'system-readiness-panel': resolve(ROOT, 'public/system-readiness-panel.ts'),
         'legacy-app': resolve(ROOT, 'public/typed/legacy-app.ts'),
         'sw': resolve(ROOT, 'public/sw.ts'),
+        'analysis-draft': resolve(ROOT, 'public/typed/analysis-draft.ts'),
+        'file-analysis': resolve(ROOT, 'public/typed/file-analysis.ts'),
         'task-plan': resolve(ROOT, 'public/typed/task-plan.ts'),
         'studio': resolve(ROOT, 'public/typed/studio.ts'),
         'chat-composer-features': resolve(ROOT, 'public/typed/chat-composer-features.ts'),
