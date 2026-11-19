@@ -3,6 +3,11 @@ export function calculationFor(text: string): string | null {
   if (text.length > 250) return null;
   let expr=text.trim().toLocaleLowerCase('tr-TR').replace(/^(?:hesapla|işlem)\s*:\s*/,'')
     .replace(/\s*(?:kaç(?:tır)?|nedir|eder|hesapla)[?! .]*$/,'').replace(/[?=]\s*$/,'').trim();
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(expr)) return null;
+  function bounded(value:number):number {
+    if (!Number.isFinite(value) || Math.abs(value)>Number.MAX_SAFE_INTEGER) throw Error();
+    return value;
+  }
   const num='(\\d+(?:,\\d+)?)';
   const pct=new RegExp('^'+num+"(?:\\s*tl)?['’]?(?:nin|nın|nun|nün|in|ın|un|ün)?\\s+(?:yüzde\\s*|%\\s*)"+num+"(?:['’]?(?:si|sı|i|ı))?(?:\\s+kaç)?$").exec(expr);
   if(pct)expr=pct[1]+' × '+pct[2]+' / 100';
@@ -23,13 +28,13 @@ export function calculationFor(text: string): string | null {
     let v=atom();
     while(['*','×','/','÷'].includes(tokens[pos]??'')){
       const op=tokens[pos++],right=atom();
-      v=op==='*'||op==='×'?v*right:v/right;
+      v=bounded(op==='*'||op==='×'?v*right:v/right);
     }
     return v;
   }
   function sum():number {
     let v=product();
-    while(['+','-','−'].includes(tokens[pos]??'')){const op=tokens[pos++],right=product();v=op==='+'?v+right:v-right;}
+    while(['+','-','−'].includes(tokens[pos]??'')){const op=tokens[pos++],right=product();v=bounded(op==='+'?v+right:v-right);}
     return v;
   }
   try {
