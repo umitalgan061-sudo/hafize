@@ -13,7 +13,8 @@ export function enableMessageQuotes() {
     const selection=window.getSelection();
     if(document.activeElement===button && !selection?.toString().trim())return;
     const node=selection?.anchorNode, end=selection?.focusNode;
-    const content=node?.parentElement?.closest('.message .content');
+    const element=node instanceof Element ? node : node?.parentElement;
+    const content=element?.closest('.message .content');
     const text=selection?.toString().trim()??'';
     origin=content && messages!.contains(content) && end && content.contains(end) && text.length<=16000 ? content : null;
     excerpt=origin ? text : '';
