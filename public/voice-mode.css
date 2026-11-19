@@ -334,3 +334,8 @@ body.voice-mode-open { overflow: hidden; }
   .vm-orb-fallback, .vm-status::before, .vm-backdrop, .vm-settings { animation: none !important; }
 }
 html[data-reduced-motion="true"] .vm-orb-fallback { animation: none; }
+
+.vm-camera-host { position:absolute;top:.5rem;left:50%;transform:translateX(-50%);width:min(94%,32rem);z-index:2;text-align:center; }
+.vm-camera-host:has(.live-screen-chip) .vm-camera-start { display:none; }
+.vm-camera-host .live-screen-chip { margin:0;max-height:30dvh;overflow:auto; }
+.vm-camera-host button { touch-action:manipulation; }

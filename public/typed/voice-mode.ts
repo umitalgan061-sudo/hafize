@@ -109,6 +109,7 @@ const TEMPLATE = `
   <button type="button" class="vm-sample">▶ Örnek dinle</button>
 </section>
 <main class="vm-stage">
+  <section class="vm-camera-host" aria-label="Görüşme kamerası"><button class="vm-camera-start soft-btn" type="button">Kamerayı aç</button></section>
   <button type="button" class="vm-orb" aria-label="Konuşmaya başla">
     <span class="vm-orb-fallback" aria-hidden="true"></span>
     <canvas class="vm-canvas" aria-hidden="true"></canvas>
@@ -434,6 +435,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     returnFocus = active && active !== documentRef.body ? active : mic;
     documentRef.documentElement.dataset.voiceMode = 'true';
     screen.hidden = false;
+    documentRef.dispatchEvent(new CustomEvent('hafize:voice-camera-open',{detail:screen.querySelector('.vm-camera-host')}));
     documentRef.body.classList.add('voice-mode-open');
     muted = false;
     silentRetries = 0;
@@ -453,6 +455,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const close = () => {
     if (state === 'closed') return;
+    documentRef.dispatchEvent(new Event('hafize:voice-camera-close'));
     clearTimers();
     stopFeeding();
     awaitingReply = false;
@@ -565,6 +568,9 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   on(documentRef, OUTPUT_PROGRESS_EVENT, onProgress);
   on(orbButton, 'click', onOrb);
   on(closeBtn, 'click', close);
+  on(documentRef,'hafize:camera-talk',()=>open());
+  on($<HTMLButtonElement>('.vm-camera-start'),'click',()=>documentRef.dispatchEvent(new Event('hafize:voice-camera-start')));
+  if (typeof root.addEventListener==='function') on(root,'pagehide',close);
   on(micBtn, 'click', () => {
     muted = !muted;
     renderMute();
