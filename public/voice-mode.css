@@ -339,3 +339,6 @@ html[data-reduced-motion="true"] .vm-orb-fallback { animation: none; }
 .vm-camera-host:has(.live-screen-chip) .vm-camera-start { display:none; }
 .vm-camera-host .live-screen-chip { margin:0;max-height:30dvh;overflow:auto; }
 .vm-camera-host button { touch-action:manipulation; }
+
+.vm-stage:has(.vm-camera-host) { position:relative; }
+.vm-camera-host .live-screen-chip { text-align:start; }
