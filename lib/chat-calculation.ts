@@ -81,11 +81,11 @@ export function conversationCalculation(turns:Turn[]):string|null {
     const target=match[1];
     const resultRequested=target==='sonucun'||target==='çıkan sonucun';
     if(!previous.base && !resultRequested)return null;
-    const amount=resultRequested ? previous.value : Number(previous.base!.replace(',','.'));
+    const amount:number=resultRequested ? previous.value : Number(previous.base!.replace(',','.'));
     const rate=Number(match[2]!.replace(',','.'));
     const value=amount*rate/100;
     if(match[2]!.replace(',','').length>12 || !Number.isFinite(value)||Math.abs(amount*rate)>Number.MAX_SAFE_INTEGER)return null;
-    const literal=String(amount).replace('.',',');
+    const literal:string=String(amount).replace('.',',');
     previous={expr:literal+' × '+match[2]+' / 100',value,base:literal};
   }
   return display(previous);
