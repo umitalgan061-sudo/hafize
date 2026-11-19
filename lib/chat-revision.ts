@@ -4,7 +4,7 @@ type Turn = {role?:string; content?:unknown};
 function revisionCommand(text:string):'code'|'prose'|null {
   const q=text.trim().toLocaleLowerCase('tr-TR').replace(/[.!?]+$/,'').replace(/\s+/g,' ');
   if (/^(?:(?:bu kodda|kodda) )?(?:sadece|yalnızca) (?:bu )?hatayı düzelt$/.test(q)) return 'code';
-  if (/^(?:(?:bunu|bu metni|önceki yanıtı|son yanıtı) )?(?:(?:biraz |daha )?(?:kısa|resmi|resmî|samimi|anlaşılır|sade) (?:yaz|yap)|kısalt|sadeleştir|özetle|madde madde yaz|yeniden yaz)$/.test(q)) return 'prose';
+  if (/^(?:(?:bunu|bu metni|önceki yanıtı|son yanıtı) )?(?:(?:biraz )?(?:daha )?(?:kısa|resmi|resmî|samimi|anlaşılır|sade) (?:yaz|yap)|kısalt|sadeleştir|özetle|madde madde yaz|yeniden yaz)$/.test(q)) return 'prose';
   return null;
 }
 export function revisionContext(turns:Turn[]):string|null {
