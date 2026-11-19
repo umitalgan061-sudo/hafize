@@ -68,10 +68,21 @@ function install(documentRef: Document, root: typeof globalThis): void {
   let video: HTMLVideoElement | null = null;
   let source: Source = 'screen';
   let facing: 'environment' | 'user' = 'environment';
+  let generation = 0;
+  let frameRequest: AbortController | null = null;
+  let secondaryVersion = 0;
+  let secondary: HTMLVideoElement | null = null;
+  let voiceHost: HTMLElement | null = null;
+  const release = (media: MediaStream | null) => media?.getTracks().forEach(track => track.stop());
+  const dropSecondary = () => {
+    secondaryVersion++;
+    if (secondary) { release(secondary.srcObject as MediaStream | null); secondary.srcObject=null; secondary.remove(); secondary=null; }
+  };
   let sampler: ReturnType<typeof setInterval> | null = null;
   let signature: Uint8ClampedArray | null = null;
   let lastSentAt = 0;
   let busy = false;
+  let waitingForQuestion = false;
   const small = documentRef.createElement('canvas');
   small.width = SIGNATURE_WIDTH;
   small.height = SIGNATURE_HEIGHT;
@@ -89,17 +100,35 @@ function install(documentRef: Document, root: typeof globalThis): void {
     if (!video?.videoWidth) return null;
     const context = small.getContext('2d', { willReadFrequently: true });
     if (!context) return null;
-    context.drawImage(video, 0, 0, SIGNATURE_WIDTH, SIGNATURE_HEIGHT);
+    const half = secondary?.videoWidth ? SIGNATURE_WIDTH / 2 : SIGNATURE_WIDTH;
+    context.drawImage(video, 0, 0, half, SIGNATURE_HEIGHT);
+    if (secondary?.videoWidth) context.drawImage(secondary, half, 0, half, SIGNATURE_HEIGHT);
     return context.getImageData(0, 0, SIGNATURE_WIDTH, SIGNATURE_HEIGHT).data;
   };
   const encodeFrame = (): string | null => {
     if (!video?.videoWidth) return null;
     const size = frameSize(video.videoWidth, video.videoHeight);
-    large.width = size.width;
-    large.height = size.height;
+    const dual = Boolean(secondary?.videoWidth);
+    const tile = dual ? Math.min(size.width,800) : size.width;
+    large.width = dual ? tile*2 : tile;
+    large.height = dual ? Math.min(size.height,960) : size.height;
     const context = large.getContext('2d', { alpha: false });
     if (!context) return null;
-    context.drawImage(video, 0, 0, size.width, size.height);
+    const draw = (camera: HTMLVideoElement, left:number) => {
+      const scale=Math.min(tile/camera.videoWidth,large.height/camera.videoHeight);
+      const w=camera.videoWidth*scale,h=camera.videoHeight*scale;
+      context.drawImage(camera,left+(tile-w)/2,(large.height-h)/2,w,h);
+    };
+    draw(video,0);
+    if (dual && secondary) draw(secondary,tile);
+    if (dual && secondary) {
+      const label=(v:HTMLVideoElement,x:number,fallback:string)=>{
+        const direction=(v.srcObject as MediaStream | null)?.getVideoTracks()[0]?.getSettings().facingMode;
+        context.fillStyle='#000';context.fillRect(x,0,128,25);context.fillStyle='#fff';context.font='16px sans-serif';
+        context.fillText(direction==='user'?'Ön kamera':direction==='environment'?'Arka kamera':fallback,x+4,18);
+      };
+      label(video,0,'Kamera 1');label(secondary,tile,'Kamera 2');
+    }
     return large.toDataURL('image/jpeg', JPEG_QUALITY);
   };
   const sendFrame = async (question = ''): Promise<boolean> => {
@@ -107,11 +136,14 @@ function install(documentRef: Document, root: typeof globalThis): void {
     if (!data) return false;
     signature = readSignature();
     lastSentAt = Date.now();
-    const response = await api('/api/screen/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data, question, source }) });
+    frameRequest?.abort();
+    const controller=new AbortController();
+    frameRequest=controller;
+    const response = await api('/api/screen/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal:controller.signal, body: JSON.stringify({ data, question, source }) });
     return response.ok;
   };
   const sample = () => {
-    if (busy || !stream) return;
+    if (busy || !stream || waitingForQuestion) return;
     const current = readSignature();
     if (!shouldSendFrame({ difference: frameDifference(signature, current), lastSentAt, now: Date.now(), busy, source })) return;
     busy = true;
@@ -121,6 +153,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
   };
 
   const stop = (notify = true) => {
+    generation++; frameRequest?.abort(); frameRequest=null;dropSecondary();
     if (sampler) clearInterval(sampler);
     sampler = null;
     for (const track of stream?.getTracks() ?? []) track.stop();
@@ -179,36 +212,80 @@ function install(documentRef: Document, root: typeof globalThis): void {
       flip.addEventListener('click', () => { void flipCamera(); });
       void root.navigator.mediaDevices.enumerateDevices?.().then((devices) => { flip.hidden = devices.filter((device) => device.kind === 'videoinput').length < 2; }).catch(() => {});
       actions.append(flip);
+      const both=documentRef.createElement('button');
+      both.type='button'; both.className='live-camera-flip'; both.textContent='İkinci kamerayı aç';
+      both.dataset.secondCamera='true';
+      both.addEventListener('click', async () => {
+        if (secondary) { dropSecondary(); both.textContent='İkinci kamerayı aç'; signature=null; return; }
+        const track=stream?.getVideoTracks()[0]; if (!track) return;
+        const actual=track.getSettings().facingMode || facing;
+        const other=actual==='user'?'environment':'user';
+        const token=++secondaryVersion;
+        both.disabled=true;
+        let extra:MediaStream|null=null;
+        try {
+          extra=await root.navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:other},width:{ideal:640}},audio:false});
+          const second=extra.getVideoTracks()[0];
+          if(token!==secondaryVersion || stream?.getVideoTracks()[0]!==track) return;
+          if(!second || track.readyState!=='live' || (track.getSettings().deviceId && second.getSettings().deviceId===track.getSettings().deviceId)) throw Error();
+          const preview=documentRef.createElement('video'); preview.playsInline=true;preview.muted=true;preview.srcObject=extra;
+          preview.setAttribute('aria-label','İkinci kamera');preview.style.maxWidth='96px';
+          secondary=preview;extra=null;chip?.append(preview);await preview.play();
+          if(token!==secondaryVersion)return;
+          second.addEventListener('ended',()=>{if(secondary===preview){dropSecondary();both.textContent='İkinci kamerayı aç';}});
+          both.textContent='İkinci kamerayı kapat';signature=null;lastSentAt=0;
+        } catch {
+          if(token===secondaryVersion){dropSecondary();setStatus('İki kamera birlikte açılamadı. Kamera değiştirmek için Çevir’e dokun.');}
+        } finally { release(extra); both.disabled=false; }
+      });
+      actions.append(both);
+      if (documentRef.querySelector('.voice-mode') && !voiceHost) {
+        const talk=documentRef.createElement('button');
+        talk.type='button';talk.className='live-camera-flip';talk.textContent='Sesli sohbete geç';
+        talk.addEventListener('click',()=>documentRef.dispatchEvent(new Event('hafize:camera-talk')));
+        actions.append(talk);
+      }
     }
     actions.append(stopButton);
-    composer.prepend(chip);
+    (source==='camera' && voiceHost ? voiceHost : composer).prepend(chip);
   };
 
   const cameraStream = (facing: 'environment' | 'user') => root.navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 } }, audio: false });
   const flipCamera = async () => {
     if (!stream || !video) return;
-    const next = facing === 'environment' ? 'user' : 'environment';
+    const ticket=++generation;
+    frameRequest?.abort();dropSecondary();
+    const dualButton=chip?.querySelector<HTMLButtonElement>('[data-second-camera]');
+    if(dualButton)dualButton.textContent='İkinci kamerayı aç';
+    const next = (stream.getVideoTracks()[0]?.getSettings().facingMode || facing) === 'environment' ? 'user' : 'environment';
     for (const track of stream.getTracks()) track.stop();
     try {
-      stream = await cameraStream(next);
+      const acquired=await cameraStream(next);
+      if(ticket!==generation){release(acquired);return;}
+      stream=acquired;
       facing = next;
       video.srcObject = stream;
       await video.play().catch(() => {});
+      if(ticket!==generation || !stream)return;
       applyMirror();
       stream.getVideoTracks()[0]?.addEventListener('ended', () => stop());
       signature = null;
       lastSentAt = 0;
-    } catch { stop(); toast('Kamera değiştirilemedi.'); }
+    } catch { if(ticket===generation){stop();toast('Kamera değiştirilemedi.');} }
   };
 
   const start = async (kind: Source) => {
     const devices = root.navigator.mediaDevices;
     if (stream) stop(false);
+    const ticket=++generation;
     try {
-      stream = kind === 'screen'
+      const acquired = kind === 'screen'
         ? await devices.getDisplayMedia({ video: { frameRate: { ideal: 2, max: 5 } }, audio: false })
         : await cameraStream(facing);
+      if(ticket!==generation){release(acquired);return;}
+      stream=acquired;
     } catch (error) {
+      if(ticket!==generation)return;
       stream = null;
       const name = (error as Error)?.name;
       if (kind === 'camera' && (name === 'NotFoundError' || name === 'OverconstrainedError')) toast('Bu cihazda kamera bulunamadı.');
@@ -221,6 +298,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     buildChip();
     video!.srcObject = stream;
     await video!.play().catch(() => {});
+    if(ticket!==generation || !stream)return;
     stream.getVideoTracks()[0]?.addEventListener('ended', () => stop());
     (kind === 'camera' ? cameraButton : button)?.setAttribute('aria-pressed', 'true');
     composer.setAttribute('data-live-screen', 'true');
@@ -231,9 +309,11 @@ function install(documentRef: Document, root: typeof globalThis): void {
     // A reload ends sharing without a goodbye; descriptions from then must not read as the present.
     await api('/api/screen', { method: 'DELETE' }).catch(() => {});
     await new Promise((done) => root.setTimeout(done, 300));
+    if(!stream || !chip)return;
+    if(ticket!==generation){if(!sampler)sampler=setInterval(sample,SAMPLE_MS);return;}
     busy = true;
     void sendFrame().then((ok) => setStatus(ok ? 'Görüntü güncel' : 'Görüntü okunamadı, yeniden denenecek')).catch(() => setStatus('Bağlantı kesildi, yeniden denenecek')).finally(() => { busy = false; });
-    sampler = setInterval(sample, SAMPLE_MS);
+    if(!sampler)sampler = setInterval(sample, SAMPLE_MS);
   };
 
   const offerCamera = (support: { camera: boolean }) => {
@@ -279,7 +359,16 @@ function install(documentRef: Document, root: typeof globalThis): void {
     if (support.screen) void start('screen');
     else offerCamera(support);
   });
-  root.addEventListener('pagehide', () => { if (stream) stop(false); });
+  documentRef.addEventListener('hafize:voice-camera-open',event=>{
+    voiceHost=(event as CustomEvent<HTMLElement>).detail;
+    if(chip && source==='camera')voiceHost.prepend(chip);
+  });
+  documentRef.addEventListener('hafize:voice-camera-start',()=>{if(!stream || source!=='camera')void start('camera');});
+  documentRef.addEventListener('hafize:voice-camera-close',()=>{
+    if(voiceHost && (source==='camera' || !stream))stop();
+    voiceHost=null;
+  });
+  root.addEventListener('pagehide', () => {stop(false);voiceHost=null;});
 
   (root as typeof globalThis & { HafizeLiveScreen?: unknown }).HafizeLiveScreen = Object.freeze({
     /** Called right before a message goes out, so the answer is about what is on screen now. */
@@ -287,7 +376,9 @@ function install(documentRef: Document, root: typeof globalThis): void {
       if (!stream) return;
       setStatus(source === 'camera' ? 'Kameraya bakıyor…' : 'Ekrana bakıyor…');
       const timeout = new Promise<boolean>((done) => root.setTimeout(() => done(false), ASK_TIMEOUT_MS));
-      const ok = await Promise.race([sendFrame(question).catch(() => false), timeout]);
+      waitingForQuestion=true;
+      let ok=false;
+      try {ok=await Promise.race([sendFrame(question).catch(() => false),timeout]);}finally{waitingForQuestion=false;}
       setStatus(ok ? 'Görüntü güncel' : 'Görüntü okunamadı, son bilinen hâli kullanılıyor');
     }
   });
