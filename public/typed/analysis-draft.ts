@@ -1,3 +1,4 @@
+import {enableMessageQuotes} from './message-quote.ts';
 import {calculationFor} from '../../lib/chat-calculation.ts';
 import {withCalculation} from './chat-calculation-bridge.ts';
 window.fetch=withCalculation(window.fetch.bind(window));
@@ -42,3 +43,5 @@ function attachToolSuggestions() {
   refresh();
 }
 attachToolSuggestions();
+
+enableMessageQuotes();
