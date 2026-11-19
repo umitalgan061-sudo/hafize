@@ -1,3 +1,4 @@
+import { suggestTools } from '../../lib/composer-tool-suggestions.ts';
 function transfer() {
   if(location.hash!=='#dosya-analizi')return;
   const box=document.querySelector<HTMLTextAreaElement>('#messageInput');
@@ -13,3 +14,26 @@ function transfer() {
   }catch{/* Storage may be unavailable in private sessions. */}
 }
 if(document.readyState==='complete')transfer();else window.addEventListener('load',transfer,{once:true});
+
+function attachToolSuggestions() {
+  const box=document.querySelector<HTMLTextAreaElement>('#messageInput');
+  const form=box?.closest('form') ?? document.querySelector('#composer');
+  if(!box || !form || document.querySelector('#local-tool-suggestions')) return;
+  const panel=document.createElement('nav');
+  panel.id='local-tool-suggestions';
+  panel.setAttribute('aria-label','İsteğe uygun araçlar');
+  form.before(panel);
+  function refresh() {
+    panel.replaceChildren();
+    const matches=suggestTools(box!.value);
+    panel.hidden=!matches.length;
+    for(const match of matches) {
+      const link=document.createElement('a');
+      link.className='soft-btn';link.href=match.url;link.target='_blank';link.rel='noopener';
+      link.textContent=match.title;panel.append(link);
+    }
+  }
+  box.addEventListener('input',refresh);
+  refresh();
+}
+attachToolSuggestions();
