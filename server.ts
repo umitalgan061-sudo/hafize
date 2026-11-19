@@ -23,6 +23,7 @@ import { createGitHubWorkspaceReader, GitHubWorkspaceError } from './lib/github-
 import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/github-workspace-extra.ts';
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
+import { createGitHubAppAuth } from './lib/github-app-auth.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -94,7 +95,26 @@ function rememberUnavailableModel(body) {
     if (typeof model === 'string' && model && model !== NVIDIA_DEFAULT_MODEL && UNAVAILABLE_NVIDIA_MODELS.size < 500) UNAVAILABLE_NVIDIA_MODELS.add(model);
   } catch {}
 }
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
+// Prefer short-lived installation credentials over a personal access token.
+// A partially configured GitHub App is never silently downgraded to a PAT.
+const GITHUB_APP_FIELDS = [
+  process.env.HAFIZE_GITHUB_APP_ID,
+  process.env.HAFIZE_GITHUB_APP_INSTALLATION_ID,
+  process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH
+];
+if (GITHUB_APP_FIELDS.some(Boolean) && !GITHUB_APP_FIELDS.every(Boolean)) {
+  throw new Error('GITHUB_APP_INCOMPLETE_CONFIGURATION');
+}
+const GITHUB_APP_AUTH = GITHUB_APP_FIELDS.every(Boolean)
+  ? createGitHubAppAuth({
+      appId: process.env.HAFIZE_GITHUB_APP_ID,
+      installationId: process.env.HAFIZE_GITHUB_APP_INSTALLATION_ID,
+      privateKeyPath: process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH
+    })
+  : null;
+// The placeholder is never sent: authenticatedFetch overwrites Authorization.
+const GITHUB_TOKEN = GITHUB_APP_AUTH ? 'github-app-installation' : (process.env.GITHUB_TOKEN || '');
+const GITHUB_FETCH = GITHUB_APP_AUTH?.authenticatedFetch ?? globalThis.fetch;
 const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';
 const SCHEDULE_AUTH_SUBJECT = process.env.HAFIZE_SCHEDULE_AUTH_SUBJECT || '';
 // Without a model the schedule worker never starts, and rules would queue tasks nothing ever runs.
@@ -120,23 +140,28 @@ const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.leng
 const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
   token: GITHUB_TOKEN,
+  fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
 const GITHUB_WORKSPACE_READER = createGitHubWorkspaceReader({
   token: GITHUB_TOKEN,
+  fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS,
   readFile: GITHUB_READ_FILE
 });
 const GITHUB_WORKSPACE_EXTRA = createGitHubWorkspaceExtra({
   token: GITHUB_TOKEN,
+  fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
 const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
   token: GITHUB_TOKEN,
+  fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   token: GITHUB_TOKEN,
+  fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
