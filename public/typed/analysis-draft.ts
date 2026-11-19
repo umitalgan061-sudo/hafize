@@ -1,3 +1,4 @@
+import {calculationFor} from '../../lib/chat-calculation.ts';
 import {withCalculation} from './chat-calculation-bridge.ts';
 window.fetch=withCalculation(window.fetch.bind(window));
 import { suggestTools } from '../../lib/composer-tool-suggestions.ts';
@@ -28,7 +29,9 @@ function attachToolSuggestions() {
   function refresh() {
     panel.replaceChildren();
     const matches=suggestTools(box!.value);
-    panel.hidden=!matches.length;
+    const arithmetic=calculationFor(box!.value);
+    panel.hidden=!matches.length && !arithmetic;
+    if(arithmetic){const result=document.createElement('output'); result.textContent='Yerel hesap: '+arithmetic; panel.append(result);}
     for(const match of matches) {
       const link=document.createElement('a');
       link.className='soft-btn';link.href=match.url;link.target='_blank';link.rel='noopener';
