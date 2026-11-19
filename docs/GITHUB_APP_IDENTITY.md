@@ -1,0 +1,65 @@
+# Hafize GitHub App kimliği
+
+Bu entegrasyon, Hafize'nin mevcut GitHub çalışma alanındaki **okuma**, **branch oluşturma**, **tek dosya commit'i** ve **pull request açma** akışlarını kısa süreli GitHub App installation token'larıyla çalıştırır.
+
+## Kimlikler
+
+- Uygulama: `Hafize-UmitAlgan`
+- App ID: `5833389`
+- Installation ID: `183684460`
+- Uygulama sahibi: `umitalgan061-sudo`
+
+Bu kimlikler tek başına gizli değildir. **Özel anahtar (.pem) ve installation token kesinlikle gizlidir.**
+
+## Kurulum
+
+1. GitHub App'i ilgili hesaba kur ve **Permissions & events** ayarlarında `Contents: Read & write`, `Pull requests: Read & write`, `Issues: Read & write` ve `Actions: Read-only` izinlerini doğrula.
+2. GitHub uygulamasının **Credentials → Key pairs** bölümünden oluşturulan özel anahtarı sadece güvenli backend ortamında sakla. Dosyayı `public/` veya Git çalışma ağacına koyma; hiçbir GitHub commit'ine ekleme.
+3. Backend sunucusuna aşağıdaki ortam değişkenlerini tanımla:
+
+```dotenv
+HAFIZE_GITHUB_APP_ID=5833389
+HAFIZE_GITHUB_APP_INSTALLATION_ID=183684460
+HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH=/secure/absolute/path/to/hafize-app.pem
+HAFIZE_GITHUB_READ_REPOS=umitalgan061-sudo/hafize
+HAFIZE_GITHUB_WRITE_REPOS=umitalgan061-sudo/hafize
+```
+
+Windows örneği: `HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH=C:\\secure\\hafize-app.pem` (dosyanın gerçekten bulunduğu mutlak yolu kullan).
+
+`GITHUB_TOKEN` eski kişisel erişim belirteci yöntemidir; **GitHub App'in üç değişkeni de verilirse App kimliği önceliklidir**. Bu üç değişkenden biri eksikse sunucu güvenli biçimde başlamaz ve kişisel token'a sessiz geri dönüş yapılmaz.
+
+### Önemli: Firebase Hosting
+
+Özel anahtar yalnızca sunucu tarafında bulunmalıdır. Sırf statik Firebase Hosting üzerinde çalışan `public/` arayüzünden GitHub App JWT oluşturulamaz. Sırrı backend'e güvenli iletmek için Firebase Functions/Cloud Run veya korumalı ayrı bir sunucu ve platform secret manager kullan. Özellikle özel anahtarı `VITE_*` değişkenine, `public/` dosyalarına, istemci JSON'una veya GitHub Actions loglarına yerleştirme.
+
+## Nasıl çalışır?
+
+- Sunucu `RS256` imzalı, kısa süreli bir uygulama JWT'si üretir.
+- JWT yalnızca `POST /app/installations/{installation_id}/access_tokens` çağrısında kullanılır.
+- GitHub'ın döndürdüğü installation token yalnızca bellekte tutulur; sona ermeden önce yenilenir.
+- Eşzamanlı istekler tek token yenilemesini paylaşır.
+- Installation token yalnızca `https://api.github.com/repos/...` adreslerine yönlendirilir.
+- Mevcut `HAFIZE_GITHUB_READ_REPOS` ve `HAFIZE_GITHUB_WRITE_REPOS` izin listeleri geçerliliğini korur. GitHub App tüm depolara kurulmuş olsa bile **Hafize'nin backend'i yalnızca izin listelerindeki depolarda işlem yapabilir**.
+- Mevcut yazma işlemlerinde açık onay, tek kullanımlık bilet, hassas dosya engeli ve `main` üzerine doğrudan yazma yasağı devam eder.
+
+## Bot kimliği ve Contributors
+
+Installation token ile GitHub API üzerinden yapılan işlemler GitHub App botu olarak kaydedilebilir. Yeni commit'lerde bot yazarı/committer alanları ayrıca düzgün eşlenmelidir. GitHub'ın Contributors görünümü yalnızca gerçek, kabul edilen katkı kurallarını karşılayan commit'leri sayar: uygulama oluşturulması veya bir PR açılması tek başına Contributors görünümünü garanti etmez. Bu değişiklik mevcut Git geçmişini yeniden yazmaz.
+
+## Doğrulama
+
+```bash
+npm run typecheck
+npx vitest run lib/github-app-auth.test.ts lib/github-workspace-write.test.ts
+```
+
+Backend başlatıldıktan sonra özel anahtar/installation token göstermeden `/api/health` ile GitHub okuma/yazma yapılandırma bayraklarını kontrol et. Ardından yalnızca onaylı test dalında branch → commit → PR akışını dene. Kimlik doğrulaması çalışmadan canlı yayına alındığını veya botun Contributors'a eklendiğini iddia etme.
+
+## Güvenlik ve geri alma
+
+- GitHub OAuth **Client secret**, installation token akışı için gerekli değildir.
+- Özel anahtar açığa çıkarsa GitHub'da ilgili key pair'i iptal et ve yeni anahtarla sistemi yeniden kur.
+- `HAFIZE_GITHUB_WRITE_REPOS` boş bırakılırsa yazma özellikleri kapalıdır.
+- Tüm GitHub App ortam değişkenleri kaldırılırsa yalnızca açıkça tanımlanan `GITHUB_TOKEN` eski yöntemini kullanır.
+- Gizli dosya ve tokenları loglama; ürün arayüzüne geçirme.
