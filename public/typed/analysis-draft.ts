@@ -1,3 +1,5 @@
+import {withCalculation} from './chat-calculation-bridge.ts';
+window.fetch=withCalculation(window.fetch.bind(window));
 import { suggestTools } from '../../lib/composer-tool-suggestions.ts';
 function transfer() {
   if(location.hash!=='#dosya-analizi')return;
