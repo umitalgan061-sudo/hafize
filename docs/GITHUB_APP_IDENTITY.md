@@ -56,6 +56,33 @@ Node'da Windows sertifika deposunu ve tanımlanmış HTTPS proxy ayarlarını et
 
 Bu komut kimlik doğrulaması yapar, bot hesabını ve GitHub'dan depo okumasını doğrular; **commit, push, merge veya deploy yapmaz**. API anahtarlarını ve installation token'ı terminale yazdırmaz. Başarılı görünmeden üretim ortamında write izni açma.
 
+## İlk gerçek Hafize bot commit'i ve taslak PR
+
+**Ön şart:** `scripts/check-github-app.mjs` çıktısında `GitHub App authentication: OK` ve doğru `[bot]` login'i görülmüş olmalıdır. Bu aşama yalnızca uygulama sahibinin açık onayıyla gerçekleştirilir.
+
+Önce işlem yapmayan önizlemeyi çalıştır:
+
+```powershell
+node --use-system-ca --use-env-proxy scripts/prove-github-app-bot.mjs
+```
+
+Bu komut GitHub'dan yalnız okuma yapar, test dalını ve izin durumunu gösterir. **Write işlemi için ayrı bir açık onay parametresi gereklidir**:
+
+```powershell
+node --use-system-ca --use-env-proxy scripts/prove-github-app-bot.mjs --confirm-create-draft-pr
+```
+
+Onaylı komut şunları yapar:
+
+1. Sadece `umitalgan061-sudo/hafize` deposunda `main`'in güncel SHA'sından **yeni rastgele adlandırılmış** `hafize/auto-github-bot-proof-*` dalını oluşturur.
+2. Sadece yeni dalda `docs/GITHUB_APP_BOT_PROOF.md` dosyasını, GitHub'dan doğrulanan `hafize-umitalgan[bot]` yazarı/committer bilgisiyle ekler.
+3. Commit'in GitHub API'den geri okunan yazar ve committer e-postalarını doğrular.
+4. **Draft PR** açar; `main` dalına doğrudan yazmaz, merge veya deploy yapmaz.
+
+Script, kurulum anahtarını veya installation token'ı çıktılamaz. İşlem sırasında ağ/izin hatası olursa dal veya commit oluşturulmuş fakat PR açılmamış olabilir. Bu durumda komutu tekrarlamak yeni test dalı oluşturabilir; GitHub'daki yeni dalı incelemeden tekrar çalıştırma. Test PR'ını sırf Contributors sayısını artırmak için merge etme; doğrulama sonrası kapatabilirsin.
+
+GitHub'ın Contributors görünümü yalnızca GitHub'ın gerçekten kabul ettiği katkı koşullarına göre güncellenir. Bot kimliğiyle taslak PR açılması, Contributors görünümüne hemen girme garantisi değildir.
+
 ## Nasıl çalışır?
 
 - Sunucu `RS256` imzalı, kısa süreli bir uygulama JWT'si üretir.
