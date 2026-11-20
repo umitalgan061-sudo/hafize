@@ -6,7 +6,7 @@
 // voice panel stay out of the way. Dictation into the composer remains on Ctrl+Shift+M.
 
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
-import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, findVoice, isPiperVoice, loadCatalog, synthesize } from './voice-library.ts';
+import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog } from './voice-library.ts';
 
 /** The next whole sentences of a reply still being written, from `from` on; everything once it is done. */
 export function nextSpeakable(text: string, from: number, done = false): { piece: string; end: number } {
@@ -432,15 +432,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
 
   // ---- open / close ----------------------------------------------------------------------------
   // A downloaded voice loads its model on first use; do that now, not while the first answer waits.
-  const warmVoice = () => {
-    const chosen = read(VOICE_KEY);
-    if (!chosen || !isPiperVoice(chosen)) return;
-    const speaker = Number(read(SPEAKER_KEY));
-    loadCatalog().then(async (catalog) => {
-      const voice = await findVoice(chosen);
-      if (voice && (await downloadedKeys(catalog)).has(voice.key)) await synthesize(voice, Number.isInteger(speaker) && speaker >= 0 ? speaker : 0, 'Tamam.', 1);
-    }).catch(() => { /* speaking reports its own failure */ });
-  };
   const open = (handoffText = '') => {
     if (state !== 'closed') return;
     const active = documentRef.activeElement as HTMLElement | null;
@@ -461,7 +452,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     root.requestAnimationFrame(() => screen.classList.add('vm-visible'));
     orbButton.focus({ preventScroll: true });
     openMic();
-    warmVoice();
     if (handoffText.trim()) send(handoffText);
     else listen();
   };
