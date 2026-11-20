@@ -23,6 +23,7 @@ import { createGitHubWorkspaceReader, GitHubWorkspaceError } from './lib/github-
 import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/github-workspace-extra.ts';
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
+import { createGitHubAppTokenProvider } from './lib/github-app-auth.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -117,7 +118,7 @@ function hasMetricsAuthorization(req) {
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
-const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
+const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_WRITE_REPOS.length && (GITHUB_TOKEN || (process.env.HAFIZE_GITHUB_APP_ID && process.env.HAFIZE_GITHUB_APP_INSTALLATION_ID && process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY)));
 const GITHUB_READ_FILE = createGitHubReadFile({
   token: GITHUB_TOKEN,
   allowedRepositories: GITHUB_ALLOWED_REPOS
@@ -135,8 +136,15 @@ const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
   token: GITHUB_TOKEN,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
+const GITHUB_APP_TOKENS = createGitHubAppTokenProvider({
+  appId: process.env.HAFIZE_GITHUB_APP_ID,
+  installationId: process.env.HAFIZE_GITHUB_APP_INSTALLATION_ID,
+  privateKey: process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY,
+  allowedRepositories: GITHUB_WRITE_REPOS
+});
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   token: GITHUB_TOKEN,
+  ...(GITHUB_APP_TOKENS.configured() ? { tokenProvider: GITHUB_APP_TOKENS.getToken } : {}),
   allowedRepositories: GITHUB_WRITE_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
