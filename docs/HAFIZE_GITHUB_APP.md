@@ -1,0 +1,61 @@
+# Hafize GitHub App kimliği — güvenli kurulum ve katkı kuralları
+
+## Gerçek durum
+Bu kod GitHub App'i GitHub üzerinde **oluşturmaz**, yüklemez ve hiçbir depoya otomatik olarak yetki vermez. App kaydı, sahibi tarafından GitHub Developer Settings > GitHub Apps > New GitHub App üzerinden yapılır; ardından yalnız onaylanan depolara kurulur. App ID, installation ID ve private key yalnız sunucuda tutulur.
+
+## GitHub App kurulumu
+- App adı (müsaitse): `Hafize`. Benzersiz ad gerekiyorsa `Hafize-UA` gibi bir alternatif.
+- Homepage: `https://hafize-ua.web.app/`.
+- Webhook kullanılmayacaksa *Active* kapatılır; kullanılırsa HTTPS webhook endpoint'i, imza doğrulaması ve gizli webhook secret zorunludur.
+- Repository permissions: **Contents: Read and write** (branch/commit), **Pull requests: Read and write** (PR oluşturma), **Actions: Read-only** (run/job izleme), **Checks: Read-only** (check sonuçları); Metadata: Read-only otomatik.
+- Organization, members, secrets, administration, deployments, workflows veya tüm depolara erişim izinleri istenmez. Check ve Actions okumayı kullanmayan kurulum bunları da kaldırabilir.
+- Kurulum ekranında **Only select repositories** seçilir; ilk depo `umitalgan061-sudo/hafize` olmalıdır.
+- App installation ID, App ID ve gizli PEM anahtarı GitHub'a commit edilmez. Private key, Firebase Hosting'deki statik istemciye asla gönderilmez; ayrı gizli backend ortamında tutulur.
+
+## Server-side yapılandırma
+```dotenv
+HAFIZE_GITHUB_APP_ID=
+HAFIZE_GITHUB_APP_INSTALLATION_ID=
+HAFIZE_GITHUB_APP_PRIVATE_KEY=
+HAFIZE_GITHUB_WRITE_REPOS=umitalgan061-sudo/hafize
+```
+`HAFIZE_GITHUB_APP_PRIVATE_KEY`, PEM'in satır sonlarını `\\n` ile escaped şekilde alabilir. Secret manager'da saklanmalı; env dosyası depoya eklenmemelidir. Birden çok hesap/installation gerekiyorsa mevcut tek-installation sağlayıcısı genişletilmeden **kullanılmamalıdır**.
+
+`lib/github-app-auth.ts` installation kimliği, account sahibi, suspended durumu ve `repository_selection=selected` kontrolünü yapar. Kullanıcı onaylı, allowlist'teki **tek bir depo** ve salt-okunur repo/commit/bot kimliği sorgularında `contents:read`, kod yazma işlemlerinde `contents:write`, PR oluştururken `pull_requests:write` yetkisi ile installation token ister. Her işlem için kısa ömürlü token sunucu tarafında alınır. Normal GitHub API istemcisi `lib/github-workspace-write.ts` üzerinden kullanılır; token browser'a veya loglara verilmez.
+
+GitHub App kimliği yalnız **write runtime** içinde etkinleşir. Read-only GitHub workspace ayrı olarak `GITHUB_TOKEN` kullanır; App destekli okuma/Actions/Checks izleme sonraki ayrı iş paketidir. Sadece App ayarlanırsa read workspace otomatik çalışmaz.
+
+## Bot commit atfı ve Contributors
+GitHub App bot account'ının login'i kurulan uygulamaya göre `<app-slug>[bot]` şeklindedir. GitHub App'in gerçek bot kullanıcı ID'si GitHub API'den doğrulanarak commit author/committer için `<bot-id>+<app-slug>[bot]@users.noreply.github.com` biçimindeki adres kullanılmalıdır. Bu adreste ID veya slug uydurulmamalıdır. Yeni `lib/github-app-auth.ts` kodu, doğrulanmış installation içindeki `app_slug` değerinden bot hesabını bulur ve GitHub `GET /users/{slug}[bot]` yanıtındaki gerçek Bot user ID'sini doğrular. `lib/github-workspace-write.ts` App modunda `author` ve `committer` alanlarını bu doğrulanmış kimlikle ekler. Bunun canlı GitHub üzerinde başarıyla ilişkilendirildiği kurulumdan sonra doğrulanmalıdır; Hafize'nin Contributors bölümünde göründüğü iddia edilmez.
+
+Contributors görünümü GitHub'ın atıf, varsayılan dal, commit geçmişi, sayım/cache ve bot işleme kurallarına bağlıdır. PR açmak tek başına Contributions/Contributors sıralamasını garanti etmez. Gerçek bot-authored commit, merge sonrasında GitHub üzerinden gözlenmeli; önceki ChatGPT, Claude veya diğer geliştirici commitleri **yeniden yazılmamalıdır**.
+
+## Denetim ve yayın
+- Her işlem için mevcut user-approved ticket, write allowlist ve default branch engeli korunur.
+- `npm run typecheck`, `npm run test:modern`, `npm run build` ve Github Actions quality iş akışı izlenir.
+- Bu belge Firebase deployu veya GitHub App kurulumunun gerçekleştiğinin kanıtı değildir.
+- GitHub App kayıt ve kurulum adımı kullanıcı tarafından yapılır; gizli anahtar asla sohbette paylaşılmaz.
+- `lib/github-app-ci.ts` Actions run/job ve Checks durumlarını yalnız `actions:read` / `checks:read` kapsamlı token ile döndürmek için hazırlandı; güvenli kullanıcı oturumu kontrolüne bağlanmış HTTP/API UI henüz eklenmedi. Modülü henüz üretimde çalışıyor olarak değerlendirmeyin.
+- Bir sonraki iş paketi: CI okuyucusunun oturum yetkilendirmeli sunucu endpoint'ine ve UI'ya bağlanması, başarılı bot commit atfının gerçek GitHub üzerinde doğrulanması, GitHub App'den read-only workspace'e geçiş.
+
+## Geliştirme kontrolü
+- `npm run typecheck` ve `npm run test:modern` GitHub Actions üzerinde koşar.
+- Bot identity testleri `lib/github-app-auth.test.ts`, writer entegrasyonu `lib/github-workspace-write.test.ts`, read-only CI testleri `lib/github-app-ci.test.ts` içindedir.
+- PR #906 merge edilmeden ve gerçek App installation kurulumundan önce hiçbir App kimliğiyle üretim erişimi olmadığı kabul edilir.
+
+## CI durum API'si (sunucu)
+`GET /api/github/app/ci?action=runs&repository=owner/repo&branch=feature/example&limit=10`
+`GET /api/github/app/ci?action=jobs&repository=owner/repo&runId=12345`
+`GET /api/github/app/ci?action=checks&repository=owner/repo&sha=<40-hex>`
+
+Bu endpoint, `lib/production-guard.ts` içindeki authenticated API allowlist'ine eklendi. Üretimde geçerli kullanıcı session cookie olmadan 401 döner; sadece `HAFIZE_GITHUB_WRITE_REPOS` allowlist'inde olan ve App installation tarafından seçilmiş depoları kabul eder. Genel GitHub token, CI reader için fallback değildir: App yapılandırılmamışsa 503 döner. Tokenlar asla cevaba konmaz. `GITHUB_APP_CI_READER` yalnızca kısa metadata döndürür, ham workflow loglarını kullanıcıya sunmaz.
+
+`NODE_ENV=production` / public HOST altında sunucu mutlaka `npm start` ile production guard yüklenecek şekilde çalışmalıdır; `server.ts` tek başına çalışan yetkisiz bir HTTP servisi olarak internete açılmamalıdır.
+
+Canlı UI'ya PR/CI paneli eklenmesi ayrı bir özellik olarak sürdürülmelidir.
+
+## En az yetkili token politikası
+- `GET` ile depo varsayılan dalı, commit SHA ve bot kullanıcı kimliği sorgularında kısa ömürlü `contents:read` installation token kullanılır.
+- Dosya commit'i ve branch oluşturma işlemleri `contents:write`, PR oluşturma `pull_requests:write` token gerektirir.
+- GitHub'ın istenenden yüksek kapsamlı bir token döndürmesi doğrulama hatası sayılır. Token hiçbir zaman tarayıcıya aktarılmaz.
+- App kurulumunda depo seviyesinde Contents read/write yetkisi kalır; her işlemde ayrıca daha dar kapsamlı token talep edilir.
