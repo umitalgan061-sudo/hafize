@@ -94,6 +94,27 @@ describe('GitHub App selected-repository credential provider', () => {
     }
   });
 
+  it('downscopes metadata and bot lookups to contents:read', async () => {
+    const requests: Array<Record<string, unknown>> = [];
+    let sequence = 0;
+    const auth = provider(async (_url, init) => {
+      sequence += 1;
+      if (sequence === 1) return response(installation);
+      requests.push(JSON.parse(String(init.body)));
+      return response({ ...granted, permissions: { contents: 'read' } });
+    });
+    await expect(auth.getToken('owner/hafize', 'contents_read')).resolves.toBe(granted.token);
+    expect(requests).toEqual([{ repositories: ['hafize'], permissions: { contents: 'read' } }]);
+  });
+
+  it('rejects an elevated write permission when only read was requested', async () => {
+    let sequence = 0;
+    const auth = provider(async () => response(++sequence === 1 ? installation : granted));
+    await expect(auth.getToken('owner/hafize', 'contents_read')).rejects.toMatchObject({
+      code: 'GITHUB_APP_AUTH_FAILED'
+    });
+  });
+
   it('requests pull request write permissions separately', async () => {
     const bodies: unknown[] = [];
     let count = 0;
@@ -112,7 +133,7 @@ describe('GitHub App selected-repository credential provider', () => {
       const authorization = (init.headers as Record<string, string>).Authorization;
       requested.push({ path, authorization });
       if (path === '/app/installations/999') return response({ ...installation, app_slug: 'hafize-ua' });
-      if (path.endsWith('/access_tokens')) return response(granted);
+      if (path.endsWith('/access_tokens')) return response({ ...granted, permissions: { contents: 'read' } });
       if (path === '/users/hafize-ua%5Bbot%5D') {
         return response({ id: 98765432, login: 'hafize-ua[bot]', type: 'Bot' });
       }
@@ -130,7 +151,7 @@ describe('GitHub App selected-repository credential provider', () => {
     const auth = provider(async (url) => {
       const path = new URL(String(url)).pathname;
       if (path === '/app/installations/999') return response({ ...installation, app_slug: 'hafize-ua' });
-      if (path.endsWith('/access_tokens')) return response(granted);
+      if (path.endsWith('/access_tokens')) return response({ ...granted, permissions: { contents: 'read' } });
       return response({ id: 123456, login: 'another-account', type: 'User' });
     });
     await expect(auth.getBotIdentity('owner/hafize')).rejects.toMatchObject({
