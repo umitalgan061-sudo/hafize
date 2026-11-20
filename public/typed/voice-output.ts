@@ -30,14 +30,35 @@ export function normalizeSpeechText(value:unknown):string{if(typeof value!=='str
  .replace(/https?:\/\/\S+/gi,' bağlantı ')
  .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/gm,' ')
  .replace(/^\s*(?:[-+*]|\d+[.)])\s+/gm,' ')
+ .replace(/%(\d+(?:[.,]\d+)?)/g,'yüzde $1')
+ .replace(/\b(Dr|Prof|Doç)\.(?=\s+\p{L})/gu, (_, title: string) => (title === 'Dr' ? 'Doktor' : title === 'Prof' ? 'Profesör' : 'Doçent'))
  .replace(/[*_#>|~]+/g,' ')
  .replace(/\p{Extended_Pictographic}|\uFE0F|\u200D/gu,' ')
  // A heading or list item has no full stop; without one the voice runs it into the next line.
  .replace(/([^\s.!?…:;,])[ \t]*\n+/g,'$1. ')
  .replace(/\s+/g,' ').replace(/ ([.,;:!?…])/g,'$1').trim().slice(0,MAX_SPEECH_LENGTH);}
-export function splitSpeechText(value:string,maxLength=MAX_CHUNK_LENGTH):string[]{const text=normalizeSpeechText(value);if(!text)return[];const limit=Number.isInteger(maxLength)&&maxLength>=80?maxLength:MAX_CHUNK_LENGTH;const sentences=text.match(/(?:\d[.,]\d|[^.!?…])+[.!?…]?/g)||[text];const chunks:string[]=[];let current='';for(const sentence of sentences){const clean=sentence.trim();if(!clean)continue;const candidate=current?`${current} ${clean}`:clean;if(candidate.length<=limit){current=candidate;continue;}if(current)chunks.push(current);if(clean.length<=limit){current=clean;continue;}let fragment='';for(const word of clean.split(' ')){if(word.length>limit){if(fragment){chunks.push(fragment);fragment='';}for(let i=0;i<word.length;i+=limit)chunks.push(word.slice(i,i+limit));continue;}const next=fragment?`${fragment} ${word}`:word;if(next.length>limit&&fragment){chunks.push(fragment);fragment=word;}else fragment=next;}current=fragment;}if(current)chunks.push(current);return chunks;}
+export function splitSpeechText(value: string, maxLength = MAX_CHUNK_LENGTH): string[] {
+ const text = normalizeSpeechText(value);
+ const limit = Number.isInteger(maxLength) && maxLength >= 80 ? maxLength : MAX_CHUNK_LENGTH;
+ const chunks: string[] = [];
+ let rest = text;
+ while (rest.length > limit) {
+   const window = rest.slice(0, limit + 1);
+   let cut = 0;
+   // Prefer ending an utterance at a sentence boundary, then at a pause within the sentence.
+   for (const boundary of [/[.!?…]["”’)]*\s+/gu, /[,;:—]\s+/gu, /\s+/gu]) {
+     for (const match of window.matchAll(boundary)) cut = match.index! + match[0].trimEnd().length;
+     if (cut > 0) break;
+   }
+   if (!cut) cut = limit;
+   chunks.push(rest.slice(0, cut).trimEnd());
+   rest = rest.slice(cut).trimStart();
+ }
+ if (rest) chunks.push(rest);
+ return chunks;
+}
 /** Best Turkish voice: natural/online voices first, then any tr voice. */
-export function pickTurkishVoice<T extends {lang?:string;name?:string;localService?:boolean;voiceURI?:string}>(voices:readonly T[]|null|undefined,preferredURI?:string|null):T|null{const turkish=(voices||[]).filter(v=>String(v?.lang||'').toLowerCase().replace('_','-').startsWith('tr'));if(preferredURI){const chosen=(voices||[]).find(v=>v?.voiceURI===preferredURI);if(chosen)return chosen;}if(!turkish.length)return null;const score=(v:T)=>{const name=String(v.name||'').toLowerCase();return(/natural|neural/.test(name)?4:0)+(/online|google/.test(name)?2:0)+(v.localService===false?1:0);};return[...turkish].sort((a,b)=>score(b)-score(a))[0]||null;}
+export function pickTurkishVoice<T extends {lang?:string;name?:string;localService?:boolean;voiceURI?:string}>(voices:readonly T[]|null|undefined,preferredURI?:string|null):T|null{const turkish=(voices||[]).filter(v=>String(v?.lang||'').toLowerCase().replace('_','-').startsWith('tr'));if(preferredURI){const chosen=(voices||[]).find(v=>v?.voiceURI===preferredURI);if(chosen)return chosen;}if(!turkish.length)return null;const score=(v:T)=>{const name=String(v.name||'').toLowerCase();return(/natural|neural|premium|enhanced|geliştirilmiş|doğal/.test(name)?6:0)+(/online|google/.test(name)?2:0)+(v.localService===false?1:0);};return[...turkish].sort((a,b)=>score(b)-score(a))[0]||null;}
 function readEnabled(storage:Storage|null):boolean{try{return storage?.getItem(STORAGE_KEY)==='true';}catch{return false;}}
 function writeEnabled(storage:Storage|null,enabled:boolean):void{try{storage?.setItem(STORAGE_KEY,String(enabled));}catch{}}
 export function installVoiceOutput(documentRef:Document,root:typeof globalThis):VoiceOutputController|null{
