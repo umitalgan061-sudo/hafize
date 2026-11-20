@@ -146,7 +146,9 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
       throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 502);
     }
     const name = slug + '[bot]';
-    const bot = await request('GET', '/users/' + encodeURIComponent(name), jwt);
+    // The public user endpoint accepts installation tokens; an App JWT is limited to App endpoints.
+    const readToken = await getToken(normalized, 'contents');
+    const bot = await request('GET', '/users/' + encodeURIComponent(name), readToken);
     const id = validId(bot.id);
     if (!id || String(bot.login) !== name || bot.type !== 'Bot') {
       throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 502);
