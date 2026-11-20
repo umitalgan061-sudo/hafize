@@ -145,7 +145,10 @@ const GITHUB_APP_TOKENS = createGitHubAppTokenProvider({
 });
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   token: GITHUB_TOKEN,
-  ...(GITHUB_APP_REQUESTED ? { tokenProvider: GITHUB_APP_TOKENS.getToken } : {}),
+  ...(GITHUB_APP_REQUESTED ? {
+    tokenProvider: GITHUB_APP_TOKENS.getToken,
+    botIdentityProvider: GITHUB_APP_TOKENS.getBotIdentity
+  } : {}),
   allowedRepositories: GITHUB_WRITE_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
