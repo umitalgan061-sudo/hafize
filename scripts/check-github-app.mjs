@@ -55,5 +55,16 @@ main().catch((error) => {
     ? String(error.code)
     : error instanceof Error ? error.message : 'Verification failed';
   console.error('GitHub App check failed:', message);
+  // Node's fetch() hides the underlying TLS/proxy/DNS reason in error.cause.
+  // Only surface a short, non-secret error code; never print the full URL,
+  // request headers, private key or installation token.
+  const causeCode = error?.cause?.code;
+  if (typeof causeCode === 'string' && /^[A-Z0-9_]{2,60}$/.test(causeCode)) {
+    console.error('Network cause code:', causeCode);
+  }
+  if (message === 'fetch failed') {
+    console.error('Tip: on Windows try Node >= 24.5 with --use-system-ca --use-env-proxy.');
+    console.error('Keep TLS verification enabled; do not set NODE_TLS_REJECT_UNAUTHORIZED=0.');
+  }
   process.exitCode = 1;
 });
