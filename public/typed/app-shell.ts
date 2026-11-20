@@ -528,25 +528,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function renderToolActivities(container, activities) {
     container.replaceChildren();
-    // Repeated low-level reads are one operation from the owner's point of view.
-    const compact = activities.reduce((items, activity) => {
-      const previous = items.at(-1);
-      if (previous && previous.label === activity.label && previous.state === activity.state) previous.count += 1;
-      else items.push({ ...activity, count: 1 });
-      return items;
-    }, []);
-    const hidden = Math.max(0, compact.length - VISIBLE_TOOL_ACTIVITIES);
-    if (hidden) {
-      const more = document.createElement('span');
-      more.className = 'tool-activity tool-activity-more';
-      more.textContent = `+${hidden} adım`;
-      more.title = activities.slice(0, hidden).map((item) => `${item.state === 'failure' ? '✗' : '✓'} ${item.label}`).join('\n');
-      container.append(more);
-    }
-    for (const activity of compact.slice(hidden)) {
+    const visible = activities.slice(-VISIBLE_TOOL_ACTIVITIES);
+    for (const activity of visible) {
       const badge = document.createElement('span');
       badge.className = `tool-activity${activity.state === 'failure' ? ' failed' : ''}`;
-      badge.textContent = `${activity.label}${activity.count > 1 ? ` ×${activity.count}` : ''}`;
+      badge.textContent = activity.label;
       container.append(badge);
     }
     container.hidden = activities.length === 0;
