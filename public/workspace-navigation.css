@@ -58,6 +58,19 @@
 }
 .main[data-workspace="tasks"] .workspace-navigation-intro,
 .main[data-workspace="connections"] .workspace-navigation-intro { grid-column: 1 / -1; }
+
+/* Put the complete GitHub workspace, including the approved write panel,
+   immediately after the Connections heading. It is added dynamically by
+   github-workspace.ts and was previously excluded from the workspace allowlist. */
+.main[data-workspace="connections"] .workspace-navigation-intro { order: -2; }
+.main[data-workspace="connections"] #githubWorkspaceCard {
+  order: -1;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+/* The card's own display:flex must not override the hidden state on other tabs. */
+#githubWorkspaceCard[hidden] { display: none !important; }
+
 .main[data-workspace="tasks"] #scheduleListCard { grid-column: 1 / -1; }
 .main[data-workspace="tasks"] #scheduleListCard .schedule-list-items { max-height: min(58vh, 620px); }
 .main[data-workspace="tasks"] #scheduleRuntimeCard,
