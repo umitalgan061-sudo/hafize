@@ -1,3 +1,4 @@
+import { pack, downloadPack, deletePack, synthesizePack } from './supertonic-pack.ts';
 // Downloadable Piper voices: catalog, on-demand download into Cache Storage, synthesis in workers
 // and playback. Nothing heavy loads until a Piper voice is actually used, and a voice is only
 // ever downloaded when the user asks for it in Settings. Speech never leaves this browser.
@@ -69,7 +70,7 @@ export function loadCatalog(): Promise<PiperVoice[]> {
   catalog ||= fetch('/piper-voices.json').then((response) => {
     if (!response.ok) throw new Error('CATALOG_UNAVAILABLE');
     return response.json();
-  }).then((data) => sortVoices(data.voices)).catch((error) => { catalog = null; throw error; });
+  }).then((data) => sortVoices([...data.voices, pack])).catch((error) => { catalog = null; throw error; });
   return catalog;
 }
 
@@ -117,6 +118,12 @@ async function readWithProgress(response: Response, onProgress: (received: numbe
 export async function downloadVoice(voice: PiperVoice, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<void> {
   const url = modelUrl(voice);
   const configAddress = configUrl(voice);
+  if (voice.key === pack.key) {
+    if (!canStoreVoices()) throw Error('VOICE_STORAGE_UNAVAILABLE');
+    await downloadPack(onProgress, signal);
+    await (await openCache())!.put(url, new Response('ready'));
+    return;
+  }
   const [configResponse, modelResponse] = await Promise.all([fetch(configAddress, { signal }), fetch(url, { signal })]);
   if (!configResponse.ok || !modelResponse.ok) throw new Error('VOICE_DOWNLOAD_FAILED');
   const config = await configResponse.blob();
@@ -143,6 +150,7 @@ export async function removeVoice(voice: Pick<PiperVoice, 'path' | 'url' | 'conf
   await cache?.delete(url);
   await cache?.delete(configAddress);
   loaded.delete(url);
+  if (url === pack.url) await deletePack();
 }
 
 async function readStored(url: string): Promise<ArrayBuffer> {
@@ -310,6 +318,7 @@ export function synthesize(voice: PiperVoice, speaker: number, text: string, rat
     entry = (async () => {
       if (engineBreaker.open()) throw new Error('VOICE_ENGINE_RESTING');
       try {
+        if (voice.key === pack.key) return await synthesizePack(speaker, text, rate);
         const config = await ensureLoaded(voice);
         const ids = keepKnownPhonemes(await phonemize(text, config), config.phoneme_id_map);
         if (!ids.length) throw new Error('VOICE_EMPTY_OUTPUT');
