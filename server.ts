@@ -24,6 +24,7 @@ import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/git
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
+import { createGitHubAppCiReader, GitHubAppCiError } from './lib/github-app-ci.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -165,6 +166,10 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   fetchImpl: GITHUB_FETCH,
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_WRITE_REPOS
+});
+const GITHUB_APP_CI_READER = createGitHubAppCiReader({
+  fetchImpl: GITHUB_FETCH,
+  allowedRepositories: GITHUB_ALLOWED_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
 // Chat bodies carry long pasted texts and inlined file contents (the composer has no length cap).
@@ -677,6 +682,49 @@ async function handleGitHubWorkspaceExtra(pathname, url, res) {
     sendJson(res, 502, { error: 'GITHUB_WORKSPACE_FAILED' });
   }
 }
+async function handleGitHubAppCi(req, url, res) {
+  try {
+    // The production guard authenticates this route; when auth is off, only
+    // loopback requests receive a principal. Do not allow unauthenticated LAN reads.
+    if (!req.__hafizePrincipal) {
+      sendJson(res, 401, { error: 'AUTH_REQUIRED' });
+      return;
+    }
+    if (!GITHUB_APP_AUTH) {
+      sendJson(res, 503, { error: 'GITHUB_APP_NOT_CONFIGURED' });
+      return;
+    }
+    const repository = url.searchParams.get('repository') || '';
+    const action = url.searchParams.get('action') || '';
+    let payload;
+    if (action === 'runs') {
+      payload = await GITHUB_APP_CI_READER.runs({
+        repository,
+        branch: url.searchParams.get('branch') || undefined,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined
+      });
+    } else if (action === 'jobs') {
+      payload = await GITHUB_APP_CI_READER.jobs({
+        repository, runId: url.searchParams.get('runId')
+      });
+    } else if (action === 'checks') {
+      payload = await GITHUB_APP_CI_READER.checks({
+        repository, sha: url.searchParams.get('sha')
+      });
+    } else {
+      sendJson(res, 400, { error: 'GITHUB_CI_INVALID_ACTION' });
+      return;
+    }
+    sendJson(res, 200, payload);
+  } catch (error) {
+    if (error instanceof GitHubAppCiError) {
+      sendJson(res, error.status, { error: error.code });
+      return;
+    }
+    sendJson(res, 502, { error: 'GITHUB_APP_CI_FAILED' });
+  }
+}
+
 async function handleGitHubWorkspaceWrite(req, url, res) {
   try {
     const body = await readJson(req, 160 * 1024);
@@ -1412,6 +1460,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && (url.pathname === '/api/github/workspace/write/approval' || url.pathname === '/api/github/workspace/write')) {
       await handleGitHubWorkspaceWrite(req, url, res);
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/github/app/ci') {
+      await handleGitHubAppCi(req, url, res);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/github/workspace') {
