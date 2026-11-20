@@ -281,7 +281,7 @@ export function createBreaker({ limit = 2, restMs = 10 * 60_000, now = () => Dat
     failed() { failures += 1; if (failures >= limit) { failures = 0; restUntil = now() + restMs; } }
   };
 }
-const engineBreaker = createBreaker();
+const voiceBreakers = new Map<string, ReturnType<typeof createBreaker>>();
 
 // The phonemizer prints one result per call, so calls run strictly one after another.
 let phonemeWorker: Worker | null = null;
@@ -316,9 +316,15 @@ export function synthesize(voice: PiperVoice, speaker: number, text: string, rat
   let entry = prepared.get(id);
   if (!entry) {
     entry = (async () => {
+      const engineBreaker = voiceBreakers.get(voice.key) ?? createBreaker();
+      voiceBreakers.set(voice.key, engineBreaker);
       if (engineBreaker.open()) throw new Error('VOICE_ENGINE_RESTING');
       try {
-        if (voice.key === pack.key) return await synthesizePack(speaker, text, rate);
+        if (voice.key === pack.key) {
+          const audio = await synthesizePack(speaker, text, rate);
+          engineBreaker.succeeded();
+          return audio;
+        }
         const config = await ensureLoaded(voice);
         const ids = keepKnownPhonemes(await phonemize(text, config), config.phoneme_id_map);
         if (!ids.length) throw new Error('VOICE_EMPTY_OUTPUT');
