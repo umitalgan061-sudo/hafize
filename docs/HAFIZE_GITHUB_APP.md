@@ -21,7 +21,7 @@ HAFIZE_GITHUB_WRITE_REPOS=umitalgan061-sudo/hafize
 ```
 `HAFIZE_GITHUB_APP_PRIVATE_KEY`, PEM'in satır sonlarını `\\n` ile escaped şekilde alabilir. Secret manager'da saklanmalı; env dosyası depoya eklenmemelidir. Birden çok hesap/installation gerekiyorsa mevcut tek-installation sağlayıcısı genişletilmeden **kullanılmamalıdır**.
 
-`lib/github-app-auth.ts` installation kimliği, account sahibi, suspended durumu ve `repository_selection=selected` kontrolünü yapar. Kullanıcı onaylı, allowlist'teki **tek bir depo** ve yalnız işlem için gerekli `contents:write` veya `pull_requests:write` yetkisi ile installation token ister. Her işlem için kısa ömürlü token sunucu tarafında alınır. Normal GitHub API istemcisi `lib/github-workspace-write.ts` üzerinden kullanılır; token browser'a veya loglara verilmez.
+`lib/github-app-auth.ts` installation kimliği, account sahibi, suspended durumu ve `repository_selection=selected` kontrolünü yapar. Kullanıcı onaylı, allowlist'teki **tek bir depo** ve salt-okunur repo/commit/bot kimliği sorgularında `contents:read`, kod yazma işlemlerinde `contents:write`, PR oluştururken `pull_requests:write` yetkisi ile installation token ister. Her işlem için kısa ömürlü token sunucu tarafında alınır. Normal GitHub API istemcisi `lib/github-workspace-write.ts` üzerinden kullanılır; token browser'a veya loglara verilmez.
 
 GitHub App kimliği yalnız **write runtime** içinde etkinleşir. Read-only GitHub workspace ayrı olarak `GITHUB_TOKEN` kullanır; App destekli okuma/Actions/Checks izleme sonraki ayrı iş paketidir. Sadece App ayarlanırsa read workspace otomatik çalışmaz.
 
@@ -53,3 +53,9 @@ Bu endpoint, `lib/production-guard.ts` içindeki authenticated API allowlist'ine
 `NODE_ENV=production` / public HOST altında sunucu mutlaka `npm start` ile production guard yüklenecek şekilde çalışmalıdır; `server.ts` tek başına çalışan yetkisiz bir HTTP servisi olarak internete açılmamalıdır.
 
 Canlı UI'ya PR/CI paneli eklenmesi ayrı bir özellik olarak sürdürülmelidir.
+
+## En az yetkili token politikası
+- `GET` ile depo varsayılan dalı, commit SHA ve bot kullanıcı kimliği sorgularında kısa ömürlü `contents:read` installation token kullanılır.
+- Dosya commit'i ve branch oluşturma işlemleri `contents:write`, PR oluşturma `pull_requests:write` token gerektirir.
+- GitHub'ın istenenden yüksek kapsamlı bir token döndürmesi doğrulama hatası sayılır. Token hiçbir zaman tarayıcıya aktarılmaz.
+- App kurulumunda depo seviyesinde Contents read/write yetkisi kalır; her işlemde ayrıca daha dar kapsamlı token talep edilir.
