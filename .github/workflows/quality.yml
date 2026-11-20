@@ -41,8 +41,14 @@ jobs:
       - name: Modern checks
         run: npm run check:modern
 
+      - name: Release health unit tests
+        run: node --test scripts/site-release-health.test.mjs
+
       - name: Production build
         run: npm run build
+
+      - name: Verify built HTML asset references
+        run: node scripts/site-release-health.mjs --local
 
       - name: Dependency audit
         run: npm audit --omit=dev --audit-level=high
@@ -62,3 +68,23 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Full Vitest suite
         run: npm run test:modern
+
+  live-site-diagnostics:
+    name: Firebase live (read-only)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/fix/hafize-site-recovery-20261120')
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+
+      - name: Check live HTML, static bundles and backend health (no secrets or writes)
+        run: node scripts/site-release-health.mjs --live https://hafize-ua.web.app/
