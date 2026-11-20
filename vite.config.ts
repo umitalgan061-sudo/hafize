@@ -98,6 +98,7 @@ export default defineConfig({
         'task-notifications': resolve(ROOT, 'public/typed/task-notifications.ts'),
         'live-screen': resolve(ROOT, 'public/typed/live-screen.ts'),
         'app-install': resolve(ROOT, 'public/typed/app-install.ts'),
+        'supertonic-worker': resolve(ROOT, 'public/typed/supertonic-worker.js'),
         'piper-worker': resolve(ROOT, 'public/typed/piper-worker.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
