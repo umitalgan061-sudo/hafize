@@ -95,13 +95,13 @@ function host() {
 const navigationCss = readFileSync(new URL('../public/workspace-navigation.css', import.meta.url), 'utf8');
 const cleanUiCss = readFileSync(new URL('../public/clean-ui.css', import.meta.url), 'utf8');
 const indexHtml = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
-// The clean chat theme may simplify optional tools, but must not hide workspace
-// navigation. The Connections tab is the only path to the GitHub write panel.
+// The focused chat theme must not hide Tasks or Connections navigation.
 for (const slot of [2, 3]) {
-  assert.doesNotMatch(cleanUiCss, new RegExp('\\\\.nav-list\\\\s+\\\\.nav-item:((?:nth-child\\\\(' + slot + '\\\\))|(?:nth-of-type\\\\(' + slot + '\\\\)))'));
+  assert.equal(cleanUiCss.includes('.nav-list .nav-item:nth-child(' + slot + ')'), false);
+  assert.equal(cleanUiCss.includes('.nav-list .nav-item:nth-of-type(' + slot + ')'), false);
 }
-assert.match(indexHtml, /<button class="nav-item" type="button">◷ Görevler<\\/button>/);
-assert.match(indexHtml, /<button class="nav-item" type="button">⌘ Bağlantılar<\\/button>/);
+assert.equal(indexHtml.includes('◷ Görevler</button>'), true);
+assert.equal(indexHtml.includes('⌘ Bağlantılar</button>'), true);
 assert.match(navigationCss, /#githubWorkspaceCard\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(navigationCss, /\.main\[data-workspace="connections"\]\s+#githubWorkspaceCard/);
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);
