@@ -12,7 +12,7 @@ type CiResponse = Record<string, unknown>;
 type CiWindow = Window & { HafizeGithubCiPanel?: Readonly<{ mount: () => void }> };
 
 const root = globalThis as CiWindow;
-const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}\\/[A-Za-z0-9_.-]{1,100}$/;
+const REPO_PATTERN = /^[A-Za-z0-9_.-]{1,100}[/][A-Za-z0-9_.-]{1,100}$/;
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const labels: Readonly<Record<string, string>> = Object.freeze({
   AUTH_REQUIRED: 'GitHub kontrollerini görmek için oturum aç.',
