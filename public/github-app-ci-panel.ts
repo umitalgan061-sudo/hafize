@@ -83,16 +83,19 @@ function mount(doc: Document = root.document): void {
 
   let generation = 0;
   let destroyed = false;
+  const detailRequests = new WeakMap<HTMLElement, number>();
 
   async function readDetails(repo: string, run: CiRun, holder: HTMLElement, action: 'jobs' | 'checks'): Promise<void> {
-    const current = ++generation;
+    const current = generation;
+    const requestId = (detailRequests.get(holder) || 0) + 1;
+    detailRequests.set(holder, requestId);
     holder.replaceChildren(node(doc, 'span', 'Kontroller okunuyor…', 'github-workspace-meta'));
     try {
       const params = new URLSearchParams({ repository: repo, action });
       if (action === 'jobs') params.set('runId', String(run.id));
       else params.set('sha', run.headSha);
       const payload = await query(params);
-      if (destroyed || current !== generation) return;
+      if (destroyed || current !== generation || detailRequests.get(holder) !== requestId) return;
       holder.replaceChildren();
       const entries = payload[action] as unknown;
       if (!Array.isArray(entries) || !entries.length) {
@@ -106,7 +109,7 @@ function mount(doc: Document = root.document): void {
           'github-workspace-meta'));
       }
     } catch (error) {
-      if (!destroyed && current === generation) {
+      if (!destroyed && current === generation && detailRequests.get(holder) === requestId) {
         holder.replaceChildren(node(doc, 'span',
           error instanceof Error ? error.message : 'Kontroller okunamadı.',
           'github-workspace-meta'));
@@ -142,7 +145,7 @@ function mount(doc: Document = root.document): void {
       for (const raw of runs.slice(0, 10)) {
         const run = record(raw) as unknown as CiRun;
         if (!Number.isSafeInteger(run.id) || run.id < 1) continue;
-        const row = node(doc, 'article', undefined, 'github-workspace-row');
+        const row = node(doc, 'article', undefined, 'github-workspace-row github-app-ci-run');
         const details = node(doc, 'div', undefined, 'github-workspace-list');
         const summary = node(doc, 'div', undefined, 'github-workspace-meta');
         summary.textContent = small(run.name, 120) + ' · ' + small(run.conclusion || run.status, 30);
