@@ -96,6 +96,68 @@ describe('GitHub App authentication', () => {
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
+
+  it('discovers the verified bot account without transmitting an installation token', async () => {
+    const { path } = fixture();
+    const now = Date.parse('2026-11-19T12:00:00Z');
+    const requests: Array<{ url: string; headers: Headers }> = [];
+    const fetchImpl = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({ url: String(url), headers: new Headers(init?.headers) });
+      return new Response(JSON.stringify({
+        id: 123456789,
+        login: 'hafize-umitalgan[bot]',
+        type: 'Bot'
+      }), { status: 200 });
+    });
+
+    const auth = createGitHubAppAuth({
+      appId: '5833389', installationId: '183684460', appSlug: 'hafize-umitalgan',
+      privateKeyPath: path, fetchImpl, now: () => now
+    });
+
+    const [first, second] = await Promise.all([auth.botCommitIdentity(), auth.botCommitIdentity()]);
+    expect(first).toEqual({
+      name: 'hafize-umitalgan[bot]',
+      email: '123456789+hafize-umitalgan[bot]@users.noreply.github.com'
+    });
+    expect(second).toBe(first);
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.url).toBe('https://api.github.com/users/hafize-umitalgan%5Bbot%5D');
+    expect(requests[0]?.headers.has('Authorization')).toBe(false);
+  });
+
+  it('refuses suspicious bot identity replies', async () => {
+    const { path } = fixture();
+    const auth = createGitHubAppAuth({
+      appId: '5833389', installationId: '183684460', appSlug: 'hafize-umitalgan',
+      privateKeyPath: path,
+      fetchImpl: vi.fn(async () => new Response(JSON.stringify({
+        id: 42, login: 'another-app[bot]', type: 'Bot'
+      })))
+    });
+    await expect(auth.botCommitIdentity()).rejects.toMatchObject({
+      code: 'GITHUB_APP_BOT_IDENTITY_INVALID', status: 502
+    });
+  });
+
+  it('never permits transparent redirects on requests carrying app credentials', async () => {
+    const { path } = fixture();
+    const now = Date.parse('2026-11-19T12:00:00Z');
+    const requests: RequestInit[] = [];
+    const auth = createGitHubAppAuth({
+      appId: '5833389', installationId: '183684460',
+      privateKeyPath: path, now: () => now,
+      fetchImpl: vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+        requests.push(init ?? {});
+        return String(url).includes('/access_tokens')
+          ? tokenResponse('ghs_' + 'c'.repeat(40), new Date(now + 3_600_000).toISOString())
+          : new Response('{}', { status: 200 });
+      })
+    });
+    await auth.authenticatedFetch('https://api.github.com/repos/owner/repo', { redirect: 'follow' });
+    expect(requests.at(-1)?.redirect).toBe('error');
+  });
+
   it('fails closed on inaccessible or non-RSA private keys', () => {
     expect(() => createGitHubAppAuth({
       appId: '5833389', installationId: '183684460', privateKeyPath: 'missing.pem'
