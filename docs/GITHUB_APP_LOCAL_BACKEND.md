@@ -51,6 +51,19 @@ npm ci --no-audit --no-fund
 npm run dev:server
 ```
 
+`npm run dev:server` automatically builds the browser bundle before starting the Node server (`predev:server`). If you run the server directly via `node server.ts`, build the UI first with `npm run build`. The HTML alone can load without bundles, but then the three-line sidebar toggle and GitHub write panel will not work.
+
+If the UI was opened before compilation, refresh with **Ctrl+Shift+R** after the build; a previously installed service worker may also serve cached assets. In PowerShell, inspect these files without opening any credentials:
+
+```powershell
+Test-Path .\\public\\typed-build\\ui-shell.js
+Test-Path .\\public\\typed-build\\github-workspace-write.js
+(Invoke-WebRequest http://127.0.0.1:4173/typed-build/ui-shell.js -UseBasicParsing).StatusCode
+(Invoke-WebRequest http://127.0.0.1:4173/typed-build/github-workspace-write.js -UseBasicParsing).StatusCode
+```
+
+Each file check should return `True` and HTTP status `200`. If either fails, stop the server, run `npm run build` in the correct `hafize-backend` directory, and restart it. Do not change PEM keys or turn off TLS verification for missing frontend files.
+
 Leave this terminal open. In the browser open **http://127.0.0.1:4173/**.
 The local Hafize backend serves both the interface and the GitHub workspace API.
 Use `http://127.0.0.1:4173/api/health` to inspect the non-sensitive flags
