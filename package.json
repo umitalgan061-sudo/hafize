@@ -28,7 +28,8 @@
     "test:prompt-smart-insert-ts": "node scripts/test-prompt-smart-insert-typescript-migration.mjs && node scripts/test-prompt-smart-insert-typescript-contract.mjs && node scripts/test-prompt-smart-insert-storage-compat.mjs && node scripts/test-prompt-smart-insert-ui-security.mjs && node scripts/test-prompt-smart-insert-pwa.mjs && node scripts/test-prompt-library-bulk-organizer-ts.mjs",
     "eval": "node --use-system-ca --env-file-if-exists=.env scripts/eval.mjs run",
     "eval:redteam": "node --use-system-ca --env-file-if-exists=.env scripts/eval.mjs run --suite redteam",
-    "skill": "node scripts/hafize-skill.mjs"
+    "skill": "node scripts/hafize-skill.mjs",
+    "predev:server": "npm run build"
   },
   "dependencies": {
     "@viz-js/viz": "3.31.0",
