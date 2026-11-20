@@ -157,9 +157,9 @@ assert.equal(githubWorkspaceCard.hidden, false);
 assert.equal(controller.setWorkspace('connections'), false);
 
 assertVersionedCacheDeclaration();
-assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.js'), true);
+assert.equal(sw.SHELL_ASSETS.includes('/typed-build/workspace-navigation.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.css'), true);
-for (const path of ['/workspace-navigation.js', '/workspace-navigation.css']) {
+for (const path of ['/typed-build/workspace-navigation.js', '/workspace-navigation.css']) {
   assert.equal(sw.classifyRequest({ url: `https://hafize.example${path}`, method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'shell');
 }
 assert.equal(sw.classifyRequest({ url: 'https://hafize.example/api/health', method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'network-only');
