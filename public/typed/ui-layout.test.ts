@@ -25,8 +25,11 @@ describe('Hafize classic interface restoration', () => {
   it('limits control hiding to explicitly selected focused layout', () => {
     const css = read('public/clean-ui.css');
     const prefix = 'html[data-hafize-layout="focused"] ';
+    // The utility rail is intentionally nested under a workspace-specific .main selector.
+    expect(css).toContain(prefix + '.main:not([data-workspace="settings"])');
+    expect(css).toContain('> .utility-rail {');
     for (const selector of [
-      '.utility-rail', '#toolModeBtn', '#modelPreferencesButton',
+      '#toolModeBtn', '#modelPreferencesButton',
       '#sidebar .brand-row', '.message .assistant-message-actions'
     ]) {
       expect(css).toContain(prefix + selector);
