@@ -176,6 +176,8 @@ GitHub workspace içinde ayrı bir güvenli yazma paneli branch oluşturma, non-
 
 Ayrıntılar docs/GITHUB_WRITE*.md dosyalarındadır.
 
+**GitHub App kimliği:** Hafize, sunucuda tanımlanan installation credentials ile `hafize-umitalgan[bot]` olarak onaylı dosya commit'leri ve PR oluşturabilir. Güvenli yerel Windows kurulum kılavuzu: [`docs/GITHUB_APP_LOCAL_BACKEND.md`](docs/GITHUB_APP_LOCAL_BACKEND.md). Firebase Hosting'deki statik uygulama bu yerel backend'e otomatik bağlanmaz.
+
 ## Bağlantılar çalışma alanı
 
 Bağlantılar çalışma alanı, GitHub, Google/Gmail ve Canva connector'larının sunucu tarafındaki durumunu tek yerde gösterir.
