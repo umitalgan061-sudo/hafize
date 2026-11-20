@@ -389,7 +389,7 @@ describe('github workspace safe write core', () => {
     const ticket = writer.issueApproval('file', payload, true);
     await writer.commitFile(ticket.ticket, payload);
     expect(scopes).toEqual([
-      { repo: 'owner/repo', scope: 'contents' },
+      { repo: 'owner/repo', scope: 'contents_read' },
       { repo: 'owner/repo', scope: 'contents' }
     ]);
     expect(headersSeen).toEqual(['Bearer installation-token-only', 'Bearer installation-token-only']);
