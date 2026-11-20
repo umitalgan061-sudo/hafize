@@ -254,6 +254,61 @@ describe('github workspace safe write core', () => {
     expect(body.content).toBe(Buffer.from('export const value = 1;', 'utf8').toString('base64'));
   });
 
+
+  it('attributes approved commits to the verified GitHub App bot on the server', async () => {
+    const requests: Array<{ url: URL; init: RequestInit }> = [];
+    const commitIdentity = vi.fn(async () => ({
+      name: 'hafize-umitalgan[bot]',
+      email: '123456789+hafize-umitalgan[bot]@users.noreply.github.com'
+    }));
+    const writer = createGitHubWorkspaceWriter({
+      token: 'github-app-test-token',
+      allowedRepositories: ['owner/repo'],
+      commitIdentity,
+      fetchImpl: (async (url: URL, init: RequestInit) => {
+        requests.push({ url, init });
+        if (url.pathname === '/repos/owner/repo') return jsonResponse({ default_branch: 'main' });
+        return jsonResponse({ commit: { sha: 'e'.repeat(40), html_url: 'https://github.com/owner/repo/commit/' + 'e'.repeat(40) } });
+      }) as typeof fetch
+    });
+    const payload = {
+      repository: 'owner/repo', branch: 'feature/bot',
+      path: 'docs/identity.txt', content: 'Hello', message: 'feat: introduce bot identity'
+    };
+    const ticket = writer.issueApproval('file', payload, true);
+    await writer.commitFile(ticket.ticket, payload);
+    const body = JSON.parse(String(requests.at(-1)?.init.body));
+    expect(body.author).toEqual(await commitIdentity());
+    expect(body.committer).toEqual(await commitIdentity());
+    expect(commitIdentity).toHaveBeenCalled();
+    expect(requests.at(-1)?.init.method).toBe('PUT');
+  });
+
+  it('refuses an unverified bot identity before writing a file', async () => {
+    const requests: RequestInit[] = [];
+    const writer = createGitHubWorkspaceWriter({
+      token: 'github-app-test-token',
+      allowedRepositories: ['owner/repo'],
+      commitIdentity: async () => ({
+        name: 'not-a-bot',
+        email: 'someone@example.com'
+      }),
+      fetchImpl: (async (_url: URL, init: RequestInit) => {
+        requests.push(init);
+        return jsonResponse({ default_branch: 'main' });
+      }) as typeof fetch
+    });
+    const payload = {
+      repository: 'owner/repo', branch: 'feature/bot',
+      path: 'docs/identity.txt', content: 'Hello', message: 'feat: introduce bot identity'
+    };
+    const ticket = writer.issueApproval('file', payload, true);
+    await expect(writer.commitFile(ticket.ticket, payload)).rejects.toMatchObject({
+      code: 'GITHUB_BOT_IDENTITY_INVALID', status: 503
+    });
+    expect(requests.filter((entry) => entry.method === 'PUT')).toHaveLength(0);
+  });
+
   it('uses optimistic existing SHA for file updates', async () => {
     const requests: RequestInit[] = [];
     const writer = makeWriter(async (_url, init) => {
