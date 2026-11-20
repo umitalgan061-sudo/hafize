@@ -93,6 +93,15 @@ function host() {
 }
 
 const navigationCss = readFileSync(new URL('../public/workspace-navigation.css', import.meta.url), 'utf8');
+const cleanUiCss = readFileSync(new URL('../public/clean-ui.css', import.meta.url), 'utf8');
+const indexHtml = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+// The focused chat theme must not hide Tasks or Connections navigation.
+for (const slot of [2, 3]) {
+  assert.equal(cleanUiCss.includes('.nav-list .nav-item:nth-child(' + slot + ')'), false);
+  assert.equal(cleanUiCss.includes('.nav-list .nav-item:nth-of-type(' + slot + ')'), false);
+}
+assert.equal(indexHtml.includes('◷ Görevler</button>'), true);
+assert.equal(indexHtml.includes('⌘ Bağlantılar</button>'), true);
 assert.match(navigationCss, /#githubWorkspaceCard\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
 assert.match(navigationCss, /\.main\[data-workspace="connections"\]\s+#githubWorkspaceCard/);
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);

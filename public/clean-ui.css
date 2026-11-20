@@ -156,9 +156,9 @@ html {
   display: none !important;
 }
 
-/* --- Sidebar: new chat, chat list, search and settings ----------------------------- */
-.nav-list .nav-item:nth-child(2),
-.nav-list .nav-item:nth-child(3),
+/* --- Sidebar: preserve all workspace navigation entries -----------------------------
+   Görevler and Bağlantılar must remain accessible: GitHub safe-write lives
+   under Bağlantılar. Hide only optional sidebar power-user utilities. */
 #hafizeConversationForkHub,
 #hafizeConversationForks,
 .history-block .conversation-workspace,
