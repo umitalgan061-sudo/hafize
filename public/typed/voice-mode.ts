@@ -280,7 +280,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const stopRecognition = (abort = false) => {
     const active = recognition;
-    recognition = null;
+    if (abort) recognition = null;
     if (!active) return;
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
   };
@@ -314,6 +314,17 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     clearTimers();
     stopRecognition(true);
     stopSpeech();
+    const words = message.toLocaleLowerCase('tr').replace(/[.!?,…]+$/u, '').trim();
+    let greeting = '';
+    if (/^(?:hafize[, ]+)?(?:naber|n'aber|ne haber|nasılsın)(?:[, ]+hafize)?$/u.test(words)) greeting = 'İyiyim, sen nasılsın?';
+    else if (/^(?:selam|merhaba)(?:[, ]+hafize)?$/u.test(words)) greeting = 'Merhaba! Nasıl gidiyor?';
+    if (greeting && root.speechSynthesis) {
+      setState('idle');
+      setCaption([greeting, '', ''], 'hafize');
+      resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, 1500);
+      documentRef.dispatchEvent(new root.CustomEvent(SPEAK_EVENT, { detail: { text: greeting, origin: ORIGIN } }));
+      return;
+    }
     input.value = message;
     input.dispatchEvent(new root.Event('input', { bubbles: true }));
     setCaption([message, '', ''], 'user');
@@ -354,6 +365,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       const spoken = [final, interim].filter(Boolean).join(' ');
       setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
       energy = Math.max(energy, 0.5);
+      if (final.trim() && !interim.trim()) { silentRetries = 0; send(final); }
     };
     current.onerror = (event) => { errorCode = String(event?.error || ''); };
     current.onend = () => {
@@ -526,7 +538,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       // Spoke faster than the reply is arriving: the next sentence is on its way.
       if (awaitingReply) { setState('thinking'); return; }
       setState(muted ? 'paused' : 'idle');
-      resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, 350);
+      resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, 120);
     }
   };
   const onProgress = (event: Event) => {
