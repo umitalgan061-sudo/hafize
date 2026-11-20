@@ -105,4 +105,46 @@ describe('GitHub App selected-repository credential provider', () => {
     await expect(auth.getToken('owner/hafize', 'pull_requests')).resolves.toBe(granted.token);
     expect(bodies).toEqual([{ repositories: ['hafize'], permissions: { pull_requests: 'write' } }]);
   });
+  it('resolves actual bot account ID rather than using the App ID', async () => {
+    const requested: Array<{ path: string; authorization: string }> = [];
+    const auth = provider(async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      const authorization = (init.headers as Record<string, string>).Authorization;
+      requested.push({ path, authorization });
+      if (path === '/app/installations/999') return response({ ...installation, app_slug: 'hafize-ua' });
+      if (path.endsWith('/access_tokens')) return response(granted);
+      if (path === '/users/hafize-ua%5Bbot%5D') {
+        return response({ id: 98765432, login: 'hafize-ua[bot]', type: 'Bot' });
+      }
+      throw Error('unexpected request');
+    });
+    await expect(auth.getBotIdentity('owner/hafize')).resolves.toEqual({
+      name: 'hafize-ua[bot]',
+      email: '98765432+hafize-ua[bot]@users.noreply.github.com'
+    });
+    expect(requested.filter((item) => item.path === '/app/installations/999')).toHaveLength(2);
+    expect(requested.at(-1)?.authorization).toBe('Bearer short-lived-installation-token');
+  });
+
+  it('fails closed when GitHub bot identity cannot be verified', async () => {
+    const auth = provider(async (url) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/app/installations/999') return response({ ...installation, app_slug: 'hafize-ua' });
+      if (path.endsWith('/access_tokens')) return response(granted);
+      return response({ id: 123456, login: 'another-account', type: 'User' });
+    });
+    await expect(auth.getBotIdentity('owner/hafize')).rejects.toMatchObject({
+      code: 'GITHUB_APP_AUTH_FAILED'
+    });
+  });
+
+  it('blocks bot identity discovery outside explicitly selected allowlist', async () => {
+    let calls = 0;
+    const auth = provider(async () => { calls++; return response({}); });
+    await expect(auth.getBotIdentity('other/repo')).rejects.toMatchObject({
+      code: 'GITHUB_APP_REPOSITORY_NOT_ALLOWED'
+    });
+    expect(calls).toBe(0);
+  });
+
 });
