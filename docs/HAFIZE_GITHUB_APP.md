@@ -42,3 +42,14 @@ Contributors görünümü GitHub'ın atıf, varsayılan dal, commit geçmişi, s
 - `npm run typecheck` ve `npm run test:modern` GitHub Actions üzerinde koşar.
 - Bot identity testleri `lib/github-app-auth.test.ts`, writer entegrasyonu `lib/github-workspace-write.test.ts`, read-only CI testleri `lib/github-app-ci.test.ts` içindedir.
 - PR #906 merge edilmeden ve gerçek App installation kurulumundan önce hiçbir App kimliğiyle üretim erişimi olmadığı kabul edilir.
+
+## CI durum API'si (sunucu)
+`GET /api/github/app/ci?action=runs&repository=owner/repo&branch=feature/example&limit=10`
+`GET /api/github/app/ci?action=jobs&repository=owner/repo&runId=12345`
+`GET /api/github/app/ci?action=checks&repository=owner/repo&sha=<40-hex>`
+
+Bu endpoint, `lib/production-guard.ts` içindeki authenticated API allowlist'ine eklendi. Üretimde geçerli kullanıcı session cookie olmadan 401 döner; sadece `HAFIZE_GITHUB_WRITE_REPOS` allowlist'inde olan ve App installation tarafından seçilmiş depoları kabul eder. Genel GitHub token, CI reader için fallback değildir: App yapılandırılmamışsa 503 döner. Tokenlar asla cevaba konmaz. `GITHUB_APP_CI_READER` yalnızca kısa metadata döndürür, ham workflow loglarını kullanıcıya sunmaz.
+
+`NODE_ENV=production` / public HOST altında sunucu mutlaka `npm start` ile production guard yüklenecek şekilde çalışmalıdır; `server.ts` tek başına çalışan yetkisiz bir HTTP servisi olarak internete açılmamalıdır.
+
+Canlı UI'ya PR/CI paneli eklenmesi ayrı bir özellik olarak sürdürülmelidir.
