@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const require = createRequire(import.meta.url);
@@ -91,6 +92,9 @@ function host() {
   return { documentRef, rootRef, main, primary, rail, nav, cards, events, observer: () => observer };
 }
 
+const navigationCss = readFileSync(new URL('../public/workspace-navigation.css', import.meta.url), 'utf8');
+assert.match(navigationCss, /#githubWorkspaceCard\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
+assert.match(navigationCss, /\.main\[data-workspace="connections"\]\s+#githubWorkspaceCard/);
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);
 assert.deepEqual(workspace.allowedCardIds('tasks'), ['scheduleRuntimeCard', 'scheduleListCard']);
 assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard', 'githubWorkspaceCard']);
