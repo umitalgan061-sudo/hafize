@@ -109,7 +109,8 @@ const GITHUB_APP_AUTH = GITHUB_APP_FIELDS.every(Boolean)
   ? createGitHubAppAuth({
       appId: process.env.HAFIZE_GITHUB_APP_ID,
       installationId: process.env.HAFIZE_GITHUB_APP_INSTALLATION_ID,
-      privateKeyPath: process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH
+      privateKeyPath: process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH,
+      appSlug: process.env.HAFIZE_GITHUB_APP_SLUG || 'hafize-umitalgan'
     })
   : null;
 // The placeholder is never sent: authenticatedFetch overwrites Authorization.
@@ -162,6 +163,7 @@ const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   token: GITHUB_TOKEN,
   fetchImpl: GITHUB_FETCH,
+  commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
 const MAX_BODY_BYTES = 256 * 1024;
