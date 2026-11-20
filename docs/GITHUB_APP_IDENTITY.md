@@ -11,6 +11,8 @@ Bu entegrasyon, Hafize'nin mevcut GitHub çalışma alanındaki **okuma**, **bra
 
 Bu kimlikler tek başına gizli değildir. **Özel anahtar (.pem) ve installation token kesinlikle gizlidir.**
 
+Yerel Windows backend'i etkinleştirmek için önce [GitHub App Local Backend](GITHUB_APP_LOCAL_BACKEND.md) rehberine bak. Bu rehber özel anahtarı yüklemeden, mevcut `.env` ayarlarını koruyarak kurulum yapar.
+
 ## Kurulum
 
 1. GitHub App'i ilgili hesaba kur ve **Permissions & events** ayarlarında `Contents: Read & write`, `Pull requests: Read & write`, `Issues: Read & write` ve `Actions: Read-only` izinlerini doğrula.
