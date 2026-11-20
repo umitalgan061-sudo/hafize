@@ -361,4 +361,58 @@ describe('github workspace safe write core', () => {
       maxApprovals: 1000
     });
   });
+  it('uses repository-scoped App tokens for every GitHub API request', async () => {
+    const scopes: Array<{ repo: string; scope: string }> = [];
+    const headersSeen: string[] = [];
+    const writer = createGitHubWorkspaceWriter({
+      tokenProvider: async (repo, scope) => {
+        scopes.push({ repo, scope });
+        return 'installation-token-only';
+      },
+      allowedRepositories: ['owner/repo'],
+      fetchImpl: async (url, init) => {
+        headersSeen.push((init?.headers as Record<string, string>).Authorization);
+        if (new URL(String(url)).pathname === '/repos/owner/repo') {
+          return jsonResponse({ default_branch: 'main' });
+        }
+        return jsonResponse({ commit: { sha: 'a'.repeat(40), html_url: 'https://github.com/owner/repo/commit/' + 'a'.repeat(40) } });
+      }
+    });
+    expect(writer.configured()).toBe(true);
+    const payload = {
+      repository: 'owner/repo',
+      branch: 'feature/app-test',
+      path: 'docs/example.md',
+      message: 'docs: example',
+      content: 'hello'
+    };
+    const ticket = writer.issueApproval('file', payload, true);
+    await writer.commitFile(ticket.ticket, payload);
+    expect(scopes).toEqual([
+      { repo: 'owner/repo', scope: 'contents' },
+      { repo: 'owner/repo', scope: 'contents' }
+    ]);
+    expect(headersSeen).toEqual(['Bearer installation-token-only', 'Bearer installation-token-only']);
+  });
+
+  it('fails closed on an unavailable App token rather than falling back to PAT', async () => {
+    let requests = 0;
+    const writer = createGitHubWorkspaceWriter({
+      token: 'legacy-token',
+      tokenProvider: async () => { throw new Error('installation unavailable'); },
+      allowedRepositories: ['owner/repo'],
+      fetchImpl: async () => { requests++; return jsonResponse({}); }
+    });
+    const payload = {
+      repository: 'owner/repo',
+      branch: 'feature/safe',
+      path: 'docs/example.md',
+      message: 'docs: example',
+      content: 'hello'
+    };
+    const ticket = writer.issueApproval('file', payload, true);
+    await expect(writer.commitFile(ticket.ticket, payload)).rejects.toThrow('installation unavailable');
+    expect(requests).toBe(0);
+  });
+
 });
