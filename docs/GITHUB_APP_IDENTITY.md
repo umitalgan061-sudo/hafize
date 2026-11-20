@@ -49,8 +49,10 @@ Ardından Hafize backend'inin bulunduğu `.env` içinde `HAFIZE_GITHUB_APP_PRIVA
 **Ön kontrol:** Yalnız kendi cihazındaki Hafize proje klasöründe, Node.js 24 veya üzeri ile çalıştır:
 
 ```powershell
-node --env-file=.env scripts/check-github-app.mjs
+node --use-system-ca --use-env-proxy --env-file=.env scripts/check-github-app.mjs
 ```
+
+Node'da Windows sertifika deposunu ve tanımlanmış HTTPS proxy ayarlarını etkinleştirmek için `--use-system-ca --use-env-proxy` kullanılır. Şirket ağlarında `fetch failed` hatası görülürse Node ve PowerShell'in farklı sertifika/proxy ayarları kullanıp kullanmadığını kontrol et. SSL doğrulamasını kapatma.
 
 Bu komut kimlik doğrulaması yapar, bot hesabını ve GitHub'dan depo okumasını doğrular; **commit, push, merge veya deploy yapmaz**. API anahtarlarını ve installation token'ı terminale yazdırmaz. Başarılı görünmeden üretim ortamında write izni açma.
 
