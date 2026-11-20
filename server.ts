@@ -24,6 +24,7 @@ import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/git
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppTokenProvider } from './lib/github-app-auth.ts';
+import { createGitHubAppCiReader, GitHubAppCiError } from './lib/github-app-ci.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -141,6 +142,10 @@ const GITHUB_APP_TOKENS = createGitHubAppTokenProvider({
   appId: process.env.HAFIZE_GITHUB_APP_ID,
   installationId: process.env.HAFIZE_GITHUB_APP_INSTALLATION_ID,
   privateKey: process.env.HAFIZE_GITHUB_APP_PRIVATE_KEY,
+  allowedRepositories: GITHUB_WRITE_REPOS
+});
+const GITHUB_APP_CI_READER = createGitHubAppCiReader({
+  getToken: GITHUB_APP_TOKENS.getToken,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
@@ -662,6 +667,43 @@ async function handleGitHubWorkspaceExtra(pathname, url, res) {
     sendJson(res, 502, { error: 'GITHUB_WORKSPACE_FAILED' });
   }
 }
+async function handleGitHubAppCi(url, res) {
+  try {
+    if (!GITHUB_APP_TOKENS.configured()) {
+      sendJson(res, 503, { error: 'GITHUB_APP_NOT_CONFIGURED' });
+      return;
+    }
+    const action = url.searchParams.get('action') || '';
+    const repository = url.searchParams.get('repository') || '';
+    let payload;
+    if (action === 'runs') {
+      payload = await GITHUB_APP_CI_READER.runs({
+        repository,
+        branch: url.searchParams.get('branch') || undefined,
+        limit: url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : undefined
+      });
+    } else if (action === 'jobs') {
+      payload = await GITHUB_APP_CI_READER.jobs({
+        repository, runId: url.searchParams.get('runId')
+      });
+    } else if (action === 'checks') {
+      payload = await GITHUB_APP_CI_READER.checks({
+        repository, sha: url.searchParams.get('sha')
+      });
+    } else {
+      sendJson(res, 400, { error: 'GITHUB_CI_INVALID_ACTION' });
+      return;
+    }
+    sendJson(res, 200, payload);
+  } catch (error) {
+    if (error instanceof GitHubAppCiError) {
+      sendJson(res, error.status, { error: error.code });
+      return;
+    }
+    sendJson(res, 502, { error: 'GITHUB_APP_CI_FAILED' });
+  }
+}
+
 async function handleGitHubWorkspaceWrite(req, url, res) {
   try {
     const body = await readJson(req, 160 * 1024);
@@ -1397,6 +1439,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && (url.pathname === '/api/github/workspace/write/approval' || url.pathname === '/api/github/workspace/write')) {
       await handleGitHubWorkspaceWrite(req, url, res);
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/github/app/ci') {
+      await handleGitHubAppCi(url, res);
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/github/workspace') {
