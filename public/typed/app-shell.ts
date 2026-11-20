@@ -1557,7 +1557,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   // Chats synced from another device come into the open page. Settings read at start apply from the next opening.
   window.addEventListener('hafize:state-synced', () => {
-    if (isStreaming) return;
+    if (isStreaming) { setTimeout(() => window.dispatchEvent(new Event('hafize:state-synced')), 5000); return; }
     const fresh = loadConversations();
     conversations = fresh;
     rememberPersisted(conversations);
