@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import { assertVersionedCacheDeclaration } from './shell-cache-contract.mjs';
 
 const require = createRequire(import.meta.url);
@@ -91,9 +92,14 @@ function host() {
   return { documentRef, rootRef, main, primary, rail, nav, cards, events, observer: () => observer };
 }
 
+const navigationCss = readFileSync(new URL('../public/workspace-navigation.css', import.meta.url), 'utf8');
+assert.match(navigationCss, /#githubWorkspaceCard\[hidden\]\s*\{\s*display:\s*none\s*!important;/);
+assert.match(navigationCss, /\.main\[data-workspace="connections"\]\s+#githubWorkspaceCard/);
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);
 assert.deepEqual(workspace.allowedCardIds('tasks'), ['scheduleRuntimeCard', 'scheduleListCard']);
-assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard']);
+assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'gmailConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard', 'githubWorkspaceCard']);
+assert.equal(workspace.isWorkspaceCard({ id: 'githubWorkspaceCard' }, 'connections'), true);
+assert.equal(workspace.isWorkspaceCard({ id: 'githubWorkspaceCard' }, 'tasks'), false);
 for (const unsafe of ['', 'settings', 'TASKS', null, {}, '__proto__']) assert.equal(workspace.normalizeWorkspace(unsafe), 'chat');
 assert.equal(workspace.isWorkspaceCard({ id: 'scheduleListCard' }, 'tasks'), true);
 assert.equal(workspace.isWorkspaceCard({ id: 'scheduleListCard-rogue' }, 'tasks'), false);
@@ -118,17 +124,24 @@ assert.equal(h.documentRef.getElementById(workspace.INTRO_ID).focused, true);
 assert.equal(h.events.at(-1).detail.workspace, 'tasks');
 
 const rogue = new FakeNode('section', 'rogue', 'utility-card');
-h.rail.append(rogue); h.observer().trigger();
+const githubWorkspaceCard = new FakeNode('section', 'githubWorkspaceCard', 'utility-card github-workspace-card');
+const githubWritePanel = new FakeNode('section', 'githubWriteTitle', 'github-workspace-write');
+githubWorkspaceCard.append(githubWritePanel);
+h.rail.append(rogue, githubWorkspaceCard);
+h.observer().trigger();
 assert.equal(rogue.hidden, true);
+assert.equal(githubWorkspaceCard.hidden, true); // unrelated tools must remain hidden on Tasks
 
 assert.equal(controller.setWorkspace('connections'), true);
 assert.equal(h.cards.account.hidden, false); assert.equal(h.cards.canva.hidden, false); assert.equal(h.cards.github.hidden, false);
+assert.equal(githubWorkspaceCard.hidden, false); // dynamic GitHub card visible on Connections
+assert.equal(find(githubWorkspaceCard, 'githubWriteTitle'), githubWritePanel); // safe-write panel remains inside it
 for (const card of [h.cards.memory, h.cards.runtime, h.cards.schedules, h.cards.voice, rogue]) assert.equal(card.hidden, true);
 assert.equal(h.documentRef.getElementById(workspace.INTRO_ID).children[1].textContent, 'Bağlantılar');
 
 assert.equal(controller.setWorkspace('invalid'), true);
 assert.equal(controller.getWorkspace(), 'chat');
-for (const card of [h.cards.account, h.cards.memory, h.cards.runtime, h.cards.schedules, h.cards.canva, h.cards.github, rogue]) assert.equal(card.hidden, false);
+for (const card of [h.cards.account, h.cards.memory, h.cards.runtime, h.cards.schedules, h.cards.canva, h.cards.github, rogue, githubWorkspaceCard]) assert.equal(card.hidden, false);
 assert.equal(h.cards.voice.hidden, true);
 
 assert.equal(controller.setWorkspace('tasks'), true);
@@ -140,12 +153,13 @@ assert.equal(h.main.getAttribute('data-workspace'), null);
 assert.equal(h.documentRef.getElementById(workspace.INTRO_ID), null);
 assert.equal(h.documentRef.getElementById(workspace.STYLE_ID), null);
 assert.equal(h.cards.voice.hidden, true);
+assert.equal(githubWorkspaceCard.hidden, false);
 assert.equal(controller.setWorkspace('connections'), false);
 
 assertVersionedCacheDeclaration();
-assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.js'), true);
+assert.equal(sw.SHELL_ASSETS.includes('/typed-build/workspace-navigation.js'), true);
 assert.equal(sw.SHELL_ASSETS.includes('/workspace-navigation.css'), true);
-for (const path of ['/workspace-navigation.js', '/workspace-navigation.css']) {
+for (const path of ['/typed-build/workspace-navigation.js', '/workspace-navigation.css']) {
   assert.equal(sw.classifyRequest({ url: `https://hafize.example${path}`, method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'shell');
 }
 assert.equal(sw.classifyRequest({ url: 'https://hafize.example/api/health', method: 'GET', headers: {}, mode: 'same-origin' }, 'https://hafize.example'), 'network-only');
