@@ -6,9 +6,12 @@ const ROOT = fileURLToPath(new URL('../', import.meta.url));
 const ALLOWED_HOSTS = new Set(['hafize-ua.web.app', 'hafize-ua.firebaseapp.com']);
 const IMPORTANT_ASSETS = Object.freeze([
   '/styles.css',
+  '/premium.css',
   '/typed-build/app-shell.js',
   '/typed-build/ui-shell.js',
   '/typed-build/workspace-navigation.js',
+  '/typed-build/live-screen.js',
+  '/typed-build/legacy-app.js',
   '/manifest.webmanifest'
 ]);
 
@@ -140,7 +143,7 @@ export async function probeLiveSite({
   if (validHome) {
     const embedded = new Set(referencedAssets(html));
     // Always check critical app assets; discover missing references as well.
-    const paths = [...new Set([...IMPORTANT_ASSETS, ...embedded])].slice(0, 100);
+    const paths = [...new Set([...IMPORTANT_ASSETS, ...embedded])].slice(0, 18);
     for (const path of paths) {
       const response = await get(path);
       const type = response?.headers?.get?.('content-type') || '';
