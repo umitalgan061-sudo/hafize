@@ -563,8 +563,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
         nextActivities = [...activities];
         nextActivities[runningIndex] = activity;
       } else {
-        if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
-        nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
+        const sameLabelIndex = activities.findLastIndex((item) => item.label === activity.label);
+        if (sameLabelIndex >= 0) {
+          nextActivities = [...activities];
+          nextActivities[sameLabelIndex] = activity;
+        } else {
+          nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
+        }
       }
     }
 
