@@ -35,7 +35,7 @@ Contributors görünümü GitHub'ın atıf, varsayılan dal, commit geçmişi, s
 - `npm run typecheck`, `npm run test:modern`, `npm run build` ve Github Actions quality iş akışı izlenir.
 - Bu belge Firebase deployu veya GitHub App kurulumunun gerçekleştiğinin kanıtı değildir.
 - GitHub App kayıt ve kurulum adımı kullanıcı tarafından yapılır; gizli anahtar asla sohbette paylaşılmaz.
-- `lib/github-app-ci.ts` Actions run/job ve Checks durumlarını yalnız `actions:read` / `checks:read` kapsamlı token ile döndürmek için hazırlandı; güvenli kullanıcı oturumu kontrolüne bağlanmış HTTP/API UI henüz eklenmedi. Modülü henüz üretimde çalışıyor olarak değerlendirmeyin.
+- `lib/github-app-ci.ts` ve `/api/github/app/ci` Actions/Checks durumlarını scoped read-only token ile sunacak şekilde bağlandı. Kullanıcı arayüzü eklendi, ancak merge/deploy ve gerçek App installation olmadan canlıda çalışıyor kabul edilmez.
 - Bir sonraki iş paketi: CI okuyucusunun oturum yetkilendirmeli sunucu endpoint'ine ve UI'ya bağlanması, başarılı bot commit atfının gerçek GitHub üzerinde doğrulanması, GitHub App'den read-only workspace'e geçiş.
 
 ## Geliştirme kontrolü
@@ -59,3 +59,10 @@ Canlı UI'ya PR/CI paneli eklenmesi ayrı bir özellik olarak sürdürülmelidir
 - Dosya commit'i ve branch oluşturma işlemleri `contents:write`, PR oluşturma `pull_requests:write` token gerektirir.
 - GitHub'ın istenenden yüksek kapsamlı bir token döndürmesi doğrulama hatası sayılır. Token hiçbir zaman tarayıcıya aktarılmaz.
 - App kurulumunda depo seviyesinde Contents read/write yetkisi kalır; her işlemde ayrıca daha dar kapsamlı token talep edilir.
+
+## Kullanıcı arayüzünde CI durumu
+- `public/github-app-ci-panel.ts` GitHub çalışma alanı panelinin altında isteğe bağlı CI görüntüleme alanı sunar. İlk açılışta uzak API isteği yapmaz; yalnız `CI durumunu getir` düğmesiyle sorgular.
+- Seçili `sahip/depo` ve isteğe bağlı branch kullanılır. Son 10 run listelenir; kullanıcı run için `İşleri göster` veya geçerli SHA olduğunda `Kontroller` düğmesiyle ayrıntıları alabilir.
+- Sunucu `/api/github/app/ci` endpoint'i oturum gerektiren güvenli yol kapsamında kalır. App yapılandırılmamışsa panel kullanıcıya bunu açıkça bildirir; otomatik GitHub token oluşturma veya App kurma girişimi yapılmaz.
+- CI verisi HTML olarak işlenmez: DOM `textContent` ile doldurulur; GitHub bağlantıları sabit `github.com` kökeninde kurulur ve `noopener noreferrer` ile açılır.
+- Vite üretim ve geliştirme giriş dosyaları güncellendi. `lib/github-app-ci-panel-contract.test.ts` entegrasyon ve güvenli metin sunumu sözleşmesini kontrol eder. Gerçek GitHub App kurulumuyla uçtan uca görsel test hâlâ gereklidir.
