@@ -20,6 +20,7 @@ Bu kimlikler tek başına gizli değildir. **Özel anahtar (.pem) ve installatio
 ```dotenv
 HAFIZE_GITHUB_APP_ID=5833389
 HAFIZE_GITHUB_APP_INSTALLATION_ID=183684460
+HAFIZE_GITHUB_APP_SLUG=hafize-umitalgan
 HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH=/secure/absolute/path/to/hafize-app.pem
 HAFIZE_GITHUB_READ_REPOS=umitalgan061-sudo/hafize
 HAFIZE_GITHUB_WRITE_REPOS=umitalgan061-sudo/hafize
@@ -33,19 +34,40 @@ Windows örneği: `HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH=C:\\secure\\hafize-app.pem
 
 Özel anahtar yalnızca sunucu tarafında bulunmalıdır. Sırf statik Firebase Hosting üzerinde çalışan `public/` arayüzünden GitHub App JWT oluşturulamaz. Sırrı backend'e güvenli iletmek için Firebase Functions/Cloud Run veya korumalı ayrı bir sunucu ve platform secret manager kullan. Özellikle özel anahtarı `VITE_*` değişkenine, `public/` dosyalarına, istemci JSON'una veya GitHub Actions loglarına yerleştirme.
 
+## Windows üzerinde özel anahtarı yerleştirme
+
+Özel anahtarı yalnızca **kendi bilgisayarında**, projenin dışında tut. PowerShell'de indirdiğin `.pem` dosyasını güvenli klasöre taşımak için (kendi indirdiğin gerçek dosya adını değiştir):
+
+```powershell
+$secretFolder = Join-Path $HOME ".hafize-secrets"
+New-Item -ItemType Directory -Force -Path $secretFolder | Out-Null
+Move-Item -LiteralPath "$HOME\Downloads\INDIRDIGIN-GITHUB-APP.pem" -Destination (Join-Path $secretFolder "hafize-github-app.pem")
+```
+
+Ardından Hafize backend'inin bulunduğu `.env` içinde `HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH` değerini `C:\Users\<WindowsUser>\.hafize-secrets\hafize-github-app.pem` gibi **mutlak** bir yola ayarla. `.env` özel dosyadır; GitHub'a ekleme. Dağıtım ortamında bunun yerine platformun sunucu tarafı secret manager'ını kullan.
+
+**Ön kontrol:** Yalnız kendi cihazındaki Hafize proje klasöründe, Node.js 24 veya üzeri ile çalıştır:
+
+```powershell
+node --env-file=.env scripts/check-github-app.mjs
+```
+
+Bu komut kimlik doğrulaması yapar, bot hesabını ve GitHub'dan depo okumasını doğrular; **commit, push, merge veya deploy yapmaz**. API anahtarlarını ve installation token'ı terminale yazdırmaz. Başarılı görünmeden üretim ortamında write izni açma.
+
 ## Nasıl çalışır?
 
 - Sunucu `RS256` imzalı, kısa süreli bir uygulama JWT'si üretir.
 - JWT yalnızca `POST /app/installations/{installation_id}/access_tokens` çağrısında kullanılır.
 - GitHub'ın döndürdüğü installation token yalnızca bellekte tutulur; sona ermeden önce yenilenir.
 - Eşzamanlı istekler tek token yenilemesini paylaşır.
+- Commit author ve committer için uygulama slug'ına karşılık gelen `[bot]` hesabının numeric GitHub kullanıcı ID'si herkese açık kullanıcı API'sinden doğrulanır; bu istekte installation token gönderilmez.
 - Installation token yalnızca `https://api.github.com/repos/...` adreslerine yönlendirilir.
 - Mevcut `HAFIZE_GITHUB_READ_REPOS` ve `HAFIZE_GITHUB_WRITE_REPOS` izin listeleri geçerliliğini korur. GitHub App tüm depolara kurulmuş olsa bile **Hafize'nin backend'i yalnızca izin listelerindeki depolarda işlem yapabilir**.
 - Mevcut yazma işlemlerinde açık onay, tek kullanımlık bilet, hassas dosya engeli ve `main` üzerine doğrudan yazma yasağı devam eder.
 
 ## Bot kimliği ve Contributors
 
-Installation token ile GitHub API üzerinden yapılan işlemler GitHub App botu olarak kaydedilebilir. Yeni commit'lerde bot yazarı/committer alanları ayrıca düzgün eşlenmelidir. GitHub'ın Contributors görünümü yalnızca gerçek, kabul edilen katkı kurallarını karşılayan commit'leri sayar: uygulama oluşturulması veya bir PR açılması tek başına Contributors görünümünü garanti etmez. Bu değişiklik mevcut Git geçmişini yeniden yazmaz.
+Installation token ile GitHub API üzerinden yapılan işlemler GitHub App botu olarak kaydedilebilir. Yeni dosya commit'lerinde bot yazarı/committer alanları doğrulanan GitHub `[bot]` hesabının noreply adresiyle eşlenir; uygun bot hesabı doğrulanamazsa commit güvenli biçimde durdurulur. GitHub'ın Contributors görünümü yalnızca gerçek, kabul edilen katkı kurallarını karşılayan commit'leri sayar: uygulama oluşturulması veya bir PR açılması tek başına Contributors görünümünü garanti etmez. Bu değişiklik mevcut Git geçmişini yeniden yazmaz.
 
 ## Doğrulama
 
@@ -58,7 +80,7 @@ Backend başlatıldıktan sonra özel anahtar/installation token göstermeden `/
 
 ## Güvenlik ve geri alma
 
-- GitHub OAuth **Client secret**, installation token akışı için gerekli değildir.
+- GitHub OAuth **Client secret**, installation token akışı için gerekli değildir. Daha önce herhangi bir ekran görüntüsünde gösterilen client secret'ı GitHub'da döndür/iptal et.
 - Özel anahtar açığa çıkarsa GitHub'da ilgili key pair'i iptal et ve yeni anahtarla sistemi yeniden kur.
 - `HAFIZE_GITHUB_WRITE_REPOS` boş bırakılırsa yazma özellikleri kapalıdır.
 - Tüm GitHub App ortam değişkenleri kaldırılırsa yalnızca açıkça tanımlanan `GITHUB_TOKEN` eski yöntemini kullanır.
