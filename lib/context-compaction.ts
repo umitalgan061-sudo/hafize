@@ -34,7 +34,9 @@ function fail(field: string): never {
 }
 function countMessageContent(value: unknown): number {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return 0;
-  const content = (value as Record<string, unknown>).content;
+  const part = value as Record<string, unknown>;
+  if (typeof part.text === 'string') return part.text.length;
+  const content = part.content;
   if (typeof content === 'string') return content.length;
   if (Array.isArray(content)) return content.reduce((sum, item) => sum + countMessageContent(item), 0);
   return typeof content === 'number' || typeof content === 'boolean' ? String(content).length : 0;
@@ -55,20 +57,33 @@ function ratio(value: unknown): number {
   return value;
 }
 function summarySource(messages: readonly ContextMessage[], maxChars: number): string {
-  const chunks: string[] = [];
-  let remaining = maxChars;
-  for (const message of messages) {
-    if (remaining <= 0) break;
+  const turns = messages.map(message => {
     const role = typeof message.role === 'string' ? message.role : 'unknown';
-    const content = typeof message.content === 'string'
-      ? message.content
-      : message.content == null ? '' : JSON.stringify(message.content);
-    const chunk = ('[' + role + '] ' + content).slice(0, remaining);
-    if (!chunk) continue;
-    chunks.push(chunk);
-    remaining -= chunk.length + 2;
+    const content = Array.isArray(message.content)
+      ? message.content.map(part => typeof part?.text === 'string' ? part.text : '[ek]').join('\n')
+      : typeof message.content === 'string' ? message.content : JSON.stringify(message.content ?? '');
+    return '[' + role + '] ' + content;
+  });
+  if (turns.reduce((size, turn) => size + turn.length + 2, -2) <= maxChars) return turns.join('\n\n');
+
+  // Leave space for both the original task and later corrections even when one paste is very long.
+  const count = Math.min(turns.length, Math.max(2, Math.floor(maxChars / 160)));
+  const excerpts = Array.from({ length: count }, (_, index) =>
+    turns[count === 1 ? 0 : Math.round(index * (turns.length - 1) / (count - 1))]!);
+  const available = maxChars - 2 * (count - 1);
+  let low = 0;
+  let high = available;
+  while (low < high) {
+    const cap = Math.ceil((low + high) / 2);
+    if (excerpts.reduce((sum, turn) => sum + Math.min(cap, turn.length), 0) <= available) low = cap;
+    else high = cap - 1;
   }
-  return chunks.join('\n\n');
+  return excerpts.map(turn => {
+    if (turn.length <= low) return turn;
+    const marker = ' […] ';
+    const head = Math.ceil((low - marker.length) / 2);
+    return turn.slice(0, head) + marker + turn.slice(-(low - marker.length - head));
+  }).join('\n\n');
 }
 
 export function createContextCompactor({

@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, expect, it } from 'vitest';
 import { createContextCompactor, estimateMessageTokens } from './context-compaction.ts';
 
@@ -27,4 +28,18 @@ describe('context compaction',()=>{
     expect(result.meta.reason).toBe('summary_failed');
     expect(result.messages).toBe(messages);
   });
+});
+
+it('a long paste leaves room for earlier requirements and later corrections',async()=>{
+ let source='';
+ const engine=createContextCompactor({contextLimitTokens:16000,triggerRatio:0.5,preserveRecentMessages:4,maxSummarySourceChars:4000,summarize:async req=>(source=req.source,'özet')});
+ const history=[{role:'user',content:'İstenen çıktı GeoJSON.'},{role:'assistant',content:'başlangıç '+'a'.repeat(12000)+' son değer'},{role:'user',content:'Düzeltme: koordinatlar EPSG:4326.'},...Array.from({length:4},()=>({role:'user',content:'son tur'}))];
+ const result=await engine.prepare(history);
+ assert.equal(result.meta.compacted,true);
+ for(const value of ['GeoJSON','başlangıç','son değer','EPSG:4326'])assert.ok(source.includes(value));
+ assert.ok(source.length<=4000);
+ assert.deepEqual(result.messages.slice(-4),history.slice(-4));
+});
+it('counts text inside structured messages',()=>{
+ assert.equal(estimateMessageTokens([{content:[{type:'text',text:'merhaba'}]}]),7);
 });
