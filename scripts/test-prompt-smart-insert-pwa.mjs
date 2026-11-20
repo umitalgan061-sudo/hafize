@@ -1,3 +1,4 @@
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -9,7 +10,7 @@ const sw = await read('public/sw-policy.ts');
 const html = await read('public/index.html');
 const vite = await read('vite.config.ts');
 const app = await read('public/typed/legacy-app.ts');
-assert(sw.includes('v168'), 'PWA cache version');
+assertCacheVersionAtLeast(168, 'PWA cache version');
 assert(sw.includes('/typed-build/legacy-app.js'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(vite.includes('legacy-app'));
