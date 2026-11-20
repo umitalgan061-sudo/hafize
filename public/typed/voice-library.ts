@@ -331,46 +331,62 @@ export function synthesize(voice: PiperVoice, speaker: number, text: string, rat
 }
 
 // ---- playback --------------------------------------------------------------------------------
-let context: AudioContext | null = null;
+/** 16-bit mono WAV of a chunk, brought to one loudness level (models differ a lot; some peak near 0.17). */
+export function wavOf(pcm: ArrayLike<number>, sampleRate: number, gain = normalizedGain(pcm)): Uint8Array {
+  const bytes = new Uint8Array(44 + pcm.length * 2);
+  const view = new DataView(bytes.buffer);
+  const ascii = (at: number, text: string) => { for (let i = 0; i < text.length; i += 1) view.setUint8(at + i, text.charCodeAt(i)); };
+  ascii(0, 'RIFF'); view.setUint32(4, 36 + pcm.length * 2, true); ascii(8, 'WAVE'); ascii(12, 'fmt ');
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true); ascii(36, 'data'); view.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i += 1) { const value = Math.max(-1, Math.min(1, pcm[i] * gain)); view.setInt16(44 + i * 2, value < 0 ? value * 0x8000 : value * 0x7fff, true); }
+  return bytes;
+}
+
+// One <audio> element plays every chunk. 20 Kasım 2026: on the owner's iPhone a chosen voice never spoke (Yelda did)
+// and "Hafize konuşuyor" sometimes showed with no sound. Web Audio started outside a touch stays suspended there and is
+// muted by the silent switch, so every chunk failed over to the phone's only Turkish voice. A media element that has
+// played once inside a touch may play again later, and it is not muted by the switch.
+let player: HTMLAudioElement | null = null;
+let unlocked = false;
+/** Call from inside a touch, click or key press: lets later answers be heard on a phone. */
+export function unlockAudio(): void {
+  if (unlocked || typeof Audio !== 'function') return;
+  try {
+    player ||= new Audio();
+    player.setAttribute('playsinline', '');
+    const silence = URL.createObjectURL(new Blob([wavOf(new Float32Array(800), 16000, 1) as Uint8Array<ArrayBuffer>], { type: 'audio/wav' }));
+    player.src = silence;
+    void player.play().then(() => { unlocked = true; }).catch(() => undefined).finally(() => URL.revokeObjectURL(silence));
+  } catch { /* no audio on this page */ }
+}
 export function speakChunk(voice: PiperVoice, speaker: number, text: string, rate: number, callbacks: SpeakCallbacks): SpeakHandle {
   let stopped = false;
-  let source: AudioBufferSourceNode | null = null;
+  let url = '';
   let timer: ReturnType<typeof setInterval> | null = null;
-  const clear = () => { if (timer) clearInterval(timer); timer = null; };
+  const clear = () => { if (timer) clearInterval(timer); timer = null; if (url) URL.revokeObjectURL(url); url = ''; };
   (async () => {
     const { pcm, sampleRate } = await synthesize(voice, speaker, text, rate);
     if (stopped) return;
-    context ||= new AudioContext();
-    if (context.state !== 'running') {
-      // A page that has had no click yet may not start audio; do not wait forever for one.
-      await Promise.race([context.resume(), new Promise((resolve) => setTimeout(resolve, 600))]);
-      if ((context.state as AudioContextState) !== 'running') throw new Error('AUDIO_BLOCKED');
-    }
-    if (stopped) return;
-    const buffer = context.createBuffer(1, pcm.length, sampleRate);
-    buffer.copyToChannel(pcm as Float32Array<ArrayBuffer>, 0);
-    const node = context.createBufferSource();
-    node.buffer = buffer;
-    // Models differ a lot in loudness (some peak near 0.17), so each chunk is brought to one level.
-    const gain = context.createGain();
-    gain.gain.value = normalizedGain(pcm);
-    node.connect(gain).connect(context.destination);
-    node.onended = () => { clear(); if (!stopped) callbacks.onend?.(); };
-    source = node;
-    const startedAt = context.currentTime;
-    node.start();
+    const audio = (player ||= new Audio());
+    url = URL.createObjectURL(new Blob([wavOf(pcm, sampleRate) as Uint8Array<ArrayBuffer>], { type: 'audio/wav' }));
+    audio.onended = () => { clear(); if (!stopped) callbacks.onend?.(); };
+    audio.onerror = () => { clear(); if (!stopped) callbacks.onerror?.(new Error('AUDIO_FAILED')); };
+    audio.src = url;
+    try { await audio.play(); } catch (error) { throw new Error((error as Error)?.name === 'NotAllowedError' ? 'AUDIO_BLOCKED' : 'AUDIO_FAILED'); }
+    if (stopped) { audio.pause(); return; }
     callbacks.onstart?.();
     const timeline = wordTimeline(text);
     let next = 0;
     timer = setInterval(() => {
-      const progress = (context!.currentTime - startedAt) / buffer.duration;
+      const progress = audio.duration ? audio.currentTime / audio.duration : 0;
       while (next < timeline.length && timeline[next].at <= progress) {
         callbacks.onword?.(timeline[next].index, timeline[next].length);
         next += 1;
       }
     }, 50);
   })().catch((error) => { clear(); if (!stopped) callbacks.onerror?.(error instanceof Error ? error : new Error(String(error))); });
-  return { stop() { stopped = true; clear(); try { source?.stop(); } catch { /* already ended */ } } };
+  return { stop() { stopped = true; try { if (url) player?.pause(); } catch { /* already ended */ } clear(); } };
 }
 
 export async function findVoice(id: string): Promise<PiperVoice | null> {
