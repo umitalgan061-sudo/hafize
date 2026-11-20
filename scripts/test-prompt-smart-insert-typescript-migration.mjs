@@ -1,3 +1,4 @@
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { access, readFile } from 'node:fs/promises';
@@ -42,6 +43,6 @@ assert.ok(html.includes('typed-build/legacy-app.js'));
 assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\.js/);
 assert.match(vite, /legacy-app/);
 assert.ok(sw.includes('typed-build/legacy-app.js'));
-assert.ok(sw.includes('v168'), 'service worker cache version mismatch');
+assertCacheVersionAtLeast(168, 'service worker cache version');
 
 console.log('TypeScript Smart Insert migration gate: OK');
