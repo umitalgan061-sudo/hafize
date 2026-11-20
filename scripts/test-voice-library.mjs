@@ -13,8 +13,8 @@ for (const voice of voices) {
   assert.match(voice.key, /^[a-zA-Z]{2,3}_[A-Z0-9]+-/);
   if (voice.source) {
     // Community voices: pinned to a commit, so a later upload cannot change what gets downloaded.
-    assert.match(voice.url, /^https:\/\/huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/model\.onnx$/, voice.key);
-    assert.match(voice.configUrl, /^https:\/\/huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/config\.json$/, voice.key);
+    assert.match(voice.url, /^https:\/\/huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/[^/]+\.onnx$/, voice.key);
+    assert.match(voice.configUrl, /^https:\/\/huggingface\.co\/[^/]+\/[^/]+\/resolve\/[0-9a-f]{40}\/[^/]+\.json$/, voice.key);
   } else {
     assert.ok(voice.path.endsWith(`${voice.key}.onnx`), voice.key);
     assert.equal(voice.url, undefined, voice.key);
