@@ -151,6 +151,7 @@ export async function probeLiveSite({
       assets.push({
         path,
         ok,
+        contentType: String(type).slice(0, 100),
         status: response?.status ?? null,
         reason: !response ? 'NETWORK_UNAVAILABLE' : !response.ok ? 'HTTP_ERROR' :
           !contentTypeMatches(path, type) ? 'WRONG_CONTENT_TYPE' : 'OK'
@@ -168,6 +169,7 @@ export async function probeLiveSite({
   const apiResult = {
     state: validApi ? 'healthy' : 'unavailable',
     status: api?.status ?? null,
+    contentType: String(apiType).slice(0, 100),
     reason: !api ? 'NETWORK_UNAVAILABLE' : !api.ok ? 'HTTP_ERROR' :
       validApi ? 'JSON_HEALTH_OK' : 'NOT_JSON_HEALTH'
   };

@@ -44,6 +44,9 @@ jobs:
       - name: Release health unit tests
         run: node --test scripts/site-release-health.test.mjs
 
+      - name: Validate Firebase preview recovery mapping
+        run: node scripts/test-firebase-recovery-config.mjs
+
       - name: Production build
         run: npm run build
 
