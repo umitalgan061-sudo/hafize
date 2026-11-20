@@ -528,7 +528,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function renderToolActivities(container, activities) {
     container.replaceChildren();
-    const visible = activities.slice(-VISIBLE_TOOL_ACTIVITIES);
+    const compact = activities.filter((activity, index) => index === 0 || activity.label !== activities[index - 1].label || activity.state !== activities[index - 1].state);
+    const visible = compact.slice(-VISIBLE_TOOL_ACTIVITIES);
     for (const activity of visible) {
       const badge = document.createElement('span');
       badge.className = `tool-activity${activity.state === 'failure' ? ' failed' : ''}`;
@@ -563,13 +564,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         nextActivities = [...activities];
         nextActivities[runningIndex] = activity;
       } else {
-        const sameLabelIndex = activities.findLastIndex((item) => item.label === activity.label);
-        if (sameLabelIndex >= 0) {
-          nextActivities = [...activities];
-          nextActivities[sameLabelIndex] = activity;
-        } else {
-          nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
-        }
+        nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
       }
     }
 
