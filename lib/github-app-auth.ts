@@ -22,6 +22,7 @@ type GitHubAppAuthOptions = {
   readonly appId: string | number;
   readonly installationId: string | number;
   readonly privateKeyPath: string;
+  readonly appSlug?: string;
   readonly fetchImpl?: typeof fetch;
   readonly now?: () => number;
 };
@@ -54,6 +55,10 @@ export function createGitHubAppAuth(options: GitHubAppAuthOptions) {
   const path = typeof options.privateKeyPath === 'string' ? options.privateKeyPath.trim() : '';
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   const now = options.now ?? Date.now;
+  const slug = typeof options.appSlug === 'string' ? options.appSlug.trim().toLowerCase() : '';
+  if (slug && !/^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/.test(slug)) {
+    throw new GitHubAppAuthError('GITHUB_APP_INVALID_CONFIGURATION');
+  }
 
   if (!path || typeof fetchImpl !== 'function') {
     throw new GitHubAppAuthError('GITHUB_APP_INVALID_CONFIGURATION');
@@ -70,6 +75,8 @@ export function createGitHubAppAuth(options: GitHubAppAuthOptions) {
 
   let cached: AccessToken | null = null;
   let inFlight: Promise<string> | null = null;
+  let cachedBotIdentity: Readonly<{ name: string; email: string }> | null = null;
+  let botInFlight: Promise<Readonly<{ name: string; email: string }>> | null = null;
 
   function createJwt(): string {
     const issuedAt = Math.floor(now() / 1000);
@@ -137,6 +144,49 @@ export function createGitHubAppAuth(options: GitHubAppAuthOptions) {
     return inFlight;
   }
 
+  async function botCommitIdentity(): Promise<Readonly<{ name: string; email: string }>> {
+    if (cachedBotIdentity) return cachedBotIdentity;
+    if (!slug) throw new GitHubAppAuthError('GITHUB_APP_BOT_SLUG_NOT_CONFIGURED');
+    if (!botInFlight) {
+      botInFlight = (async () => {
+        const expectedLogin = slug + '[bot]';
+        // Public GitHub user metadata: do NOT attach the installation token.
+        const response = await fetchImpl(
+          GITHUB_API + '/users/' + encodeURIComponent(expectedLogin),
+          {
+            method: 'GET',
+            redirect: 'error',
+            headers: {
+              Accept: 'application/vnd.github+json',
+              'User-Agent': 'Hafize-GitHub-App'
+            }
+          }
+        );
+        if (!response.ok) {
+          throw new GitHubAppAuthError('GITHUB_APP_BOT_IDENTITY_LOOKUP_FAILED', safeHttpStatus(response.status));
+        }
+        let data: unknown;
+        try { data = await response.json(); }
+        catch { throw new GitHubAppAuthError('GITHUB_APP_BOT_IDENTITY_INVALID', 502); }
+        const details = data && typeof data === 'object' && !Array.isArray(data)
+          ? data as Record<string, unknown> : {};
+        const login = typeof details.login === 'string' ? details.login : '';
+        const id = details.id;
+        if (login.toLowerCase() !== expectedLogin ||
+            typeof id !== 'number' || !Number.isSafeInteger(id) || id < 1 ||
+            details.type !== 'Bot') {
+          throw new GitHubAppAuthError('GITHUB_APP_BOT_IDENTITY_INVALID', 502);
+        }
+        cachedBotIdentity = Object.freeze({
+          name: login,
+          email: String(id) + '+' + login + '@users.noreply.github.com'
+        });
+        return cachedBotIdentity;
+      })().finally(() => { botInFlight = null; });
+    }
+    return botInFlight;
+  }
+
   async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
     const url = input instanceof URL ? input
       : typeof input === 'string' ? new URL(input)
@@ -151,11 +201,13 @@ export function createGitHubAppAuth(options: GitHubAppAuthOptions) {
     const token = await installationToken();
     const headers = new Headers(init.headers);
     headers.set('Authorization', 'Bearer ' + token);
-    return fetchImpl(input, { ...init, headers });
+    // Never allow HTTP redirects to forward installation credentials to another host.
+    return fetchImpl(input, { ...init, headers, redirect: 'error' });
   }
 
   return Object.freeze({
     authenticatedFetch,
-    installationToken
+    installationToken,
+    botCommitIdentity
   });
 }
