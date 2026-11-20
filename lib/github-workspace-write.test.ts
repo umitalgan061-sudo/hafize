@@ -415,4 +415,59 @@ describe('github workspace safe write core', () => {
     expect(requests).toBe(0);
   });
 
+  it('writes commits with confirmed App bot author and committer', async () => {
+    let commitBody: Record<string, unknown> | null = null;
+    const writer = createGitHubWorkspaceWriter({
+      allowedRepositories: ['owner/repo'],
+      tokenProvider: async () => 'app-installation-token',
+      botIdentityProvider: async () => ({
+        name: 'hafize-ua[bot]',
+        email: '98765432+hafize-ua[bot]@users.noreply.github.com'
+      }),
+      fetchImpl: async (url, init) => {
+        if (new URL(String(url)).pathname === '/repos/owner/repo') {
+          return jsonResponse({ default_branch: 'main' });
+        }
+        commitBody = JSON.parse(String(init?.body));
+        return jsonResponse({ commit: { sha: 'b'.repeat(40) } });
+      }
+    });
+    const input = {
+      repository: 'owner/repo', branch: 'feature/hafize',
+      path: 'docs/example.md', message: 'docs: safe change', content: 'hello'
+    };
+    const ticket = writer.issueApproval('file', input, true);
+    await writer.commitFile(ticket.ticket, input);
+    expect(commitBody).toMatchObject({
+      author: { name: 'hafize-ua[bot]', email: '98765432+hafize-ua[bot]@users.noreply.github.com' },
+      committer: { name: 'hafize-ua[bot]', email: '98765432+hafize-ua[bot]@users.noreply.github.com' }
+    });
+  });
+
+  it('refuses to commit with an unverified or mismatched bot identity', async () => {
+    let writes = 0;
+    const writer = createGitHubWorkspaceWriter({
+      allowedRepositories: ['owner/repo'],
+      tokenProvider: async () => 'app-installation-token',
+      botIdentityProvider: async () => ({
+        name: 'hafize-ua[bot]',
+        email: '1234+another-app[bot]@users.noreply.github.com'
+      }),
+      fetchImpl: async (url) => {
+        if (new URL(String(url)).pathname === '/repos/owner/repo') return jsonResponse({ default_branch: 'main' });
+        writes++;
+        return jsonResponse({ commit: { sha: 'b'.repeat(40) } });
+      }
+    });
+    const input = {
+      repository: 'owner/repo', branch: 'feature/hafize',
+      path: 'docs/example.md', message: 'docs: safe change', content: 'hello'
+    };
+    const ticket = writer.issueApproval('file', input, true);
+    await expect(writer.commitFile(ticket.ticket, input)).rejects.toMatchObject({
+      code: 'INVALID_GITHUB_RESPONSE'
+    });
+    expect(writes).toBe(0);
+  });
+
 });
