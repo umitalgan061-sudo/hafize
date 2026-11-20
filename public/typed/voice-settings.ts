@@ -2,6 +2,7 @@
 // browser offers and from the downloadable Piper library. Selecting a voice writes the same keys
 // voice-output.ts reads, so replies, "Seslendir" and the voice chat screen all follow it.
 
+import { pack, styles } from './supertonic-pack.ts';
 import { PIPER_PREFIX, SPEAKER_KEY, canStoreVoices, downloadVoice, downloadedKeys, formatSize, isPiperVoice, loadCatalog, removeOtherVoices, removeVoice, sampleFor, type PiperVoice } from './voice-library.ts';
 
 const VOICE_KEY = 'hafize.voiceOutput.voice.v1';
@@ -170,7 +171,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   const speakerPicker = (voice: PiperVoice) => {
     const picker = el('select', 'voice-speaker');
     picker.setAttribute('aria-label', 'Konuşmacı');
-    for (let i = 0; i < voice.speakers; i += 1) { const option = el('option', '', `Konuşmacı ${i + 1}`); option.value = String(i); picker.append(option); }
+    for (let i = 0; i < voice.speakers; i += 1) { const option = el('option', '', voice.key === pack.key ? styles[i] : `Konuşmacı ${i + 1}`); option.value = String(i); picker.append(option); }
     picker.value = read(SPEAKER_KEY) || '0';
     picker.addEventListener('change', () => write(SPEAKER_KEY, picker.value));
     return picker;
