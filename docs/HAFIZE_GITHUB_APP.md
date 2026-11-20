@@ -26,7 +26,7 @@ HAFIZE_GITHUB_WRITE_REPOS=umitalgan061-sudo/hafize
 GitHub App kimliği yalnız **write runtime** içinde etkinleşir. Read-only GitHub workspace ayrı olarak `GITHUB_TOKEN` kullanır; App destekli okuma/Actions/Checks izleme sonraki ayrı iş paketidir. Sadece App ayarlanırsa read workspace otomatik çalışmaz.
 
 ## Bot commit atfı ve Contributors
-GitHub App bot account'ının login'i kurulan uygulamaya göre `<app-slug>[bot]` şeklindedir. GitHub App'in gerçek bot kullanıcı ID'si GitHub API'den doğrulanarak commit author/committer için `<bot-id>+<app-slug>[bot]@users.noreply.github.com` biçimindeki adres kullanılmalıdır. Bu adreste ID veya slug uydurulmamalıdır. Mevcut contents API akışı açık `author`/`committer` göndermediği için GitHub'ın sonuç commitinde bot atfı ayrıca **doğrulanmalıdır**; Hafize'nin Contributors bölümünde göründüğü iddia edilmez.
+GitHub App bot account'ının login'i kurulan uygulamaya göre `<app-slug>[bot]` şeklindedir. GitHub App'in gerçek bot kullanıcı ID'si GitHub API'den doğrulanarak commit author/committer için `<bot-id>+<app-slug>[bot]@users.noreply.github.com` biçimindeki adres kullanılmalıdır. Bu adreste ID veya slug uydurulmamalıdır. Yeni `lib/github-app-auth.ts` kodu, doğrulanmış installation içindeki `app_slug` değerinden bot hesabını bulur ve GitHub `GET /users/{slug}[bot]` yanıtındaki gerçek Bot user ID'sini doğrular. `lib/github-workspace-write.ts` App modunda `author` ve `committer` alanlarını bu doğrulanmış kimlikle ekler. Bunun canlı GitHub üzerinde başarıyla ilişkilendirildiği kurulumdan sonra doğrulanmalıdır; Hafize'nin Contributors bölümünde göründüğü iddia edilmez.
 
 Contributors görünümü GitHub'ın atıf, varsayılan dal, commit geçmişi, sayım/cache ve bot işleme kurallarına bağlıdır. PR açmak tek başına Contributions/Contributors sıralamasını garanti etmez. Gerçek bot-authored commit, merge sonrasında GitHub üzerinden gözlenmeli; önceki ChatGPT, Claude veya diğer geliştirici commitleri **yeniden yazılmamalıdır**.
 
@@ -35,4 +35,10 @@ Contributors görünümü GitHub'ın atıf, varsayılan dal, commit geçmişi, s
 - `npm run typecheck`, `npm run test:modern`, `npm run build` ve Github Actions quality iş akışı izlenir.
 - Bu belge Firebase deployu veya GitHub App kurulumunun gerçekleştiğinin kanıtı değildir.
 - GitHub App kayıt ve kurulum adımı kullanıcı tarafından yapılır; gizli anahtar asla sohbette paylaşılmaz.
-- Bir sonraki iş paketi: bot commit author/committer kimliğini API'den doğrulama, CI check görüntüleme ve GitHub App'den read-only workspace'e geçiş.
+- `lib/github-app-ci.ts` Actions run/job ve Checks durumlarını yalnız `actions:read` / `checks:read` kapsamlı token ile döndürmek için hazırlandı; güvenli kullanıcı oturumu kontrolüne bağlanmış HTTP/API UI henüz eklenmedi. Modülü henüz üretimde çalışıyor olarak değerlendirmeyin.
+- Bir sonraki iş paketi: CI okuyucusunun oturum yetkilendirmeli sunucu endpoint'ine ve UI'ya bağlanması, başarılı bot commit atfının gerçek GitHub üzerinde doğrulanması, GitHub App'den read-only workspace'e geçiş.
+
+## Geliştirme kontrolü
+- `npm run typecheck` ve `npm run test:modern` GitHub Actions üzerinde koşar.
+- Bot identity testleri `lib/github-app-auth.test.ts`, writer entegrasyonu `lib/github-workspace-write.test.ts`, read-only CI testleri `lib/github-app-ci.test.ts` içindedir.
+- PR #906 merge edilmeden ve gerçek App installation kurulumundan önce hiçbir App kimliğiyle üretim erişimi olmadığı kabul edilir.
