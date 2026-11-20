@@ -73,6 +73,11 @@ function install(documentRef: Document, root: typeof globalThis): void {
   let secondaryVersion = 0;
   let secondary: HTMLVideoElement | null = null;
   let voiceHost: HTMLElement | null = null;
+  const autoTalkKey = 'hafize.camera.autoTalk.v1';
+  const autoTalkEnabled = () => {
+    try { return root.localStorage.getItem(autoTalkKey) === '1'; }
+    catch { return false; }
+  };
   const release = (media: MediaStream | null) => media?.getTracks().forEach(track => track.stop());
   const dropSecondary = () => {
     secondaryVersion++;
@@ -239,6 +244,18 @@ function install(documentRef: Document, root: typeof globalThis): void {
         } finally { release(extra); both.disabled=false; }
       });
       actions.append(both);
+      if (documentRef.querySelector('.voice-mode')) {
+        const label = documentRef.createElement('label');
+        const preference = documentRef.createElement('input');
+        preference.type = 'checkbox';
+        preference.checked = autoTalkEnabled();
+        preference.addEventListener('change', () => {
+          try { root.localStorage.setItem(autoTalkKey, preference.checked ? '1' : '0'); }
+          catch { preference.checked = false; toast('Bu tarayıcıda tercih kaydedilemedi.'); }
+        });
+        label.append(preference, 'Kamerayı açınca sesli sohbeti başlat');
+        actions.append(label);
+      }
       if (documentRef.querySelector('.voice-mode') && !voiceHost) {
         const talk=documentRef.createElement('button');
         talk.type='button';talk.className='live-camera-flip';talk.textContent='Sesli sohbete geç';
@@ -350,6 +367,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     const support = captureSupport(root);
     if (!support.secure) { toast('Kamera güvenli bağlantı ister. Ayarlar > Uygulamayı yükle bölümündeki HTTPS adresini kullan.'); return; }
     if (!support.camera) { toast('Bu tarayıcı kamerayı desteklemiyor.'); return; }
+    if (autoTalkEnabled()) documentRef.dispatchEvent(new Event('hafize:camera-talk'));
     void start('camera');
   });
   button.addEventListener('click', () => {
