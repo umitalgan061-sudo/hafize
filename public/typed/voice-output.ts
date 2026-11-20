@@ -1,4 +1,4 @@
-import { SPEAKER_KEY, findVoice, isPiperVoice, speakChunk, synthesize, type SpeakHandle } from './voice-library.ts';
+import { SPEAKER_KEY, findVoice, isPiperVoice, speakChunk, synthesize, unlockAudio, type SpeakHandle } from './voice-library.ts';
 export interface VoiceOutputController { readonly isSupported:boolean; readonly isEnabled:()=>boolean; readonly isSpeaking:()=>boolean; readonly setEnabled:(next:boolean)=>boolean; readonly speak:(value:string)=>boolean; readonly cancel:()=>void; readonly syncStreamState:()=>void; readonly destroy:()=>void; }
 export const STORAGE_KEY='hafize.voiceOutput.v1';
 /** hands-free.ts pauses its wake-word listener while Hafize speaks, so it never hears itself. */
