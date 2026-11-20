@@ -21,3 +21,6 @@ Bu çalışma doğrudan geçmiş commitleri geri almaz ve mevcut Claude/ChatGPT/
 
 ## Firebase durumuna ilişkin önemli ayrım
 Canlı `https://hafize-ua.web.app/` için önceki teşhiste JS/CSS yollarının HTML döndüğü doğrulandı (PR #915). Bu, yayın/hosting tarafındaki ayrı bir engeldir. **Bu PR'ın kodunun geçmesi, canlı ekranda değiştiğini göstermez.** Önce gerçek Firebase Hosting yapılandırması ve önceki sürüm doğrulanmalı; kurtarma preview kanalında denenmeli. Hiçbir Firebase dağıtımı bu PR kapsamında gerçekleştirilmedi.
+
+## PWA ilk açılış tutarlılığı
+`theme-init.js` kaydedilmiş `focused` tercihini CSS yüklenmeden önce uygular; yeni kullanıcılar `classic` ile başlar. PWA önbellek sürümü `hafize-shell-v169` olarak yükseltildi, böylece yayın sonrası eski `clean-ui.css` dosyasının kullanılması önlenir. Bu işlem canlı Firebase yayını yapılmadan kullanıcı cihazındaki önbelleği değiştirmez.

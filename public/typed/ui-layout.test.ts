@@ -17,6 +17,8 @@ describe('Hafize classic interface restoration', () => {
     const html = read('public/index.html');
     expect(html).toContain('data-hafize-layout="classic"');
     expect(html).toContain('id="layoutToggle"');
+    expect(read('public/theme-init.js')).toContain("localStorage.getItem('hafize.ui-layout.v1')");
+    expect(read('public/sw-policy.ts')).toContain('v169');
     for (const id of ['sidebar', 'agentSelect', 'newChatBtn', 'conversationList', 'toolModeBtn', 'composer', 'voiceProxy']) {
       expect(html).toContain('id="' + id + '"');
     }
