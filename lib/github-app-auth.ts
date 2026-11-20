@@ -107,18 +107,17 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
     }
   }
 
-  async function getToken(repository: string, scope: GitHubAppScope): Promise<string> {
-    if (!configured()) throw new GitHubAppAuthError('GITHUB_APP_NOT_CONFIGURED', 503);
+  function assertRepository(repository: string): string {
+    if (typeof repository !== 'string') throw new GitHubAppAuthError('GITHUB_APP_REPOSITORY_NOT_ALLOWED');
     const normalized = repository.trim().toLowerCase();
     if (!REPO_PATTERN.test(repository) || !allowed.has(normalized)) {
       throw new GitHubAppAuthError('GITHUB_APP_REPOSITORY_NOT_ALLOWED');
     }
-    if (!(['contents', 'pull_requests', 'actions', 'checks'] as string[]).includes(scope)) {
-      throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 400);
-    }
+    return normalized;
+  }
 
-    const [owner, name] = normalized.split('/') as [string, string];
-    const jwt = makeJwt();
+  async function verifiedInstallation(repository: string, jwt: string): Promise<RecordValue> {
+    const [owner] = repository.split('/');
     const installation = await request('GET', '/app/installations/' + installationId, jwt);
     const account = isRecord(installation.account) ? installation.account : {};
     if (String(installation.id) !== installationId ||
@@ -130,6 +129,41 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
     if (installation.repository_selection !== 'selected') {
       throw new GitHubAppAuthError('GITHUB_APP_INSTALLATION_NOT_SELECTED');
     }
+    return installation;
+  }
+
+  /**
+   * Resolve the real bot account user ID, never the App ID.
+   * GitHub associates commits with <bot-user-id>+<app-slug>[bot]@users.noreply.github.com.
+   */
+  async function getBotIdentity(repository: string): Promise<Readonly<{ name: string; email: string }>> {
+    if (!configured()) throw new GitHubAppAuthError('GITHUB_APP_NOT_CONFIGURED', 503);
+    const normalized = assertRepository(repository);
+    const jwt = makeJwt();
+    const installation = await verifiedInstallation(normalized, jwt);
+    const slug = String(installation.app_slug || '');
+    if (!/^[a-z0-9][a-z0-9-]{0,99}$/.test(slug)) {
+      throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 502);
+    }
+    const name = slug + '[bot]';
+    const bot = await request('GET', '/users/' + encodeURIComponent(name), jwt);
+    const id = validId(bot.id);
+    if (!id || String(bot.login) !== name || bot.type !== 'Bot') {
+      throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 502);
+    }
+    return Object.freeze({ name, email: id + '+' + name + '@users.noreply.github.com' });
+  }
+
+  async function getToken(repository: string, scope: GitHubAppScope): Promise<string> {
+    if (!configured()) throw new GitHubAppAuthError('GITHUB_APP_NOT_CONFIGURED', 503);
+    const normalized = assertRepository(repository);
+    if (!(['contents', 'pull_requests', 'actions', 'checks'] as string[]).includes(scope)) {
+      throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 400);
+    }
+
+    const [, name] = normalized.split('/') as [string, string];
+    const jwt = makeJwt();
+    await verifiedInstallation(normalized, jwt);
 
     const permissions = { [scope]: scope === 'contents' || scope === 'pull_requests' ? 'write' : 'read' };
     const issued = await request('POST', '/app/installations/' + installationId + '/access_tokens', jwt, {
@@ -154,5 +188,5 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
     return token;
   }
 
-  return Object.freeze({ configured, getToken });
+  return Object.freeze({ configured, getToken, getBotIdentity });
 }
