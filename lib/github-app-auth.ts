@@ -6,7 +6,7 @@ const ID_PATTERN = /^[1-9]\d{0,17}$/;
 const MAX_TOKEN_LENGTH = 8192;
 const JWT_LIFETIME_SECONDS = 540;
 
-export type GitHubAppScope = 'contents' | 'pull_requests' | 'actions' | 'checks';
+export type GitHubAppScope = 'contents' | 'contents_read' | 'pull_requests' | 'actions' | 'checks';
 export type GitHubAppAuthErrorCode =
   | 'GITHUB_APP_NOT_CONFIGURED'
   | 'GITHUB_APP_REPOSITORY_NOT_ALLOWED'
@@ -147,7 +147,7 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
     }
     const name = slug + '[bot]';
     // The public user endpoint accepts installation tokens; an App JWT is limited to App endpoints.
-    const readToken = await getToken(normalized, 'contents');
+    const readToken = await getToken(normalized, 'contents_read');
     const bot = await request('GET', '/users/' + encodeURIComponent(name), readToken);
     const id = validId(bot.id);
     if (!id || String(bot.login) !== name || bot.type !== 'Bot') {
@@ -159,7 +159,7 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
   async function getToken(repository: string, scope: GitHubAppScope): Promise<string> {
     if (!configured()) throw new GitHubAppAuthError('GITHUB_APP_NOT_CONFIGURED', 503);
     const normalized = assertRepository(repository);
-    if (!(['contents', 'pull_requests', 'actions', 'checks'] as string[]).includes(scope)) {
+    if (!(['contents', 'contents_read', 'pull_requests', 'actions', 'checks'] as string[]).includes(scope)) {
       throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 400);
     }
 
@@ -167,7 +167,9 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
     const jwt = makeJwt();
     await verifiedInstallation(normalized, jwt);
 
-    const permissions = { [scope]: scope === 'contents' || scope === 'pull_requests' ? 'write' : 'read' };
+    const permissionName = scope === 'contents_read' ? 'contents' : scope;
+    const level = scope === 'contents' || scope === 'pull_requests' ? 'write' : 'read';
+    const permissions = { [permissionName]: level };
     const issued = await request('POST', '/app/installations/' + installationId + '/access_tokens', jwt, {
       repositories: [name],
       permissions
@@ -176,7 +178,7 @@ export function createGitHubAppTokenProvider(options: GitHubAppAuthOptions = {})
     const expiresAt = Date.parse(String(issued.expires_at || ''));
     const token = issued.token;
     if (typeof token !== 'string' || !token || token.length > MAX_TOKEN_LENGTH ||
-        issuedPermissions[scope] !== permissions[scope] ||
+        issuedPermissions[permissionName] !== level ||
         !Number.isFinite(expiresAt) || expiresAt - now() <= 30_000) {
       throw new GitHubAppAuthError('GITHUB_APP_AUTH_FAILED', 502);
     }
