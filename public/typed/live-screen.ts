@@ -16,7 +16,7 @@ const MIN_FRAME_GAP_MS = 12_000;
 // Share of pixels that must change. A screen is still until a line of text moves; a camera never is.
 const CHANGE_THRESHOLD: Readonly<Record<Source, number>> = Object.freeze({ screen: 0.4, camera: 6 });
 const PIXEL_DELTA = 18;
-const ASK_TIMEOUT_MS = 20_000;
+const FRAME_REQUEST_TIMEOUT_MS = 15_000;
 const SIGNATURE_WIDTH = 96;
 const SIGNATURE_HEIGHT = 54;
 
@@ -39,6 +39,22 @@ export function frameSize(width: number, height: number, max = MAX_FRAME_WIDTH):
 
 export function shouldSendFrame({ difference, lastSentAt, now, busy, source = 'screen' }: { readonly difference: number; readonly lastSentAt: number; readonly now: number; readonly busy: boolean; readonly source?: Source }): boolean {
   return !busy && now - lastSentAt >= MIN_FRAME_GAP_MS && difference >= CHANGE_THRESHOLD[source];
+}
+
+/** Prevents an old camera request from updating a restarted or stopped capture.
+ * A hidden camera is not allowed to send or report a new frame; screen-sharing
+ * is deliberately exempt, since its selected window may be in another tab.
+ */
+export function shouldAcceptCaptureResult(input: {
+  readonly requestGeneration: number;
+  readonly currentGeneration: number;
+  readonly aborted: boolean;
+  readonly active: boolean;
+  readonly source: Source;
+  readonly hidden: boolean;
+}): boolean {
+  return input.requestGeneration === input.currentGeneration &&
+    !input.aborted && input.active && !(input.source === 'camera' && input.hidden);
 }
 
 /** What the device can do: decides between the system picker and the camera offer. */
@@ -131,29 +147,62 @@ function install(documentRef: Document, root: typeof globalThis): void {
     }
     return large.toDataURL('image/jpeg', JPEG_QUALITY);
   };
-  const sendFrame = async (question = ''): Promise<boolean> => {
+  const isCurrent = (ticket: number, aborted = false): boolean =>
+    shouldAcceptCaptureResult({
+      requestGeneration: ticket,
+      currentGeneration: generation,
+      aborted,
+      active: Boolean(stream),
+      source,
+      hidden: documentRef.hidden
+    });
+
+  const sendFrame = async (question = '', ticket = generation): Promise<boolean> => {
+    if (!isCurrent(ticket)) return false;
     const data = encodeFrame();
-    if (!data) return false;
-    signature = readSignature();
+    if (!data || !isCurrent(ticket)) return false;
+    // Record what actually left the device, not a possibly newer frame read
+    // after the network operation completes.
+    const sentSignature = readSignature();
     lastSentAt = Date.now();
     frameRequest?.abort();
-    const controller=new AbortController();
-    frameRequest=controller;
-    const response = await api('/api/screen/frame', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal:controller.signal, body: JSON.stringify({ data, question, source }) });
-    return response.ok;
+    const controller = new AbortController();
+    frameRequest = controller;
+    const timeout = root.setTimeout(() => controller.abort(), FRAME_REQUEST_TIMEOUT_MS);
+    try {
+      const response = await api('/api/screen/frame', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({ data, question, source })
+      });
+      if (!isCurrent(ticket, controller.signal.aborted)) return false;
+      if (response.ok) signature = sentSignature;
+      return response.ok;
+    } finally {
+      root.clearTimeout(timeout);
+      if (frameRequest === controller) frameRequest = null;
+    }
   };
   const sample = () => {
-    if (busy || !stream || waitingForQuestion) return;
+    if (busy || !stream || waitingForQuestion || (source === 'camera' && documentRef.hidden)) return;
     const current = readSignature();
     if (!shouldSendFrame({ difference: frameDifference(signature, current), lastSentAt, now: Date.now(), busy, source })) return;
+    const ticket = generation;
     busy = true;
-    void sendFrame().then((ok) => {
-      setStatus(ok ? 'Görüntü güncel' : 'Görüntü okunamadı, yeniden denenecek');
-    }).catch(() => setStatus('Bağlantı kesildi, yeniden denenecek')).finally(() => { busy = false; });
+    void sendFrame('', ticket).then((ok) => {
+      if (isCurrent(ticket)) setStatus(ok ? 'Son görüntü gönderildi' : 'Görüntü okunamadı, yeniden denenecek');
+    }).catch(() => {
+      if (isCurrent(ticket)) setStatus('Bağlantı kesildi, yeniden denenecek');
+    }).finally(() => {
+      if (ticket === generation) busy = false;
+    });
   };
 
   const stop = (notify = true) => {
     generation++; frameRequest?.abort(); frameRequest=null;dropSecondary();
+    busy = false;
+    waitingForQuestion = false;
     if (sampler) clearInterval(sampler);
     sampler = null;
     for (const track of stream?.getTracks() ?? []) track.stop();
@@ -167,7 +216,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     button.setAttribute('aria-pressed', 'false');
     cameraButton?.setAttribute('aria-pressed', 'false');
     composer.removeAttribute('data-live-screen');
-    if (notify) void api('/api/screen', { method: 'DELETE' }).catch(() => {});
+    if (notify) void api('/api/screen', { method: 'DELETE', keepalive: true }).catch(() => {});
   };
 
   const buildChip = () => {
@@ -190,7 +239,7 @@ function install(documentRef: Document, root: typeof globalThis): void {
     const text = documentRef.createElement('div');
     text.className = 'live-screen-text';
     const title = documentRef.createElement('strong');
-    title.textContent = source === 'camera' ? 'Canlı · Hafize kamerayı görüyor' : 'Canlı · Hafize ekranını görüyor';
+    title.textContent = source === 'camera' ? 'Kamera açık · görüntü karelerle analiz ediliyor' : 'Ekran paylaşılıyor · kare analizi';
     statusLine = documentRef.createElement('span');
     statusLine.textContent = 'Görüntü okunuyor…';
     text.append(title, statusLine);
@@ -254,7 +303,9 @@ function install(documentRef: Document, root: typeof globalThis): void {
   const flipCamera = async () => {
     if (!stream || !video) return;
     const ticket=++generation;
-    frameRequest?.abort();dropSecondary();
+    frameRequest?.abort(); frameRequest = null; dropSecondary();
+    busy = false;
+    waitingForQuestion = false;
     const dualButton=chip?.querySelector<HTMLButtonElement>('[data-second-camera]');
     if(dualButton)dualButton.textContent='İkinci kamerayı aç';
     const next = (stream.getVideoTracks()[0]?.getSettings().facingMode || facing) === 'environment' ? 'user' : 'environment';
@@ -276,13 +327,13 @@ function install(documentRef: Document, root: typeof globalThis): void {
 
   const start = async (kind: Source) => {
     const devices = root.navigator.mediaDevices;
-    if (stream) stop(false);
+    if (stream) stop();
     const ticket=++generation;
     try {
       const acquired = kind === 'screen'
         ? await devices.getDisplayMedia({ video: { frameRate: { ideal: 2, max: 5 } }, audio: false })
         : await cameraStream(facing);
-      if(ticket!==generation){release(acquired);return;}
+      if(ticket!==generation || (kind === 'camera' && documentRef.hidden)){release(acquired);return;}
       stream=acquired;
     } catch (error) {
       if(ticket!==generation)return;
@@ -310,9 +361,15 @@ function install(documentRef: Document, root: typeof globalThis): void {
     await api('/api/screen', { method: 'DELETE' }).catch(() => {});
     await new Promise((done) => root.setTimeout(done, 300));
     if(!stream || !chip)return;
-    if(ticket!==generation){if(!sampler)sampler=setInterval(sample,SAMPLE_MS);return;}
+    if(ticket!==generation)return;
     busy = true;
-    void sendFrame().then((ok) => setStatus(ok ? 'Görüntü güncel' : 'Görüntü okunamadı, yeniden denenecek')).catch(() => setStatus('Bağlantı kesildi, yeniden denenecek')).finally(() => { busy = false; });
+    void sendFrame('', ticket).then((ok) => {
+      if (isCurrent(ticket)) setStatus(ok ? 'Son görüntü gönderildi' : 'Görüntü okunamadı, yeniden denenecek');
+    }).catch(() => {
+      if (isCurrent(ticket)) setStatus('Bağlantı kesildi, yeniden denenecek');
+    }).finally(() => {
+      if (ticket === generation) busy = false;
+    });
     if(!sampler)sampler = setInterval(sample, SAMPLE_MS);
   };
 
@@ -368,18 +425,34 @@ function install(documentRef: Document, root: typeof globalThis): void {
     if(voiceHost && (source==='camera' || !stream))stop();
     voiceHost=null;
   });
-  root.addEventListener('pagehide', () => {stop(false);voiceHost=null;});
+  // Backgrounding the tab ends camera capture and clears the last server-side
+  // frame. Explicit screen sharing may continue while another tab is in front.
+  documentRef.addEventListener('visibilitychange', () => {
+    if (documentRef.hidden && stream && source === 'camera') {
+      stop();
+      toast('Kamera arka plana geçildiği için kapatıldı. Yeniden açmak için kameraya dokun.');
+    }
+  });
+  root.addEventListener('pagehide', () => { stop(); voiceHost = null; });
 
   (root as typeof globalThis & { HafizeLiveScreen?: unknown }).HafizeLiveScreen = Object.freeze({
     /** Called right before a message goes out, so the answer is about what is on screen now. */
     async beforeSend(question: string): Promise<void> {
-      if (!stream) return;
+      if (!stream || (source === 'camera' && documentRef.hidden)) return;
+      const ticket = generation;
       setStatus(source === 'camera' ? 'Kameraya bakıyor…' : 'Ekrana bakıyor…');
-      const timeout = new Promise<boolean>((done) => root.setTimeout(() => done(false), ASK_TIMEOUT_MS));
-      waitingForQuestion=true;
-      let ok=false;
-      try {ok=await Promise.race([sendFrame(question).catch(() => false),timeout]);}finally{waitingForQuestion=false;}
-      setStatus(ok ? 'Görüntü güncel' : 'Görüntü okunamadı, son bilinen hâli kullanılıyor');
+      waitingForQuestion = true;
+      let ok = false;
+      try {
+        // sendFrame has a real AbortController timeout; unlike Promise.race,
+        // a timed-out upload cannot keep running in the background.
+        ok = await sendFrame(question, ticket).catch(() => false);
+      } finally {
+        if (ticket === generation) waitingForQuestion = false;
+      }
+      if (isCurrent(ticket)) {
+        setStatus(ok ? 'Son görüntü gönderildi' : 'Görüntü okunamadı, son bilinen hâli kullanılıyor');
+      }
     }
   });
 }
