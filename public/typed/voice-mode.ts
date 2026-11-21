@@ -204,10 +204,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let energy = 0;
   let nextPulseAt = 0;
   let pulseFrame: number | null = null;
-  let micStream: MediaStream | null = null;
-  let audioContext: AudioContext | null = null;
-  let analyser: AnalyserNode | null = null;
-  let samples: Uint8Array<ArrayBuffer> | null = null;
   let captionsOn = read(CAPTIONS_KEY) !== 'false';
 
   const captionSize = () => captionCapacity(captionEl.clientWidth, parseFloat(root.getComputedStyle(captionEl).fontSize));
@@ -245,19 +241,14 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (reduceMotion()) { orb?.setEnergy(next === 'listening' || next === 'speaking' ? 0.45 : 0.15); orb?.renderStill(); }
   };
 
-  // ---- energy: microphone level while listening, rhythmic pulses while speaking ------------
-  const micLevel = () => {
-    if (!analyser || !samples) return 0;
-    analyser.getByteTimeDomainData(samples);
-    let sum = 0;
-    for (let i = 0; i < samples.length; i += 1) { const v = (samples[i] - 128) / 128; sum += v * v; }
-    return Math.min(1, Math.sqrt(sum / samples.length) * 5);
-  };
+  // Only SpeechRecognition owns the microphone. A second getUserMedia stream for a
+  // decorative visual can steal the iPhone's capture device during subsequent turns.
+  // The orb animates from ASR results and a gentle idle pulse instead.
   const pulse = () => {
     pulseFrame = null;
     if (state === 'closed') return;
     const t = now();
-    if (state === 'listening') energy = Math.max(micLevel(), energy * 0.9, analyser ? 0 : 0.2 + 0.12 * Math.sin(t / 300));
+    if (state === 'listening') energy = Math.max(energy * 0.9, 0.2 + 0.12 * Math.sin(t / 300));
     else if (state === 'speaking') {
       if (t >= nextPulseAt) { energy = Math.max(energy, 0.35 + Math.random() * 0.35); nextPulseAt = t + 120 + Math.random() * 140; }
       energy *= 0.93;
@@ -266,29 +257,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     orb?.setEnergy(energy);
     screen.style.setProperty('--vm-energy', energy.toFixed(3));
     pulseFrame = root.requestAnimationFrame(pulse);
-  };
-  const openMic = async () => {
-    const media = root.navigator?.mediaDevices;
-    const Context = (root as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).AudioContext || (root as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (micStream || !media?.getUserMedia || !Context || reduceMotion()) return;
-    try {
-      // This stream only animates the orb. Listening asks for the microphone by itself, so unless access
-      // is already granted it must not become one more question; the orb has a gentle pulse without it.
-      const access = await root.navigator.permissions?.query?.({ name: 'microphone' as PermissionName }).catch(() => null);
-      if (access?.state !== 'granted' || state === 'closed') return;
-      const stream = await media.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      if (state === 'closed') { stream.getTracks().forEach((track) => track.stop()); return; }
-      const context = new Context();
-      const node = context.createAnalyser();
-      node.fftSize = 512;
-      context.createMediaStreamSource(stream).connect(node);
-      micStream = stream; audioContext = context; analyser = node; samples = new Uint8Array(node.fftSize);
-    } catch { /* no permission or device: the orb uses its gentle synthetic pulse */ }
-  };
-  const closeMic = () => {
-    micStream?.getTracks().forEach((track) => track.stop());
-    audioContext?.close().catch(() => {});
-    micStream = null; audioContext = null; analyser = null; samples = null;
   };
 
   // ---- conversation loop ---------------------------------------------------------------------
@@ -533,7 +501,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     else { orb?.start(); if (pulseFrame == null) pulseFrame = root.requestAnimationFrame(pulse); }
     root.requestAnimationFrame(() => screen.classList.add('vm-visible'));
     orbButton.focus({ preventScroll: true });
-    openMic();
     if (handoffText.trim()) send(handoffText);
     else listen();
   };
@@ -553,7 +520,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     orb?.stop();
     if (pulseFrame != null) root.cancelAnimationFrame(pulseFrame);
     pulseFrame = null;
-    closeMic();
     screen.classList.remove('vm-visible');
     documentRef.body.classList.remove('voice-mode-open');
     delete documentRef.documentElement.dataset.voiceMode;
