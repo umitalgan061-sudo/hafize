@@ -73,7 +73,7 @@ const IOS_NATURAL_END_GRACE_MS = 3500;
 export function recognitionProfile(userAgent: unknown): {
   continuous: boolean; awaitNaturalEnd: boolean; noResultTimeoutMs: number; resumeAfterSpeechMs: number;
 } {
-  const ios = typeof userAgent === 'string' && /iPhone|iPad|iPod|Macintosh[^)]*Mobile/i.test(userAgent);
+  const ios = typeof userAgent === 'string' && /iPhone|iPad|iPod|Macintosh.*Mobile/i.test(userAgent);
   return { continuous: !ios, awaitNaturalEnd: ios,
     noResultTimeoutMs: ios ? 14_000 : 22_000,
     resumeAfterSpeechMs: ios ? 850 : 120 };
@@ -237,6 +237,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let muted = false;
   let manualEnd = false;
   let silentRetries = 0;
+  let completedSpeechTurns = 0;
   let awaitingReply = false;
   let sawBusy = false;
   let spokenUpTo = 0;
@@ -473,8 +474,15 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       recognitionNoResultTimer = setTimeout(() => {
         recognitionNoResultTimer = null;
         if (recognition !== current || recognizedSomething || muted || documentRef.hidden) return;
-        // Safari can dispatch "start" and show the system mic dot, yet never
-        // produce speechstart/result/error/end. Recover the stuck session.
+        // A quiet user is not a broken microphone. On the first session, show
+        // an explicit diagnostic rather than aborting legitimate idle capture.
+        if (!heardSpeech && completedSpeechTurns === 0) {
+          screen.dataset.micPhase = 'silent';
+          statusEl.textContent = 'Mikrofon açık görünüyor ama ses tanınmadı. Konuş veya yeniden denemek için küreye dokun.';
+          return;
+        }
+        // Safari can dispatch "start" and show the mic dot yet never report
+        // speech, transcription, error or end on subsequent voice turns.
         recognition = null;
         clearRecognitionTimers();
         try { current.abort(); } catch { /* session may already be gone */ }
@@ -548,7 +556,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       clearRecognitionTimers();
       if (state === 'closed' || muted || documentRef.hidden) return;
       const said = [final, interim].filter(Boolean).join(' ').trim();
-      if (said) { silentRetries = 0; manualEnd = false; send(said); return; }
+      if (said) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
       if (heardSpeech && !errorCode) {
         retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
         return;
@@ -632,6 +640,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     documentRef.body.classList.add('voice-mode-open');
     muted = false;
     silentRetries = 0;
+    completedSpeechTurns = 0;
     pendingUtterance = '';
     manualEnd = false;
     renderMute(); renderRate(); renderCaptions(); loadVoices();
@@ -699,7 +708,15 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         listen();
       }
     } else if (state === 'listening') {
-      // On an empty transcript the user's tap means "pause", not "restart".
+      if (screen.dataset.micPhase === 'silent') {
+        // When the OS mic dot is on but nothing is transcribed, the orb
+        // explicitly retries instead of behaving like a recording-stop button.
+        stopRecognition(true);
+        setState('idle', 'Mikrofon yeniden başlatılıyor…');
+        listen();
+        return;
+      }
+      // During a healthy capture, a tap finishes the current utterance.
       manualEnd = true;
       stopRecognition(false);
     } else if (state === 'idle' || state === 'paused') { if (muted) { muted = false; renderMute(); } listen(); }
