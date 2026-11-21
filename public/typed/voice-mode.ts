@@ -8,17 +8,41 @@
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
 import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog } from './voice-library.ts';
 
-/** The next whole sentences of a reply still being written, from `from` on; everything once it is done. */
+/** A streaming reply is read as short, *complete* phrases to minimize time to first sound.
+ * The cursor uses character offsets in the raw model response (not normalized speech).
+ * Never cut an open fenced code block; voice-output omits code safely once completed.
+ */
 export function nextSpeakable(text: string, from: number, done = false): { piece: string; end: number } {
-  if (done) return { piece: text.slice(from), end: Math.max(from, text.length) };
-  // An open code block is read as one piece once it closes.
+  const offset = Number.isSafeInteger(from) && from > 0 ? Math.min(from, text.length) : 0;
+  if (done) return { piece: text.slice(offset), end: text.length };
   const fences = text.match(/```/g)?.length ?? 0;
   const safe = fences % 2 ? text.lastIndexOf('```') : text.length;
-  const pending = text.slice(from, Math.max(from, safe));
-  let end = -1;
-  // "1. madde" and "2026. yılda" are not the end of a sentence.
-  for (const match of pending.matchAll(/(?<!\d)[.!?…]+["'”’)]*\s+|\n+/g)) end = match.index + match[0].length;
-  return end < 0 ? { piece: '', end: from } : { piece: pending.slice(0, end), end: from + end };
+  const pending = text.slice(offset, Math.max(offset, safe));
+  if (!pending.trim()) return { piece: '', end: offset };
+  // Prefer the earliest full sentence rather than batching several into one slow TTS job.
+  // Avoid decimal points, years, and the 1. used to number list items.
+  const sentence = /(?<!\d)[.!?…]+["'”’)]*\s+|\n+/gu.exec(pending);
+  if (sentence) {
+    const end = sentence.index + sentence[0].length;
+    return { piece: pending.slice(0, end), end: offset + end };
+  }
+  // When the model writes a very long unpunctuated sentence, read a natural pause
+  // instead of remaining in "thinking" until the entire response arrives.
+  if (pending.length < 130) return { piece: '', end: offset };
+  const window = pending.slice(0, Math.min(210, pending.length));
+  let cut = 0;
+  for (const match of window.matchAll(/(?<!\d)[,;:—]\s+/gu)) {
+    const end = match.index + match[0].length;
+    if (end >= 75) { cut = end; break; }
+  }
+  if (!cut) {
+    for (const match of window.matchAll(/\s+/gu)) {
+      const end = match.index + match[0].length;
+      if (end >= 120) { cut = end; break; }
+    }
+  }
+  if (!cut) return { piece: '', end: offset };
+  return { piece: pending.slice(0, cut), end: offset + cut };
 }
 
 export type VoiceModeState = 'closed' | 'idle' | 'listening' | 'thinking' | 'speaking' | 'paused';
@@ -39,6 +63,7 @@ const MAX_SILENT_RETRIES = 4;
 const END_OF_TURN_MS = 700;
 const RESTART_DELAY_MS = 450;
 const RECOGNITION_START_TIMEOUT_MS = 6000;
+const RECOGNITION_STOP_TIMEOUT_MS = 1800;
 
 export function statusText(state: VoiceModeState): string {
   switch (state) {
@@ -187,6 +212,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let state: VoiceModeState = 'closed';
   let recognition: RecognitionLike | null = null;
   let muted = false;
+  let manualEnd = false;
   let silentRetries = 0;
   let awaitingReply = false;
   let sawBusy = false;
@@ -200,6 +226,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let resumeTimer: ReturnType<typeof setTimeout> | null = null;
   let endOfTurnTimer: ReturnType<typeof setTimeout> | null = null;
   let recognitionStartTimer: ReturnType<typeof setTimeout> | null = null;
+  let recognitionStopTimer: ReturnType<typeof setTimeout> | null = null;
   let returnFocus: HTMLElement | null = null;
   let energy = 0;
   let nextPulseAt = 0;
@@ -221,8 +248,10 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const clearRecognitionTimers = () => {
     if (endOfTurnTimer) clearTimeout(endOfTurnTimer);
     if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
+    if (recognitionStopTimer) clearTimeout(recognitionStopTimer);
     endOfTurnTimer = null;
     recognitionStartTimer = null;
+    recognitionStopTimer = null;
   };
   const clearTimers = () => {
     if (sendTimer) clearTimeout(sendTimer);
@@ -266,9 +295,19 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const stopRecognition = (abort = false) => {
     const active = recognition;
-    if (abort) recognition = null;
+    if (abort) { recognition = null; clearRecognitionTimers(); }
     if (!active) return;
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
+    if (abort || recognition !== active) return;
+    if (recognitionStopTimer) clearTimeout(recognitionStopTimer);
+    // Some iOS WebKit builds do not fire "end" after stop(). This would freeze
+    // the UI in "listening" indefinitely. Complete the turn exactly once.
+    recognitionStopTimer = setTimeout(() => {
+      recognitionStopTimer = null;
+      if (recognition !== active) return;
+      active.onend?.();
+      try { active.abort(); } catch { /* already finished */ }
+    }, RECOGNITION_STOP_TIMEOUT_MS);
   };
 
   const latestMessage = (): HTMLElement | null => {
@@ -318,6 +357,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       return;
     }
     pendingUtterance = '';
+    manualEnd = false;
     stopRecognition(true);
     stopSpeech();
     input.value = message;
@@ -367,6 +407,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
 
   const listen = () => {
     if (state === 'closed' || muted || recognition || documentRef.hidden) return;
+    manualEnd = false;
     if (input.disabled) { setState('thinking'); return; }
     stopSpeech();
     clearTimers();
@@ -374,7 +415,10 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let interim = '';
     let errorCode = '';
     let recognitionStarted = false;
-    const current = new Recognition();
+    let errorHandled = false;
+    let current: RecognitionLike;
+    try { current = new Recognition(); }
+    catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
     current.lang = 'tr-TR';
     current.interimResults = true;
@@ -405,14 +449,23 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         }, END_OF_TURN_MS);
       }
     };
-    current.onerror = (event) => { errorCode = String(event?.error || ''); };
+    current.onerror = (event) => {
+      if (recognition !== current) return;
+      errorCode = String(event?.error || '');
+      if (errorHandled) return;
+      errorHandled = true;
+      // Some WebKit builds dispatch error but never end. A bounded stop turns
+      // that into a retry or a clear permission/device message instead of a hang.
+      stopRecognition(false);
+    };
     current.onend = () => {
       if (recognition !== current) return;
       recognition = null;
       clearRecognitionTimers();
       if (state === 'closed' || muted || documentRef.hidden) return;
       const said = [final, interim].filter(Boolean).join(' ').trim();
-      if (said) { silentRetries = 0; send(said); return; }
+      if (said) { silentRetries = 0; manualEnd = false; send(said); return; }
+      if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
       if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
       if (errorCode === 'audio-capture') { setState('idle', 'Mikrofon bulunamadı.'); return; }
       if (errorCode === 'language-not-supported') { setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
@@ -492,6 +545,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     muted = false;
     silentRetries = 0;
     pendingUtterance = '';
+    manualEnd = false;
     renderMute(); renderRate(); renderCaptions(); loadVoices();
     setCaption(['', '', '']);
     if (!orb && canvas) { orb = createVoiceOrb(canvas, root); screen.classList.toggle('vm-webgl', Boolean(orb)); }
@@ -556,8 +610,11 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         setState('idle');
         listen();
       }
-    } else if (state === 'listening') stopRecognition(false);
-    else if (state === 'idle' || state === 'paused') { if (muted) { muted = false; renderMute(); } listen(); }
+    } else if (state === 'listening') {
+      // On an empty transcript the user's tap means "pause", not "restart".
+      manualEnd = true;
+      stopRecognition(false);
+    } else if (state === 'idle' || state === 'paused') { if (muted) { muted = false; renderMute(); } listen(); }
   };
   const onInputMutation = () => {
     if (state === 'closed') return;
@@ -591,6 +648,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const detail = (event as CustomEvent).detail;
     if (state === 'closed' || detail?.source !== 'voice-output') return;
     if (detail.speaking && (detail.origin === ORIGIN || detail.origin === 'voice-mode-sample')) { if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); return; }
+    if (detail.speaking && detail.origin !== ORIGIN && detail.origin !== 'voice-mode-sample') return;
     if (!detail.speaking && state === 'speaking') {
       // Spoke faster than the reply is arriving: the next sentence is on its way.
       if (awaitingReply) { setState('thinking'); return; }
@@ -600,7 +658,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const onProgress = (event: Event) => {
     const detail = (event as CustomEvent).detail;
-    if (state !== 'speaking' || detail?.source !== 'voice-output') return;
+    if (state !== 'speaking' || detail?.source !== 'voice-output'
+        || (detail.origin !== ORIGIN && detail.origin !== 'voice-mode-sample')) return;
     const index = Number(detail.charIndex);
     setCaption(captionWindow(detail.text, index, Number(detail.charLength), captionSize()), 'hafize');
     if (index >= 0) energy = Math.max(energy, 0.75);
@@ -623,7 +682,17 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       else if (!event.shiftKey && documentRef.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   };
-  const onVisibility = () => { if (documentRef.hidden && state !== 'closed') { clearTimers(); stopFeeding(); awaitingReply = false; pendingUtterance = ''; stopRecognition(true); stopSpeech(); setState('paused', 'Sekme arka planda; devam etmek için dokun.'); } };
+  const onVisibility = () => {
+    if (state === 'closed') return;
+    if (documentRef.hidden) {
+      clearTimers(); stopFeeding(); awaitingReply = false; pendingUtterance = '';
+      manualEnd = false; stopRecognition(true); stopSpeech();
+      setState('paused', 'Uygulama arka planda; geri dönünce küreye dokun.');
+    } else if (state === 'paused' && !muted) {
+      // Safari requires a new foreground gesture to re-open a paused microphone.
+      setState('paused', 'Devam etmek için küreye dokun.');
+    }
+  };
 
   const listeners: Array<() => void> = [];
   const on = (target: EventTarget, type: string, fn: EventListener, options?: AddEventListenerOptions | boolean) => {
@@ -643,7 +712,12 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   on(micBtn, 'click', () => {
     muted = !muted;
     renderMute();
-    if (muted) { stopRecognition(true); if (state === 'listening' || state === 'idle') setState('paused'); }
+    if (muted) {
+      manualEnd = false;
+      clearRecognitionTimers();
+      stopRecognition(true);
+      if (state === 'listening' || state === 'idle' || state === 'thinking') setState('paused');
+    }
     else if (state === 'paused' || state === 'idle') listen();
   });
   on(captionsBtn, 'click', () => { captionsOn = !captionsOn; write(CAPTIONS_KEY, String(captionsOn)); renderCaptions(); });

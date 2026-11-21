@@ -24,6 +24,7 @@ function page({ starts }: { starts: boolean }) {
   const toggle = element();
   const toast = element();
   const spoken: Array<{ text: string; volume?: number }> = [];
+  const events: Array<{ type: string; detail?: { origin?: string; speaking?: boolean } }> = [];
   const documentListeners = new Map<string, Array<(event?: unknown) => void>>();
   const documentRef = {
     hidden: false,
@@ -32,7 +33,7 @@ function page({ starts }: { starts: boolean }) {
     querySelector: (selector: string) => (selector === '#toast' ? toast : null),
     addEventListener: (type: string, listener: (event?: unknown) => void) => { documentListeners.set(type, [...(documentListeners.get(type) ?? []), listener]); },
     removeEventListener() {},
-    dispatchEvent() { return true; },
+    dispatchEvent(event: { type: string; detail?: { origin?: string; speaking?: boolean } }) { events.push(event); return true; },
   };
   class Utterance { text: string; volume = 1; lang = ''; rate = 1; pitch = 1; voice: unknown = null; onstart?: () => void; onend?: () => void; onerror?: () => void; onboundary?: () => void; constructor(text: string) { this.text = text; } }
   const synth = {
@@ -41,9 +42,11 @@ function page({ starts }: { starts: boolean }) {
     cancel() {}, resume() {}, getVoices: () => [], addEventListener() {}, removeEventListener() {},
   };
   const storage = new Map<string, string>([['hafize.voiceOutput.v1', 'true']]);
-  const root = { speechSynthesis: synth, SpeechSynthesisUtterance: Utterance, localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, value); } } } as unknown as typeof globalThis;
+  class FakeCustomEvent { type: string; detail: { origin?: string; speaking?: boolean }; constructor(type: string, init: { detail: { origin?: string; speaking?: boolean } }) { this.type = type; this.detail = init.detail; } }
+  const root = { speechSynthesis: synth, SpeechSynthesisUtterance: Utterance, CustomEvent: FakeCustomEvent, localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, value); } } } as unknown as typeof globalThis;
   const controller = installVoiceOutput(documentRef as unknown as Document, root)!;
-  return { controller, toast, toggle, spoken, fire: (type: string) => { for (const listener of documentListeners.get(type) ?? []) listener({}); } };
+  return { controller, toast, toggle, spoken, events,
+    fire: (type: string, detail?: { text?: string; origin?: string; append?: boolean }) => { for (const listener of documentListeners.get(type) ?? []) listener({ detail }); } };
 }
 
 afterEach(() => { vi.useRealTimers(); });
@@ -67,6 +70,15 @@ describe('voice on a phone', () => {
     await vi.advanceTimersByTimeAsync(START_TIMEOUT_MS + 10);
     expect(p.controller.isSpeaking()).toBe(true);
     expect(p.toast.textContent).toBe('');
+  });
+
+  it('reports the origin of every spoken phrase, so captions never mix unrelated voices', async () => {
+    const p = page({ starts: true });
+    p.fire('hafize:voice-output-speak', { text: 'Merhaba.', origin: 'voice-mode' });
+    await Promise.resolve();
+    const progress = p.events.filter((event) => event.type === 'hafize:voice-output-progress');
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress.every((event) => event.detail?.origin === 'voice-mode')).toBe(true);
   });
 
   it('the first touch speaks one silent utterance to open speech, and only once', () => {
