@@ -63,6 +63,7 @@ const MAX_SILENT_RETRIES = 4;
 const END_OF_TURN_MS = 700;
 const RESTART_DELAY_MS = 450;
 const RECOGNITION_START_TIMEOUT_MS = 6000;
+const RECOGNITION_STOP_TIMEOUT_MS = 1800;
 
 export function statusText(state: VoiceModeState): string {
   switch (state) {
@@ -225,6 +226,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let resumeTimer: ReturnType<typeof setTimeout> | null = null;
   let endOfTurnTimer: ReturnType<typeof setTimeout> | null = null;
   let recognitionStartTimer: ReturnType<typeof setTimeout> | null = null;
+  let recognitionStopTimer: ReturnType<typeof setTimeout> | null = null;
   let returnFocus: HTMLElement | null = null;
   let energy = 0;
   let nextPulseAt = 0;
@@ -246,8 +248,10 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const clearRecognitionTimers = () => {
     if (endOfTurnTimer) clearTimeout(endOfTurnTimer);
     if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
+    if (recognitionStopTimer) clearTimeout(recognitionStopTimer);
     endOfTurnTimer = null;
     recognitionStartTimer = null;
+    recognitionStopTimer = null;
   };
   const clearTimers = () => {
     if (sendTimer) clearTimeout(sendTimer);
@@ -291,9 +295,19 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const stopRecognition = (abort = false) => {
     const active = recognition;
-    if (abort) recognition = null;
+    if (abort) { recognition = null; clearRecognitionTimers(); }
     if (!active) return;
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
+    if (abort || recognition !== active) return;
+    if (recognitionStopTimer) clearTimeout(recognitionStopTimer);
+    // Some iOS WebKit builds do not fire "end" after stop(). This would freeze
+    // the UI in "listening" indefinitely. Complete the turn exactly once.
+    recognitionStopTimer = setTimeout(() => {
+      recognitionStopTimer = null;
+      if (recognition !== active) return;
+      active.onend?.();
+      try { active.abort(); } catch { /* already finished */ }
+    }, RECOGNITION_STOP_TIMEOUT_MS);
   };
 
   const latestMessage = (): HTMLElement | null => {
