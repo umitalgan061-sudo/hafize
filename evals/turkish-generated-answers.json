@@ -1,0 +1,82 @@
+[
+  {
+    "category": "hesap",
+    "question": "7 sıra var, her sırada 6 iskemle var. 5 iskemle boş. Dolu iskemle sayısını yalnızca rakamla yaz.",
+    "answer": "37"
+  },
+  {
+    "category": "hesap",
+    "question": "48 ürünün dörtte üçü satıldı. Kaç ürün kaldı? Yalnızca sayı yaz.",
+    "answer": "12"
+  },
+  {
+    "category": "hesap",
+    "question": "11 kişilik minibüslerle 34 kişi taşınacak. En az kaç minibüs gerekir? Yalnızca sayı yaz.",
+    "answer": "4"
+  },
+  {
+    "category": "hesap",
+    "question": "15 dakikalık altı ses kaydını 1,5 kat hızda dinlemek kaç dakika sürer? Sadece sayı.",
+    "answer": "60"
+  },
+  {
+    "category": "çıkarım",
+    "question": "Etiket metni: Parti L-407, kutu R-811. Sadece parti kodunu yaz.",
+    "answer": "L-407"
+  },
+  {
+    "category": "çıkarım",
+    "question": "Dosya adı araziler.yedek.geojson. Son uzantıyı tek kelimeyle yaz.",
+    "answer": "geojson"
+  },
+  {
+    "category": "çıkarım",
+    "question": "Karar önce mor, sonra yeşil olarak güncellendi. Son seçilen rengi tek kelimeyle yaz.",
+    "answer": "yeşil"
+  },
+  {
+    "category": "çıkarım",
+    "question": "Sürüm önce v3, ardından v5 olarak düzeltildi. Geçerli sürümü tek başına yaz.",
+    "answer": "v5"
+  },
+  {
+    "category": "kısıt",
+    "question": "P seçeneği 90 TL ve 8 GB, R seçeneği 75 TL ve 6 GB. En az 7 GB gerekiyor. Yalnızca seçeneğin harfini yaz.",
+    "answer": "P"
+  },
+  {
+    "category": "kısıt",
+    "question": "Rota K 4 km ve merdivenli, rota M 5 km ve rampalı. Merdiven kullanılamaz. Sadece rota harfini yaz.",
+    "answer": "M"
+  },
+  {
+    "category": "kısıt",
+    "question": "Eşit süreli iki işten A'nın teslim tarihi 9 Nisan, B'ninki 3 Nisan. En erken teslim tarihini öncele. Yalnızca işin harfini yaz.",
+    "answer": "B"
+  },
+  {
+    "category": "kısıt",
+    "question": "T ile U aynı fiyatta. T yalnızca çevrimiçi, U çevrimdışı çalışıyor. İnternet yok. Sadece uygun seçeneği yaz.",
+    "answer": "U"
+  },
+  {
+    "category": "veri",
+    "question": "2, 2, 4, 6, 6, 6, 9 dizisinde kaç farklı değer var? Yalnızca sayı.",
+    "answer": "4"
+  },
+  {
+    "category": "veri",
+    "question": "A={2,7,8}, B={7,9}. Ortak elemanı yaz. Sadece sayı.",
+    "answer": "7"
+  },
+  {
+    "category": "veri",
+    "question": "Sürümler 3.12 ve 3.8. Semantik sürüm sıralamasına göre yenisini tek başına yaz.",
+    "answer": "3.12"
+  },
+  {
+    "category": "veri",
+    "question": "Bir katmanın öznitelikleriyle birlikte coğrafi nesnelerini isteyeceğim. WMS veya WFS? Yalnızca kısaltmayı yaz.",
+    "answer": "WFS"
+  }
+]
