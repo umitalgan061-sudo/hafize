@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      HAFIZE_FIREBASE_PROJECT_ID: ${{ vars.HAFIZE_FIREBASE_PROJECT_ID }}
-      HAFIZE_FIREBASE_SITE_ID: ${{ vars.HAFIZE_FIREBASE_SITE_ID }}
+      HAFIZE_FIREBASE_PROJECT_ID: projelerim-8fecd
+      HAFIZE_FIREBASE_SITE_ID: hafize-ua
     steps:
       - name: Check out the exact release commit
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
-          projectId: ${{ vars.HAFIZE_FIREBASE_PROJECT_ID }}
+          projectId: projelerim-8fecd
           channelId: live
 
       - name: Verify the public site serves exactly this GitHub commit
