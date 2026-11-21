@@ -1,0 +1,70 @@
+# Hafize — Firebase Hosting live deployment
+
+This repository compiles the front end into `public/typed-build/`. It does
+**not** contain the actual Firebase project's existing Hosting configuration or
+a Firebase deployment credential. The site URL alone does not grant deployment
+access. Do **not** replace the live configuration with a guessed SPA rewrite:
+existing `/api/**`, authentication, Cloud Run/Functions or other routes could
+break.
+
+The workflow [`.github/workflows/firebase-hosting-live.yml`](../.github/workflows/firebase-hosting-live.yml)
+builds main, validates the exact site and its full prior Hosting settings,
+deploys **Hosting only**, and checks `https://<site>.web.app/release.json`
+against the GitHub commit. Main-branch changes automatically trigger it;
+you can also rerun it using **Actions → Hafize Firebase Hosting — live →
+Run workflow**.
+
+## One-time configuration (repository Settings → Secrets and variables → Actions)
+
+**Repository variables:**
+
+- `HAFIZE_FIREBASE_PROJECT_ID`: the *actual* Firebase project ID, taken from
+  Firebase Console (not inferred from the site's URL).
+- `HAFIZE_FIREBASE_SITE_ID`: the Firebase Hosting site ID which owns the
+  `<site>.web.app` domain (for this deployment, expected: `hafize-ua`; verify
+  in Firebase Console first).
+
+**Repository secrets:**
+
+- `FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA`: the complete service-account JSON key
+  for the intended Firebase project, granted only the permissions required to
+  deploy its Hosting site. Prefer the official Firebase CLI
+  `firebase init hosting:github` setup for creating this account/secret.
+- `HAFIZE_FIREBASE_HOSTING_CONFIG`: the **full current** `firebase.json`
+  configuration of the live site. Preserve existing API rewrites, headers,
+  redirects and other production Hosting settings. The workflow refuses to
+  deploy if this JSON is missing or points to another site. Its Hosting public
+  directory must be `public`, since that is where the project's built UI
+  lives. A config using a different public directory needs a reviewed change,
+  not a forced replacement.
+
+Never commit service-account credentials, access tokens, a local `.env` file,
+or private keys. If you only have a running website but do not know its active
+Firebase configuration, first recover it from the last successful deployment or
+the Firebase project administrator. There is **no safe inference** from the
+public URL alone.
+
+## First deployment
+
+1. Run `npm ci && npm run build` (or let the GitHub Action build it).
+2. Configure the four GitHub variables/secrets above, using existing Firebase
+   Hosting routing rather than inventing backend routes.
+3. In the repository's **Actions** tab, run **Hafize Firebase Hosting — live**
+   on `main`, or rerun the failed live job after configuration.
+4. Confirm all steps succeed, particularly the final `release.json` commit
+   check. Only then describe `https://hafize-ua.web.app/` as updated.
+5. On iPhone, close and reopen the installed PWA / refresh Safari to let the
+   service worker pick up the latest browser files.
+
+If validation reports `FIREBASE_HOSTING_CONFIG_MISSING`,
+`FIREBASE_PROJECT_ID_MISSING_OR_INVALID` or the service account is absent,
+**no deploy is attempted**. A green build or a merged GitHub PR is *not*
+proof that Firebase Hosting has updated.
+
+## Important backend limitation
+
+The workflow deploys static Firebase Hosting files only. It cannot turn
+`server.ts`, GitHub App private keys, NVIDIA credentials or a localhost agent
+into a Firebase backend. Those require an independently deployed, protected
+Cloud Run / Functions runtime and the corresponding **existing** Hosting
+rewrites. That backend must not be replaced by a default catch-all rewrite.
