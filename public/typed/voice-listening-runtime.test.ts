@@ -58,7 +58,7 @@ function page(userAgent: string) {
     querySelector: (selector: string) => selector === '#composer' ? composer
       : selector === '#messageInput' ? input : selector === '#micBtn' ? mic
       : selector === '#messages' ? messages : null,
-    createElement: () => new FakeEl(),
+    createElement: (tag: string) => tag === 'div' ? template : new FakeEl(),
     addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; }
   };
   const recognizers: FakeRecognition[] = [];
