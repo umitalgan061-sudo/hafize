@@ -127,6 +127,134 @@
     [
       "Dosyaları adına göre sıralayınca 10, 2'den önce geliyor. Neden?",
       "Metin sıralamasında ilk karakter karşılaştırılır. Sayısal sırayı istiyorsan sayı bölümünü tam sayıya çevirerek sırala."
+    ],
+    [
+      "4 istasyonda 8'er sensör var. 3 sensör bozuk. Çalışan sensör sayısını yalnızca rakamla yaz.",
+      "29"
+    ],
+    [
+      "120 dosyanın dörtte biri silinirse kaç dosya kalır? Yalnızca sayı yaz.",
+      "90"
+    ],
+    [
+      "18 dakikalık dört kaydı 2 kat hızla dinlemek kaç dakika sürer? Yalnızca sayı yaz.",
+      "36"
+    ],
+    [
+      "Metin: Ürün: A17; Raf: K09. Yalnızca raf kodunu çıkar.",
+      "K09"
+    ],
+    [
+      "Son not: Tarih 4 Haziran olarak düzeltildi. Önceki notta 3 Haziran yazıyor. Geçerli tarihi yaz.",
+      "4 Haziran"
+    ],
+    [
+      "Sadece uzantıyı ver: rapor.final.csv",
+      "csv"
+    ],
+    [
+      "Ayşe 6 kayıt girdi. Bora ondan 3 fazla girdi. İkisi toplam kaç kayıt girdi? Sadece sayı.",
+      "15"
+    ],
+    [
+      "25 katılımcı 6 kişilik masalara oturacak. En az kaç masa gerekir? Yalnızca sayı yaz.",
+      "5"
+    ],
+    [
+      "Şu olayları eskiden yeniye sırala: C 12.03.2026, A 10.03.2026, B 11.03.2026. Sadece harfleri yaz.",
+      "A B C"
+    ],
+    [
+      "Koşullar: A çevrimdışı destekliyor ve 30 TL, B çevrimiçi ve 20 TL. Çevrimdışı zorunlu. Yalnızca harfi yaz.",
+      "A"
+    ],
+    [
+      "Yalnızca evet ya da hayır: 18'in yarısı 8 midir?",
+      "Hayır"
+    ],
+    [
+      "Kümeler A={1,2,3}, B={3,4}. Kesişimdeki sayıyı yaz.",
+      "3"
+    ],
+    [
+      "Koordinat sistemim WGS 84 coğrafi. EPSG kodunu yalnızca rakamla yaz.",
+      "4326"
+    ],
+    [
+      "Bir servisten yalnızca çizilmiş harita görüntüsü alacağım. WMS mi WFS mi? Tek kısaltma yaz.",
+      "WMS"
+    ],
+    [
+      "Dizideki benzersiz sayı adedi nedir: 2, 3, 2, 5, 3? Yalnızca sayı.",
+      "3"
+    ],
+    [
+      "Bir değer null, diğeri 0. İkisini eşdeğer kabul edip ortalama alayım mı?",
+      "Hayır. Null eksik ölçümü, 0 ise ölçülmüş bir değeri ifade edebilir. Eksik veriyi nasıl işleyeceğini önce belirle."
+    ],
+    [
+      "Bağlantı zaman aşımına uğradığında kayıt isteğini tekrar göndermek çift kayıt yapar mı?",
+      "Yapabilir. Aynı işlem için bir idempotency anahtarı kullanıp ilk isteğin sonucunu sunucuda sakla."
+    ],
+    [
+      "Bu konuşmadaki düzeltmeyi uygula: önce 6 sütun, sonra 4 sütun istedim. Sütun sayısını yaz.",
+      "4"
+    ],
+    [
+      "Tek satır JSON üret: ad Ece, adet iki. Anahtarlar ad ve adet olsun.",
+      "{\"ad\":\"Ece\",\"adet\":2}"
+    ],
+    [
+      "Bir GPS ölçümü tek başına parsel sınırını kanıtlar mı?",
+      "Hayır. Ölçümün doğruluğu, koordinat sistemi ve yetkili kadastro verisi kontrol edilmelidir."
+    ],
+    [
+      "Günlük 14 işlem beş günde yapılacak, 8 tanesi iptal edilecek. Kalan kaç işlem var? Sadece sayı.",
+      "62"
+    ],
+    [
+      "İki paket aynı fiyatta. A 15 GB, B 20 GB. En fazla veri için hangisi? Sadece A veya B.",
+      "B"
+    ],
+    [
+      "Dün 11 istek başarısız oldu. Bugün 7. Kaç daha az? Sadece sayı yaz.",
+      "4"
+    ],
+    [
+      "Bu açıklamayı tek adımda sadeleştir: Uygulamayı kapatıp yeniden açın.",
+      "Uygulamayı yeniden başlatın."
+    ],
+    [
+      "Bir modelin eğitim hatası azalırken test hatası artıyor. Önce neyi araştırayım?",
+      "Aşırı öğrenmeyi ve eğitim ile test verisinin dağılım farkını incele. Ayrılmış doğrulama kümesinde erken durdurmayı dene."
+    ],
+    [
+      "İki rasterın piksel boyutları aynı. Piksel bazında hemen toplayabilir miyim?",
+      "Önce koordinat sistemini, grid başlangıcını, hücre hizalamasını ve NoData değerlerini kontrol et."
+    ],
+    [
+      "Aynı adla iki farklı ilçe kaydı var. Nasıl birleştireyim?",
+      "Yalnızca ada göre birleştirme. İl kodu ve ilçe kodu gibi birlikte benzersiz alanları kullan."
+    ],
+    [
+      "Türkçeden İngilizceye çevir: Güncel dosyayı bugün göndereceğim.",
+      "I will send the updated file today."
+    ],
+    [
+      "Bir metin dosyasında Türkçe karakterler bozuluyor. İlk neyi kontrol edeyim?",
+      "Dosyanın hangi kodlamayla yazıldığını ve hangi kodlamayla açıldığını karşılaştır. Özgün dosyayı koruyarak doğru kodlamayla yeniden aç."
+    ],
+    [
+      "Yarı fiyatına aldığım ürün 75 TL. İlk fiyatı kaç TL? Yalnızca sayı.",
+      "150"
+    ],
+    [
+      "En büyük sürüm hangisi: 2.9 veya 2.10? Yalnızca sürümü yaz.",
+      "2.10"
+    ],
+    [
+      "Karşılaştırma için sadece çözüm A'nın gecikmesi verildi. B daha mı hızlı?",
+      "B için aynı koşullarda gecikme ölçümü olmadan hangisinin hızlı olduğunu belirleyemem."
     ]
   ],
   "test": [

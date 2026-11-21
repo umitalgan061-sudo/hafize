@@ -1,11 +1,17 @@
 name: Turkish response adapter
 on:
   workflow_dispatch:
+    inputs:
+      prior_run:
+        description: "Run ID with a hafize-tr-adapter artifact (empty starts from base)"
+        required: false
+        type: string
   push:
-    branches: [turkish-response-lora]
+    branches: [hafize-turkish-v2]
     paths: ['.github/workflows/turkish-response-training.yml']
 permissions:
   contents: read
+  actions: read
 jobs:
   train:
     runs-on: ubuntu-latest
@@ -21,7 +27,21 @@ jobs:
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch==2.7.1
           pip install transformers==4.52.4 peft==0.15.2 huggingface-hub==0.32.4
-      - run: python scripts/train-turkish-response.py
+      - name: Previous Turkish adapter
+        if: github.event_name == 'push' || inputs.prior_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: hafize-tr-adapter
+          run-id: ${{ inputs.prior_run || '44917974094' }}
+          github-token: ${{ github.token }}
+          path: prior-adapter
+      - name: Train and evaluate generated answers
+        run: |
+          if [ -d prior-adapter ]; then
+            python scripts/train-turkish-response.py --prior prior-adapter
+          else
+            python scripts/train-turkish-response.py
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: hafize-tr-adapter
