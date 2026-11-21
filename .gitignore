@@ -28,3 +28,7 @@ skills/keys/
 skills/dist/
 evals/results/
 workspace/
+
+# Firebase live config comes from a protected GitHub secret; release marker is generated during CI.
+firebase.json
+public/release.json
