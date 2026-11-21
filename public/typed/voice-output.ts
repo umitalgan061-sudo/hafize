@@ -79,7 +79,7 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
  const voice=()=>{try{const preferred=chosenVoice();return pickTurkishVoice(synth?.getVoices?.(),isPiperVoice(preferred)?null:preferred);}catch{return null;}};
  const chosenSpeaker=()=>{try{const value=Number(storage?.getItem(SPEAKER_KEY));return Number.isInteger(value)&&value>=0?value:0;}catch{return 0;}};
  const next=(token:number)=>{if(token!==generation)return;if((!enabled&&!forced)||!supported||documentRef.hidden||!queue.length){speaking=false;forced=false;render();return;}
-  const text=queue.shift()!;const progress=(charIndex:number,charLength:number)=>{if(token!==generation)return;const Custom=(root as typeof globalThis).CustomEvent;if(typeof Custom!=='function'||typeof documentRef.dispatchEvent!=='function')return;documentRef.dispatchEvent(new Custom(VOICE_OUTPUT_PROGRESS_EVENT,{detail:{source:'voice-output',text,charIndex,charLength}}));};
+  const text=queue.shift()!;const progress=(charIndex:number,charLength:number)=>{if(token!==generation)return;const Custom=(root as typeof globalThis).CustomEvent;if(typeof Custom!=='function'||typeof documentRef.dispatchEvent!=='function')return;documentRef.dispatchEvent(new Custom(VOICE_OUTPUT_PROGRESS_EVENT,{detail:{source:'voice-output',origin,text,charIndex,charLength}}));};
   const chosen=chosenVoice();
   if(isPiperVoice(chosen)){
    // Preserve the selected speaker if synthesis or playback fails.
