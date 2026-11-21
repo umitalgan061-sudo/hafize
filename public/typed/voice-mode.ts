@@ -415,7 +415,10 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let interim = '';
     let errorCode = '';
     let recognitionStarted = false;
-    const current = new Recognition();
+    let errorHandled = false;
+    let current: RecognitionLike;
+    try { current = new Recognition(); }
+    catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
     current.lang = 'tr-TR';
     current.interimResults = true;
@@ -446,7 +449,15 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         }, END_OF_TURN_MS);
       }
     };
-    current.onerror = (event) => { errorCode = String(event?.error || ''); };
+    current.onerror = (event) => {
+      if (recognition !== current) return;
+      errorCode = String(event?.error || '');
+      if (errorHandled) return;
+      errorHandled = true;
+      // Some WebKit builds dispatch error but never end. A bounded stop turns
+      // that into a retry or a clear permission/device message instead of a hang.
+      stopRecognition(false);
+    };
     current.onend = () => {
       if (recognition !== current) return;
       recognition = null;
