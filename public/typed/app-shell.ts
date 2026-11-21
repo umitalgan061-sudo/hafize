@@ -13,6 +13,7 @@ import { buildRegenerationMessages } from './response-regeneration-options.ts';
 import { mountModelPreferences, type ModelPreferencesUiController } from './model-preferences-ui.ts';
 import { loadModelPreferences } from './model-preferences.ts';
 import { hafizeApi } from './hafize-api.ts';
+import { isLightweightVoiceTurn } from './voice-turn-routing.ts';
 import { handleAgentEvent } from './agent-extras.ts';
 import { HafizeSseClient, type HafizeSseStats, type HafizeSseEvent } from './hafize-sse.ts';
 import { createHafizeStreamController, formatStreamBytes, formatStreamDuration, phaseLabel, phaseTone } from './hafize-stream-state.ts';
@@ -1186,7 +1187,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       .catch(() => undefined);
   }
 
-  async function streamAssistantReply() {
+  async function streamAssistantReply(maxTokens = 4096) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -1199,7 +1200,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/chat',
-      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, provider: ui.providerSelect.value },
+      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: maxTokens, provider: ui.providerSelect.value },
       assistantId,
       ui.providerSelect.value === 'local' ? 'Yerel model boş bir yanıt döndürdü.' : 'NVIDIA modeli boş bir yanıt döndürdü.',
       ui.providerSelect.value === 'local' ? 180_000 : 60_000
@@ -1405,7 +1406,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const turn = currentTurn;
     try {
       if (clean) await globalThis.HafizeLiveScreen?.beforeSend?.(clean);
-      if (ui.providerSelect.value !== 'local') await runAssistantWithTools();
+      // A greeting never needs the multi-tool agent loop. Keep the full conversation
+      // history and agent persona, but stream a short reply directly for voice small talk.
+      if (clean && document.documentElement.dataset.voiceMode === 'true'
+          && ui.providerSelect.value !== 'local' && isLightweightVoiceTurn(clean)) {
+        await streamAssistantReply(512);
+      } else if (ui.providerSelect.value !== 'local') await runAssistantWithTools();
       else await streamAssistantReply();
       // Stopping a stream ends it quietly, so a takeover by the cloud lands here too: the half answer makes way.
       if (turn && cloudTakesOver === turn.userMessageId) {
