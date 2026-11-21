@@ -378,20 +378,23 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     }, SEND_TIMEOUT_MS);
   };
 
-  const retryListening = (message: string) => {
+  const retryListening = (message: string, failed = true) => {
     if (state === 'closed' || muted || documentRef.hidden) return;
-    if (silentRetries >= MAX_SILENT_RETRIES) {
+    // A normal silence is not an error. Keep listening until the person closes
+    // the screen; only genuine start/network failures have a retry budget.
+    if (failed && silentRetries >= MAX_SILENT_RETRIES) {
       silentRetries = 0;
-      setState('idle', 'Mikrofon durdu. Yeniden başlatmak için küreye dokun.');
+      setState('idle', 'Mikrofon bağlantısı kesildi. Yeniden başlatmak için küreye dokun.');
       return;
     }
-    silentRetries += 1;
+    if (failed) silentRetries += 1;
+    else silentRetries = 0;
     setState('thinking', message);
     if (resumeTimer) clearTimeout(resumeTimer);
     resumeTimer = setTimeout(() => {
       resumeTimer = null;
       if (state !== 'closed' && !muted) listen();
-    }, RESTART_DELAY_MS + (silentRetries - 1) * 250);
+    }, failed ? RESTART_DELAY_MS + (silentRetries - 1) * 250 : 700);
   };
 
   const listen = () => {
@@ -402,6 +405,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let final = '';
     let interim = '';
     let errorCode = '';
+    let recognitionStarted = false;
     const current = new Recognition();
     recognition = current;
     current.lang = 'tr-TR';
@@ -410,6 +414,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.maxAlternatives = 1;
     current.onstart = () => {
       if (recognition !== current) return;
+      recognitionStarted = true;
       if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
       recognitionStartTimer = null;
       setState('listening');
@@ -443,13 +448,13 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
       if (errorCode === 'audio-capture') { setState('idle', 'Mikrofon bulunamadı.'); return; }
       if (errorCode === 'language-not-supported') { setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
-      retryListening(errorCode === 'network' ? 'Ses bağlantısı yeniden kuruluyor…' : 'Dinlemeye yeniden bağlanıyorum…');
+      retryListening(errorCode === 'network' ? 'Ses bağlantısı yeniden kuruluyor…' : 'Dinlemeye yeniden bağlanıyorum…', Boolean(errorCode && errorCode !== 'no-speech' && errorCode !== 'aborted'));
     };
     try {
       current.start();
       recognitionStartTimer = setTimeout(() => {
         recognitionStartTimer = null;
-        if (recognition !== current) return;
+        if (recognition !== current || recognitionStarted) return;
         recognition = null;
         try { current.abort(); } catch { /* recognition may have already ended */ }
         retryListening('Mikrofon yanıt vermedi, yeniden deneniyor…');
