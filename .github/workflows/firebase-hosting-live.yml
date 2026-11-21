@@ -1,0 +1,94 @@
+name: Hafize Firebase Hosting — live
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'scripts/firebase-hosting-preflight.mjs'
+      - '.github/workflows/firebase-hosting-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hafize-firebase-hosting-live
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAFIZE_FIREBASE_PROJECT_ID: ${{ vars.HAFIZE_FIREBASE_PROJECT_ID }}
+      HAFIZE_FIREBASE_SITE_ID: ${{ vars.HAFIZE_FIREBASE_SITE_ID }}
+    steps:
+      - name: Check out the exact release commit
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Test live Hosting deployment guardrails
+        run: node --test scripts/firebase-hosting-preflight.test.mjs
+
+      - name: Build Hafize UI from the current commit
+        run: |
+          npm run typecheck
+          npm run build
+
+      - name: Verify existing Hosting settings and project configuration
+        env:
+          HAFIZE_FIREBASE_HOSTING_CONFIG: ${{ secrets.HAFIZE_FIREBASE_HOSTING_CONFIG }}
+        run: node scripts/firebase-hosting-preflight.mjs
+
+      - name: Verify Firebase service-account authorization
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+        shell: bash
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo '::error::FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA is not configured; no live deploy was attempted.'
+            exit 1
+          fi
+
+      - name: Deploy only Firebase Hosting to live
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+          projectId: ${{ vars.HAFIZE_FIREBASE_PROJECT_ID }}
+          channelId: live
+
+      - name: Verify the public site serves exactly this GitHub commit
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const site = process.env.HAFIZE_FIREBASE_SITE_ID;
+          const sha = process.env.GITHUB_SHA;
+          const url = new URL(`https://${site}.web.app/release.json`);
+          url.searchParams.set('commit', sha);
+          let verified = false;
+          for (let attempt = 0; attempt < 6; attempt += 1) {
+            try {
+              const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+              if (res.ok && (await res.json())?.commit === sha) { verified = true; break; }
+            } catch { /* CDN propagation or transient connection issue */ }
+            if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 5000));
+          }
+          if (!verified) {
+            console.error('::error::Live Hosting release marker does not match this GitHub commit.');
+            process.exitCode = 1;
+          } else {
+            console.log(`Verified live Firebase Hosting: ${site}.web.app at ${sha}`);
+          }
+          JS
