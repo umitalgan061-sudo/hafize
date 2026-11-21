@@ -304,7 +304,13 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     pulseFrame = null;
     if (state === 'closed') return;
     const t = now();
-    if (state === 'listening') energy = Math.max(energy * 0.9, 0.2 + 0.12 * Math.sin(t / 300));
+    if (state === 'listening') {
+      // Do not fake a microphone-level waveform: the browser's Web Speech API
+      // does not expose PCM volume. Only intensify when WebKit reports speech
+      // or an actual transcript. A subtle idle glow means merely "waiting".
+      const heard = ['speech', 'transcribing', 'ending'].includes(screen.dataset.micPhase || '');
+      energy = Math.max(energy * 0.9, heard ? 0.56 : 0.12);
+    }
     else if (state === 'speaking') {
       if (t >= nextPulseAt) { energy = Math.max(energy, 0.35 + Math.random() * 0.35); nextPulseAt = t + 120 + Math.random() * 140; }
       energy *= 0.93;
