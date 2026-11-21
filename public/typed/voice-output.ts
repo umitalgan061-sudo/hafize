@@ -16,8 +16,9 @@ export function readRate(storage:Storage|null|undefined):number{try{const value=
 const MAX_SPEECH_LENGTH=200000,MAX_CHUNK_LENGTH=240;
 // Piper renders a whole chunk before any of it plays, so shorter chunks mean a much quicker first word.
 const PIPER_CHUNK_LENGTH=110;
-// Errors the browser reports when *we* stopped the speech (new answer, new message, mic); not failures.
-const SELF_INFLICTED_ERRORS=new Set(['interrupted','canceled','cancelled']);
+// Deliberate cancellation invalidates the token. Unexpected browser "interrupted" events
+// must still finish the turn, or mobile speech can permanently lock the mic.
+const MAX_UTTERANCE_MS=45_000;
 // A phone ignores speech that starts without a touch: no sound, no start, no end, no error. Without this the label
 // said "Hafize konuşuyor" over silence (20 Kasım 2026, the owner's iPhone).
 export const START_TIMEOUT_MS=6000;
@@ -97,15 +98,17 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
    return;
   }
   const utterance=new Utterance(text);const selected=voice();utterance.lang=selected?.lang||'tr-TR';utterance.rate=readRate(storage);utterance.pitch=1;if(selected)utterance.voice=selected;
-  let started=false;
-  utterance.onstart=()=>{started=true;progress(-1,0);};
-  utterance.onboundary=(event:{name?:string;charIndex?:number;charLength?:number})=>{if(event?.name&&event.name!=='word')return;const index=Number(event?.charIndex);if(!Number.isFinite(index)||index<0)return;const length=Number(event?.charLength)>0?Number(event.charLength):(text.slice(index).match(/^\S+/)?.[0].length||0);progress(index,length);};
-  utterance.onend=()=>{started=true;next(token);};
-  utterance.onerror=(event:{error?:string})=>{if(token!==generation)return;if(SELF_INFLICTED_ERRORS.has(String(event?.error||'')))return;queue=[];speaking=false;render();announce('Sesli yanıt tamamlanamadı.');};
+  let started=false,finished=false;
+  utterance.onstart=()=>{if(token!==generation||finished)return;started=true;progress(-1,0);};
+  utterance.onboundary=(event:{name?:string;charIndex?:number;charLength?:number})=>{if(token!==generation||finished)return;if(event?.name&&event.name!=='word')return;const index=Number(event?.charIndex);if(!Number.isFinite(index)||index<0)return;const length=Number(event?.charLength)>0?Number(event.charLength):(text.slice(index).match(/^\S+/)?.[0].length||0);progress(index,length);};
+  utterance.onend=()=>{if(token!==generation||finished)return;finished=true;started=true;next(token);};
+  utterance.onerror=()=>{if(token!==generation||finished)return;finished=true;started=true;generation+=1;queue=[];speaking=false;render();announce('Sesli yanıt kesildi. Konuşmaya devam edebilirsin.');};
   speaking=true;thinking=false;render();
   // Chrome can leave the engine paused after a tab switch; speak() then queues forever.
-  try{if(synth.paused)synth.resume();synth.speak(utterance);}catch{queue=[];speaking=false;render();announce('Sesli yanıt tamamlanamadı.');return;}
-  setTimeout(()=>{if(token!==generation||started||!speaking)return;generation+=1;queue=[];speaking=false;try{synth.cancel();}catch{}render();announce(NOT_STARTED);},START_TIMEOUT_MS);};
+  try{if(synth.paused)synth.resume();synth.speak(utterance);}catch{finished=true;queue=[];speaking=false;render();announce('Sesli yanıt tamamlanamadı.');return;}
+  setTimeout(()=>{if(token!==generation||started||finished||!speaking)return;finished=true;generation+=1;queue=[];speaking=false;try{synth.cancel();}catch{}render();announce(NOT_STARTED);},START_TIMEOUT_MS);
+  // onstart without onend/onerror also happens on phones; never hold the microphone forever.
+  setTimeout(()=>{if(token!==generation||finished||!speaking)return;finished=true;generation+=1;queue=[];speaking=false;try{synth.cancel();}catch{}render();announce('Sesli yanıt duraksadı. Tekrar konuşabilirsin.');},MAX_UTTERANCE_MS);};
  // Inside the first touch or key press: opens audio for later answers (iPhone allows sound only after one).
  const unlock=()=>{unlockAudio();if(speechUnlocked||!supported)return;speechUnlocked=true;try{const silent=new Utterance(' ');silent.volume=0;synth.speak(silent);}catch{}};
  const onVoicesChanged=()=>{render();};synth?.addEventListener?.('voiceschanged',onVoicesChanged);
