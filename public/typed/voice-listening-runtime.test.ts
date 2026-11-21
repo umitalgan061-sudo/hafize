@@ -62,6 +62,7 @@ function page(userAgent: string) {
     addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; }
   };
   const recognizers: FakeRecognition[] = [];
+  const observers: Array<() => void> = [];
   class FakeRecognition {
     lang = ''; continuous = false; interimResults = false; maxAlternatives = 0;
     onstart: (() => void) | null = null;
@@ -89,11 +90,17 @@ function page(userAgent: string) {
     getComputedStyle: () => ({ fontSize: '18px' }),
     requestAnimationFrame: () => 1,
     cancelAnimationFrame() {},
+    MutationObserver: class {
+      constructor(callback: () => void) { observers.push(callback); }
+      observe() {}
+      disconnect() {}
+    },
     performance: { now: () => Date.now() }
   };
   const controller = installVoiceMode(documentRef as unknown as Document, root as unknown as typeof globalThis);
   if (!controller) throw Error('voice controller was not installed');
-  return { controller, recognizers, elements, composer, input, documentRef };
+  return { controller, recognizers, elements, composer, input, documentRef,
+    notify: () => observers.forEach((callback) => callback()) };
 }
 const result = (transcript: string, isFinal: boolean) =>
   [Object.assign([{ transcript }], { isFinal })];
@@ -142,14 +149,23 @@ describe('real speech recognition instead of a fake recording indicator', () => 
     const first = p.recognizers[0];
     first.onresult?.({ results: result('Merhaba', true) });
     first.onend?.();
-    // The fake composer never delivers a reply: simulate that the turn completed
-    // and the speech mode resumes normally.
-    p.input.disabled = false;
-    // A new mic session can be started by returning to the listening view.
-    p.controller.close();
-    p.controller.open();
-    const second = p.recognizers.at(-1)!;
+    expect(p.composer.sent).toBe(1);
+
+    // Simulate the assistant request becoming busy and then completing; when
+    // no speech output is available the next listening turn opens on its own.
+    p.input.disabled = true; p.notify();
+    p.input.disabled = false; p.notify();
+    const second = p.recognizers[1];
+    expect(second).toBeDefined();
     expect(second).not.toBe(first);
+    expect(second.continuous).toBe(false);
+
+    // Safari bug: onstart succeeds but no speech/result/error/end ever arrives.
+    await vi.advanceTimersByTimeAsync(14_100);
+    expect(second.abortCalls).toBe(1);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(p.recognizers[2]).toBeDefined();
+    expect(p.controller.state()).toBe('listening');
     p.controller.destroy();
   });
 
