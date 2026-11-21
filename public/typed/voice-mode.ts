@@ -64,6 +64,20 @@ const END_OF_TURN_MS = 700;
 const RESTART_DELAY_MS = 450;
 const RECOGNITION_START_TIMEOUT_MS = 6000;
 const RECOGNITION_STOP_TIMEOUT_MS = 1800;
+const IOS_NATURAL_END_GRACE_MS = 3500;
+
+/** Browser recognition has no permanent full-duplex stream. On iOS, prefer
+ * natural end-of-utterance to forced stop() because some Safari versions lose
+ * the next microphone session entirely after a forced stop.
+ */
+export function recognitionProfile(userAgent: unknown): {
+  continuous: boolean; awaitNaturalEnd: boolean; noResultTimeoutMs: number; resumeAfterSpeechMs: number;
+} {
+  const ios = typeof userAgent === 'string' && /iPhone|iPad|iPod|Macintosh[^)]*Mobile/i.test(userAgent);
+  return { continuous: !ios, awaitNaturalEnd: ios,
+    noResultTimeoutMs: ios ? 14_000 : 22_000,
+    resumeAfterSpeechMs: ios ? 850 : 120 };
+}
 
 export function statusText(state: VoiceModeState): string {
   switch (state) {
@@ -160,7 +174,15 @@ const TEMPLATE = `
   <button type="button" class="vm-close" aria-label="Sesli sohbeti kapat" title="Kapat (Esc)">${ICONS.close}</button>
 </footer>`;
 
-type RecognitionLike = { lang: string; interimResults: boolean; continuous: boolean; maxAlternatives: number; start(): void; stop(): void; abort(): void; onresult: ((event: { results?: ArrayLike<ArrayLike<{ transcript?: unknown }> & { isFinal?: boolean }> }) => void) | null; onerror: ((event: { error?: string }) => void) | null; onend: (() => void) | null; onstart: (() => void) | null; };
+type RecognitionLike = {
+  lang: string; interimResults: boolean; continuous: boolean; maxAlternatives: number;
+  start(): void; stop(): void; abort(): void;
+  onresult: ((event: { results?: ArrayLike<ArrayLike<{ transcript?: unknown }> & { isFinal?: boolean }> }) => void) | null;
+  onerror: ((event: { error?: string }) => void) | null; onend: (() => void) | null; onstart: (() => void) | null;
+  onaudiostart?: (() => void) | null;
+  onspeechstart?: (() => void) | null;
+  onspeechend?: (() => void) | null;
+};
 
 export function installVoiceMode(documentRef: Document, root: typeof globalThis): VoiceModeController | null {
   const composer = documentRef.querySelector<HTMLFormElement>('#composer');
@@ -207,6 +229,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const write = (key: string, value: string) => { try { storage?.setItem(key, value); } catch { /* private mode */ } };
   const reduceMotion = () => documentRef.documentElement.dataset.reducedMotion === 'true' || Boolean(root.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const now = () => root.performance?.now?.() ?? Date.now();
+  const speechProfile = recognitionProfile(root.navigator?.userAgent);
 
   let orb: VoiceOrb | null = null;
   let state: VoiceModeState = 'closed';
@@ -227,6 +250,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let endOfTurnTimer: ReturnType<typeof setTimeout> | null = null;
   let recognitionStartTimer: ReturnType<typeof setTimeout> | null = null;
   let recognitionStopTimer: ReturnType<typeof setTimeout> | null = null;
+  let recognitionNoResultTimer: ReturnType<typeof setTimeout> | null = null;
   let returnFocus: HTMLElement | null = null;
   let energy = 0;
   let nextPulseAt = 0;
@@ -249,9 +273,11 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (endOfTurnTimer) clearTimeout(endOfTurnTimer);
     if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
     if (recognitionStopTimer) clearTimeout(recognitionStopTimer);
+    if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
     endOfTurnTimer = null;
     recognitionStartTimer = null;
     recognitionStopTimer = null;
+    recognitionNoResultTimer = null;
   };
   const clearTimers = () => {
     if (sendTimer) clearTimeout(sendTimer);
@@ -264,6 +290,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const setState = (next: VoiceModeState, message?: string) => {
     state = next;
     screen.dataset.state = next;
+    if (next !== 'listening') delete screen.dataset.micPhase;
     statusEl.textContent = message || statusText(next);
     orbButton.setAttribute('aria-label', next === 'speaking' ? 'Hafize\'nin sözünü kes ve konuş' : next === 'listening' ? 'Dinlemeyi bitir' : 'Konuşmaya başla');
     orb?.setMood((next === 'closed' ? 'idle' : next) as OrbMood);
@@ -392,7 +419,9 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     // the screen; only genuine start/network failures have a retry budget.
     if (failed && silentRetries >= MAX_SILENT_RETRIES) {
       silentRetries = 0;
-      setState('idle', 'Mikrofon bağlantısı kesildi. Yeniden başlatmak için küreye dokun.');
+      setState('idle', speechProfile.awaitNaturalEnd
+        ? 'Ses tanıma yanıt vermiyor. iPhone Safari’yi tamamen kapatıp yeniden açmayı veya mikrofon iznini kontrol etmeyi dene.'
+        : 'Mikrofon bağlantısı kesildi. Yeniden başlatmak için küreye dokun.');
       return;
     }
     if (failed) silentRetries += 1;
@@ -416,25 +445,72 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let errorCode = '';
     let recognitionStarted = false;
     let errorHandled = false;
+    let recognizedSomething = false;
+    let heardSpeech = false;
     let current: RecognitionLike;
     try { current = new Recognition(); }
     catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
     current.lang = 'tr-TR';
     current.interimResults = true;
-    current.continuous = false;
+    current.continuous = speechProfile.continuous;
     current.maxAlternatives = 1;
     current.onstart = () => {
       if (recognition !== current) return;
       recognitionStarted = true;
       if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
       recognitionStartTimer = null;
-      setState('listening');
+      setState('listening', 'Mikrofon oturumu açık · konuşabilirsin');
+      screen.dataset.micPhase = 'ready';
       setCaption(['', '', ''], 'user');
+      if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
+      recognitionNoResultTimer = setTimeout(() => {
+        recognitionNoResultTimer = null;
+        if (recognition !== current || recognizedSomething || muted || documentRef.hidden) return;
+        // Safari can dispatch "start" and show the system mic dot, yet never
+        // produce speechstart/result/error/end. Recover the stuck session.
+        recognition = null;
+        clearRecognitionTimers();
+        try { current.abort(); } catch { /* session may already be gone */ }
+        retryListening('Mikrofon açık görünüyor ama ses tanıma yanıt vermiyor · yeniden deniyorum…', true);
+      }, speechProfile.noResultTimeoutMs);
+    };
+    current.onaudiostart = () => {
+      if (recognition !== current || recognizedSomething) return;
+      screen.dataset.micPhase = 'connected';
+      statusEl.textContent = 'Mikrofon bağlantısı kuruldu · konuşabilirsin';
+    };
+    current.onspeechstart = () => {
+      if (recognition !== current) return;
+      heardSpeech = true;
+      screen.dataset.micPhase = 'speech';
+      energy = Math.max(energy, 0.7);
+      statusEl.textContent = 'Sesini algıladım · dinliyorum…';
+    };
+    current.onspeechend = () => {
+      if (recognition !== current) return;
+      screen.dataset.micPhase = 'ending';
+      statusEl.textContent = 'Konuşman tamamlanıyor…';
+      // Safari naturally ends after one utterance. Desktop needs its own
+      // endpoint when the recognizer is configured for continuous dictation.
+      if (!speechProfile.awaitNaturalEnd && (final || interim) && !endOfTurnTimer) {
+        endOfTurnTimer = setTimeout(() => {
+          endOfTurnTimer = null;
+          if (recognition === current) stopRecognition(false);
+        }, END_OF_TURN_MS + 350);
+      }
     };
     current.onresult = (event) => {
       if (recognition !== current) return;
       ({ final, interim } = readTranscript(event.results));
+      recognizedSomething = Boolean(final || interim);
+      if (recognizedSomething) {
+        silentRetries = 0;
+        if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
+        recognitionNoResultTimer = null;
+        screen.dataset.micPhase = 'transcribing';
+        statusEl.textContent = 'Seni duyuyorum · söylediklerin yazıya çevriliyor…';
+      }
       const spoken = [final, interim].filter(Boolean).join(' ');
       setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
       energy = Math.max(energy, 0.5);
@@ -443,10 +519,12 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       // A final ASR result is not proof the user has finished speaking. Allow a
       // short silence for an additional phrase instead of sending a half question.
       if (final && !interim) {
+        // Give iOS natural one-shot end priority. Forcing stop() too soon
+        // can break subsequent speech recognition sessions on WebKit.
         endOfTurnTimer = setTimeout(() => {
           endOfTurnTimer = null;
           if (recognition === current) stopRecognition(false);
-        }, END_OF_TURN_MS);
+        }, speechProfile.awaitNaturalEnd ? IOS_NATURAL_END_GRACE_MS : END_OF_TURN_MS);
       }
     };
     current.onerror = (event) => {
@@ -465,6 +543,10 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (state === 'closed' || muted || documentRef.hidden) return;
       const said = [final, interim].filter(Boolean).join(' ').trim();
       if (said) { silentRetries = 0; manualEnd = false; send(said); return; }
+      if (heardSpeech && !errorCode) {
+        retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
+        return;
+      }
       if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
       if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
       if (errorCode === 'audio-capture') { setState('idle', 'Mikrofon bulunamadı.'); return; }
@@ -653,7 +735,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       // Spoke faster than the reply is arriving: the next sentence is on its way.
       if (awaitingReply) { setState('thinking'); return; }
       setState(muted ? 'paused' : 'idle');
-      resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, 120);
+      resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, speechProfile.resumeAfterSpeechMs);
     }
   };
   const onProgress = (event: Event) => {
@@ -750,7 +832,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   });
 }
 
-const api = Object.freeze({ statusText, readTranscript, isFreshVoiceReply, captionCapacity, captionTail, captionWindow, installVoiceMode });
+const api = Object.freeze({ statusText, readTranscript, isFreshVoiceReply, recognitionProfile, captionCapacity, captionTail, captionWindow, installVoiceMode });
 (globalThis as typeof globalThis & { HafizeVoiceMode?: unknown }).HafizeVoiceMode = api;
 const start = () => installVoiceMode(document, globalThis);
 if (typeof document !== 'undefined') {
