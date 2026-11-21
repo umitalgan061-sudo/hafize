@@ -28,7 +28,7 @@ class FakeEl {
   }
   fire(name: string, event?: unknown) { (this.listeners.get(name) || []).forEach((fn) => fn(event)); }
   append(child: FakeEl) { if (this.kind === 'select') this.options.push(child); }
-  remove(index: number) { this.options.splice(index, 1); }
+  remove(index?: number) { if (typeof index === 'number') this.options.splice(index, 1); }
   querySelectorAll() { return [] as FakeEl[]; }
   querySelector() { return null; }
   dispatchEvent() { return true; }
