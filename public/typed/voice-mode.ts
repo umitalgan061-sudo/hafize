@@ -35,7 +35,10 @@ const CAPTIONS_KEY = 'hafize.voiceMode.captions.v1';
 const ORIGIN = 'voice-mode';
 const SEND_TIMEOUT_MS = 4000;
 const FEED_INTERVAL_MS = 150;
-const MAX_SILENT_RETRIES = 1;
+const MAX_SILENT_RETRIES = 4;
+const END_OF_TURN_MS = 700;
+const RESTART_DELAY_MS = 450;
+const RECOGNITION_START_TIMEOUT_MS = 6000;
 
 export function statusText(state: VoiceModeState): string {
   switch (state) {
@@ -50,15 +53,20 @@ export function statusText(state: VoiceModeState): string {
 
 /** Final + interim text of a recognition event, read from index 0 (see voice-input.ts). */
 export function readTranscript(results: ArrayLike<ArrayLike<{ transcript?: unknown }> & { isFinal?: boolean }> | null | undefined): { final: string; interim: string } {
-  let final = '';
-  let interim = '';
+  const final: string[] = [];
+  const interim: string[] = [];
   for (let i = 0; i < (results?.length ?? 0); i += 1) {
     const result = results![i];
     const text = typeof result?.[0]?.transcript === 'string' ? String(result[0].transcript) : '';
-    if (result?.isFinal) final += text; else interim += text;
+    if (result?.isFinal) final.push(text); else interim.push(text);
   }
-  const clean = (value: string) => value.replace(/\s+/g, ' ').trim();
+  const clean = (parts: string[]) => parts.join(' ').replace(/\s+/g, ' ').trim();
   return { final: clean(final), interim: clean(interim) };
+}
+
+/** A DOM redraw creates new elements for old messages; only a new message id is a new answer. */
+export function isFreshVoiceReply(role: string | null, id: string | null, previousId: string | null): boolean {
+  return role === 'assistant' && Boolean(id) && id !== previousId;
 }
 
 /** How many characters fit in the caption's lines, so text is trimmed on purpose, not clipped mid-line. */
@@ -185,10 +193,13 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let spokenUpTo = 0;
   let streamStarted = false;
   let streamStopped = false;
-  let nodeBeforeSend: Element | null = null;
+  let nodeBeforeSend: string | null = null;
+  let pendingUtterance = '';
   let feedTimer: ReturnType<typeof setInterval> | null = null;
   let sendTimer: ReturnType<typeof setTimeout> | null = null;
   let resumeTimer: ReturnType<typeof setTimeout> | null = null;
+  let endOfTurnTimer: ReturnType<typeof setTimeout> | null = null;
+  let recognitionStartTimer: ReturnType<typeof setTimeout> | null = null;
   let returnFocus: HTMLElement | null = null;
   let energy = 0;
   let nextPulseAt = 0;
@@ -211,11 +222,18 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const Custom = root.CustomEvent;
     if (typeof Custom === 'function') documentRef.dispatchEvent(new Custom(INPUT_STATE_EVENT, { detail: { source: 'voice-input', listening: busy } }));
   };
+  const clearRecognitionTimers = () => {
+    if (endOfTurnTimer) clearTimeout(endOfTurnTimer);
+    if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
+    endOfTurnTimer = null;
+    recognitionStartTimer = null;
+  };
   const clearTimers = () => {
     if (sendTimer) clearTimeout(sendTimer);
     if (resumeTimer) clearTimeout(resumeTimer);
     sendTimer = null;
     resumeTimer = null;
+    clearRecognitionTimers();
   };
 
   const setState = (next: VoiceModeState, message?: string) => {
@@ -285,20 +303,27 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
   };
 
-  const latestReplyNode = () => {
-    const nodes = messages?.querySelectorAll('.message.assistant .content');
-    return nodes && nodes.length ? nodes[nodes.length - 1] : null;
+  const latestMessage = (): HTMLElement | null => {
+    const nodes = messages?.querySelectorAll<HTMLElement>('article.message');
+    return nodes?.length ? nodes[nodes.length - 1]! : null;
+  };
+  const latestReplyNode = (): HTMLElement | null => {
+    const article = latestMessage();
+    if (!isFreshVoiceReply(article?.classList.contains('assistant') ? 'assistant' : null, article?.dataset.messageId ?? null, nodeBeforeSend)) return null;
+    return article?.querySelector<HTMLElement>('.content') ?? null;
   };
   const latestReply = () => {
     const node = latestReplyNode();
     if (!node) return '';
-    return (root as typeof globalThis & { HafizeChatMarkdown?: { sourceFor?: (n: Element) => string } }).HafizeChatMarkdown?.sourceFor?.(node) || node.textContent || '';
+    const content = (root as typeof globalThis & { HafizeChatMarkdown?: { sourceFor?: (n: Element) => string } }).HafizeChatMarkdown?.sourceFor?.(node) || node.textContent || '';
+    // The shell uses an ellipsis before the model has produced its first token.
+    return content.trim() === '…' ? '' : content;
   };
 
   // The reply is spoken a sentence at a time as it arrives, instead of after the whole of it is written.
   const stopFeeding = () => { if (feedTimer) { clearInterval(feedTimer); feedTimer = null; } };
   const feedSpeech = (done = false) => {
-    if (!awaitingReply || streamStopped || latestReplyNode() === nodeBeforeSend) return;
+    if (!awaitingReply || streamStopped || !latestReplyNode()) return;
     const { piece, end } = nextSpeakable(latestReply(), spokenUpTo, done);
     const Custom = root.CustomEvent;
     if (!piece.trim() || typeof Custom !== 'function') return;
@@ -310,21 +335,23 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const send = (text: string) => {
     const message = text.trim();
     if (!message || state === 'closed') return;
-    if (input.disabled) { setState('thinking', 'Önceki yanıt bitince gönderilecek…'); return; }
     clearTimers();
-    stopRecognition(true);
-    stopSpeech();
-    const words = message.toLocaleLowerCase('tr').replace(/[.!?,…]+$/u, '').trim();
-    let greeting = '';
-    if (/^(?:hafize[, ]+)?(?:naber|n'aber|ne haber|nasılsın)(?:[, ]+hafize)?$/u.test(words)) greeting = 'İyiyim, sen nasılsın?';
-    else if (/^(?:selam|merhaba)(?:[, ]+hafize)?$/u.test(words)) greeting = 'Merhaba! Nasıl gidiyor?';
-    if (greeting && root.speechSynthesis) {
-      setState('idle');
-      setCaption([greeting, '', ''], 'hafize');
-      resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, 1500);
-      documentRef.dispatchEvent(new root.CustomEvent(SPEAK_EVENT, { detail: { text: greeting, origin: ORIGIN } }));
+    if (input.disabled) {
+      // A user can barge in while the old turn is still streaming. Keep the new words
+      // and cancel the old request (the shell treats a submit while busy as Stop).
+      pendingUtterance = message;
+      awaitingReply = false;
+      stopFeeding();
+      stopRecognition(true);
+      stopSpeech();
+      setCaption([message, '', ''], 'user');
+      composer.requestSubmit();
+      setState('thinking', 'Önceki yanıt durduruluyor…');
       return;
     }
+    pendingUtterance = '';
+    stopRecognition(true);
+    stopSpeech();
     input.value = message;
     input.dispatchEvent(new root.Event('input', { bubbles: true }));
     setCaption([message, '', ''], 'user');
@@ -333,19 +360,42 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     spokenUpTo = 0;
     streamStarted = false;
     streamStopped = false;
-    nodeBeforeSend = latestReplyNode();
+    // Use stable message ids, not DOM node identity. renderMessages() replaces all
+    // nodes each time; the old answer used to be spoken again as the new answer.
+    nodeBeforeSend = latestMessage()?.dataset.messageId ?? null;
     setState('thinking');
     composer.requestSubmit();
     stopFeeding();
     feedTimer = setInterval(() => feedSpeech(), FEED_INTERVAL_MS);
     sendTimer = setTimeout(() => {
       sendTimer = null;
-      if (awaitingReply && !sawBusy && !input.disabled) { awaitingReply = false; setState('idle', 'Mesaj gönderilemedi. Tekrar dene.'); }
+      if (awaitingReply && !sawBusy && !input.disabled) {
+        awaitingReply = false;
+        stopFeeding();
+        setState('idle', 'Mesaj gönderilemedi. Tekrar söyleyebilirsin.');
+        if (!muted) resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle') listen(); }, 500);
+      }
     }, SEND_TIMEOUT_MS);
   };
 
+  const retryListening = (message: string) => {
+    if (state === 'closed' || muted || documentRef.hidden) return;
+    if (silentRetries >= MAX_SILENT_RETRIES) {
+      silentRetries = 0;
+      setState('idle', 'Mikrofon durdu. Yeniden başlatmak için küreye dokun.');
+      return;
+    }
+    silentRetries += 1;
+    setState('thinking', message);
+    if (resumeTimer) clearTimeout(resumeTimer);
+    resumeTimer = setTimeout(() => {
+      resumeTimer = null;
+      if (state !== 'closed' && !muted) listen();
+    }, RESTART_DELAY_MS + (silentRetries - 1) * 250);
+  };
+
   const listen = () => {
-    if (state === 'closed' || muted || recognition) return;
+    if (state === 'closed' || muted || recognition || documentRef.hidden) return;
     if (input.disabled) { setState('thinking'); return; }
     stopSpeech();
     clearTimers();
@@ -354,35 +404,61 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let errorCode = '';
     const current = new Recognition();
     recognition = current;
-    current.lang = documentRef.documentElement.lang || 'tr-TR';
+    current.lang = 'tr-TR';
     current.interimResults = true;
     current.continuous = false;
     current.maxAlternatives = 1;
-    current.onstart = () => { if (recognition === current) { setState('listening'); setCaption(['', '', ''], 'user'); } };
+    current.onstart = () => {
+      if (recognition !== current) return;
+      if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
+      recognitionStartTimer = null;
+      setState('listening');
+      setCaption(['', '', ''], 'user');
+    };
     current.onresult = (event) => {
       if (recognition !== current) return;
       ({ final, interim } = readTranscript(event.results));
       const spoken = [final, interim].filter(Boolean).join(' ');
       setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
       energy = Math.max(energy, 0.5);
-      if (final.trim() && !interim.trim()) { silentRetries = 0; send(final); }
+      if (endOfTurnTimer) clearTimeout(endOfTurnTimer);
+      endOfTurnTimer = null;
+      // A final ASR result is not proof the user has finished speaking. Allow a
+      // short silence for an additional phrase instead of sending a half question.
+      if (final && !interim) {
+        endOfTurnTimer = setTimeout(() => {
+          endOfTurnTimer = null;
+          if (recognition === current) stopRecognition(false);
+        }, END_OF_TURN_MS);
+      }
     };
     current.onerror = (event) => { errorCode = String(event?.error || ''); };
     current.onend = () => {
       if (recognition !== current) return;
       recognition = null;
-      if (state === 'closed') return;
-      const said = (final || interim).trim();
+      clearRecognitionTimers();
+      if (state === 'closed' || muted || documentRef.hidden) return;
+      const said = [final, interim].filter(Boolean).join(' ').trim();
       if (said) { silentRetries = 0; send(said); return; }
-      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
+      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
       if (errorCode === 'audio-capture') { setState('idle', 'Mikrofon bulunamadı.'); return; }
-      if (errorCode === 'network') { setState('idle', 'Ses tanıma servisine ulaşılamadı.'); return; }
-      if (!muted && silentRetries < MAX_SILENT_RETRIES) { silentRetries += 1; listen(); return; }
-      silentRetries = 0;
-      setState(muted ? 'paused' : 'idle');
+      if (errorCode === 'language-not-supported') { setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
+      retryListening(errorCode === 'network' ? 'Ses bağlantısı yeniden kuruluyor…' : 'Dinlemeye yeniden bağlanıyorum…');
     };
-    try { current.start(); }
-    catch { recognition = null; setState('idle', 'Mikrofon başlatılamadı.'); }
+    try {
+      current.start();
+      recognitionStartTimer = setTimeout(() => {
+        recognitionStartTimer = null;
+        if (recognition !== current) return;
+        recognition = null;
+        try { current.abort(); } catch { /* recognition may have already ended */ }
+        retryListening('Mikrofon yanıt vermedi, yeniden deneniyor…');
+      }, RECOGNITION_START_TIMEOUT_MS);
+    } catch {
+      recognition = null;
+      clearRecognitionTimers();
+      retryListening('Mikrofon yeniden başlatılıyor…');
+    }
   };
 
   const loadVoices = () => {
@@ -442,6 +518,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     documentRef.body.classList.add('voice-mode-open');
     muted = false;
     silentRetries = 0;
+    pendingUtterance = '';
     renderMute(); renderRate(); renderCaptions(); loadVoices();
     setCaption(['', '', '']);
     if (!orb && canvas) { orb = createVoiceOrb(canvas, root); screen.classList.toggle('vm-webgl', Boolean(orb)); }
@@ -461,6 +538,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     clearTimers();
     stopFeeding();
     awaitingReply = false;
+    pendingUtterance = '';
     stopRecognition(true);
     if (state === 'speaking') stopSpeech();
     state = 'closed';
@@ -494,13 +572,31 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     open(handoff);
   };
   const onOrb = () => {
-    if (state === 'speaking') { streamStopped = awaitingReply; stopSpeech(); listen(); }
-    else if (state === 'listening') stopRecognition(false);
+    if (state === 'speaking') {
+      // Barge-in stops both TTS and any in-flight generation, then reopens ASR.
+      streamStopped = true;
+      awaitingReply = false;
+      stopFeeding();
+      stopSpeech();
+      if (input.disabled) {
+        composer.requestSubmit();
+        setState('thinking', 'Yanıt durduruluyor, ardından dinleyeceğim…');
+      } else {
+        setState('idle');
+        listen();
+      }
+    } else if (state === 'listening') stopRecognition(false);
     else if (state === 'idle' || state === 'paused') { if (muted) { muted = false; renderMute(); } listen(); }
   };
   const onInputMutation = () => {
     if (state === 'closed') return;
     if (input.disabled) { if (awaitingReply) sawBusy = true; if (state !== 'speaking') setState('thinking'); return; }
+    if (pendingUtterance) {
+      const queued = pendingUtterance;
+      pendingUtterance = '';
+      send(queued);
+      return;
+    }
     if (!awaitingReply) { if (state === 'thinking') listen(); return; }
     stopFeeding();
     if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
@@ -523,7 +619,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const onOutputState = (event: Event) => {
     const detail = (event as CustomEvent).detail;
     if (state === 'closed' || detail?.source !== 'voice-output') return;
-    if (detail.speaking && detail.origin === ORIGIN) { if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); return; }
+    if (detail.speaking && (detail.origin === ORIGIN || detail.origin === 'voice-mode-sample')) { if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); return; }
     if (!detail.speaking && state === 'speaking') {
       // Spoke faster than the reply is arriving: the next sentence is on its way.
       if (awaitingReply) { setState('thinking'); return; }
@@ -556,7 +652,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       else if (!event.shiftKey && documentRef.activeElement === last) { event.preventDefault(); first.focus(); }
     }
   };
-  const onVisibility = () => { if (documentRef.hidden && state !== 'closed') { stopRecognition(true); stopSpeech(); setState('paused', 'Sekme arka planda; devam etmek için dokun.'); } };
+  const onVisibility = () => { if (documentRef.hidden && state !== 'closed') { clearTimers(); stopFeeding(); awaitingReply = false; pendingUtterance = ''; stopRecognition(true); stopSpeech(); setState('paused', 'Sekme arka planda; devam etmek için dokun.'); } };
 
   const listeners: Array<() => void> = [];
   const on = (target: EventTarget, type: string, fn: EventListener, options?: AddEventListenerOptions | boolean) => {
@@ -590,6 +686,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   on(sampleBtn, 'click', () => {
     stopRecognition(true);
     const Custom = root.CustomEvent;
+    setState('thinking', 'Ses örneği hazırlanıyor…');
     if (typeof Custom === 'function') documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: 'Merhaba, ben Hafize. Sesim böyle duyuluyor.', origin: 'voice-mode-sample' } }));
   });
   on(plusBtn, 'click', () => { close(); documentRef.querySelector<HTMLButtonElement>('#attachBtn')?.click(); });
@@ -608,7 +705,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   });
 }
 
-const api = Object.freeze({ statusText, readTranscript, captionCapacity, captionTail, captionWindow, installVoiceMode });
+const api = Object.freeze({ statusText, readTranscript, isFreshVoiceReply, captionCapacity, captionTail, captionWindow, installVoiceMode });
 (globalThis as typeof globalThis & { HafizeVoiceMode?: unknown }).HafizeVoiceMode = api;
 const start = () => installVoiceMode(document, globalThis);
 if (typeof document !== 'undefined') {
