@@ -557,11 +557,11 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (state === 'closed' || muted || documentRef.hidden) return;
       const said = [final, interim].filter(Boolean).join(' ').trim();
       if (said) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
+      if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
       if (heardSpeech && !errorCode) {
         retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
         return;
       }
-      if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
       if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
       if (errorCode === 'audio-capture') { setState('idle', 'Mikrofon bulunamadı.'); return; }
       if (errorCode === 'language-not-supported') { setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
