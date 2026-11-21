@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { prepareHostingConfig, prepareRelease } from './firebase-hosting-preflight.mjs';
 
-const project = 'hafize-ua';
+const project = 'projelerim-8fecd';
 const site = 'hafize-ua';
 const sha = '2eea6e257727163e788df61e78bfa64b14a94235';
 const existing = {

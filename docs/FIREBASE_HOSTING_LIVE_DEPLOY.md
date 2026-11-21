@@ -16,13 +16,13 @@ Run workflow**.
 
 ## One-time configuration (repository Settings → Secrets and variables → Actions)
 
-**Repository variables:**
+**Deployment destination (configured in the workflow):**
 
-- `HAFIZE_FIREBASE_PROJECT_ID`: the *actual* Firebase project ID, taken from
-  Firebase Console (not inferred from the site's URL).
-- `HAFIZE_FIREBASE_SITE_ID`: the Firebase Hosting site ID which owns the
-  `<site>.web.app` domain (for this deployment, expected: `hafize-ua`; verify
-  in Firebase Console first).
+- Firebase project ID: `projelerim-8fecd` (provided by the owner).
+- Firebase Hosting site ID: `hafize-ua` (from `hafize-ua.web.app`).
+  Verify in Firebase Console that this Hosting site belongs to the project
+  before granting deployment credentials. These non-secret identifiers are
+  already configured in the workflow; no GitHub variables are required.
 
 **Repository secrets:**
 
@@ -47,8 +47,9 @@ public URL alone.
 ## First deployment
 
 1. Run `npm ci && npm run build` (or let the GitHub Action build it).
-2. Configure the four GitHub variables/secrets above, using existing Firebase
-   Hosting routing rather than inventing backend routes.
+2. Confirm the Firebase project owns the `hafize-ua` Hosting site, then
+   configure the **two GitHub secrets** above, preserving existing Firebase
+   Hosting rewrites rather than inventing backend routes.
 3. In the repository's **Actions** tab, run **Hafize Firebase Hosting — live**
    on `main`, or rerun the failed live job after configuration.
 4. Confirm all steps succeed, particularly the final `release.json` commit
