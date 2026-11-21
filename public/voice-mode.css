@@ -199,7 +199,18 @@ body.voice-mode-open { overflow: hidden; }
   transition: opacity 0.2s ease, background 0.2s ease;
 }
 .voice-mode[data-state="listening"] .vm-status { color: var(--vm-fg); }
-.voice-mode[data-state="listening"] .vm-status::before { opacity: 1; background: var(--vm-orange); animation: vmDot 1.2s ease-in-out infinite; }
+.voice-mode[data-state="listening"] .vm-status::before { opacity: 0.6; background: var(--vm-orange); }
+.voice-mode[data-state="listening"][data-mic-phase="speech"] .vm-status::before,
+.voice-mode[data-state="listening"][data-mic-phase="transcribing"] .vm-status::before {
+  opacity: 1;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--vm-orange) 17%, transparent);
+  animation: vmDot 0.65s ease-in-out infinite;
+}
+.voice-mode[data-state="listening"][data-mic-phase="silent"] .vm-status::before {
+  opacity: 1;
+  background: #edb36f;
+  animation: none;
+}
 .voice-mode[data-state="thinking"] .vm-status::before { opacity: 1; animation: vmDot 0.8s ease-in-out infinite; }
 .voice-mode[data-state="speaking"] .vm-status::before { opacity: 1; background: var(--vm-orange-strong); }
 
