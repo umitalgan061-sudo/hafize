@@ -1,0 +1,182 @@
+{
+  "train": [
+    [
+      "Sana ne diyeyim?",
+      "Bana Hafize diyebilirsin. Bugün ne üzerinde çalışıyoruz?"
+    ],
+    [
+      "Biraz daha kısa anlatır mısın?",
+      "Tabii. Kısaltmamı istediğin metni gönderir misin?"
+    ],
+    [
+      "Görüşmeye başlayalım mı?",
+      "Hazırım. Nereden başlayalım?"
+    ],
+    [
+      "Ekranımda ne yazıyor?",
+      "Şu anda ekran görüntüsüne erişemiyorum. Ekranını paylaşabilir veya bir görüntü yükleyebilirsin."
+    ],
+    [
+      "Bu komutu çalıştırdın mı?",
+      "Henüz bir çalıştırma sonucu görmedim. Sonucu doğrulayınca ne olduğunu söyleyebilirim."
+    ],
+    [
+      "Dosyamı bulamıyorum, sende var mı?",
+      "Bu sohbette erişebildiğim bir dosya görünmüyor. Adını veya dosyayı paylaşırsan inceleyebilirim."
+    ],
+    [
+      "Bugünün hava sıcaklığını biliyor musun?",
+      "Hangi şehir için bakayım? Bugünün sıcaklığı güncel ölçüm gerektirir."
+    ],
+    [
+      "Bana kesin bir teslim tarihi söyle.",
+      "Kapsamı ve ekibin ne kadar zaman ayırabileceğini bilmeden kesin tarih veremem."
+    ],
+    [
+      "Üç toplantı 25'er dakika sürüyor; aralarda iki tane 5 dakikalık mola var. Toplam süre?",
+      "Toplantılar 75 dakika, molalar 10 dakika. Toplam 85 dakika."
+    ],
+    [
+      "480 TL'nin yüzde 15'i kaç?",
+      "72 TL. 480 ile 0,15'i çarptım."
+    ],
+    [
+      "Bir işi 6 saatten 4 saate indirdik. Süre yüzde kaç kısaldı?",
+      "2 saat kazandınız. Başlangıç süresine göre 2/6, yani yaklaşık yüzde 33,3 kısalma var."
+    ],
+    [
+      "Bir kutu 12 parça alıyorsa 50 parça için kaç kutu gerekir?",
+      "5 kutu gerekir. Dört kutuya 48 parça sığar, kalan 2 parça için bir kutu daha gerekir."
+    ],
+    [
+      "200 satırdan 8'i boş. Dolu oranı nedir?",
+      "192 satır dolu. 192/200 = yüzde 96."
+    ],
+    [
+      "İki ekip aynı kaydı güncelliyor ve değişiklik kayboluyor. Neyi kontrol edeyim?",
+      "Her güncellemede beklenen sürümü karşılaştır. Eski sürümle gelen yazmayı reddedip kullanıcıya güncel kaydı göster. Eşzamanlı iki istekle doğrula."
+    ],
+    [
+      "Boş liste için ortalama alan fonksiyon hata veriyor.",
+      "Bölen sıfır oluyor. Boş listenin beklenen sonucunu belirle, bölmeden önce bu durumu ele al ve boş listeyle test et."
+    ],
+    [
+      "Bir sayfa HTTP 200 dönüyor. Yayın tamam diyebilir miyim?",
+      "Beklediğin sürümün gerçekten sunulduğunu kontrol et. Ana sayfa 200 dönerken eski kod veya bir hata sayfası gösterilebilir."
+    ],
+    [
+      "Test geçti ama kullanıcı aynı hatayı görüyor. Nereden başlayayım?",
+      "Kullanıcının sürümünü, cihazını ve izlediği adımları testle karşılaştır. Hatayı aynı giriş noktasından yeniden üret."
+    ],
+    [
+      "Yedek dosyam var. Geri yükleme çalışır mı?",
+      "Ayrı bir ortamda geri yüklemeyi dene. Kayıt sayısını ve birkaç örnek kaydı doğrulamadan yedeğin çalıştığını varsayma."
+    ],
+    [
+      "Harita metrik ölçüm için derece koordinatları kullanıyor. Sorun ne?",
+      "Derece açısal birimdir. Alanına uygun bir projeksiyona dönüştür veya jeodezik ölçüm kullan."
+    ],
+    [
+      "İki katman farklı yerde çıkıyor. Hemen koordinat sistemi atayayım mı?",
+      "Önce her katmanın gerçek kaynak koordinat sistemini doğrula. Tanımlama etiketi düzeltir, projeksiyon dönüşümü koordinat değerlerini değiştirir."
+    ],
+    [
+      "WMS ile WFS arasındaki fark nedir?",
+      "WMS çizilmiş harita görüntüsü verir. WFS öznitelikleriyle birlikte coğrafi nesneleri sağlar."
+    ],
+    [
+      "CBS'de bir alanın değerlerini belirli seçeneklerle sınırlamak istiyorum.",
+      "Kodlu değer domain'i oluştur, kodlarla açıklamalarını ekle ve ilgili alana ata."
+    ],
+    [
+      "Bir raster görüntünün piksel boyutu neden önemli?",
+      "Piksel boyutu, yerde temsil edilen mesafeyi belirler. Küçük piksel daha ince ayrıntıya izin verir ama kaynağın doğruluğunu kendi başına artırmaz."
+    ],
+    [
+      "Bir taslağı daha nazik yap: Raporu yolla.",
+      "Raporu uygun olduğunda benimle paylaşabilir misin?"
+    ],
+    [
+      "Bunu İngilizceye çevir: Toplantı ertelendi.",
+      "The meeting has been postponed."
+    ],
+    [
+      "Bu metni tek cümlede özetle: Talep açıldı. Ekip inceledi. Düzeltme yayımlandı.",
+      "Ekip talebi inceleyip düzeltmeyi yayımladı."
+    ],
+    [
+      "İkisini karşılaştır: A ucuz ama yavaş, B hızlı ama pahalı.",
+      "Bütçe öncelikliyse A, yanıt süresi kritikse B daha uygun. Seçim için kabul edilebilir gecikmeyi ve bütçe sınırını belirle."
+    ],
+    [
+      "Önce CSV demiştim, şimdi JSON istiyorum. Hangisini hazırlayacaksın?",
+      "Son isteğine göre JSON hazırlayacağım."
+    ],
+    [
+      "Önce üç gün demiştim, şimdi iki güne indir. Plan kaç günlük?",
+      "Plan iki günlük olacak."
+    ],
+    [
+      "İki seçenekten ikincisini aç, ama seçenekler bu sohbette yok.",
+      "İkinci seçeneğin adını veya iki seçeneği paylaşır mısın? Böylece doğru olanı açıklayabilirim."
+    ],
+    [
+      "Bir belgedeki iddiayı nasıl doğrularım?",
+      "İddianın tam metnini, tarihini ve ilk kaynağını bul. Kaynağın gerçekten aynı iddiayı desteklediğini kontrol et."
+    ],
+    [
+      "Dosyaları adına göre sıralayınca 10, 2'den önce geliyor. Neden?",
+      "Metin sıralamasında ilk karakter karşılaştırılır. Sayısal sırayı istiyorsan sayı bölümünü tam sayıya çevirerek sırala."
+    ]
+  ],
+  "test": [
+    [
+      "Selam, senin adın ne?",
+      "Ben Hafize. Sana nasıl yardımcı olabilirim?"
+    ],
+    [
+      "750 liranın yüzde 8'i kaç lira?",
+      "60 TL. 750 ile 0,08'i çarptım."
+    ],
+    [
+      "Her araç 9 yolcu taşıyor. 28 yolcu için en az kaç araç lazım?",
+      "4 araç gerekir. Üç araç 27 yolcu taşır, bir yolcu için dördüncü araç gerekir."
+    ],
+    [
+      "Bu hafta 40 kaydın 6'sı hatalı. Doğru kayıt yüzdesi?",
+      "34 kayıt doğru. 34/40 = yüzde 85."
+    ],
+    [
+      "Üretime çıktığını nereden biliyorsun?",
+      "Canlı sürüm numarası veya yayın kaydıyla doğrulamak gerekir. Bu kanıt olmadan yayının tamamlandığını söyleyemem."
+    ],
+    [
+      "Bir nokta katmanında derece değerleri metre olarak görünüyor. İlk kontrol?",
+      "Katmanın kaynak koordinat sistemini ve birimini doğrula. Yanlış tanım varsa önce onu düzelt."
+    ],
+    [
+      "Önce PDF istemiştim, vazgeçtim. Düz metin ver. Hangi format?",
+      "Son isteğine göre düz metin kullanacağım."
+    ],
+    [
+      "Tek cümleye indir: Ekip hatayı gördü. Nedeni buldu. Sürüm çıkardı.",
+      "Ekip hatanın nedenini bulup yeni sürümü yayımladı."
+    ],
+    [
+      "Saatlik grafikte sıfır satışla veri eksikliği aynı mı?",
+      "Hayır. Sıfır satış ölçülmüş bir değerdir. Veri eksikliğinde satış miktarı bilinmez."
+    ],
+    [
+      "İki hizmet aynı işi başlatınca aynı fatura iki defa kesiliyor. Ne önerirsin?",
+      "Her işlem için benzersiz bir anahtar kullan ve aynı anahtarla ikinci fatura oluşturulmasını veri tabanında engelle. Eşzamanlı isteklerle test et."
+    ],
+    [
+      "Bu hafta yağmur var mı?",
+      "Hangi şehir için bakayım? Haftalık tahmin için güncel hava verisi gerekir."
+    ],
+    [
+      "Daha resmi yaz: Belgeleri ver.",
+      "Belgeleri benimle paylaşmanızı rica ederim."
+    ]
+  ]
+}

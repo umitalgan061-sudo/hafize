@@ -1,0 +1,29 @@
+name: Turkish response adapter
+on:
+  workflow_dispatch:
+  push:
+    branches: [turkish-response-lora]
+    paths: ['.github/workflows/turkish-response-training.yml']
+permissions:
+  contents: read
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      HF_HUB_DISABLE_XET: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: CPU training dependencies
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu torch==2.7.1
+          pip install transformers==4.52.4 peft==0.15.2 huggingface-hub==0.32.4
+      - run: python scripts/train-turkish-response.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hafize-tr-adapter
+          path: hafize-tr-adapter/
+          retention-days: 90
