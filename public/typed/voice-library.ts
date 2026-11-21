@@ -375,32 +375,50 @@ export function unlockAudio(): void {
     void player.play().then(() => { unlocked = true; }).catch(() => undefined).finally(() => URL.revokeObjectURL(silence));
   } catch { /* no audio on this page */ }
 }
+/** iOS can resolve audio.play() and then never advance or fire ended/error. */
+export const AUDIO_STALL_TIMEOUT_MS = 9_000;
+export function hasAudioStalled(nowMs: number, lastAdvancedMs: number, timeoutMs = AUDIO_STALL_TIMEOUT_MS): boolean {
+  return Number.isFinite(nowMs) && Number.isFinite(lastAdvancedMs) && nowMs - lastAdvancedMs >= timeoutMs;
+}
 export function speakChunk(voice: PiperVoice, speaker: number, text: string, rate: number, callbacks: SpeakCallbacks): SpeakHandle {
   let stopped = false;
   let url = '';
   let timer: ReturnType<typeof setInterval> | null = null;
   const clear = () => { if (timer) clearInterval(timer); timer = null; if (url) URL.revokeObjectURL(url); url = ''; };
+  const fail = (error: Error) => {
+    if (stopped) return;
+    stopped = true;
+    try { player?.pause(); } catch { /* already stopped */ }
+    clear();
+    callbacks.onerror?.(error);
+  };
   (async () => {
     const { pcm, sampleRate } = await synthesize(voice, speaker, text, rate);
     if (stopped) return;
     const audio = (player ||= new Audio());
     url = URL.createObjectURL(new Blob([wavOf(pcm, sampleRate) as Uint8Array<ArrayBuffer>], { type: 'audio/wav' }));
-    audio.onended = () => { clear(); if (!stopped) callbacks.onend?.(); };
-    audio.onerror = () => { clear(); if (!stopped) callbacks.onerror?.(new Error('AUDIO_FAILED')); };
+    audio.onended = () => { if (stopped) return; stopped = true; clear(); callbacks.onend?.(); };
+    audio.onerror = () => fail(new Error('AUDIO_FAILED'));
     audio.src = url;
     try { await audio.play(); } catch (error) { throw new Error((error as Error)?.name === 'NotAllowedError' ? 'AUDIO_BLOCKED' : 'AUDIO_FAILED'); }
     if (stopped) { audio.pause(); return; }
     callbacks.onstart?.();
     const timeline = wordTimeline(text);
     let next = 0;
+    let lastTime = audio.currentTime;
+    let lastAdvanceMs = Date.now();
     timer = setInterval(() => {
-      const progress = audio.duration ? audio.currentTime / audio.duration : 0;
+      if (stopped) return;
+      const time = audio.currentTime;
+      if (time > lastTime + 0.01) { lastTime = time; lastAdvanceMs = Date.now(); }
+      if (hasAudioStalled(Date.now(), lastAdvanceMs)) { fail(new Error('AUDIO_STALLED')); return; }
+      const progress = audio.duration ? time / audio.duration : 0;
       while (next < timeline.length && timeline[next].at <= progress) {
         callbacks.onword?.(timeline[next].index, timeline[next].length);
         next += 1;
       }
-    }, 50);
-  })().catch((error) => { clear(); if (!stopped) callbacks.onerror?.(error instanceof Error ? error : new Error(String(error))); });
+    }, 100);
+  })().catch((error) => fail(error instanceof Error ? error : new Error(String(error))));
   return { stop() { stopped = true; try { if (url) player?.pause(); } catch { /* already ended */ } clear(); } };
 }
 
