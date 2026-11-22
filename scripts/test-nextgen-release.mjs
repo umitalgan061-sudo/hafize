@@ -1,5 +1,6 @@
 import { readFile, access } from 'node:fs/promises';
 import { join } from 'node:path';
+import { assertCacheVersionAtLeast } from './shell-cache-contract.mjs';
 
 const root = process.cwd();
 const read = (path) => readFile(join(root, path), 'utf8');
@@ -53,7 +54,9 @@ assert(files.vite.includes("'sw': resolve(ROOT, 'public/sw.ts')"), 'sw-vite-entr
 assert(files.index.includes('/typed-build/legacy-app.js'), 'legacy-app-html-entry');
 assert(files.app.includes("navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module', scope: '/' })"), 'module-service-worker-registration');
 assert(files.sw.includes("from './sw-policy.ts'"), 'typed-sw-policy-import');
-assert(files.swPolicy.includes("CURRENT_CACHE = `${CACHE_PREFIX}v168`"), 'cache-version');
+// Cache versions must increase for each PWA shell change; pinning v168 makes
+// every later legitimate release fail the quality gate.
+assertCacheVersionAtLeast(168, 'cache-version');
 assert(!await exists('public/sw.js'), 'legacy-sw-removed');
 assert(!await exists('public/sw-policy.js'), 'legacy-sw-policy-removed');
 

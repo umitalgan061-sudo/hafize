@@ -3,13 +3,13 @@
    chat view is simplified. The "Ayarlar" page (data-workspace="settings") is untouched. */
 
 /* --- Right rail: not shown next to the chat ------------------------------------- */
-.main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) {
+html[data-hafize-layout="focused"] .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) {
   grid-template-columns: minmax(0, 1fr);
 }
-.main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) > .utility-rail {
+html[data-hafize-layout="focused"] .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) > .utility-rail {
   display: none !important;
 }
-.main .primary-column form#composer.composer {
+html[data-hafize-layout="focused"] .main .primary-column form#composer.composer {
   left: 50%;
 }
 
@@ -106,39 +106,39 @@ html {
 }
 
 /* --- Top bar: the agent is always "Hafize"; the online badge is an indicator only -- */
-.topbar .agent-compact,
-#hafizeRuntimeDetails {
+html[data-hafize-layout="focused"] .topbar .agent-compact,
+html[data-hafize-layout="focused"] #hafizeRuntimeDetails {
   display: none !important;
 }
-#hafizeRuntimeStatus {
+html[data-hafize-layout="focused"] #hafizeRuntimeStatus {
   pointer-events: none;
 }
 
 /* --- Composer: model, provider and tools are chosen automatically ------------------ */
-#composer .composer-provider,
-#composer .composer-model,
-#toolModeBtn,
-#screenShareBtn,
-#screenSharePreview,
-#modelPreferencesButton,
-#composerHistoryToggle,
-#composerHistoryHelp,
-#composerHistorySettings,
-#composerHistoryBackup,
-#composerHistoryPanel,
-#composer .stream-status {
+html[data-hafize-layout="focused"] #composer .composer-provider,
+html[data-hafize-layout="focused"] #composer .composer-model,
+html[data-hafize-layout="focused"] #toolModeBtn,
+html[data-hafize-layout="focused"] #screenShareBtn,
+html[data-hafize-layout="focused"] #screenSharePreview,
+html[data-hafize-layout="focused"] #modelPreferencesButton,
+html[data-hafize-layout="focused"] #composerHistoryToggle,
+html[data-hafize-layout="focused"] #composerHistoryHelp,
+html[data-hafize-layout="focused"] #composerHistorySettings,
+html[data-hafize-layout="focused"] #composerHistoryBackup,
+html[data-hafize-layout="focused"] #composerHistoryPanel,
+html[data-hafize-layout="focused"] #composer .stream-status {
   display: none !important;
 }
 
 /* Room between the text box and the button row so the focus ring does not run under the send button. */
-#composer .composer-row {
+html[data-hafize-layout="focused"] #composer .composer-row {
   margin-top: 10px;
   align-items: center;
 }
 
 /* The disclaimer used to hang below the fixed composer and got clipped by the window edge;
    with the pickers gone it fits inside the composer, next to the send button. */
-#composer .agent-hint {
+html[data-hafize-layout="focused"] #composer .agent-hint {
   position: static;
   transform: none;
   white-space: normal;
@@ -147,25 +147,25 @@ html {
 }
 
 /* --- Messages: copy and retry are enough ------------------------------------------- */
-#messages[aria-busy="true"] .message:last-child .message-actions {
+html[data-hafize-layout="focused"] #messages[aria-busy="true"] .message:last-child .message-actions {
   visibility: hidden;
 }
-.message .assistant-message-actions,
-.message .message-fork-actions,
-.message .message-workspace-actions {
+html[data-hafize-layout="focused"] .message .assistant-message-actions,
+html[data-hafize-layout="focused"] .message .message-fork-actions,
+html[data-hafize-layout="focused"] .message .message-workspace-actions {
   display: none !important;
 }
 
 /* --- Sidebar: preserve all workspace navigation entries -----------------------------
    Görevler and Bağlantılar must remain accessible: GitHub safe-write lives
    under Bağlantılar. Hide only optional sidebar power-user utilities. */
-#hafizeConversationForkHub,
-#hafizeConversationForks,
-.history-block .conversation-workspace,
-.history-block .history-export,
-.conversation-row .workspace-row-check,
-#sidebar .brand-row,
-#sidebar .sidebar-footer small {
+html[data-hafize-layout="focused"] #hafizeConversationForkHub,
+html[data-hafize-layout="focused"] #hafizeConversationForks,
+html[data-hafize-layout="focused"] .history-block .conversation-workspace,
+html[data-hafize-layout="focused"] .history-block .history-export,
+html[data-hafize-layout="focused"] .conversation-row .workspace-row-check,
+html[data-hafize-layout="focused"] #sidebar .brand-row,
+html[data-hafize-layout="focused"] #sidebar .sidebar-footer small {
   display: none !important;
 }
 
@@ -194,4 +194,26 @@ html {
 }
 
 /* --- Runtime connectivity pill is not part of the focused chat --------------------------- */
-.runtime-status { display: none !important; }
+html[data-hafize-layout="focused"] .runtime-status { display: none !important; }
+
+/* Classic complete workspace is restored by default. The focused presentation is optional. */
+.topbar .layout-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 36px; padding: 7px 11px; flex-shrink: 0; white-space: nowrap;
+  border: 1px solid var(--premium-line, var(--line)); border-radius: 999px;
+  background: var(--premium-surface, var(--panel)); color: var(--premium-text, var(--ink));
+  cursor: pointer;
+}
+.topbar .layout-toggle:focus-visible {
+  outline: 3px solid var(--premium-orange-strong, var(--accent)); outline-offset: 2px;
+}
+html[data-hafize-layout="classic"] .topbar .layout-toggle {
+  border-color: color-mix(in srgb, var(--premium-orange, var(--accent)) 45%, var(--premium-line, var(--line)));
+}
+@media (max-width: 760px) {
+  .topbar .layout-toggle [data-layout-label] { display: none; }
+  .topbar .layout-toggle { width: 36px; padding-inline: 0; }
+}
+@media (forced-colors: active) {
+  .topbar .layout-toggle { border-color: ButtonText; color: ButtonText; }
+}
