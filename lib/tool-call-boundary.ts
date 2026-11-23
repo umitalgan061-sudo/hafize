@@ -3,6 +3,9 @@ import type { JsonRecord } from './runtime-contracts.ts';
 const MAX_TOOL_NAME_LENGTH=120;
 const MAX_TOOL_CALL_ID_LENGTH=200;
 const MAX_ARGUMENTS_LENGTH=16_384;
+// Only the approval-gated GitHub App file editor may carry larger source text.
+const MAX_GITHUB_DEVELOP_ARGUMENTS_LENGTH=128 * 1024;
+const argumentLimit = (tool: unknown): number => tool === 'github_develop' ? MAX_GITHUB_DEVELOP_ARGUMENTS_LENGTH : MAX_ARGUMENTS_LENGTH;
 const MAX_RESULT_TEXT_LENGTH=32_000;
 
 export class ToolBoundaryError extends Error {
@@ -32,11 +35,11 @@ export function normalizeToolCall(toolCall:unknown):NormalizedToolCall{
   const id=text(source.id,MAX_TOOL_CALL_ID_LENGTH,'INVALID_TOOL_CALL_ID');
   const name=text(fn.name,MAX_TOOL_NAME_LENGTH,'INVALID_TOOL_NAME');
   if(typeof fn.arguments!=='string')throw new ToolBoundaryError('INVALID_TOOL_ARGUMENTS');
-  if(fn.arguments.length>MAX_ARGUMENTS_LENGTH)throw new ToolBoundaryError('TOOL_ARGUMENTS_TOO_LARGE');
+  if(fn.arguments.length>argumentLimit(name))throw new ToolBoundaryError('TOOL_ARGUMENTS_TOO_LARGE');
   return Object.freeze({id,type:'function' as const,function:Object.freeze({name,arguments:fn.arguments})});
 }
-export function parseToolArguments(raw:unknown):Readonly<JsonRecord>{
-  if(typeof raw!=='string'||raw.length>MAX_ARGUMENTS_LENGTH)throw new ToolBoundaryError('TOOL_ARGUMENTS_TOO_LARGE');
+export function parseToolArguments(raw:unknown, toolName:unknown=''):Readonly<JsonRecord>{
+  if(typeof raw!=='string'||raw.length>argumentLimit(toolName))throw new ToolBoundaryError('TOOL_ARGUMENTS_TOO_LARGE');
   if(!raw.trim())return Object.freeze({});
   let value:unknown;try{value=JSON.parse(raw);}catch{throw new ToolBoundaryError('INVALID_TOOL_ARGUMENTS');}
   if(!value||typeof value!=='object'||Array.isArray(value))throw new ToolBoundaryError('INVALID_TOOL_ARGUMENTS');
@@ -49,4 +52,4 @@ export function sanitizeToolError(error:unknown):Readonly<{code:string;message:s
   const status=Number(value?.status);
   return Object.freeze({code:(code||'TOOL_EXECUTION_FAILED').slice(0,120),message:message.slice(0,MAX_RESULT_TEXT_LENGTH),status:Number.isInteger(status)?status:null});
 }
-export const TOOL_CALL_LIMITS=Object.freeze({maxToolNameLength:MAX_TOOL_NAME_LENGTH,maxToolCallIdLength:MAX_TOOL_CALL_ID_LENGTH,maxArgumentsLength:MAX_ARGUMENTS_LENGTH,maxResultTextLength:MAX_RESULT_TEXT_LENGTH});
+export const TOOL_CALL_LIMITS=Object.freeze({maxToolNameLength:MAX_TOOL_NAME_LENGTH,maxToolCallIdLength:MAX_TOOL_CALL_ID_LENGTH,maxArgumentsLength:MAX_ARGUMENTS_LENGTH,maxGitHubDevelopArgumentsLength:MAX_GITHUB_DEVELOP_ARGUMENTS_LENGTH,maxResultTextLength:MAX_RESULT_TEXT_LENGTH});

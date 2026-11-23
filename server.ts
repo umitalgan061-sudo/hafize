@@ -24,6 +24,9 @@ import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/git
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
+import { createGitHubAgentDevelopment } from './lib/github-agent-development.ts';
+import { allowSafeGitHubAutonomy } from './lib/github-agent-autonomy.ts';
+import { parseRuntimeConfig } from './lib/runtime-config.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -138,6 +141,9 @@ function hasMetricsAuthorization(req) {
 
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
+// Agent access is narrower than the UI writer; Retake is not enabled by default.
+const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')
+  .filter((repo) => GITHUB_WRITE_REPOS.some((item) => item.toLowerCase() === repo.toLowerCase()));
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
@@ -167,6 +173,12 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
+const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
+  ? createGitHubAgentDevelopment({ writer: GITHUB_WORKSPACE_WRITER, allowedRepositories: GITHUB_AGENT_REPOS })
+  : null;
+// Standing consent requires explicit server opt-in and owner session authentication.
+const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
+const GITHUB_SAFE_AUTONOMY_OPT_IN = /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_SAFE_AUTONOMY || '').trim());
 // Agent code changes use the same server-side writer as the Connections UI. This keeps the
 // GitHub App token out of the model context and preserves the writer's repository, path,
 // branch, content and one-time-ticket protections. Deployment and merge are intentionally not
@@ -787,6 +799,14 @@ async function handleAgentRun(req, res) {
   const requestAbort = attachDisconnectAbort(req, AGENT_TIMEOUT_MS);
   const principal = req.__hafizePrincipal || null;
   const ownerId = principal?.ownerId || '';
+  const safeGitHubAutonomy = Boolean(GITHUB_APP_AUTH) && allowSafeGitHubAutonomy({
+    optedIn: GITHUB_SAFE_AUTONOMY_OPT_IN,
+    authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired,
+    principal,
+    configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject,
+    agentId: agent.id,
+    primaryAgentId: AGENT_REGISTRY.defaultAgent
+  });
   const conversationId = typeof body.conversationId === 'string' && CONVERSATION_ID_PATTERN.test(body.conversationId) ? body.conversationId : '';
   const emitEvent = streamResponse ? (type, payload) => { startSse(res); writeSseEvent(res, type, payload); } : null;
   const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
@@ -862,6 +882,8 @@ async function handleAgentRun(req, res) {
     workspaceRoot: ROOT,
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    safeGitHubAutonomy,
     delegateAgent: delegator.delegate,
     ...connectorContext,
     skillsRuntime: SKILLS_RUNTIME,
@@ -877,6 +899,8 @@ async function handleAgentRun(req, res) {
     nvidiaConfigured: Boolean(NVIDIA_API_KEY),
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    safeGitHubAutonomy,
     delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
     approvalGranted: false,
     signal: requestAbort.signal,
