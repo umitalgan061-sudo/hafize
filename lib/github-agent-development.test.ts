@@ -39,6 +39,40 @@ describe('GitHub App agent development boundary', () => {
     expect(writer.issueApproval).not.toHaveBeenCalled();
   });
 
+  it('uses standing owner approval for feature branch and draft PR without a separate prompt', async () => {
+    const { tool, writer, requestApproval } = fixture();
+    const result = await tool.execute({
+      operation: 'branch', repository: REPOSITORY, branch: BRANCH
+    }, { safeAutonomy: true });
+    expect(result).toMatchObject({ action: 'branch' });
+    expect(writer.issueApproval).toHaveBeenCalledWith('branch', {
+      repository: REPOSITORY, branch: BRANCH, fromRef: 'main'
+    }, true);
+    expect(requestApproval).not.toHaveBeenCalled();
+    await tool.execute({
+      operation: 'pull', repository: REPOSITORY, branch: BRANCH, title: 'Safe review'
+    }, { safeAutonomy: true });
+    expect(writer.createPullRequest).toHaveBeenCalledWith('single-use-ticket',
+      expect.objectContaining({ head: BRANCH, base: 'main', draft: true }));
+    expect(requestApproval).not.toHaveBeenCalled();
+  });
+
+  it('even in safe autonomy rejects unauthorized repos, branches and arbitrary write controls', async () => {
+    const { tool, writer } = fixture();
+    await expect(tool.execute({
+      operation: 'file', repository: REPOSITORY, branch: 'main',
+      path: 'src/safe.ts', message: 'edit', content: 'ok'
+    }, { safeAutonomy: true })).rejects.toMatchObject({ code: 'INVALID_GITHUB_BRANCH' });
+    await expect(tool.execute({
+      operation: 'branch', repository: 'umitalgan061-sudo/retake', branch: BRANCH
+    }, { safeAutonomy: true })).rejects.toMatchObject({ code: 'GITHUB_REPO_NOT_ALLOWED' });
+    await expect(tool.execute({
+      operation: 'pull', repository: REPOSITORY, branch: BRANCH,
+      title: 'unsafe', draft: false
+    }, { safeAutonomy: true })).rejects.toMatchObject({ code: 'INVALID_GITHUB_ARGUMENTS' });
+    expect(writer.issueApproval).not.toHaveBeenCalled();
+  });
+
   it('only accepts a separate Hafize feature branch and its allowlisted repo', async () => {
     const { tool, writer, requestApproval } = fixture();
     for (const branch of ['main', 'feature/unsafe', 'hafize/auto-../escape', 'hafize/auto-bad.lock']) {
