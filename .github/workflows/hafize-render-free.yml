@@ -1,0 +1,29 @@
+name: Hafize Render Free — guardrails
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - render.yaml
+      - scripts/render-free-blueprint.test.mjs
+      - .github/workflows/hafize-render-free.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - render.yaml
+      - scripts/render-free-blueprint.test.mjs
+      - .github/workflows/hafize-render-free.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Verify Render Free plan, auth and no embedded credentials
+        run: node --test scripts/render-free-blueprint.test.mjs
