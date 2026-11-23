@@ -34,9 +34,9 @@ Run workflow**.
   configuration of the live site. Preserve existing API rewrites, headers,
   redirects and other production Hosting settings. The workflow refuses to
   deploy if this JSON is missing or points to another site. Its Hosting public
-  directory must be `public`, since that is where the project's built UI
-  lives. A config using a different public directory needs a reviewed change,
-  not a forced replacement.
+  directory may be `public`, `dist`, `build`, `www`, `web`, `hosting`, or `site`.
+  The workflow preserves the configured path and stages the built UI in that
+  output directory. Other paths are blocked until explicitly reviewed.
 
 Never commit service-account credentials, access tokens, a local `.env` file,
 or private keys. If you only have a running website but do not know its active
@@ -69,3 +69,15 @@ The workflow deploys static Firebase Hosting files only. It cannot turn
 into a Firebase backend. Those require an independently deployed, protected
 Cloud Run / Functions runtime and the corresponding **existing** Hosting
 rewrites. That backend must not be replaced by a default catch-all rewrite.
+
+## Hafize self-deployment
+
+On a protected server with an installed GitHub App (or token) authorized for
+**Actions: write** on `umitalgan061-sudo/hafize`, the app may request the
+existing `Hafize Firebase Hosting — live` GitHub workflow to run on `main`.
+This is distinct from browser access or uploading the Firebase service-account
+JSON into Hafize. The Firebase key stays in GitHub Actions Secrets, never in
+client JavaScript. Pushing an approved change to `main` also triggers the
+workflow when a watched frontend path changes. An agent operating only on
+Firebase Hosting's static frontend cannot directly authenticate to GitHub
+Actions without an independently hosted authorized backend.

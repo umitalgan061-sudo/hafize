@@ -5,7 +5,7 @@
  * Never log credentials or the raw configuration. A missing configuration is a
  * deployment blocker, not a reason to invent rewrites for /api.
  */
-import { existsSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, rmSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 function checkId(value, label) {
@@ -31,8 +31,12 @@ export function prepareHostingConfig(rawConfig, projectId, siteId) {
     throw new Error('FIREBASE_HOSTING_CONFIG_SINGLE_SITE_REQUIRED');
   }
   const hosting = config.hosting;
-  if (hosting.public !== 'public') {
-    throw new Error('FIREBASE_HOSTING_CONFIG_EXPECTED_PUBLIC_DIRECTORY');
+  // Preserve the configured Hosting public directory rather than silently
+  // rewriting an existing project's deployment paths. Only permit known
+  // generated-output directory names, never repository roots or dot paths.
+  const safeOutputDirs = new Set(['public', 'dist', 'build', 'www', 'web', 'hosting', 'site']);
+  if (typeof hosting.public !== 'string' || !safeOutputDirs.has(hosting.public)) {
+    throw new Error('FIREBASE_HOSTING_CONFIG_UNSUPPORTED_PUBLIC_DIRECTORY');
   }
   if (hosting.target) {
     throw new Error('FIREBASE_HOSTING_CONFIG_TARGET_REQUIRES_UNTRACKED_FIREBASERC');
@@ -52,11 +56,24 @@ export function prepareRelease(config, projectId, siteId, commitSha, opts = {}) 
   }
   const exists = opts.exists ?? existsSync;
   const write = opts.write ?? writeFileSync;
+  const copy = opts.copy ?? cpSync;
+  const remove = opts.remove ?? rmSync;
   if (!exists('public/index.html') || !exists('public/typed-build/voice-mode.js')) {
     throw new Error('FIREBASE_HOSTING_BUILD_MISSING');
   }
-  write('firebase.json', JSON.stringify(prepared, null, 2) + '\n', { mode: 0o600 });
+  // Embed a verifiable release marker into the built public assets.
   write('public/release.json', JSON.stringify({ commit: commitSha }) + '\n');
+  const targetDir = prepared.hosting.public;
+  if (targetDir !== 'public') {
+    // Only the validated dedicated output directory is cleared. The tracked
+    // source directory and every other repository file remain untouched.
+    remove(targetDir, { recursive: true, force: true });
+    copy('public', targetDir, { recursive: true });
+    if (!exists(targetDir + '/index.html') || !exists(targetDir + '/typed-build/voice-mode.js')) {
+      throw new Error('FIREBASE_HOSTING_STAGED_BUILD_MISSING');
+    }
+  }
+  write('firebase.json', JSON.stringify(prepared, null, 2) + '\n', { mode: 0o600 });
   return prepared;
 }
 
