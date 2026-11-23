@@ -24,6 +24,7 @@ import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/git
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
+import { createGitHubAgentDevelopment } from './lib/github-agent-development.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -137,6 +138,10 @@ function hasMetricsAuthorization(req) {
 
 const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
+// Agent access is narrower than the UI writer: Retake stays excluded until
+// explicitly configured after the Hafize-only approval flow is verified.
+const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS || 'umitalgan061-sudo/hafize')
+  .filter((repo) => GITHUB_WRITE_REPOS.some((item) => item.toLowerCase() === repo.toLowerCase()));
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
@@ -166,6 +171,9 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
+const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
+  ? createGitHubAgentDevelopment({ writer: GITHUB_WORKSPACE_WRITER, allowedRepositories: GITHUB_AGENT_REPOS })
+  : null;
 const MAX_BODY_BYTES = 256 * 1024;
 // Chat bodies carry long pasted texts and inlined file contents (the composer has no length cap).
 const CHAT_BODY_BYTES = 2 * 1024 * 1024;
@@ -833,6 +841,7 @@ async function handleAgentRun(req, res) {
     workspaceRoot: ROOT,
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
     delegateAgent: delegator.delegate,
     ...connectorContext,
     skillsRuntime: SKILLS_RUNTIME,
@@ -848,6 +857,7 @@ async function handleAgentRun(req, res) {
     nvidiaConfigured: Boolean(NVIDIA_API_KEY),
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
     delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
     approvalGranted: false,
     signal: requestAbort.signal,
