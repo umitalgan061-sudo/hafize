@@ -14,7 +14,8 @@ export interface AgentToolOutcome {
 const MAX_SHOWN_TOOLS = 5;
 
 function safeToolName(value: string): string {
-  return String(value || '').replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 48);
+  // Take a safe first token; never concatenate untrusted prose after it.
+  return String(value || '').match(/^[a-zA-Z][a-zA-Z0-9_.-]{0,47}/)?.[0] || '';
 }
 
 export function buildFinalToolInstruction(outcomes: readonly AgentToolOutcome[]): string {
