@@ -18,9 +18,15 @@ Node backend yapar.
 - Ajan sadece agent allowlist ve write allowlist kesişimindeki depoya yazabilir.
 - Eski GITHUB_TOKEN aktif olsa bile, ajan yazma aracı yalnız gerçek
   GitHub App kimliği tanımlandığında sunulur.
-- Kimliği doğrulanmış, etkileşimli SSE onay kanalı olan /api/agent/run
-  gerekir. Arka plan, zamanlanmış veya yalnız JSON kullanan isteklerde
-  ajan yazma aracı bulunmaz.
+- Varsayılan modda kimliği doğrulanmış, etkileşimli SSE onay kanalı olan
+  /api/agent/run gerekir.
+- **İsteğe bağlı güvenli otonomi:** Sunucuda
+  `HAFIZE_GITHUB_SAFE_AUTONOMY=true` ve imzalı kullanıcı oturumu sağlayan
+  `HAFIZE_AUTH_REQUIRED=true` etkinse yalnız yapılandırılmış Hafize
+  hesap sahibinin /api/agent/run talepleri için ayrı işlem onayı kalkar.
+  Salt JSON istekleri de yalnız doğrulanmış hesap oturumunda kullanılabilir.
+  Connector bearer hesabı, kimliği belirsiz istek, yerel açık oturum ya da
+  farklı ajan için otonom GitHub yazma açılmaz.
 
 ## Sohbetten geliştirme
 
@@ -33,9 +39,12 @@ güncel blob SHA bilgisini okur; sonra github_develop çağırır:
    güncellemelerde eski blob SHA doğrulanır.
 3. operation=pull: hedefi main, draft=true olan taslak PR.
 
-**Her adım için ayrı kullanıcı onayı gerekir.** Onay gelmezse GitHub'a
-yazılmaz. Onaydan sonra mevcut GitHub writer işlem/depo/tam içeriğe
-bağlı tek kullanımlık ticket ile API isteğini gönderir.
+**Normal mod:** Her adım için kullanıcı onayı gerekir.
+**Güvenli otonomi modu:** Sunucuda önceden tanımlanmış açık izin ve
+kimliği doğrulanmış hesap sahibinin imzalı oturumu bulunuyorsa, yukarıdaki
+yalnız üç geri alınabilir geliştirme adımı için ayrı onay penceresi açılmaz.
+Her iki modda da mevcut GitHub writer işlem/depo/tam içeriğe bağlı
+**tek kullanımlık ticket** üretir. Ajan kendisi otonomi modunu açamaz.
 
 Dosya onayı repo/dal/yol/mesaj, boyut, ilk 1000 karakter ve içeriğin
 SHA-256 özetini gösterir. Büyük dosyanın tamamını ayrıca PR diff
@@ -50,6 +59,13 @@ görünümünde incele; yalnız önizlemeye güvenme. Tek dosya içerik limiti
 - Başka hedef dal, draft=false veya kullanıcıdan gelen yetkisiz depo yok.
 - Onaylanan içerikten farklı içerik yazılmaz.
 - Retake deposu başlangıçta ajan yazma izin listesinde yok.
+- Otonomi modu sunucu ayarıyla **varsayılan kapalıdır**. Onay arayüzünü
+  kaldırmak, sınırsız komut, sonsuz API kotası veya yeni repo izni vermez.
+- `main` dalına doğrudan değişiklik, PR merge, otomatik production deploy,
+  kullanıcı dosyası silme, şifre/secret görme, dışarı veri gönderme ve
+  terminalde keyfi komutlar bu onay gerektirmeyen kapsama dahil değildir.
+- Oturum/CSRF, depo izin listesi, payload/doğrulama, gizli dosya ve
+  içerik kontrolleri her iki modda da yürür.
 
 ## Doğrulama ve geri dönüş
 
@@ -61,6 +77,8 @@ onaylı branch → file → draft PR akışı ayrıca sınanmalıdır.
 Bu uçtan uca kontrol başarıyla tamamlanmadan Retake izin listesine
 eklenmez ve Retake'e otomatik yazma başlatılmaz.
 
-Özelliği kapatmak için HAFIZE_GITHUB_AGENT_REPOS değişkenini açıkça boş
-tanımla ve backend'i yeniden başlat. Gerekirse HAFIZE_GITHUB_WRITE_REPOS
-de boş bırakılarak tüm writer kapatılabilir.
+Güvenli otonomiyi kapatmak için `HAFIZE_GITHUB_SAFE_AUTONOMY=false`
+ayarla ve backend'i yeniden başlat; araç bu durumda mevcut SSE onay
+akışına geri döner. Ajan GitHub yazmasını tümden kapatmak için
+`HAFIZE_GITHUB_AGENT_REPOS` değişkenini açıkça boş tanımla;
+gerekirse `HAFIZE_GITHUB_WRITE_REPOS` de boş bırakılabilir.
