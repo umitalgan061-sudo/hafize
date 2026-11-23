@@ -82,6 +82,58 @@ describe('HafizeApiClient', () => {
     vi.useRealTimers();
   });
 
+  it('does not time out model/agent requests while the user enters the access key', async () => {
+    vi.useFakeTimers();
+    const globalWithAuth = globalThis as typeof globalThis & {
+      HafizeAuth?: { fetch?: typeof fetch; ensureAuthenticated?: () => Promise<void> }
+    };
+    const previous = globalWithAuth.HafizeAuth;
+    let finishLogin: (() => void) | undefined;
+    const login = new Promise<void>((resolve) => { finishLogin = resolve; });
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      return String(input).includes('/api/models')
+        ? new Response(JSON.stringify({ models: ['nvidia-model'] }))
+        : new Response(JSON.stringify({ defaultAgent: 'main', agents: [{ id: 'main', name: 'Hafize' }] }));
+    });
+    globalWithAuth.HafizeAuth = { fetch: fetchImpl, ensureAuthenticated: () => login };
+    try {
+      const api = new HafizeApiClient('', fetchImpl);
+      const models = api.models();
+      const agents = api.agents();
+      // Longer than BOTH normal 8s/12s request timeouts, but no HTTP request
+      // has begun while the login form is open.
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(fetchImpl).not.toHaveBeenCalled();
+      finishLogin?.();
+      expect((await models).models).toEqual(['nvidia-model']);
+      expect((await agents).defaultAgent).toBe('main');
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    } finally {
+      globalWithAuth.HafizeAuth = previous;
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops an API request if protected session validation is unavailable', async () => {
+    const globalWithAuth = globalThis as typeof globalThis & {
+      HafizeAuth?: { fetch?: typeof fetch; ensureAuthenticated?: () => Promise<void> }
+    };
+    const previous = globalWithAuth.HafizeAuth;
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ models: [] })));
+    globalWithAuth.HafizeAuth = {
+      fetch: fetchImpl,
+      ensureAuthenticated: async () => { throw new Error('AUTH_SESSION_FAILED'); }
+    };
+    try {
+      await expect(new HafizeApiClient('', fetchImpl).models()).rejects.toMatchObject({
+        code: 'AUTH_SESSION_FAILED', retryable: false
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    } finally {
+      globalWithAuth.HafizeAuth = previous;
+    }
+  });
+
   it('honors caller abort signals without turning the request into an infinite retry loop', async () => {
     const controller = new AbortController();
     const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
