@@ -30,7 +30,8 @@ test('restricts a default-site config to the explicitly configured site', () => 
 });
 
 test('refuses to guess a missing Hosting config or wrong destination', () => {
-  for (const raw of ['', '{', '{}', '{"hosting":[]}', '{"hosting":{"public":"dist"}}',
+  for (const raw of ['', '{', '{}', '{"hosting":[]}', '{"hosting":{"public":"."}}',
+    '{"hosting":{"public":"../dist"}}', '{"hosting":{"public":"src"}}',
     '{"hosting":{"public":"public","target":"default"}}',
     '{"hosting":{"public":"public","site":"another-site"}}']) {
     assert.throws(() => prepareHostingConfig(raw, project, site), /FIREBASE_/);
@@ -64,4 +65,43 @@ test('rejects anything other than a full sha for release verification', () => {
   assert.throws(() => prepareRelease(JSON.stringify(existing), project, site, 'main', {
     exists: () => true, write: () => {}
   }), /COMMIT_SHA/);
+});
+
+test('stages assets in an existing dist Hosting directory without modifying routes', () => {
+  const configured = { ...existing, hosting: { ...existing.hosting, public: 'dist' } };
+  const actions = [];
+  const result = prepareRelease(JSON.stringify(configured), project, site, sha, {
+    exists: () => true,
+    write: (name, value) => actions.push(['write', name, value]),
+    remove: (name) => actions.push(['remove', name]),
+    copy: (source, dest) => actions.push(['copy', source, dest])
+  });
+  assert.deepEqual(result, configured);
+  assert.deepEqual(actions.map((a) => a.slice(0, 3).map((v, i) => i === 2 && a[0] === 'write' ? '<content>' : v)), [
+    ['write', 'public/release.json', '<content>'],
+    ['remove', 'dist'],
+    ['copy', 'public', 'dist'],
+    ['write', 'firebase.json', '<content>']
+  ]);
+  assert.equal(JSON.parse(actions[3][2]).hosting.public, 'dist');
+  assert.deepEqual(JSON.parse(actions[0][2]), { commit: sha });
+});
+
+test('refuses destructive or nested Hosting output folders', () => {
+  for (const unsafe of ['.', '..', '../data', '/tmp/out', 'public/typed-build', 'src', 'node_modules', '.github', 'data', '']) {
+    const config = JSON.stringify({ hosting: { public: unsafe } });
+    assert.throws(() => prepareHostingConfig(config, project, site), /UNSUPPORTED_PUBLIC_DIRECTORY/);
+  }
+});
+
+test('rejects deploy when staged assets cannot be verified', () => {
+  const config = JSON.stringify({ hosting: { public: 'build' } });
+  const writes = [];
+  assert.throws(() => prepareRelease(config, project, site, sha, {
+    exists: name => name.startsWith('public/'),
+    write: (name) => writes.push(name),
+    remove: () => {},
+    copy: () => {}
+  }), /STAGED_BUILD_MISSING/);
+  assert.deepEqual(writes, ['public/release.json']);
 });
