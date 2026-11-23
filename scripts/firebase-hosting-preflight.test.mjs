@@ -7,7 +7,7 @@ const site = 'hafize-ua';
 const sha = '2eea6e257727163e788df61e78bfa64b14a94235';
 const existing = {
   hosting: {
-    public: 'public',
+    public: 'dist/client',
     site,
     rewrites: [
       { source: '/api/**', run: { serviceId: 'hafize-backend', region: 'europe-west1' } },
@@ -18,20 +18,26 @@ const existing = {
   }
 };
 
-test('preserves existing api rewrites, headers, redirects and all matching hosting settings', () => {
-  const config = prepareHostingConfig(JSON.stringify(existing), project, site);
-  assert.deepEqual(config, existing);
-  assert.notEqual(config.hosting, existing.hosting);
+test('only remaps the local build root; preserves api rewrites, headers, redirects and site', () => {
+  const configured = prepareHostingConfig(JSON.stringify(existing), project, site);
+  assert.deepEqual(configured, { ...existing, hosting: { ...existing.hosting, public: 'public' } });
+  assert.equal(existing.hosting.public, 'dist/client');
 });
 
-test('restricts a default-site config to the explicitly configured site', () => {
-  const config = prepareHostingConfig(JSON.stringify({ hosting: { public: 'public' } }), project, site);
-  assert.equal(config.hosting.site, site);
+test('targets specified Hosting site and preserves all other config', () => {
+  const configured = prepareHostingConfig(JSON.stringify({
+    hosting: { public: 'build', rewrites: existing.hosting.rewrites },
+    emulators: { hosting: { port: 5000 } }
+  }), project, site);
+  assert.deepEqual(configured, {
+    hosting: { public: 'public', site, rewrites: existing.hosting.rewrites },
+    emulators: { hosting: { port: 5000 } }
+  });
 });
 
-test('refuses to guess a missing Hosting config or wrong destination', () => {
-  for (const raw of ['', '{', '{}', '{"hosting":[]}', '{"hosting":{"public":"."}}',
-    '{"hosting":{"public":"../dist"}}', '{"hosting":{"public":"src"}}',
+test('blocks missing config, wrong site, missing public property, targets and invalid project', () => {
+  for (const raw of ['', '{', '{}', '{"hosting":[]}', '{"hosting":{}}',
+    '{"hosting":{"public":""}}', '{"hosting":{"public":42}}',
     '{"hosting":{"public":"public","target":"default"}}',
     '{"hosting":{"public":"public","site":"another-site"}}']) {
     assert.throws(() => prepareHostingConfig(raw, project, site), /FIREBASE_/);
@@ -40,68 +46,33 @@ test('refuses to guess a missing Hosting config or wrong destination', () => {
   assert.throws(() => prepareHostingConfig(JSON.stringify(existing), project, ''), /FIREBASE_SITE/);
 });
 
-test('does not create any release file if build is absent', () => {
+test('refuses missing output before writing any release files', () => {
   const written = [];
   assert.throws(() => prepareRelease(JSON.stringify(existing), project, site, sha, {
-    exists: () => false, write: (...a) => written.push(a)
+    exists: () => false, write: (...args) => written.push(args)
   }), /BUILD_MISSING/);
   assert.equal(written.length, 0);
 });
 
-test('prepares deployable firebase.json and a verifiable release marker only for built output', () => {
+test('uses existing public build without copies or destructive removal', () => {
   const written = [];
-  prepareRelease(JSON.stringify(existing), project, site, sha, {
+  const prepared = prepareRelease(JSON.stringify(existing), project, site, sha, {
     exists: () => true,
-    write: (name, value) => written.push([name, JSON.parse(value)])
+    write: (name, value) => written.push([name, JSON.parse(value)]),
+    copy: () => { throw new Error('copy forbidden'); },
+    remove: () => { throw new Error('remove forbidden'); }
   });
   assert.equal(written.length, 2);
   assert.equal(written[0][0], 'public/release.json');
   assert.deepEqual(written[0][1], { commit: sha });
   assert.equal(written[1][0], 'firebase.json');
-  assert.deepEqual(written[1][1], existing);
+  assert.deepEqual(written[1][1], prepared);
+  assert.equal(prepared.hosting.public, 'public');
+  assert.deepEqual(prepared.hosting.rewrites, existing.hosting.rewrites);
 });
 
-test('rejects anything other than a full sha for release verification', () => {
+test('rejects anything but a full git commit SHA', () => {
   assert.throws(() => prepareRelease(JSON.stringify(existing), project, site, 'main', {
     exists: () => true, write: () => {}
   }), /COMMIT_SHA/);
-});
-
-test('stages assets in an existing dist Hosting directory without modifying routes', () => {
-  const configured = { ...existing, hosting: { ...existing.hosting, public: 'dist' } };
-  const actions = [];
-  const result = prepareRelease(JSON.stringify(configured), project, site, sha, {
-    exists: () => true,
-    write: (name, value) => actions.push(['write', name, value]),
-    remove: (name) => actions.push(['remove', name]),
-    copy: (source, dest) => actions.push(['copy', source, dest])
-  });
-  assert.deepEqual(result, configured);
-  assert.deepEqual(actions.map((a) => a.slice(0, 3).map((v, i) => i === 2 && a[0] === 'write' ? '<content>' : v)), [
-    ['write', 'public/release.json', '<content>'],
-    ['remove', 'dist'],
-    ['copy', 'public', 'dist'],
-    ['write', 'firebase.json', '<content>']
-  ]);
-  assert.equal(JSON.parse(actions[3][2]).hosting.public, 'dist');
-  assert.deepEqual(JSON.parse(actions[0][2]), { commit: sha });
-});
-
-test('refuses destructive or nested Hosting output folders', () => {
-  for (const unsafe of ['.', '..', '../data', '/tmp/out', 'public/typed-build', 'src', 'node_modules', '.github', 'data', '']) {
-    const config = JSON.stringify({ hosting: { public: unsafe } });
-    assert.throws(() => prepareHostingConfig(config, project, site), /UNSUPPORTED_PUBLIC_DIRECTORY/);
-  }
-});
-
-test('rejects deploy when staged assets cannot be verified', () => {
-  const config = JSON.stringify({ hosting: { public: 'build' } });
-  const writes = [];
-  assert.throws(() => prepareRelease(config, project, site, sha, {
-    exists: name => name.startsWith('public/'),
-    write: (name) => writes.push(name),
-    remove: () => {},
-    copy: () => {}
-  }), /STAGED_BUILD_MISSING/);
-  assert.deepEqual(writes, ['public/release.json']);
 });

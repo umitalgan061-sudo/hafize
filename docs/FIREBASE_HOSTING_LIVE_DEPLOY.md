@@ -34,9 +34,12 @@ Run workflow**.
   configuration of the live site. Preserve existing API rewrites, headers,
   redirects and other production Hosting settings. The workflow refuses to
   deploy if this JSON is missing or points to another site. Its Hosting public
-  directory may be `public`, `dist`, `build`, `www`, `web`, `hosting`, or `site`.
-  The workflow preserves the configured path and stages the built UI in that
-  output directory. Other paths are blocked until explicitly reviewed.
+  directory must be a nonempty string. This workflow builds Hafize into
+  `public/` and changes only the **temporary deploy copy** of
+  `hosting.public` to `public`; the rest of the supplied existing Hosting
+  configuration (API rewrites, auth, headers, redirects, site) stays intact.
+  The original secret is never modified, and no existing output directory is
+  deleted or overwritten.
 
 Never commit service-account credentials, access tokens, a local `.env` file,
 or private keys. If you only have a running website but do not know its active
