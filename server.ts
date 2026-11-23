@@ -166,6 +166,33 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
+// Agent code changes use the same server-side writer as the Connections UI. This keeps the
+// GitHub App token out of the model context and preserves the writer's repository, path,
+// branch, content and one-time-ticket protections. Deployment and merge are intentionally not
+// exposed here: a human reviews the PR and performs those later steps.
+const GITHUB_DEVELOPMENT_TOOL = async (args, context) => {
+  const action = typeof args?.action === 'string' ? args.action : '';
+  if (!['branch', 'file', 'pull'].includes(action)) throw new HttpRuntimeError('GITHUB_DEVELOPMENT_ACTION_BLOCKED', 403);
+  const payload = args?.payload;
+  const normalized = GITHUB_WORKSPACE_WRITER.normalizeInput(action, payload);
+  const detail = action === 'file'
+    ? `Depo: ${normalized.repository}\nDal: ${normalized.branch}\nDosya: ${normalized.path}\nMesaj: ${normalized.message}\nİçerik uzunluğu: ${String(normalized.content || '').length} karakter`
+    : action === 'branch'
+      ? `Depo: ${normalized.repository}\nYeni dal: ${normalized.branch}\nKaynak: ${normalized.fromRef}`
+      : `Depo: ${normalized.repository}\nBaşlık: ${normalized.title}\nKaynak dal: ${normalized.head}\nHedef dal: ${normalized.base}\nTaslak PR: ${normalized.draft === true ? 'evet' : 'hayır'}`;
+  if (typeof context?.requestApproval !== 'function') throw new HttpRuntimeError('GITHUB_WRITE_APPROVAL_REQUIRED', 428);
+  const approved = await context.requestApproval({
+    kind: 'github.development',
+    title: `GitHub ${action === 'branch' ? 'dal oluşturma' : action === 'file' ? 'dosya commit' : 'taslak PR'} onayı`,
+    detail,
+    risk: 'high'
+  });
+  if (!approved) throw new HttpRuntimeError('GITHUB_WRITE_APPROVAL_REQUIRED', 428);
+  const ticket = GITHUB_WORKSPACE_WRITER.issueApproval(action, normalized, true).ticket;
+  if (action === 'branch') return GITHUB_WORKSPACE_WRITER.createBranch(ticket, normalized);
+  if (action === 'file') return GITHUB_WORKSPACE_WRITER.commitFile(ticket, normalized);
+  return GITHUB_WORKSPACE_WRITER.createPullRequest(ticket, normalized);
+};
 const MAX_BODY_BYTES = 256 * 1024;
 // Chat bodies carry long pasted texts and inlined file contents (the composer has no length cap).
 const CHAT_BODY_BYTES = 2 * 1024 * 1024;
@@ -183,6 +210,7 @@ const PLATFORM = createHafizePlatform({
   skillsRuntime: SKILLS_RUNTIME,
   executeTool: executeNvidiaToolCall,
   allowedTools: getAllowedNvidiaTools,
+  githubDevelopment: GITHUB_DEVELOPMENT_TOOL,
   // A rule only decides *when* the owner's agent runs. The task itself is queued through the
   // same schedule store the worker drains, so permissions stay the user's own.
   // The store is created after the platform, so it is resolved lazily on first use.

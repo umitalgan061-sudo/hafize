@@ -42,6 +42,17 @@ describe('typed tool runtime',()=>{
     expect(tools.map((tool) => tool.function.name)).not.toContain('gmail_read');
   });
 
+  it('offers the constrained GitHub development tool only when both policy and service are present', async () => {
+    const developer = { id: 'dev', name: 'Developer', toolPolicy: { default: 'deny' as const, allow: ['repo.development'], deny: [], approvalRequired: [] } };
+    const service = async () => ({ action: 'branch', branch: 'hafize/auto-safe' });
+    const developerContext = { ...context, agent: developer, services: { githubDevelopment: service } };
+    expect(getAllowedNvidiaTools(developer, developerContext).map((tool) => tool.function.name)).toContain('github_development');
+    const result = await executeNvidiaToolCall(developer, {
+      id: 'c5', function: { name: 'github_development', arguments: JSON.stringify({ action: 'branch', payload: { repository: 'owner/repo', branch: 'hafize/auto-safe', fromRef: 'main' } }) }
+    }, developerContext);
+    expect(result).toMatchObject({ ok: true, tool: 'github_development' });
+  });
+
   it('keeps execution context immutable at the call site', async () => {
     const before = { ...context };
     await executeNvidiaToolCall(agent, {

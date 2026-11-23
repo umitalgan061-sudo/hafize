@@ -37,6 +37,8 @@ export interface ToolServices {
   readonly testRun?: ToolService;
   readonly testReadResult?: ToolService;
   readonly gitRun?: ToolService;
+  /** Audited GitHub App development workflow. Every external mutation still asks for user approval. */
+  readonly githubDevelopment?: ToolService;
   readonly ruleCreate?: ToolService;
   readonly ruleList?: ToolService;
   readonly ruleRemove?: ToolService;
@@ -567,6 +569,21 @@ const CATALOG = new Map<string, ToolEntry>([
     }, ["args"]),
     available: (context) => typeof context.services?.gitRun === 'function',
     execute: async (args, context) => context.services!.gitRun!(args, context)
+  }],
+  ['github_development', {
+    // This is intentionally distinct from the broad repo.write_branch policy. The implementation
+    // is constrained to an allowlisted repo, non-default branches, non-sensitive paths and a
+    // per-action approval ticket created server-side.
+    permission: 'repo.development',
+    kind: 'repository',
+    timeoutMs: timeout(75_000, 75_000),
+    activity: { running: 'GitHub geliştirme adımı için onay bekleniyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı tamamlanamadı' },
+    definition: strictDefinition('github_development', 'İzinli GitHub deposunda güvenli geliştirme adımı yürütür: yalnızca yeni dal, tek dosya commit veya taslak PR. Her yazma adımı kullanıcı onayı ister; main, secrets, workflow dosyaları, merge ve deploy engellidir.', {
+      action: { type: 'string', enum: ['branch', 'file', 'pull'] },
+      payload: { type: 'object', description: 'branch: {repository, branch, fromRef}; file: {repository, branch, path, content, message, existingSha?}; pull: {repository, head, base, title, body?, draft?}' }
+    }, ['action', 'payload']),
+    available: (context) => typeof context.services?.githubDevelopment === 'function',
+    execute: async (args, context) => context.services!.githubDevelopment!(args, context)
   }],
   ['rule_create', {
     permission: 'rule.create',
