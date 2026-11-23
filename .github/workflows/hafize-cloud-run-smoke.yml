@@ -1,0 +1,66 @@
+name: Hafize Cloud Run image — smoke test
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .gcloudignore
+      - 'scripts/hafize-cloud-run-*.mjs'
+      - 'scripts/firebase-hosting-preflight.mjs'
+      - '.github/workflows/hafize-cloud-run-smoke.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .gcloudignore
+      - 'scripts/hafize-cloud-run-*.mjs'
+      - 'scripts/firebase-hosting-preflight.mjs'
+      - '.github/workflows/hafize-cloud-run-smoke.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hafize-cloud-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Verify backend guardrails and Firebase rewrite behavior
+        run: node --test scripts/hafize-cloud-run-preflight.test.mjs scripts/hafize-cloud-run-route.test.mjs scripts/firebase-hosting-preflight.test.mjs
+      - name: Build the actual Cloud Run image
+        run: docker build --tag hafize-cloud-smoke .
+      - name: Boot backend in protected production mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --detach --name hafize-cloud-smoke --publish 127.0.0.1:18080:8080 \
+            --env HAFIZE_AUTH_TOKEN=ci-smoke-test-only-access-token-0000000000 \
+            --env HAFIZE_MASTER_KEY=1111111111111111111111111111111111111111111111111111111111111111 \
+            hafize-cloud-smoke >/dev/null
+          for i in $(seq 1 35); do
+            if curl --silent --fail --max-time 2 http://127.0.0.1:18080/api/health/live > "$RUNNER_TEMP/live.json"; then break; fi
+            sleep 2
+          done
+          node -e "const p=require(process.argv[1]); if(p.status!=='ok')process.exit(1)" "$RUNNER_TEMP/live.json"
+          if [ "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/api/models)" != 401 ]; then
+            echo '::error::Protected model endpoint did not require authentication'
+            exit 1
+          fi
+          echo 'Cloud Run image booted; liveness and production auth checks passed.'
+      - name: Diagnose container on failure (no environment dump)
+        if: failure()
+        run: docker logs --tail 60 hafize-cloud-smoke || true
+      - name: Cleanup
+        if: always()
+        run: docker rm --force hafize-cloud-smoke >/dev/null 2>&1 || true

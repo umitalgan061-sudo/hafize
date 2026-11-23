@@ -10,6 +10,9 @@ on:
       - 'vite.config.ts'
       - 'scripts/firebase-hosting-preflight.mjs'
       - 'scripts/firebase-hosting-preflight.test.mjs'
+      - 'scripts/hafize-cloud-run-route.mjs'
+      - 'scripts/hafize-cloud-run-route.test.mjs'
+      - 'config/hafize-cloud-backend-live.json'
       - '.github/workflows/firebase-hosting-live.yml'
   workflow_dispatch:
 
@@ -41,7 +44,7 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       - name: Test live Hosting deployment guardrails
-        run: node --test scripts/firebase-hosting-preflight.test.mjs
+        run: node --test scripts/firebase-hosting-preflight.test.mjs scripts/hafize-cloud-run-route.test.mjs
 
       - name: Build Hafize UI from the current commit
         run: |

@@ -1,0 +1,191 @@
+name: Hafize Cloud Run backend — deploy and connect
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: hafize-firebase-hosting-live
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HAFIZE_FIREBASE_PROJECT_ID: projelerim-8fecd
+      HAFIZE_FIREBASE_SITE_ID: hafize-ua
+      HAFIZE_CLOUD_RUN_REGION: europe-west1
+      HAFIZE_CLOUD_RUN_SERVICE: hafize-backend
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+          cache: npm
+
+      - name: Validate private backend credentials before changing cloud resources
+        env:
+          HAFIZE_CLOUD_RUN_AUTH_TOKEN: ${{ secrets.HAFIZE_CLOUD_RUN_AUTH_TOKEN }}
+          HAFIZE_CLOUD_RUN_MASTER_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_MASTER_KEY }}
+          HAFIZE_CLOUD_RUN_NVIDIA_API_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_NVIDIA_API_KEY }}
+        run: |
+          node --test scripts/hafize-cloud-run-preflight.test.mjs scripts/hafize-cloud-run-route.test.mjs scripts/firebase-hosting-preflight.test.mjs
+          node scripts/hafize-cloud-run-preflight.mjs
+
+      - name: Build the matching public frontend for Hosting
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+          npm run build
+
+      - name: Authenticate to Google Cloud with server-only deployment credential
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.HAFIZE_CLOUD_RUN_DEPLOYER || secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+          project_id: projelerim-8fecd
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Enable only the required Cloud Run build APIs
+        shell: bash
+        run: |
+          gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
+            --project="$HAFIZE_FIREBASE_PROJECT_ID" --quiet
+
+      - name: Materialize private backend env outside the repository (no logging)
+        env:
+          HAFIZE_CLOUD_RUN_AUTH_TOKEN: ${{ secrets.HAFIZE_CLOUD_RUN_AUTH_TOKEN }}
+          HAFIZE_CLOUD_RUN_MASTER_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_MASTER_KEY }}
+          HAFIZE_CLOUD_RUN_NVIDIA_API_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_NVIDIA_API_KEY }}
+        shell: bash
+        run: |
+          umask 077
+          node --input-type=module <<'JS'
+          import { writeFileSync } from 'node:fs';
+          const config = {
+            HAFIZE_AUTH_TOKEN: process.env.HAFIZE_CLOUD_RUN_AUTH_TOKEN,
+            HAFIZE_MASTER_KEY: process.env.HAFIZE_CLOUD_RUN_MASTER_KEY,
+            NVIDIA_API_KEY: process.env.HAFIZE_CLOUD_RUN_NVIDIA_API_KEY,
+            HAFIZE_AUTH_REQUIRED: 'true',
+            HAFIZE_COOKIE_SECURE: 'true'
+          };
+          writeFileSync(process.env.RUNNER_TEMP + '/hafize-backend-env.yaml', JSON.stringify(config), { mode: 0o600 });
+          console.log('Private backend environment prepared securely.');
+          JS
+
+      - name: Deploy Hafize backend to bounded Cloud Run service
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$HAFIZE_CLOUD_RUN_SERVICE" \
+            --source . \
+            --project="$HAFIZE_FIREBASE_PROJECT_ID" \
+            --region="$HAFIZE_CLOUD_RUN_REGION" \
+            --port=8080 \
+            --cpu=1 \
+            --memory=1Gi \
+            --concurrency=10 \
+            --min-instances=0 \
+            --max-instances=1 \
+            --timeout=60s \
+            --allow-unauthenticated \
+            --env-vars-file="$RUNNER_TEMP/hafize-backend-env.yaml" \
+            --quiet
+          URL="$(gcloud run services describe "$HAFIZE_CLOUD_RUN_SERVICE" \
+            --project="$HAFIZE_FIREBASE_PROJECT_ID" \
+            --region="$HAFIZE_CLOUD_RUN_REGION" \
+            --format='value(status.url)')"
+          if [ -z "$URL" ]; then echo '::error::Cloud Run URL is missing'; exit 1; fi
+          echo "HAFIZE_CLOUD_RUN_URL=$URL" >> "$GITHUB_ENV"
+
+      - name: Delete temporary credential inputs
+        if: always()
+        run: rm -f "$RUNNER_TEMP/hafize-backend-env.yaml"
+
+      - name: Verify live Cloud Run health and production authorization before routing
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const base = process.env.HAFIZE_CLOUD_RUN_URL;
+          if (!base || !base.startsWith('https://')) throw new Error('CLOUD_RUN_URL_MISSING');
+          let good = false;
+          for (let i = 0; i < 7; i++) {
+            try {
+              const res = await fetch(base + '/api/health/live', { cache: 'no-store', signal: AbortSignal.timeout(18000) });
+              const data = await res.json();
+              const protectedRes = await fetch(base + '/api/models', { cache: 'no-store', signal: AbortSignal.timeout(18000) });
+              if (res.status === 200 && data.status === 'ok' && protectedRes.status === 401) {
+                good = true; break;
+              }
+            } catch { /* cold start / transient network error */ }
+            if (i < 6) await new Promise((resolve) => setTimeout(resolve, 5000));
+          }
+          if (!good) throw new Error('CLOUD_RUN_LIVE_OR_AUTH_VERIFICATION_FAILED');
+          console.log('Verified public Cloud Run liveness and protected API authorization.');
+          JS
+
+      - name: Prepare only an audited /api Cloud Run Hosting rewrite
+        env:
+          HAFIZE_FIREBASE_HOSTING_CONFIG: ${{ secrets.HAFIZE_FIREBASE_HOSTING_CONFIG }}
+          HAFIZE_CLOUD_RUN_ROUTE_ENABLED: 'true'
+        run: node scripts/firebase-hosting-preflight.mjs
+
+      - name: Deploy existing Firebase Hosting site with connected API
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+          projectId: projelerim-8fecd
+          channelId: live
+
+      - name: Verify Hosting now reaches the real Node backend
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const url = 'https://hafize-ua.web.app/api/health/live?source=cloud-run-activation';
+          let ok = false;
+          for (let i = 0; i < 7; i++) {
+            try {
+              const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(18000) });
+              if (res.status === 200 && (await res.json())?.status === 'ok') { ok = true; break; }
+            } catch { /* propagation or cold start */ }
+            if (i < 6) await new Promise((resolve) => setTimeout(resolve, 5000));
+          }
+          if (!ok) throw new Error('FIREBASE_HOSTING_CLOUD_RUN_REWRITE_UNVERIFIED');
+          console.log('Firebase Hosting /api is connected to verified Cloud Run backend.');
+          JS
+
+      - name: Preserve verified backend routing for subsequent frontend releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p config
+          printf '%s\n' '{"projectId":"projelerim-8fecd","siteId":"hafize-ua","serviceId":"hafize-backend","region":"europe-west1","activated":true}' > config/hafize-cloud-backend-live.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add config/hafize-cloud-backend-live.json
+          if git diff --cached --quiet; then
+            echo 'Backend routing marker already active.'
+            exit 0
+          fi
+          git commit -m 'chore(cloud): persist verified Hafize backend activation'
+          git pull --rebase origin main
+          if git push origin HEAD:main; then
+            echo 'Future Hosting releases will preserve Cloud Run routing.'
+          else
+            git push origin "HEAD:refs/heads/hafize/activate-cloud-run-$GITHUB_RUN_ID"
+            gh pr create --base main --head "hafize/activate-cloud-run-$GITHUB_RUN_ID" \
+              --title 'Activate verified Hafize Cloud Run backend routing' \
+              --body 'Cloud Run backend and Firebase /api route passed live health checks. Merge to preserve API rewrites on future frontend releases.'
+            echo '::warning::Cloud Run route is live, but activation PR must be merged to preserve it across later Hosting releases.'
+          fi
