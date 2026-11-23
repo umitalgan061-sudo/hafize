@@ -40,6 +40,18 @@
       detail: 'Bağlantı durumu kullanıcı oturumu üzerinden sunucuda sorgulanır.'
     })
   });
+  // Cards below describe deliberate connection boundaries. They never imply that a
+  // browser session, password, cookie or API key has been copied to Hafize.
+  const CONNECTION_CATALOG = Object.freeze([
+    { id: 'twentyFirstConnectionCard', label: '21st', description: 'Bileşen arama ve proje entegrasyonu.', detail: '21st MCP/API anahtarıyla bağlanır; anahtar sohbet mesajına yazılmaz.', capabilities: ['component.search', 'component.install', 'approval.required'] },
+    { id: 'browserBridgeConnectionCard', label: 'Tarayıcı köprüsü', description: 'Açık sitelerde, seçilen sekmeyle çalışır.', detail: 'Oturum çerezleri Hafize sunucusuna aktarılmaz. Gönderme, silme, yükleme ve ödeme her zaman onay ister.', capabilities: ['tab.read', 'approval.required', 'no.cookie.export'] },
+    { id: 'calendarConnectionCard', label: 'Takvim', description: 'Etkinlikleri oku ve onayla oluştur.', detail: 'OAuth kapsamları bağlantı sırasında görünür; yazma işlemleri onay ister.', capabilities: ['calendar.read', 'calendar.write', 'approval.required'] },
+    { id: 'notionConnectionCard', label: 'Notion', description: 'Sayfa ve veritabanı çalışma alanı.', detail: 'Yalnız seçilen Notion sayfalarına erişim verilmelidir.', capabilities: ['page.read', 'database.read', 'approval.required'] },
+    { id: 'slackConnectionCard', label: 'Slack', description: 'Kanalları ara ve taslak yanıt hazırla.', detail: 'Mesaj gönderme yalnız açık kullanıcı onayıyla yapılır.', capabilities: ['channel.read', 'message.draft', 'approval.required'] },
+    { id: 'figmaConnectionCard', label: 'Figma', description: 'Dosya, tasarım ve bileşen bağlamı.', detail: 'Salt-okunur tasarım incelemesi için planlanmıştır.', capabilities: ['file.read', 'component.read'] },
+    { id: 'linearConnectionCard', label: 'Linear', description: 'Issue ve proje takibi.', detail: 'Issue oluşturma veya güncelleme kullanıcı onayı gerektirir.', capabilities: ['issue.read', 'issue.write', 'approval.required'] },
+    { id: 'storageConnectionCard', label: 'Dosya alanı', description: 'Dropbox, Box ve SharePoint dosyaları.', detail: 'İndirilen dosyalar yalnız görevin süresi boyunca işlenir; paylaşım değişikliği onay ister.', capabilities: ['file.read', 'file.upload', 'approval.required'] }
+  ]);
 
   function makeText(documentRef, value, className) {
     const node = documentRef.createElement('span');
@@ -177,7 +189,23 @@
       PROVIDERS.github.label,
       PROVIDERS.github.description
     );
-    cards.push(overall.section, gmail.section, canva.section, github.section);
+    const catalogCards = CONNECTION_CATALOG.map((connector) => {
+      const card = makeCard(documentRef, connector.id, connector.label, connector.description);
+      const providerBody = documentRef.createElement('div');
+      providerBody.className = 'connector-hub-provider-body';
+      providerBody.append(
+        makeStatusRow(documentRef, connector.id, 'Bağlantı', 'Hazırlanıyor', connector.detail),
+        makeText(documentRef, 'Planlanan yetenekler', 'connector-hub-capability-title')
+      );
+      const capabilities = documentRef.createElement('div');
+      capabilities.className = 'connector-hub-capabilities';
+      connector.capabilities.forEach((capability) => capabilities.append(makeText(documentRef, capability, 'connector-hub-capability')));
+      providerBody.append(capabilities, makeText(documentRef, 'Bu kart bağlantı kurulmadan hiçbir hesaba erişim vermez.', 'connector-hub-note'));
+      card.section.append(providerBody);
+      setTimeout(() => setBadge(card, 'Hazırlanıyor', 'pending'), 0);
+      return card.section;
+    });
+    cards.push(overall.section, gmail.section, canva.section, github.section, ...catalogCards);
 
     const body = documentRef.createElement('div');
     body.id = 'connectorHubBody';
@@ -232,7 +260,7 @@
     );
     github.section.append(githubBody);
 
-    rail.prepend(overall.section, gmail.section, canva.section, github.section);
+    rail.prepend(overall.section, gmail.section, canva.section, github.section, ...catalogCards);
 
     function setBadge(cardRef, value, stateKey) {
       cardRef.badge.textContent = value;
@@ -544,6 +572,7 @@
     CARD_IDS,
     PROVIDERS,
     CAPABILITIES,
+    CONNECTION_CATALOG,
     createController,
     mount: function mount(documentRef, rootRef) {
       try {
