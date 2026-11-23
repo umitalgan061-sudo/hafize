@@ -32,6 +32,8 @@
           "task.read",
           "trace.write",
           "runtime.status",
+          "repo.read",
+          "repo.write_request",
           "skill.invoke",
           "connector.canva.read",
           "connector.gmail.read",
