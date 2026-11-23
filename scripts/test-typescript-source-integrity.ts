@@ -46,6 +46,11 @@ const publicJsStandalone = new Set([
   'public/chat-markdown.js',
   'public/composer-focus-guard.js',
   'public/theme-init.js',
+  // The welcome portrait is original standalone animation code. It is not a
+  // generated TypeScript bridge; keep the three-file exception exact.
+  'public/original-hero-bootstrap.js',
+  'public/original-hero.js',
+  'public/original-hero-pixels.js',
   'public/vendor/piper-phonemize/PhonemizeWebWorker.js'
 ]);
 for (const file of publicJs) {
