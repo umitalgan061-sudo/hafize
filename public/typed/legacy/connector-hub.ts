@@ -43,6 +43,12 @@
   // Cards below describe deliberate connection boundaries. They never imply that a
   // browser session, password, cookie or API key has been copied to Hafize.
   const CONNECTION_CATALOG = Object.freeze([
+    { id: 'shadcnConnectionCard', label: 'shadcn/ui', description: 'Kopyalanabilir, eri\u015filebilir aray\u00fcz temelleri ve registry.', detail: 'Kaynak kod proje i\u00e7ine eklenmeden \u00f6nce Hafize de\u011fi\u015fikli\u011fi g\u00f6sterir ve onay ister.', capabilities: ['component.search', 'registry.review', 'approval.required'], url: 'https://ui.shadcn.com/' },
+    { id: 'magicUiConnectionCard', label: 'Magic UI', description: 'Hafif hareketli bloklar, par\u00e7ac\u0131klar ve hero bile\u015fenleri.', detail: 'Animasyon performans\u0131 mobil ve hareketi azalt tercihiyle birlikte de\u011ferlendirilir.', capabilities: ['animation.reference', 'component.review', 'reduced-motion.required'], url: 'https://magicui.design/docs/components' },
+    { id: 'aceternityConnectionCard', label: 'Aceternity UI', description: 'React ve Tailwind i\u00e7in g\u00f6rsel bloklar ve etkile\u015fimler.', detail: 'Bile\u015fen kaynak kodu ve lisans\u0131 uygulanmadan \u00f6nce incelenir.', capabilities: ['landing-page.reference', 'component.review', 'license.review'], url: 'https://ui.aceternity.com/' },
+    { id: 'motionPrimitivesConnectionCard', label: 'Motion Primitives', description: 'Motion tabanl\u0131 ince ge\u00e7i\u015f ve mikro etkile\u015fimler.', detail: 'Projeye ekleme \u00f6ncesinde gerekli ba\u011f\u0131ml\u0131l\u0131klar ve eri\u015filebilirlik etkisi a\u00e7\u0131k\u00e7a sunulur.', capabilities: ['motion.reference', 'dependency.review', 'approval.required'], url: 'https://motion-primitives.com/docs/installation' },
+    { id: 'reactBitsConnectionCard', label: 'React Bits', description: '\u00dccretsiz kaynak-kodlu hareketli React bile\u015fenleri ve arka planlar.', detail: 'Hafize, kaynak kodu projeye almadan \u00f6nce performans ve lisans incelemesi yapar.', capabilities: ['animation.reference', 'source.review', 'license.review'], url: 'https://www.reactbits.dev/' },
+    { id: 'v0ConnectionCard', label: 'v0', description: 'Metinden React aray\u00fcz tasla\u011f\u0131 ve g\u00f6rsel iterasyon.', detail: 'Bu ayr\u0131 bir hesap/oturum gerektirir; Hafize otomatik oturum devralmaz veya yay\u0131n yapmaz.', capabilities: ['ui.prototype', 'export.review', 'approval.required'], url: 'https://v0.dev/' },
     { id: 'twentyFirstConnectionCard', label: '21st', description: 'Bileşen arama ve proje entegrasyonu.', detail: '21st MCP/API anahtarıyla bağlanır; anahtar sohbet mesajına yazılmaz.', capabilities: ['component.search', 'component.install', 'approval.required'] },
     { id: 'browserBridgeConnectionCard', label: 'Tarayıcı köprüsü', description: 'Açık sitelerde, seçilen sekmeyle çalışır.', detail: 'Oturum çerezleri Hafize sunucusuna aktarılmaz. Gönderme, silme, yükleme ve ödeme her zaman onay ister.', capabilities: ['tab.read', 'approval.required', 'no.cookie.export'] },
     { id: 'calendarConnectionCard', label: 'Takvim', description: 'Etkinlikleri oku ve onayla oluştur.', detail: 'OAuth kapsamları bağlantı sırasında görünür; yazma işlemleri onay ister.', capabilities: ['calendar.read', 'calendar.write', 'approval.required'] },
@@ -135,6 +141,17 @@
     return Object.freeze({ section, head, badge });
   }
 
+  function makeSafeExternalLink(documentRef, href, label) {
+    if (typeof href !== 'string' || !/^https:\/\//.test(href)) return null;
+    const link = documentRef.createElement('a');
+    link.className = 'connector-hub-link';
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = label;
+    return link;
+  }
+
   function createController(documentRef = root.document, rootRef = root) {
     const rail = documentRef?.querySelector?.('.utility-rail');
     if (!documentRef || !rail || typeof documentRef.createElement !== 'function') return null;
@@ -200,7 +217,9 @@
       const capabilities = documentRef.createElement('div');
       capabilities.className = 'connector-hub-capabilities';
       connector.capabilities.forEach((capability) => capabilities.append(makeText(documentRef, capability, 'connector-hub-capability')));
+      const link = makeSafeExternalLink(documentRef, connector.url, 'Kaynağı aç');
       providerBody.append(capabilities, makeText(documentRef, 'Bu kart bağlantı kurulmadan hiçbir hesaba erişim vermez.', 'connector-hub-note'));
+      if (link) providerBody.append(link);
       card.section.append(providerBody);
       setTimeout(() => setBadge(card, 'Hazırlanıyor', 'pending'), 0);
       return card.section;
