@@ -85,6 +85,24 @@ export class HafizeApiClient {
     const headers = new Headers(options.headers);
     headers.set('Accept', headers.get('Accept') || 'application/json');
 
+    // The user can take longer than 8–12 seconds to enter the access key.
+    // Complete the interactive login BEFORE starting the API network timer.
+    // Only the browser's actual built-in auth fetch uses this wait; injected
+    // fetch implementations in tests/embeds keep their original semantics.
+    const auth = (globalThis as typeof globalThis & {
+      HafizeAuth?: { fetch?: typeof fetch; ensureAuthenticated?: () => Promise<void> }
+    }).HafizeAuth;
+    if (auth?.fetch === this.fetchImpl && typeof auth.ensureAuthenticated === 'function') {
+      try {
+        await auth.ensureAuthenticated();
+      } catch (error) {
+        throw new HafizeApiError(
+          error instanceof Error ? error.message : 'Giriş sunucusuna bağlanılamadı.',
+          { code: 'AUTH_SESSION_FAILED', retryable: false }
+        );
+      }
+    }
+
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       const controller = new AbortController();
       const timeout = globalThis.setTimeout(
