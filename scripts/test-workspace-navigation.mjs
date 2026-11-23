@@ -106,7 +106,7 @@ assert.match(navigationCss, /#githubWorkspaceCard\[hidden\]\s*\{\s*display:\s*no
 assert.match(navigationCss, /\.main\[data-workspace="connections"\]\s+#githubWorkspaceCard/);
 assert.deepEqual(workspace.WORKSPACES, ['chat', 'tasks', 'connections']);
 assert.deepEqual(workspace.allowedCardIds('tasks'), ['scheduleRuntimeCard', 'scheduleListCard']);
-assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'gmailConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard', 'githubWorkspaceCard']);
+assert.deepEqual(workspace.allowedCardIds('connections'), ['accountConnectionCard', 'gmailConnectionCard', 'canvaConnectionCard', 'githubWriteReadinessCard', 'githubWorkspaceCard', 'twentyFirstConnectionCard', 'browserBridgeConnectionCard', 'calendarConnectionCard', 'notionConnectionCard', 'slackConnectionCard', 'figmaConnectionCard', 'linearConnectionCard', 'storageConnectionCard']);
 assert.equal(workspace.isWorkspaceCard({ id: 'githubWorkspaceCard' }, 'connections'), true);
 assert.equal(workspace.isWorkspaceCard({ id: 'githubWorkspaceCard' }, 'tasks'), false);
 for (const unsafe of ['', 'settings', 'TASKS', null, {}, '__proto__']) assert.equal(workspace.normalizeWorkspace(unsafe), 'chat');
