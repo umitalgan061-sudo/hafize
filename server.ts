@@ -699,6 +699,7 @@ async function handleGitHubWorkspaceWrite(req, url, res) {
     if (action === 'branch') result = await GITHUB_WORKSPACE_WRITER.createBranch(ticket, payload);
     else if (action === 'file') result = await GITHUB_WORKSPACE_WRITER.commitFile(ticket, payload);
     else if (action === 'pull') result = await GITHUB_WORKSPACE_WRITER.createPullRequest(ticket, payload);
+    else if (action === 'deploy') result = await GITHUB_WORKSPACE_WRITER.dispatchFirebaseDeploy(ticket, payload);
     else { sendJson(res, 400, { error: 'INVALID_GITHUB_ARGUMENTS' }); return; }
     sendJson(res, 200, result);
   } catch (error) {
