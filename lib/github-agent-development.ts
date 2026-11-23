@@ -4,7 +4,9 @@ import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './github
 /**
  * Narrow, GitHub-API-only development actions for the interactive Hafize agent.
  * The agent never receives a GitHub token or a shell. Every mutation uses the
- * existing single-use writer ticket AFTER the authenticated user approves it.
+ * existing single-use writer ticket. A separately enabled and owner-authenticated
+ * safe-autonomy mode can issue that ticket under standing authorization, but
+ * never permits default-branch writes, secret files, deployments or merges.
  */
 type Writer = ReturnType<typeof createGitHubWorkspaceWriter>;
 type Operation = 'branch' | 'file' | 'pull';
@@ -14,7 +16,11 @@ type Approval = (request: {
   readonly detail: string;
   readonly risk: 'high';
 }) => Promise<boolean>;
-type RequestContext = { readonly requestApproval?: Approval };
+type RequestContext = {
+  readonly requestApproval?: Approval;
+  /** Trusted SERVER context only: cannot be supplied as model tool arguments. */
+  readonly safeAutonomy?: boolean;
+};
 type Options = {
   readonly writer: Writer;
   readonly allowedRepositories: readonly string[];
@@ -64,9 +70,11 @@ export function createGitHubAgentDevelopment(options: Options) {
       throw new GitHubWorkspaceWriteError('GITHUB_REPO_NOT_ALLOWED', 403);
     }
     const branch = featureBranch(args.branch);
-    // Non-streaming clients do not have the server's authenticated inline
-    // approval channel, so they can never perform an agent-initiated write.
-    if (typeof context.requestApproval !== 'function') {
+    // No model tool argument can request autonomous write access. The
+    // authenticated server alone decides whether its owner opted into
+    // preapproved, bounded draft-PR development actions.
+    const safeAutonomy = context.safeAutonomy === true;
+    if (!safeAutonomy && typeof context.requestApproval !== 'function') {
       throw new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_REQUIRED', 428);
     }
 
@@ -111,19 +119,21 @@ export function createGitHubAgentDevelopment(options: Options) {
     // Reuse all of the existing writer's secret, path, length, SHA and
     // default-branch checks BEFORE asking the user to approve.
     const normalized = writer.normalizeInput(operation, payload);
-    const approved = await context.requestApproval({
-      kind: 'github.development.' + operation,
-      title: operation === 'branch' ? 'GitHub üzerinde geliştirme dalı oluşturulsun mu?'
-        : operation === 'file' ? 'GitHub dosya değişikliği commit edilsin mi?'
-          : 'GitHub üzerinde taslak PR açılsın mı?',
-      detail: summary,
-      risk: 'high'
-    });
-    if (!approved) {
-      throw new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_REQUIRED', 428);
+    if (!safeAutonomy) {
+      const approved = await context.requestApproval!({
+        kind: 'github.development.' + operation,
+        title: operation === 'branch' ? 'GitHub üzerinde geliştirme dalı oluşturulsun mu?'
+          : operation === 'file' ? 'GitHub dosya değişikliği commit edilsin mi?'
+            : 'GitHub üzerinde taslak PR açılsın mı?',
+        detail: summary,
+        risk: 'high'
+      });
+      if (!approved) {
+        throw new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_REQUIRED', 428);
+      }
     }
-    // The ticket is issued only after explicit approval. It is single-use and
-    // bound to the normalized repository, action and complete payload.
+    // Even in safe autonomy, the single-use ticket stays bound to the exact
+    // normalized repository, operation and entire content fingerprint.
     const ticket = writer.issueApproval(operation, normalized, true);
     const token = ticket.ticket;
     if (operation === 'branch') return writer.createBranch(token, normalized);
