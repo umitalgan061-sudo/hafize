@@ -417,3 +417,49 @@ describe('github workspace safe write core', () => {
     });
   });
 });
+
+describe('GitHub Firebase workflow dispatch approval', () => {
+  const repository = 'umitalgan061-sudo/hafize';
+
+  it('requires user approval, checks exact repository, workflow and ref', () => {
+    const writer = makeWriter(async () => jsonResponse({}), [repository]);
+    expect(() => writer.issueApproval('deploy', { repository }, false))
+      .toThrowError(new GitHubWorkspaceWriteError('GITHUB_WRITE_APPROVAL_REQUIRED', 428));
+    for (const unsafe of [
+      { repository: 'owner/repo' },
+      { repository, workflow: 'other.yml' },
+      { repository, ref: 'evil' }
+    ]) {
+      expect(() => writer.issueApproval('deploy', unsafe, true))
+        .toThrowError(GitHubWorkspaceWriteError);
+    }
+  });
+
+  it('dispatches only the fixed live workflow and consumes the approval ticket', async () => {
+    const calls: Array<{ url: URL; method?: string; headers?: HeadersInit; body?: string }> = [];
+    const writer = makeWriter(async (url, init) => {
+      calls.push({ url: new URL(String(url)), method: init?.method, headers: init?.headers, body: String(init?.body || '') });
+      return { ok: true, status: 204 } as Response;
+    }, [repository]);
+    const ticket = writer.issueApproval('deploy', { repository }, true);
+    expect(ticket.action).toBe('deploy');
+    const result = await writer.dispatchFirebaseDeploy(ticket.ticket, { repository });
+    expect(result).toMatchObject({
+      action: 'deploy', repository, ref: 'main', workflow: 'firebase-hosting-live.yml', queued: true
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url.origin).toBe('https://api.github.com');
+    expect(calls[0].url.pathname).toBe('/repos/umitalgan061-sudo/hafize/actions/workflows/firebase-hosting-live.yml/dispatches');
+    expect(calls[0].method).toBe('POST');
+    expect(JSON.parse(calls[0].body || '{}')).toEqual({ ref: 'main' });
+    await expect(writer.dispatchFirebaseDeploy(ticket.ticket, { repository }))
+      .rejects.toMatchObject({ code: 'GITHUB_WRITE_APPROVAL_EXPIRED', status: 409 });
+  });
+
+  it('reports missing Actions write permission without claiming a deployment', async () => {
+    const writer = makeWriter(async () => ({ ok: false, status: 403 } as Response), [repository]);
+    const ticket = writer.issueApproval('deploy', { repository }, true);
+    await expect(writer.dispatchFirebaseDeploy(ticket.ticket, { repository }))
+      .rejects.toMatchObject({ code: 'GITHUB_WRITE_FAILED', status: 403 });
+  });
+});
