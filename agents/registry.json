@@ -58,6 +58,7 @@
           "workspace.sqlite",
           "shell.run",
           "git.worktree",
+          "repo.development",
           "test.run",
           "test.read_result",
           "skill.create",
@@ -210,6 +211,7 @@
         "default": "deny",
         "allow": [
           "repo.read",
+          "repo.development",
           "test.run",
           "trace.write",
           "skill.invoke",

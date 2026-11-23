@@ -57,6 +57,8 @@ export interface PlatformDeps {
   readonly skillsRuntime: any;
   readonly executeTool: (agent: AgentDefinition, call: unknown, context: ToolRuntimeContext) => Promise<ToolExecutionResult>;
   readonly allowedTools: (agent: AgentDefinition, context: ToolRuntimeContext) => readonly ToolDefinition[];
+  /** Server-owned GitHub development adapter; credentials never enter agent prompts or tool arguments. */
+  readonly githubDevelopment?: ToolServices['githubDevelopment'];
   /** Schedules an agent task for a rule; the schedule worker then runs it under the owner's policy. */
   readonly scheduleRuleTask?: (input: { readonly ownerId: string; readonly agentId: string; readonly task: string }) => Promise<void>;
 }
@@ -363,6 +365,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         }
         return devTools.git(args as never, context.signal);
       },
+      ...(deps.githubDevelopment ? { githubDevelopment: deps.githubDevelopment } : {}),
       skillCreate: async (args, context) => {
         const result = await skillAuthoring.create({
           manifest: args.manifest as Json,
