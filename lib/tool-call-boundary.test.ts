@@ -12,6 +12,17 @@ describe('tool call boundary',()=>{
     expect(()=>normalizeToolCall({id:'c'})).toThrow('INVALID_TOOL_NAME');
     expect(()=>normalizeToolCall({id:'c',function:{name:'x',arguments:'x'.repeat(16_385)}})).toThrow('TOOL_ARGUMENTS_TOO_LARGE');
   });
+  it('reserves large bounded file content for the GitHub App editor only',()=>{
+    const large = JSON.stringify({ operation: 'file', content: 'x'.repeat(20_000) });
+    const sourceCall = { id: 'cGithub', function: { name: 'github_develop', arguments: large } };
+    expect(normalizeToolCall(sourceCall).function.name).toBe('github_develop');
+    expect(parseToolArguments(large, 'github_develop')).toMatchObject({ operation: 'file' });
+    expect(() => normalizeToolCall({ id: 'c2', function: { name: 'runtime_status', arguments: large } })).toThrow('TOOL_ARGUMENTS_TOO_LARGE');
+    expect(() => parseToolArguments(large)).toThrow('TOOL_ARGUMENTS_TOO_LARGE');
+    const tooLarge = JSON.stringify({ content: 'x'.repeat(128 * 1024) });
+    expect(() => normalizeToolCall({ id: 'c3', function: { name: 'github_develop', arguments: tooLarge } })).toThrow('TOOL_ARGUMENTS_TOO_LARGE');
+    expect(TOOL_CALL_LIMITS.maxGitHubDevelopArgumentsLength).toBe(128 * 1024);
+  });
   it('parses only JSON records',()=>{
     expect(parseToolArguments('{"a":"b"}')).toEqual({a:'b'});
     expect(parseToolArguments('')).toEqual({});
