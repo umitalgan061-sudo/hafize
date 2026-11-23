@@ -78,8 +78,11 @@ html[data-theme="light"] .theme-sun, html[data-theme="dark"] .theme-moon { backg
 .welcome img { display: none; }
 .hero-point-portrait { display: block; width: 154px; height: 142px; margin: 0 auto 10px; object-fit: cover; mix-blend-mode: multiply; }
 .welcome:has(.hero-point-portrait) .hero-logo { display: none; }
-html[data-theme="dark"] .hero-point-portrait { display: none; }
-html[data-theme="dark"] .welcome:has(.hero-point-portrait) .hero-logo { display: block; }
+/* The owner portrait is part of Hafize's welcome identity in every theme.
+   Multiply lets its pale video background merge with the dark canvas, while
+   retaining the animated point portrait itself. */
+html[data-theme="dark"] .hero-point-portrait { display: block; filter: brightness(1.42) contrast(1.08); }
+html[data-theme="dark"] .welcome:has(.hero-point-portrait) .hero-logo { display: none; }
 .hero-logo { width: 66px; height: 66px; margin: 0 auto 16px; color: var(--premium-orange); }
 .welcome h1 { margin: 0 0 15px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(38px, 5vw, 58px); font-weight: 500; letter-spacing: -.025em; }
 .welcome h1::after { content: ""; display: block; width: 112px; height: 2px; margin: 7px 25% 0 auto; background: var(--premium-orange); border-radius: 999px; transform: rotate(-2deg); }
