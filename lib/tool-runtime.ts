@@ -54,6 +54,11 @@ export interface ToolRuntimeContext {
   readonly nvidiaConfigured?: boolean;
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: (args: unknown) => Promise<unknown>;
+  /** GitHub App-only development bridge; writes are separately approved per operation. */
+  readonly githubDevelopment?: {
+    readonly enabled: () => boolean;
+    readonly execute: (args: unknown, context: { readonly requestApproval?: ToolRuntimeContext['requestApproval'] }) => Promise<Record<string, unknown>>;
+  };
   readonly delegateAgent?: (args: unknown) => Promise<unknown>;
   readonly approvalGranted?: boolean;
   readonly canvaReadAuthenticated?: boolean;
@@ -267,6 +272,27 @@ const CATALOG = new Map<string, ToolEntry>([
     }),
     available: (context) => Boolean(context.githubReadConfigured && context.githubReadFile),
     execute: async (args, context) => context.githubReadFile!(args)
+  }],
+  ['github_develop', {
+    permission: 'repo.write_request',
+    kind: 'repository',
+    timeoutMs: timeout(120_000),
+    activity: { running: 'GitHub geliştirme işlemi için onay isteniyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı uygulanmadı' },
+    definition: strictDefinition('github_develop',
+      'GitHub App ile Git kullanmadan izinli depoda önce ayrı hafize/auto-* dalı aç, sonra dosya oluştur/güncelle, son olarak yalnız TASLAK PR aç. Her adımda kullanıcıya ayrı onay sorulur. Merge, deploy ve main üzerine commit yoktur. Bir dosyayı güncellemeden önce github_read_file ile SHA değerini öğren.',
+      {
+        operation: { type: 'string', enum: ['branch', 'file', 'pull'] },
+        repository: { type: 'string' },
+        branch: { type: 'string' },
+        path: { type: 'string' },
+        content: { type: 'string' },
+        message: { type: 'string' },
+        existingSha: { type: 'string' },
+        title: { type: 'string' },
+        body: { type: 'string' }
+      }, ['operation', 'repository', 'branch']),
+    available: (context) => Boolean(context.githubDevelopment?.enabled() && typeof context.requestApproval === 'function'),
+    execute: async (args, context) => context.githubDevelopment!.execute(args, { requestApproval: context.requestApproval })
   }],
   ['canva_read', {
     permission: 'connector.canva.read',
