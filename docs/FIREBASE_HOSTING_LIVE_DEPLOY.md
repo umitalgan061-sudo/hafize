@@ -75,9 +75,15 @@ rewrites. That backend must not be replaced by a default catch-all rewrite.
 
 ## Hafize self-deployment
 
-On a protected server with an installed GitHub App (or token) authorized for
-**Actions: write** on `umitalgan061-sudo/hafize`, the app may request the
-existing `Hafize Firebase Hosting — live` GitHub workflow to run on `main`.
+The GitHub Workspace **Firebase canlı yayınını başlat** action is now
+implemented with the same one-time user-approval ticket as branch/commit/PR.
+On a protected Hafize backend, the GitHub App (or server token) must have
+**Actions: write** on `umitalgan061-sudo/hafize` and the repository must be
+in `HAFIZE_GITHUB_WRITE_REPOS`. The server will dispatch **only**
+`firebase-hosting-live.yml` on `main`; a user or model cannot change the
+workflow or ref. The UI shows GitHub Actions' execution page. A dispatch
+response means *queued*, not *successfully deployed*. Check the Actions job
+for the post-deploy live marker verification.
 This is distinct from browser access or uploading the Firebase service-account
 JSON into Hafize. The Firebase key stays in GitHub Actions Secrets, never in
 client JavaScript. Pushing an approved change to `main` also triggers the
