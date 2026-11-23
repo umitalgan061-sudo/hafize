@@ -1,0 +1,138 @@
+name: Retake Firebase Hosting — live release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retake-hosting-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retake06-firebase-live
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FIREBASE_PROJECT_ID: projelerim-8fecd
+      RETAKE_SITE_ID: retake06-ua
+      RETAKE_RELEASE_SHA: ccf5783517cdd53c5edb4ce19fac5a63786a6794
+    steps:
+      - name: Check out the verified Retake source commit only
+        uses: actions/checkout@v4
+        with:
+          repository: umitalgan061-sudo/retake
+          ref: ccf5783517cdd53c5edb4ce19fac5a63786a6794
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+
+      - name: Prepare strict single-site Hosting-only release
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const config = JSON.parse(readFileSync('firebase.json', 'utf8'));
+          const h = config?.hosting;
+          if (!h || h.target !== 'retake06' || h.public !== '.' ||
+              process.env.FIREBASE_PROJECT_ID !== 'projelerim-8fecd' ||
+              process.env.RETAKE_SITE_ID !== 'retake06-ua') {
+            throw new Error('RETAKE_HOSTING_TARGET_MISMATCH');
+          }
+          if (!Array.isArray(h.ignore) || !Array.isArray(h.headers)) {
+            throw new Error('RETAKE_HOSTING_GUARDRAILS_MISSING');
+          }
+          // In contrast with the source firebase.json, this temporary config
+          // has NO functions, database, rules, hooks, or other site targets.
+          const hosting = {
+            public: '.',
+            site: 'retake06-ua',
+            ignore: [...new Set([
+              ...h.ignore, 'firebase-release.json', '.github/**', '.git/**',
+              'node_modules/**', 'tools/**', 'models/**', 'functions/**',
+              'worker/**', 'tests/**', 'docs/**', 'ios/**'
+            ])],
+            headers: h.headers,
+            ...(Array.isArray(h.rewrites) ? { rewrites: h.rewrites } : {}),
+            ...(Array.isArray(h.redirects) ? { redirects: h.redirects } : {})
+          };
+          writeFileSync('firebase-release.json', JSON.stringify({ hosting }, null, 2) + '\n');
+          writeFileSync('retake-release.json', JSON.stringify({
+            commit: process.env.RETAKE_RELEASE_SHA, site: process.env.RETAKE_SITE_ID
+          }) + '\n');
+          console.log('Validated exact Retake source SHA and isolated single-site Hosting config.');
+          JS
+
+      - name: Authenticate with existing Firebase project service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+        shell: bash
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo '::error::Firebase service account is missing; Retake live deploy not attempted.'
+            exit 1
+          fi
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/retake-firebase-sa.json"
+          chmod 600 "$RUNNER_TEMP/retake-firebase-sa.json"
+          node - "$RUNNER_TEMP/retake-firebase-sa.json" <<'JS'
+          const fs = require('node:fs');
+          const account = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          if (account.type !== 'service_account' || account.project_id !== 'projelerim-8fecd')
+            throw new Error('FIREBASE_SERVICE_ACCOUNT_PROJECT_MISMATCH');
+          console.log('Verified project-specific service account without printing private data.');
+          JS
+
+      - name: Deploy ONLY the Retake Hosting site
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/retake-firebase-sa.json
+        shell: bash
+        run: |
+          npx --yes firebase-tools@15.0.0 deploy --only hosting \
+            --project "$FIREBASE_PROJECT_ID" \
+            --config firebase-release.json \
+            --non-interactive
+
+      - name: Verify public Retake release marker from target site
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const url = new URL('https://retake06-ua.web.app/retake-release.json');
+          url.searchParams.set('sha', process.env.RETAKE_RELEASE_SHA);
+          let passed = false;
+          for (let attempt = 0; attempt < 6; attempt++) {
+            try {
+              const response = await fetch(url, {
+                cache: 'no-store',
+                signal: AbortSignal.timeout(12000)
+              });
+              if (response.ok) {
+                const data = await response.json();
+                if (data?.commit === process.env.RETAKE_RELEASE_SHA &&
+                    data?.site === process.env.RETAKE_SITE_ID) {
+                  passed = true;
+                  break;
+                }
+              }
+            } catch { /* CDN propagation delay */ }
+            if (attempt < 5) await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          if (!passed) {
+            console.error('::error::Retake live site did not serve the expected release.');
+            process.exitCode = 1;
+          } else {
+            console.log('Verified live Retake Firebase Hosting for ' + process.env.RETAKE_RELEASE_SHA);
+          }
+          JS
+
+      - name: Remove temporary Firebase credential
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/retake-firebase-sa.json"
