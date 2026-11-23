@@ -25,6 +25,8 @@ import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
 import { createGitHubAgentDevelopment } from './lib/github-agent-development.ts';
+import { allowSafeGitHubAutonomy } from './lib/github-agent-autonomy.ts';
+import { parseRuntimeConfig } from './lib/runtime-config.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
 import { createContextCompactor } from './lib/context-compaction.ts';
@@ -174,6 +176,11 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
 const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
   ? createGitHubAgentDevelopment({ writer: GITHUB_WORKSPACE_WRITER, allowedRepositories: GITHUB_AGENT_REPOS })
   : null;
+// Standing consent is disabled unless the server owner explicitly opts in;
+// signed session authentication is mandatory even on a localhost deployment.
+// These flags never reach the LLM or browser as tool-call arguments.
+const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
+const GITHUB_SAFE_AUTONOMY_OPT_IN = /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_SAFE_AUTONOMY || '').trim());
 const MAX_BODY_BYTES = 256 * 1024;
 // Chat bodies carry long pasted texts and inlined file contents (the composer has no length cap).
 const CHAT_BODY_BYTES = 2 * 1024 * 1024;
@@ -766,6 +773,14 @@ async function handleAgentRun(req, res) {
   const requestAbort = attachDisconnectAbort(req, AGENT_TIMEOUT_MS);
   const principal = req.__hafizePrincipal || null;
   const ownerId = principal?.ownerId || '';
+  const safeGitHubAutonomy = Boolean(GITHUB_APP_AUTH) && allowSafeGitHubAutonomy({
+    optedIn: GITHUB_SAFE_AUTONOMY_OPT_IN,
+    authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired,
+    principal,
+    configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject,
+    agentId: agent.id,
+    primaryAgentId: AGENT_REGISTRY.defaultAgent
+  });
   const conversationId = typeof body.conversationId === 'string' && CONVERSATION_ID_PATTERN.test(body.conversationId) ? body.conversationId : '';
   const emitEvent = streamResponse ? (type, payload) => { startSse(res); writeSseEvent(res, type, payload); } : null;
   const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
@@ -842,6 +857,7 @@ async function handleAgentRun(req, res) {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    safeGitHubAutonomy,
     delegateAgent: delegator.delegate,
     ...connectorContext,
     skillsRuntime: SKILLS_RUNTIME,
@@ -858,6 +874,7 @@ async function handleAgentRun(req, res) {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    safeGitHubAutonomy,
     delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
     approvalGranted: false,
     signal: requestAbort.signal,
