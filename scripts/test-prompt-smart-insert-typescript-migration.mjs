@@ -42,6 +42,6 @@ assert.ok(html.includes('typed-build/legacy-app.js'));
 assert.doesNotMatch(html, /prompt-library-smart-insert-[a-z-]+\.js/);
 assert.match(vite, /legacy-app/);
 assert.ok(sw.includes('typed-build/legacy-app.js'));
-assert.ok(sw.includes('v168'), 'service worker cache version mismatch');
+assert.ok(Number(sw.match(/CURRENT_CACHE\s*=\s*[^;\n]*v(\d+)/)?.[1]) >= 168, 'service worker cache version mismatch');
 
 console.log('TypeScript Smart Insert migration gate: OK');
