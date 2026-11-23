@@ -1,0 +1,62 @@
+name: Hafize Cloud backend — read-only audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/hafize-cloud-backend-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check Google Cloud credential presence
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+        shell: bash
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo '::error::FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA is unavailable'
+            exit 1
+          fi
+          echo 'Firebase service account secret is configured (contents hidden)'
+
+      - name: Authenticate to existing Firebase project with service account
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
+          project_id: projelerim-8fecd
+
+      - name: Install gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Inspect existing Cloud Run service (read-only)
+        env:
+          CLOUDSDK_CORE_DISABLE_PROMPTS: '1'
+        shell: bash
+        run: |
+          set +e
+          for region in europe-west1 europe-west4 us-central1; do
+            if gcloud run services describe hafize-backend --region="$region" --project=projelerim-8fecd --format='value(status.url)' > "$RUNNER_TEMP/hafize-url" 2>"$RUNNER_TEMP/hafize-error"; then
+              echo "CLOUD_RUN_SERVICE_FOUND region=$region"
+              echo "CLOUD_RUN_SERVICE_URL=$(cat "$RUNNER_TEMP/hafize-url")"
+            else
+              echo "CLOUD_RUN_NOT_ACCESSIBLE region=$region (service missing or account lacks run.services.get)"
+            fi
+          done
+          if gcloud services list --enabled --project=projelerim-8fecd --format='value(config.name)' > "$RUNNER_TEMP/hafize-apis" 2>/dev/null; then
+            for api in run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com; do
+              if grep -Fxq "$api" "$RUNNER_TEMP/hafize-apis"; then echo "API_ENABLED $api"; else echo "API_NOT_ENABLED $api"; fi
+            done
+          else
+            echo "API_LIST_NOT_ACCESSIBLE (serviceusage.services.list permission needed)"
+          fi
+          echo 'Audit completed; no cloud resources were created or modified.'
