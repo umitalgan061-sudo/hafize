@@ -6,12 +6,18 @@ on:
     paths:
       - Dockerfile
       - .dockerignore
+      - .gcloudignore
+      - 'scripts/hafize-cloud-run-*.mjs'
+      - 'scripts/firebase-hosting-preflight.mjs'
       - '.github/workflows/hafize-cloud-run-smoke.yml'
   pull_request:
     branches: [main]
     paths:
       - Dockerfile
       - .dockerignore
+      - .gcloudignore
+      - 'scripts/hafize-cloud-run-*.mjs'
+      - 'scripts/firebase-hosting-preflight.mjs'
       - '.github/workflows/hafize-cloud-run-smoke.yml'
 
 permissions:
@@ -27,6 +33,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Verify backend guardrails and Firebase rewrite behavior
+        run: node --test scripts/hafize-cloud-run-preflight.test.mjs scripts/hafize-cloud-run-route.test.mjs scripts/firebase-hosting-preflight.test.mjs
       - name: Build the actual Cloud Run image
         run: docker build --tag hafize-cloud-smoke .
       - name: Boot backend in protected production mode
