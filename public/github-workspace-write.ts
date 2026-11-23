@@ -6,7 +6,7 @@ export interface GitHubWorkspaceWriteController {
   readonly destroy: () => void;
 }
 
-type WriteAction = 'branch' | 'file' | 'pull';
+type WriteAction = 'branch' | 'file' | 'pull' | 'deploy';
 type WritePayload = Record<string, unknown>;
 type ApiRecord = Record<string, unknown>;
 
@@ -83,7 +83,7 @@ function readWriteHistory(): WriteHistoryEntry[] {
     return parsed.flatMap((item): WriteHistoryEntry[] => {
       if (!item || typeof item !== 'object') return [];
       const value = item as Record<string, unknown>;
-      const action = value.action === 'branch' || value.action === 'file' || value.action === 'pull'
+      const action = value.action === 'branch' || value.action === 'file' || value.action === 'pull' || value.action === 'deploy'
         ? value.action
         : null;
       const repository = clamp(value.repository, HISTORY_REPOSITORY);
@@ -106,12 +106,13 @@ function saveWriteHistory(entries: readonly WriteHistoryEntry[]): void {
 }
 
 function actionLabel(action: WriteAction): string {
-  return action === 'branch' ? 'Branch' : action === 'file' ? 'Commit' : 'PR';
+  return action === 'branch' ? 'Branch' : action === 'file' ? 'Commit' : action === 'deploy' ? 'Firebase yayın' : 'PR';
 }
 
 function historyTarget(action: WriteAction, data: ApiRecord): string {
   if (action === 'branch') return clamp(data.branch, HISTORY_TARGET) || 'branch';
   if (action === 'file') return clamp(data.path, HISTORY_TARGET) || 'dosya';
+  if (action === 'deploy') return 'Firebase Hosting · main';
   const number = typeof data.number === 'number' ? String(data.number) : '';
   return number ? '#' + number : clamp(data.title, HISTORY_TARGET) || 'PR';
 }
@@ -179,7 +180,8 @@ function renderWriteHistory(
     ['all', 'Tümü'],
     ['branch', 'Branch'],
     ['file', 'Commit'],
-    ['pull', 'PR']
+    ['pull', 'PR'],
+    ['deploy', 'Firebase yayın']
   ] as const) {
     const option = make(documentRef, 'option', label);
     option.value = value;
@@ -325,6 +327,7 @@ function createField(
 function payloadIsUseful(action: WriteAction, values: Record<string, HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>): boolean {
   if (!clamp(values.repository?.value, MAX_REPOSITORY)) return false;
   if (action === 'branch') return Boolean(clamp(values.branch?.value, MAX_BRANCH) && clamp(values.fromRef?.value, MAX_REF));
+  if (action === 'deploy') return clamp(values.repository?.value, MAX_REPOSITORY).toLowerCase() === 'umitalgan061-sudo/hafize';
   if (action === 'file') return Boolean(
     clamp(values.branch?.value, MAX_BRANCH) &&
     clamp(values.path?.value, MAX_PATH) &&
@@ -342,7 +345,9 @@ function describePlan(doc: Document, action: WriteAction, payload: WritePayload)
   const panel = make(doc, 'div', undefined, 'github-write-plan');
   const title = make(doc, 'strong', 'Yazma önizlemesi');
   const rows = make(doc, 'div', undefined, 'github-write-plan-rows');
-  const entries: Array<[string, string]> = action === 'branch'
+  const entries: Array<[string, string]> = action === 'deploy'
+    ? [['Repository', clamp(payload.repository, MAX_REPOSITORY)], ['İş akışı', 'Firebase Hosting — live'], ['Hedef', 'main · hafize-ua.web.app']]
+    : action === 'branch'
     ? [
       ['Repository', clamp(payload.repository, MAX_REPOSITORY)],
       ['Yeni branch', clamp(payload.branch, MAX_BRANCH)],
@@ -389,7 +394,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
   const intro = make(
     documentRef,
     'p',
-    'Branch oluştur, tek dosya commit et veya mevcut branch’lerden PR aç. Varsayılan branch’e doğrudan commit ve secret/workflow yolları engellenir.',
+    'Branch oluştur, tek dosya commit et, PR aç veya onayla Firebase Hosting canlı yayınını başlat. Firebase anahtarları sadece GitHub Actions Secrets içinde kalır.',
     'github-write-intro'
   );
 
@@ -398,7 +403,8 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
     ...Object.entries({
       branch: 'Branch oluştur',
       file: 'Dosya commit et',
-      pull: 'Pull request aç'
+      pull: 'Pull request aç',
+      deploy: 'Firebase canlı yayınını başlat'
     }).map(([value, label]) => {
       const option = make(documentRef, 'option', label);
       option.value = value;
@@ -518,6 +524,11 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
         createField(documentRef, 'Mevcut dosya SHA', existingSha, 'Yeni dosya için boş bırakılır.'),
         createField(documentRef, 'İçerik', content, 'En fazla 96 KB; plaintext credential/token tespiti uygulanır.')
       );
+    } else if (action === 'deploy') {
+      repository.value = 'umitalgan061-sudo/hafize';
+      form.append(
+        createField(documentRef, 'Repository', repository, 'Yalnız Hafize reposunun sabit Firebase Hosting iş akışı; main dalı; açık onay zorunlu.')
+      );
     } else {
       const head = control<HTMLInputElement>(documentRef, 'input', 'PR head branch');
       head.type = 'text';
@@ -584,6 +595,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
         fromRef: clamp(values.fromRef?.value, MAX_REF)
       };
     }
+    if (action === 'deploy') return { repository };
     if (action === 'file') {
       return {
         repository,
@@ -670,7 +682,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
       ? 'Branch oluşturuldu'
       : action === 'file'
         ? 'Commit oluşturuldu'
-        : 'Pull request oluşturuldu';
+        : action === 'deploy' ? 'Firebase yayın isteği GitHub’a gönderildi' : 'Pull request oluşturuldu';
     box.append(make(documentRef, 'strong', headline));
     if (action === 'branch') {
       box.append(
@@ -695,6 +707,16 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
       const url = clamp(data.commitUrl, 500);
       if (safeGithubUrl(url)) {
         const link = make(documentRef, 'a', 'Commit’i GitHub’da aç', 'github-write-result-link') as HTMLAnchorElement;
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        box.append(link);
+      }
+    } else if (action === 'deploy') {
+      box.append(make(documentRef, 'div', 'Hafize · Firebase Hosting · main', 'github-write-result-meta'));
+      const url = clamp(data.htmlUrl, 500);
+      if (safeGithubUrl(url)) {
+        const link = make(documentRef, 'a', 'GitHub Actions yayın durumunu aç', 'github-write-result-link') as HTMLAnchorElement;
         link.href = url;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
