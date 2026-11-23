@@ -50,6 +50,7 @@ import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
+import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
@@ -83,7 +84,7 @@ const WEB_TOOLS = createWebTools({
   tavilyApiKey: process.env.TAVILY_API_KEY || '',
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
-const MAX_AGENT_TOOL_ROUNDS = 4;
+const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 8, 4, 12);
 const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
@@ -927,10 +928,10 @@ async function handleAgentRun(req, res) {
     requestAbort.cancel();
     deliverRequestFailure(res, error);
   };
-  const finishWithAnswer = (content, alreadyWritten) => {
-    agentSpan.end('ok', { 'tools.count': toolSummary.length, 'tools.failed': anyToolFailed });
+  const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
+    agentSpan.end(unresolved ? 'error' : 'ok', { 'tools.count': toolSummary.length, 'tools.failed': anyToolFailed, 'answer.unresolved': unresolved });
     PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : content);
-    runLedger.finish({ ok: !anyToolFailed, detail: anyToolFailed ? 'tool_failed' : null });
+    runLedger.finish({ ok: !anyToolFailed && !unresolved, detail: unresolved ? 'incomplete_agent_answer' : anyToolFailed ? 'tool_failed' : null });
     requestAbort.cancel();
     if (streamResponse) {
       startSse(res);
@@ -950,6 +951,7 @@ async function handleAgentRun(req, res) {
     });
   };
 
+  let incompleteReason = 'tool_budget';
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     const roundPayload = {
       model,
@@ -995,7 +997,13 @@ async function handleAgentRun(req, res) {
       }));
 
     if (!normalizedCalls.length) {
-      if (!content.trim()) break;
+      // "I will start changing the code" without an actual change or result
+      // is not a completed development task. Give the model one last chance
+      // to supply an honest outcome rather than marking the run successful.
+      if (isEmptyOrProgressOnlyAnswer(stripToolMarkup(content))) {
+        incompleteReason = 'empty_response';
+        break;
+      }
       finishWithAnswer(content, completion.wrote);
       return;
     }
@@ -1067,16 +1075,19 @@ async function handleAgentRun(req, res) {
     }
   }
 
-  // The tool budget is spent or the model went quiet: ask once more for a plain answer, with no
-  // tools offered at all (offering them with tool_choice "none" still invites text-written calls).
+  // Either the tool budget was exhausted or the model emitted no substantive
+  // answer. A tool activity badge is not evidence of a completed code change.
+  // Ask for a concrete evidence-based status, never a fresh promise to start.
+  const finalInstruction = buildFinalToolInstruction(toolSummary);
+  const finalMessages = [
+    ...workingMessages,
+    { role: 'system', content: finalInstruction }
+  ];
   let final;
   try {
     final = await runRound({
       model,
-      messages: [
-        ...workingMessages,
-        { role: 'system', content: 'Araç kullanımı bu soru için tamamlandı. Şimdi topladığın bilgilerle kullanıcıya doğrudan, eksiksiz bir yanıt ver; başka araç çağırma.' }
-      ],
+      messages: finalMessages,
       stream: false,
       max_tokens: boundedMaxTokens(body)
     });
@@ -1085,7 +1096,34 @@ async function handleAgentRun(req, res) {
     return;
   }
   const finalText = stripToolMarkup(final.content);
-  finishWithAnswer(final.wrote ? finalText : finalText || 'Bu soruya şu an tam bir yanıt oluşturamadım. Soruyu biraz farklı ifade ederek tekrar sorabilir misin?', final.wrote);
+  if (!isEmptyOrProgressOnlyAnswer(finalText)) {
+    finishWithAnswer(finalText, final.wrote);
+    return;
+  }
+  // One bounded JSON recovery is useful when streamed tool markup consumes
+  // the entire final completion. No tools are offered during the retry.
+  let recovered = '';
+  try {
+    const raw = await nvidiaJsonCompletion({
+      model,
+      messages: [
+        ...finalMessages,
+        { role: 'system', content: 'Önceki yanıtın boştu veya yalnızca "başlıyorum" dedi. Araç çağırmadan, fiilen doğrulanmış durumu ve bitmeyen işi Türkçe açıkça anlat. Başarı/commit/PR uydurma.' }
+      ],
+      stream: false,
+      max_tokens: boundedMaxTokens(body)
+    }, requestAbort.signal);
+    PLATFORM.telemetry.recordCompletionUsage(traceId, 'agent.answer_recovery', model, raw);
+    recovered = stripToolMarkup(normalizeRootCompletion(raw).content);
+  } catch {
+    // The user's run still has an honest outcome: return local, sanitized
+    // tool-status evidence rather than another invented or empty model reply.
+  }
+  if (!isEmptyOrProgressOnlyAnswer(recovered)) {
+    finishWithAnswer(recovered, false);
+    return;
+  }
+  finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
 }
 
 async function handleChat(req, res) {

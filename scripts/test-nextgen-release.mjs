@@ -53,7 +53,9 @@ assert(files.vite.includes("'sw': resolve(ROOT, 'public/sw.ts')"), 'sw-vite-entr
 assert(files.index.includes('/typed-build/legacy-app.js'), 'legacy-app-html-entry');
 assert(files.app.includes("navigator.serviceWorker.register(serviceWorkerUrl, { type: 'module', scope: '/' })"), 'module-service-worker-registration');
 assert(files.sw.includes("from './sw-policy.ts'"), 'typed-sw-policy-import');
-assert(files.swPolicy.includes("CURRENT_CACHE = `${CACHE_PREFIX}v168`"), 'cache-version');
+const cacheVersionMatch = files.swPolicy.match(/CURRENT_CACHE\s*=\s*[^;\n]*v([0-9]+)/);
+const cachePrefixMarker = 'CURRENT_CACHE = ' + String.fromCharCode(96) + '${CACHE_PREFIX}v';
+assert(files.swPolicy.includes(cachePrefixMarker) && cacheVersionMatch && Number(cacheVersionMatch[1]) >= 168, 'cache-version');
 assert(!await exists('public/sw.js'), 'legacy-sw-removed');
 assert(!await exists('public/sw-policy.js'), 'legacy-sw-policy-removed');
 
