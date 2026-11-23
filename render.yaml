@@ -1,0 +1,30 @@
+# Free-only Hafize backend / full-app trial.
+# No paid instance, disk, database, worker, or cron service is provisioned.
+# This runs the existing Dockerfile, which serves UI + /api on ONE origin.
+# Note: Render Free sleeps after idle and discards local SQLite data on sleep.
+services:
+  - type: web
+    name: hafize-free
+    runtime: docker
+    plan: free
+    region: frankfurt
+    repo: https://github.com/umitalgan061-sudo/hafize
+    branch: main
+    autoDeployTrigger: off
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    numInstances: 1
+    healthCheckPath: /api/health/live
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HAFIZE_AUTH_REQUIRED
+        value: "true"
+      - key: HAFIZE_COOKIE_SECURE
+        value: "true"
+      - key: HAFIZE_AUTH_TOKEN
+        generateValue: true
+      - key: HAFIZE_MASTER_KEY
+        generateValue: true
+      - key: NVIDIA_API_KEY
+        sync: false
