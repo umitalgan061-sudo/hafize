@@ -1,0 +1,63 @@
+name: Hafize live backend probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/hafize-live-backend-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check public release marker and API responses
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          const base = 'https://hafize-ua.web.app';
+          const targets = [
+            { path: '/release.json', expect: 'release', mandatory: true },
+            { path: '/api/health/live', expect: 'health', mandatory: true },
+            { path: '/api/health', expect: 'health', mandatory: true }
+          ];
+          let failed = false;
+          for (const { path, expect, mandatory } of targets) {
+            let result = 'unreachable';
+            try {
+              const url = base + path + '?probe=' + Date.now();
+              const response = await fetch(url, {
+                redirect: 'manual',
+                cache: 'no-store',
+                signal: AbortSignal.timeout(15000),
+                headers: { Accept: 'application/json' }
+              });
+              const contentType = response.headers.get('content-type') || '';
+              const isJson = contentType.includes('application/json');
+              let data = null;
+              if (isJson) {
+                try { data = await response.json(); } catch { /* invalid JSON */ }
+              }
+              const valid = expect === 'release'
+                ? response.status === 200 && typeof data?.commit === 'string' && /^[0-9a-f]{40}$/.test(data.commit)
+                : response.status === 200 && data?.status === 'ok';
+              result = 'HTTP ' + response.status + ', JSON=' + Boolean(data) + ', valid=' + valid;
+              if (!valid && mandatory) failed = true;
+            } catch (error) {
+              result = error instanceof Error ? error.name : 'network_error';
+              if (mandatory) failed = true;
+            }
+            console.log(path + ' -> ' + result);
+          }
+          // A working static Hosting release does not imply backend routing.
+          // This workflow makes that distinction visible without logging tokens
+          // or any private response payload.
+          if (failed) {
+            console.error('Live backend probe did not pass; inspect Hosting /api rewrites and the protected backend runtime.');
+            process.exitCode = 1;
+          }
+          JS
