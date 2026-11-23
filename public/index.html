@@ -6,6 +6,13 @@
   <meta name="theme-color" content="#f7f5f0" />
   <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
   <title>Hafize</title>
+  <script>
+    // Firebase Hosting remains a stable legacy address while the secured app runs on Render.
+    // Do not redirect preview hosts or the Render origin itself.
+    if (location.hostname === 'hafize-ua.web.app') {
+      location.replace('https://hafize-free.onrender.com' + location.pathname + location.search + location.hash);
+    }
+  </script>
   <script src="/theme-init.js"></script>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/hafize.jpeg" />
