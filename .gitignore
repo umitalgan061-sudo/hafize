@@ -32,3 +32,4 @@ workspace/
 # Firebase live config comes from a protected GitHub secret; release marker is generated during CI.
 firebase.json
 public/release.json
+\n# Temporary Google GitHub Actions credential files never enter images or Git.\ngha-creds-*.json\n
