@@ -7,9 +7,10 @@
   <meta name="description" content="Hafize — NVIDIA NIM destekli kişisel yapay zekâ çalışma alanı" />
   <title>Hafize</title>
   <script>
-    // Firebase Hosting remains a stable legacy address while the secured app runs on Render.
-    // Do not redirect preview hosts or the Render origin itself.
-    if (location.hostname === 'hafize-ua.web.app') {
+      // Firebase Hosting can be opened directly for legacy release comparison.
+      // Keep the former redirect available as an opt-in switch; do not redirect preview hosts or Render.
+      const legacyRedirectEnabled = false;
+      if (legacyRedirectEnabled && location.hostname === 'hafize-ua.web.app') {
       location.replace('https://hafize-free.onrender.com' + location.pathname + location.search + location.hash);
     }
   </script>
