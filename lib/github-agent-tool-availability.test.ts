@@ -40,7 +40,16 @@ describe('GitHub agent tool availability and execution', () => {
     expect(getAllowedNvidiaTools(agent, context).map((t) => t.function.name)).toContain('github_develop');
     const result = await executeNvidiaToolCall(agent, call, context);
     expect(result).toMatchObject({ ok: true, tool: 'github_develop' });
-    expect(execute).toHaveBeenCalledWith(args, { requestApproval: context.requestApproval });
+    expect(execute).toHaveBeenCalledWith(args, { requestApproval: context.requestApproval, safeAutonomy: false });
+  });
+
+  it('permits preapproved safe development without an inline approval channel', async () => {
+    const { context, execute } = setup(true, false);
+    const safeContext = { ...context, safeGitHubAutonomy: true };
+    expect(getAllowedNvidiaTools(agent, safeContext).map((t) => t.function.name)).toContain('github_develop');
+    const result = await executeNvidiaToolCall(agent, call, safeContext);
+    expect(result).toMatchObject({ ok: true, tool: 'github_develop' });
+    expect(execute).toHaveBeenCalledWith(args, { requestApproval: undefined, safeAutonomy: true });
   });
 
   it('never bypasses an agent-specific deny policy', async () => {
