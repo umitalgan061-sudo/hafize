@@ -29,6 +29,21 @@ jobs:
           fi
           echo 'Firebase service account secret is configured (contents hidden)'
 
+      - name: Report additional backend secret availability (no secret contents)
+        env:
+          HAFIZE_CLOUD_RUN_AUTH_TOKEN: ${{ secrets.HAFIZE_CLOUD_RUN_AUTH_TOKEN }}
+          HAFIZE_CLOUD_RUN_MASTER_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_MASTER_KEY }}
+          HAFIZE_CLOUD_RUN_NVIDIA_API_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_NVIDIA_API_KEY }}
+        shell: bash
+        run: |
+          for name in HAFIZE_CLOUD_RUN_AUTH_TOKEN HAFIZE_CLOUD_RUN_MASTER_KEY HAFIZE_CLOUD_RUN_NVIDIA_API_KEY; do
+            if [ -n "${!name}" ]; then
+              echo "BACKEND_SECRET_PRESENT: $name"
+            else
+              echo "BACKEND_SECRET_MISSING: $name"
+            fi
+          done
+
       - name: Authenticate to existing Firebase project with service account
         uses: google-github-actions/auth@v3
         with:
