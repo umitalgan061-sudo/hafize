@@ -719,7 +719,7 @@ export async function executeNvidiaToolCall(
   }
   let args: Record<string, unknown>;
   try {
-    args = parseToolArguments(normalized.function.arguments);
+    args = parseToolArguments(normalized.function.arguments, normalized.function.name);
   } catch (error) {
     return { ok: false, tool: entry.definition.function.name, error: sanitizeToolError(error).code, durationMs: Date.now() - startedAt };
   }
