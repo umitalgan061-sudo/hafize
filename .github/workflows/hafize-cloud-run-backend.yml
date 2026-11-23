@@ -8,7 +8,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: hafize-cloud-run-backend-live
+  group: hafize-firebase-hosting-live
   cancel-in-progress: false
 
 jobs:
