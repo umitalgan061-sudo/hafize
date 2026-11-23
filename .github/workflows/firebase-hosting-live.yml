@@ -9,6 +9,7 @@ on:
       - 'package-lock.json'
       - 'vite.config.ts'
       - 'scripts/firebase-hosting-preflight.mjs'
+      - 'scripts/firebase-hosting-preflight.test.mjs'
       - '.github/workflows/firebase-hosting-live.yml'
   workflow_dispatch:
 
