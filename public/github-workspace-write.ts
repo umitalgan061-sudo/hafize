@@ -644,7 +644,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
       });
       const ticket = clamp(approvalResult.ticket, 128);
       if (!ticket) throw new Error('GITHUB_WRITE_APPROVAL_REQUIRED');
-      report('Onay bileti tek kullanımlık ve kısa ömürlü. GitHub yazılıyor…');
+      report(action === 'deploy' ? 'Onay alındı · GitHub Actions Firebase yayını başlatılıyor…' : 'Onay bileti tek kullanımlık ve kısa ömürlü. GitHub yazılıyor…');
       const written = await postJson('/api/github/workspace/write', {
         action,
         ticket,
@@ -657,7 +657,7 @@ function mount(documentRef: Document = root.document): GitHubWorkspaceWriteContr
         saveWriteHistory([]);
         renderWriteHistory(documentRef, historyHost, () => {});
       });
-      report('GitHub yazma işlemi tamamlandı.');
+      report(action === 'deploy' ? 'Firebase yayın isteği GitHub Actions kuyruğuna alındı. Canlı sürüm için iş akışının başarıyla bitmesini doğrulayın.' : 'GitHub yazma işlemi tamamlandı.');
       approval.checked = false;
     } catch (error) {
       report(error instanceof Error ? errorLabel(error.message) : 'GitHub yazma işlemi tamamlanamadı.');
