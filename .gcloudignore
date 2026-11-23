@@ -1,0 +1,28 @@
+# gcloud run deploy --source uploads ONLY files not ignored here.
+# Never upload Google credentials or local Hafize data to Cloud Build.
+.git
+.github
+.gitignore
+.dockerignore
+.env
+.env.*
+**/.env
+**/.env.*
+gha-creds-*.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.crt
+node_modules
+data
+runtime
+workspace
+coverage
+.nyc_output
+evals/results
+public/typed-build
+public/release.json
+firebase.json
+.firebaserc
+*.log
