@@ -140,7 +140,7 @@ const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 // Agent access is narrower than the UI writer: Retake stays excluded until
 // explicitly configured after the Hafize-only approval flow is verified.
-const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS || 'umitalgan061-sudo/hafize')
+const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')
   .filter((repo) => GITHUB_WRITE_REPOS.some((item) => item.toLowerCase() === repo.toLowerCase()));
 const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
