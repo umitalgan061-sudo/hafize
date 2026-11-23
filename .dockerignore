@@ -28,4 +28,6 @@ public/release.json
 public/typed-build
 .DS_Store
 Thumbs.db
-\n# Temporary Google GitHub Actions credential files never enter images or Git.\ngha-creds-*.json\n
+
+# Temporary Google GitHub Actions credential files never enter images or Git.
+gha-creds-*.json
