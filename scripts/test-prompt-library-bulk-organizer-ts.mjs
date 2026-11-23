@@ -24,5 +24,5 @@ assert(app.includes('./legacy/prompt-library-bulk-organizer.ts'));
 assert(app.includes('HAFIZE_LEGACY_BROWSER_MODULE_COUNT = 52'));
 assert(html.includes('/typed-build/legacy-app.js'));
 assert(sw.includes('/typed-build/legacy-app.js'));
-assert(sw.includes('v168'), 'PWA cache version');
+assert(Number(sw.match(/CURRENT_CACHE\s*=\s*[^;\n]*v(\d+)/)?.[1]) >= 168, 'PWA cache version');
 console.log('Prompt Library bulk organizer TypeScript gate: OK');
