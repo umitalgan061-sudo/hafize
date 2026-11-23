@@ -21,13 +21,13 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: projelerim-8fecd
       RETAKE_SITE_ID: retake06-ua
-      RETAKE_RELEASE_SHA: ccf5783517cdd53c5edb4ce19fac5a63786a6794
+      RETAKE_RELEASE_SHA: 374f1bebf18d78af917ca16ff9649abe7476a686
     steps:
       - name: Check out the verified Retake source commit only
         uses: actions/checkout@v4
         with:
           repository: umitalgan061-sudo/retake
-          ref: ccf5783517cdd53c5edb4ce19fac5a63786a6794
+          ref: 374f1bebf18d78af917ca16ff9649abe7476a686
           persist-credentials: false
 
       - name: Set up Node.js
