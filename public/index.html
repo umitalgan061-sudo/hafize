@@ -128,6 +128,9 @@
       <div class="primary-column">
         <section class="chat-stage">
           <div id="welcome" class="welcome">
+            <video id="heroPointPortrait" class="hero-point-portrait" muted loop playsinline preload="metadata" poster="/media/hafize-point-portrait.png" aria-hidden="true">
+              <source src="/media/hafize-point-portrait.mp4" type="video/mp4" />
+            </video>
             <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
             <h1>Merhaba, bugün ne yapalım?</h1>
             <p>Hafize her sorunu yanıtlar; gerektiğinde internetten güncel bilgi, haber, hava durumu ve döviz kurlarını kendisi bulur. Yazı, araştırma, kod ve planlamada da yardımcı olur.</p>
@@ -190,6 +193,20 @@
   </div>
 
   <div id="toast" class="toast hidden" role="status"></div>
+  <script>
+    // The owner-approved point portrait remains still when the device asks for less motion.
+    (() => {
+      const portrait = document.getElementById('heroPointPortrait');
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+      if (!portrait || !reducedMotion) return;
+      const syncPortraitMotion = () => {
+        if (reducedMotion.matches) portrait.pause();
+        else portrait.play().catch(() => {});
+      };
+      reducedMotion.addEventListener?.('change', syncPortraitMotion);
+      syncPortraitMotion();
+    })();
+  </script>
   <script src="/composer-focus-guard.js"></script>
   <script type="module" src="/typed-build/auth.js"></script>
   <!-- The renderer must exist before app-shell paints saved chats, or they show raw markdown. -->
