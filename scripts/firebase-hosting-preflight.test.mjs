@@ -55,10 +55,10 @@ test('prepares deployable firebase.json and a verifiable release marker only for
     write: (name, value) => written.push([name, JSON.parse(value)])
   });
   assert.equal(written.length, 2);
-  assert.equal(written[0][0], 'firebase.json');
-  assert.deepEqual(written[0][1], existing);
-  assert.equal(written[1][0], 'public/release.json');
-  assert.deepEqual(written[1][1], { commit: sha });
+  assert.equal(written[0][0], 'public/release.json');
+  assert.deepEqual(written[0][1], { commit: sha });
+  assert.equal(written[1][0], 'firebase.json');
+  assert.deepEqual(written[1][1], existing);
 });
 
 test('rejects anything other than a full sha for release verification', () => {
