@@ -162,6 +162,10 @@ Ayrıntılar docs/GITHUB_WORKSPACE*.md dosyalarındadır.
 
 GitHub çalışma alanı ayrıca dizin listeleme, iki ref arasında salt-okunur karşılaştırma ve seçilen commit veya PR için ayrıntı okuma araçları sağlar. Hızlı işlemler son repository seçimini oturum içinde hatırlar, görünür sonucu kopyalamaya ve PR durumunu değiştirmeden filtrelemeye izin verir.
 
+## GitHub App ile sohbetten geliştirme (ayrı dal ve taslak PR)
+
+Hafize sohbet ajanı, GitHub App ve oturum-içi kullanıcı onayı etkinse `github_develop` aracını kullanarak Git komutu veya paket kurma gerektirmeden sadece izinli `hafize/auto-*` dalında dosya değişikliği ve taslak PR hazırlayabilir. Her GitHub yazması için ayrı onay alınır. Varsayılan ajan erişimi yalnız `umitalgan061-sudo/hafize` deposudur; **Retake bu aşamada kapsam dışındadır**. Ayrıntılar: [GITHUB_AGENT_DEVELOPMENT](docs/GITHUB_AGENT_DEVELOPMENT.md).
+
 ## GitHub güvenli yazma
 
 GitHub workspace içinde ayrı bir güvenli yazma paneli branch oluşturma, non-default branch üzerinde dosya commit etme ve pull request açma işlemlerini açık kullanıcı onayıyla destekler.
