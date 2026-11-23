@@ -7,6 +7,7 @@
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { attachCloudRunRewrite, backendRouteActivated } from './hafize-cloud-run-route.mjs';
 
 function checkId(value, label) {
   if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{2,62}$/.test(value)) {
@@ -51,7 +52,12 @@ export function prepareHostingConfig(rawConfig, projectId, siteId) {
 }
 
 export function prepareRelease(config, projectId, siteId, commitSha, opts = {}) {
-  const prepared = prepareHostingConfig(config, projectId, siteId);
+  const baseConfig = prepareHostingConfig(config, projectId, siteId);
+  // A successfully verified Cloud Run deploy records its activation marker.
+  // Before then all ordinary frontend releases preserve original API routes.
+  const enabled = opts.activateCloudRun === true ||
+    (opts.activateCloudRun !== false && backendRouteActivated(opts.readActivation));
+  const prepared = enabled ? attachCloudRunRewrite(baseConfig) : baseConfig;
   if (typeof commitSha !== 'string' || !/^[0-9a-f]{40}$/.test(commitSha)) {
     throw new Error('GITHUB_COMMIT_SHA_MISSING_OR_INVALID');
   }
@@ -72,7 +78,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.env.HAFIZE_FIREBASE_HOSTING_CONFIG,
       process.env.HAFIZE_FIREBASE_PROJECT_ID,
       process.env.HAFIZE_FIREBASE_SITE_ID,
-      process.env.GITHUB_SHA
+      process.env.GITHUB_SHA,
+      { activateCloudRun: process.env.HAFIZE_CLOUD_RUN_ROUTE_ENABLED === 'true' ? true : undefined }
     );
     process.stdout.write('Firebase Hosting preflight passed; build and existing site config verified.\n');
   } catch (error) {
