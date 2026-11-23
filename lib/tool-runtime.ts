@@ -56,6 +56,16 @@ export interface ToolRuntimeContext {
   readonly nvidiaConfigured?: boolean;
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: (args: unknown) => Promise<unknown>;
+  /** GitHub App-only development bridge; safe standing authorization is server-only. */
+  readonly githubDevelopment?: {
+    readonly enabled: () => boolean;
+    readonly execute: (args: unknown, context: {
+      readonly requestApproval?: ToolRuntimeContext['requestApproval'];
+      readonly safeAutonomy?: boolean;
+    }) => Promise<Record<string, unknown>>;
+  };
+  /** Set ONLY by trusted server after owner session and config checks. */
+  readonly safeGitHubAutonomy?: boolean;
   readonly delegateAgent?: (args: unknown) => Promise<unknown>;
   readonly approvalGranted?: boolean;
   readonly canvaReadAuthenticated?: boolean;
@@ -269,6 +279,31 @@ const CATALOG = new Map<string, ToolEntry>([
     }),
     available: (context) => Boolean(context.githubReadConfigured && context.githubReadFile),
     execute: async (args, context) => context.githubReadFile!(args)
+  }],
+  ['github_develop', {
+    permission: 'repo.write_request',
+    kind: 'repository',
+    timeoutMs: timeout(120_000),
+    activity: { running: 'İzinli GitHub geliştirme adımı hazırlanıyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı uygulanmadı' },
+    definition: strictDefinition('github_develop',
+      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç, ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
+      {
+        operation: { type: 'string', enum: ['branch', 'file', 'pull'] },
+        repository: { type: 'string' },
+        branch: { type: 'string' },
+        path: { type: 'string' },
+        content: { type: 'string' },
+        message: { type: 'string' },
+        existingSha: { type: 'string' },
+        title: { type: 'string' },
+        body: { type: 'string' }
+      }, ['operation', 'repository', 'branch']),
+    available: (context) => Boolean(context.githubDevelopment?.enabled() &&
+      (context.safeGitHubAutonomy === true || typeof context.requestApproval === 'function')),
+    execute: async (args, context) => context.githubDevelopment!.execute(args, {
+      requestApproval: context.requestApproval,
+      safeAutonomy: context.safeGitHubAutonomy === true
+    })
   }],
   ['canva_read', {
     permission: 'connector.canva.read',
