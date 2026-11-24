@@ -10,6 +10,8 @@ interface Lifecycle { readonly start:(input:{runId:string;parentRunId:string;par
 const bounded=(value:unknown,fallback:number,max:number)=>Number.isInteger(value)?Math.min(Math.max(Number(value),1),max):fallback;
 const clean=(value:unknown,max:number)=>{const text=typeof value==='string'?value.trim():'';return text&&text.length<=max?text:null;};
 const fail=(error:string)=>({ok:false as const,error});
+const TEAM_PERMISSIONS=new Set(['repo.read','pr.read','test.read_result','runtime.status','web.search','web.read','web.wikipedia.read','web.news.read','web.rates.read','research.run','code.run','diagram.render','web.render','vision.analyze','trace.write']);
+export const independentTeamAgent=(agent:Agent)=>agent.kind==='specialist'&&(agent.toolPolicy.allow??[]).every(p=>TEAM_PERMISSIONS.has(p))&&!(agent.toolPolicy.approvalRequired??[]).length;
 const count=(ledger:AgentRunLedger)=>ledger.snapshot().entries.filter((entry)=>entry.action==='agent.delegate').length;
 
 export function createAgentDelegator(args:{
@@ -70,7 +72,7 @@ export function createAgentDelegator(args:{
     if(inputs.some(i=>!i)||new Set(inputs.map(i=>i?.agentId)).size!==inputs.length)return fail('TEAM_INVALID_OR_DUPLICATE_AGENT');
     for(const input of inputs){
       const target=registry.agents.find(a=>a.id===input!.agentId);
-      if(!target||target.kind!=='specialist'||authorizeAgentTool(target,'agent.delegate').allowed)return fail('TEAM_TARGET_NOT_INDEPENDENT');
+      if(!target||!independentTeamAgent(target))return fail('TEAM_TARGET_NOT_INDEPENDENT');
     }
     if(count(runLedger)+raw.length>maxFanOut)return fail('DELEGATION_FANOUT_EXCEEDED');
     const results:Array<unknown>=new Array(raw.length);
@@ -82,7 +84,7 @@ export function createAgentDelegator(args:{
         const result=await delegate(raw[i],{depth:0,signal});
         if(result.ok){
           const value=result.value;
-          results[i]={agentId:value.agentId,ok:true,models:value.models??[],content:value.content.slice(0,6000),truncated:value.content.length>6000};
+          results[i]={agentId:value.agentId,ok:true,models:value.models??[],content:value.content.slice(0,4500),truncated:value.content.length>4500};
         }else results[i]={agentId:inputs[i]!.agentId,ok:false,error:result.error};
       }
     }));
