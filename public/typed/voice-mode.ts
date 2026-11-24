@@ -88,10 +88,22 @@ export function isPlaybackEcho(value:unknown,reference:unknown):boolean{
   const utterance=normalize(value),spoken=normalize(reference);
   if(!utterance||!spoken)return false;
   if((' '+spoken+' ').includes(' '+utterance+' '))return true;
-  const words=utterance.split(' '),ref=new Set(spoken.split(' '));
-  if(words.length<4)return false;
-  // A nearly verbatim multiword fragment can be returned with a transcription typo.
-  return words.filter(w=>ref.has(w)).length/words.length>=0.85;
+  const words=utterance.split(' '),ref=spoken.split(' ');
+  if(words.length<7||words.length>ref.length)return false;
+  // Compare ordered contiguous windows; identical vocabulary in a different order
+  // is not an echo. Allow one substitution only in a long near-verbatim fragment.
+  for(let i=0;i<=ref.length-words.length;i++){
+    let differences=0;
+    for(let j=0;j<words.length;j++){if(words[j]!==ref[i+j]&&++differences>1)break;}
+    if(differences<=1)return true;
+  }
+  return false;
+}
+
+/** A pause after a conjunction often means the speaker has not finished. */
+export function voiceEndOfTurnDelay(text:string,ios:boolean):number{
+ const unfinished=/\b(?:ve|veya|ama|fakat|çünkü|yani|mesela|eğer|şey|sonra|ile)\s*[,;…]?$/iu.test(text.trim())||/[,;:]\s*$/.test(text);
+ return ios?(unfinished?3600:IOS_NATURAL_END_GRACE_MS):(unfinished?1300:END_OF_TURN_MS);
 }
 
 export function statusText(state: VoiceModeState): string {
@@ -260,6 +272,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let echoReference = '';
   let echoUntil = 0;
   let playbackActive = false;
+  let interruptedBySpeech=false;
   let listeningBlocked = false;
   const rememberPlayback = (text:string) => {if(text.trim()){if(!playbackActive&&now()>=echoUntil)echoReference='';echoReference=(echoReference+' '+text).slice(-1600);echoUntil=now()+2200;}};
   const overlapsReply = () => playbackActive || awaitingReply || input.disabled;
@@ -399,7 +412,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (!piece.trim() || typeof Custom !== 'function') return;
     spokenUpTo = end;
     if (!streamStarted) { streamStarted = true; if(responseNoticeTimer) clearTimeout(responseNoticeTimer); responseNoticeTimer=null; setCaption(['', '', ''], 'hafize'); }
-    rememberPlayback(piece);
+    // Only actual playback progress supplies echo reference, not queued future speech.
     documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: piece, origin: ORIGIN, append: true } }));
   };
 
@@ -421,6 +434,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       return;
     }
     pendingUtterance = '';
+    interruptedBySpeech=false;
     manualEnd = false;
     stopRecognition(true);
     stopSpeech();
@@ -535,6 +549,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.onspeechstart = () => {
       if (recognition !== current) return;
       heardSpeech = true;
+      if(endOfTurnTimer){clearTimeout(endOfTurnTimer);endOfTurnTimer=null;}
       heardDuringReply ||= overlapsReply() || now()<echoUntil;
       screen.dataset.micPhase = 'speech';
       energy = Math.max(energy, 0.7);
@@ -568,6 +583,12 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         screen.dataset.micPhase = 'transcribing';
         if(!overlapsReply())statusEl.textContent = 'Dinliyorum…';
       }
+      // A finalized non-echo phrase is enough to stop the old audio immediately.
+      // Continue listening until the user finishes; never send a partial interruption.
+      if(final&&overlapsReply()&&!interruptedBySpeech){
+        interruptedBySpeech=true;streamStopped=true;stopFeeding();
+        setState('listening','Dinliyorum…');stopSpeech();
+      }
       const spoken = [final, interim].filter(Boolean).join(' ');
       if(spoken && (!overlapsReply()||final))setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
       energy = Math.max(energy, 0.5);
@@ -581,7 +602,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         endOfTurnTimer = setTimeout(() => {
           endOfTurnTimer = null;
           if (recognition === current) stopRecognition(false);
-        }, speechProfile.awaitNaturalEnd ? IOS_NATURAL_END_GRACE_MS : END_OF_TURN_MS);
+        }, voiceEndOfTurnDelay(final,speechProfile.awaitNaturalEnd));
       }
     };
     current.onerror = (event) => {
@@ -601,9 +622,11 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (state === 'closed' || muted || documentRef.hidden) return;
       // Only finalized words can interrupt an answer. Interim guesses and echoed
       // speech must not become new user messages during playback.
-      const said = (heardDuringReply?final:[final,interim].filter(Boolean).join(' ')).trim();
+      const said = (manualEnd&&!heardDuringReply?[final,interim].filter(Boolean).join(' '):final).trim();
       if (said && !isEcho(said)) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
       if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
+      if(interruptedBySpeech){interruptedBySpeech=false;}
+      if(interim&&!final&&!rejectedEcho&&!errorCode){retryListening('Sözlerin tam netleşmedi · yeniden dinliyorum…',false);return;}
       if (heardDuringReply || rejectedEcho) {if(!errorCode){retryListening('Dinlemeye devam ediyorum…',false);return;}}
       if (heardSpeech && !errorCode) {
         retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
@@ -710,7 +733,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     documentRef.dispatchEvent(new CustomEvent('hafize:voice-camera-open',{detail:screen.querySelector('.vm-camera-host')}));
     documentRef.body.classList.add('voice-mode-open');
     muted = false;
-    listeningBlocked=false;playbackActive=false;echoReference='';echoUntil=0;
+    listeningBlocked=false;playbackActive=false;interruptedBySpeech=false;echoReference='';echoUntil=0;
     silentRetries = 0;
     completedSpeechTurns = 0;
     pendingUtterance = '';
@@ -734,7 +757,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     stopFeeding();
     awaitingReply = false;
     pendingUtterance = '';
-    playbackActive=false;echoReference='';echoUntil=0;
+    playbackActive=false;interruptedBySpeech=false;echoReference='';echoUntil=0;
     stopRecognition(true);
     if (state === 'speaking') stopSpeech();
     state = 'closed';
@@ -800,7 +823,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const onInputMutation = () => {
     if (state === 'closed') return;
-    if (input.disabled) { if (awaitingReply) sawBusy = true; if (state !== 'speaking') setState('thinking'); if(!pendingUtterance)listen(); return; }
+    if (input.disabled) { if (awaitingReply) sawBusy = true; if (state !== 'speaking'&&!interruptedBySpeech) setState('thinking'); if(!pendingUtterance)listen(); return; }
     if (pendingUtterance) {
       const queued = pendingUtterance;
       pendingUtterance = '';
@@ -822,7 +845,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const Custom = root.CustomEvent;
     if (reply && root.speechSynthesis && typeof Custom === 'function') {
       setCaption(['', '', ''], 'hafize');
-      rememberPlayback(reply);
       documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: reply, origin: ORIGIN } }));
       // voice-output answers with hafize:voice-output-state; if it cannot speak, keep listening.
       resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'thinking') listen(); }, 1500);
@@ -872,7 +894,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (state === 'closed') return;
     if (documentRef.hidden) {
       clearTimers(); stopFeeding(); awaitingReply = false; pendingUtterance = '';
-      manualEnd = false; playbackActive=false;echoReference='';echoUntil=0;stopRecognition(true); stopSpeech();
+      manualEnd = false; playbackActive=false;interruptedBySpeech=false;echoReference='';echoUntil=0;stopRecognition(true); stopSpeech();
       setState('paused', 'Uygulama arka planda; geri dönünce küreye dokun.');
     } else if (state === 'paused' && !muted) {
       // Safari requires a new foreground gesture to re-open a paused microphone.
@@ -900,6 +922,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     renderMute();
     if (muted) {
       manualEnd = false;
+      interruptedBySpeech=false;
       clearRecognitionTimers();
       stopRecognition(true);
       if (state === 'listening' || state === 'idle' || state === 'thinking') setState('paused');
@@ -917,7 +940,6 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   on(speakerSelect,'change',()=>{write(SPEAKER_KEY,speakerSelect.value);warmSelected();});
   on(sampleBtn, 'click', () => {
     const Custom = root.CustomEvent;
-    rememberPlayback('Merhaba, ben Hafize. Sesim böyle duyuluyor.');
     setState('thinking', 'Ses örneği hazırlanıyor…');
     if (typeof Custom === 'function') documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: 'Merhaba, ben Hafize. Sesim böyle duyuluyor.', origin: 'voice-mode-sample' } }));
   });

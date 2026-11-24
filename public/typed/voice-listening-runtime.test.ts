@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installVoiceMode, isPlaybackEcho } from './voice-mode.ts';
+import { installVoiceMode, isPlaybackEcho, voiceEndOfTurnDelay } from './voice-mode.ts';
 
 class FakeEl {
   dataset: Record<string, string> = {};
@@ -217,5 +217,38 @@ describe('overlapping microphone and assistant audio',()=>{
   p.emit('hafize:voice-output-state',{source:'voice-output',speaking:true,origin:'voice-mode'});
   const rec=p.recognizers[0];p.controller.close();
   expect(rec.abortCalls).toBe(1);expect(p.controller.state()).toBe('closed');
+ });
+});
+
+describe('accurate natural interruption',()=>{
+ it('recognizes reordered words as distinct speech and waits longer after an unfinished phrase',()=>{
+  expect(isPlaybackEcho('yarın bugün akşam sabah ben sen biz','bugün yarın sabah akşam sen ben biz')).toBe(false);
+  expect(isPlaybackEcho('bugün hava çok güzel birlikte parka gidelim','bugün hava çok güzel birlikte parka gidelim')).toBe(true);
+  expect(isPlaybackEcho('bugün hava çok güzel birlikte parka gidiyoruz','bugün hava çok güzel birlikte parka gidelim')).toBe(true);
+  expect(voiceEndOfTurnDelay('Sana bir şey soracağım ama',false)).toBeGreaterThan(voiceEndOfTurnDelay('Nasılsın?',false));
+ });
+ it('stops audio on a distinct finalized phrase but waits for the complete turn',()=>{
+  const p=page('iPhone Mobile');p.controller.open();
+  p.recognizers[0].onresult?.({results:result('Merhaba',true)});p.recognizers[0].onend?.();
+  p.input.disabled=true;p.notify();
+  p.emit('hafize:voice-output-state',{source:'voice-output',speaking:true,origin:'voice-mode'});
+  p.emit('hafize:voice-output-progress',{source:'voice-output',origin:'voice-mode',text:'Bugün hava çok güzel.',charIndex:-1,charLength:0});
+  const rec=p.recognizers[1];
+  rec.onresult?.({results:result('Bir dakika',false)});
+  expect(p.controller.state()).toBe('speaking');expect(p.composer.sent).toBe(1);
+  rec.onresult?.({results:result('Bir dakika',true)});
+  expect(p.controller.state()).toBe('listening');expect(p.composer.sent).toBe(1);
+  rec.onresult?.({results:[...result('Bir dakika',true),...result('sana bir şey soracağım',true)]});
+  rec.onend?.();
+  expect(p.composer.sent).toBe(2);
+  p.input.disabled=false;p.notify();expect(p.input.value).toBe('Bir dakika sana bir şey soracağım');
+  p.controller.destroy();
+ });
+ it('does not send a provisional transcription that never became final',async()=>{
+  const p=page('iPhone Mobile');p.controller.open();
+  p.recognizers[0].onresult?.({results:result('belirsiz kelime',false)});p.recognizers[0].onend?.();
+  expect(p.composer.sent).toBe(0);
+  await vi.advanceTimersByTimeAsync(750);
+  expect(p.recognizers[1]).toBeDefined();p.controller.destroy();
  });
 });
