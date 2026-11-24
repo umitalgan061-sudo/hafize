@@ -81,3 +81,4 @@ GitHub kalite akışı ayrıca bağımsız çevrimdışı uzman denetimi ve haft
 
 ## V11 — canlı dağıtım doğrulaması
 Sabit Hafize Render/Firebase adreslerini kullanan elle çalıştırılabilir GitHub smoke denetimi, gerçek backend commit kimliğini, frontend release.json eşleşmesini ve readiness durumunu kontrol eder. Yalnız güvenli boolean ve durum alanlarını raporlar; NVIDIA anahtarı yapılandırması inference kanıtı değildir. Periyodik sunucu uyandırma, anahtar kullanımı veya model çağrısı yapmaz. İlk V11 dal push'unda ayrıca bir kez çalışır. Günlük sunucu döngüsü başarı/kısmi durum ve uzman/test/öneri sayılarını içerik içermeyen toplu log kaydına yazar.
+İlk canlı testte readiness HTTP 503 gözlendi. Denetim artık HTTP 503 durumunda bile izinli bileşen durumlarını, frontend/backend SHA eşleşmesini ve güvenli yapılandırma bayraklarını raporlar; başarısız readiness çıkış kodunu korur.
