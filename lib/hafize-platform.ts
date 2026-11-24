@@ -20,6 +20,7 @@ import { createSandboxRunner } from './sandbox-runner.ts';
 import { createHeadlessBrowser } from './headless-browser.ts';
 import { createImageStore, createMediaTools, MEDIA_LIMITS, sniffImageType } from './media-tools.ts';
 import { createDocumentStore } from './document-store.ts';
+import { createNimSpecialists } from './nim-specialists.ts';
 import { createResearchAgent } from './research-agent.ts';
 import { createResearchSources } from './research-sources.ts';
 import { createOrchestrator, type ToolOption } from './orchestrator.ts';
@@ -123,6 +124,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
   const browser = createHeadlessBrowser();
   const images = createImageStore({ db, dir: join(dataDir, 'images') });
   const documents = createDocumentStore({ db });
+  const nimSpecialists = createNimSpecialists({env});
   const media = createMediaTools({ models, images, browser });
   const screenWatch = createScreenWatch({ vision: models.vision });
   const research = createResearchAgent({ webTools: deps.webTools, sources: createResearchSources(), models });
@@ -622,13 +624,26 @@ export function createHafizePlatform(deps: PlatformDeps) {
   // --- HTTP API ---
   async function handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
     const path = url.pathname;
-    if (!/^\/api\/(memory|images|documents|uploads|approvals|actions|orchestrator|experts|observability|feedback|backup|task-results|localhost|screen|skills\/(catalog|bundles|updates)|capabilities|prompts)(\/|$)/.test(path)) return false;
+    if (!/^\/api\/(memory|images|documents|uploads|approvals|actions|orchestrator|experts|observability|feedback|backup|task-results|localhost|screen|skills\/(catalog|bundles|updates)|capabilities|prompts|nim-specialists)(\/|$)/.test(path)) return false;
     const principal = (req as { __hafizePrincipal?: Principal }).__hafizePrincipal;
     if (!principal?.ownerId) { sendJson(res, 401, { error: 'AUTH_REQUIRED' }); return true; }
     const ownerId = principal.ownerId;
     const method = req.method || 'GET';
     const segments = path.split('/').filter(Boolean).slice(1);
     try {
+      if (segments[0] === 'nim-specialists') {
+        if (!segments[1]&&method==='GET') {sendJson(res,200,nimSpecialists.status());return true;}
+        if(method==='POST'&&segments.length===2&&['transcribe','synthesize','parse'].includes(segments[1]!)){
+          const abort=new AbortController();const close=()=>abort.abort();res.once('close',close);
+          try {
+            const body=await readJson(req,9*1024*1024);
+            const op=segments[1];
+            const result=op==='transcribe'?await nimSpecialists.transcribe({data:body.data,language:body.language},abort.signal):op==='synthesize'?await nimSpecialists.synthesize({text:body.text,language:body.language},abort.signal):await nimSpecialists.parse({data:body.data},abort.signal);
+            if(!res.destroyed)sendJson(res,200,result);return true;
+          } finally {res.off('close',close);}
+        }
+        sendJson(res,404,{error:'NOT_FOUND'});return true;
+      }
       if (segments[0] === 'capabilities' && method === 'GET') { sendJson(res, 200, capabilities()); return true; }
 
       if (segments[0] === 'task-results') {

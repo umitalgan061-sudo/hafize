@@ -217,9 +217,13 @@ function start(documentRef: Document, root: typeof globalThis): void {
       try{
         const selected=select.value;
         const payload=['probe','deep','specialist'].includes(action)?{action,model:selected}:{action};
+        if(action==='status'){
+          const dailyResponse=await api('/api/models/status/daily').catch(()=>null);
+          if(dailyResponse?.ok){data={...data,dailyImprovement:await dailyResponse.json()};render();}
+        }
         const response=await api('/api/models/status/lab',action==='status'?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const result=await response.json();
-        if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;data={};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
+        if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;data={dailyImprovement:response.status===503?data.dailyImprovement:undefined};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
         data=result;available=true;render();
         notice.textContent='Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
       }catch(error){notice.textContent='Model Laboratuvarı: '+(error instanceof Error?error.message:'Bağlantı hatası');}
@@ -233,13 +237,83 @@ function start(documentRef: Document, root: typeof globalThis): void {
     return panel;
   };
 
+  const specialistPanel = () => {
+    const panel=el('section','settings-panel nim-specialist-panel');
+    panel.append(el('h2','','NVIDIA Uzman Servisleri'),el('p','','Yalnız yapılandırılmış NIM servislerine, seçtiğin dosya veya metin açıkça gönderilir. Mevcut Türkçe sesli sohbet ayarları değişmez.'));
+    const notice=el('p','app-install-state','Servis durumunu yenile.');notice.setAttribute('role','status');
+    const refresh=el('button','','Servis durumunu yenile');refresh.type='button';
+    const operation=el('select');operation.setAttribute('aria-label','Uzman işlemi');
+    const language=el('select');language.setAttribute('aria-label','Servis dili');
+    const file=el('input');file.type='file';file.setAttribute('aria-label','Uzman servisine gönderilecek dosya');
+    const input=el('textarea');input.maxLength=2000;input.rows=3;input.placeholder='Seslendirilecek metin';input.setAttribute('aria-label','Seslendirilecek metin');
+    const execute=el('button','','İşlemi çalıştır');execute.type='button';
+    const result=el('textarea');result.readOnly=true;result.rows=6;result.setAttribute('aria-label','Uzman servis sonucu');result.hidden=true;
+    const audio=el('audio');audio.controls=true;audio.hidden=true;
+    const clear=el('button','','Temizle');clear.type='button';
+    const cancel=el('button','','İptal');cancel.type='button';cancel.disabled=true;
+    const actions=el('div','settings-actions');actions.append(refresh,execute,cancel,clear);
+    panel.append(notice,operation,language,file,input,actions,result,audio);
+    type Status={asr:boolean;tts:boolean;parse:boolean;asrLanguages:string[];ttsLanguages:string[]};
+    let status:Status|null=null;let controller:AbortController|null=null;let audioUrl:string|null=null;let busy=false;
+    const release=()=>{audio.pause();audio.removeAttribute('src');if(audioUrl)root.URL.revokeObjectURL(audioUrl);audioUrl=null;audio.hidden=true;result.value='';result.hidden=true;};
+    function render(){
+      const op=operation.value;
+      language.hidden=op==='parse'||!op;input.hidden=op!=='synthesize';file.hidden=op==='synthesize'||!op;
+      file.accept=op==='parse'?'image/png,image/jpeg':'audio/wav,.wav';
+      const old=language.value;language.replaceChildren();
+      for(const code of (op==='transcribe'?status?.asrLanguages:op==='synthesize'?status?.ttsLanguages:[])??[]){const option=el('option','',code);option.value=code;language.append(option);}
+      if([...language.options].some(o=>o.value===old))language.value=old;
+      execute.disabled=busy||!op;refresh.disabled=busy;operation.disabled=busy;language.disabled=busy;input.disabled=busy;file.disabled=busy;clear.disabled=busy;cancel.disabled=!controller;
+    }
+    async function refreshStatus(){
+      busy=true;render();
+      try{
+        const response=await api('/api/nim-specialists');if(!response.ok)throw Error('NIM_STATUS_UNAVAILABLE');status=await response.json();
+        const selected=operation.value;operation.replaceChildren();
+        for(const [key,label,enabled] of [['transcribe','Sesi yazıya çevir',status?.asr],['synthesize','Metni seslendir',status?.tts],['parse','Belge sayfası / OCR',status?.parse]] as const){
+          if(!enabled)continue;const option=el('option','',label);option.value=key;operation.append(option);
+        }
+        if([...operation.options].some(o=>o.value===selected))operation.value=selected;
+        notice.textContent=operation.options.length?'Yapılandırılmış servisler listelendi; gerçek erişim henüz doğrulanmadı.':'Uzman NIM servisleri yapılandırılmamış. Mevcut sesli sohbet ve görsel analiz kullanılabilir.';
+      }catch{status=null;operation.replaceChildren();notice.textContent='Uzman servis durumu alınamadı.';}
+      finally{busy=false;render();}
+    }
+    function encode(bytes:Uint8Array){let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return root.btoa(binary);}
+    async function run(){
+      if(busy||!operation.value)return;
+      release();busy=true;const current=new AbortController();controller=current;render();notice.textContent='Uzman servis çalışıyor…';
+      try{
+        const op=operation.value;
+        let payload:Record<string,unknown>={language:language.value};
+        if(op==='synthesize'){if(!input.value.trim())throw Error('Metin gir.');payload.text=input.value;}
+        else{const selected=file.files?.[0];if(!selected||selected.size>6*1024*1024)throw Error('En fazla 6 MB boyutunda dosya seç.');payload.data=encode(new Uint8Array(await selected.arrayBuffer()));}
+        if(current.signal.aborted)return;
+        const response=await api('/api/nim-specialists/'+op,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:current.signal});
+        const value=await response.json();if(!response.ok)throw Error(typeof value.error==='string'?value.error:'NIM_REQUEST_FAILED');
+        if(current.signal.aborted)return;
+        if(op==='synthesize'){if(value.mime!=='audio/wav'||typeof value.data!=='string')throw Error('Ses yanıtı geçersiz.');const bytes=Uint8Array.from(root.atob(value.data),c=>c.charCodeAt(0));audioUrl=root.URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));audio.src=audioUrl;audio.hidden=false;}
+        else{result.value=String(op==='parse'?value.content??'':value.text??'');result.hidden=false;}
+        notice.textContent=value.truncated?'İşlem tamamlandı, fakat belge çıktısı kesildi.':'Uzman servis yanıtı alındı. Sonucu kontrol et.';
+      }catch(error){notice.textContent=current.signal.aborted?'İşlem iptal edildi.':(error instanceof Error?error.message:'Uzman servis hatası');}
+      finally{controller=null;busy=false;render();}
+    }
+    refresh.addEventListener('click',()=>{void refreshStatus();});
+    execute.addEventListener('click',()=>{void run();});
+    cancel.addEventListener('click',()=>controller?.abort());
+    clear.addEventListener('click',()=>{release();input.value='';file.value='';});
+    operation.addEventListener('change',()=>{release();file.value='';render();});
+    root.addEventListener('pagehide',()=>{controller?.abort();release();},{once:true});
+    render();
+    return panel;
+  };
+
   const attach = (host: Element) => {
     if (host.querySelector('.app-install')) return;
     const first = host.querySelector('.settings-panel');
     if (first?.nextSibling) host.insertBefore(installPanel(), first.nextSibling); else host.append(installPanel());
     const install = host.querySelector('.app-install');
     if (install?.nextSibling) host.insertBefore(modelPanel(), install.nextSibling); else host.append(modelPanel());
-    host.append(modelLabPanel());
+    host.append(modelLabPanel(),specialistPanel());
     const results = host.querySelector('.task-results') ?? install;
     const servers = serversPanel();
     if (results?.nextSibling) host.insertBefore(servers, results.nextSibling); else host.append(servers);

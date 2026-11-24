@@ -56,7 +56,7 @@ import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.t
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
-import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
+import { createModelLabFileStorage, createModelLabSqliteStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
 import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { expertModelTask } from './lib/expert-model-policy.ts';
@@ -1625,6 +1625,11 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
     // This path is covered by production-guard's /api/models/status prefix (session + CSRF).
+    if (req.method==='GET'&&url.pathname==='/api/models/status/daily') {
+      const authorized=allowSafeGitHubAutonomy({optedIn:true,authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired,principal:req.__hafizePrincipal||null,configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject,agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent});
+      if(!authorized){sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'});return;}
+      sendJson(res,200,DAILY_IMPROVEMENT.status());return;
+    }
     if (url.pathname === '/api/models/status/lab' && ['GET','POST'].includes(req.method)) {
       const authorized = allowSafeGitHubAutonomy({ optedIn:true, authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal:req.__hafizePrincipal||null, configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent });
       if (!authorized) { sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'}); return; }
@@ -1681,6 +1686,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
+// Default to the existing SQLite DB if no explicit file storage was selected.
+if(MODEL_LAB&&!MODEL_LAB_STORAGE){try{MODEL_LAB.attachStorage(createModelLabSqliteStorage(PLATFORM.db,NVIDIA_API_KEY,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,...MODEL_LAB.status().specialists]));}catch{console.warn('hafize.model_lab sqlite storage unavailable');}}
 const DAILY_IMPROVEMENT = createDailyImprovement({db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
 let dailyTimer;
 let shutdownServerPromise = null;

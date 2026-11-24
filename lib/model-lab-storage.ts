@@ -30,3 +30,10 @@ export function createModelLabFileStorage(path: string, key: string, candidates:
     }
   };
 }
+
+/** Uses the existing platform DB, not another paid database or GPU service. */
+export function createModelLabSqliteStorage(db:import('node:sqlite').DatabaseSync,key:string,candidates:readonly string[]):ModelLabStorage{
+  const scope=createHash('sha256').update(JSON.stringify([key,candidates])).digest('hex');
+  db.exec('CREATE TABLE IF NOT EXISTS hafize_model_lab_snapshot(id INTEGER PRIMARY KEY CHECK(id=1),scope TEXT NOT NULL,snapshot TEXT NOT NULL)');
+  return {load(){const row=db.prepare('SELECT scope,snapshot FROM hafize_model_lab_snapshot WHERE id=1').get() as {scope:string;snapshot:string}|undefined;if(!row||row.scope!==scope)return null;if(Buffer.byteLength(row.snapshot)>128000)throw Error('MODEL_LAB_STORAGE_TOO_LARGE');return JSON.parse(row.snapshot);},save(snapshot){const data=JSON.stringify(snapshot);if(Buffer.byteLength(data)>128000)throw Error('MODEL_LAB_STORAGE_TOO_LARGE');db.prepare('INSERT INTO hafize_model_lab_snapshot(id,scope,snapshot) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET scope=excluded.scope,snapshot=excluded.snapshot').run(scope,data);}};
+}

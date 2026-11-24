@@ -32,6 +32,7 @@ export interface ModelLabSnapshot {
   readonly version: 1;
   readonly results: readonly ProbeResult[];
   readonly deepResults: readonly DeepProbeResult[];
+  readonly specialistResults?: readonly SpecialistProbeResult[];
   readonly timestamps: readonly number[];
   readonly blockedUntil: number;
 }
@@ -75,7 +76,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       const snapshot = object(storage.load());
       if (!snapshot || snapshot.version !== 1) return;
       const time = now();
-      const recent = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v)) && Date.parse(v) <= time && time-Date.parse(v) < EXPIRY_MS;
+      const recent = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v)) && Date.parse(v) <= time && time-Date.parse(v) < 30*EXPIRY_MS;
       const number = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
       const booleanFields = (row: Record<string,unknown>, fields: string[]) => fields.every(key => typeof row[key] === 'boolean');
       const valid = (row: Record<string,unknown> | null): row is Record<string,unknown> => !!row && typeof row.model === 'string' && eligible.includes(row.model) && recent(row.testedAt) && typeof row.status === 'string' && states.includes(row.status) && number(row.latencyMs);
@@ -91,19 +92,27 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
         const {model,testedAt,status,language,reasoning,coding,toolFollowup,latencyMs}=row;
         deepResults.set(String(model),{model,testedAt,status,language,reasoning,coding,toolFollowup,latencyMs} as DeepProbeResult);
       }
+      for(const input of Array.isArray(snapshot.specialistResults)?snapshot.specialistResults.slice(0,30):[]){
+        const row=object(input);
+        if(!row||typeof row.model!=='string'||!specialists.includes(row.model)||row.capability!=='embedding'||!recent(row.testedAt)||typeof row.status!=='string'||!states.includes(row.status)||!number(row.latencyMs)||!(row.dimension===null||Number.isInteger(row.dimension)&&Number(row.dimension)>0&&Number(row.dimension)<=16384)||!(row.similarHigher===null||typeof row.similarHigher==='boolean'))continue;
+        const {model,capability,status,testedAt,latencyMs,dimension,similarHigher}=row;
+        specialistResults.set(String(model),{model,capability,status,testedAt,latencyMs,dimension,similarHigher} as SpecialistProbeResult);
+      }
       if (Array.isArray(snapshot.timestamps)) timestamps.push(...snapshot.timestamps.slice(-MAX_REQUESTS).filter((v): v is number => number(v) && v<=time && v>time-WINDOW_MS).sort((a,b)=>a-b));
       if (number(snapshot.blockedUntil) && snapshot.blockedUntil>time) blockedUntil=Math.min(snapshot.blockedUntil,time+60*60_000);
     } catch { storageHealthy=false; }
   }
   function persist() {
     if (!storage) return;
-    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],timestamps:[...timestamps],blockedUntil}); storageHealthy=true; }
+    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],timestamps:[...timestamps],blockedUntil}); storageHealthy=true; }
     catch { storageHealthy=false; }
   }
   restore();
+  // Called only once during server startup, before the first HTTP request or scheduled probe.
+  function attachStorage(next:ModelLabStorage){if(storage||running||batchRunning||results.size||specialistResults.size||timestamps.length)throw Error('MODEL_LAB_STORAGE_ALREADY_INITIALIZED');storage=next;storageHealthy=true;restore();}
   function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && result.toolProbeStatus === 'passed' ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
-  const status = () => ({ eligible, catalog, specialists, specialistResults:[...specialistResults.values()], inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()], deepResults: [...deepResults.values()], taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
+  const status = () => ({ eligible, catalog, specialists, specialistResults:[...specialistResults.values()], inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
   async function call(path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -272,7 +281,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       }
     }catch(error){if(signal?.aborted)throw error;result={...result,status:error instanceof Error&&error.name==='TimeoutError'?'timeout':'failed'};}
     finally{running=false;}
-    result={...result,latencyMs:Math.max(0,now()-start)};specialistResults.set(model,result);return result;
+    result={...result,latencyMs:Math.max(0,now()-start)};specialistResults.set(model,result);persist();return result;
   }
   /** Explicit owner-requested text council: two measured distinct models and an optional third.
    * No tool declarations, real tool execution, hidden user data or automatic rerouting. */
@@ -310,7 +319,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       return {answers,review,independentVerification:false as const};
     } finally {running=false;}
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe });
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
@@ -350,7 +359,7 @@ export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createM
     'Katalogda olup operatör aday listesinde bulunmayan model sayısı: ' + (value.catalogOnlyCount ?? 'bilinmiyor'),
     'Embedding test adayları: ' + (value.specialists.join(', ') || 'yapılandırılmadı'),
     ...value.specialistResults.map(row=>`Embedding ${row.model}: ${row.status}; boyut: ${row.dimension??'—'}, benzerlik: ${row.similarHigher??'—'}, ${row.latencyMs} ms`),
-    'Test sonucu saklama: ' + (value.storage === 'memory' ? 'geçici süreç belleği' : value.storage === 'configured' ? 'dosya deposu yapılandırılmış' : 'dosya deposu hatası; geçici bellek kullanılıyor'),
+    'Test sonucu saklama: ' + (value.storage === 'memory' ? 'geçici süreç belleği' : value.storage === 'configured' ? 'kalıcı depo yapılandırılmış' : 'depo hatası; geçici bellek kullanılıyor'),
     ...(value.catalog ? ['API listesi: ' + value.catalog.ids.join(', ')] : []),
     'Kalan test API isteği (10 dakikalık pencere): ' + value.requestsRemaining,
     'Test sırası: ' + (value.pendingModels.join(', ') || 'güncel testler tamamlandı'),
