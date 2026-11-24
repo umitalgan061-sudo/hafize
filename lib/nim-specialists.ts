@@ -43,6 +43,13 @@ export function createNimSpecialists({env,fetchImpl=globalThis.fetch}:{env:Recor
   const languages=(env.HAFIZE_NIM_TTS_LANGUAGES||'').split(',').map(s=>s.trim()).filter(s=>/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(s)).slice(0,30);
   const asrLanguages=(env.HAFIZE_NIM_ASR_LANGUAGES||'').split(',').map(s=>s.trim()).filter(s=>/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(s)).slice(0,30);
   let active=0;
+  type Observation={state:'not_tested'|'passed'|'failed';lastCheckedAt:string|null;latencyMs:number|null;error:string|null};
+  const observations:Record<Kind,Observation>=Object.fromEntries((['asr','tts','parse'] as const).map(k=>[k,{state:'not_tested',lastCheckedAt:null,latencyMs:null,error:null}])) as Record<Kind,Observation>;
+  async function observe<T>(kind:Kind,operation:()=>Promise<T>,signal?:AbortSignal):Promise<T>{
+    const started=Date.now();
+    try{const result=await operation();observations[kind]={state:'passed',lastCheckedAt:new Date().toISOString(),latencyMs:Math.max(0,Date.now()-started),error:null};return result;}
+    catch(error){if(!signal?.aborted&&error instanceof HttpRuntimeError&&(error.status>=500||error.code==='NIM_UPSTREAM_ERROR'))observations[kind]={state:'failed',lastCheckedAt:new Date().toISOString(),latencyMs:Math.max(0,Date.now()-started),error:error.code};throw error;}
+  }
   async function send(kind:Kind,path:string,form:FormData,signal?:AbortSignal){
     const base=bases[kind];if(!base)return fail('NIM_SERVICE_NOT_CONFIGURED',503);
     if(active>=2)return fail('NIM_SERVICE_BUSY',429);
@@ -57,26 +64,32 @@ export function createNimSpecialists({env,fetchImpl=globalThis.fetch}:{env:Recor
     const language=lang(input.language);if(!asrLanguages.includes(language))return fail('NIM_LANGUAGE_NOT_CONFIGURED');
     const bytes=decode(input.data);if(!wav(bytes))return fail('NIM_AUDIO_FORMAT',415);
     const form=new FormData();form.set('file',new Blob([new Uint8Array(bytes)],{type:'audio/wav'}),'audio.wav');form.set('language',language);form.set('response_format','json');
+    return observe('asr',async()=>{
     const response=json(await send('asr','/v1/audio/transcriptions',form,signal));
     if(typeof response.text!=='string'||!response.text.trim()||response.text.length>50000)return fail('NIM_TRANSCRIPT_INVALID',502);
     return {text:response.text,language,provider:'configured-nim-asr'};
+    },signal);
   }
   async function synthesize(input:{text:unknown;language:unknown},signal?:AbortSignal){
     const language=lang(input.language);if(!languages.includes(language))return fail('NIM_LANGUAGE_NOT_CONFIGURED');
     if(typeof input.text!=='string'||!input.text.trim()||input.text.length>2000)return fail('NIM_TEXT_INVALID');
     const form=new FormData();form.set('text',input.text);form.set('language',language);form.set('encoding','LINEAR_PCM');
+    return observe('tts',async()=>{
     const bytes=await send('tts','/v1/audio/synthesize',form,signal);
     if(!wav(bytes))return fail('NIM_AUDIO_INVALID_RESPONSE',502);
     return {data:bytes.toString('base64'),mime:'audio/wav',language,provider:'configured-nim-tts'};
+    },signal);
   }
   async function parse(input:{data:unknown},signal?:AbortSignal){
     const bytes=decode(input.data);const mime=sniffImageType(bytes);
     if(mime!=='image/png'&&mime!=='image/jpeg')return fail('NIM_DOCUMENT_FORMAT',415);
     const form=new FormData();form.set('document',new Blob([new Uint8Array(bytes)],{type:mime}),mime==='image/png'?'page.png':'page.jpg');
+    return observe('parse',async()=>{
     const response=json(await send('parse','/v1/parse',form,signal));
     if(typeof response.content!=='string'||!response.content.trim()||response.content.length>200000)return fail('NIM_DOCUMENT_INVALID_RESPONSE',502);
     const finish=typeof response.finish_reason==='string'?response.finish_reason:null;
     return {content:response.content,finishReason:finish,truncated:finish==='length',provider:'configured-nim-parse'};
+    },signal);
   }
-  return Object.freeze({transcribe,synthesize,parse,status:()=>({asr:Boolean(bases.asr&&asrLanguages.length),tts:Boolean(bases.tts&&languages.length),parse:Boolean(bases.parse),asrLanguages,ttsLanguages:languages,verified:false as const})});
+  return Object.freeze({transcribe,synthesize,parse,status:()=>({asr:Boolean(bases.asr&&asrLanguages.length),tts:Boolean(bases.tts&&languages.length),parse:Boolean(bases.parse),asrLanguages,ttsLanguages:languages,verified:false as const,observations:Object.fromEntries(Object.entries(observations).map(([key,value])=>[key,{...value}]))})});
 }

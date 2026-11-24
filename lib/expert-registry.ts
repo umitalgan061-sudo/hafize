@@ -89,6 +89,7 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
 }) {
   const specialists = () => registry.agents.filter((agent) => agent.kind === 'specialist');
   const day = () => new Date(now()).toISOString().slice(0, 10);
+  const HEALTH_WINDOW_MS=24*60*60*1000;
 
   function cards(): AgentCard[] {
     return specialists().map(cardFor);
@@ -100,8 +101,8 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
     if (!terms.size) return [];
     const trustBonus = { core: 0.15, verified: 0.1, community: 0 } as const;
     return cards().map((card) => {
-      const capabilityTokens = tokenize(card.capabilities.join(' '));
-      const descriptionTokens = tokenize(`${card.name} ${card.description}`);
+      const capabilityTokens = [...new Set(tokenize(card.capabilities.join(' ')))];
+      const descriptionTokens = [...new Set(tokenize(`${card.name} ${card.description}`))];
       const capabilityHits = capabilityTokens.filter((token) => terms.has(token)).length;
       const descriptionHits = descriptionTokens.filter((token) => terms.has(token)).length;
       const health = healthCheck(card.agentId);
@@ -118,7 +119,7 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
     const agent = registry.agents.find((item) => item.id === agentId);
     if (!agent) return { agentId, healthy: false, reasons: ['bilinmeyen ajan'], successRate: null, p99Ms: null, sampleCount: 0 };
     const card = cardFor(agent);
-    const rows = db.prepare('SELECT latency_ms AS latency, ok FROM delegations WHERE child_agent_id = ? ORDER BY id DESC LIMIT 50').all(agentId) as Array<{ latency: number; ok: number }>;
+    const rows = db.prepare('SELECT latency_ms AS latency, ok FROM delegations WHERE child_agent_id = ? AND created_at >= ? ORDER BY id DESC LIMIT 50').all(agentId,now()-HEALTH_WINDOW_MS) as Array<{ latency: number; ok: number }>;
     const reasons: string[] = [];
     const requiredTools = (agent.toolPolicy.allow || []).filter(permission => !['trace.write', 'agent.read_result', 'task.read', 'task.update_ledger', 'skill.invoke'].includes(permission));
     const missing = requiredTools.filter(permission => !isToolAvailable(permission));
@@ -143,9 +144,11 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
 
   /** Reserves one call against today's quota; false when the agent is out of quota. */
   function consumeCall(agentId: string): boolean {
-    if (quotaStatus(agentId).exhausted) return false;
-    db.prepare('INSERT INTO agent_quota (agent_id, day, calls, tokens) VALUES (?, ?, 1, 0) ON CONFLICT(agent_id, day) DO UPDATE SET calls = calls + 1').run(agentId, day());
-    return true;
+    const agent=registry.agents.find(item=>item.id===agentId&&item.kind==='specialist');
+    if(!agent)return false;
+    const quota=cardFor(agent).quota;
+    const claimed=db.prepare('INSERT INTO agent_quota (agent_id, day, calls, tokens) VALUES (?, ?, 1, 0) ON CONFLICT(agent_id, day) DO UPDATE SET calls = calls + 1 WHERE calls < ? AND tokens < ?').run(agentId,day(),quota.callsPerDay,quota.tokensPerDay);
+    return Boolean(claimed.changes);
   }
   function addTokens(agentId: string, tokens: number): void {
     if (!Number.isFinite(tokens) || tokens <= 0) return;

@@ -30,3 +30,28 @@ describe('daily improvement',()=>{
     db.close();
   });
 });
+
+it('alternates deep and breadth days without exceeding the five-request budget',async()=>{
+ const db=openHafizeDb(':memory:');let clock=10000000;
+ const request=vi.fn(async(path:string,body:Record<string,unknown>|null)=>{
+   if(path==='/embeddings')return new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}));
+   const content=body?.max_tokens===512?JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]}):'{"capital":"Ankara","math":383,"code":12}';
+   let message:Record<string,unknown>={content};
+   if(body?.tools){
+     if(Array.isArray(body.messages)&&body.messages.some((m:unknown)=>Boolean(m&&typeof m==='object'&&'role' in m&&m.role==='tool')))message={content:'{"answer":45}'};
+     else message={tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]};
+   }
+   return new Response(JSON.stringify({choices:[{message}]}));
+ });
+ const lab=createModelLab({allowed:['nvidia/a','nvidia/b','nvidia/c'],specialistModels:['nvidia/nemotron-3-embed-1b'],request,now:()=>clock});
+ const daily=createDailyImprovement({db,lab,expertHealth:()=>[],liveProbes:true,now:()=>clock});
+ const first=await daily.tick();
+ expect(first?.deepTestedModels).toEqual(['nvidia/a']);
+ expect(request.mock.calls.length).toBeLessThanOrEqual(5);
+ request.mockClear();clock+=DAY_MS+1;
+ const second=await daily.tick();
+ expect(second?.deepTestedModels).toEqual([]);
+ expect(second?.testedModels).toEqual(['nvidia/b','nvidia/c']);
+ expect(request.mock.calls.length).toBeLessThanOrEqual(5);
+ db.close();
+});

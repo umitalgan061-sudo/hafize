@@ -112,7 +112,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   function attachStorage(next:ModelLabStorage){if(storage||running||batchRunning||results.size||specialistResults.size||timestamps.length)throw Error('MODEL_LAB_STORAGE_ALREADY_INITIALIZED');storage=next;storageHealthy=true;restore();}
   function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && result.toolProbeStatus === 'passed' ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
-  const status = () => ({ eligible, catalog, specialists, specialistResults:[...specialistResults.values()], inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
+  const status = () => ({ eligible, catalog, specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
   async function call(path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -183,12 +183,12 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     return probeOne(model, signal);
   }
   /** Bounded foreground batch. Subsequent commands continue with the remaining untested candidates. */
-  async function batch(signal?: AbortSignal, progress?: (model: string, result: ProbeResult) => void) {
+  async function batch(signal?: AbortSignal, progress?: (model: string, result: ProbeResult) => void, limit=2) {
     if (running || batchRunning) throw new Error('MODEL_LAB_BUSY');
     batchRunning = true;
     const completed: ProbeResult[] = [];
     try {
-      for (const model of eligible.filter(id => !fresh(id)).sort((a,b)=>(Date.parse(results.get(a)?.testedAt||'')||0)-(Date.parse(results.get(b)?.testedAt||'')||0)).slice(0, 2)) {
+      for (const model of eligible.filter(id => !fresh(id)).sort((a,b)=>(Date.parse(results.get(a)?.testedAt||'')||0)-(Date.parse(results.get(b)?.testedAt||'')||0)).slice(0, Math.max(0,Math.min(2,Math.floor(limit))))) {
         signal?.throwIfAborted();
         if (blockedUntil > now() || availableRequests() < 2) break;
         const row = await probeOne(model, signal); completed.push(row); progress?.(model, row);
@@ -276,7 +276,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
         if(vectors.length===3&&vectors.every(valid)&&vectors.every(v=>v.length===vectors[0]!.length)){
           const cosine=(a:number[],b:number[])=>a.reduce((n,x,i)=>n+x*b[i]!,0)/(Math.hypot(...a)*Math.hypot(...b));
           const same=cosine(vectors[0]!,vectors[1]!),different=cosine(vectors[0]!,vectors[2]!);
-          result={...result,status:Number.isFinite(same)&&Number.isFinite(different)?'passed':'invalid_response',dimension:vectors[0]!.length,similarHigher:same>different};
+          result={...result,status:Number.isFinite(same)&&Number.isFinite(different)&&same>different?'passed':'invalid_response',dimension:vectors[0]!.length,similarHigher:same>different};
         }else result={...result,status:'invalid_response'};
       }
     }catch(error){if(signal?.aborted)throw error;result={...result,status:error instanceof Error&&error.name==='TimeoutError'?'timeout':'failed'};}
