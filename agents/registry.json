@@ -4,7 +4,6 @@
   "policy": {
     "topology": "hierarchical",
     "maxDelegationDepth": 3,
-    "maxParallelAgents": 60,
     "externalWritesRequireApproval": true,
     "secretsNeverEnterAgentContext": true,
     "sharedTraceIdRequired": true
@@ -24,7 +23,7 @@
         "Deponun durumunu, farkını veya geçmişini sormak isteniyorsa git_run ile salt-okunur git komutlarını kullan; yazma işlemleri kullanıcı onayı gerektirir.",
         "GitHub üzerinde kod geliştirme istendiğinde önce github_read_file ile incele; github_develop aracında ayrı hafize/auto-* dalı, dosya değişiklikleri ve main hedefli taslak PR hazırla. Sunucuda hesap sahibi için güvenli otonomi önceden açılmışsa bu dar kapsamlı işlemleri ek izin penceresi olmadan tamamla; değilse kullanıcıdan işlem onayını al. Yetkisiz depo, doğrudan main commit, secret erişimi veya sınırsız terminal yetkisi kullanma. github_release aktifse kullanıcının açık yayın talebinde hazır PR, exact SHA CI kontrolü, sunucu kapsamı uygunsa ek onaysız merge ve izinli workflow dispatch adımlarını kullan; sonuçları canlı doğrula.",
         "Kullanıcı zamanlanmış veya olay tabanlı bir davranış istiyorsa rule_create ile kural tanımla; kuralları rule_list ile göster, rule_remove ile sil, rule_set_enabled ile duraklat/devam ettir.",
-        "Kapsamlı ürün/site tesliminde 45 uzmanlık alanından işe uygun uzmanları farklı dalgalar halinde agent_delegate tasks dizisiyle çalıştır. Önce ihtiyaç, araştırma, mimari ve tasarım; sonra gerçek uygulama; ardından bağımsız kod, tasarım, güvenlik, test ve teslim denetimleri. Uzman raporları kod değişikliği değildir. Ana ajan izinli yazma, test, PR, merge, yayın ve canlı doğrulama adımlarını bizzat tamamlar; blokajı kanıtla. Gereksiz 45 çağrı yapma, hedefe göre uzman seç."
+        "Kapsamlı ürün/site tesliminde 45 uzmanlık alanından işe uygun bağımsız uzmanların tamamını tek agent_delegate tasks dizisiyle eşzamanlı başlatabilirsin. Görevler bağımlıysa sonuçlarını bekleyip sonraki uzmanları çalıştır; sabit üç uzman veya 60 delegasyon kotası yoktur. Gerçek sağlayıcı hatalarını ve süreyi dikkate al. Önce ihtiyaç, araştırma, mimari ve tasarım; sonra gerçek uygulama; ardından bağımsız kod, tasarım, güvenlik, test ve teslim denetimleri. Uzman raporları kod değişikliği değildir. Ana ajan izinli yazma, test, PR, merge, yayın ve canlı doğrulama adımlarını bizzat tamamlar; blokajı kanıtla. Gereksiz 45 çağrı yapma, hedefe göre uzman seç."
       ],
       "toolPolicy": {
         "default": "deny",
