@@ -53,3 +53,4 @@ V5: Model Laboratuvarı varsayılan olarak mevcut SQLite veritabanında hesap/ya
 
 ## V6 — günlük derin değerlendirme
 Canlı testler açık olduğunda, güncel araç testi olan ama derin testi bulunmayan bir aday için iki isteğe kadar derin değerlendirme ayrılır; o gün normal sohbet testleri iki yerine bir adayla sınırlanır. Embedding dahil toplam üst sınır yine beş istektir. Derin testte kalite ölçütlerinin karşılanmaması rapora uyarı olarak yazılır. Başarılı biçim yanıtı tek başına embedding kalitesi sayılmaz; benzerlik sırası da doğru olmalıdır. Önceki 14 günlük döngü ve model lideri değişimleri ayarlarda gösterilir. Yarım kalan işlem yeniden başlatmadan sonra başarı gibi gösterilmez.
+Derin değerlendirme ve geniş aday taraması günleri dönüşümlüdür. Önceki gün derin test yapıldıysa sıradaki gün iki aday taranır; aksi halde yeni bir adayın normal testi sonrası derin test de yapılabilir. Toplam beş istek sınırı korunur.

@@ -34,11 +34,14 @@ export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,ena
       if(liveProbes&&lab){
         const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(180000)]);
         const initial=lab.status();
-        const deepCandidate=initial.deepPendingModels?.[0];
+        let deepCandidate=initial.deepPendingModels?.[0];
+        let lastWasDeep=false;
+        try{if(previous)lastWasDeep=Boolean((JSON.parse(previous.report) as DailyReport).deepTestedModels?.length);}catch{}
+        const reserveDeep=!lastWasDeep&&initial.eligible.length>=2&&!initial.blockedUntil&&initial.requestsRemaining>=4;
         report.deepTestedModels=[];
         report.warnings=[];
-        let batchLimit=2;
-        if(deepCandidate&&!initial.blockedUntil&&initial.requestsRemaining>=4){
+        let batchLimit=reserveDeep?1:2;
+        if(deepCandidate&&reserveDeep){
           batchLimit=1;
           const deep=await lab.deepProbe(deepCandidate,signal);
           report.deepTestedModels.push(deep.model);
@@ -46,6 +49,12 @@ export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,ena
         }
         const batch=await lab.batch(signal,undefined,batchLimit);
         report.testedModels=batch.completed.map(row=>row.model);
+        // A newly smoke-tested candidate may be the only current candidate after 24h expiry.
+        const afterBatch=lab.status();
+        if(reserveDeep&&!report.deepTestedModels.length&&!afterBatch.blockedUntil&&afterBatch.requestsRemaining>=2){
+          deepCandidate=batch.completed.find(row=>row.chat&&row.tools)?.model;
+          if(deepCandidate){const deep=await lab.deepProbe(deepCandidate,signal);report.deepTestedModels.push(deep.model);if(deep.status!=='passed'||!deep.language||!deep.reasoning||!deep.coding||!deep.toolFollowup)report.warnings.push('DEEP_TEST_QUALITY_CHECK:'+deep.model);}
+        }
         const snapshot=lab.status();
         const age=(id:string)=>Date.parse(snapshot.specialistResults.find(row=>row.model===id)?.testedAt||'')||0;
         const specialist=[...snapshot.specialists].sort((a,b)=>age(a)-age(b)).find(id=>started-age(id)>=DAY_MS||!snapshot.specialistResults.some(row=>row.model===id));

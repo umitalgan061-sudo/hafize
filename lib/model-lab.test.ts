@@ -236,3 +236,9 @@ it('preserves a successful council answer when another model fails transport',as
   expect(council.answers).toEqual([{model:a,status:'passed',answer:'İlk yanıt'},{model:b,status:'failed',answer:''}]);
   expect(council.review).toBeNull();
 });
+
+it('does not classify indistinguishable embeddings as a passed quality test',async()=>{
+ const embed='nvidia/nemotron-3-embed-1b';
+ const lab=createModelLab({allowed:[],specialistModels:[embed],request:async()=>new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[1,0]}]}))});
+ expect(await lab.specialistProbe(embed)).toMatchObject({status:'invalid_response',similarHigher:false});
+});
