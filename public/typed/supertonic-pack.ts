@@ -28,10 +28,10 @@ export async function downloadPack(progress: (n:number)=>void, signal?:AbortSign
 }
 let worker: Worker | undefined;
 let sequence = 0;
-const pending = new Map<number,{resolve:(v:{pcm:Float32Array;sampleRate:number})=>void;reject:(e:Error)=>void}>();
+const pending = new Map<number,{resolve:(v:{pcm:Float32Array;sampleRate:number})=>void;reject:(e:Error)=>void;timer:ReturnType<typeof setTimeout>}>();
 function releaseWorker() {
   worker?.terminate(); worker = undefined;
-  for (const task of pending.values()) task.reject(Error('VOICE_ENGINE_STOPPED'));
+  for (const task of pending.values()) {clearTimeout(task.timer); task.reject(Error('VOICE_ENGINE_STOPPED'));}
   pending.clear();
 }
 export async function deletePack() { releaseWorker(); await caches.delete(cacheName); }
@@ -42,13 +42,15 @@ export function synthesizePack(speaker:number,text:string,rate:number) {
     worker.onmessage = ({data}) => {
       const task = pending.get(data.id);
       pending.delete(data.id);
+      if(task)clearTimeout(task.timer);
       if (data.error || !data.pcm?.length) task?.reject(Error(data.error || 'VOICE_EMPTY_OUTPUT'));
       else task?.resolve(data);
     };
   }
   const id = ++sequence;
   return new Promise<{pcm:Float32Array;sampleRate:number}>((resolve,reject)=>{
-    pending.set(id,{resolve,reject});
-    worker!.postMessage({id,text,rate,base,style:styles[speaker] || styles[0]});
+    const timer=setTimeout(()=>releaseWorker(),30_000);
+    pending.set(id,{resolve,reject,timer});
+    try {worker!.postMessage({id,text,rate,base,style:styles[speaker] || styles[0]});} catch {releaseWorker();}
   });
 }

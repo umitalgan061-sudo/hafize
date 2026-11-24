@@ -1,4 +1,5 @@
 import { pack, downloadPack, deletePack, synthesizePack } from './supertonic-pack.ts';
+import {zerrePack,downloadZerre,deleteZerre,synthesizeZerre,zerreDownloaded} from './zerre-pack.ts';
 // Downloadable Piper voices: catalog, on-demand download into Cache Storage, synthesis in workers
 // and playback. Nothing heavy loads until a Piper voice is actually used, and a voice is only
 // ever downloaded when the user asks for it in Settings. Speech never leaves this browser.
@@ -70,7 +71,7 @@ export function loadCatalog(): Promise<PiperVoice[]> {
   catalog ||= fetch('/piper-voices.json').then((response) => {
     if (!response.ok) throw new Error('CATALOG_UNAVAILABLE');
     return response.json();
-  }).then((data) => sortVoices([...data.voices, pack])).catch((error) => { catalog = null; throw error; });
+  }).then((data) => sortVoices([...data.voices, pack, zerrePack])).catch((error) => { catalog = null; throw error; });
   return catalog;
 }
 
@@ -81,6 +82,7 @@ export const canStoreVoices = () => typeof caches !== 'undefined';
 
 export async function isDownloaded(voice: Pick<PiperVoice, 'path' | 'url'>): Promise<boolean> {
   const url = modelUrl(voice);
+  if (url===zerrePack.url) return zerreDownloaded();
   if (memory.has(url)) return true;
   const cache = await openCache();
   return Boolean(await cache?.match(url));
@@ -89,7 +91,9 @@ export async function isDownloaded(voice: Pick<PiperVoice, 'path' | 'url'>): Pro
 export async function downloadedKeys(voices: readonly PiperVoice[]): Promise<Set<string>> {
   const cache = await openCache();
   const stored = new Set((await cache?.keys() ?? []).map((request) => request.url));
-  return new Set(voices.filter((voice) => stored.has(modelUrl(voice)) || memory.has(modelUrl(voice))).map((voice) => voice.key));
+  const owned = new Set(voices.filter((voice) => voice.key!==zerrePack.key&&(stored.has(modelUrl(voice)) || memory.has(modelUrl(voice)))).map((voice) => voice.key));
+  if(voices.some(v=>v.key===zerrePack.key)&&await zerreDownloaded())owned.add(zerrePack.key);
+  return owned;
 }
 
 /** Frees the space of voices no longer offered (foreign languages downloaded before they were removed). */
@@ -118,6 +122,7 @@ async function readWithProgress(response: Response, onProgress: (received: numbe
 export async function downloadVoice(voice: PiperVoice, onProgress: (fraction: number) => void, signal?: AbortSignal): Promise<void> {
   const url = modelUrl(voice);
   const configAddress = configUrl(voice);
+  if(voice.key===zerrePack.key){if(!canStoreVoices())throw Error('VOICE_STORAGE_UNAVAILABLE');await downloadZerre(onProgress,signal);return;}
   if (voice.key === pack.key) {
     if (!canStoreVoices()) throw Error('VOICE_STORAGE_UNAVAILABLE');
     await downloadPack(onProgress, signal);
@@ -151,6 +156,7 @@ export async function removeVoice(voice: Pick<PiperVoice, 'path' | 'url' | 'conf
   await cache?.delete(configAddress);
   loaded.delete(url);
   if (url === pack.url) await deletePack();
+  if (url === zerrePack.url) await deleteZerre();
 }
 
 async function readStored(url: string): Promise<ArrayBuffer> {
@@ -320,6 +326,7 @@ export function synthesize(voice: PiperVoice, speaker: number, text: string, rat
       voiceBreakers.set(voice.key, engineBreaker);
       if (engineBreaker.open()) throw new Error('VOICE_ENGINE_RESTING');
       try {
+        if(voice.key===zerrePack.key){const audio=await synthesizeZerre(speaker,text,rate);engineBreaker.succeeded();return audio;}
         if (voice.key === pack.key) {
           const audio = await synthesizePack(speaker, text, rate);
           engineBreaker.succeeded();

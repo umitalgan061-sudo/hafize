@@ -1297,7 +1297,8 @@ async function handleAgentRun(req, res) {
 
 async function handleChat(req, res) {
   const body = await readJson(req, CHAT_BODY_BYTES);
-  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  const voiceConversation = body.voice_conversation === true;
+  let model = typeof body.model === 'string' ? body.model.trim() : '';
   const messages = normalizeClientMessages(body.messages);
   const agent = resolveAgent(AGENT_REGISTRY, body.agentId);
   if (!model || !messages || !agent) {
@@ -1313,11 +1314,14 @@ async function handleChat(req, res) {
     return;
   }
 
+  // Voice conversation is a text-only fast lane; cloud gateway keeps its own configured model.
+  if (voiceConversation && provider === 'nvidia') model = gateway?.model || process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel;
   const traceId = createTraceId();
   res.setHeader('X-Hafize-Trace-Id', traceId);
-  const requestAbort = attachDisconnectAbort(req, REQUEST_TIMEOUT_MS);
+  const requestAbort = attachDisconnectAbort(req, voiceConversation && provider === 'nvidia' ? Math.min(REQUEST_TIMEOUT_MS, 34_000) : REQUEST_TIMEOUT_MS);
+  const voiceInstruction = voiceConversation ? [{role:'system',content:'Bu canlı sesli bir Türkçe sohbet. İlk cümlede doğrudan cevap ver; doğal, sıcak, kısa ve gündelik konuş. Genellikle bir ila üç kısa cümle kullan. Liste, markdown, düşünme açıklaması ve gereksiz giriş kullanma. Bilmediğin güncel bilgiyi uydurma.'}] : [];
   const preparedConversation = await prepareConversation(
-    [buildAgentSystemMessage(agent, traceId, { tools: false, memory: normalizeClientMemory(body.memory) }), ...messages],
+    [buildAgentSystemMessage(agent, traceId, { tools: false, memory: normalizeClientMemory(body.memory) }), ...voiceInstruction, ...messages],
     model,
     requestAbort.signal,
     res,

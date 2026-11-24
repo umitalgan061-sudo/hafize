@@ -6,7 +6,9 @@
 // voice panel stay out of the way. Dictation into the composer remains on Ctrl+Shift+M.
 
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
-import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog } from './voice-library.ts';
+import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog, findVoice, isPiperVoice, synthesize } from './voice-library.ts';
+import { pack, styles } from './supertonic-pack.ts';
+import {zerrePack,zerreStyles} from './zerre-pack.ts';
 
 /** A streaming reply is read as short, *complete* phrases to minimize time to first sound.
  * The cursor uses character offsets in the raw model response (not normalized speech).
@@ -58,9 +60,9 @@ const VOICE_KEY = 'hafize.voiceOutput.voice.v1';
 const CAPTIONS_KEY = 'hafize.voiceMode.captions.v1';
 const ORIGIN = 'voice-mode';
 const SEND_TIMEOUT_MS = 4000;
-const FEED_INTERVAL_MS = 150;
+const FEED_INTERVAL_MS = 65;
 const MAX_SILENT_RETRIES = 4;
-const END_OF_TURN_MS = 700;
+const END_OF_TURN_MS = 550;
 const RESTART_DELAY_MS = 450;
 const RECOGNITION_START_TIMEOUT_MS = 6000;
 const RECOGNITION_STOP_TIMEOUT_MS = 1800;
@@ -153,6 +155,7 @@ const TEMPLATE = `
 <section class="vm-settings" id="vmSettings" hidden aria-label="Ses ayarları">
   <label class="vm-field"><span>Konuşma hızı <output class="vm-rate-out">1.00×</output></span><input class="vm-rate" type="range" min="0.7" max="1.5" step="0.05" value="1"></label>
   <label class="vm-field"><span>Ses</span><select class="vm-voice"><option value="">Otomatik (en doğal Türkçe ses)</option></select></label>
+  <label class="vm-field vm-speaker-field" hidden><span>Türkçe konuşmacı</span><select class="vm-speaker" aria-label="Türkçe konuşmacı"></select></label>
   <button type="button" class="vm-sample">▶ Örnek dinle</button>
 </section>
 <main class="vm-stage">
@@ -217,6 +220,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const rateOut = $<HTMLOutputElement>('.vm-rate-out');
   const voiceSelect = $<HTMLSelectElement>('.vm-voice');
   const sampleBtn = $<HTMLButtonElement>('.vm-sample');
+  const speakerSelect = $<HTMLSelectElement>('.vm-speaker');
+  const speakerField = $<HTMLElement>('.vm-speaker-field');
   const form = $<HTMLFormElement>('.vm-input');
   const textInput = $<HTMLInputElement>('.vm-text');
   const sendBtn = $<HTMLButtonElement>('.vm-send');
@@ -247,6 +252,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let pendingUtterance = '';
   let feedTimer: ReturnType<typeof setInterval> | null = null;
   let sendTimer: ReturnType<typeof setTimeout> | null = null;
+  let responseNoticeTimer: ReturnType<typeof setTimeout> | null = null;
   let resumeTimer: ReturnType<typeof setTimeout> | null = null;
   let endOfTurnTimer: ReturnType<typeof setTimeout> | null = null;
   let recognitionStartTimer: ReturnType<typeof setTimeout> | null = null;
@@ -282,6 +288,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const clearTimers = () => {
     if (sendTimer) clearTimeout(sendTimer);
+    if (responseNoticeTimer) clearTimeout(responseNoticeTimer);
+    responseNoticeTimer = null;
     if (resumeTimer) clearTimeout(resumeTimer);
     sendTimer = null;
     resumeTimer = null;
@@ -369,7 +377,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const Custom = root.CustomEvent;
     if (!piece.trim() || typeof Custom !== 'function') return;
     spokenUpTo = end;
-    if (!streamStarted) { streamStarted = true; setCaption(['', '', ''], 'hafize'); }
+    if (!streamStarted) { streamStarted = true; if(responseNoticeTimer) clearTimeout(responseNoticeTimer); responseNoticeTimer=null; setCaption(['', '', ''], 'hafize'); }
     documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: piece, origin: ORIGIN, append: true } }));
   };
 
@@ -405,7 +413,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     // Use stable message ids, not DOM node identity. renderMessages() replaces all
     // nodes each time; the old answer used to be spoken again as the new answer.
     nodeBeforeSend = latestMessage()?.dataset.messageId ?? null;
-    setState('thinking');
+    setState('thinking', 'Yanıt hazırlanıyor…');
+    responseNoticeTimer = setTimeout(() => { if(awaitingReply && !streamStarted && state==='thinking') statusEl.textContent='Bağlantı yanıtı bekleniyor · durdurmak için küreye dokun'; }, 6000);
     composer.requestSubmit();
     stopFeeding();
     feedTimer = setInterval(() => feedSpeech(), FEED_INTERVAL_MS);
@@ -583,6 +592,27 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     }
   };
 
+  const renderSpeakers = () => {
+    const isSupertonic=voiceSelect.value===PIPER_PREFIX+pack.key;
+    const labels=isSupertonic?styles:voiceSelect.value===PIPER_PREFIX+zerrePack.key?zerreStyles:[];
+    speakerField.hidden=!labels.length;
+    while(speakerSelect.options.length)speakerSelect.remove(0);
+    if(!labels.length)return;
+    for(const [index,style] of labels.entries()){
+      const option=documentRef.createElement('option');option.value=String(index);
+      option.textContent=isSupertonic?(style.startsWith('F')?'Kadın ':'Erkek ')+style.slice(1)+' · '+style:style+' · Türkçe';
+      speakerSelect.append(option);
+    }
+    const saved=Number(read(SPEAKER_KEY));speakerSelect.value=String(Number.isInteger(saved)&&saved>=0&&saved<labels.length?saved:0);
+  };
+  const warmSelected = () => {
+    const id=read(VOICE_KEY);
+    if(!isPiperVoice(id))return;
+    void findVoice(id).then(async voice=>{
+      if(!voice || !(await downloadedKeys([voice])).has(voice.key))return;
+      await synthesize(voice,Number(read(SPEAKER_KEY))||0,'Merhaba.',Number(read(RATE_KEY))||1);
+    }).catch(()=>undefined);
+  };
   const loadVoices = () => {
     const synth = root.speechSynthesis;
     const voices = (synth?.getVoices?.() || []).filter((v) => String(v.lang || '').toLowerCase().replace('_', '-').startsWith('tr'));
@@ -608,6 +638,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         voiceSelect.append(option);
       }
       if ([...voiceSelect.options].some((option) => option.value === current)) voiceSelect.value = current;
+      renderSpeakers();
     }).catch(() => { /* the catalog is optional here */ });
   };
   const renderRate = () => {
@@ -643,7 +674,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     completedSpeechTurns = 0;
     pendingUtterance = '';
     manualEnd = false;
-    renderMute(); renderRate(); renderCaptions(); loadVoices();
+    renderMute(); renderRate(); renderCaptions(); loadVoices(); warmSelected();
     setCaption(['', '', '']);
     if (!orb && canvas) { orb = createVoiceOrb(canvas, root); screen.classList.toggle('vm-webgl', Boolean(orb)); }
     setState('idle');
@@ -707,6 +738,9 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         setState('idle');
         listen();
       }
+    } else if (state === 'thinking' && input.disabled) {
+      streamStopped=true; awaitingReply=false; stopFeeding(); stopSpeech(); clearTimers();
+      composer.requestSubmit(); setState('thinking','Yanıt durduruluyor…');
     } else if (state === 'listening') {
       if (screen.dataset.micPhase === 'silent') {
         // When the OS mic dot is on but nothing is transcribed, the orb
@@ -733,6 +767,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (!awaitingReply) { if (state === 'thinking') listen(); return; }
     stopFeeding();
     if (sendTimer) { clearTimeout(sendTimer); sendTimer = null; }
+    if (responseNoticeTimer) { clearTimeout(responseNoticeTimer); responseNoticeTimer=null; }
     if (streamStarted || streamStopped) {
       feedSpeech(true);
       awaitingReply = false;
@@ -832,7 +867,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (!settings.hidden) { loadVoices(); rateInput.focus(); }
   });
   on(rateInput, 'input', () => { write(RATE_KEY, rateInput.value); rateOut.textContent = `${Number(rateInput.value).toFixed(2)}×`; });
-  on(voiceSelect, 'change', () => { if (voiceSelect.value) write(VOICE_KEY, voiceSelect.value); else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } });
+  on(voiceSelect, 'change', () => { if (voiceSelect.value) {if(read(VOICE_KEY)!==voiceSelect.value)write(SPEAKER_KEY,'0');write(VOICE_KEY, voiceSelect.value);} else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } renderSpeakers(); warmSelected(); });
+  on(speakerSelect,'change',()=>{write(SPEAKER_KEY,speakerSelect.value);warmSelected();});
   on(sampleBtn, 'click', () => {
     stopRecognition(true);
     const Custom = root.CustomEvent;

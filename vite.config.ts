@@ -102,6 +102,7 @@ export default defineConfig({
         'release-update': resolve(ROOT, 'public/typed/release-update.ts'),
         'supertonic-worker': resolve(ROOT, 'public/typed/supertonic-worker.js'),
         'piper-worker': resolve(ROOT, 'public/typed/piper-worker.ts'),
+        'zerre-worker': resolve(ROOT, 'public/typed/zerre-worker.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),
         'prompt-library-smart-fill': resolve(ROOT, 'public/prompt-library-smart-fill.ts'),
         'prompt-library-command-palette': resolve(ROOT, 'public/prompt-library-command-palette.ts'),

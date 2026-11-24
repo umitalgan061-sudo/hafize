@@ -45,3 +45,8 @@ only downloaded on the user's request and are labelled as community voices in Se
 ## qrcode-generator
 
 Copyright (c) 2009 Kazuhiko Arase. MIT License. Used to draw the install QR code on the Settings page.
+
+
+## Zerre Türkçe TTS (isteğe bağlı)
+
+Model, sözlük ve referans fonemleyici: [erkinemreta1/zerre-tts](https://github.com/erkinemreta1/zerre-tts/tree/cf3cdfaaa54a9e8ec541081bb5c2e97c3d563db4), Apache-2.0. Model dosyaları yalnızca kullanıcı indirme seçtiğinde alınır; ses metni cihazda işlenir. SES-A ve SES-B nötr etiketlerdir. Upstream eğitim verisi lisans ve kişilik haklarının bağımsız doğrulanmadığını bildirir; ticari kullanım öncesinde ayrıca değerlendirme gerekir. [Model kartı](https://huggingface.co/erkint/zerre-tts), [veri kaynakları](https://github.com/erkinemreta1/zerre-tts/blob/cf3cdfaaa54a9e8ec541081bb5c2e97c3d563db4/docs/data_sources.md).
