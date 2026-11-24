@@ -261,8 +261,9 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const clear=el('button','','Temizle');clear.type='button';
     const cancel=el('button','','İptal');cancel.type='button';cancel.disabled=true;
     const actions=el('div','settings-actions');actions.append(refresh,execute,cancel,clear);
-    panel.append(notice,operation,language,file,input,actions,result,audio);
-    type Status={asr:boolean;tts:boolean;parse:boolean;asrLanguages:string[];ttsLanguages:string[]};
+    const health=el('ul','settings-memory-list');
+    panel.append(notice,health,operation,language,file,input,actions,result,audio);
+    type Status={asr:boolean;tts:boolean;parse:boolean;asrLanguages:string[];ttsLanguages:string[];observations?:Record<string,{state:string;lastCheckedAt:string|null;latencyMs:number|null;error:string|null}>};
     let status:Status|null=null;let controller:AbortController|null=null;let audioUrl:string|null=null;let busy=false;
     const release=()=>{audio.pause();audio.removeAttribute('src');if(audioUrl)root.URL.revokeObjectURL(audioUrl);audioUrl=null;audio.hidden=true;result.value='';result.hidden=true;};
     function render(){
@@ -283,8 +284,14 @@ function start(documentRef: Document, root: typeof globalThis): void {
           if(!enabled)continue;const option=el('option','',label);option.value=key;operation.append(option);
         }
         if([...operation.options].some(o=>o.value===selected))operation.value=selected;
-        notice.textContent=operation.options.length?'Yapılandırılmış servisler listelendi; gerçek erişim henüz doğrulanmadı.':'Uzman NIM servisleri yapılandırılmamış. Mevcut sesli sohbet ve görsel analiz kullanılabilir.';
-      }catch{status=null;operation.replaceChildren();notice.textContent='Uzman servis durumu alınamadı.';}
+        health.replaceChildren();
+        for(const [key,label] of [['asr','ASR'],['tts','TTS'],['parse','Belge']]){
+          const observation=status?.observations?.[key!];
+          const configured=status?.[key as 'asr'|'tts'|'parse'];
+          health.append(el('li','',label+': '+(!configured?'yapılandırılmadı':observation?.state==='passed'?'son istek başarılı':observation?.state==='failed'?'son istek başarısız':'henüz denenmedi')+(observation?.latencyMs!=null?' · '+observation.latencyMs+' ms':'')+(observation?.error?' · '+observation.error:'')));
+        }
+        notice.textContent=operation.options.length?'Yapılandırılmış servisler listelendi. Son istek sonuçları genel erişim garantisi değildir.':'Uzman NIM servisleri yapılandırılmamış. Mevcut sesli sohbet ve görsel analiz kullanılabilir.';
+      }catch{status=null;operation.replaceChildren();health.replaceChildren();notice.textContent='Uzman servis durumu alınamadı.';}
       finally{busy=false;render();}
     }
     function encode(bytes:Uint8Array){let binary='';for(let i=0;i<bytes.length;i+=8192)binary+=String.fromCharCode(...bytes.subarray(i,i+8192));return root.btoa(binary);}

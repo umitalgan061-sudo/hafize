@@ -26,3 +26,14 @@ describe('standalone NIM services',()=>{
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
+
+it('reports actual service observations without retaining request content or mistaking malformed output for success',async()=>{
+ let valid=false;const nim=createNimSpecialists({env:{HAFIZE_NIM_ASR_URL:'https://asr.example',HAFIZE_NIM_ASR_LANGUAGES:'tr-TR'},fetchImpl:async()=>new Response(JSON.stringify(valid?{text:'private transcript'}:{}))});
+ const data=audio.toString('base64');
+ expect(nim.status().observations.asr.state).toBe('not_tested');
+ await expect(nim.transcribe({data,language:'tr-TR'})).rejects.toThrow('NIM_TRANSCRIPT_INVALID');
+ expect(nim.status().observations.asr).toMatchObject({state:'failed',error:'NIM_TRANSCRIPT_INVALID'});
+ valid=true;await nim.transcribe({data,language:'tr-TR'});
+ expect(nim.status().observations.asr).toMatchObject({state:'passed',error:null});
+ expect(JSON.stringify(nim.status())).not.toContain('private transcript');
+});
