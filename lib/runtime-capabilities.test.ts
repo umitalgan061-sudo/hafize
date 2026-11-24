@@ -95,5 +95,7 @@ describe('complete owner project inventory',()=>{
       expect(matchOwnerProjects(query).map(p=>p.id)).toEqual([id]);
     }
     expect(matchOwnerProjects('bilinmeyen proje')).toEqual([]);
+    expect(matchOwnerProjects('Borsa Günlüğü ve Retake').map(p=>p.id)).toEqual(['borsa','retake']);
+    expect(matchOwnerProjects('hafize-ua.web.app').map(p=>p.id)).toEqual(['hafize','hafize-legacy']);
   });
 });

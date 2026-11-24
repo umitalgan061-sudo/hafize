@@ -31,7 +31,8 @@ export const OWNER_PROJECTS = [
       "hafize uyum"
     ],
     "urls": [
-      "https://hafize-23465.web.app"
+      "https://hafize-23465.web.app",
+      "https://hafize-ua.web.app"
     ],
     "evidence": "firebase.json target hafize; sites/hafize; projelerim-8fecd also maps hafize-ua, shared target: confirm actual release source",
     "level": "config"
@@ -260,15 +261,22 @@ export const OWNER_REPOSITORIES = [...new Set(OWNER_PROJECTS.map(p => p.reposito
 function normalize(value: string): string {
   return value.toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i').replace(/[^a-z0-9]+/g,' ').trim();
 }
-/** Most specific complete alias wins; equal matches remain ambiguous. */
+/** Longer aliases suppress only overlapping shorter ones. Independent project mentions survive. */
 export function matchOwnerProjects(text: unknown) {
   if (typeof text !== 'string' || text.length > 24000) return [];
   const haystack = ' ' + normalize(text) + ' ';
   const hits = OWNER_PROJECTS.flatMap(p => {
     const aliases = [...p.aliases, ...p.urls.map(u=>new URL(u).hostname)];
-    const score = Math.max(0,...aliases.map(a=>{const n=normalize(a);return n && haystack.includes(' '+n+' ') ? n.length : 0;}));
-    return score ? [{project:p,score}] : [];
+    return aliases.flatMap(a=>{
+      const n=normalize(a);
+      if(!n) return [];
+      const needle=' '+n+' ';
+      const matches: {project:typeof p;start:number;end:number}[]=[];
+      let start=haystack.indexOf(needle);
+      while(start>=0){matches.push({project:p,start:start+1,end:start+1+n.length});start=haystack.indexOf(needle,start+1);}
+      return matches;
+    });
   });
-  const max = Math.max(0,...hits.map(h=>h.score));
-  return hits.filter(h=>h.score===max).map(h=>h.project);
+  const surviving = hits.filter(h=>!hits.some(other=>other.start<=h.start&&other.end>=h.end&&(other.end-other.start>h.end-h.start)));
+  return OWNER_PROJECTS.filter(p=>surviving.some(h=>h.project.id===p.id));
 }
