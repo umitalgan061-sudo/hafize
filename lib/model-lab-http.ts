@@ -3,6 +3,10 @@ const ID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/;
 export async function modelLabAction(lab:ReturnType<typeof createModelLab>,input:unknown,signal?:AbortSignal){
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('MODEL_LAB_INVALID_ACTION');
   const body=input as Record<string,unknown>;
+  if(body.action==='semantic_search'){
+    if(Object.keys(body).some(key=>!['action','text','query','model','consent'].includes(key))||body.consent!==true)throw Error('MODEL_LAB_INVALID_ACTION');
+    const semanticOutput=await lab.semanticSearch(body.text,body.query,body.model,signal);return {...lab.status(),semanticOutput};
+  }
   if(body.action==='translate_text'){
     if(Object.keys(body).some(key=>!['action','text','pair','consent'].includes(key))||body.consent!==true)throw Error('MODEL_LAB_INVALID_ACTION');
     const translationOutput=await lab.translateText(body.text,body.pair,signal);return {...lab.status(),translationOutput};
