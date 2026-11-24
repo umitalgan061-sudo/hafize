@@ -21,8 +21,8 @@ import { mountChatScroll, type ChatScrollController } from './chat-scroll.ts';
 import { decorateUserAttachments } from './user-attachments.ts';
 import { askChoice, askConfirm } from './theme-polish.ts';
 import { NOTICE_FOLLOW_MS, noticeTarget, shouldFollowNotice, type PlacedResult } from './notice-target.ts';
+import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, type ToolActivity} from './agent-turn-recovery.ts';
 type Role = 'user' | 'assistant';
-interface ToolActivity { label: string; state: 'running' | 'success' | 'failure'; }
 interface ChatMessage {
   id: string;
   role: Role;
@@ -143,7 +143,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   // The turn being answered now, and the one handed to the cloud because the app left the screen mid-answer.
   let currentTurn: { conversationId: string; userMessageId: string } | null = null;
   let handoff: { conversationId: string; userMessageId: string } | null = null;
-  const ANSWER_IN_CLOUD = 'Yanıtın hazırlanıyor, birazdan buraya yazılacak.';
+  const ANSWER_IN_CLOUD = CLOUD_WAIT_TEXT;
   // The cloud finished this turn first, and the page's own half-written answer gives way to it.
   let cloudTakesOver = '';
   let sendingNow = false;
@@ -236,14 +236,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ...(source.worked && Number.isFinite(source.worked.ms) && source.worked.ms >= 0 && ['bulut', 'bilgisayar', 'sayfa'].includes(source.worked.where)
         ? { worked: { ms: Math.min(86_400_000, Math.floor(source.worked.ms)), where: source.worked.where, ...(source.worked.raw === true ? { raw: true } : {}), ...(source.worked.failed === true ? { failed: true } : {}) } } : {}),
       ...(Array.isArray(source.toolActivities) ? {
-        toolActivities: source.toolActivities
-          .filter((item) => item && typeof item === 'object' && typeof item.label === 'string')
-          .slice(-MAX_TOOL_ACTIVITIES)
-          .map((item) => ({
-            label: item.label.slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH),
-            state: item.state === 'running' || item.state === 'failure' ? item.state : 'success'
-          }))
-      } : {})
+        toolActivities: compactToolActivities(source.toolActivities, MAX_TOOL_ACTIVITIES)
+       } : {})
     };
   }
 
@@ -509,32 +503,16 @@ interface JsonPayload { readonly [key: string]: unknown; }
     return message.id;
   }
 
-  function normalizeToolActivity(value) {
-    if (!value || typeof value !== 'object' || typeof value.label !== 'string') return null;
-    const label = value.label.trim().slice(0, MAX_TOOL_ACTIVITY_LABEL_LENGTH);
-    if (!label) return null;
-    if (value.state === 'running') return { label, state: 'running' };
-    if (typeof value.ok === 'boolean') return { label, state: value.ok ? 'success' : 'failure' };
-    if (value.state === 'success' || value.state === 'failure') return { label, state: value.state };
-    return null;
-  }
-
-  function getMessageToolActivities(message) {
-    if (!Array.isArray(message?.toolActivities)) return [];
-    return message.toolActivities
-      .map((activity) => normalizeToolActivity(activity))
-      .filter(Boolean)
-      .slice(-MAX_TOOL_ACTIVITIES);
-  }
-
+  function getMessageToolActivities(message) {return compactToolActivities(message?.toolActivities, MAX_TOOL_ACTIVITIES);}
   function renderToolActivities(container, activities) {
     container.replaceChildren();
-    const compact = activities.filter((activity, index) => index === 0 || activity.label !== activities[index - 1].label || activity.state !== activities[index - 1].state);
+    const compact = compactToolActivities(activities, MAX_TOOL_ACTIVITIES);
     const visible = compact.slice(-VISIBLE_TOOL_ACTIVITIES);
     for (const activity of visible) {
       const badge = document.createElement('span');
       badge.className = `tool-activity${activity.state === 'failure' ? ' failed' : ''}`;
       badge.textContent = activity.label;
+       if (activity.error) {badge.title = activity.error; badge.setAttribute('aria-label', activity.label + ' · ' + activity.error);}
       container.append(badge);
     }
     container.hidden = activities.length === 0;
@@ -547,29 +525,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const message = conversation?.messages.find((item) => item.id === messageId);
     if (!message || message.role !== 'assistant') return;
 
-    const activities = getMessageToolActivities(message);
-
-    let nextActivities;
-    if (activity.state === 'running') {
-      if (activities.some((item) => item.label === activity.label && item.state === activity.state)) return;
-      nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
-    } else {
-      let runningIndex = -1;
-      for (let index = activities.length - 1; index >= 0; index -= 1) {
-        if (activities[index].state === 'running') {
-          runningIndex = index;
-          break;
-        }
-      }
-      if (runningIndex >= 0) {
-        nextActivities = [...activities];
-        nextActivities[runningIndex] = activity;
-      } else {
-        nextActivities = [...activities, activity].slice(-MAX_TOOL_ACTIVITIES);
-      }
-    }
-
-    message.toolActivities = nextActivities;
+    message.toolActivities = compactToolActivities([...getMessageToolActivities(message), activity], MAX_TOOL_ACTIVITIES);
     conversation.updatedAt = new Date().toISOString();
     const container = ui.messages.querySelector(`[data-message-id="${CSS.escape(messageId)}"] .tool-activities`);
     if (container) renderToolActivities(container, message.toolActivities);
@@ -618,6 +574,14 @@ interface JsonPayload { readonly [key: string]: unknown; }
   function renderMessages() {
     ui.messages.replaceChildren();
     const conversation = getActiveConversation();
+    if (conversation && !isStreaming) {
+      let lastUserId='', changed=false;
+      for (const item of conversation.messages) {
+        if(item.role==='user'){lastUserId=item.id;continue;}
+        if(isCloudWait(item.content) && !answerPending(lastUserId)) {item.content=recoverCloudWait(item.content,false);item.toolActivities=settleToolActivities(item.toolActivities);changed=true;}
+      }
+      if(changed)saveConversations();
+    }
     if (seenFor !== (conversation?.id ?? '')) { seenFor = conversation?.id ?? ''; seenMessages = new Set((conversation?.messages ?? []).map((item) => item.id)); }
     ui.messages.dataset.conversationId = conversation?.id ?? '';
     ui.messages.setAttribute('aria-busy', String(isStreaming));
@@ -998,7 +962,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   function getRequestMessages(conversation = getActiveConversation()) {
     return (conversation?.messages ?? [])
-      .filter((message) => message.content)
+      .filter((message) => message.content && !isCloudWait(message.content))
       .map(({ role, content }) => ({ role, content }));
   }
 
@@ -1140,6 +1104,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
           renderStreamStatus();
         }
       });
+      if (!stats.done) throw Object.assign(new Error('STREAM_INTERRUPTED'), {code:'STREAM_INTERRUPTED'});
       streamState.complete({
         traceId: stats.traceId,
         bytesRead: stats.bytesRead,
@@ -1162,7 +1127,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
         updateMessage(assistantId, content || 'Yanıt durduruldu.', { persist: true });
         return { durationMs: 0 } as HafizeSseStats;
       }
-      throw error;
+      const message=getActiveConversation()?.messages.find(item=>item.id===assistantId);
+      if(message)message.toolActivities=settleToolActivities(message.toolActivities);
+      const failure=endpoint==='/api/agent/run'&&message?.toolActivities?.length?INTERRUPTED_TEXT:describeChatFailure(error);
+      updateMessage(assistantId,content.trim()?content+'\n\n'+failure:failure,{persist:true});
+      return {durationMs:0,done:false} as HafizeSseStats;
     } finally {
       generationAbort = null;
     }
@@ -1424,7 +1393,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       }
     } catch (error) {
       // Given to the cloud before the page stopped: its answer will take this place, so no error is shown.
-      const waiting = Boolean(turn && handoff?.userMessageId === turn.userMessageId);
+      const waiting = Boolean(turn && handoff?.userMessageId === turn.userMessageId && answerPending(turn.userMessageId));
       const conversation = getActiveConversation();
       const last = conversation?.messages.at(-1);
       if (turn && cloudTakesOver === turn.userMessageId) {
@@ -1753,9 +1722,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const conversation = conversations.find((item) => item.id === currentTurn.conversationId);
     const index = conversation?.messages.findIndex((item) => item.id === currentTurn.userMessageId) ?? -1;
     if (!conversation || index < 0) return;
-    handoff = { ...currentTurn };
-    const messages = conversation.messages.slice(0, index + 1).filter((item) => !item.worked?.raw && item.content !== ANSWER_IN_CLOUD).map((item) => ({ role: item.role, content: item.content }));
-    window.dispatchEvent(new CustomEvent('hafize:turn-handoff', { detail: { ...handoff, messages } }));
+    // Never start a second copy of a potentially mutating agent run on backgrounding.
+    // The original stream continues while the browser permits it; a cut is reported explicitly.
   });
   window.addEventListener('pagehide', rememberActiveChat);
 

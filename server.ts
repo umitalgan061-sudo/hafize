@@ -848,7 +848,7 @@ async function handleAgentRun(req, res) {
   let roundsStarted = 0;
   let completedCalls = 0;
   res.setHeader('X-Hafize-Trace-Id', traceId);
-  const requestAbort = attachDisconnectAbort(req, AGENT_TIMEOUT_MS);
+  const requestAbort = attachDisconnectAbort(req, AGENT_TIMEOUT_MS, res);
   const principal = req.__hafizePrincipal || null;
   const ownerId = principal?.ownerId || '';
   const safeGitHubAutonomy = Boolean(GITHUB_APP_AUTH) && allowSafeGitHubAutonomy({
@@ -889,6 +889,10 @@ async function handleAgentRun(req, res) {
     if (ownerId) emitEvent('hafize-memory-sync', { notes: memoryPrep.semantic });
   }
   const contextMeta = preparedConversation.meta;
+  const heartbeat=streamResponse?setInterval(()=>{if(!res.destroyed&&!res.writableEnded&&res.writable)res.write(': heartbeat\n\n');},15_000):null;
+  heartbeat?.unref?.();
+  const stopHeartbeat=()=>{if(heartbeat)clearInterval(heartbeat);};
+  res.once('close',stopHeartbeat);res.once('finish',stopHeartbeat);
 
   const delegator = createAgentDelegator({
     registry: AGENT_REGISTRY,
@@ -965,7 +969,7 @@ async function handleAgentRun(req, res) {
   // Several rounds let the model chain tools (search, then read a result). A round without
   // tool calls is the answer; an empty answer or an exhausted budget falls through to one
   // final streamed completion with tools disabled, so the user never gets a blank reply.
-  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities()) }, ...conversation];
+  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities()) + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
   const toolSummary = [];
   const toolLoopGuard = createToolLoopGuard();
   const pendingSkillInvocations = new Map();
@@ -1099,6 +1103,7 @@ async function handleAgentRun(req, res) {
   }
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
+  let noProgressRounds=0;
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
     roundsStarted = round + 1;
@@ -1207,6 +1212,7 @@ async function handleAgentRun(req, res) {
       if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
       return result;
     }));
+    noProgressRounds=results.some(result=>result.ok)?0:noProgressRounds+1;
     normalizedCalls.forEach((call, index) => {
       const result = results[index];
       if (call.function.name === 'skill_invoke' && result.ok && result.value && typeof result.value === 'object') {
@@ -1240,6 +1246,7 @@ async function handleAgentRun(req, res) {
       for (const update of memorySession.updates.slice(memoryUpdatesSent)) writeSseEvent(res, 'hafize-memory', update);
       memoryUpdatesSent = memorySession.updates.length;
     }
+    if(noProgressRounds>=3){incompleteReason='tool_budget';break;}
   }
 
   // Either the tool budget was exhausted or the model emitted no substantive
