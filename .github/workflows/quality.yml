@@ -74,4 +74,15 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
       - name: Full Vitest suite
-        run: npm run test:modern
+        run: npm run test:modern -- --reporter=default --reporter=json --outputFile.json=hafize-vitest-results.json
+      - name: Daily subsystem evidence
+        if: ${{ always() }}
+        run: node scripts/daily-domain-quality.mjs --report
+      - name: Retain domain quality report
+        if: ${{ always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hafize-domain-quality
+          path: hafize-domain-quality.json
+          retention-days: 14
+          if-no-files-found: warn
