@@ -66,7 +66,7 @@ const END_OF_TURN_MS = 550;
 const RESTART_DELAY_MS = 450;
 const RECOGNITION_START_TIMEOUT_MS = 6000;
 const RECOGNITION_STOP_TIMEOUT_MS = 1800;
-const IOS_NATURAL_END_GRACE_MS = 3500;
+const IOS_NATURAL_END_GRACE_MS = 2400;
 
 /** Browser recognition has no permanent full-duplex stream. On iOS, prefer
  * natural end-of-utterance to forced stop() because some Safari versions lose
@@ -78,13 +78,13 @@ export function recognitionProfile(userAgent: unknown): {
   const ios = typeof userAgent === 'string' && /iPhone|iPad|iPod|Macintosh.*Mobile/i.test(userAgent);
   return { continuous: !ios, awaitNaturalEnd: ios,
     noResultTimeoutMs: ios ? 14_000 : 22_000,
-    resumeAfterSpeechMs: ios ? 850 : 120 };
+    resumeAfterSpeechMs: ios ? 650 : 120 };
 }
 
 export function statusText(state: VoiceModeState): string {
   switch (state) {
     case 'listening': return 'Dinliyorum…';
-    case 'thinking': return 'Düşünüyor…';
+    case 'thinking': return 'Yanıt hazırlanıyor…';
     case 'speaking': return 'Hafize konuşuyor · sözünü kesmek için dokun';
     case 'paused': return 'Mikrofon kapalı';
     case 'idle': return 'Konuşmak için küreye dokun';
@@ -476,7 +476,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       recognitionStarted = true;
       if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
       recognitionStartTimer = null;
-      setState('listening', 'Mikrofon oturumu açık · konuşabilirsin');
+      setState('listening', 'Dinliyorum…');
       screen.dataset.micPhase = 'ready';
       setCaption(['', '', ''], 'user');
       if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
@@ -532,7 +532,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
         recognitionNoResultTimer = null;
         screen.dataset.micPhase = 'transcribing';
-        statusEl.textContent = 'Seni duyuyorum · söylediklerin yazıya çevriliyor…';
+        statusEl.textContent = 'Dinliyorum…';
       }
       const spoken = [final, interim].filter(Boolean).join(' ');
       setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
