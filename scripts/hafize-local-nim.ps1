@@ -48,7 +48,7 @@ if ($Action -eq 'Deploy') {
     Invoke-Docker @('start',$Name)
   } else {
     Invoke-Docker @('pull',$Image)
-    $argsList=@('run','-d','--name',$Name,'--gpus','all','--restart','unless-stopped','--shm-size','16g','-p',"127.0.0.1:$Port"+':8000','-v','hafize-nim-cache:/opt/nim/.cache','-e',"NIM_SERVED_MODEL_NAME=$Model")
+    $argsList=@('run','-d','--name',$Name,'--gpus','all','--restart','unless-stopped','--shm-size','16g','-p',"127.0.0.1:${Port}:8000",'-v','hafize-nim-cache:/opt/nim/.cache','-e',"NIM_SERVED_MODEL_NAME=$Model")
     if ($env:NGC_API_KEY) { $argsList+=@('-e','NGC_API_KEY') }
     if ($env:HF_TOKEN) { $argsList+=@('-e','HF_TOKEN') }
     if ($env:NIM_MODEL_PROFILE) { $argsList+=@('-e','NIM_MODEL_PROFILE') }
