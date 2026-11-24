@@ -12,3 +12,13 @@ describe('model lab HTTP actions',()=>{
     expect(request).toHaveBeenCalledTimes(1);
   });
 });
+
+it('returns actual comprehensive round evidence and refuses provider overrides',async()=>{
+ const request=vi.fn(async(_path,body)=>new Response(JSON.stringify({choices:[{message:body?.tools?{tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]}:{content:'{"capital":"Ankara","math":383,"code":12}'}}]})));
+ const lab=createModelLab({allowed:['nvidia/example'],request});
+ await expect(modelLabAction(lab,{action:'comprehensive',apiKey:'not-accepted'})).rejects.toThrow();
+ expect(request).not.toHaveBeenCalled();
+ const result=await modelLabAction(lab,{action:'comprehensive'});
+ expect(result).toMatchObject({comprehensive:{smoke:[{model:'nvidia/example',status:'passed'}],pending:[]}});
+ expect(request.mock.calls.length).toBeLessThanOrEqual(5);
+});

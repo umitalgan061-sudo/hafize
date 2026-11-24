@@ -250,11 +250,11 @@ function start(documentRef: Document, root: typeof globalThis): void {
         const result=await response.json();
         if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;data={dailyImprovement:response.status===503?data.dailyImprovement:undefined};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
         data={...result,dailyImprovement:result.dailyImprovement??data.dailyImprovement};available=true;render();
-        notice.textContent='Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
+        notice.textContent=(action==='comprehensive'&&result.comprehensive?'Son tur: '+result.comprehensive.smoke.length+' kısa, '+(result.comprehensive.deep?1:0)+' derin, '+(result.comprehensive.embedding?1:0)+' embedding sonucu · ':'')+'Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
       }catch(error){notice.textContent='Model Laboratuvarı: '+(error instanceof Error?error.message:'Bağlantı hatası');}
       finally{busy=false;controls();}
     }
-    for(const [action,label] of [['status','Durumu yenile'],['discover','Kataloğu getir'],['batch','Sıradaki testler'],['probe','Sohbet testi'],['deep','Derin test'],['specialist','Embedding testi']]){
+    for(const [action,label] of [['status','Durumu yenile'],['discover','Kataloğu getir'],['batch','Sıradaki testler'],['comprehensive','Kapsamlı gerçek API testi'],['probe','Sohbet testi'],['deep','Derin test'],['specialist','Embedding testi']]){
       const button=el('button','',label);button.type='button';button.dataset.action=action;button.addEventListener('click',()=>{void run(action!);});buttons.push(button);actions.append(button);
     }
     filter.addEventListener('input',render);

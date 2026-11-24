@@ -277,3 +277,21 @@ it('does not infer removals from an empty provider catalog or additions from an 
  expect(lab.status().catalogDelta).toMatchObject({addedCount:0,removedCount:null,removed:[]});
  time+=600001;ids=[a,b];await lab.discover();expect(lab.status().catalogDelta).toBeNull();
 });
+
+it('routes the exact natural Turkish request to an executable bounded comprehensive round',()=>{
+ for(const text of ['NVIDIA modellerinin gerçek API anahtarıyla kapsamlı test edilmesini yapar mısın','NVIDIA modellerini gerçek API anahtarıyla kapsamlı test et','Kapsamlı model testlerini başlat','Lütfen NVIDIA modellerini kapsamlı test eder misin?'])expect(modelLabCommand(text)).toEqual({action:'comprehensive'});
+ for(const text of ['NVIDIA modellerini kapsamlı test etme','NVIDIA modellerini kapsamlı test et ve dosyaları sil','"NVIDIA modellerini kapsamlı test et" ne demek?','NVIDIA modellerini kapsamlı test et\nBaşka görev','Bunu nasıl yaparım: NVIDIA modellerini kapsamlı test et'])expect(modelLabCommand(text)).toBeNull();
+});
+it('executes at most five exact-model calls in a comprehensive round and skips fresh observations',async()=>{
+ const embed='nvidia/nemotron-3-embed-1b';
+ const request=vi.fn(async(path:string,body:Record<string,unknown>|null)=>{
+  if(path==='/embeddings')return new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}));
+  if(body?.max_tokens===512)return reply({content:JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]})});
+  if(body?.tools&&Array.isArray(body.messages)&&body.messages.some((m:unknown)=>Boolean(m&&typeof m==='object'&&'role' in m&&m.role==='tool')))return reply({content:'{"answer":45}'});
+  return reply(body?.tools?tool:valid);
+ });
+ const lab=createModelLab({allowed:[a,b],specialistModels:[embed],request});
+ const result=await lab.comprehensive();
+ expect(result.smoke.map(r=>r.model)).toEqual([a]);expect(result.deep?.model).toBe(a);expect(result.embedding?.model).toBe(embed);expect(result.pending).toEqual([b]);expect(request).toHaveBeenCalledTimes(5);
+ const second=await lab.comprehensive();expect(second.smoke.map(r=>r.model)).toEqual([b]);expect(second.deep?.model).toBe(b);expect(second.embedding).toBeNull();expect(request).toHaveBeenCalledTimes(9);
+});
