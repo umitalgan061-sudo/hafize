@@ -975,7 +975,7 @@ async function handleAgentRun(req, res) {
   // Several rounds let the model chain tools (search, then read a result). A round without
   // tool calls is the answer; an empty answer or an exhausted budget falls through to one
   // final streamed completion with tools disabled, so the user never gets a blank reply.
-  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities()) + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
+  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities(), lastUserText) + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
   const toolSummary = [];
   const toolLoopGuard = createToolLoopGuard();
   const pendingSkillInvocations = new Map();

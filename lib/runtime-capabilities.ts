@@ -1,3 +1,4 @@
+import { OWNER_PROJECTS, matchOwnerProjects } from './owner-project-catalog.ts';
 /** Server-owned execution facts. Never accept limits or permissions from a model/client. */
 export const MAX_ROOT_CALLS_PER_ROUND = 8;
 export const MAX_EXPERT_CALLS_PER_ROUND = 4;
@@ -57,21 +58,20 @@ export function capabilitySnapshot(inventory: readonly ToolInventoryEntry[], bud
 export type CapabilitySnapshot = ReturnType<typeof capabilitySnapshot>;
 
 /** Known owner project locations are navigation hints, not authorization or live evidence. */
-export function projectDiscoveryInstruction(github: GitHubConnectionStatus | null): string {
+export function projectDiscoveryInstruction(github: GitHubConnectionStatus | null, request?: unknown): string {
   if (!github) return '';
-  const repo = 'umitalgan061-sudo/hafize-siteler';
-  const readAllowed = github.readRepositories.some(value => value.toLowerCase() === repo);
-  const agentWriteAllowed = github.developmentRepositories.some(value => value.toLowerCase() === repo);
-  return '\nProje konumlandırma: Borsa Günlüğü (borsa-gunlugu, borsa-gunlugu.web.app, borsa-gunlugu-ua.web.app) için doğrulanacak kaynak ' +
-    repo + ', kaynak klasörü borsa-gunlugu/, kökte firebase.json ve .firebaserc, Hosting hedefi borsa. ' +
-    'Kaynak ve yayın klasörü aynı olmayabilir; gerçek directory, yapılandırma, dal, commit, CI ve canlı adresi ayrı doğrula. ' +
-    'Bu eşleşme mevcut canlı site veya erişim kanıtı değildir. ' +
-    (readAllowed ? 'Depo okuma izin listesinde; github_inspect ile önce bu depoyu kontrol et. ' : 'Depo okuma izin listesinde değil; erişim kapsamı eksik olduğunu söyle, başka depolara bakıp proje yok deme. ') +
-    (agentWriteAllowed ? 'Depo ajan geliştirme listesinde; mevcut dal ve PR güvenlik kuralları geçerlidir. ' : 'Depo ajan geliştirme listesinde değil; yazma veya yayın yapabildiğini iddia etme. ') +
-    'Her isimle aranan projede yalnız depo adına değil izinli monorepo ve alt klasörlere de bak. Arama kapsamı ve kısıtlarını açıkla; bulunamadı ile erişilemedi durumlarını ayır. Merge veya yayın için gerçek yetenek ve sonuç kanıtı gerekir.';
+  const read = new Set(github.readRepositories.map(r=>r.toLowerCase()));
+  const write = new Set(github.developmentRepositories.map(r=>r.toLowerCase()));
+  const matched = matchOwnerProjects(request);
+  const rows = OWNER_PROJECTS.map(p=>p.name+' | '+p.repository+' | '+p.path+' | '+(p.urls.join(', ')||'URL doğrulanmadı')+' | '+p.evidence+' | '+(read.has(p.repository.toLowerCase())?'okuma izin listesinde':'okuma izin listesinde değil')+' | '+(write.has(p.repository.toLowerCase())?'ajan geliştirme listesinde':'ajan geliştirme listesinde değil'));
+  return '\nProje kataloğu (GitHub kaynakları, README, Firebase config; mevcut canlı site veya erişim kanıtı değildir):\n'+rows.join('\n')+
+    '\n'+(matched.length===1?'İstek için en belirgin proje eşleşmesi: '+matched[0].name+' / '+matched[0].repository+' / '+matched[0].path:matched.length>1?'Birden fazla eşleşme: '+matched.map(p=>p.name).join(', ')+'; bağlam ve kaynak kanıtı ile ayır.':'Kesin katalog eşleşmesi yok; izinli depoları ve alt klasörleri araştır.')+
+    '\nBorsa Günlüğü: depo okuma izin listesinde değilse erişim kapsamı eksik olduğunu söyle, başka depolara bakıp proje yok deme. Depo ajan geliştirme listesinde değilse yazma yetkisi yoktur. İzinli hedefte github_inspect ile önce bu depoyu kontrol et. '+
+    'Kullanıcıdan depo adı/URL istemeden önce mevcut katalog, izinli depo listesi, README, firebase.json, .firebaserc, gerçek directory, dal ve commit ile eşleştir. Yeni izinli depoları da incele; katalogda olmayan proje yok demek değildir. '+
+    'Salt okunur incelemeyi hemen başlat; erişilemedi ile bulunamadı ayrıdır. Birden fazla aynı isimli projede kaynak veya hedef kanıtı olmadan değişiklik/merge/deploy yapma. Ortak Firebase hedeflerinde gerçek release kaynağını doğrula. URL yapılandırması canlı sağlık kanıtı değildir. Var olan güvenlik ve onay sınırları geçerlidir.';
 }
 
-export function capabilityInstruction(snapshot: CapabilitySnapshot): string {
+export function capabilityInstruction(snapshot: CapabilitySnapshot, request?: unknown): string {
   return 'SUNUCU TARAFINDAN DOĞRULANAN BU OTURUMUN YETENEKLERİ (model tahmini değil): ' +
     JSON.stringify(snapshot) +
     '\nAraç türü, araç turu ve tekil çağrı farklıdır. Kullanıcı kapasiteyi sorarsa bu gerçek değerleri kullan; sınırsız çalışma iddia etme. ' +
@@ -79,7 +79,7 @@ export function capabilityInstruction(snapshot: CapabilitySnapshot): string {
     'Bir aracın kullanılabilir olması her işlemi yapabileceği, onaysız yazabileceği veya görevin tamamlandığı anlamına gelmez. ' +
     'GitHub geliştirme talebinde github_inspect ile güncel main SHA, mevcut PR durumu ve ilgili test kanıtlarını doğrula. Eski sohbet veya uyarı mesajından kesin hata teşhisi üretme. ' +
     'Araç yoksa yetkiyi dolanmak için shell_run, git_run, web, kod çalıştırma veya başka ajan kullanma; eksik bağlantıyı belirt ve izinli salt-okunur analiz yap. ' +
-    'Kesinti, sağlayıcı kotası, bağlam ve zaman aşımı daha erken sonlandırabilir.' + projectDiscoveryInstruction(snapshot.github);
+    'Kesinti, sağlayıcı kotası, bağlam ve zaman aşımı daha erken sonlandırabilir.' + projectDiscoveryInstruction(snapshot.github, request);
 }
 
 /** Only standalone capability questions take the deterministic response path.
