@@ -339,6 +339,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
     if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
+    if(availableRequests()===0)throw Error('MODEL_LAB_BUDGET');
     const started=now();
     const smoke=await batch(signal,progress,1);
     let deep:DeepProbeResult|null=null;let embedding:SpecialistProbeResult|null=null;

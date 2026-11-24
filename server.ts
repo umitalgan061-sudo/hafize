@@ -1658,7 +1658,7 @@ const server = createServer(async (req, res) => {
       res.once('close',close);
       try {
         const body=await readJson(req,4096);
-        sendJson(res,200,{...await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])),dailyImprovement:DAILY_IMPROVEMENT.status()});
+        sendJson(res,200,{...await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(body?.action==='comprehensive'?180000:160000)])),dailyImprovement:DAILY_IMPROVEMENT.status()});
       } catch(error) {
         if(res.destroyed||res.writableEnded)return;
         const code=typeof error?.message==='string'&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_LAB_FAILED';
