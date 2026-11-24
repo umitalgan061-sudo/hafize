@@ -1,7 +1,7 @@
 
 import {describe,it,expect,vi} from 'vitest';
 import {openHafizeDb} from './hafize-db.ts';
-import {createDailyImprovement,DAY_MS} from './daily-improvement.ts';
+import {createDailyImprovement,DAY_MS,dailyCycleSummary} from './daily-improvement.ts';
 import {createModelLab} from './model-lab.ts';
 describe('daily improvement',()=>{
   it('claims a 24h window durably, reports all experts and does not call paid APIs by default',async()=>{
@@ -111,4 +111,11 @@ it('discovers catalog on alternating days and stays within five daily provider r
  expect((await daily.tick())?.specialists).toEqual(['nvidia/nemotron-3-embed-1b']);
  expect(request.mock.calls.some(([path])=>path==='/models')).toBe(false);
  expect(request.mock.calls.length).toBeLessThanOrEqual(5);db.close();
+});
+
+it('reports only aggregate daily diagnostics without logging task contents',async()=>{
+ const db=openHafizeDb(':memory:');const daily=createDailyImprovement({db,lab:null,expertHealth:()=>[{agentId:'a',healthy:false,reasons:['private diagnostic'],successRate:null,p99Ms:null,sampleCount:0}]});
+ const report=await daily.tick();expect(report).not.toBeNull();const summary=dailyCycleSummary(report!);
+ expect(summary).toMatchObject({state:'completed',experts:1,liveProbes:false,testedModels:0});
+ expect(JSON.stringify(summary)).not.toContain('private diagnostic');expect(summary.recommendations).toBeGreaterThan(0);db.close();
 });
