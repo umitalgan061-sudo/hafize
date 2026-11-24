@@ -352,6 +352,37 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     try{const response=await call('/chat/completions',{model,messages:[{role:'system',content:'en-tr'},{role:'user',content:'Thank you.'}],stream:false,max_tokens:128,temperature:0},signal);if(!response.ok)state=statusFor(response.status);else{const answer=message(await response.json())?.content;translated=typeof answer==='string'&&/^(?:teşekkür(?:ler| ederim)|sağ ol(?:un)?)[.!]?$/iu.test(answer.trim());state=translated?'passed':'invalid_response';}}catch(error){if(signal?.aborted)throw error;state=error instanceof Error&&error.name==='TimeoutError'?'timeout':'failed';}finally{running=false;}
     translationResult={model,status:state,translated,mode:'synthetic_translation',testedAt:new Date(started).toISOString(),latencyMs:Math.max(0,now()-started)};persist();return translationResult;
   }
+  async function translateText(input:unknown,pair:unknown,signal?:AbortSignal){
+    if(typeof input!=='string'||!input.trim()||input.length>1000||new TextEncoder().encode(input).length>3000||(pair!=='en-tr'&&pair!=='tr-en'))throw Error('MODEL_LAB_INVALID_TRANSLATION');
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');if(availableRequests()<1)throw Error('MODEL_LAB_BUDGET');
+    const model='nvidia/riva-translate-4b-instruct-v2',started=now();running=true;
+    try{const response=await call('/chat/completions',{model,messages:[{role:'system',content:pair},{role:'user',content:input.trim()}],stream:false,max_tokens:1024,temperature:0},signal);if(!response.ok)throw Error('MODEL_LAB_TRANSLATION_'+response.status);const answer=message(await response.json())?.content;if(typeof answer!=='string'||!answer.trim()||answer.length>12000)throw Error('MODEL_LAB_INVALID_TRANSLATION_RESPONSE');return {model,pair,text:answer.trim(),latencyMs:Math.max(0,now()-started)};}finally{running=false;}
+  }
+  async function semanticSearch(input:unknown,query:unknown,model:unknown,signal?:AbortSignal){
+    if(typeof input!=='string'||typeof query!=='string'||!input.trim()||!query.trim()||query.length>250||input.length>1400||new TextEncoder().encode(input+query).length>2800)throw Error('MODEL_LAB_INVALID_SEARCH');
+    if(typeof model!=='string'||!['nvidia/nemotron-3.5-embed-1b','nvidia/nemotron-3.5-embed-8b'].includes(model)||!specialists.includes(model))throw Error('MODEL_LAB_MODEL_NOT_ALLOWED');
+    const passages=input.trim().split(/\r?\n\s*\r?\n/).map(t=>t.trim()).filter(Boolean);if(!passages.length||passages.length>8)throw Error('MODEL_LAB_INVALID_SEARCH');
+    // Text-only contract: no image blocks, URLs fetched as media, or arbitrary modalities.
+    if([input,query].some(t=>/<\/?img\b|data:image\//i.test(t)))throw Error('MODEL_LAB_INVALID_SEARCH');
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');if(availableRequests()<2)throw Error('MODEL_LAB_BUDGET');
+    const started=now();running=true;
+    const fetchVectors=async(items:string[],kind:'passage'|'query')=>{
+      const response=await call('/embeddings',{model,input:items,input_type:kind,modality:'text',encoding_format:'float',truncate:'NONE'},signal);
+      if(!response.ok)throw Error('MODEL_LAB_SEARCH_'+response.status);
+      const data=object(await response.json())?.data;
+      if(!Array.isArray(data)||data.length!==items.length)throw Error('MODEL_LAB_INVALID_EMBEDDING');
+      const vectors=data.map(object).sort((a,b)=>Number(a?.index)-Number(b?.index)).map((row,i)=>row?.index===i?row.embedding:null);
+      const valid=(v:unknown):v is number[]=>Array.isArray(v)&&v.length>0&&v.length<=16384&&v.every(x=>typeof x==='number'&&Number.isFinite(x))&&Number.isFinite(Math.hypot(...v))&&Math.hypot(...v)>0;
+      if(!vectors.every(valid)||!vectors.every(v=>v.length===vectors[0]!.length))throw Error('MODEL_LAB_INVALID_EMBEDDING');return vectors;
+    };
+    try{
+      const indexed=await fetchVectors(passages,'passage');const [vector]=await fetchVectors([query.trim()],'query');
+      if(!vector||indexed.some(v=>v.length!==vector.length))throw Error('MODEL_LAB_INVALID_EMBEDDING');
+      const norm=Math.hypot(...vector);const ranked=indexed.map((v,index)=>{const n=Math.hypot(...v);return {source:index+1,score:v.reduce((sum,x,i)=>sum+(x/n)*(vector[i]!/norm),0),text:passages[index]!};});
+      if(ranked.some(row=>!Number.isFinite(row.score)))throw Error('MODEL_LAB_INVALID_EMBEDDING');
+      return {model,mode:'semantic_retrieval' as const,latencyMs:Math.max(0,now()-started),results:ranked.sort((a,b)=>b.score-a.score||a.source-b.source).slice(0,5)};
+    }finally{running=false;}
+  }
   async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
     if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -365,7 +396,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     if(specialist&&blockedUntil<=now()&&availableRequests()>0){signal?.throwIfAborted();embedding=await specialistProbe(specialist,signal);}
     return {smoke:smoke.completed,deep,embedding,startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),pending:status().pendingModels,deepPending:status().deepPendingModels,paused:blockedUntil>now()||availableRequests()<2};
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, translationProbe });
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, translationProbe, translateText, semanticSearch });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
