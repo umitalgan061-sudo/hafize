@@ -419,7 +419,7 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'orchestrator',
     timeoutMs: timeout(600000, 600000),
     activity: {"running":"Görev kaldığı yerden sürdürülüyor","success":"Görev sürdürüldü","failure":"Görev sürdürülemedi"},
-    definition: strictDefinition('orchestrator_resume', "Kesilen, onay bekleyen veya bütçesi biten bir çok adımlı görevi kayıt noktasından sürdürür.", {"runId":{"type":"string"},"approveSteps":{"type":"array","items":{"type":"string"}},"extraSteps":{"type":"integer","minimum":1,"maximum":20}}, ["runId"]),
+    definition: strictDefinition('orchestrator_resume', "Kesilen veya bütçesi biten çok adımlı görevi kayıt noktasından sürdürür. Tamamlanan adımları tekrarlamaz. Belirsiz yazma sonucunda önce dış servis kayıtlarını kontrol et; gerekli kullanıcı onayı araç tarafından alınır.", {"runId":{"type":"string"},"extraSteps":{"type":"integer","minimum":1,"maximum":20}}, ["runId"]),
     available: (context) => typeof context.services?.orchestrateResume === 'function',
     execute: async (args, context) => context.services!.orchestrateResume!(args, context)
   }],
