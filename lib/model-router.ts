@@ -1,4 +1,5 @@
 import type {RuntimeAttempt} from './model-runtime-evidence.ts';
+import {waitForFirstVoiceText} from './voice-first-text.ts';
 // Which model answers. Requests start at the top of the chain and fall one step whenever a model is
 // out of quota, rate limited, unavailable, failing or too slow to start. A model that failed sits
 // out for a while and is then tried first again, so the top model is always used when it works.
@@ -92,10 +93,13 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
   }
 
   /** Sends one chat request down the chain. The last response is returned unread, whatever it was. */
-  async function send(rawBody: string, deliver: Send, signal?: AbortSignal | null, expertId?: string): Promise<Response> {
+  async function send(rawBody: string, deliver: Send, signal?: AbortSignal | null, expertId?: string, voiceFast=false): Promise<Response> {
     const payload = JSON.parse(rawBody) as Record<string, unknown>;
-    const attempts = attemptsFor(String(payload.model), payload, expertId);
+    const allAttempts = attemptsFor(String(payload.model), payload, expertId);
     const streaming = payload.stream === true;
+    const voice = voiceFast && streaming;
+    // Prefer configured quick candidates over the large general reasoning models, without inventing model IDs.
+    const attempts = voice ? [...allAttempts.filter(id=>id===payload.model||/lightning|bolt|flash/i.test(id)),...allAttempts.filter(id=>id!==payload.model&&!/lightning|bolt|flash/i.test(id))].slice(0,3) : allAttempts;
     let lastError: unknown = null;
     for (const [index, model] of attempts.entries()) {
       const isLast = index === attempts.length - 1;
@@ -106,9 +110,10 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
       const started=now();
       // The last model also has a finite time to response headers. Once headers arrive,
       // streaming remains cancellable by the caller and is not subject to this timer.
-      const timer = setTimeout(() => { timedOut = true; attempt.abort(); }, streaming ? FIRST_RESPONSE_MS.stream : FIRST_RESPONSE_MS.whole);
+      const timer = setTimeout(() => { timedOut = true; attempt.abort(); }, voice ? 8_000 : streaming ? FIRST_RESPONSE_MS.stream : FIRST_RESPONSE_MS.whole);
       try {
-        const response = await deliver(bodyFor(payload, model), requestSignal);
+        let response = await deliver(bodyFor(payload, model), requestSignal);
+        if(voice && response.ok)response=await waitForFirstVoiceText(response,requestSignal);
         if (timer) clearTimeout(timer);
         responseModels.set(response,model);
         if (response.ok) {

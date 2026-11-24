@@ -349,7 +349,7 @@ function boundedEnvInteger(value, fallback, min, max) {
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
 }
 
-async function nvidiaFetch(pathname, init = {}, expertId) {
+async function nvidiaFetch(pathname, init = {}, expertId, voiceFast = false) {
   if (!NVIDIA_API_KEY) {
     const error = new Error('NVIDIA_NOT_CONFIGURED');
     error.status = 503;
@@ -371,7 +371,7 @@ async function nvidiaFetch(pathname, init = {}, expertId) {
     if (pathname === '/chat/completions' && typeof init.body === 'string') { try { payload = JSON.parse(init.body); } catch { payload = null; } }
     // One bad model must not trip the breaker for the rest; only a chain that failed as a whole counts.
     const response = payload && MODEL_ROUTER.shouldRoute(payload)
-      ? await MODEL_ROUTER.send(init.body, deliver, init.signal, expertId)
+      ? await MODEL_ROUTER.send(init.body, deliver, init.signal, expertId, voiceFast)
       : await deliver(init.body, init.signal);
     if (response.ok) {
       NVIDIA_CIRCUIT.recordSuccess();
@@ -1378,7 +1378,7 @@ async function handleChat(req, res) {
       signal: requestAbort.signal,
       headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
       body: JSON.stringify(payload)
-    });
+    }, undefined, voiceConversation);
   } catch (error) {
     requestAbort.cancel();
     deliverRequestFailure(res, error);

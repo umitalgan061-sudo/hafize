@@ -1,0 +1,23 @@
+name: Zerre Türkçe ses — gerçek çıkarım testi
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'public/typed/zerre-*.ts'
+      - 'scripts/zerre-inference-smoke.mjs'
+      - '.github/workflows/zerre-voice-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/zerre-inference-smoke.mjs
