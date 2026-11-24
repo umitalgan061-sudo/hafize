@@ -121,3 +121,16 @@ describe('platform HTTP API', () => {
     expect((await call('/api/feedback', { method: 'POST', body: JSON.stringify({ messageId: 'm1', rating: 'up', variant: 'A' }) })).status).toBe(200);
   });
 });
+
+it('records transport failures but does not penalize user cancellation',async()=>{
+ const agent=(await loadAgentRegistry()).agents.find(a=>a.id==='expert-math')!;
+ const trace='expert-v6-audit';
+ const before=platform.experts.healthCheck(agent.id).sampleCount;
+ const fail=platform.wrapDelegation(trace,async()=>{throw new Error('private upstream content');});
+ expect(await fail({agent,task:'test'})).toEqual({ok:false,error:'EXPERT_EXECUTION_FAILED'});
+ expect(platform.experts.healthCheck(agent.id).sampleCount).toBe(before+1);
+ const cancel=platform.wrapDelegation(trace,async()=>{throw new DOMException('cancel','AbortError');});
+ expect(await cancel({agent,task:'test'})).toEqual({ok:false,error:'DELEGATION_CANCELLED'});
+ expect(platform.experts.healthCheck(agent.id).sampleCount).toBe(before+1);
+ expect(JSON.stringify(platform.experts.delegationLog())).not.toContain('private upstream content');
+});

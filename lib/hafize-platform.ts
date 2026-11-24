@@ -559,17 +559,27 @@ export function createHafizePlatform(deps: PlatformDeps) {
     return async (input: { agent: AgentDefinition; task: string }): Promise<T | { ok: false; error: string }> => {
       if (!experts.consumeCall(input.agent.id)) return { ok: false, error: 'EXPERT_QUOTA_EXCEEDED' };
       const startedAt = Date.now();
-      let result = await execute(input);
+      let result: T | {ok:false;error:string;content?:undefined};
+      try {
+      result = await execute(input);
       if (result.ok) {
         let check = experts.validateOutput(input.agent.id, String(result.content || ''));
         if (!check.ok) {
-          result = await execute({ ...input, repair: `nceki çıktın xemaya uymadı (${check.errors.slice(0, 3).join('; ')}). Yanıtını yalnızca beklenen JSON xemasında yeniden ver.` });
+          if(!experts.consumeCall(input.agent.id)) result={ok:false,error:'EXPERT_QUOTA_EXCEEDED'};
+          else result = await execute({ ...input, repair: `nceki çıktın xemaya uymadı (${check.errors.slice(0, 3).join('; ')}). Yanıtını yalnızca beklenen JSON xemasında yeniden ver.` });
           check = result.ok ? experts.validateOutput(input.agent.id, String(result.content || '')) : check;
           if (result.ok && !check.ok) result = { ok: false, error: 'EXPERT_OUTPUT_INVALID' } as unknown as T;
         }
       }
+      } catch(error) {
+        // An aborted operation is not evidence of poor expert quality.
+        if(error instanceof Error&&error.name==='AbortError')result={ok:false,error:'DELEGATION_CANCELLED'};
+        else
+        result={ok:false,error:'EXPERT_EXECUTION_FAILED'};
+      }
       const tokens = Number((db.prepare('SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0) AS n FROM usage WHERE trace_id = ? AND purpose = ? AND created_at >= ?').get(parentTraceId, `expert:${input.agent.id}`, startedAt) as { n: number }).n);
       experts.addTokens(input.agent.id, tokens);
+      if(!result.ok&&['EXPERT_QUOTA_EXCEEDED','DELEGATION_CANCELLED'].includes(String(result.error)))return result;
       experts.audit({ parentTraceId, childAgentId: input.agent.id, task: input.task, result: result.ok ? result.content : result.error, latencyMs: Date.now() - startedAt, tokens, ok: result.ok });
       return result;
     };
