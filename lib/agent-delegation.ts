@@ -23,7 +23,11 @@ export function createAgentDelegator(args:{
   if(!registry?.agents?.length)throw new Error('INVALID_DELEGATION_RUNTIME:registry');
   if(!parentAgent?.id)throw new Error('INVALID_DELEGATION_RUNTIME:parentAgent');
   if(typeof traceId!=='string'||!traceId.trim())throw new Error('INVALID_DELEGATION_RUNTIME:traceId');
-  const maxDepth=bounded(registry.policy?.maxDelegationDepth,1,8),maxFanOut=bounded(registry.policy?.maxParallelAgents,1,60);
+  const maxDepth=bounded(registry.policy?.maxDelegationDepth,1,8);
+  // A deployment may explicitly configure a delegation budget. The owner registry
+  // no longer imposes a separate call-count ceiling; the shared ledger and run
+  // deadline still bound execution and provider quotas are not bypassed.
+  const maxFanOut=Number.isSafeInteger(registry.policy?.maxParallelAgents)&&Number(registry.policy?.maxParallelAgents)>0?Number(registry.policy?.maxParallelAgents):Infinity;
   function handoff(value:unknown){
     const normalized=normalizeTaskHandoff(value);if(!normalized.ok)return null;
     const item=normalized.handoff;
@@ -42,8 +46,9 @@ export function createAgentDelegator(args:{
     if(!target)return fail('DELEGATION_TARGET_NOT_FOUND');
     if(target.id===parentAgent.id)return fail('SELF_DELEGATION_NOT_ALLOWED');
     if(target.kind!=='specialist')return fail('DELEGATION_TARGET_NOT_SPECIALIST');
-    if(count(runLedger)>=maxFanOut)return fail('DELEGATION_FANOUT_EXCEEDED');
-    const task=runLedger.recordDelegationStart(target.id,{parentTaskId});
+    if(Number.isFinite(maxFanOut)&&count(runLedger)>=maxFanOut)return fail('DELEGATION_FANOUT_EXCEEDED');
+    let task:ReturnType<AgentRunLedger['recordDelegationStart']>;
+    try{task=runLedger.recordDelegationStart(target.id,{parentTaskId});}catch(error){return fail(error instanceof Error&&error.message==='TASK_LEDGER_FULL'?'TASK_LEDGER_FULL':'DELEGATION_LEDGER_FAILED');}
     let result:Result|undefined;
     try{
       if(lifecycle){
@@ -67,28 +72,30 @@ export function createAgentDelegator(args:{
   // Nested orchestrators cannot launch batches, avoiding recursive pool deadlock.
   async function delegateBatch(raw:unknown,signal?:AbortSignal){
     if(parentAgent.kind!=='primary'||!authorizeAgentTool(parentAgent,'agent.delegate').allowed)return fail('TEAM_NOT_AUTHORIZED');
-    if(!Array.isArray(raw)||raw.length<1||raw.length>8)return fail('TEAM_BATCH_SIZE');
+    const eligible=registry.agents.filter(independentTeamAgent);
+    if(!Array.isArray(raw)||raw.length<1||raw.length>eligible.length)return fail('TEAM_BATCH_SIZE');
     const inputs=raw.map(handoff);
     if(inputs.some(i=>!i)||new Set(inputs.map(i=>i?.agentId)).size!==inputs.length)return fail('TEAM_INVALID_OR_DUPLICATE_AGENT');
     for(const input of inputs){
       const target=registry.agents.find(a=>a.id===input!.agentId);
       if(!target||!independentTeamAgent(target))return fail('TEAM_TARGET_NOT_INDEPENDENT');
     }
-    if(count(runLedger)+raw.length>maxFanOut)return fail('DELEGATION_FANOUT_EXCEEDED');
-    const results:Array<unknown>=new Array(raw.length);
-    let next=0;
-    await Promise.all(Array.from({length:Math.min(3,raw.length)},async()=>{
-      while(next<raw.length){
-        const i=next++;
-        if(signal?.aborted||parentSignal?.aborted){results[i]={agentId:inputs[i]!.agentId,ok:false,error:'DELEGATION_CANCELLED'};continue;}
-        const result=await delegate(raw[i],{depth:0,signal});
-        if(result.ok){
-          const value=result.value;
-          results[i]={agentId:value.agentId,ok:true,models:value.models??[],content:value.content.slice(0,4500),truncated:value.content.length>4500};
-        }else results[i]={agentId:inputs[i]!.agentId,ok:false,error:result.error};
-      }
+    if(Number.isFinite(maxFanOut)&&count(runLedger)+raw.length>maxFanOut)return fail('DELEGATION_FANOUT_EXCEEDED');
+    // Every independent requested role starts immediately. No arbitrary worker
+    // pool of three or batch-of-eight. Keep report context bounded separately
+    // from execution; never let one failed expert discard the other results.
+    const reportChars=Math.min(4500,Math.floor(60_000/raw.length));
+    const results=await Promise.all(raw.map(async(item,i)=>{
+      const agentId=inputs[i]!.agentId;
+      if(signal?.aborted||parentSignal?.aborted)return {agentId,ok:false,error:'DELEGATION_CANCELLED'};
+      try{
+        const result=await delegate(item,{depth:0,signal});
+        if(!result.ok)return {agentId,ok:false,error:result.error};
+        const value=result.value;
+        return {agentId,ok:true,models:value.models??[],content:value.content.slice(0,reportChars),truncated:value.content.length>reportChars};
+      }catch{return {agentId,ok:false,error:'DELEGATED_AGENT_FAILED'};}
     }));
-    return {ok:true as const,value:{requested:raw.length,completed:results.filter(r=>(r as {ok:boolean}).ok).length,results,deliveryVerified:false}};
+    return {ok:true as const,value:{requested:raw.length,completed:results.filter(r=>r.ok).length,results,deliveryVerified:false}};
   }
   return Object.freeze({delegate,delegateBatch});
 }

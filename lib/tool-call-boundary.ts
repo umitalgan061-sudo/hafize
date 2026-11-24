@@ -3,9 +3,9 @@ import type { JsonRecord } from './runtime-contracts.ts';
 const MAX_TOOL_NAME_LENGTH=120;
 const MAX_TOOL_CALL_ID_LENGTH=200;
 const MAX_ARGUMENTS_LENGTH=16_384;
-// Only the approval-gated GitHub App file editor may carry larger source text.
+// Larger payloads are limited to the authorized file editor and structured team handoffs.
 const MAX_GITHUB_DEVELOP_ARGUMENTS_LENGTH=128 * 1024;
-const argumentLimit = (tool: unknown): number => tool === 'github_develop' ? MAX_GITHUB_DEVELOP_ARGUMENTS_LENGTH : MAX_ARGUMENTS_LENGTH;
+const argumentLimit = (tool: unknown): number => tool === 'github_develop' ? MAX_GITHUB_DEVELOP_ARGUMENTS_LENGTH : tool==='agent_delegate'?64*1024:MAX_ARGUMENTS_LENGTH;
 const MAX_RESULT_TEXT_LENGTH=32_000;
 
 export class ToolBoundaryError extends Error {

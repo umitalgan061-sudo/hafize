@@ -259,15 +259,15 @@ const CATALOG = new Map<string, ToolEntry>([
   ['agent_delegate', {
     permission: 'agent.delegate',
     kind: 'delegation',
-    timeoutMs: 900_000,
+    timeoutMs: 10_800_000,
     activity: { running: 'Uzman ajan çalıştırılıyor', success: 'Uzman ajan çalıştırıldı', failure: 'Uzman ajan çalıştırılamadı' },
-    definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder. Ana ajan bağımsız uzmanlara 1-8 farklı görev için tasks dizisi kullanabilir; sunucu en fazla 3 eşzamanlı çalıştırır. Tek görevde agentId/task kullan. Başarılı uzman raporu teslim/yayın kanıtı değildir.', {
+    definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder. Ana ajan uygun bağımsız uzmanların tamamını tasks dizisiyle aynı anda çalıştırabilir; sabit üç uzman ve sekiz görev sınırı yoktur. Bağımlı veya yazma aracı olan uzmanları ayrı görevle çalıştır. Tek görevde agentId/task kullan. Başarılı uzman raporu teslim/yayın kanıtı değildir.', {
       agentId: { type: 'string' },
       task: { type: 'string' },
       successCriteria: HANDOFF_LIST,
       constraints: HANDOFF_LIST,
       evidenceRequired: HANDOFF_LIST,
-      tasks:{type:'array',minItems:1,maxItems:8,items:{type:'object',properties:{agentId:{type:'string'},task:{type:'string'},successCriteria:HANDOFF_LIST,constraints:HANDOFF_LIST,evidenceRequired:HANDOFF_LIST},required:['agentId','task'],additionalProperties:false}}
+      tasks:{type:'array',minItems:1,items:{type:'object',properties:{agentId:{type:'string'},task:{type:'string'},successCriteria:HANDOFF_LIST,constraints:HANDOFF_LIST,evidenceRequired:HANDOFF_LIST},required:['agentId','task'],additionalProperties:false}}
     }),
     available: (context) => typeof context.delegateAgent === 'function',
     execute: async (args, context) => {
@@ -791,7 +791,7 @@ export async function executeNvidiaToolCall(
   if (context.signal?.aborted) return { ok: false, tool: entry.definition.function.name, error: 'TOOL_ABORTED', durationMs: Date.now() - startedAt };
   let args: Record<string, unknown>;
   try {
-    args = parseToolArguments(normalized.function.arguments);
+    args = parseToolArguments(normalized.function.arguments,normalized.function.name==='agent_delegate'?'agent_delegate':undefined);
   } catch (error) {
     return { ok: false, tool: entry.definition.function.name, error: sanitizeToolError(error).code, durationMs: Date.now() - startedAt };
   }
