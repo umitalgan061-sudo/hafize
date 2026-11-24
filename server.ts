@@ -67,7 +67,7 @@ import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
-import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
+import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
@@ -188,8 +188,14 @@ const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist([
 ]);
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 // Agent access is narrower than the UI writer; Retake is not enabled by default.
-const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')
+const GITHUB_EXISTING_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')
   .filter((repo) => GITHUB_WRITE_REPOS.some((item) => item.toLowerCase() === repo.toLowerCase()));
+// Optional Borsa source-only feature branch access. Never adds UI writer rights,
+// deploy permissions, main writes, other monorepo folders or workflow changes.
+const GITHUB_BORSA_AGENT_REPO = 'umitalgan061-sudo/hafize-siteler';
+const GITHUB_BORSA_AGENT_ENABLED = /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_BORSA_AGENT_DEVELOPMENT || '').trim())
+  && GITHUB_ALLOWED_REPOS.some(repo=>repo.toLowerCase()===GITHUB_BORSA_AGENT_REPO);
+const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist([...GITHUB_EXISTING_AGENT_REPOS, ...(GITHUB_BORSA_AGENT_ENABLED?[GITHUB_BORSA_AGENT_REPO]:[])]);
 const GITHUB_PUBLIC_READ = /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_PUBLIC_READ || '').trim());
 const GITHUB_READ_CONFIGURED = Boolean((GITHUB_TOKEN || GITHUB_PUBLIC_READ) && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
@@ -226,8 +232,14 @@ const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_WRITE_REPOS
 });
+const GITHUB_AGENT_WRITER = GITHUB_BORSA_AGENT_ENABLED ? createGitHubWorkspaceWriter({
+  token: GITHUB_TOKEN, fetchImpl: GITHUB_FETCH,
+  commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
+  allowedRepositories: GITHUB_AGENT_REPOS
+}) : GITHUB_WORKSPACE_WRITER;
 const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
-  ? createGitHubAgentDevelopment({ writer: GITHUB_WORKSPACE_WRITER, allowedRepositories: GITHUB_AGENT_REPOS })
+  ? createGitHubAgentDevelopment({ writer: GITHUB_AGENT_WRITER, allowedRepositories: GITHUB_AGENT_REPOS,
+      sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: 'borsa-gunlugu/' } : {} })
   : null;
 // Standing consent requires explicit server opt-in and owner session authentication.
 const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
@@ -1260,7 +1272,10 @@ async function handleAgentRun(req, res) {
       for (const update of memorySession.updates.slice(memoryUpdatesSent)) writeSseEvent(res, 'hafize-memory', update);
       memoryUpdatesSent = memorySession.updates.length;
     }
-    if(noProgressRounds>=3){incompleteReason='no_progress';break;}
+    if(noProgressRounds===2 || noProgressRounds===4){
+      workingMessages.push({role:'system',content:buildProgressRepairInstruction(toolSummary.slice(-12),noProgressRounds)});
+    }
+    if(noProgressRounds>=6){incompleteReason='no_progress';break;}
   }
 
   // Either the tool budget was exhausted or the model emitted no substantive

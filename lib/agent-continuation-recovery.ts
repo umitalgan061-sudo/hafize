@@ -77,3 +77,16 @@ export function incompleteAgentRunAnswer(
   );
   return parts.join(' ');
 }
+
+/** Give a stalled model a bounded, evidence-based repair opportunity. */
+export function buildProgressRepairInstruction(outcomes: readonly AgentToolOutcome[], rounds: number): string {
+ const failures=outcomes.filter(o=>!o.ok).map(o=>{
+  const code=typeof o.error==='string'&&/^[A-Z0-9_]{1,80}$/.test(o.error)?o.error:'UNKNOWN';
+  const status=typeof o.status==='number'&&Number.isInteger(o.status)&&o.status>=400&&o.status<600?' HTTP '+o.status:'';
+  return safeToolName(o.name)+': '+code+status;
+ });
+ return 'İlerleme kurtarma: '+rounds+' ardışık tur başarısız oldu. Son hata kanıtı: '+[...new Set(failures)].join('; ')+
+ '. Aynı çağrıyı tekrar gönderme. 404 veya geçersiz yol için proje/dizin sonucundaki gerçek yolu kullan; 403 için izin kapsamını kontrol et ve güvenlik engelini dolanma. '+
+ 'REPEATED_TOOL_CALL ise önceki başarılı sonucu kullan. Kod değişikliği istendiyse yeterli kanıt varsa izinli github_develop ile ayrı dal, dosya değişikliği ve taslak PR adımına geç. '+
+ 'Yeni ve anlamlı bir adım yoksa gerçek engeli ve doğrulanmış bulguları açıkça bildir. Başarı uydurma.';
+}

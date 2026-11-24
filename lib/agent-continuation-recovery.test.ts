@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildFinalToolInstruction,
+  buildProgressRepairInstruction,
   incompleteAgentRunAnswer,
   isEmptyOrProgressOnlyAnswer
 } from './agent-continuation-recovery.ts';
@@ -60,4 +61,9 @@ it('distinguishes a stalled loop from budget exhaustion and preserves safe error
  expect(answer).toContain('INVALID_GITHUB_PATH HTTP 400');
  expect(answer).toContain('GITHUB_READ_FAILED HTTP 404');
  expect(answer).not.toContain('private message injected');
+});
+
+it('gives an actionable repair prompt with safe codes and no authorization bypass',()=>{
+ const p=buildProgressRepairInstruction([{name:'github_read_file',ok:false,error:'GITHUB_READ_FAILED',status:404},{name:'github_inspect',ok:false,error:'untrusted secret text'}],2);
+ expect(p).toContain('HTTP 404');expect(p).toContain('github_develop');expect(p).toContain('Aynı çağrıyı tekrar gönderme');expect(p).not.toContain('untrusted secret text');
 });
