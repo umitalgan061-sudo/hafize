@@ -585,3 +585,31 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
 #messages[aria-busy="true"] .message.assistant:last-of-type .assistant-message-actions { display: none; }
 .send-btn.is-stop { opacity: 1 !important; }
 .tool-activity.tool-activity-more { opacity: 0.75; font-variant-numeric: tabular-nums; cursor: help; }
+
+/* iOS/WebKit: keep the native editable layer off a transformed, blurred fixed
+   surface. VisualViewport supplies the keyboard inset without translating the
+   textarea; no forced zoom and no custom/fake caret. Desktop remains unchanged. */
+@media (max-width: 680px) {
+  html[data-hafize-layout] .main .primary-column form#composer.composer {
+    left: 0; right: 0; width: auto; transform: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    background: var(--premium-surface-strong);
+  }
+  html[data-hafize-layout] .main .primary-column form#composer.composer textarea#messageInput {
+    font-size: 16px; line-height: 1.5; caret-color: var(--premium-text);
+    transform: none; -webkit-appearance: none; appearance: none;
+  }
+  html[data-composer-keyboard="true"] .main .primary-column form#composer.composer {
+    bottom: var(--composer-keyboard-inset, 0px); padding-bottom: 10px;
+  }
+  html[data-composer-keyboard="true"] .main .primary-column form#composer.composer::after { display: none; }
+  html[data-composer-keyboard="true"] .main > .topbar { top: var(--composer-viewport-top, 0px); }
+  html[data-composer-keyboard="true"] .chat-stage {
+    padding-top: 12px !important; padding-bottom: 0 !important;
+    overflow-y: auto; overscroll-behavior-y: contain;
+  }
+  html[data-composer-keyboard="true"] .welcome { margin: 0 auto 12px; }
+  html[data-composer-keyboard="true"] .welcome h1 { font-size: clamp(24px, 7vw, 31px); }
+  html[data-composer-keyboard="true"] .welcome p,
+  html[data-composer-keyboard="true"] .welcome .suggestions { display: none; }
+}

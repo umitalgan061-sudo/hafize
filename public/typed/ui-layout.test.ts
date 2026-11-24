@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { resolveUiLayout, installLayoutMode } from './ui-shell.ts';
+import { resolveUiLayout, installLayoutMode, composerViewportGeometry } from './ui-shell.ts';
 
 const root = new URL('../../', import.meta.url);
 const read = (name: string) => readFileSync(new URL(name, root), 'utf8');
@@ -92,4 +92,17 @@ describe('Hafize classic interface restoration', () => {
     installLayoutMode(fakeDoc, blocked);
     expect(html.dataset.hafizeLayout).toBe('focused');
   });
+});
+
+it('anchors mobile composer to the visible keyboard edge without treating pinch zoom as a keyboard',()=>{
+ expect(composerViewportGeometry(852,480,0,true,true)).toEqual({active:true,bottom:372,top:0});
+ expect(composerViewportGeometry(852,480,64,true,true)).toEqual({active:true,bottom:308,top:64});
+ expect(composerViewportGeometry(852,812,0,true,true)).toEqual({active:false,bottom:0,top:0});
+ expect(composerViewportGeometry(852,480,0,false,true)).toEqual({active:false,bottom:0,top:0});
+ expect(composerViewportGeometry(852,480,0,true,true,2)).toEqual({active:false,bottom:0,top:0});
+ expect(composerViewportGeometry(852,480,0,true,false)).toEqual({active:false,bottom:0,top:0});
+ const css=read('public/polish.css');
+ expect(css).toContain('left: 0; right: 0; width: auto; transform: none;');
+ expect(css).toContain('bottom: var(--composer-keyboard-inset, 0px)');
+ expect(read('public/typed/app-shell.ts')).toContain('focus({ preventScroll: true })');
 });

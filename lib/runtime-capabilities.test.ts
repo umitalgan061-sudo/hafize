@@ -122,3 +122,13 @@ describe('three-hour long-run capacity',()=>{
   expect(Buffer.byteLength(JSON.stringify(stream),'utf8')).toBeLessThan(128*1024);
  });
 });
+
+it('treats the UA site as preferred without claiming old quota or healthy app from a greeting',()=>{
+ const p=OWNER_PROJECTS.find(p=>p.id==='borsa');
+ expect(p?.urls[0]).toBe('https://borsa-gunlugu-ua.web.app');
+ const g={readMode:'app' as const,appConfigured:true,readRepositories:['umitalgan061-sudo/hafize-siteler'],developmentRepositories:[],developmentConfigured:false,safeOwnerDevelopment:false,interactiveApproval:false};
+ const msg=capabilityInstruction(capabilitySnapshot([],null,1,g),'Borsa Günlüğü incele');
+ expect(msg).toContain('502 tek başına kota kanıtı değildir');
+ expect(msg).toContain('tekrar ne istediğini sorma');
+ expect(msg).toContain('borsa-worker');
+});

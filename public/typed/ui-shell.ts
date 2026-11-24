@@ -75,6 +75,15 @@ export function installChatAccessibility(documentRef:Document):boolean{
  const stage=documentRef.querySelector<HTMLElement>('.chat-stage'),messages=documentRef.querySelector<HTMLElement>('#messages');if(!messages)return false;
  stage?.removeAttribute('aria-live');messages.setAttribute('role','log');messages.setAttribute('aria-live','polite');messages.setAttribute('aria-relevant','additions text');messages.setAttribute('aria-atomic','false');messages.setAttribute('aria-label','Sohbet mesajları');return true;
 }
+/** The layout and visual viewport differ while an iOS software keyboard is open. */
+export function composerViewportGeometry(layoutHeight:number,viewportHeight:number,offsetTop:number,focused:boolean,mobile:boolean,scale=1){
+ const valid=[layoutHeight,viewportHeight,offsetTop,scale].every(Number.isFinite);
+ if(!valid||!focused||!mobile||scale>1.05||scale<0.95||layoutHeight<=0||viewportHeight<=0)return {active:false,bottom:0,top:0};
+ const top=Math.max(0,Math.round(offsetTop));
+ const bottom=Math.max(0,Math.round(layoutHeight-viewportHeight-top));
+ const active=layoutHeight-viewportHeight>=100;
+ return {active,bottom:active?bottom:0,top:active?top:0};
+}
 export function install(documentRef:Document,root:Window&typeof globalThis):UiShellController|null{
  const html=documentRef.documentElement;if(!html)return null;
  const disposers:(()=>void)[]=[installLayoutMode(documentRef,root)];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
@@ -118,9 +127,22 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
   // The chat scrolls inside .chat-stage; its height ends exactly at the composer's top edge so the
   // last message is never hidden behind the fixed composer, whatever the composer's height.
   const stage=documentRef.querySelector<HTMLElement>('.chat-stage');
-  const applyComposerSpace=()=>{const top=composer.getBoundingClientRect().top;if(!top)return;html.style.setProperty('--composer-space',`${Math.max(320,Math.ceil(root.innerHeight-top+20))}px`);if(stage){const stageTop=stage.getBoundingClientRect().top;if(stageTop>=0&&top>stageTop)html.style.setProperty('--chat-stage-height',`${Math.floor(top-stageTop-8)}px`);}};
-  const sizeObserver=new SizeObserver(applyComposerSpace);sizeObserver.observe(composer);
-  disposers.push(()=>sizeObserver.disconnect(),addListener(root,'resize',applyComposerSpace),addListener(root,'hafize:layout-changed',applyComposerSpace),addListener(root,'hafize:workspace-changed',applyComposerSpace));
+  const input=documentRef.querySelector<HTMLTextAreaElement>('#messageInput');
+  const viewport=root.visualViewport;
+  const applyComposerSpace=()=>{
+   const geometry=composerViewportGeometry(root.innerHeight,viewport?.height??root.innerHeight,viewport?.offsetTop??0,documentRef.activeElement===input,root.innerWidth<=680,viewport?.scale??1);
+   if(geometry.active){html.dataset.composerKeyboard='true';html.style.setProperty('--composer-keyboard-inset',geometry.bottom+'px');html.style.setProperty('--composer-viewport-top',geometry.top+'px');}
+   else{delete html.dataset.composerKeyboard;html.style.removeProperty('--composer-keyboard-inset');html.style.removeProperty('--composer-viewport-top');}
+   const box=composer.getBoundingClientRect();if(!box.height)return;
+   html.style.setProperty('--composer-space',Math.ceil(box.height+20)+'px');
+   if(stage){const stageTop=stage.getBoundingClientRect().top;if(box.top>stageTop)html.style.setProperty('--chat-stage-height',Math.max(48,Math.floor(box.top-stageTop-8))+'px');}
+  };
+  let frame=0;
+  const schedule=()=>{if(frame)return;frame=root.requestAnimationFrame(()=>{frame=0;applyComposerSpace();});};
+  const sizeObserver=new SizeObserver(schedule);sizeObserver.observe(composer);
+  disposers.push(()=>{sizeObserver.disconnect();if(frame)root.cancelAnimationFrame(frame);delete html.dataset.composerKeyboard;html.style.removeProperty('--composer-keyboard-inset');html.style.removeProperty('--composer-viewport-top');},addListener(root,'resize',schedule),addListener(root,'hafize:layout-changed',schedule),addListener(root,'hafize:workspace-changed',schedule));
+  if(viewport)disposers.push(addListener(viewport,'resize',schedule),addListener(viewport,'scroll',schedule));
+  if(input)disposers.push(addListener(input,'focus',schedule),addListener(input,'blur',schedule));
   applyComposerSpace();
  }
  const mic=documentRef.querySelector<HTMLButtonElement>('#micBtn'),proxy=documentRef.querySelector<HTMLButtonElement>('#voiceProxy'),voiceCard=documentRef.querySelector<HTMLElement>('.voice-card');

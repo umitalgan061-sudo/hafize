@@ -353,6 +353,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
     return defaultAgentId;
   }
 
+  // Navigation and an arriving reply must not reopen/pan the mobile keyboard.
+  function focusComposer(passive = false) {
+    if (passive && window.matchMedia('(pointer: coarse)').matches) return;
+    ui.messageInput.focus({ preventScroll: true });
+  }
+
   function createConversation() {
     const conversation = {
       id: uid(),
@@ -367,7 +373,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     activeConversationId = conversation.id;
     saveConversations();
     render();
-    ui.messageInput.focus();
+    focusComposer(true);
   }
 
   function deleteConversation(id) {
@@ -470,7 +476,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (!target) return showToast('Düzenlenecek kullanıcı mesajı bulunamadı.');
     editingMessageId = id;
     ui.messageInput.value = target.message.content || '';
-    ui.messageInput.focus();
+    focusComposer();
     ui.messageInput.select();
     autoResizeComposer();
     updateEditingIndicator();
@@ -483,7 +489,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     ui.messageInput.value = '';
     ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
     updateEditingIndicator();
-    ui.messageInput.focus();
+    focusComposer();
   }
 
   function replaceEditedTurn(id, content) {
@@ -1316,7 +1322,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       isStreaming = false;
       setGenerationUi(false);
       chatScroll?.setThinking(false);
-      ui.messageInput.focus();
+      focusComposer(true);
     }
   }
 
@@ -1414,7 +1420,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       for (const node of ui.messages.querySelectorAll('.message.is-streaming, .message.is-waiting')) node.classList.remove('is-streaming', 'is-waiting');
       setGenerationUi(false);
       chatScroll?.setThinking(false);
-      ui.messageInput.focus();
+      focusComposer(true);
     }
   }
 
@@ -1449,7 +1455,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     activeConversationId = conversationId;
     render();
     if (window.innerWidth <= 900) ui.sidebar.classList.remove('open');
-    ui.messageInput.focus();
+    focusComposer(true);
   });
 
   ui.newChatBtn.addEventListener('click', () => {
@@ -1459,7 +1465,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (empty) {
       activeConversationId = empty.id;
       render();
-      ui.messageInput.focus();
+      focusComposer(true);
     } else {
       createConversation();
     }
@@ -1516,7 +1522,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     button.addEventListener('click', () => {
       ui.messageInput.value = button.dataset.prompt || '';
       ui.messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-      ui.messageInput.focus();
+      focusComposer();
     });
   });
 
