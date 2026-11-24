@@ -1,0 +1,29 @@
+name: Hafize public backend smoke
+on:
+  push:
+    branches: ['hafize/live-verification-v11']
+    paths: ['scripts/verify-hafize-backend.mjs', 'scripts/verify-hafize-backend.test.mjs', '.github/workflows/hafize-backend-smoke.yml']
+  workflow_dispatch:
+    inputs:
+      expected_revision:
+        description: 'Optional exact deployed backend SHA'
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - name: Verify checker contracts
+        run: node --test scripts/verify-hafize-backend.test.mjs
+      - name: Verify existing public release and backend (no credentials)
+        env:
+          HAFIZE_EXPECTED_REVISION: ${{ inputs.expected_revision || '' }}
+        run: node scripts/verify-hafize-backend.mjs

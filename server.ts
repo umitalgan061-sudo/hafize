@@ -58,7 +58,7 @@ import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
 import { createModelLabFileStorage, createModelLabSqliteStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
-import { createDailyImprovement } from './lib/daily-improvement.ts';
+import { createDailyImprovement, dailyCycleSummary } from './lib/daily-improvement.ts';
 import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
@@ -1731,7 +1731,7 @@ SHUTDOWN.installSignals();
 
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
-  const tick=()=>{void DAILY_IMPROVEMENT.tick().catch(()=>console.warn('hafize.daily_improvement failed'));};
+  const tick=()=>{void DAILY_IMPROVEMENT.tick().then(report=>{if(report)console.log('hafize.daily_improvement '+JSON.stringify(dailyCycleSummary(report)));}).catch(()=>console.warn('hafize.daily_improvement failed'));};
   tick();dailyTimer=setInterval(tick,15*60_000);dailyTimer.unref?.();
 });
 // Off unless asked for: this is the only listener that reaches beyond this computer.
