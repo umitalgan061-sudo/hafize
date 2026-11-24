@@ -75,3 +75,19 @@ it('marks a failed offline expert contract as partial without making provider ca
  expect(await daily.tick()).toMatchObject({state:'partial',error:'EXPERT_CONTRACT_CHECK_FAILED'});
  expect(request).not.toHaveBeenCalled();db.close();
 });
+
+it('durably recovers an interrupted report without reclaiming its 24 hour window',async()=>{
+ const db=openHafizeDb(':memory:');let clock=10000000;
+ const daily=createDailyImprovement({db,lab:null,expertHealth:()=>[],now:()=>clock});
+ db.prepare('INSERT INTO hafize_daily_improvement(id,started_at,report) VALUES(1,?,?)').run(clock,JSON.stringify({state:'running',startedAt:new Date(clock).toISOString(),finishedAt:null,experts:[],testedModels:[],specialists:[],taskLeaders:{},liveProbes:false,error:null}));
+ clock+=240001;expect(await daily.tick()).toBeNull();
+ expect(daily.status().report).toMatchObject({state:'partial',error:'DAILY_INTERRUPTED_BEFORE_REPORT'});
+ expect(daily.status().history).toHaveLength(1);db.close();
+});
+it('produces a bounded daily recommendation plan without external API calls',async()=>{
+ const db=openHafizeDb(':memory:');
+ const daily=createDailyImprovement({db,lab:null,expertHealth:()=>[]});
+ const report=await daily.tick();
+ expect(report?.plan?.mode).toBe('recommendation_only');
+ expect(report?.plan?.tasks.map(t=>t.id)).toContain('model-lab-access');db.close();
+});

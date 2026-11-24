@@ -1506,6 +1506,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/health/live') {
       sendJson(res, 200, {
         status: 'ok',
+        revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT||'')?process.env.RENDER_GIT_COMMIT:null,
         uptimeSeconds: Number(process.uptime().toFixed(3)),
         time: new Date().toISOString()
       });
