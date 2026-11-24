@@ -1,5 +1,5 @@
-import {KIMI_K31_PRO,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 // @ts-nocheck
+import {KIMI_K31_PRO,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 import { brotliCompress, constants as zlibConstants, gzip } from 'node:zlib';
