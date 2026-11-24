@@ -150,9 +150,9 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       if (!Array.isArray(data)) throw new Error('MODEL_LAB_INVALID_CATALOG');
       const ids = [...new Set(data.slice(0, CATALOG_LIMIT).map(item => object(item)?.id).filter((id): id is string => typeof id === 'string' && MODEL_ID.test(id)))];
       const listedAt=new Date(now()).toISOString();
-      if(!ids.length)throw new Error('MODEL_LAB_INVALID_CATALOG');
-      const truncated=data.length>CATALOG_LIMIT||data.length!==ids.length;
-      if(catalog){const added=ids.filter(id=>!catalog!.ids.includes(id));const removed=!truncated&&!catalog.truncated?catalog.ids.filter(id=>!ids.includes(id)):[];catalogDelta={comparedAt:listedAt,added:added.slice(0,100),removed:removed.slice(0,100),addedCount:added.length,removedCount:truncated||catalog.truncated?null:removed.length};}
+      // Empty or partial catalog responses are not proof that models disappeared.
+      const truncated=!ids.length||data.length>CATALOG_LIMIT||data.length!==ids.length;
+      if(catalog?.ids.length){const added=ids.filter(id=>!catalog!.ids.includes(id));const removed=!truncated&&!catalog.truncated?catalog.ids.filter(id=>!ids.includes(id)):[];catalogDelta={comparedAt:listedAt,added:added.slice(0,100),removed:removed.slice(0,100),addedCount:added.length,removedCount:truncated||catalog.truncated?null:removed.length};}else catalogDelta=null;
       catalog={ids,listedAt,truncated};persist();
       return status();
     } finally { running = false; }

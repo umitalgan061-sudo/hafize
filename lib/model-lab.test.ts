@@ -268,3 +268,12 @@ it('persists discovery and reports new and removed catalog IDs without promoting
  expect(restored.preferred('general',[a,'nvidia/example-c'])).toEqual([]);
  expect(restored.status().eligible).toEqual([a]);
 });
+
+it('does not infer removals from an empty provider catalog or additions from an empty baseline',async()=>{
+ let time=1000000;let ids=[a,b];
+ const lab=createModelLab({allowed:[a],now:()=>time,request:async()=>new Response(JSON.stringify({data:ids.map(id=>({id}))}))});
+ await lab.discover();time+=600001;ids=[];
+ await lab.discover();expect(lab.status().catalog?.ids).toEqual([]);
+ expect(lab.status().catalogDelta).toMatchObject({addedCount:0,removedCount:null,removed:[]});
+ time+=600001;ids=[a,b];await lab.discover();expect(lab.status().catalogDelta).toBeNull();
+});
