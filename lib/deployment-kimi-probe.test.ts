@@ -1,0 +1,21 @@
+import {it,expect,vi} from 'vitest';
+import {openHafizeDb} from './hafize-db.ts';
+import {createModelLab} from './model-lab.ts';
+import {KIMI_K31_PRO} from './model-lab-provider-profile.ts';
+import {deploymentKimiProbe} from './deployment-kimi-probe.ts';
+it('uses the existing bounded lab once per valid short-lived deployment request and never logs key or response',async()=>{
+ const db=openHafizeDb(':memory:');const time=Date.parse('2026-01-01T00:00:00.000Z');
+ const request=vi.fn(async(_path,body)=>new Response(JSON.stringify({choices:[{message:body?.tools?{tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]}:{content:'{"capital":"Ankara","math":383,"code":12}'}}]})));
+ const lab=createModelLab({allowed:[KIMI_K31_PRO],request,now:()=>time});const log=vi.fn();
+ const opts={db,lab,now:()=>time,log};
+ await deploymentKimiProbe(opts);
+ await deploymentKimiProbe({...opts,until:new Date(time-1).toISOString()});
+ await deploymentKimiProbe({...opts,until:new Date(time+600001).toISOString()});
+ expect(request).not.toHaveBeenCalled();
+ const until=new Date(time+60000).toISOString();
+ await deploymentKimiProbe({...opts,until});
+ await deploymentKimiProbe({...opts,until});
+ expect(request).toHaveBeenCalledTimes(2);
+ expect(log).toHaveBeenCalledTimes(1);
+ const line=String(log.mock.calls[0]?.[0]);expect(line).toContain('"status":"passed"');expect(line).toContain('"fresh":true');expect(line).not.toContain('capital');db.close();
+});
