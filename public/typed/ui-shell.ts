@@ -1,4 +1,5 @@
 export type Theme = 'light' | 'dark';
+export type UiLayout = 'classic' | 'focused';
 export interface CalendarCell { readonly day:number; readonly month:number; readonly year:number; readonly outside:boolean; readonly selected:boolean; }
 export interface CalendarCursor { readonly year:number; readonly month:number; readonly day:number; }
 export interface SidebarDisclosure { readonly isOpen:()=>boolean; readonly close:()=>void; readonly destroy:()=>void; }
@@ -9,6 +10,8 @@ export interface UiShellController {
   readonly destroy:()=>void;
 }
 const THEME_KEY='hafize.theme.v1';
+const LAYOUT_KEY='hafize.ui-layout.v1';
+export function resolveUiLayout(stored:unknown):UiLayout{return stored==='focused'?'focused':'classic';}
 export const WEEKDAYS=Object.freeze(['Pzt','Sal','Çar','Per','Cum','Cmt','Paz']);
 export function resolveTheme(stored:unknown,prefersDark:boolean):Theme{return stored==='light'||stored==='dark'?stored:(prefersDark?'dark':'light');}
 export function createMonthCells(year:number,month:number,selectedDay:number):readonly CalendarCell[]{
@@ -42,13 +45,39 @@ export function installSidebarDisclosure(documentRef:Document):SidebarDisclosure
  toggle.addEventListener('click',onToggle,true);documentRef.addEventListener('keydown',onKeydown);documentRef.addEventListener('click',onOutsideClick,true);syncToggle();
  return Object.freeze({isOpen,close:()=>render(false),destroy(){classObserver?.disconnect();toggle.removeEventListener('click',onToggle,true);documentRef.removeEventListener('keydown',onKeydown);documentRef.removeEventListener('click',onOutsideClick,true);view?.removeEventListener('keydown',onSearchShortcut,true);}});
 }
+/** The full interface is the default; optional focused mode changes appearance only. */
+export function installLayoutMode(documentRef:Document,root:Window&typeof globalThis):()=>void{
+ const html=documentRef.documentElement;
+ const button=documentRef.querySelector<HTMLButtonElement>('#layoutToggle');
+ let stored:unknown=null;
+ try{stored=root.localStorage?.getItem(LAYOUT_KEY);}catch{}
+ let layout=resolveUiLayout(stored);
+ const render=()=>{
+  html.dataset.hafizeLayout=layout;
+  const classic=layout==='classic';
+  button?.setAttribute('aria-pressed',String(classic));
+  button?.setAttribute('aria-label',classic?'Sade görünüme geç':'Gelişmiş görünüme geç');
+  button?.setAttribute('title',classic?'Sade görünüme geç':'Gelişmiş görünüme geç');
+  const label=button?.querySelector<HTMLElement>('[data-layout-label]');
+  if(label)label.textContent=classic?'Gelişmiş görünüm':'Sade görünüm';
+ };
+ const onClick=()=>{
+  layout=layout==='classic'?'focused':'classic';
+  try{root.localStorage?.setItem(LAYOUT_KEY,layout);}catch{}
+  render();
+  root.dispatchEvent(new CustomEvent('hafize:layout-changed',{detail:{layout}}));
+ };
+ render();
+ button?.addEventListener('click',onClick);
+ return ()=>button?.removeEventListener('click',onClick);
+}
 export function installChatAccessibility(documentRef:Document):boolean{
  const stage=documentRef.querySelector<HTMLElement>('.chat-stage'),messages=documentRef.querySelector<HTMLElement>('#messages');if(!messages)return false;
  stage?.removeAttribute('aria-live');messages.setAttribute('role','log');messages.setAttribute('aria-live','polite');messages.setAttribute('aria-relevant','additions text');messages.setAttribute('aria-atomic','false');messages.setAttribute('aria-label','Sohbet mesajları');return true;
 }
 export function install(documentRef:Document,root:Window&typeof globalThis):UiShellController|null{
  const html=documentRef.documentElement;if(!html)return null;
- const disposers:(()=>void)[]=[];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
+ const disposers:(()=>void)[]=[installLayoutMode(documentRef,root)];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
  installChatAccessibility(documentRef);
  const storage=root.localStorage,media=root.matchMedia('(prefers-color-scheme: dark)');
  let theme=resolveTheme(storage?.getItem(THEME_KEY),Boolean(media.matches));
@@ -101,7 +130,7 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  if(observer&&mic)observer.observe(mic,{attributes:true,attributeFilter:['aria-pressed']});
  return Object.freeze({getTheme:()=>theme,renderCalendar,sidebarDisclosure,destroy(){observer?.disconnect();for(const dispose of disposers.splice(0))dispose();}});
 }
-const api=Object.freeze({THEME_KEY,WEEKDAYS,resolveTheme,createMonthCells,moveCalendarDate,installSidebarDisclosure,installChatAccessibility,install});
+const api=Object.freeze({THEME_KEY,LAYOUT_KEY,WEEKDAYS,resolveTheme,resolveUiLayout,installLayoutMode,createMonthCells,moveCalendarDate,installSidebarDisclosure,installChatAccessibility,install});
 (globalThis as typeof globalThis & {HafizeUiShell?:unknown}).HafizeUiShell=api;
 const start=()=>install(document,globalThis);
 if(typeof document!=='undefined'){if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();}
