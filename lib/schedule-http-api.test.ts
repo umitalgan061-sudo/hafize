@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import {createScheduleSessionAuthenticator} from './schedule-session-auth.ts';
 import { createScheduleHttpApi } from './schedule-http-api.ts';
 
 const principal = { authenticated: true as const, subject: 'user-1' };
@@ -32,4 +33,11 @@ describe('typed schedule HTTP API', () => {
     await expect(api.handle({ method: 'GET', pathname: '/api/schedules/%2F', headers: 'ok' })).resolves.toMatchObject({ status: 404 });
     await expect(api.handle({ method: 'PATCH', pathname: '/api/schedules', headers: 'ok' })).resolves.toMatchObject({ status: 405 });
   });
+});
+
+it('uses server-guarded owner identity without a separate bearer token and rejects spoofed headers',async()=>{
+ const api=createScheduleHttpApi({authenticator:createScheduleSessionAuthenticator(null),commands,readJson});
+ const request={};Object.defineProperty(request,'__hafizePrincipal',{value:{ownerId:'owner',sessionId:'a'.repeat(64)},enumerable:false,configurable:false});
+ expect(await api.handle({method:'GET',pathname:'/api/schedules',request})).toMatchObject({status:200,body:{subject:'owner'}});
+ expect(await api.handle({method:'POST',pathname:'/api/schedules',headers:{'x-hafize-owner':'owner'}})).toMatchObject({status:401});
 });

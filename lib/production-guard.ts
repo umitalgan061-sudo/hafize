@@ -34,6 +34,8 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
     ? createBearerPrincipalAuthenticator({ token: connectorToken, subject: connectorSubject })
     : null;
 
+  let scheduleAuth:ReturnType<typeof createBearerPrincipalAuthenticator>|null=null;
+  try{if(process.env.HAFIZE_SCHEDULE_AUTH_TOKEN&&process.env.HAFIZE_SCHEDULE_AUTH_SUBJECT)scheduleAuth=createBearerPrincipalAuthenticator({token:process.env.HAFIZE_SCHEDULE_AUTH_TOKEN,subject:process.env.HAFIZE_SCHEDULE_AUTH_SUBJECT});}catch{}
   const security = createSecurityEventLogger();
   const loginLimit = createRateLimiter({ windowMs: 10 * 60 * 1000, max: 5, maxConcurrent: 1, maxEntries: 5000 });
   const apiLimit = createRateLimiter({ windowMs: 60 * 1000, max: 120, maxConcurrent: 8, maxEntries: 20000 });
@@ -104,8 +106,9 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
 
   // Everything the platform layer serves (memory, images, approvals, orchestrator, experts,
   // observability, backup, skills) is owner data: it always needs a principal.
+  function schedulePath(path:string):boolean{return path==='/api/schedules'||path.startsWith('/api/schedules/');}
   function platformPath(path: string): boolean {
-    return ['/api/memory','/api/images','/api/uploads','/api/approvals','/api/actions','/api/orchestrator','/api/experts','/api/observability','/api/feedback','/api/backup','/api/task-results','/api/models/status','/api/nim-specialists','/api/documents','/api/localhost','/api/screen','/api/install-info','/api/skills','/api/capabilities','/api/prompts'].some((prefix) => path === prefix || path.startsWith(prefix + '/'));
+    return schedulePath(path)||['/api/memory','/api/images','/api/uploads','/api/approvals','/api/actions','/api/orchestrator','/api/experts','/api/observability','/api/feedback','/api/backup','/api/task-results','/api/models/status','/api/nim-specialists','/api/documents','/api/localhost','/api/screen','/api/install-info','/api/skills','/api/capabilities','/api/prompts'].some((prefix) => path === prefix || path.startsWith(prefix + '/'));
   }
   function protectedPath(path: string): boolean {
     if (platformPath(path)) return true;
@@ -129,6 +132,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   function protectedAuth(req: IncomingMessage, path: string): RequestAuth {
     const sessionResult = auth?.authenticate(req.headers);
     if (sessionResult?.ok) return { ok: true, session: true, subject: sessionResult.principal.subject, csrf: sessionResult.csrf };
+    if(schedulePath(path)&&scheduleAuth){const result=scheduleAuth.authenticate({headers:req.headers});if(result.ok)return {ok:true,subject:result.principal.subject};}
     if (connectorPath(path) && connectorAuth) {
       const result = connectorAuth.authenticate({ headers: req.headers });
       if (result.ok) return { ok: true, connector: true, subject: 'connector:' + result.principal.subject };

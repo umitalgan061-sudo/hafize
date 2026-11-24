@@ -69,7 +69,7 @@ export function createScheduleHttpApi({ authenticator, commands, readJson } = {}
 
     let auth;
     try {
-      auth = authenticator.authenticate({ headers });
+      auth = authenticator.authenticate({ headers, request });
     } catch {
       auth = null;
     }

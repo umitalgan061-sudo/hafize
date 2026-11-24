@@ -34,6 +34,7 @@ import { createContextCompactor } from './lib/context-compaction.ts';
 import { createRedisScheduleLeaseRuntime } from './lib/redis-schedule-lease-runtime.ts';
 import { createScheduleCommandBoundary } from './lib/schedule-command-boundary.ts';
 import { createScheduleExecutionRuntime } from './lib/schedule-execution-runtime.ts';
+import { createScheduleSessionAuthenticator } from './lib/schedule-session-auth.ts';
 import { createScheduleHttpApi } from './lib/schedule-http-api.ts';
 import { createBearerPrincipalAuthenticator } from './lib/server-auth.ts';
 import { createScheduleStorageRuntime } from './lib/schedule-storage-runtime.ts';
@@ -496,8 +497,8 @@ const SCHEDULE_COMMANDS = createScheduleCommandBoundary({
   createTraceId
 });
 const SCHEDULE_AUTHENTICATOR = createOptionalScheduleAuthenticator();
-const SCHEDULE_HTTP_API = SCHEDULE_AUTHENTICATOR
-  ? createScheduleHttpApi({ authenticator: SCHEDULE_AUTHENTICATOR, commands: SCHEDULE_COMMANDS, readJson })
+const SCHEDULE_HTTP_API = globalThis.__HAFIZE_PRODUCTION_GUARD__ || SCHEDULE_AUTHENTICATOR
+  ? createScheduleHttpApi({ authenticator: createScheduleSessionAuthenticator(SCHEDULE_AUTHENTICATOR), commands: SCHEDULE_COMMANDS, readJson })
   : null;
 const SCHEDULED_AGENT_EXECUTOR = createScheduledAgentExecutor({
   registry: AGENT_REGISTRY,
