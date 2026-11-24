@@ -38,7 +38,7 @@ export function createGitHubAgentInspection(options: Options) {
     const repository = typeof args.repository === 'string' ? args.repository.trim() : '';
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !allowed.has(repository.toLowerCase())) throw new GitHubReadError('GITHUB_REPO_NOT_ALLOWED', 403);
     if (!options.token && !options.allowPublicRead) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
-    const input = { ...args, repository, action };
+    const input = { repository, action, path: args.path, ref: args.ref, state: args.state, limit: args.limit };
     if (action === 'directory') return options.extra.directory(input);
     if (action === 'compare') return options.extra.compare({ repository, base: args.base, head: args.head });
     if (action === 'commit') return options.details.commit({ repository, sha: args.sha });
