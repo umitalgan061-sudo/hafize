@@ -10,8 +10,8 @@ export interface UiShellController {
   readonly destroy:()=>void;
 }
 const THEME_KEY='hafize.theme.v1';
-const LAYOUT_KEY='hafize.ui-layout.v1';
-export function resolveUiLayout(stored:unknown):UiLayout{return stored==='focused'?'focused':'classic';}
+const LAYOUT_KEY='hafize.ui-layout.v2';
+export function resolveUiLayout(stored:unknown):UiLayout{return stored==='classic'?'classic':'focused';}
 export const WEEKDAYS=Object.freeze(['Pzt','Sal','Çar','Per','Cum','Cmt','Paz']);
 export function resolveTheme(stored:unknown,prefersDark:boolean):Theme{return stored==='light'||stored==='dark'?stored:(prefersDark?'dark':'light');}
 export function createMonthCells(year:number,month:number,selectedDay:number):readonly CalendarCell[]{
@@ -45,7 +45,7 @@ export function installSidebarDisclosure(documentRef:Document):SidebarDisclosure
  toggle.addEventListener('click',onToggle,true);documentRef.addEventListener('keydown',onKeydown);documentRef.addEventListener('click',onOutsideClick,true);syncToggle();
  return Object.freeze({isOpen,close:()=>render(false),destroy(){classObserver?.disconnect();toggle.removeEventListener('click',onToggle,true);documentRef.removeEventListener('keydown',onKeydown);documentRef.removeEventListener('click',onOutsideClick,true);view?.removeEventListener('keydown',onSearchShortcut,true);}});
 }
-/** The full interface is the default; optional focused mode changes appearance only. */
+/** Stable focused layout is the default; advanced mode is an explicit opt-in. */
 export function installLayoutMode(documentRef:Document,root:Window&typeof globalThis):()=>void{
  const html=documentRef.documentElement;
  const button=documentRef.querySelector<HTMLButtonElement>('#layoutToggle');
@@ -59,7 +59,7 @@ export function installLayoutMode(documentRef:Document,root:Window&typeof global
   button?.setAttribute('aria-label',classic?'Sade görünüme geç':'Gelişmiş görünüme geç');
   button?.setAttribute('title',classic?'Sade görünüme geç':'Gelişmiş görünüme geç');
   const label=button?.querySelector<HTMLElement>('[data-layout-label]');
-  if(label)label.textContent=classic?'Gelişmiş görünüm':'Sade görünüm';
+  if(label)label.textContent=classic?'Sade görünüme geç':'Gelişmiş görünüme geç';
  };
  const onClick=()=>{
   layout=layout==='classic'?'focused':'classic';
@@ -120,7 +120,7 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
   const stage=documentRef.querySelector<HTMLElement>('.chat-stage');
   const applyComposerSpace=()=>{const top=composer.getBoundingClientRect().top;if(!top)return;html.style.setProperty('--composer-space',`${Math.max(320,Math.ceil(root.innerHeight-top+20))}px`);if(stage){const stageTop=stage.getBoundingClientRect().top;if(stageTop>=0&&top>stageTop)html.style.setProperty('--chat-stage-height',`${Math.floor(top-stageTop-8)}px`);}};
   const sizeObserver=new SizeObserver(applyComposerSpace);sizeObserver.observe(composer);
-  disposers.push(()=>sizeObserver.disconnect(),addListener(root,'resize',applyComposerSpace));
+  disposers.push(()=>sizeObserver.disconnect(),addListener(root,'resize',applyComposerSpace),addListener(root,'hafize:layout-changed',applyComposerSpace),addListener(root,'hafize:workspace-changed',applyComposerSpace));
   applyComposerSpace();
  }
  const mic=documentRef.querySelector<HTMLButtonElement>('#micBtn'),proxy=documentRef.querySelector<HTMLButtonElement>('#voiceProxy'),voiceCard=documentRef.querySelector<HTMLElement>('.voice-card');
