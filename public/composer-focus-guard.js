@@ -14,7 +14,9 @@
 
     const messages = document.getElementById('messages');
     if (input.disabled && messages?.getAttribute('aria-busy') === 'true') return;
-    if (input.disabled) input.disabled = false;
+    if (input.disabled) return;
+    // Do not intercept native mobile caret placement, selection handles or taps on other controls.
+    if (event.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();

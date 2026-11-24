@@ -75,6 +75,12 @@ export function installChatAccessibility(documentRef:Document):boolean{
  const stage=documentRef.querySelector<HTMLElement>('.chat-stage'),messages=documentRef.querySelector<HTMLElement>('#messages');if(!messages)return false;
  stage?.removeAttribute('aria-live');messages.setAttribute('role','log');messages.setAttribute('aria-live','polite');messages.setAttribute('aria-relevant','additions text');messages.setAttribute('aria-atomic','false');messages.setAttribute('aria-label','Sohbet mesajları');return true;
 }
+/** Visual viewport geometry is measured in layout-viewport CSS pixels, never screen pixels. */
+export function mobileKeyboardGeometry(layoutHeight:number,visualHeight:number,offsetTop:number,focused:boolean,scale=1){
+ const gap=Math.max(0,Math.round(layoutHeight-visualHeight));
+ const active=focused&&scale>=0.99&&scale<=1.01&&gap>100;
+ return {active,bottom:active?Math.max(0,Math.round(layoutHeight-visualHeight-Math.max(0,offsetTop))):0};
+}
 export function install(documentRef:Document,root:Window&typeof globalThis):UiShellController|null{
  const html=documentRef.documentElement;if(!html)return null;
  const disposers:(()=>void)[]=[installLayoutMode(documentRef,root)];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
@@ -114,14 +120,35 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  // covers so the chat can end above it instead of scrolling underneath.
  const composer=documentRef.querySelector<HTMLElement>('#composer');
  const SizeObserver=(root as typeof globalThis).ResizeObserver;
- if(composer&&typeof SizeObserver==='function'){
-  // The chat scrolls inside .chat-stage; its height ends exactly at the composer's top edge so the
-  // last message is never hidden behind the fixed composer, whatever the composer's height.
+ if(composer){
   const stage=documentRef.querySelector<HTMLElement>('.chat-stage');
-  const applyComposerSpace=()=>{const top=composer.getBoundingClientRect().top;if(!top)return;html.style.setProperty('--composer-space',`${Math.max(320,Math.ceil(root.innerHeight-top+20))}px`);if(stage){const stageTop=stage.getBoundingClientRect().top;if(stageTop>=0&&top>stageTop)html.style.setProperty('--chat-stage-height',`${Math.floor(top-stageTop-8)}px`);}};
-  const sizeObserver=new SizeObserver(applyComposerSpace);sizeObserver.observe(composer);
-  disposers.push(()=>sizeObserver.disconnect(),addListener(root,'resize',applyComposerSpace),addListener(root,'hafize:layout-changed',applyComposerSpace),addListener(root,'hafize:workspace-changed',applyComposerSpace));
-  applyComposerSpace();
+  const field=documentRef.querySelector<HTMLTextAreaElement>('#messageInput');
+  const viewport=root.visualViewport;
+  const mobile=root.matchMedia('(max-width: 680px) and (pointer: coarse)');
+  let frame=0;
+  const update=()=>{
+   frame=0;
+   const layoutHeight=html.clientHeight||root.innerHeight;
+   const geometry=mobileKeyboardGeometry(layoutHeight,viewport?.height??layoutHeight,viewport?.offsetTop??0,mobile.matches&&documentRef.activeElement===field,viewport?.scale??1);
+   html.dataset.hafizeKeyboard=geometry.active?'open':'closed';
+   html.style.setProperty('--keyboard-bottom',geometry.bottom+'px');
+   const bounds=composer.getBoundingClientRect();
+   if(bounds.height<=0)return;
+   // Use the actual fixed composer geometry instead of a forced 320px minimum.
+   html.style.setProperty('--composer-space',Math.ceil(bounds.height+12)+'px');
+   if(stage){
+    const stageTop=stage.getBoundingClientRect().top;
+    const height=Math.floor(bounds.top-stageTop-8);
+    if(height>0)html.style.setProperty('--chat-stage-height',height+'px');
+    else html.style.removeProperty('--chat-stage-height');
+   }
+  };
+  const schedule=()=>{if(!frame)frame=root.requestAnimationFrame(update);};
+  const sizeObserver=typeof SizeObserver==='function'?new SizeObserver(schedule):null;sizeObserver?.observe(composer);
+  disposers.push(()=>{sizeObserver?.disconnect();if(frame)root.cancelAnimationFrame(frame);html.removeAttribute('data-hafize-keyboard');html.style.removeProperty('--keyboard-bottom');},addListener(root,'resize',schedule),addListener(root,'hafize:layout-changed',schedule),addListener(root,'hafize:workspace-changed',schedule));
+  if(viewport)disposers.push(addListener(viewport,'resize',schedule),addListener(viewport,'scroll',schedule));
+  if(field)disposers.push(addListener(field,'focus',schedule),addListener(field,'blur',schedule));
+  update();
  }
  const mic=documentRef.querySelector<HTMLButtonElement>('#micBtn'),proxy=documentRef.querySelector<HTMLButtonElement>('#voiceProxy'),voiceCard=documentRef.querySelector<HTMLElement>('.voice-card');
  if(proxy)disposers.push(addListener(proxy,'click',()=>mic?.click()));

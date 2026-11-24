@@ -157,3 +157,11 @@ it('restricts optional monorepo development to the Borsa source directory',async
  await tool.execute({operation:'file',repository,branch:BRANCH,path:'borsa-gunlugu/src/main.js',content:'// safe',message:'edit'},{safeAutonomy:true});
  expect(writer.commitFile).toHaveBeenCalled();
 });
+
+it('allows Borsa frontend and worker only when explicitly configured',async()=>{
+ const {writer}=fixture();
+ const repository='umitalgan061-sudo/hafize-siteler';
+ const tool=createGitHubAgentDevelopment({writer:writer as unknown as Writer,allowedRepositories:[repository],sourcePathRestrictions:{[repository]:['borsa-gunlugu/','borsa-worker/']}});
+ for(const path of ['borsa-worker/wrangler.toml','borsa-gunlugu/src/main.js']) await tool.execute({operation:'file',repository,branch:BRANCH,path,content:'safe',message:'edit'},{safeAutonomy:true});
+ for(const path of ['.github/workflows/yayin.yml','firebase.json','hafize-worker/src/index.js','borsa-worker/../firebase.json']) await expect(tool.execute({operation:'file',repository,branch:BRANCH,path,content:'safe',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'GITHUB_REPO_PATH_NOT_ALLOWED'});
+});

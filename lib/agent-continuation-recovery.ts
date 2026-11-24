@@ -87,6 +87,6 @@ export function buildProgressRepairInstruction(outcomes: readonly AgentToolOutco
  });
  return 'İlerleme kurtarma: '+rounds+' ardışık tur başarısız oldu. Son hata kanıtı: '+[...new Set(failures)].join('; ')+
  '. Aynı çağrıyı tekrar gönderme. 404 veya geçersiz yol için proje/dizin sonucundaki gerçek yolu kullan; 403 için izin kapsamını kontrol et ve güvenlik engelini dolanma. '+
- 'REPEATED_TOOL_CALL ise önceki başarılı sonucu kullan. Kod değişikliği istendiyse yeterli kanıt varsa izinli github_develop ile ayrı dal, dosya değişikliği ve taslak PR adımına geç. '+
+ 'INVALID_GITHUB_BRANCH ise hafize/auto-borsa-market-fix gibi geçerli küçük ASCII dalı seç; kullanıcıya dal adı sorma. REPEATED_TOOL_CALL ise önceki başarılı sonucu kullan. Kod değişikliği istendiyse yeterli kanıt varsa izinli github_develop ile ayrı dal, dosya değişikliği ve taslak PR adımına geç. '+
  'Yeni ve anlamlı bir adım yoksa gerçek engeli ve doğrulanmış bulguları açıkça bildir. Başarı uydurma.';
 }

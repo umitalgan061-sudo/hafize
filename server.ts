@@ -239,7 +239,7 @@ const GITHUB_AGENT_WRITER = GITHUB_BORSA_AGENT_ENABLED ? createGitHubWorkspaceWr
 }) : GITHUB_WORKSPACE_WRITER;
 const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
   ? createGitHubAgentDevelopment({ writer: GITHUB_AGENT_WRITER, allowedRepositories: GITHUB_AGENT_REPOS,
-      sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: 'borsa-gunlugu/' } : {} })
+      sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: ['borsa-gunlugu/', 'borsa-worker/'] } : {} })
   : null;
 // Standing consent requires explicit server opt-in and owner session authentication.
 const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
