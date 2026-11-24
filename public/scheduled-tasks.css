@@ -12,3 +12,11 @@
 @media (max-width:650px){.scheduled-tasks-overlay{padding:8px;align-items:end}.scheduled-tasks-shell{max-height:94vh;border-radius:16px 16px 0 0;padding:13px}.scheduled-tasks-form-grid{grid-template-columns:1fr}.scheduled-tasks-filter{grid-template-columns:1fr}.scheduled-tasks-filter-info{text-align:left;padding:0}.scheduled-tasks-templates{grid-template-columns:1fr}.scheduled-task-row-head{flex-direction:column}.scheduled-task-status{margin-left:0}}
 @media (prefers-reduced-motion:reduce){.scheduled-tasks-overlay *{scroll-behavior:auto}}
 @media (forced-colors:active){.scheduled-tasks-shell,.scheduled-tasks-create,.scheduled-tasks-create select,.scheduled-tasks-create textarea,.scheduled-tasks-create input,.scheduled-tasks-filter select,.scheduled-task-row,.scheduled-task-template{border-color:CanvasText;background:Canvas;color:CanvasText}}
+
+/* Restored task engine configuration card (#827), inside current task dialog. */
+.schedule-runtime-card{border:1px solid var(--premium-border, #8885);border-radius:12px;padding:12px;margin:0 0 12px;font-size:13px;line-height:1.45}
+.schedule-runtime-card p{margin:6px 0;color:var(--premium-muted,inherit)}
+.schedule-runtime-signals{padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:8px 0}
+.schedule-runtime-signal{display:grid;gap:2px;border-inline-start:2px solid currentColor;padding-inline-start:8px}
+.schedule-runtime-signal[data-state=configured]{border-color:var(--premium-orange,#e88a61)}
+.schedule-runtime-signal small{color:var(--premium-muted,inherit)}

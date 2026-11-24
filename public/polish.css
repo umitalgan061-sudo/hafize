@@ -80,7 +80,7 @@ body { transition: none; }
    wide as its longest line. User bubbles keep their right-aligned, content-sized shape. */
 .message.assistant { width: 100%; max-width: 100%; }
 /* Only the newest message animates; the list is re-rendered on send and history switches. */
-.message:last-child { animation: polishRise 0.32s var(--ease-out) both; }
+.message.is-new { animation: polishRise 0.32s var(--ease-out) both; }
 .message.user {
   background: var(--user-bubble);
   color: var(--premium-text);

@@ -47,6 +47,9 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Verify built HTML asset references
+        run: node --test scripts/site-release-health.test.mjs && node scripts/site-release-health.mjs
+
       - name: Native backend startup smoke (no credentials)
         run: node scripts/native-backend-boot-smoke.mjs
 

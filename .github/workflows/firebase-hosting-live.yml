@@ -8,6 +8,8 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'vite.config.ts'
+      - 'scripts/site-release-health.mjs'
+      - 'scripts/site-release-health.test.mjs'
       - 'scripts/firebase-hosting-preflight.mjs'
       - 'scripts/firebase-hosting-preflight.test.mjs'
       - 'scripts/hafize-cloud-run-route.mjs'
@@ -50,6 +52,9 @@ jobs:
         run: |
           npm run typecheck
           npm run build
+
+      - name: Verify built HTML asset references
+        run: node --test scripts/site-release-health.test.mjs && node scripts/site-release-health.mjs
 
       - name: Verify existing Hosting settings and project configuration
         env:
