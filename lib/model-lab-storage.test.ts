@@ -20,3 +20,23 @@ describe('model lab file store',()=>{
     } finally {rmSync(dir,{recursive:true,force:true});}
   });
 });
+
+import {openHafizeDb} from './hafize-db.ts';
+import {createModelLab} from './model-lab.ts';
+import {createModelLabSqliteStorage} from './model-lab-storage.ts';
+it('retains specialist observations across restart and never restores stale routing eligibility',async()=>{
+  const db=openHafizeDb(':memory:');let clock=100000;
+  const allowed=['nvidia/a','nvidia/b','nvidia/c'];const model='nvidia/nemotron-3-embed-1b';
+  const storage=createModelLabSqliteStorage(db,'test-key',[...allowed,model]);
+  const request=async(path:string,body:Record<string,unknown>|null)=>new Response(JSON.stringify(path==='/embeddings'?{data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}:{choices:[{message:body?.tools?{tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]}:{content:'{"capital":"Ankara","math":383,"code":12}'}}]}));
+  const options={allowed,request,now:()=>clock,specialistModels:[model]};
+  const lab=createModelLab(options);lab.attachStorage(storage);
+  await lab.batch();await lab.specialistProbe(model);
+  clock+=86400000;
+  const next=createModelLab({...options,storage});
+  expect(next.status().specialistResults).toHaveLength(1);
+  expect(next.preferred('general',allowed)).toEqual([]);
+  expect((await next.batch()).completed.map(row=>row.model)).toEqual(['nvidia/c','nvidia/a']);
+  expect(createModelLabSqliteStorage(db,'new-key',[...allowed,model]).load()).toBeNull();
+  db.close();
+});

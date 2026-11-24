@@ -15,6 +15,7 @@ describe('daily improvement',()=>{
     expect(await createDailyImprovement(options).tick()).toBeNull();
     clock+=DAY_MS;
     expect((await createDailyImprovement(options).tick())?.state).toBe('completed');
+    expect(createDailyImprovement(options).status().history).toHaveLength(2);
     expect(request).not.toHaveBeenCalled();
     db.close();
   });
