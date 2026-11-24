@@ -3,6 +3,7 @@
  * The browser/global contract is intentionally preserved during the migration.
  */
 // @ts-nocheck
+import {normalizeSearch,searchHistory,nextSearchIndex} from './history-search-core.ts';
 (() => {
   'use strict';
 
@@ -23,19 +24,6 @@
     } catch {
       return [];
     }
-  }
-
-  function normalize(value) {
-    return typeof value === 'string' ? value.toLocaleLowerCase('tr-TR').replace(/\s+/g, ' ').trim() : '';
-  }
-
-  function searchableText(conversation) {
-    const messages = Array.isArray(conversation?.messages) ? conversation.messages : [];
-    return normalize([
-      conversation?.title,
-      conversation?.agentId,
-      ...messages.map((message) => message?.content)
-    ].filter((value) => typeof value === 'string').join(' '));
   }
 
   function createSearchUi() {
@@ -76,44 +64,51 @@
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
 
-    section.append(label, row, status);
+    const nav=document.createElement('div');nav.className='history-search-nav';nav.hidden=true;
+    const previous=document.createElement('button'),next=document.createElement('button');
+    previous.type=next.type='button';previous.textContent='↑ Önceki';next.textContent='Sonraki ↓';
+    previous.setAttribute('aria-label','Önceki eşleşen sohbet');next.setAttribute('aria-label','Sonraki eşleşen sohbet');
+    const position=document.createElement('span');position.setAttribute('role','status');nav.append(previous,next,position);
+    section.append(label, row, status,nav);
     ui.block.insertBefore(section, ui.block.querySelector('.history-head')?.nextSibling || ui.history);
-    return { section, input, clear, status };
+    return { section, input, clear, status,nav,previous,next,position };
   }
 
   const searchUi = createSearchUi();
   let query = '';
   let refreshQueued = false;
+  let selectedId='';
 
   function rowConversationIndex() {
     return Array.from(ui.history.querySelectorAll('.conversation-row'));
   }
 
   function render() {
-    const normalizedQuery = normalize(query);
-    const stored = readConversations();
+    const normalizedQuery = normalizeSearch(query);
     const rows = rowConversationIndex();
-    const byTitle = new Map(stored.map((conversation) => [normalize(conversation?.title), conversation]));
-    let visible = 0;
-
-    for (const row of rows) {
-      const title = normalize(row.querySelector('.conversation-open')?.textContent || '');
-      const conversation = byTitle.get(title);
-      const haystack = conversation ? searchableText(conversation) : title;
-      const matches = !normalizedQuery || haystack.includes(normalizedQuery);
-      row.hidden = !matches;
-      if (matches) visible += 1;
+    const result=normalizedQuery?searchHistory(readConversations(),query):{hits:new Map(),partial:false};
+    let visible=0;
+    for(const row of rows){
+      const open=row.querySelector('.conversation-open');
+      const id=row.dataset.conversationId||open?.dataset.conversationId||'';
+      const hit=result.hits.get(id);
+      const matches=!normalizedQuery||Boolean(hit)||(!id&&normalizeSearch(open?.textContent).includes(normalizedQuery));
+      row.hidden=!matches;
+      if(matches)visible++;
+      let snippet=row.querySelector('.history-search-snippet');
+      const value=hit?.snippet||'';
+      if(value&&!snippet){snippet=document.createElement('small');snippet.className='history-search-snippet';row.append(snippet);}
+      if(snippet){if(value){if(snippet.textContent!==value)snippet.textContent=value;}else snippet.remove();}
     }
-
-    const total = rows.length;
-    const nextStatus = !total
-      ? 'Henüz sohbet yok.'
-      : !normalizedQuery
-        ? `${total} sohbet`
-        : `${visible} / ${total} sohbet eşleşti`;
-    searchUi.clear.hidden = !normalizedQuery;
-    if (searchUi.status.textContent !== nextStatus) searchUi.status.textContent = nextStatus;
-
+    const total=rows.length;
+    const nextStatus=!total?'Henüz sohbet yok.':!normalizedQuery?total+' sohbet':visible+' / '+total+' sohbet eşleşti'+(result.partial?' · Arama sınırına ulaşıldı.':'');
+    searchUi.clear.hidden=!normalizedQuery;
+    if(searchUi.status.textContent!==nextStatus)searchUi.status.textContent=nextStatus;
+    const targets=rows.filter(row=>!row.hidden);
+    const selected=targets.findIndex(row=>row.dataset.conversationId===selectedId);
+    searchUi.nav.hidden=!normalizedQuery;
+    searchUi.previous.disabled=searchUi.next.disabled=!targets.length;
+    searchUi.position.textContent=selected>=0?(selected+1)+' / '+targets.length:'';
     let empty = ui.history.querySelector('.history-search-empty');
     if (normalizedQuery && total > 0 && visible === 0) {
       if (!empty) {
@@ -122,7 +117,7 @@
         empty.setAttribute('role', 'status');
         ui.history.append(empty);
       }
-      const emptyText = 'Aramanla eşleşen sohbet bulunamadı.';
+      const emptyText = result.partial?'İncelenen bölümde eşleşme bulunamadı; arama sınırı aşıldı.':'Aramanla eşleşen sohbet bulunamadı.';
       if (empty.textContent !== emptyText) empty.textContent = emptyText;
     } else {
       empty?.remove();
@@ -138,11 +133,21 @@
     });
   }
 
+  function move(direction){
+    const rows=rowConversationIndex().filter(row=>!row.hidden);
+    const index=nextSearchIndex(rows.findIndex(row=>row.dataset.conversationId===selectedId),rows.length,direction);
+    if(index<0)return;
+    selectedId=rows[index].dataset.conversationId||'';
+    rows[index].querySelector('.conversation-open')?.focus();
+    searchUi.position.textContent=(index+1)+' / '+rows.length;
+  }
+  searchUi.previous.addEventListener('click',()=>move(-1));searchUi.next.addEventListener('click',()=>move(1));
   searchUi.input.addEventListener('input', () => {
-    query = searchUi.input.value;
+    selectedId='';query = searchUi.input.value;
     queueRender();
   });
   searchUi.input.addEventListener('keydown', (event) => {
+    if((event.key==='ArrowDown'||event.key==='ArrowUp')&&normalizeSearch(query)){event.preventDefault();render();move(event.key==='ArrowDown'?1:-1);return;}
     if (event.key === 'Escape') {
       if (!searchUi.input.value) return;
       event.preventDefault();
@@ -161,7 +166,7 @@
   document.addEventListener('keydown', (event) => {
     const target = event.target;
     if (!event.ctrlKey && !event.metaKey) return;
-    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || !SHORTCUT.shift) return;
+    if (event.altKey || event.key.toLocaleLowerCase() !== SHORTCUT.key || event.shiftKey !== SHORTCUT.shift) return;
     if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) && target !== searchUi.input) return;
     event.preventDefault();
     searchUi.input.focus();

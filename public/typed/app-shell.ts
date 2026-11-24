@@ -549,6 +549,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const open = document.createElement('button');
       open.type = 'button';
       open.className = 'conversation-open';
+      row.dataset.conversationId = conversation.id;
+      open.dataset.conversationId = conversation.id;
       open.textContent = conversation.title;
       open.title = conversation.title;
       open.addEventListener('click', () => {
