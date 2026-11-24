@@ -87,7 +87,7 @@ const WEB_TOOLS = createWebTools({
   tavilyApiKey: process.env.TAVILY_API_KEY || '',
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
-const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 16, 4, 24);
+const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 100, 4, 100);
 const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
@@ -130,7 +130,7 @@ const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RU
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
 const REQUEST_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_REQUEST_TIMEOUT_MS, 180_000, 30_000, 600_000);
 // Agent runs may research, orchestrate several steps and wait for the user's approval.
-const AGENT_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_AGENT_TIMEOUT_MS, 900_000, 60_000, 1_800_000);
+const AGENT_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_AGENT_TIMEOUT_MS, 1_800_000, 60_000, 1_800_000);
 
 function hasMetricsAuthorization(req) {
   const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
@@ -1004,16 +1004,20 @@ async function handleAgentRun(req, res) {
   };
 
   let incompleteReason = 'tool_budget';
+  let budgetReminderIndex = -1;
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     if (round > 0 && round % 4 === 0) {
       // Do not spend the entire run reading files without making progress.
       // The user task remains the authority; tool content cannot grant rights.
-      workingMessages.push({ role: 'system', content:
-        `Bu görev için kalan araç turu: ${MAX_AGENT_TOOL_ROUNDS - round}. Kullanıcının istediği somut teslimata odaklan. ` +
+      const reminder = { role: 'system', content:
+        `Bu görev için kalan araç turu: ${MAX_AGENT_TOOL_ROUNDS - round}. Tamamlanan araç çağrısı: ${toolSummary.length}. Başarılı: ${toolSummary.filter(item => item.ok).length}. Kullanıcının istediği somut teslimata odaklan. ` +
         'Kod geliştirme istendiyse aynı dosyaları tekrar tekrar okumak yerine, yeterli kanıtı topladığında izinli GitHub geliştirme aracını kullanarak ayrı dalda değişikliği gerçekleştir ve doğrula. ' +
         'Araç listesindeki github_develop varsa kapsamına uygun dal/dosya/taslak PR işlemlerini tercih et. ' +
         'Yapılamayan işlemi belirt; olmayan izin, commit, test veya yayın sonucu uydurma. Kullanıcı izni ve araç güvenlik sınırları değişmez.'
-      });
+      };
+      // Keep one live budget note instead of adding 24 stale reminders to a long context.
+      if (budgetReminderIndex >= 0) workingMessages[budgetReminderIndex] = reminder;
+      else { budgetReminderIndex = workingMessages.length; workingMessages.push(reminder); }
     }
     const roundPayload = {
       model,
