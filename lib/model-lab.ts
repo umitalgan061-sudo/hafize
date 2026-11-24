@@ -335,7 +335,20 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       return {answers,review,independentVerification:false as const};
     } finally {running=false;}
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage });
+  /** Explicit owner-requested round. No unlisted models or real tool side effects. */
+  async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
+    if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
+    const started=now();
+    const smoke=await batch(signal,progress,1);
+    let deep:DeepProbeResult|null=null;let embedding:SpecialistProbeResult|null=null;
+    const candidate=eligible.filter(id=>fresh(id)?.chat&&fresh(id)?.tools&&!deepFresh(id)).sort((a,b)=>(Date.parse(deepResults.get(a)?.testedAt||'')||0)-(Date.parse(deepResults.get(b)?.testedAt||'')||0))[0];
+    if(candidate&&blockedUntil<=now()&&availableRequests()>=2){signal?.throwIfAborted();deep=await deepProbe(candidate,signal);}
+    const specialist=[...specialists].sort((a,b)=>(Date.parse(specialistResults.get(a)?.testedAt||'')||0)-(Date.parse(specialistResults.get(b)?.testedAt||'')||0)).find(id=>!specialistResults.has(id)||now()-Date.parse(specialistResults.get(id)!.testedAt)>=EXPIRY_MS);
+    if(specialist&&blockedUntil<=now()&&availableRequests()>0){signal?.throwIfAborted();embedding=await specialistProbe(specialist,signal);}
+    return {smoke:smoke.completed,deep,embedding,startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),pending:status().pendingModels,deepPending:status().deepPendingModels,paused:blockedUntil>now()||availableRequests()<2};
+  }
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
@@ -351,9 +364,12 @@ export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
   if (/(?:^|[^\p{L}\p{N}_])(?:matematik[\p{L}]*|mantık[\p{L}]*|hesapla[\p{L}]*|kanıtla[\p{L}]*|akıl yürüt[\p{L}]*|analiz[\p{L}]*)(?=$|[^\p{L}\p{N}_])/u.test(text)) return tools ? 'reasoning-agent' : 'reasoning';
   return tools ? 'agent' : 'general';
 }
-export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe' | 'batch' | 'deep' | 'inventory' | 'council' | 'specialist'; model?: string; question?: string } | null {
+export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe' | 'batch' | 'deep' | 'inventory' | 'council' | 'specialist' | 'comprehensive'; model?: string; question?: string } | null {
   if (typeof input !== 'string') return null;
   const text = input.trim();
+  // Strict whole-message natural-language variants; never execute quoted, negated or compound requests.
+  const normalized=text.toLocaleLowerCase('tr-TR').replace(/ı/g,'i').replace(/\s+/g,' ').replace(/[?!.]+$/,'').trim();
+  if (!/[\n\r]/.test(text) && /^(?:lütfen )?(?:nvidia modellerinin (?:gerçek api anahtariyla )?(?:kapsamli )?test edilmesini (?:yapar misin|sağlar misin)|nvidia modellerini (?:gerçek api anahtariyla )?(?:kapsamli )?test (?:et|eder misin|yap)|(?:gerçek api anahtariyla )?kapsamli (?:nvidia )?model test(?:ini|lerini) (?:başlat|yap|eder misin)|nvidia model testlerini kapsamli (?:yap|başlat))(?: lütfen)?$/u.test(normalized)) return {action:'comprehensive'};
   if (/^model kataloğu[?!.]?$/iu.test(text)) return {action:'inventory'};
   const specialist = /^embedding testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/iu.exec(text);
   if(specialist&&MODEL_ID.test(specialist[1]!))return {action:'specialist',model:specialist[1]};
@@ -366,6 +382,10 @@ export function modelLabCommand(input: unknown): { action: 'status' | 'discover'
   if (deep && MODEL_ID.test(deep[1]!)) return { action: 'deep', model: deep[1] };
   const match = /^model testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/iu.exec(text);
   return match && MODEL_ID.test(match[1]!) ? { action: 'probe', model: match[1] } : null;
+}
+export function formatComprehensiveLabResult(run:Awaited<ReturnType<ReturnType<typeof createModelLab>['comprehensive']>>):string{
+  const rows=[...run.smoke.map(row=>row.model+' — sohbet/araç: '+row.status+'/'+row.toolProbeStatus+'; '+row.testedAt),...(run.deep?['Derin '+run.deep.model+' — '+run.deep.status+'; Türkçe: '+run.deep.language+', mantık: '+run.deep.reasoning+', kod: '+run.deep.coding+', araç sonrası: '+run.deep.toolFollowup]:[]),...(run.embedding?['Embedding '+run.embedding.model+' — '+run.embedding.status]:[])];
+  return ['**Gerçek NVIDIA API test turu**','Sunucudaki yapılandırılmış anahtar kullanılır; anahtar modele gösterilmez.','Başlangıç: '+run.startedAt,'Bitiş: '+run.finishedAt,...(rows.length?rows:['Bu turda yeni test yapılmadı. Güncel sonuç veya kota durumunu kontrol et.']),'Bekleyen sohbet: '+run.pending.length+' · Derin: '+run.deepPending.length+(run.paused?' · Sağlayıcı/bütçe beklemesi':''),'Bu tur en fazla 5 sentetik API çağrısı kullanır; tüm katalogun tamamlandığı veya ücretsiz olduğu anlamına gelmez. Devam etmek için aynı isteği yinele.'].join('\n');
 }
 export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createModelLab>['status']>): string {
   return [

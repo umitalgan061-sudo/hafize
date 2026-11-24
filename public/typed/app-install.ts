@@ -254,7 +254,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
       }catch(error){notice.textContent='Model Laboratuvarı: '+(error instanceof Error?error.message:'Bağlantı hatası');}
       finally{busy=false;controls();}
     }
-    for(const [action,label] of [['status','Durumu yenile'],['discover','Kataloğu getir'],['batch','Sıradaki testler'],['probe','Sohbet testi'],['deep','Derin test'],['specialist','Embedding testi']]){
+    for(const [action,label] of [['status','Durumu yenile'],['discover','Kataloğu getir'],['batch','Sıradaki testler'],['comprehensive','Kapsamlı gerçek API testi'],['probe','Sohbet testi'],['deep','Derin test'],['specialist','Embedding testi']]){
       const button=el('button','',label);button.type='button';button.dataset.action=action;button.addEventListener('click',()=>{void run(action!);});buttons.push(button);actions.append(button);
     }
     filter.addEventListener('input',render);

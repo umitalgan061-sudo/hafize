@@ -5,9 +5,9 @@ export async function modelLabAction(lab:ReturnType<typeof createModelLab>,input
   const body=input as Record<string,unknown>;
   if(Object.keys(body).some(key=>!['action','model'].includes(key)))throw Error('MODEL_LAB_INVALID_ACTION');
   const action=body.action;
-  if(action==='discover'||action==='batch'){
+  if(action==='discover'||action==='batch'||action==='comprehensive'){
     if(body.model!==undefined)throw Error('MODEL_LAB_INVALID_ACTION');
-    if(action==='discover')await lab.discover(signal);else await lab.batch(signal);
+    if(action==='discover')await lab.discover(signal);else if(action==='comprehensive')await lab.comprehensive(signal);else await lab.batch(signal);
   }else if(action==='probe'||action==='deep'||action==='specialist'){
     if(typeof body.model!=='string'||!ID.test(body.model))throw Error('MODEL_LAB_INVALID_ACTION');
     if(action==='probe')await lab.probe(body.model,signal);

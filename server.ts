@@ -55,7 +55,7 @@ import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
-import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
+import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil, formatComprehensiveLabResult } from './lib/model-lab.ts';
 import { createModelLabFileStorage, createModelLabSqliteStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
 import { createDailyImprovement } from './lib/daily-improvement.ts';
@@ -1054,7 +1054,8 @@ async function handleAgentRun(req, res) {
   const labCommand = !attachmentText ? modelLabCommand(lastUserText) : null;
   if (labCommand) {
     const authorized = allowSafeGitHubAutonomy({ optedIn: true, authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal, configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId: agent.id, primaryAgentId: AGENT_REGISTRY.defaultAgent });
-    if (!authorized || !MODEL_LAB) { finishWithAnswer('Model Laboratuvarı, doğrulanmış hesap sahibi oturumu ve doğrudan NVIDIA API bağlantısı gerektirir.', false, true); return; }
+    if (!authorized) { finishWithAnswer('Model Laboratuvarı: doğrulanmış hesap sahibi olarak Hafize ana ajanında oturum açmalısın (MODEL_LAB_OWNER_REQUIRED). Anahtarı sohbete yazma.', false, true); return; }
+    if (!MODEL_LAB) { const reason=gateway?'Sohbet şu anda farklı bir gateway üzerinden çalışıyor.':!NVIDIA_API_KEY?'Sunucuda NVIDIA_API_KEY yapılandırılmamış.':'Doğrudan resmi NVIDIA API uç noktası yapılandırılmamış.';finishWithAnswer('Model Laboratuvarı kullanılamıyor: '+reason+' (MODEL_LAB_UNAVAILABLE). Anahtar veya gizli bilgileri sohbete yazma.',false,true);return; }
     try {
       if (labCommand.action === 'council') { finishWithAnswer(formatCouncil(await MODEL_LAB.council(labCommand.question, requestAbort.signal)), false); return; }
       if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
@@ -1062,6 +1063,11 @@ async function handleAgentRun(req, res) {
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'specialist') await MODEL_LAB.specialistProbe(labCommand.model, requestAbort.signal);
+      if(labCommand.action==='comprehensive'){
+        if(streamResponse){startSse(res);writeSseEvent(res,'hafize-model-lab',{status:'started'});}
+        const result=await MODEL_LAB.comprehensive(AbortSignal.any([requestAbort.signal,AbortSignal.timeout(180000)]),(testedModel,row)=>{if(streamResponse)writeSseEvent(res,'hafize-model-lab',{status:'tested',model:testedModel,result:row});});
+        finishWithAnswer(formatComprehensiveLabResult(result)+'\n\n'+formatModelLabStatus(MODEL_LAB.status()),false,result.paused||result.smoke.some(row=>row.status!=='passed'||row.toolProbeStatus!=='passed')||Boolean(result.deep&&(!result.deep.language||!result.deep.reasoning||!result.deep.coding||!result.deep.toolFollowup))||Boolean(result.embedding&&result.embedding.status!=='passed'));return;
+      }
       if (labCommand.action === 'batch') {
         if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
         await MODEL_LAB.batch(requestAbort.signal, (testedModel, result) => {
