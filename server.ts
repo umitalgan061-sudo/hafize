@@ -1,3 +1,4 @@
+import { createGitHubAgentRelease } from './lib/github-agent-release.ts';
 // @ts-nocheck
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
@@ -237,6 +238,7 @@ const GITHUB_AGENT_WRITER = GITHUB_BORSA_AGENT_ENABLED ? createGitHubWorkspaceWr
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_AGENT_REPOS
 }) : GITHUB_WORKSPACE_WRITER;
+const GITHUB_AGENT_RELEASE = GITHUB_APP_AUTH ? createGitHubAgentRelease({writer:GITHUB_AGENT_WRITER,allowedRepositories:GITHUB_AGENT_REPOS,fetchImpl:GITHUB_FETCH}) : null;
 const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
   ? createGitHubAgentDevelopment({ writer: GITHUB_AGENT_WRITER, allowedRepositories: GITHUB_AGENT_REPOS,
       sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: ['borsa-gunlugu/', 'borsa-worker/'] } : {} })
@@ -964,6 +966,7 @@ async function handleAgentRun(req, res) {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    githubRelease: GITHUB_AGENT_RELEASE,
     githubInspect: GITHUB_INSPECT,
     githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
     safeGitHubAutonomy,
@@ -1249,7 +1252,7 @@ async function handleAgentRun(req, res) {
       if (!result.ok) {
         anyToolFailed = true;
         // Only safe tool names/codes/status, never arguments, file contents or secrets.
-        if (['github_inspect','github_read_file','github_develop'].includes(call.function.name)) {
+        if (['github_inspect','github_read_file','github_develop','github_release'].includes(call.function.name)) {
           const code = typeof result.error === 'string' && /^[A-Z0-9_]{1,80}$/.test(result.error) ? result.error : 'UNKNOWN';
           console.warn(JSON.stringify({event:'hafize.github.tool_failure',tool:call.function.name,code,status:'status' in result && typeof result.status==='number'?result.status:null}));
         }
