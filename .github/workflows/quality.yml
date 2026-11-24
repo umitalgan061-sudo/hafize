@@ -44,6 +44,9 @@ jobs:
       - name: Modern checks
         run: npm run check:modern
 
+      - name: Native Node runtime module import
+        run: node --input-type=module -e "await import('./lib/github-app-ci.ts')"
+
       - name: Production build
         run: npm run build
 
