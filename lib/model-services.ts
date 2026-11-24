@@ -16,6 +16,7 @@ export interface ModelServicesConfig {
   readonly telemetry?: Telemetry | null;
   readonly fastModel?: string;
   readonly embedModel?: string;
+  readonly rerankEnabled?: boolean;
   readonly visionModels?: readonly string[];
   readonly imageModel?: string;
   readonly safetyModel?: string;
@@ -227,6 +228,20 @@ export function createModelServices(config: ModelServicesConfig) {
     return null;
   }
 
+  /** Opt-in hosted reranking; relevance scores are not probabilities or factual verification. */
+  async function rerank(query:string, passages:readonly string[], signal?:AbortSignal):Promise<{index:number;logit:number}[]|null>{
+    signal?.throwIfAborted();
+    if(!config.rerankEnabled||!config.apiKey||!query.trim()||passages.length<2||passages.length>32||passages.some(p=>!p.trim()))return null;
+    try{
+      const model='nvidia/nemotron-3.5-rerank-8b';
+      const response=await fetchImpl('https://ai.api.nvidia.com/v1/retrieval/nvidia/nemotron-3.5-rerank-8b/reranking',{method:'POST',redirect:'error',headers:authHeaders(),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(12000)]):AbortSignal.timeout(12000),body:JSON.stringify({model,query:{text:query.slice(0,2000)},passages:passages.map(text=>({text:text.slice(0,2000)})),truncate:'END'})});
+      if(!response.ok)return null;
+      const rows=(await response.json() as {rankings?:{index:number;logit:number}[]}).rankings;
+      if(!Array.isArray(rows)||rows.length!==passages.length||rows.some(row=>!row||!Number.isInteger(row.index)||row.index<0||row.index>=passages.length||typeof row.logit!=='number'||!Number.isFinite(row.logit))||new Set(rows.map(row=>row.index)).size!==passages.length)return null;
+      return rows.map(({index,logit})=>({index,logit})).sort((a,b)=>b.logit-a.logit||a.index-b.index);
+    }catch(error){if(signal?.aborted)throw error;return null;}
+  }
+
   /** Describes images with a vision model: description, visible text, objects, structured data. */
   async function vision({ images, prompt, traceId = '', signal }: { readonly images: readonly { readonly mime: string; readonly base64: string }[]; readonly prompt?: string; readonly traceId?: string; readonly signal?: AbortSignal | undefined }): Promise<{ text: string; model: string }> {
     if (!images.length) throw new ModelServiceError('VISION_NO_IMAGES', 400);
@@ -270,7 +285,10 @@ export function createModelServices(config: ModelServicesConfig) {
     if (!artifact?.base64) throw new ModelServiceError('IMAGE_GENERATION_FAILED');
     if (artifact.finishReason && /CONTENT_FILTERED|ERROR/i.test(artifact.finishReason)) throw new ModelServiceError('IMAGE_CONTENT_FILTERED', 422);
     const bytes = Buffer.from(artifact.base64, 'base64');
-    const mime = bytes[0] === 0x89 ? 'image/png' : 'image/jpeg';
+    const png=bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+    const jpeg=bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+    if(!png&&!jpeg)throw new ModelServiceError('IMAGE_GENERATION_INVALID_FORMAT');
+    const mime = png ? 'image/png' : 'image/jpeg';
     return { bytes, mime, seed: Number.isInteger(artifact.seed) ? Number(artifact.seed) : usedSeed, model: imageModel };
   }
 
@@ -280,15 +298,16 @@ export function createModelServices(config: ModelServicesConfig) {
       const completion = await config.chat({ model: safetyModel, max_tokens: 60, stream: false, messages: [{ role: 'user', content: String(text).slice(0, 4_000) }] }, signal);
       config.telemetry?.recordCompletionUsage(traceId, 'safety', safetyModel, completion);
       const verdict = messageContent(completion);
-      const unsafe = /User Safety:\s*unsafe/i.test(verdict);
-      return { safe: !unsafe, categories: verdict.match(/Safety Categories:\s*(.+)/i)?.[1]?.trim() || '', checked: true };
+      const match = verdict.match(/User Safety:\s*(unsafe|safe)\b/i);
+      if (!match) return { safe: true, categories: '', checked: false };
+      return { safe: match[1]?.toLowerCase()==='safe', categories: verdict.match(/Safety Categories:\s*(.+)/i)?.[1]?.trim() || '', checked: true };
     } catch {
       return { safe: true, categories: '', checked: false };
     }
   }
 
   return Object.freeze({
-    complete, chatText, chatJson, embed, vision, generateImage, safetyCheck,
+    complete, chatText, chatJson, embed, rerank, vision, generateImage, safetyCheck,
     get lastProvider() { return lastProvider; },
     get embeddingsAvailable() { return !embeddingsBroken || Boolean(local?.embedModel); },
     models: Object.freeze({ fastModel, embedModel, visionModels, imageModel, safetyModel })

@@ -95,7 +95,7 @@ export function numericConflict(a: string, b: string, tolerance = 0.05): boolean
   return Math.abs(x - y) / scale > tolerance;
 }
 
-export function createResearchAgent({ webTools, sources, models }: { readonly webTools: WebToolsLike; readonly sources: ResearchSources; readonly models: Pick<ModelServices, 'chatJson' | 'embed'> }) {
+export function createResearchAgent({ webTools, sources, models }: { readonly webTools: WebToolsLike; readonly sources: ResearchSources; readonly models: Pick<ModelServices, 'chatJson' | 'embed'> & Partial<Pick<ModelServices,'rerank'>> }) {
   async function planQueries(question: string, count: number, traceId: string, signal?: AbortSignal): Promise<string[]> {
     if (count <= 1) return [question];
     try {
@@ -180,6 +180,15 @@ export function createResearchAgent({ webTools, sources, models }: { readonly we
       const relevance = tokenize(`${item.title} ${item.snippet}`).filter((token) => terms.has(token)).length / Math.max(1, terms.size);
       return { item, credibility, rank: credibility.score * 0.6 + Math.min(1, relevance) * 0.4 };
     }).sort((a, b) => b.rank - a.rank);
+    // Keep credibility as an independent criterion; optional reranking only refines top candidates.
+    const top=ranked.slice(0,32);
+    if(models.rerank&&top.length>=2){
+      const relevance=await models.rerank(topic,top.map(row=>row.item.title+' '+row.item.snippet),signal);
+      if(relevance){const positions=new Map(relevance.map((row,i)=>[row.index,i]));
+        const refined=top.map((row,i)=>({...row,rank:row.rank*0.75+(1-(positions.get(i)??top.length)/(top.length-1))*0.25})).sort((a,b)=>b.rank-a.rank);
+        ranked.splice(0,top.length,...refined);
+      }
+    }
     // Prefer one page per domain so the claims come from independent sources.
     const chosen: typeof ranked = [];
     const seenDomains = new Set<string>();

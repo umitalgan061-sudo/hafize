@@ -109,6 +109,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
     telemetry,
     fastModel: env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel,
     embedModel: env.HAFIZE_EMBED_MODEL || MODEL_SERVICE_DEFAULTS.embedModel,
+    rerankEnabled: env.HAFIZE_NVIDIA_RERANK_ENABLED === 'true' && deps.nimBaseUrl==='https://integrate.api.nvidia.com/v1',
     visionModels: (env.HAFIZE_VISION_MODELS || '').split(',').map((item) => item.trim()).filter(Boolean),
     imageModel: env.HAFIZE_IMAGE_MODEL || MODEL_SERVICE_DEFAULTS.imageModel,
     safetyModel: env.HAFIZE_SAFETY_MODEL || MODEL_SERVICE_DEFAULTS.safetyModel,
