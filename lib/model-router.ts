@@ -19,7 +19,7 @@ const COOLDOWN_MS = Object.freeze({ quota: 60 * MINUTE, rate: MINUTE, missing: 3
 const FIRST_RESPONSE_MS = Object.freeze({ stream: 25_000, whole: 90_000 });
 const MAX_RETRY_AFTER_MS = 60 * MINUTE;
 // These have one job a general model cannot do. Vision requests also carry images.
-const SINGLE_PURPOSE = /safety|guard|vl-|vision|embed/i;
+const SINGLE_PURPOSE = /safety|guard|(?:^|[-/])vl(?:[-/]|$)|vision|embed|rerank|transcrib|parakeet|whisper|(?:^|[-/])tts(?:[-/]|$)|(?:^|[-/])ocr(?:[-/]|$)/i;
 
 export type FailureReason = keyof typeof COOLDOWN_MS;
 
@@ -39,7 +39,7 @@ export function parseModelChain(value: unknown): readonly string[] {
 
 function carriesImages(payload: Record<string, unknown>): boolean {
   const messages = Array.isArray(payload.messages) ? payload.messages as { content?: unknown }[] : [];
-  return messages.some((message) => Array.isArray(message.content) && message.content.some((part) => (part as { type?: unknown })?.type === 'image_url'));
+  return messages.some((message) => Array.isArray(message.content) && message.content.some((part) => ['image_url','input_audio','audio_url','video_url','input_video','input_image','file'].includes(String((part as { type?: unknown })?.type))));
 }
 
 type Send = (body: string, signal: AbortSignal) => Promise<Response>;
@@ -48,6 +48,8 @@ interface ModelState { cooldownUntil: number; lastFailure: FailureReason | null;
 
 export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[]) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
   const states = new Map<string, ModelState>();
+  // Bind response identity to the actual routed model, not the most recent concurrent request.
+  const responseModels = new WeakMap<Response,string>();
   let current = chain[0] ?? '';
 
   const state = (model: string): ModelState => {
@@ -103,6 +105,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
       try {
         const response = await deliver(bodyFor(payload, model), requestSignal);
         if (timer) clearTimeout(timer);
+        responseModels.set(response,model);
         if (response.ok) {
           const entry = state(model);
           entry.cooldownUntil = 0;
@@ -137,15 +140,18 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
 
   /** A stream broke after it began: the model that answered sits out and the round can be retried. */
   const penalizeCurrent = (reason: FailureReason = 'failing') => { if (current) penalize(current, reason); };
+  const modelFor = (response: Response) => responseModels.get(response) ?? null;
+  const penalizeModel = (model: string | null, reason: FailureReason = 'failing') => { if (model && (chain.includes(model) || extraCandidates.includes(model))) penalize(model,reason); };
 
   const status = () => ({
     top: chain[0] ?? '',
     current,
+    extraCandidates: extraCandidates.filter(model => !chain.includes(model)).map(model => ({model,ready:ready(model),lastFailure:state(model).lastFailure,retryInSeconds:ready(model)?0:Math.ceil((state(model).cooldownUntil-now())/1000)})),
     chain: chain.map((model) => {
       const entry = state(model);
       return { model, ready: ready(model), lastFailure: entry.lastFailure, retryInSeconds: ready(model) ? 0 : Math.ceil((entry.cooldownUntil - now()) / 1000), lastSuccessAt: entry.lastSuccessAt ? new Date(entry.lastSuccessAt).toISOString() : null };
     })
   });
 
-  return Object.freeze({ send, shouldRoute, penalizeCurrent, status, top: () => chain[0] ?? '' });
+  return Object.freeze({ send, shouldRoute, penalizeCurrent, modelFor, penalizeModel, status, top: () => chain[0] ?? '' });
 }

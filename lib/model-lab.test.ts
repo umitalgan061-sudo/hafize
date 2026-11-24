@@ -72,7 +72,7 @@ describe('model lab bounded batches', () => {
   it('tests two candidates per command, skips fresh observations, and activates verified candidates',async()=>{
     const ids=[a,b,'nvidia/example-c'];
     const requests:string[]=[];
-    const lab=createModelLab({allowed:ids,request:async (_path,body)=>{
+    const lab=createModelLab({allowed:ids,now:()=>1000000,request:async (_path,body)=>{
       requests.push(String(body?.model)); return reply(body?.tools?tool:valid);
     }});
     const first=await lab.batch();
@@ -111,4 +111,73 @@ describe('model lab bounded batches', () => {
     expect(modelLabCommand('NVIDIA model testlerini başlat')).toEqual({action:'batch'});
     expect(modelLabCommand('Model testlerine devam et ve dosyaları sil')).toBeNull();
   });
+});
+
+describe('model lab v2', () => {
+  it('classifies Turkish suffixes and multimodal text, and keeps tool compatibility for fast tasks', () => {
+    expect(modelTaskKind({messages:[{role:'user',content:'Yazılımı geliştir'}]})).toBe('coding');
+    expect(modelTaskKind({messages:[{role:'user',content:'Matematiksel olarak hesapla'}]})).toBe('reasoning');
+    expect(modelTaskKind({tools:[{}],messages:[{role:'user',content:'Naber?'}]})).toBe('fast-agent');
+    expect(modelTaskKind({tools:[{}],messages:[{role:'user',content:[{type:'text',text:'Bu sonucu analiz et'}]}]})).toBe('reasoning-agent');
+  });
+  it('runs bounded deeper probes using fake tool output and exposes measured task leaders',async()=>{
+    const request=vi.fn(async (_path,body)=>{
+      const messages=body.messages;
+      if(messages.some(m=>m.role==='tool')) return reply({content:'{"answer":45}'});
+      if(messages[0].content.includes('Ankaraya')) return reply({content:JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]})});
+      return reply(body.tools?tool:valid);
+    });
+    const lab=createModelLab({allowed:[a],request});
+    await expect(lab.deepProbe(a)).rejects.toThrow('MODEL_LAB_SMOKE_REQUIRED');
+    await lab.probe(a);
+    expect(await lab.deepProbe(a)).toMatchObject({status:'passed',language:true,reasoning:true,coding:true,toolFollowup:true});
+    expect(lab.status().taskLeaders.coding).toEqual([a]);
+    expect(lab.status().requestsRemaining).toBe(8);
+    await lab.deepProbe(a);
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(modelLabCommand('Model derin testi: nvidia/example-a')).toEqual({action:'deep',model:a});
+  });
+  it('does not prioritize models that fail a measured tool followup',async()=>{
+    const lab=createModelLab({allowed:[a],request:async (_path,body)=>{
+      if(body?.messages && JSON.stringify(body.messages).includes('benchmark_call_1')) return reply({content:'{"answer":44}'});
+      if(JSON.stringify(body).includes('Ankaraya')) return reply({content:JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]})});
+      return reply(body?.tools?tool:valid);
+    }});
+    await lab.probe(a); await lab.deepProbe(a);
+    expect(lab.preferred('fast-agent',[a])).toEqual([]);
+    expect(lab.preferred('agent',[a])).toEqual([]);
+    expect(lab.preferred('general',[a])).toEqual([a]);
+  });
+});
+
+it('restores only fresh allowed evidence and request budget on restart',async()=>{
+  let saved: unknown;
+  let time=1000000;
+  const storage={load:()=>saved,save:(value:unknown)=>{saved=value;}};
+  const request=async (_path,body)=>reply(body?.tools?tool:valid);
+  const first=createModelLab({allowed:[a,b],request,now:()=>time,storage});
+  await first.probe(a);
+  const restarted=createModelLab({allowed:[a],request,now:()=>time,storage});
+  expect(restarted.status().requestsRemaining).toBe(10);
+  expect(restarted.preferred('agent',[a])).toEqual([a]);
+  time+=24*60*60_000+1;
+  const expired=createModelLab({allowed:[a],request,now:()=>time,storage});
+  expect(expired.status().results).toEqual([]);
+  expect(expired.status().requestsRemaining).toBe(12);
+});
+it('reports storage failures without inventing durable evidence',async()=>{
+  const lab=createModelLab({allowed:[a],request:async(_path,body)=>reply(body?.tools?tool:valid),storage:{load:()=>{throw Error('bad');},save:()=>{throw Error('bad');}}});
+  await lab.probe(a);
+  expect(lab.status().storage).toBe('error');
+});
+
+it('prefers the measured faster model when synthetic quality is equal',async()=>{
+  let clock=1000000;
+  const lab=createModelLab({allowed:[a,b],now:()=>clock,request:async (_path,body)=>{
+    clock+=body?.model===a?80:10;
+    return reply(body?.tools?tool:valid);
+  }});
+  await lab.probe(a);await lab.probe(b);
+  expect(lab.preferred('fast',[a,b])).toEqual([b,a]);
+  expect(lab.preferred('agent',[a,b])).toEqual([b,a]);
 });

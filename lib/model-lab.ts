@@ -14,6 +14,28 @@ export interface ProbeResult {
   readonly chatLatencyMs: number | null;
   readonly requests: number;
 }
+export type ModelTaskKind = 'agent' | 'coding' | 'fast' | 'general' | 'reasoning' | 'fast-agent' | 'reasoning-agent';
+export interface DeepProbeResult {
+  readonly model: string;
+  readonly testedAt: string;
+  readonly status: ProbeState;
+  readonly language: boolean;
+  readonly reasoning: boolean;
+  readonly coding: boolean;
+  readonly toolFollowup: boolean;
+  readonly latencyMs: number;
+}
+export interface ModelLabSnapshot {
+  readonly version: 1;
+  readonly results: readonly ProbeResult[];
+  readonly deepResults: readonly DeepProbeResult[];
+  readonly timestamps: readonly number[];
+  readonly blockedUntil: number;
+}
+export interface ModelLabStorage {
+  load(): unknown;
+  save(snapshot: ModelLabSnapshot): void;
+}
 const MODEL_ID = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/;
 const MAX_REQUESTS = 12;
 const WINDOW_MS = 10 * 60_000;
@@ -25,32 +47,70 @@ const statusFor = (status: number): ProbeState => status === 401 ? 'auth_rejecte
 function object(value: unknown): Record<string, unknown> | null { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 function message(data: unknown) { const choices = object(data)?.choices; return Array.isArray(choices) ? object(object(choices[0])?.message) : null; }
 function parseAnswer(value: unknown) { if (typeof value !== 'string') return null; try { return object(JSON.parse(value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''))); } catch { return null; } }
-export function createModelLab({ allowed, request, now = Date.now }: {
+export function createModelLab({ allowed, request, now = Date.now, storage }: {
   allowed: readonly string[];
   request: (path: '/models' | '/chat/completions', body: Record<string, unknown> | null, signal: AbortSignal) => Promise<Response>;
   now?: () => number;
+  storage?: ModelLabStorage;
 }) {
   const eligible = [...new Set(allowed.filter(id => MODEL_ID.test(id)))].slice(0, 30);
   const results = new Map<string, ProbeResult>();
+  const deepResults = new Map<string, DeepProbeResult>();
   const timestamps: number[] = [];
   let running = false;
   let batchRunning = false;
   let blockedUntil = 0;
   let catalog: { ids: string[]; listedAt: string } | null = null;
+  let storageHealthy = Boolean(storage);
+  const states: readonly string[] = ['passed','failed','unavailable','rate_limited','quota','timeout','invalid_response','auth_rejected'];
+  function restore() {
+    if (!storage) return;
+    try {
+      const snapshot = object(storage.load());
+      if (!snapshot || snapshot.version !== 1) return;
+      const time = now();
+      const recent = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v)) && Date.parse(v) <= time && time-Date.parse(v) < EXPIRY_MS;
+      const number = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+      const booleanFields = (row: Record<string,unknown>, fields: string[]) => fields.every(key => typeof row[key] === 'boolean');
+      const valid = (row: Record<string,unknown> | null): row is Record<string,unknown> => !!row && typeof row.model === 'string' && eligible.includes(row.model) && recent(row.testedAt) && typeof row.status === 'string' && states.includes(row.status) && number(row.latencyMs);
+      for (const input of Array.isArray(snapshot.results) ? snapshot.results.slice(0,30) : []) {
+        const row = object(input);
+        if (!valid(row) || !booleanFields(row,['chat','turkish','reasoning','coding','tools']) || typeof row.toolProbeStatus !== 'string' || !(states.includes(row.toolProbeStatus) || row.toolProbeStatus==='not_run') || !(row.chatLatencyMs===null || number(row.chatLatencyMs)) || !Number.isInteger(row.requests) || ![1,2].includes(Number(row.requests))) continue;
+        const {model,testedAt,status,chat,turkish,reasoning,coding,tools,toolProbeStatus,latencyMs,chatLatencyMs,requests}=row;
+        results.set(String(model),{model,testedAt,status,chat,turkish,reasoning,coding,tools,toolProbeStatus,latencyMs,chatLatencyMs,requests} as ProbeResult);
+      }
+      for (const input of Array.isArray(snapshot.deepResults) ? snapshot.deepResults.slice(0,30) : []) {
+        const row = object(input);
+        if (!valid(row) || !booleanFields(row,['language','reasoning','coding','toolFollowup'])) continue;
+        const {model,testedAt,status,language,reasoning,coding,toolFollowup,latencyMs}=row;
+        deepResults.set(String(model),{model,testedAt,status,language,reasoning,coding,toolFollowup,latencyMs} as DeepProbeResult);
+      }
+      if (Array.isArray(snapshot.timestamps)) timestamps.push(...snapshot.timestamps.slice(-MAX_REQUESTS).filter((v): v is number => number(v) && v<=time && v>time-WINDOW_MS).sort((a,b)=>a-b));
+      if (number(snapshot.blockedUntil) && snapshot.blockedUntil>time) blockedUntil=Math.min(snapshot.blockedUntil,time+60*60_000);
+    } catch { storageHealthy=false; }
+  }
+  function persist() {
+    if (!storage) return;
+    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],timestamps:[...timestamps],blockedUntil}); storageHealthy=true; }
+    catch { storageHealthy=false; }
+  }
+  restore();
   function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && result.toolProbeStatus === 'passed' ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
-  const status = () => ({ eligible, catalog, results: [...results.values()], requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
+  const status = () => ({ eligible, catalog, storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()], deepResults: [...deepResults.values()], taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
   async function call(path: '/models' | '/chat/completions', body: Record<string, unknown> | null, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
     if (availableRequests() <= 0) throw new Error('MODEL_LAB_BUDGET');
     timestamps.push(now());
+    persist();
     const response = await request(path, body, signal ? AbortSignal.any([signal, AbortSignal.timeout(35_000)]) : AbortSignal.timeout(35_000));
     if ([401, 402, 429].includes(response.status)) {
       const retry = response.headers.get('retry-after') || '';
       const requested = /^\d+$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - now();
       const pause = response.status === 402 ? 60 * 60_000 : WINDOW_MS;
       blockedUntil = now() + Math.max(pause, Number.isFinite(requested) ? Math.min(requested, 60 * 60_000) : 0);
+      persist();
     }
     return response;
   }
@@ -100,6 +160,7 @@ export function createModelLab({ allowed, request, now = Date.now }: {
     finally { running = false; }
     result = { ...result, latencyMs: Math.max(0, now() - started) };
     results.set(model, result);
+    persist();
     return result;
   }
   async function probe(model: string, signal?: AbortSignal) {
@@ -121,31 +182,89 @@ export function createModelLab({ allowed, request, now = Date.now }: {
       return { completed, pendingModels: eligible.filter(id => !fresh(id)), paused: blockedUntil > now() || availableRequests() < 2 };
     } finally { batchRunning = false; }
   }
+  /** Separate opt-in deeper synthetic check: no real tool is invoked; the tool result is fabricated. */
+  async function deepProbe(model: string, signal?: AbortSignal): Promise<DeepProbeResult> {
+    if (!eligible.includes(model)) throw new Error('MODEL_LAB_MODEL_NOT_ALLOWED');
+    if (!fresh(model)?.chat) throw new Error('MODEL_LAB_SMOKE_REQUIRED');
+    const cached = deepResults.get(model);
+    if (cached?.status === 'passed' && now() - Date.parse(cached.testedAt) < EXPIRY_MS) return cached;
+    if (running || batchRunning) throw new Error('MODEL_LAB_BUSY');
+    if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
+    if (availableRequests() < 2) throw new Error('MODEL_LAB_BUDGET');
+    running = true;
+    const start = now();
+    let result: DeepProbeResult = { model, testedAt: new Date(start).toISOString(), status: 'failed', language: false, reasoning: false, coding: false, toolFollowup: false, latencyMs: 0 };
+    try {
+      const response = await call('/chat/completions', { model, stream: false, max_tokens: 512, temperature: 0, messages: [{role:'user',content:'Sadece JSON nesnesi döndür. language: "Ankaraya gittim" cümlesinin doğru yazımı (noktalama dahil). reasoning: 3 kutuda sırasıyla 8, 13, 21 nesne var; toplamdan 7 çıkarıp ikiye böl. coding: Python [x*x for x in range(6) if x%2] sonucunu dizi olarak yaz.'}] }, signal);
+      if (!response.ok) result = { ...result, status: statusFor(response.status) };
+      else {
+        const answer = parseAnswer(message(await response.json())?.content);
+        result = { ...result, status: answer ? 'passed' : 'invalid_response', language: typeof answer?.language === 'string' && /^Ankara['’]ya gittim\.$/u.test(answer.language.trim()), reasoning: answer?.reasoning === 17.5, coding: JSON.stringify(answer?.coding) === '[1,9,25]' };
+        if (fresh(model)?.tools && answer) {
+          const follow = await call('/chat/completions', { model, stream: false, max_tokens: 256, temperature: 0, tools: [TEST_TOOL], tool_choice: 'auto', messages: [
+            {role:'user',content:'benchmark_echo aracını value=42 ile çağır ve araç sonucundaki value değerine 3 ekle. Sonucu yalnız {"answer": sayı} biçiminde yaz.'},
+            {role:'assistant',content:null,tool_calls:[{id:'benchmark_call_1',type:'function',function:{name:'benchmark_echo',arguments:'{"value":42}'}}]},
+            {role:'tool',tool_call_id:'benchmark_call_1',content:'{"value":42}'}
+          ] }, signal);
+          if (follow.ok) result = { ...result, toolFollowup: parseAnswer(message(await follow.json())?.content)?.answer === 45 };
+          else result = { ...result, toolFollowup: false };
+        }
+      }
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      if (result.status !== 'passed') result = { ...result, status: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'failed' };
+    } finally { running = false; }
+    result = { ...result, latencyMs: Math.max(0, now()-start) };
+    deepResults.set(model,result);
+    persist();
+    return result;
+  }
+  function deepFresh(model: string) {
+    const row = deepResults.get(model);
+    return row?.status === 'passed' && now()-Date.parse(row.testedAt)<EXPIRY_MS ? row : null;
+  }
   /** Only successful exact-model observations influence order. Untested models remain fallback. */
-  function preferred(kind: 'agent' | 'coding' | 'fast' | 'general', candidates: readonly string[]) {
-    const verified = candidates.flatMap(model => { const row = fresh(model); return row?.status === 'passed' && row.chat && row.turkish && (kind !== 'agent' && kind !== 'coding' || row.tools) && (kind !== 'coding' || row.coding && row.reasoning) ? [row] : []; });
-    if (kind === 'fast') verified.sort((a,b) => (a.chatLatencyMs ?? a.latencyMs)-(b.chatLatencyMs ?? b.latencyMs));
-    else verified.sort((a,b) => Number(b.reasoning)+Number(b.coding)+Number(b.tools)-Number(a.reasoning)-Number(a.coding)-Number(a.tools));
+  function preferred(kind: ModelTaskKind, candidates: readonly string[]) {
+    const needsTools = kind.includes('agent') || kind === 'coding';
+    const needsReasoning = kind.includes('reasoning') || kind === 'coding';
+    const verified = candidates.flatMap(model => {
+      const row = fresh(model);
+      const deep = deepFresh(model);
+      return row?.status === 'passed' && row.chat && row.turkish && (!needsTools || row.tools && (!deep || deep.toolFollowup)) && (!needsReasoning || row.reasoning && (!deep || deep.reasoning)) && (kind !== 'coding' || row.coding && (!deep || deep.coding)) ? [row] : [];
+    });
+    const latency = (row: ProbeResult) => row.chatLatencyMs ?? row.latencyMs;
+    const score = (row: ProbeResult) => {
+      const deep = deepFresh(row.model);
+      return Number(row.reasoning)+Number(row.coding)+Number(row.tools) + (deep ? Number(deep.language) + Number(deep.reasoning) + Number(deep.coding) + Number(deep.toolFollowup) : 0);
+    };
+    if (kind.startsWith('fast')) verified.sort((a,b) => latency(a)-latency(b) || score(b)-score(a));
+    else verified.sort((a,b) => score(b)-score(a) || latency(a)-latency(b));
     return verified.map(row => row.model);
   }
-  return Object.freeze({ status, discover, probe, batch, preferred });
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred });
 }
 
-export function modelTaskKind(payload: Record<string, unknown>): 'agent' | 'coding' | 'fast' | 'general' {
+export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
   const messages = Array.isArray(payload.messages) ? payload.messages : [];
   const user = [...messages].reverse().map(object).find(row => row?.role === 'user');
-  const text = typeof user?.content === 'string' ? user.content.toLocaleLowerCase('tr-TR') : '';
-  if (/\b(?:kod|python|javascript|typescript|github|commit|debug|refactor|sql|powershell|programlama|yazılım)\b/u.test(text)) return 'coding';
-  if (Array.isArray(payload.tools) && payload.tools.length) return 'agent';
-  if (/^(?:merhaba|selam|naber|nasılsın|günaydın|iyi geceler)[?!. ]*$/u.test(text.trim())) return 'fast';
-  return 'general';
+  const content = user?.content;
+  const raw = typeof content === 'string' ? content : Array.isArray(content) ? content.map(object).filter(part => part?.type === 'text').map(part => typeof part?.text === 'string' ? part.text : '').join(' ') : '';
+  const text = raw.normalize('NFC').toLocaleLowerCase('tr-TR').trim();
+  const tools = Array.isArray(payload.tools) && payload.tools.length > 0;
+  // JS \b is ASCII-oriented; Turkish suffixes and dotted/dotless I require Unicode-aware boundaries.
+  if (/(?:^|[^\p{L}\p{N}_])(?:kod[\p{L}]*|python|javascript|typescript|github|commit|debug|refactor|sql|powershell|programla[\p{L}]*|yazılım[\p{L}]*|hata[\p{L}]* ayıkla[\p{L}]*)(?=$|[^\p{L}\p{N}_])/u.test(text)) return 'coding';
+  if (/^(?:merhaba|selam|naber|nasılsın|günaydın|iyi geceler|teşekkürler|sağ ol)[?!. ]*$/u.test(text)) return tools ? 'fast-agent' : 'fast';
+  if (/(?:^|[^\p{L}\p{N}_])(?:matematik[\p{L}]*|mantık[\p{L}]*|hesapla[\p{L}]*|kanıtla[\p{L}]*|akıl yürüt[\p{L}]*|analiz[\p{L}]*)(?=$|[^\p{L}\p{N}_])/u.test(text)) return tools ? 'reasoning-agent' : 'reasoning';
+  return tools ? 'agent' : 'general';
 }
-export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe' | 'batch'; model?: string } | null {
+export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe' | 'batch' | 'deep'; model?: string } | null {
   if (typeof input !== 'string') return null;
   const text = input.trim();
   if (/^model laboratuvarı[?!.]?$/iu.test(text)) return { action: 'status' };
   if (/^nvidia modellerini listele[?!.]?$/iu.test(text)) return { action: 'discover' };
   if (/^model testlerine devam et[?!.]?$/iu.test(text) || /^nvidia model testlerini başlat[?!.]?$/iu.test(text)) return { action: 'batch' };
+  const deep = /^model derin testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/iu.exec(text);
+  if (deep && MODEL_ID.test(deep[1]!)) return { action: 'deep', model: deep[1] };
   const match = /^model testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/iu.exec(text);
   return match && MODEL_ID.test(match[1]!) ? { action: 'probe', model: match[1] } : null;
 }
@@ -154,6 +273,8 @@ export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createM
     '**NVIDIA Model Laboratuvarı**',
     'Test edilebilir yapılandırılmış modeller: ' + value.eligible.join(', '),
     'API katalog sayısı: ' + (value.catalog ? value.catalog.ids.length : 'henüz sorgulanmadı'),
+    'Katalogda olup operatör aday listesinde bulunmayan model sayısı: ' + (value.catalogOnlyCount ?? 'bilinmiyor'),
+    'Test sonucu saklama: ' + (value.storage === 'memory' ? 'geçici süreç belleği' : value.storage === 'configured' ? 'dosya deposu yapılandırılmış' : 'dosya deposu hatası; geçici bellek kullanılıyor'),
     ...(value.catalog ? ['API listesi: ' + value.catalog.ids.join(', ')] : []),
     'Kalan test API isteği (10 dakikalık pencere): ' + value.requestsRemaining,
     'Test sırası: ' + (value.pendingModels.join(', ') || 'güncel testler tamamlandı'),
@@ -162,7 +283,9 @@ export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createM
     '',
     ...value.results.map(row => `${row.model} — ${row.status}; Türkçe: ${row.turkish}, mantık: ${row.reasoning}, kod: ${row.coding}, araç: ${row.toolProbeStatus}; ${row.latencyMs} ms; ${row.testedAt}`),
     '',
-    'Komutlar: NVIDIA modellerini listele · model testi: yayıncı/model · model testlerine devam et',
-    'Testler kısa sentetik örneklerdir; genel zekâ sıralaması değildir. Ücretli partner veya GPU kiralama kullanılmaz. Katalogda bulunmak ücretsiz erişim kanıtı değildir. Sonuçlar sunucu yeniden başlatılana kadar bellekte saklanır.'
+    'Göreve göre ölçülen öncelik: ' + Object.entries(value.taskLeaders).map(([kind,ids]) => kind + ': ' + (ids[0] || 'henüz yok')).join(' | '),
+    ...value.deepResults.map(row => `Derin test ${row.model} — ${row.status}; Türkçe yazım: ${row.language}, mantık: ${row.reasoning}, kod: ${row.coding}, araç sonrası yanıt: ${row.toolFollowup}; ${row.testedAt}`),
+    'Komutlar: NVIDIA modellerini listele · model testi: yayıncı/model · model derin testi: yayıncı/model · model testlerine devam et',
+    'Testler kısa sentetik örneklerdir; genel zekâ sıralaması değildir. Ücretli partner veya GPU kiralama kullanılmaz. Katalogda bulunmak ücretsiz erişim kanıtı değildir. Kalıcı saklama yapılandırılmadıysa sunucu yeniden başlatıldığında sonuçlar silinir.'
   ].join('\n');
 }

@@ -56,6 +56,7 @@ import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.t
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus } from './lib/model-lab.ts';
+import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -80,10 +81,17 @@ const gateway = freeLlmGateway(process.env);
 const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');
 const NIM_BASE_URL = gateway?.baseUrl ?? (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
-const MODEL_LAB_EXTRA_CANDIDATES = ['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash'];
+// Explicit operator allowlist; never auto-promote the discovery catalog.
+const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-CONFIGURED_MODEL_CHAIN.length));
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
+let MODEL_LAB_STORAGE;
+if (!gateway && NVIDIA_API_KEY && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
+  try { MODEL_LAB_STORAGE = createModelLabFileStorage(process.env.HAFIZE_MODEL_LAB_STORAGE_PATH, NVIDIA_API_KEY, [...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES]); }
+  catch { console.warn('hafize.model_lab storage configuration invalid'); }
+}
 const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
   allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
+  storage: MODEL_LAB_STORAGE,
   request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
@@ -980,12 +988,13 @@ async function handleAgentRun(req, res) {
     });
     const round = await readNvidiaStream(upstream.body, (delta) => gate.push(delta));
     gate.flush();
-    if (round.usage) PLATFORM.telemetry.recordUsage({ traceId, model, purpose: 'agent.round', promptTokens: Number(round.usage.prompt_tokens), completionTokens: Number(round.usage.completion_tokens) });
+    if (round.usage) PLATFORM.telemetry.recordUsage({ traceId, model: MODEL_ROUTER.modelFor(upstream) || model, purpose: 'agent.round', promptTokens: Number(round.usage.prompt_tokens), completionTokens: Number(round.usage.completion_tokens) });
     if (round.error) {
       const error = new Error('NVIDIA_CHAT_ERROR');
       error.status = 502;
       // Nothing reached the user yet, so the round can start over on the next model.
       error.retryRound = !wrote;
+      error.routedModel = MODEL_ROUTER.modelFor(upstream);
       throw error;
     }
     return { content: round.content, toolCalls: round.toolCalls, wrote };
@@ -1035,6 +1044,7 @@ async function handleAgentRun(req, res) {
     try {
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
+      if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'batch') {
         if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
         await MODEL_LAB.batch(requestAbort.signal, (testedModel, result) => {
@@ -1088,7 +1098,7 @@ async function handleAgentRun(req, res) {
       completion = await runRound(roundPayload);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }
-      MODEL_ROUTER.penalizeCurrent();
+      MODEL_ROUTER.penalizeModel(error.routedModel);
       try {
         completion = await runRound(roundPayload);
       } catch (retryError) {
