@@ -189,9 +189,10 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const dailyDetails=el('details');dailyDetails.append(el('summary','','Son 14 iyileştirme döngüsü'),dailyHistory);
     const list=el('ul','model-status-list');
     const details=el('details');details.append(el('summary','','Model kataloğu ve test sonuçları'),filter,list);
-    panel.append(notice,actions,select,daily,dailyDetails,leaders,details);
+    const runtimeList=el('ul','settings-memory-list');const runtimeDetails=el('details');runtimeDetails.append(el('summary','','Son günlük çalışma zamanı ölçümleri'),el('p','','Bağlantı ve yanıt başlığı ölçümleri; yanıt doğruluğu testi değildir.'),runtimeList);
+    panel.append(notice,actions,select,daily,dailyDetails,runtimeDetails,leaders,details);
     type Row={id:string;capabilities:string[];configured:boolean;listed:boolean;evidence:string};
-    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[]}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
+    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
     let data:LabData={};let busy=false;let available=false;
     const buttons:HTMLButtonElement[]=[];
     const render=()=>{
@@ -213,7 +214,11 @@ function start(documentRef: Document, root: typeof globalThis): void {
         dailyHistory.append(entry);
       }
       if(!dailyHistory.children.length)dailyHistory.append(el('li','','Henüz tamamlanan günlük döngü yok.'));
+      runtimeList.replaceChildren();
+      for(const row of cycle?.report?.runtimeEvidence??[]){const entry=el('li','',row.model);entry.append(el('small','',row.attempts+' deneme · '+row.headersOk+' başarılı başlık · '+row.failures+' sağlayıcı hatası · '+row.streamFailures+' akış hatası · '+(row.meanHeaderMs??'—')+' ms ortalama başlık'));runtimeList.append(entry);}
+      if(!runtimeList.children.length)runtimeList.append(el('li','','Henüz günlük raporda çalışma zamanı örneği yok.'));
       for(const [kind,ids] of Object.entries(data.taskLeaders??{}))leaders.append(el('li','',kind+': '+(ids[0]||'ölçülmedi')));
+      for(const [kind,ids] of Object.entries(cycle?.report?.taskLeaders??{}))if(ids[0]&&ids[0]!==data.taskLeaders?.[kind]?.[0])leaders.append(el('li','','Son günlük uyarlama · '+kind+': '+ids[0]));
       for(const row of data.specialistResults??[])leaders.append(el('li','',row.model+': '+row.status+' · '+(row.dimension??'—')+' boyut'));
       const selected=select.value;
       select.replaceChildren(...[...new Set([...(data.eligible??[]),...(data.specialists??[])])].map(id=>{const option=el('option','',id);option.value=id;return option;}));
@@ -233,7 +238,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
         const response=await api('/api/models/status/lab',action==='status'?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const result=await response.json();
         if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;data={dailyImprovement:response.status===503?data.dailyImprovement:undefined};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
-        data=result;available=true;render();
+        data={...result,dailyImprovement:result.dailyImprovement??data.dailyImprovement};available=true;render();
         notice.textContent='Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
       }catch(error){notice.textContent='Model Laboratuvarı: '+(error instanceof Error?error.message:'Bağlantı hatası');}
       finally{busy=false;controls();}

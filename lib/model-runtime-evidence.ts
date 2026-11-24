@@ -18,6 +18,7 @@ export function createRuntimeEvidence(db:DatabaseSync,allowed:readonly string[],
   return rows.filter(r=>permitted.has(r.model)).map(r=>({model:r.model,attempts:r.ok+r.failures,headersOk:r.ok,failures:r.failures,streamFailures:r.streams,meanHeaderMs:r.ok?Math.round(r.latency/r.ok):null}));
  }
  function reorder(verified:readonly string[]):string[]{
+  if(verified.length<2)return [...verified];
   const rows=new Map(summary().map(r=>[r.model,r]));
   // Never promote an unverified model. With enough evidence move unreliable candidates
   // behind their verified peers, preserving benchmark order within both groups.
