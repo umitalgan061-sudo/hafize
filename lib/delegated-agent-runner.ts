@@ -1,3 +1,4 @@
+import { completionOrigin } from './model-response-origin.ts';
 import { createAgentDelegator } from './agent-delegation.ts';
 import { buildAgentSystemMessage } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
@@ -8,7 +9,7 @@ import { isEmptyOrProgressOnlyAnswer } from './agent-continuation-recovery.ts';
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
 
-type DelegatedRunResult={ok:boolean;content?:string;error?:string};
+type DelegatedRunResult={ok:boolean;content?:string;error?:string;models?:readonly string[]};
 type NestedExecution=(input:{agent:AgentDefinition;task:string;repair?:string})=>Promise<DelegatedRunResult>;
 export interface DelegatedAgentRunInput {
   readonly agent?: AgentDefinition;
@@ -154,7 +155,7 @@ export async function runDelegatedAgent({
     return (wrapNestedDelegation?wrapNestedDelegation(execute):execute)({agent:nestedAgent,task:nestedTask});
     }
   });
-  const delegateAgent = (args: unknown) => nestedDelegator.delegate(args, { depth });
+  const delegateAgent = (args: unknown, toolSignal?:AbortSignal) => nestedDelegator.delegate(args, { depth,signal:toolSignal });
   // Experts get their own tools wired in (web, research, sandbox...) through toolContext; the
   // agent's tool policy still decides which of them it may call.
   const baseContext = {
@@ -176,8 +177,10 @@ export async function runDelegatedAgent({
   const tools = getAllowedNvidiaTools(agent, baseContext);
   const context = { ...baseContext, advertisedToolNames: tools.map(tool => tool.function.name) };
   // Token usage of expert runs feeds the delegation audit and the expert's daily quota.
+  const actualModels=new Set<string>();
   const completeRecorded: CompletionFn = async (payload, completionSignal) => {
     const response = await complete(payload, completionSignal, agent.id);
+    const origin=completionOrigin(response);if(origin)actualModels.add(origin);
     toolContext?.telemetry?.recordCompletionUsage(safeTraceId, `expert:${agent.id}`, safeModel, response);
     return response;
   };
@@ -200,7 +203,7 @@ export async function runDelegatedAgent({
     const completion = await normalizeCompletion(completeRecorded, payload, signal);
     if (!completion) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
     if (!completion.toolCalls.length) {
-      if (!isEmptyOrProgressOnlyAnswer(completion.content)) return { ok: true, content: completion.content };
+      if (!isEmptyOrProgressOnlyAnswer(completion.content)) return { ok: true, content: completion.content, ...(actualModels.size?{models:[...actualModels]}:{}) };
       break;
     }
     const calls = normalizeToolCalls(completion.toolCalls);
@@ -249,6 +252,7 @@ export async function runDelegatedAgent({
 
   return {
     ok: true,
-    content: second.content
+    content: second.content,
+    ...(actualModels.size?{models:[...actualModels]}:{})
   };
 }

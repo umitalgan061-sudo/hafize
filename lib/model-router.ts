@@ -77,7 +77,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
   function attemptsFor(requested: string, payload: Record<string, unknown>, expertId?: string): string[] {
     const candidates = [...new Set([...chain, ...extraCandidates])];
     const measured = preferredModels(payload, candidates, expertId).filter(model => candidates.includes(model));
-    const ordered = keepFirst.includes(requested) ? [requested, ...chain.filter((model) => model !== requested)] : [...new Set([...measured, ...chain])];
+    const ordered = keepFirst.includes(requested) && (!expertId || !measured.length) ? [requested, ...chain.filter((model) => model !== requested)] : [...new Set([...measured, ...chain])];
     const available = ordered.filter(ready);
     return available.length ? available : ordered;
   }

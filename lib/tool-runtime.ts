@@ -75,7 +75,8 @@ export interface ToolRuntimeContext {
   readonly safeGitHubAutonomy?: boolean;
   readonly githubReleaseAuthorization?: import('./github-agent-release.ts').ReleaseAuthorization;
   readonly githubRelease?: {enabled:()=>boolean;execute:(args:unknown,context:{ownerAuthorized:boolean;authorization?:import('./github-agent-release.ts').ReleaseAuthorization;signal?:AbortSignal})=>Promise<unknown>};
-  readonly delegateAgent?: (args: unknown) => Promise<unknown>;
+  readonly delegateAgent?: (args: unknown, signal?:AbortSignal) => Promise<unknown>;
+  readonly delegateTeam?: (tasks:unknown,signal?:AbortSignal)=>Promise<unknown>;
   readonly approvalGranted?: boolean;
   readonly canvaReadAuthenticated?: boolean;
   readonly canvaReadTool?: { readonly execute: (args: unknown) => Promise<unknown> };
@@ -258,18 +259,20 @@ const CATALOG = new Map<string, ToolEntry>([
   ['agent_delegate', {
     permission: 'agent.delegate',
     kind: 'delegation',
-    timeoutMs: timeout(90_000, 90_000),
+    timeoutMs: 900_000,
     activity: { running: 'Uzman ajan çalıştırılıyor', success: 'Uzman ajan çalıştırıldı', failure: 'Uzman ajan çalıştırılamadı' },
-    definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder.', {
+    definition: definition('agent_delegate', 'Dar kapsamlı bir görevi uzman Hafize ajanına delege eder. Ana ajan bağımsız uzmanlara 1-8 farklı görev için tasks dizisi kullanabilir; sunucu en fazla 3 eşzamanlı çalıştırır. Tek görevde agentId/task kullan. Başarılı uzman raporu teslim/yayın kanıtı değildir.', {
       agentId: { type: 'string' },
       task: { type: 'string' },
       successCriteria: HANDOFF_LIST,
       constraints: HANDOFF_LIST,
-      evidenceRequired: HANDOFF_LIST
+      evidenceRequired: HANDOFF_LIST,
+      tasks:{type:'array',minItems:1,maxItems:8,items:{type:'object',properties:{agentId:{type:'string'},task:{type:'string'},successCriteria:HANDOFF_LIST,constraints:HANDOFF_LIST,evidenceRequired:HANDOFF_LIST},required:['agentId','task'],additionalProperties:false}}
     }),
     available: (context) => typeof context.delegateAgent === 'function',
     execute: async (args, context) => {
-      const result = await context.delegateAgent!(args) as { ok?: boolean; error?: unknown; value?: unknown };
+      if(args.tasks!==undefined&&(Object.keys(args).some(key=>key!=='tasks')||!context.delegateTeam))throw Object.assign(new Error('TEAM_NOT_AUTHORIZED'),{code:'TEAM_NOT_AUTHORIZED'});
+      const result = await (args.tasks!==undefined?context.delegateTeam!(args.tasks,context.signal):context.delegateAgent!(args,context.signal)) as { ok?: boolean; error?: unknown; value?: unknown };
       if (result?.ok !== true) {
         const code = typeof result?.error === 'string' ? result.error : 'AGENT_DELEGATION_FAILED';
         throw Object.assign(new Error(code), { code });
