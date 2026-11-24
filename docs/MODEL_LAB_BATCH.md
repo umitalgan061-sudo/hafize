@@ -57,3 +57,6 @@ Derin değerlendirme ve geniş aday taraması günleri dönüşümlüdür. Önce
 Uzman servisleri paneli son gerçek çağrının sonucunu ve gecikmesini gösterir. Yalnız başarılı doğrulanmış çıktı `passed` olur; hatalı cevaplar başarı sayılmaz. Gönderilen ses, metin ve belge içeriği ölçüm kaydına alınmaz. Gözlemler geçici süreç belleğindedir; yeniden başlatmada sıfırlanır. Bu durum modelin genel kalite veya sürekli erişim garantisi değildir.
 
 Uzman ajan sağlık ölçümü son 24 saatteki en fazla 50 çağrıya dayanır; eski başarısızlıklar bir uzmanı sonsuza dek dışlamaz. Şema onarım çağrıları da günlük çağrı kotasına sayılır. SQLite çağrı rezervasyonu atomiktir; taşımada ortaya çıkan hatalar gizli hata içeriği saklanmadan ölçülür, kullanıcı iptali ve kota reddi kalite başarısızlığı sayılmaz.
+
+## V7 — gerçek model kimliği ve iç içe uzman denetimi
+Sunucu tarafından seçilen gerçek model, her JSON yanıtı için özel WeakMap ile eşleştirilir. Modelin yanıt içinde yazdığı model adı güvenilir yönlendirme kanıtı değildir. Token telemetrisi gerçek yönlendirme kimliğini kullanır; API çıktısı değiştirilmez. Alt uzman çağrıları da ana uzman gibi kota, şema doğrulama ve denetim sarmalından geçer; mevcut derinlik ve yetki sınırları korunur.

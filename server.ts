@@ -73,6 +73,7 @@ import { createModelProviderRuntime } from './lib/model-provider-runtime.ts';
 import { createHafizePlatform } from './lib/hafize-platform.ts';
 import { startLocalHttps } from './lib/local-tls.ts';
 import { freeLlmGateway } from './lib/freellm-gateway.ts';
+import { markCompletionOrigin } from './lib/model-response-origin.ts';
 import { createModelRouter, parseModelChain } from './lib/model-router.ts';
 import { MODEL_SERVICE_DEFAULTS } from './lib/model-services.ts';
 
@@ -393,7 +394,9 @@ async function nvidiaJsonCompletion(payload, signal, expertId) {
     throw error;
   }
   try {
-    return JSON.parse(text);
+    const result=JSON.parse(text);
+    markCompletionOrigin(result,MODEL_ROUTER.modelFor(upstream)||payload?.model);
+    return result;
   } catch {
     const error = new Error('INVALID_NVIDIA_RESPONSE');
     error.status = 502;
@@ -884,6 +887,7 @@ async function handleAgentRun(req, res) {
       task,
       traceId: delegatedTraceId,
       parentTaskId: delegatedParentTaskId,
+      depth: delegatedDepth,
       signal
     }) {
       // Experts use a separate bounded budget;
@@ -895,6 +899,8 @@ async function handleAgentRun(req, res) {
         maxRounds: EXPERT_TOOL_ROUNDS,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
+        depth:delegatedDepth,
+        wrapNestedDelegation:execute=>PLATFORM.wrapDelegation(traceId,execute),
         registry: AGENT_REGISTRY,
         runLedger,
         model,

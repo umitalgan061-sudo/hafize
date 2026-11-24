@@ -41,6 +41,7 @@ const registry = {
 const traceId = 'trace-nested';
 const ledger = createAgentRunLedger({ traceId, agentId: primary.id });
 const seen = [];
+const audited=[];
 
 async function complete(payload) {
   const system = payload.messages[0]?.content || '';
@@ -98,6 +99,7 @@ async function executeAgent({ agent, task, traceId: childTraceId, depth, parentT
     registry,
     runLedger: ledger,
     model: 'mock-model',
+    wrapNestedDelegation: execute=>async input=>{audited.push(input.agent.id);return execute(input);},
     complete
   });
 }
@@ -124,6 +126,7 @@ assert.deepEqual(result, {
   }
 });
 
+assert.deepEqual(audited,[reviewer.id]);
 const entries = ledger.snapshot().entries;
 assert.equal(entries.every((entry) => entry.traceId === traceId), true);
 const orchestratorDelegation = entries.find(
