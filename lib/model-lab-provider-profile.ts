@@ -10,3 +10,6 @@ export function modelLabChatPayload(body:Record<string,unknown>):Record<string,u
 export function productionLabCandidates(ids:readonly string[]):string[]{
  return ids.filter(id=>id!==KIMI_K31_PRO);
 }
+
+/** Only the exact Kimi chat test uses a longer first-response allowance. */
+export function modelLabRequestTimeout(path:string,body:Record<string,unknown>|null):number{return path==='/chat/completions'&&body?.model===KIMI_K31_PRO?90_000:35_000;}
