@@ -223,7 +223,7 @@ export async function runDelegatedAgent({
   }
 
   if (signal?.aborted) return { ok: false, error: 'DELEGATION_CANCELLED' };
-  messages.push({ role: 'system', content: 'Araç bütçesi sona erdi. Yeni araç çağırma; doğrulanmış sonuçları ve tamamlanmayan işi belirt. Başarı uydurma.' });
+  messages[0] = buildAgentSystemMessage(agent, safeTraceId, { tools: false, addendum: capabilityInstruction(getRuntimeCapabilities(agent, context)) + '\nAraç bütçesi sona erdi. Yeni araç çağırma; doğrulanmış sonuçları ve tamamlanmayan işi belirt. Başarı uydurma.' });
   const second = await normalizeCompletion(completeRecorded, {
     model,
     messages,
