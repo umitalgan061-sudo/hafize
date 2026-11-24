@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import * as ort from 'onnxruntime-web/wasm';
+import * as ort from 'onnxruntime-web';
 import {zerrePhonemes} from '../public/typed/zerre-phonemes.ts';
 import {zerrePack} from '../public/typed/zerre-pack.ts';
 
