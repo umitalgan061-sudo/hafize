@@ -3,6 +3,7 @@ import type {AuthenticationResult} from './runtime-contracts.ts';
 /** Trust only the non-enumerable server-side principal attached by the production guard. */
 export function createScheduleSessionAuthenticator(legacy:{authenticate(input:{headers?:AuthHeaders}):AuthenticationResult}|null){
  return Object.freeze({authenticate({request,headers}:{request?:unknown;headers?:AuthHeaders}={}):AuthenticationResult{
+  const explicit=legacy?.authenticate({headers});if(explicit?.ok)return explicit;
   if(request&&typeof request==='object'){
    const descriptor=Object.getOwnPropertyDescriptor(request,'__hafizePrincipal');
    const principal=descriptor?.value;
@@ -10,6 +11,6 @@ export function createScheduleSessionAuthenticator(legacy:{authenticate(input:{h
     return {ok:true,principal:{authenticated:true,subject:principal.ownerId}};
    }
   }
-  return legacy?.authenticate({headers})??{ok:false,error:'AUTH_REQUIRED'};
+  return {ok:false,error:'AUTH_REQUIRED'};
  }});
 }
