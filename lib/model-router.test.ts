@@ -172,3 +172,10 @@ it('respects a retry deadline sent as an HTTP date', async () => {
   await router.send(request(),deliver);
   expect(router.status().chain[0]?.retryInSeconds).toBe(300);
 });
+
+it('uses measured compatible models without expanding the configured chain', async () => {
+  const calls: string[] = [];
+  const router = createModelRouter({ chain, preferredModels: () => ['external/model', 'middle'], log: () => {} });
+  await router.send(request(), async body => { const model=JSON.parse(body).model; calls.push(model); return answer(model==='middle'?503:200); });
+  expect(calls).toEqual(['middle','top']);
+});

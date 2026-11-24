@@ -55,6 +55,7 @@ import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
+import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus } from './lib/model-lab.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -78,9 +79,16 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const gateway = freeLlmGateway(process.env);
 const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');
 const NIM_BASE_URL = gateway?.baseUrl ?? (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
+const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
+// Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
+const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
+  allowed: [...CONFIGURED_MODEL_CHAIN, 'poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash'],
+  request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+}) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
 const MODEL_ROUTER = createModelRouter({
-  chain: gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN),
+  chain: CONFIGURED_MODEL_CHAIN,
+  preferredModels: (payload, candidates) => MODEL_LAB?.preferred(modelTaskKind(payload), candidates) ?? [],
   // Background helpers stay on the quick model unless it is unavailable.
   keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
 });
@@ -1017,6 +1025,21 @@ async function handleAgentRun(req, res) {
     });
   };
 
+  // Lab requests are explicit standalone user commands, never model-triggered or delegated.
+  const labCommand = !attachmentText ? modelLabCommand(lastUserText) : null;
+  if (labCommand) {
+    const authorized = allowSafeGitHubAutonomy({ optedIn: true, authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal, configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId: agent.id, primaryAgentId: AGENT_REGISTRY.defaultAgent });
+    if (!authorized || !MODEL_LAB) { finishWithAnswer('Model Laboratuvarı, doğrulanmış hesap sahibi oturumu ve doğrudan NVIDIA API bağlantısı gerektirir.', false, true); return; }
+    try {
+      if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
+      if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
+      finishWithAnswer(formatModelLabStatus(MODEL_LAB.status()), false);
+    } catch (error) {
+      const code = typeof error?.message === 'string' && /^MODEL_LAB_[A-Z0-9_]+$/.test(error.message) ? error.message : 'MODEL_LAB_FAILED';
+      finishWithAnswer('Model testi tamamlanamadı: ' + code + '\n\n' + formatModelLabStatus(MODEL_LAB.status()), false, true);
+    }
+    return;
+  }
   // A plain capacity question needs no model guess or tool call. Mixed task requests still run normally.
   if (!attachmentText && isStandaloneCapabilityQuestion(lastUserText)) {
     finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
