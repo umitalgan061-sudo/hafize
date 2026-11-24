@@ -70,3 +70,34 @@ Tüm animasyonlar `prefers-reduced-motion: reduce` altında durur.
 - `mergeTranscript` / `normalizeTranscript` — birleştirme ve uzunluk bütçesi
 - `normalizeSpeechText` — kod bloğu, bağlantı ve markdown temizliği
 - `splitSpeechText` — cümle sınırlarını koruyarak parçalama
+
+## Kamera ve sesli görüşme güvenilirliği (20 Kasım 2026)
+
+`public/typed/live-screen.ts` mevcut sesli görüşme ekranının kamerasını ve
+ekran paylaşımını aynı sohbet bağlamına bağlar. Bu, sürekli WebRTC video
+inference değildir: görüntü değişince ve en az 12 saniyelik gönderim aralığı
+dolunca JPEG kare gönderilir; kullanıcı bir soru gönderdiğinde o anın karesi
+ayrıca alınmaya çalışılır. Mikrofon ayrı ses giriş modülünü kullanır.
+
+Kamera oturumunun yeni güvenlik kuralları:
+
+- Her görüntü isteği 15 saniyelik gerçek `AbortController` zaman aşımıyla
+  sınırlandırılır. Yalnızca yanıtı beklemeyi bırakmak yerine istek iptal edilir.
+- Kamera değiştirildiğinde, kapatıldığında veya yeni paylaşım başlatıldığında
+  eski oturumların tamamlanmış ağ yanıtları görüntü durumunu güncelleyemez.
+- Başarılı gönderimin piksel imzası korunur; başarısız gönderilen bir kare
+  gönderilmiş gibi kayda geçmez. Böylece sonraki örneklemelerde tekrar denenebilir.
+- Kamera açıkken sekme arka plana geçerse kamera izleri durdurulur ve
+  sunucudaki son görüntüyü temizlemek için istek gönderilir. **Ekran paylaşımı**
+  bilerek bu kurala tabi değildir; kullanıcı başka bir pencereyi gösterebilir.
+- Görüntü paylaşımından çıkışta sunucuya temizleme isteği `keepalive`
+  seçeneğiyle yapılır. Ağ kesintisinde sunucuya ulaşma garantisi verilmez.
+- Ekran üzerindeki durum metni kare analizi yaptığını dürüstçe belirtir.
+
+Otomatik testler `public/typed/live-screen-lifecycle.test.ts` içinde
+oturum nesli ayrımını, arka plandaki kamera gizliliğini, ekran paylaşımı
+istisnasını, gönderim eşiklerini ve cihaz uygunluğunu kontrol eder.
+
+Gerçek iOS/Android kamera izinleri, çift kamera destek düzeyi ve eşzamanlı
+mikrofon davranışı cihaz üzerinde ayrıca doğrulanmalıdır. Tarayıcılar iki
+kameranın aynı anda açılmasına izin vermeyebilir.
