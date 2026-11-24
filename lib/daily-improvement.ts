@@ -5,8 +5,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { createModelLab } from './model-lab.ts';
 export const DAY_MS=24*60*60*1000;
 export type ExpertHealth={agentId:string;healthy:boolean;reasons:string[];successRate:number|null;p99Ms:number|null;sampleCount:number};
-type DailyReport={expertReadiness?:ExpertReadiness[];runtimeEvidence?:RuntimeEvidence[];deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
-export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>[],runtimeEvidence=()=>[],adaptLeaders=ids=>[...ids],liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];expertReadiness?:()=>ExpertReadiness[];runtimeEvidence?:()=>RuntimeEvidence[];adaptLeaders?:(ids:readonly string[])=>string[];liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
+type DailyReport={catalogDiscovery?:boolean;catalogChanges?:{addedCount:number;removedCount:number|null;added:string[];removed:string[]}|null;expertReadiness?:ExpertReadiness[];runtimeEvidence?:RuntimeEvidence[];deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
+export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>[],runtimeEvidence=()=>[],adaptLeaders=ids=>[...ids],discoverCatalog=false,liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];expertReadiness?:()=>ExpertReadiness[];runtimeEvidence?:()=>RuntimeEvidence[];adaptLeaders?:(ids:readonly string[])=>string[];discoverCatalog?:boolean;liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement (id INTEGER PRIMARY KEY CHECK(id=1), started_at INTEGER NOT NULL, report TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement_history (started_at INTEGER PRIMARY KEY, report TEXT NOT NULL)');
   let inFlight:Promise<DailyReport|null>|null=null;
@@ -18,7 +18,7 @@ export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>
     try{if(row)report=JSON.parse(row.report);}catch{}
     const history=(db.prepare('SELECT report FROM hafize_daily_improvement_history ORDER BY started_at DESC LIMIT 14').all() as {report:string}[]).flatMap(row=>{try{const item=JSON.parse(row.report) as DailyReport;return [{startedAt:item.startedAt,finishedAt:item.finishedAt,state:item.state,testedModels:item.testedModels.length,deepTestedModels:item.deepTestedModels?.length??0,specialists:item.specialists.length,changes:item.changes??[]}];}catch{return [];}});
     if(report?.state==='running'&&!inFlight&&row&&now()-row.started_at>240000)report={...report,state:'partial',error:'DAILY_INTERRUPTED_BEFORE_REPORT'};
-    return {enabled,liveProbes,history,intervalHours:24,nextDueAt:row?new Date(row.started_at+DAY_MS).toISOString():null,running:Boolean(inFlight),report};
+    return {enabled,liveProbes,discoverCatalog,history,intervalHours:24,nextDueAt:row?new Date(row.started_at+DAY_MS).toISOString():null,running:Boolean(inFlight),report};
   }
   async function execute():Promise<DailyReport|null>{
     if(!enabled||stopped)return null;
@@ -36,6 +36,12 @@ export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>
       report.expertReadiness=expertReadiness();
       if(report.expertReadiness.some(row=>!row.passed))report.error='EXPERT_CONTRACT_CHECK_FAILED';
       report.runtimeEvidence=runtimeEvidence();
+      // Catalog refresh is optional and consumes one of the existing five daily requests.
+      let catalogCall=false;
+      if(discoverCatalog&&lab&&!lab.status().blockedUntil&&lab.status().requestsRemaining>0){
+        const last=lab.status().catalog?.listedAt;
+        if(!last||started-Date.parse(last)>=DAY_MS){catalogCall=true;try{await lab.discover(AbortSignal.any([controller.signal,AbortSignal.timeout(35000)]));report.catalogDiscovery=true;report.catalogChanges=lab.status().catalogDelta;}catch{report.error=report.error||'CATALOG_DISCOVERY_FAILED';}}
+      }
       if(liveProbes&&lab){
         const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(180000)]);
         const initial=lab.status();
@@ -63,7 +69,7 @@ export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>
         const snapshot=lab.status();
         const age=(id:string)=>Date.parse(snapshot.specialistResults.find(row=>row.model===id)?.testedAt||'')||0;
         const specialist=[...snapshot.specialists].sort((a,b)=>age(a)-age(b)).find(id=>started-age(id)>=DAY_MS||!snapshot.specialistResults.some(row=>row.model===id));
-        if(specialist&&!snapshot.blockedUntil&&snapshot.requestsRemaining>0){
+        if(!catalogCall&&specialist&&!snapshot.blockedUntil&&snapshot.requestsRemaining>0){
           const result=await lab.specialistProbe(specialist,signal);
           report.specialists.push(result.model);
           if(result.status!=='passed')report.error=report.error||'SPECIALIST_PROBE_'+result.status;

@@ -73,3 +73,6 @@ ASR/TTS WAV doğrulaması RIFF uzunluğu, fmt/data parçaları, PCM türü, kana
 ### Örneklemeli video analizi
 İsteğe bağlı HAFIZE_VIDEO_FRAMES_ENABLED=true ile en fazla dört JPEG kare, 300 saniyelik video süresi ve zaman damgaları mevcut görsel modeline iletilir. Ses ve tam video kapsamı olmadığı açıkça belirtilir. Kareler bu uç noktada saklanmaz. Varsayılan kapalı; canlı model erişimi henüz doğrulanmamıştır.
 Ayarlar > NVIDIA Uzman Servisleri içinde video seçildiğinde tarayıcı, 100 MB ve 300 saniye sınırıyla dört örnek kareyi yerel olarak çıkarır (maksimum 768 px uzun kenar). Ham video gönderilmez; yalnız kullanıcı çalıştırdığında kareler ve isteğe bağlı açıklama iletilir. Kodek/cihaz uyumluluğu gerçek cihazda doğrulanmalıdır.
+
+## V10 — katalog farkı ve kalıcı keşif
+Katalog kimlikleri ve son gözlenen değişimler mevcut kapsamlı model snapshot'ında saklanır (30 gün; 256 KB dosya/DB sınırı). İlk sorgu başlangıç envanteridir. Sonraki sorgular yeni ve çıkarılmış kimlikleri raporlar; kısaltılmış/eksik kataloglarda çıkarılma sayısı bilinmiyor olarak kalır. Katalog erişim, ücretsiz fiyat veya test kanıtı değildir. HAFIZE_DAILY_CATALOG_DISCOVERY=true isteğe bağlı günlük keşfi açar; mevcut beş istek bütçesine dahil olur (keşif gününde embedding testi yapılmaz). Yeni modeller otomatik olarak aday veya fallback zincirine alınmaz.
