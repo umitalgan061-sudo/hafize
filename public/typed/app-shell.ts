@@ -847,10 +847,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
       }
       for (const model of models) ui.modelSelect.append(new Option(model, model));
       serverDefaultModel = payload.defaultModel || '';
-      // The model picker is not shown, so the server's recommended model wins over an old saved choice.
+      // Honor the user's saved model only when available on this provider; otherwise use the server recommendation.
       const preference = loadModelPreferences();
-      if (payload.defaultModel) ui.modelSelect.value = payload.defaultModel;
-      else if (preference.selectedModel && models.includes(preference.selectedModel)) ui.modelSelect.value = preference.selectedModel;
+      if (preference.selectedModel && models.includes(preference.selectedModel)) ui.modelSelect.value = preference.selectedModel;
+      else if (payload.defaultModel && models.includes(payload.defaultModel)) ui.modelSelect.value = payload.defaultModel;
       modelPreferencesController?.refresh();
     } catch (error) {
       ui.modelSelect.replaceChildren(new Option(provider === 'local' ? 'Yerel Ollama / NIM bağlantısı bekleniyor' : 'NVIDIA NIM bağlantısı bekleniyor', ''));

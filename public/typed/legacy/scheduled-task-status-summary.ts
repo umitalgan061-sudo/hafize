@@ -31,6 +31,7 @@
     list.querySelectorAll('.scheduled-task-row').forEach(function (row) {
       if (counts.has(row.dataset.status)) counts.set(row.dataset.status, counts.get(row.dataset.status) + 1);
     });
+    try{const remote=JSON.parse(panel.dataset.scopeCounts||'null');if(remote)for(const [key] of statuses)if(Number.isSafeInteger(remote[key])&&remote[key]>=0)counts.set(key,remote[key]);}catch{}
     // Re-rendering identical counts mutates the DOM and wakes every document observer again.
     const signature = statuses.map(function (entry) { return counts.get(entry[0]) || 0; }).join(',');
     if (section.childElementCount && section.dataset.signature === signature) return;

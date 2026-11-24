@@ -1,0 +1,3 @@
+# Açık PR kurtarma — ikinci paket
+
+#280/#281: önce owner kapsamına alınan gerçek sunucu sayımları. #279/#275: sunucu filtreleri ve sınırlı keyset sayfalama (değişen görevler için canlı görünüm; değişmez snapshot garantisi yok). #825: kullanılabilir kayıtlı model seçimine öncelik. Varsayılan eski GET sözleşmesi korunur; yeni arayüz sayfalı GET kullanır. Önceki frontend/backend sürümüyle geçişte uyum korunur. Eski PR'lar doğrudan merge edilmedi.

@@ -1628,6 +1628,7 @@ const server = createServer(async (req, res) => {
         request: req,
         method: req.method,
         pathname: url.pathname,
+        query: url.searchParams,
         headers: req.headers
       });
       if (!scheduleResponse.matched) {

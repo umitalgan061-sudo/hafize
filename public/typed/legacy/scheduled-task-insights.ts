@@ -35,19 +35,20 @@
     const all = rows(panel);
     const counts = { scheduled: 0, running: 0, completed: 0, failed: 0, cancelled: 0 };
     all.forEach((row) => { if (counts[row.dataset.status] !== undefined) counts[row.dataset.status] += 1; });
+    let total=all.length;try{const remote=JSON.parse(panel.dataset.scopeCounts||'null');if(remote){if(Number.isSafeInteger(remote.all)&&remote.all>=0)total=remote.all;for(const key of Object.keys(counts))if(Number.isSafeInteger(remote[key])&&remote[key]>=0)counts[key]=remote[key];}}catch{}
     const upcoming = all.filter((row) => row.dataset.status === 'scheduled').sort((a,b) => dateValue(a)-dateValue(b)).slice(0, MAX_ROWS);
     // This observer watches the whole document, so rewriting unchanged content would re-trigger it forever.
-    const signature = JSON.stringify([all.length, counts, upcoming.map((row) => [row.querySelector('.scheduled-task-row-head strong')?.textContent || '', row.dataset.runAt || ''])]);
+    const signature = JSON.stringify([total, counts, upcoming.map((row) => [row.querySelector('.scheduled-task-row-head strong')?.textContent || '', row.dataset.runAt || ''])]);
     if (body.childElementCount && body.dataset.signature === signature) return;
     body.dataset.signature = signature;
     body.replaceChildren();
-    [['Toplam', all.length], ['Yaklaşan', counts.scheduled], ['Çalışıyor', counts.running], ['Başarısız', counts.failed]].forEach(function (entry) {
+    [['Toplam', total], ['Yaklaşan', counts.scheduled], ['Çalışıyor', counts.running], ['Başarısız', counts.failed]].forEach(function (entry) {
       const stat = make('div', undefined, 'scheduled-task-insight-stat');
       stat.append(make('strong', String(entry[1])), make('span', entry[0]));
       body.append(stat);
     });
     const next = make('div', undefined, 'scheduled-task-insights-upcoming');
-    next.append(make('span', upcoming.length ? 'Yaklaşan görevler' : 'Yaklaşan görev yok', 'scheduled-task-insights-subtitle'));
+    next.append(make('span', upcoming.length ? 'Yüklenen yaklaşan görevler' : counts.scheduled?'Yaklaşan görevleri görmek için Planlandı filtresini seç':'Yaklaşan görev yok', 'scheduled-task-insights-subtitle'));
     upcoming.forEach(function (row) {
       const title = row.querySelector('.scheduled-task-row-head strong')?.textContent || 'Görev';
       const item = make('div', undefined, 'scheduled-task-insight-next');

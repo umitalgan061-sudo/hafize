@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { normalizeApiError } from './api-error-contract.ts';
+import {scheduleListView} from './schedule-list-view.ts';
 
 const SCHEDULES_PATH = '/api/schedules';
 
@@ -55,7 +56,7 @@ export function createScheduleHttpApi({ authenticator, commands, readJson } = {}
   ) throw new Error('INVALID_SCHEDULE_HTTP_API:commands');
   if (typeof readJson !== 'function') throw new Error('INVALID_SCHEDULE_HTTP_API:readJson');
 
-  async function handle({ request, method, pathname, headers } = {}) {
+  async function handle({ request, method, pathname, headers, query } = {}) {
     const verb = typeof method === 'string' ? method.toUpperCase() : '';
     const path = typeof pathname === 'string' ? pathname : '';
     const root = path === SCHEDULES_PATH;
@@ -82,7 +83,11 @@ export function createScheduleHttpApi({ authenticator, commands, readJson } = {}
     }
 
     if (root && verb === 'GET') {
-      return commandResponse(await commands.list({ principal: auth.principal }), 200, requestId);
+      const output=await commands.list({ principal: auth.principal });
+      if(output?.ok&&Array.isArray(output.schedules)&&query instanceof URLSearchParams&&[...query.keys()].length){
+        try{return response(200,scheduleListView(output.schedules,query));}catch{return response(400,normalizeApiError({code:'INVALID_SCHEDULE_LIST_QUERY',status:400,requestId}));}
+      }
+      return commandResponse(output, 200, requestId);
     }
     if (root && verb === 'POST') {
       const input = await readJson(request);
