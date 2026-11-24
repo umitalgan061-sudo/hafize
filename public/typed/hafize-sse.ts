@@ -39,8 +39,8 @@ export interface HafizeSseOptions extends HafizeSseLimits {
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
-// Agent runs (research, orchestration, a self-update with its tests and release) can take up to an hour.
-const MAX_TIMEOUT_MS = 3_600_000;
+// Three-hour agent runs plus a minute for final delivery; short chat retains its own timeout.
+const MAX_TIMEOUT_MS = 10_860_000;
 const DEFAULT_MAX_FRAME_CHARS = 128 * 1024;
 const DEFAULT_MAX_BUFFER_CHARS = 256 * 1024;
 const DEFAULT_MAX_EVENTS = 20_000;

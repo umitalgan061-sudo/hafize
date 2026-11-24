@@ -99,3 +99,26 @@ describe('complete owner project inventory',()=>{
     expect(matchOwnerProjects('hafize-ua.web.app').map(p=>p.id)).toEqual(['hafize','hafize-legacy']);
   });
 });
+
+
+describe('three-hour long-run capacity',()=>{
+ it('reports 200 rounds, 1600 root calls and 180 minutes',()=>{
+  const b={...budget,maxToolRounds:200,timeoutMs:10_800_000,expertMaxRounds:24};
+  expect(budgetSnapshot(b)).toMatchObject({totalCallCeiling:1600,roundsRemaining:195,remainingMs:10_788_000});
+  expect(formatCapabilityAnswer(capabilitySnapshot([],b,13))).toContain('180 dakika');
+ });
+ it('keeps a large root and expert ledger and fits the final SSE frame',()=>{
+  const ledger=createAgentRunLedger({traceId:'three-hour',agentId:'primary',maxEntries:4096,now:()=>0});
+  for(let i=0;i<1600+16*24*4;i++){
+   const t=ledger.recordToolStart('github_inspect');
+   ledger.recordToolFinish(t.taskId,{ok:true});
+  }
+  ledger.finish({ok:true});
+  const full=ledger.snapshot(),stream=ledger.streamSnapshot();
+  expect(full.entries.length).toBe(3137);
+  expect(stream.entries[0]?.status).toBe('completed');
+  expect(stream.entries.at(-1)?.taskId).toBe(full.entries.at(-1)?.taskId);
+  expect(stream).toMatchObject({totalEntries:3137,truncated:true,omittedEntries:3017});
+  expect(Buffer.byteLength(JSON.stringify(stream),'utf8')).toBeLessThan(128*1024);
+ });
+});

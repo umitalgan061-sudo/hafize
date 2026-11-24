@@ -12,6 +12,7 @@ export interface AgentRunLedger {
   readonly recordDelegationFinish: (taskId: unknown, result: unknown) => TaskLedgerEntry;
   readonly finish: (options?: { readonly ok?: boolean; readonly detail?: unknown }) => TaskLedgerEntry;
   readonly snapshot: () => TaskLedgerSnapshot;
+  readonly streamSnapshot: () => TaskLedgerSnapshot;
 }
 export function createAgentRunLedger({traceId,agentId,action='agent.run',now,maxEntries}:Options):AgentRunLedger{
   const context=createTraceContext(traceId);
@@ -45,6 +46,22 @@ export function createAgentRunLedger({traceId,agentId,action='agent.run',now,max
     recordDelegationStart,
     recordDelegationFinish:(taskId:unknown,result:unknown)=>finishChild(taskId,result,'delegate'),
     finish: (opts: { readonly ok?: boolean; readonly detail?: unknown } = {}) => ledger.update(root.taskId, { status: opts.ok === false ? 'failed' : 'completed', detail: opts.detail == null ? null : String(opts.detail).slice(0, 120) }),
-    snapshot:ledger.snapshot
+    snapshot:ledger.snapshot,
+    streamSnapshot:()=>projectAgentLedgerForStream(ledger.snapshot())
   });
+}
+/** Keep final SSE frames bounded even when a long job has thousands of ledger rows.
+ * Full in-process snapshot is still available to the runtime and JSON callers.
+ */
+export function projectAgentLedgerForStream(snapshot:TaskLedgerSnapshot):TaskLedgerSnapshot{
+ const all=snapshot.entries;
+ const entries:TaskLedgerEntry[]=[];
+ let bytes=0;
+ for(const entry of [...all.slice(0,1),...all.slice(1).reverse()]){
+  const size=Buffer.byteLength(JSON.stringify(entry),'utf8')+1;
+  if(bytes+size>64*1024||entries.length>=120)break;
+  entries.push(entry);bytes+=size;
+ }
+ const ordered=entries.length?[entries[0]!,...entries.slice(1).reverse()]:[];
+ return Object.freeze({...snapshot,entries:Object.freeze(ordered),totalEntries:all.length,omittedEntries:all.length-ordered.length,truncated:ordered.length<all.length});
 }
