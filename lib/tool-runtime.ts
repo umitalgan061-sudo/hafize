@@ -308,7 +308,7 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(120_000),
     activity: { running: 'İzinli GitHub geliştirme adımı hazırlanıyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı uygulanmadı' },
     definition: strictDefinition('github_develop',
-      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç, ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
+      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
       {
         operation: { type: 'string', enum: ['branch', 'file', 'pull'] },
         repository: { type: 'string' },

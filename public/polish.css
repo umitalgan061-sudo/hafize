@@ -585,3 +585,28 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
 #messages[aria-busy="true"] .message.assistant:last-of-type .assistant-message-actions { display: none; }
 .send-btn.is-stop { opacity: 1 !important; }
 .tool-activity.tool-activity-more { opacity: 0.75; font-variant-numeric: tabular-nums; cursor: help; }
+
+/* iOS native textarea/caret: remove transformed and backdrop-filtered fixed ancestors
+   on phones, which can misalign WebKit's text insertion caret while the keyboard pans. */
+@media (max-width: 680px) and (pointer: coarse) {
+  html .main .primary-column form#composer.composer {
+    left: 0 !important; right: 0; width: 100%; max-width: none;
+    transform: none !important; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  html .main .primary-column form#composer.composer textarea#messageInput {
+    font-size: 16px; line-height: 1.5; text-align: start; text-indent: 0;
+    caret-color: var(--premium-text); -webkit-text-fill-color: var(--premium-text);
+    box-sizing: border-box; display: block; padding: 8px 7px;
+  }
+  html .main .primary-column form#composer.composer textarea#messageInput::placeholder {
+    -webkit-text-fill-color: var(--premium-muted); color: var(--premium-muted);
+  }
+  html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer {
+    bottom: var(--keyboard-bottom, 0px) !important; padding-bottom: 10px;
+  }
+  html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer::after { display: none; }
+  html[data-hafize-keyboard="open"] .main .primary-column .chat-stage { padding-top: 12px !important; overflow: hidden; }
+  html[data-hafize-keyboard="open"] .welcome { display: none !important; }
+  html[data-hafize-keyboard="open"] .main > .topbar { padding-top: env(safe-area-inset-top); }
+  html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer textarea#messageInput { max-height: 96px; }
+}

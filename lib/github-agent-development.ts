@@ -24,7 +24,7 @@ type RequestContext = {
 type Options = {
   readonly writer: Writer;
   readonly allowedRepositories: readonly string[];
-  readonly sourcePathRestrictions?: Readonly<Record<string,string>>;
+  readonly sourcePathRestrictions?: Readonly<Record<string,string | readonly string[]>>;
 };
 const FEATURE_BRANCH = /^hafize\/auto-[a-z0-9][a-z0-9._-]{0,100}$/;
 const DEFAULT_BRANCH = 'main';
@@ -87,8 +87,9 @@ export function createGitHubAgentDevelopment(options: Options) {
         '\nKaynak: ' + DEFAULT_BRANCH + '\nmain dalına yazma yok.';
     } else if (operation === 'file') {
       const path = required(args.path);
-      const prefix = options.sourcePathRestrictions?.[repository.toLowerCase()];
-      if(prefix && (!path.startsWith(prefix) || path.split('/').some(segment=>!segment || segment==='.' || segment==='..'))) {
+      const restriction = options.sourcePathRestrictions?.[repository.toLowerCase()];
+      const prefixes = typeof restriction === 'string' ? [restriction] : restriction;
+      if(prefixes && (!prefixes.some(prefix=>path.startsWith(prefix)) || path.split('/').some(segment=>!segment || segment==='.' || segment==='..'))) {
         throw new GitHubWorkspaceWriteError('GITHUB_REPO_PATH_NOT_ALLOWED',403);
       }
       const fileContent = args.content;
