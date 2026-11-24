@@ -18,6 +18,7 @@ export class GitHubWorkspaceExtraError extends Error {
 
 type Options = {
   readonly token?: string;
+  readonly allowPublicRead?: boolean;
   readonly allowedRepositories?: readonly string[];
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
@@ -61,14 +62,16 @@ export function createGitHubWorkspaceExtra(options: Options = {}) {
   const allowlist = new Set((options.allowedRepositories || []).map((value) => String(value).trim().toLowerCase()).filter(Boolean));
 
   async function request(pathname: string, params = new URLSearchParams()): Promise<unknown> {
-    if (!token || typeof fetchImpl !== 'function') throw new GitHubWorkspaceExtraError('GITHUB_NOT_CONFIGURED', 503);
+    if ((!token && options.allowPublicRead !== true) || typeof fetchImpl !== 'function') throw new GitHubWorkspaceExtraError('GITHUB_NOT_CONFIGURED', 503);
     const url = new URL(baseUrl + pathname);
     for (const [key, value] of params.entries()) url.searchParams.set(key, value);
     const response = await fetchImpl(url, {
       method: 'GET',
+      redirect: 'error',
+      signal: AbortSignal.timeout(45_000),
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: 'Bearer ' + token,
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
         'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'Hafize-GitHub-Workspace'
       }
