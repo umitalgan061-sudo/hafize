@@ -55,3 +55,14 @@ it('alternates deep and breadth days without exceeding the five-request budget',
  expect(request.mock.calls.length).toBeLessThanOrEqual(5);
  db.close();
 });
+
+it('records daily runtime evidence without enabling provider requests',async()=>{
+ const db=openHafizeDb(':memory:');
+ const request=vi.fn(async()=>new Response('{}'));
+ const lab=createModelLab({allowed:['nvidia/example'],request});
+ const row={model:'nvidia/example',attempts:10,headersOk:8,failures:2,streamFailures:1,meanHeaderMs:50};
+ const daily=createDailyImprovement({db,lab,expertHealth:()=>[],runtimeEvidence:()=>[row]});
+ expect((await daily.tick())?.runtimeEvidence).toEqual([row]);
+ expect(daily.status().report?.runtimeEvidence).toEqual([row]);
+ expect(request).not.toHaveBeenCalled();db.close();
+});

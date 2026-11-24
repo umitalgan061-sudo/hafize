@@ -229,3 +229,14 @@ it('bounds and penalizes a silent final model without cancelling an already-open
     expect(router.status().chain[0]).toMatchObject({ready:false,lastFailure:'slow'});
   }finally{globalThis.setTimeout=realSetTimeout;}
 });
+
+it('observes provider fallback, actual stream errors and excludes caller cancellations',async()=>{
+ const events:import('./model-runtime-evidence.ts').RuntimeAttempt[]=[];
+ const router=createModelRouter({chain:['a','b'],observeAttempt:e=>events.push(e),log:()=>{}});
+ const res=await router.send(request(),async body=>answer(JSON.parse(body).model==='a'?503:200));
+ router.penalizeModel(router.modelFor(res));
+ expect(events.map(({model,outcome})=>({model,outcome}))).toEqual([{model:'a',outcome:'provider_failure'},{model:'b',outcome:'headers_ok'},{model:'b',outcome:'stream_failure'}]);
+ const controller=new AbortController();
+ await expect(router.send(request(),async()=>{controller.abort();throw new DOMException('abort','AbortError');},controller.signal)).rejects.toThrow();
+ expect(events).toHaveLength(3);
+});
