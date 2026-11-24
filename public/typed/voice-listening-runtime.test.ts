@@ -116,12 +116,12 @@ describe('real speech recognition instead of a fake recording indicator', () => 
     const status = p.elements.get('.vm-status')!;
     const caption = p.elements.get('.vm-cap-before')!;
     expect(rec.continuous).toBe(false);
-    expect(status.textContent).toContain('Mikrofon oturumu açık');
+    expect(status.textContent).toBe('Dinliyorum…');
     rec.onspeechstart?.();
     expect(status.textContent).toContain('Sesini algıladım');
     rec.onresult?.({ results: result('Hafize naber', false) });
     expect(caption.textContent).toBe('Hafize naber');
-    expect(status.textContent).toContain('Seni duyuyorum');
+    expect(status.textContent).toBe('Dinliyorum…');
 
     rec.onresult?.({ results: result('Hafize naber', true) });
     await vi.advanceTimersByTimeAsync(850);

@@ -1,0 +1,3 @@
+# Voice and skills quality
+
+Improves Turkish natural conversation prompts and low-risk follow-up routing; faster iOS natural-end and re-listen interval, simplified listening status; bounded downloadable voice synthesis watchdog. Per-speaker preview for existing Supertonic (10) and Zerre (2) voice styles without overwriting saved voice. No new unverified audio model or provider added. Existing seven Piper entries retained. Two low-risk diagnostic skills, and available low-risk skill manifests provided to the primary model when skill_invoke is advertised. NVIDIA catalog and capability-specific existing adapters remain unchanged; full external model/blueprint execution requires real endpoints/GPU and testing. No iPhone device verification.

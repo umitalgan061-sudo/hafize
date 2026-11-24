@@ -104,9 +104,9 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
     node.addEventListener('click', onClick);
     return node;
   };
-  const preview = (id: string, sample: string) => {
-    if (previewing === id) { documentRef.dispatchEvent(new CustomEvent(STOP_EVENT)); return; }
-    documentRef.dispatchEvent(new CustomEvent(SPEAK_EVENT, { detail: { text: sample, origin: `voice-preview:${id}`, voice: id } }));
+  const preview = (id: string, sample: string, speaker?:number) => {
+    if (previewing === id && speaker===undefined) { documentRef.dispatchEvent(new CustomEvent(STOP_EVENT)); return; }
+    documentRef.dispatchEvent(new CustomEvent(SPEAK_EVENT, { detail: { text: sample, origin: `voice-preview:${id}`, voice: id, speaker } }));
   };
   const select = (id: string) => {
     write(VOICE_KEY, id || null);
@@ -160,7 +160,10 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
         if (active) entry.actions.append(el('span', 'voice-badge', 'Seçili'));
         else entry.actions.append(button('Seç', () => select(id)));
         entry.actions.append(button('Sil', () => { void remove(voice); }, 'voice-remove'));
-        if (active && voice.speakers > 1) entry.actions.prepend(speakerPicker(voice));
+        if (voice.speakers > 1) {
+          const picker=speakerPicker(voice,active);
+          entry.actions.prepend(picker,button('Sesi dinle',()=>preview(id,sampleFor(voice.family),Number(picker.value))));
+        }
       } else {
         entry.actions.append(button(`İndir · ${formatSize(voice.size)}`, () => { void download_(voice); }, 'voice-download'));
       }
@@ -169,12 +172,13 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
     if (!matches.length) libraryList.append(el('li', 'voice-empty', 'Bu aramayla eşleşen ses yok.'));
     more.hidden = matches.length <= visible;
   };
-  const speakerPicker = (voice: PiperVoice) => {
+  const speakerPicker = (voice: PiperVoice, active:boolean) => {
     const picker = el('select', 'voice-speaker');
     picker.setAttribute('aria-label', 'Konuşmacı');
-    for (let i = 0; i < voice.speakers; i += 1) { const option = el('option', '', voice.key === pack.key ? styles[i] : voice.key===zerrePack.key ? zerreStyles[i] : `Konuşmacı ${i + 1}`); option.value = String(i); picker.append(option); }
-    picker.value = read(SPEAKER_KEY) || '0';
-    picker.addEventListener('change', () => write(SPEAKER_KEY, picker.value));
+    for (let i = 0; i < voice.speakers; i += 1) { const option = el('option', '', voice.key === pack.key ? (styles[i]?.startsWith('F')?'Kadın ':'Erkek ')+styles[i]?.slice(1)+' · '+styles[i] : voice.key===zerrePack.key ? zerreStyles[i] : `Konuşmacı ${i + 1}`); option.value = String(i); picker.append(option); }
+    const saved=active?Number(read(SPEAKER_KEY)):0;
+    picker.value=String(Number.isInteger(saved)&&saved>=0&&saved<voice.speakers?saved:0);
+    picker.addEventListener('change', () => {if(active)write(SPEAKER_KEY,picker.value);});
     return picker;
   };
   const render = () => { renderCurrent(); renderDevice(); renderLibrary(); };

@@ -22,3 +22,6 @@ describe('fast Turkish voice conversation',()=>{
    expect(server).toContain('34_000');
  });
 });
+
+it.each(['Fena değilim ya','Sana bir şey anlatacağım','Sonra ne oldu?','Ciddi misin?'])('recognizes natural follow-up: %s',turn=>expect(isLightweightVoiceTurn(turn)).toBe(true));
+it.each(['Devam et','Devam et ve Firebase yayınla','Borsa fiyatı ne oldu','Kod yazmaya devam et'])('preserves real tool tasks: %s',turn=>expect(isLightweightVoiceTurn(turn)).toBe(false));

@@ -991,7 +991,8 @@ async function handleAgentRun(req, res) {
   // Several rounds let the model chain tools (search, then read a result). A round without
   // tool calls is the answer; an empty answer or an exhausted budget falls through to one
   // final streamed completion with tools disabled, so the user never gets a blank reply.
-  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities(), lastUserText) + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
+  const skillHints = SKILLS_RUNTIME.listForAgent(agent).filter(s=>!s.requiresApproval && s.riskLevel==='low' && !s.sideEffects?.mutates).map(s=>({id:s.name,description:s.description,arguments:s.arguments}));
+  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities(), lastUserText) + (tools.some(t=>t.function.name==='skill_invoke') ? '\nBu ajan için izinli düşük riskli beceriler (gerektiğinde skill_invoke ile çağır; liste çalıştırılmış olduklarının kanıtı değildir): '+JSON.stringify(skillHints)+'\nÖnce amaca uygun beceriyi seç; gereksiz çağrı veya aynı görevi iki kez çalıştırma.' : '') + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
   const toolSummary = [];
   const toolLoopGuard = createToolLoopGuard();
   const pendingSkillInvocations = new Map();
@@ -1361,7 +1362,7 @@ async function handleChat(req, res) {
   const traceId = createTraceId();
   res.setHeader('X-Hafize-Trace-Id', traceId);
   const requestAbort = attachDisconnectAbort(req, voiceConversation && provider === 'nvidia' ? Math.min(REQUEST_TIMEOUT_MS, 34_000) : REQUEST_TIMEOUT_MS);
-  const voiceInstruction = voiceConversation ? [{role:'system',content:'Bu canlı sesli bir Türkçe sohbet. İlk cümlede doğrudan cevap ver; doğal, sıcak, kısa ve gündelik konuş. Genellikle bir ila üç kısa cümle kullan. Liste, markdown, düşünme açıklaması ve gereksiz giriş kullanma. Bilmediğin güncel bilgiyi uydurma.'}] : [];
+  const voiceInstruction = voiceConversation ? [{role:'system',content:'Bu canlı sesli Türkçe sohbet. Söyleneni bağlamıyla anla; ilk cümlede doğrudan karşılık ver. Kısa, gündelik ve akıcı konuş; doğal duraklar için noktalama kullan. Kullanıcının duygusuna ve konuşma hızına uyum sağla; her cümlede adını kullanma, gereksiz övgü veya sürekli takip sorusu sorma. Genellikle bir ila üç kısa cümle yeterli; detay istenirse uzat. Liste, markdown, düşünme açıklaması, yapay dolgu sesleri ve tekrar eden selamlaşma kullanma. İnsan olduğunu iddia etme; bilmediğin güncel bilgiyi uydurma.'}] : [];
   const preparedConversation = await prepareConversation(
     [buildAgentSystemMessage(agent, traceId, { tools: false, memory: normalizeClientMemory(body.memory) }), ...voiceInstruction, ...messages],
     model,
