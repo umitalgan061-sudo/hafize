@@ -64,6 +64,13 @@ describe('platform HTTP API', () => {
     expect(await (await call('/api/memory?confirm=all', { method: 'DELETE' })).json()).toEqual({ purged: 1 });
   });
 
+  it('protects specialist status and rejects unconfigured services',async()=>{
+    expect((await call('/api/nim-specialists',{owner:''})).status).toBe(401);
+    expect(await (await call('/api/nim-specialists')).json()).toMatchObject({asr:false,tts:false,parse:false,verified:false});
+    expect((await call('/api/nim-specialists/synthesize',{owner:'',method:'POST',body:JSON.stringify({text:'test',language:'tr-TR'})})).status).toBe(401);
+    expect((await call('/api/nim-specialists/synthesize',{method:'POST',body:JSON.stringify({text:'test',language:'tr-TR'})})).status).toBe(400);
+  });
+
   it('stores uploads by real type and serves them inert to their owner only', async () => {
     const svg = await call('/api/uploads/image', { method: 'POST', body: JSON.stringify({ data: Buffer.from('<svg onload=alert(1)>').toString('base64') }) });
     expect(svg.status).toBe(415);

@@ -1625,6 +1625,11 @@ const server = createServer(async (req, res) => {
     }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
     // This path is covered by production-guard's /api/models/status prefix (session + CSRF).
+    if (req.method==='GET'&&url.pathname==='/api/models/status/daily') {
+      const authorized=allowSafeGitHubAutonomy({optedIn:true,authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired,principal:req.__hafizePrincipal||null,configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject,agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent});
+      if(!authorized){sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'});return;}
+      sendJson(res,200,DAILY_IMPROVEMENT.status());return;
+    }
     if (url.pathname === '/api/models/status/lab' && ['GET','POST'].includes(req.method)) {
       const authorized = allowSafeGitHubAutonomy({ optedIn:true, authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal:req.__hafizePrincipal||null, configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent });
       if (!authorized) { sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'}); return; }
