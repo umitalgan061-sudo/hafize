@@ -1,0 +1,3 @@
+# Hafize ölçüme dayalı öz geliştirme
+
+24 saatlik mevcut günlük döngü korunur. Sesli sohbetin ilk görünür yanıt gecikmesi ve sağlayıcı başarısızlıkları, normal sohbetin başlık gecikmesinden ayrı SQLite tablosunda tutulur. Konuşma içeriği, ses kaydı ve API anahtarları kaydedilmez. En az sekiz yakın tarihli örnek olmadan model sırası değiştirilmez. Yalnız mevcut hızlı adaylar arasında sıralama yapılır; son 24 saat dışındaki kanıt sıralamayı etkilemez. Gecikme ve erişilebilirlik, yanıt doğruluğu kanıtı değildir. Normal sohbet model sırası bu mekanizmadan etkilenmez. Günlük rapor gerçek uzman sağlığı ve sesli model bulgularını da önceliklendirir. Kod, izinler ve üretim yayınları kendiliğinden değiştirilmez; mevcut ayrı dal/test/PR akışı kullanılır. Ücretli ek çağrı yapılmaz.
