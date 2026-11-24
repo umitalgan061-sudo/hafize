@@ -9,6 +9,7 @@ export interface AgentToolOutcome {
   readonly name: string;
   readonly ok: boolean;
   readonly error?: string | null;
+  readonly status?: number | null;
 }
 
 const MAX_SHOWN_TOOLS = 5;
@@ -44,7 +45,7 @@ export function isEmptyOrProgressOnlyAnswer(value: unknown): boolean {
 }
 
 export function incompleteAgentRunAnswer(
-  outcomes: readonly AgentToolOutcome[], reason: 'tool_budget' | 'empty_response' | 'interrupted'
+  outcomes: readonly AgentToolOutcome[], reason: 'tool_budget' | 'no_progress' | 'empty_response' | 'interrupted'
 ): string {
   const successes = outcomes.filter((item) => item.ok).length;
   const failures = outcomes.length - successes;
@@ -55,6 +56,7 @@ export function incompleteAgentRunAnswer(
     : 'Bu turda doğrulanmış bir araç sonucu bulunmuyor.';
   const cause = reason === 'tool_budget'
     ? 'Araç turu sınırına ulaştım.'
+    : reason === 'no_progress' ? 'Ardışık araç çağrıları ilerleme sağlamadığı için döngü durduruldu; bu, araç bütçesinin tükendiği anlamına gelmez.'
     : reason === 'interrupted' ? 'Bağlantı, sağlayıcı veya çalışma süresi nedeniyle görev kesildi.' : 'Modelden tamamlanmış bir yanıt alınamadı.';
   const parts = [
     'İstediğin görevi tamamladığımı doğrulayamıyorum.',
@@ -63,6 +65,12 @@ export function incompleteAgentRunAnswer(
   ];
   if (names.length) parts.push(`Çalıştırılan araçlar: ${names.join(', ')}.`);
   if (failedNames.length) parts.push(`Başarısız olanlar: ${failedNames.join(', ')}.`);
+  const codes = [...new Set(outcomes.filter(item=>!item.ok).map(item=>{
+    const code = typeof item.error === 'string' && /^(?:[A-Z][A-Z0-9_]{1,79}|[45][0-9]{2})$/.test(item.error) ? item.error : '';
+    const status = typeof item.status==='number' && Number.isInteger(item.status) && item.status>=400 && item.status<600 ? ' HTTP '+item.status : '';
+    return code ? safeToolName(item.name)+': '+code+status : '';
+  }).filter(Boolean))].slice(-8);
+  if(codes.length) parts.push('Somut hata kodları: '+codes.join('; ')+'.');
   parts.push(
     'Araçların çalışmış olması, kod değişikliğinin kaydedildiği, testin geçtiği veya GitHub PR açıldığı anlamına gelmiyor.',
     'İşin kalan kısmı için çalışma adımları ve varsa commit/PR kanıtı ayrıca kontrol edilmeli.'

@@ -14,7 +14,7 @@ type Options = {
 };
 
 const fields: Record<string, readonly string[]> = {
-  repo: [], branches: ['limit'], commits: ['ref', 'limit'], pulls: ['state', 'limit'],
+  project: ['path'], repo: [], branches: ['limit'], commits: ['ref', 'limit'], pulls: ['state', 'limit'],
   directory: ['path', 'ref'], commit: ['sha'], pull: ['number'],
   compare: ['base', 'head'], checks: ['sha']
 };
@@ -39,7 +39,31 @@ export function createGitHubAgentInspection(options: Options) {
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !allowed.has(repository.toLowerCase())) throw new GitHubReadError('GITHUB_REPO_NOT_ALLOWED', 403);
     if (!options.token && !options.allowPublicRead) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
     const input = { repository, action, path: args.path, ref: args.ref, state: args.state, limit: args.limit };
-    if (action === 'directory') return options.extra.directory(input);
+    // Catalog paths are display paths (including "." or a trailing slash).
+    // Normalize only directory reads; existing path/allowlist validation stays in force.
+    const directoryPath = typeof args.path === 'string' ? args.path.trim().replace(/\/+$/, '') : args.path;
+    const safeDirectoryPath = directoryPath === '.' ? '' : directoryPath;
+    if (action === 'directory') return options.extra.directory({ ...input, path: safeDirectoryPath });
+    if (action === 'project') {
+      // One bounded discovery call gives the model enough evidence to proceed
+      // instead of repeatedly guessing root folders, branches and pull state.
+      const capture = async (fn: () => Promise<unknown>) => {
+        try { return { ok: true as const, value: await fn() }; }
+        catch (error) {
+          const e = error as { code?: unknown; status?: unknown };
+          return { ok: false as const, error: typeof e?.code === 'string' && /^[A-Z0-9_]{1,80}$/.test(e.code) ? e.code : 'GITHUB_PROJECT_READ_FAILED', status: typeof e?.status === 'number' ? e.status : null };
+        }
+      };
+      const meta = await options.reader.inspect({ repository, action: 'repo' });
+      const ref = typeof meta.defaultBranch === 'string' ? meta.defaultBranch : 'main';
+      const [directory, root, commits, pulls] = await Promise.all([
+        capture(() => options.extra.directory({ repository, path: safeDirectoryPath, ref })),
+        typeof safeDirectoryPath === 'string' && safeDirectoryPath ? capture(() => options.extra.directory({ repository, ref })) : Promise.resolve(null),
+        capture(() => options.reader.inspect({ repository, action: 'commits', ref, limit: 1 })),
+        capture(() => options.reader.inspect({ repository, action: 'pulls', state: 'open', limit: 10 }))
+      ]);
+      return { repository, ref, meta, directory, root, commits, pulls, partial: [directory,root,commits,pulls].some(x=>x?.ok===false), note: 'Read-only project preflight; no code modification, CI run, merge or deployment. Root hosting configuration can differ from source directory. Verify checks for exact SHA separately.' };
+    }
     if (action === 'compare') return options.extra.compare({ repository, base: args.base, head: args.head });
     if (action === 'commit') return options.details.commit({ repository, sha: args.sha });
     if (action === 'pull') return options.details.pull({ repository, number: args.number });

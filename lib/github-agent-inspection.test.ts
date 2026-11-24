@@ -13,6 +13,9 @@ function fixture() {
     const u = new URL(String(url));
     expect(u.origin).toBe('https://api.github.com');
     let data: unknown = { name: 'example', full_name: repository, default_branch: 'main', visibility: 'public' };
+    if (u.pathname.includes('/contents')) data = [{ name: 'index.html', path: 'borsa-gunlugu/index.html', type: 'file', sha }];
+    if (u.pathname.endsWith('/commits')) data = [{ sha, commit: { message: 'main revision' } }];
+    if (u.pathname.endsWith('/pulls')) data = [];
     if (u.pathname.endsWith('/pulls/64')) data = { number: 64, title: 'fix', state: 'closed', merged: true, merge_commit_sha: sha, head: { ref: 'feature', sha }, base: { ref: 'main', sha }, html_url: 'https://github.com/owner/example/pull/64' };
     if (u.pathname.endsWith('/actions/runs')) {
       expect(u.searchParams.get('head_sha')).toBe(sha);
@@ -40,4 +43,13 @@ describe('GitHub agent inspection', () => {
     const result = await inspect({ action: 'checks', repository, sha });
     expect(result).toMatchObject({ sha, observedRunCount: 1, totalCount: 2, runs: [{ id: 1, headSha: sha, conclusion: 'success' }] });
   });
+});
+
+it('discovers source directory, branch, current commit and open PRs in one bounded read', async()=> {
+ const { inspect, fetchImpl } = fixture();
+ const result = await inspect({action:'project',repository,path:'borsa-gunlugu/'});
+ expect(result).toMatchObject({ref:'main',directory:{ok:true,value:{path:'borsa-gunlugu'}},root:{ok:true},commits:{ok:true,value:{commits:[{sha}]}},pulls:{ok:true,value:{pullRequests:[]}},partial:false});
+ expect(fetchImpl).toHaveBeenCalledTimes(5);
+ expect(await inspect({action:'directory',repository,path:'.'})).toMatchObject({path:''});
+ await expect(inspect({action:'project',repository:'other/repo',path:'borsa-gunlugu/'})).rejects.toMatchObject({code:'GITHUB_REPO_NOT_ALLOWED'});
 });

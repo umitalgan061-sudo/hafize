@@ -1,0 +1,3 @@
+# GitHub görev ilerlemesi
+
+Kullanıcının raporunda 15 çağrı (10 başarılı/5 başarısız) vardı; canlı hata kodları mevcut loglardan doğrulanamadı. Kodda katalog dizin sonu `/` ve kök `.` ile directory doğrulamasının uyumsuz olduğu ve üç ilerlemesiz turun araç bütçesi diye raporlandığı görüldü. `github_inspect` project ön incelemesi tek model çağrısı ile kök/proje dizinleri, ana dal, son commit ve açık PR'ları toplar. Kısmi sonuçları, güvenli hata kodlarını ve HTTP durumunu gösterir; korumalı içerik ve repo sınırları korunur. Ajan logu hassas veri içermez. Merge/deploy ve yazma yetkisi ayrı sınırlar olarak kalır.

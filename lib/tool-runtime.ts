@@ -295,8 +295,8 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'repository',
     timeoutMs: timeout(60_000),
     activity: { running: 'GitHub durumu doğrulanıyor', success: 'GitHub durumu okundu', failure: 'GitHub durumu okunamadı' },
-    definition: strictDefinition('github_inspect', 'İzinli repoda repo, directory, branches, commits, commit, pulls, pull, compare veya checks oku. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
-      action: { type: 'string', enum: ['repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks'] },
+    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare veya checks oku. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
+      action: { type: 'string', enum: ['project', 'repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks'] },
       repository: { type: 'string' }, path: { type: 'string' }, ref: { type: 'string' }, limit: { type: 'integer' }, state: { type: 'string' }, number: { type: 'integer' }, sha: { type: 'string' }, base: { type: 'string' }, head: { type: 'string' }
     }, ['action', 'repository']),
     available: context => Boolean(context.githubReadConfigured && context.githubInspect),
