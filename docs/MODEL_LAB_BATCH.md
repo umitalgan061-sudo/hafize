@@ -60,3 +60,4 @@ Uzman ajan sağlık ölçümü son 24 saatteki en fazla 50 çağrıya dayanır; 
 
 ## V7 — gerçek model kimliği ve iç içe uzman denetimi
 Sunucu tarafından seçilen gerçek model, her JSON yanıtı için özel WeakMap ile eşleştirilir. Modelin yanıt içinde yazdığı model adı güvenilir yönlendirme kanıtı değildir. Token telemetrisi gerçek yönlendirme kimliğini kullanır; API çıktısı değiştirilmez. Alt uzman çağrıları da ana uzman gibi kota, şema doğrulama ve denetim sarmalından geçer; mevcut derinlik ve yetki sınırları korunur.
+Türkçe derin yazım testi başarısız olduğunda aday ölçülmüş öncelik listesinden çıkar; görevle ilişkili ölçümler sıralamada daha yüksek ağırlık alır. Son fallback modeli de yanıt başlığı zaman aşımına tabidir (stream 25 sn, normal 90 sn); açılmış bir stream için bu süre sınırı uygulanmaz. Temel yapılandırılmış zincir fallback olarak korunur.

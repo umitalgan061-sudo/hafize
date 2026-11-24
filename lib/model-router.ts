@@ -101,7 +101,9 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
       signal?.throwIfAborted();
       const requestSignal = signal ? AbortSignal.any([signal, attempt.signal]) : attempt.signal;
       let timedOut = false;
-      const timer = isLast ? null : setTimeout(() => { timedOut = true; attempt.abort(); }, streaming ? FIRST_RESPONSE_MS.stream : FIRST_RESPONSE_MS.whole);
+      // The last model also has a finite time to response headers. Once headers arrive,
+      // streaming remains cancellable by the caller and is not subject to this timer.
+      const timer = setTimeout(() => { timedOut = true; attempt.abort(); }, streaming ? FIRST_RESPONSE_MS.stream : FIRST_RESPONSE_MS.whole);
       try {
         const response = await deliver(bodyFor(payload, model), requestSignal);
         if (timer) clearTimeout(timer);
@@ -129,9 +131,9 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         // The user stopped it: nothing is wrong with the model.
         if (signal?.aborted) throw error;
         lastError = error;
-        if (isLast) throw error;
         const reason: FailureReason = timedOut ? 'slow' : 'failing';
         penalize(model, reason);
+        if (isLast) throw error;
         log(`hafize.model ${JSON.stringify({ skipped: model, reason })}`);
       }
     }

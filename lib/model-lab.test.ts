@@ -242,3 +242,14 @@ it('does not classify indistinguishable embeddings as a passed quality test',asy
  const lab=createModelLab({allowed:[],specialistModels:[embed],request:async()=>new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[1,0]}]}))});
  expect(await lab.specialistProbe(embed)).toMatchObject({status:'invalid_response',similarHigher:false});
 });
+
+it('does not promote a model that fails measured Turkish writing quality',async()=>{
+ const lab=createModelLab({allowed:[a],request:async(_path,body)=>{
+   if(JSON.stringify(body).includes('benchmark_call_1'))return reply({content:'{"answer":45}'});
+   if(JSON.stringify(body).includes('Ankaraya'))return reply({content:JSON.stringify({language:'Ankaraya gittim',reasoning:17.5,coding:[1,9,25]})});
+   return reply(body?.tools?tool:valid);
+ }});
+ await lab.probe(a);await lab.deepProbe(a);
+ expect(lab.preferred('general',[a])).toEqual([]);
+ expect(lab.preferred('coding',[a])).toEqual([]);
+});
