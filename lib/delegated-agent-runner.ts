@@ -1,7 +1,10 @@
 import { createAgentDelegator } from './agent-delegation.ts';
 import { buildAgentSystemMessage } from './agent-runtime.ts';
 import { normalizeNvidiaChatCompletion } from './model-response-contract.ts';
-import { executeNvidiaToolCall, getAllowedNvidiaTools, type ToolRuntimeContext } from './tool-runtime.ts';
+import { executeNvidiaToolCall, getAllowedNvidiaTools, getRuntimeCapabilities, type ToolRuntimeContext } from './tool-runtime.ts';
+import { capabilityInstruction, MAX_EXPERT_CALLS_PER_ROUND, MAX_EXPERT_ROUNDS } from './runtime-capabilities.ts';
+import { createToolLoopGuard } from './tool-loop-guard.ts';
+import { isEmptyOrProgressOnlyAnswer } from './agent-continuation-recovery.ts';
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
 
@@ -47,7 +50,7 @@ type CompletionFn = (payload: unknown, signal?: AbortSignal) => Promise<unknown>
 
 function normalizeToolCalls(calls: unknown): DelegatedToolCall[] {
   if (!Array.isArray(calls)) return [];
-  return calls.slice(0, 4)
+  return calls
     .filter((call): call is Record<string, unknown> =>
       Boolean(call && typeof call === 'object' && (call as Record<string, unknown>).id && (call as Record<string, unknown>).name)
     )
@@ -102,6 +105,11 @@ export async function runDelegatedAgent({
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }
 
+  const startedAt = Date.now();
+  const rounds = Number.isInteger(maxRounds) && maxRounds > 0 ? Math.min(maxRounds, MAX_EXPERT_ROUNDS) : 1;
+  let roundsStarted = 0;
+  let completedCalls = 0;
+  const guard = createToolLoopGuard();
   const nestedDelegator = createAgentDelegator({
     registry,
     traceId: safeTraceId,
@@ -132,7 +140,7 @@ export async function runDelegatedAgent({
       skillsRuntime: skillsRuntime as { readonly resolveForAgent: (args: unknown) => unknown } | undefined,
       ownerId,
       sessionId,
-      signal: nestedSignal,
+      signal: nestedSignal ?? signal,
       toolContext,
       maxRounds
     })
@@ -153,21 +161,23 @@ export async function runDelegatedAgent({
     ownerId,
     sessionId,
     signal,
-    ...(toolContext || {})
+    ...(toolContext || {}),
+    runtimeBudget: () => ({ maxToolRounds: rounds, roundsStarted, toolCallsCompleted: completedCalls, timeoutMs: null, elapsedMs: Date.now() - startedAt, expertMaxRounds: rounds, maxCallsPerRound: MAX_EXPERT_CALLS_PER_ROUND })
   };
   const tools = getAllowedNvidiaTools(agent, baseContext);
+  const context = { ...baseContext, advertisedToolNames: tools.map(tool => tool.function.name) };
   // Token usage of expert runs feeds the delegation audit and the expert's daily quota.
   const completeRecorded: CompletionFn = async (payload, completionSignal) => {
     const response = await complete(payload, completionSignal);
     toolContext?.telemetry?.recordCompletionUsage(safeTraceId, `expert:${agent.id}`, safeModel, response);
     return response;
   };
-  const messages: unknown[] = [buildAgentSystemMessage(agent, safeTraceId, tools.length ? { tools: true } : {}), { role: 'user' as const, content: task }];
-  const rounds = Number.isInteger(maxRounds) && maxRounds > 0 ? Math.min(maxRounds, 5) : 1;
+  const messages: unknown[] = [buildAgentSystemMessage(agent, safeTraceId, { tools: tools.length > 0, addendum: capabilityInstruction(getRuntimeCapabilities(agent, context)) }), { role: 'user' as const, content: task }];
   let anyToolFailed = false;
-  let usedTools = false;
 
   for (let round = 0; round < rounds; round += 1) {
+    if (signal?.aborted) return { ok: false, error: 'DELEGATION_CANCELLED' };
+    roundsStarted = round + 1;
     const payload: Record<string, unknown> = {
       model: safeModel,
       messages,
@@ -181,19 +191,25 @@ export async function runDelegatedAgent({
     const completion = await normalizeCompletion(completeRecorded, payload, signal);
     if (!completion) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
     if (!completion.toolCalls.length) {
-      if (round === 0 || completion.content.trim()) return { ok: true, content: completion.content };
+      if (!isEmptyOrProgressOnlyAnswer(completion.content)) return { ok: true, content: completion.content };
       break;
     }
     const calls = normalizeToolCalls(completion.toolCalls);
     if (!calls.length) return { ok: false, error: 'INVALID_TOOL_CALL' };
-    usedTools = true;
     const toolMessages: DelegatedToolMessage[] = [];
-    for (const call of calls) {
+    for (const [callIndex, call] of calls.entries()) {
+      const rejection = signal?.aborted ? 'DELEGATION_CANCELLED' : callIndex >= MAX_EXPERT_CALLS_PER_ROUND ? 'TOOL_BATCH_LIMIT' : !context.advertisedToolNames.includes(call.function.name) ? 'TOOL_NOT_ADVERTISED' : !guard.shouldRun(call.function.name, call.function.arguments) ? 'REPEATED_TOOL_CALL' : null;
+      if (rejection) {
+        anyToolFailed = true;
+        toolMessages.push({ role: 'tool', tool_call_id: call.id, name: call.function.name, content: JSON.stringify({ ok: false, error: rejection }) });
+        continue;
+      }
       const toolTask = runLedger.recordToolStart(call.function.name, {
         parentTaskId: safeParentTaskId,
         toolAgentId: agent.id
       });
-      const result = await executeNvidiaToolCall(agent, call, baseContext);
+      const result = await executeNvidiaToolCall(agent, call, context);
+      completedCalls += 1;
       runLedger.recordToolFinish(toolTask.taskId, result);
       if (!result.ok) anyToolFailed = true;
       toolMessages.push({
@@ -206,6 +222,8 @@ export async function runDelegatedAgent({
     messages.push({ role: 'assistant', content: completion.content || null, tool_calls: calls }, ...toolMessages);
   }
 
+  if (signal?.aborted) return { ok: false, error: 'DELEGATION_CANCELLED' };
+  messages.push({ role: 'system', content: 'Araç bütçesi sona erdi. Yeni araç çağırma; doğrulanmış sonuçları ve tamamlanmayan işi belirt. Başarı uydurma.' });
   const second = await normalizeCompletion(completeRecorded, {
     model,
     messages,
@@ -218,7 +236,7 @@ export async function runDelegatedAgent({
   // A single-round run keeps the strict contract: any failed tool fails the delegation. Multi-round
   // experts already saw the failure and could work around it, so their answer stands.
   if (anyToolFailed && (rounds === 1 || !second.content.trim())) return { ok: false, error: 'DELEGATED_TOOL_FAILED' };
-  if (!usedTools && !second.content.trim()) return { ok: false, error: 'INVALID_NVIDIA_RESPONSE' };
+  if (second.toolCalls.length || isEmptyOrProgressOnlyAnswer(second.content)) return { ok: false, error: 'INCOMPLETE_DELEGATED_ANSWER' };
 
   return {
     ok: true,
