@@ -31,3 +31,6 @@ Eşzamanlı sohbetlerde bozuk stream, son kullanılan global modele değil yaln�
 
 - `Embedding testi: nvidia/nemotron-3-embed-1b` mevcut embedding modelini üç sentetik cümle ile tek istekte ölçer. Boyut, geçerli sayısal vektör ve basit benzerlik kontrolü; genel retrieval kalitesi değildir. `HAFIZE_MODEL_LAB_EMBEDDINGS` operatörün erişim/maliyetini onayladığı Nemotron 3/3.5 embedding kimliklerini seçer. Sonuçlar bu sürümde geçici bellektedir, otomatik üretim model değişikliği yoktur. Resmi API: https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-embed-1b-infer .
 - Üretim embedding önbelleği artık model, sağlayıcı, input_type ve gönderilen metinle ayrılır; NVIDIA ve yerel model vektörleri tek batch içinde karıştırılmaz. Hatalı, sıfır veya farklı boyutlu vektörler reddedilir.
+
+## V3 — Ayarlar paneli
+Ayarlar > NVIDIA Model Laboratuvarı: durum, katalog arama, görev liderleri, model seçimi, sohbet/derin/embedding ve toplu test düğmeleri. İlk açılışta otomatik API isteği yoktur; düğmeler kullanıcı tarafından çalıştırılır. `/api/models/status/lab` GET/POST uçları mevcut oturum, CSRF ve sahibi doğrulama sınırını kullanır. Konsey soruları bu test HTTP uç noktasına kabul edilmez.

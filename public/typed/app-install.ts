@@ -150,7 +150,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
 
   const modelPanel = () => {
     const panel = el('section', 'settings-panel model-status');
-    panel.append(el('h2', '', 'Yapay zekâ ve bağlantı'), el('p', '', 'Hafize her zaman en üstteki modelle yanıtlar. Model yanıt veremez, kullanım sınırı ya da paketi dolarsa kendiliğinden bir alttakine geçer, düzelince en üste döner.'));
+    panel.append(el('h2', '', 'Yapay zekâ ve bağlantı'), el('p', '', 'Hafize göreve uygun ölçülmüş modelleri önceliklendirir. Model yanıt veremez veya kullanım sınırına ulaşırsa yedek zincire geçer.'));
     const line = el('p', 'app-install-state');
     const list = el('ol', 'model-status-list');
     panel.append(line, list);
@@ -161,7 +161,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
         if (!response.ok) return;
         const data = await response.json();
         line.textContent = data.internet ? 'İnternet bağlantısı var: arama, haber, hava durumu ve sayfa okuma açık.' : 'Bu bilgisayar şu an internete ulaşamıyor; web araçları bağlantı gelince yeniden çalışır.';
-        list.replaceChildren(...(data.chain ?? []).map((item: { model: string; ready: boolean; lastFailure: string | null; retryInSeconds: number }) => {
+        list.replaceChildren(...[...(data.chain ?? []), ...(data.extraCandidates ?? [])].map((item: { model: string; ready: boolean; lastFailure: string | null; retryInSeconds: number }) => {
           const row = el('li', [item.model === data.current ? 'is-current' : '', item.ready ? '' : 'is-resting'].filter(Boolean).join(' '));
           const note = item.ready ? (item.model === data.current ? 'kullanılıyor' : '') : `${reasons[item.lastFailure ?? ''] ?? 'dinleniyor'}, ${Math.max(1, Math.ceil(item.retryInSeconds / 60))} dk sonra yeniden denenecek`;
           row.append(el('span', 'model-status-dot'), el('span', 'model-status-name', item.model), el('small', '', note));
@@ -174,12 +174,69 @@ function start(documentRef: Document, root: typeof globalThis): void {
     return panel;
   };
 
+  const modelLabPanel = () => {
+    const panel=el('section','settings-panel model-lab-panel');
+    panel.append(el('h2','','NVIDIA Model Laboratuvarı'),el('p','','Katalog, sentetik testler ve görev bazlı sıralama. Katalogdaki modellerin fiyatı ve erişimi doğrulanmış değildir. Testler ortak istek bütçesini kullanır.'));
+    const notice=el('p','app-install-state','Henüz sorgulanmadı.');
+    notice.setAttribute('role','status');
+    const filter=el('input');
+    filter.type='search'; filter.placeholder='Model veya yetenek ara'; filter.setAttribute('aria-label','Model veya yetenek ara');
+    const select=el('select');select.setAttribute('aria-label','Test edilecek model');
+    const actions=el('div','settings-actions');
+    const leaders=el('ul','settings-memory-list');
+    const list=el('ul','model-status-list');
+    const details=el('details');details.append(el('summary','','Model kataloğu ve test sonuçları'),filter,list);
+    panel.append(notice,actions,select,leaders,details);
+    type Row={id:string;capabilities:string[];configured:boolean;listed:boolean;evidence:string};
+    type LabData={inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
+    let data:LabData={};let busy=false;let available=false;
+    const buttons:HTMLButtonElement[]=[];
+    const render=()=>{
+      const search=filter.value.toLocaleLowerCase('tr-TR');
+      list.replaceChildren();
+      for(const row of (Array.isArray(data.inventory)?data.inventory:[]).filter(row=>(row.id+' '+row.capabilities.join(' ')).toLocaleLowerCase('tr-TR').includes(search)).slice(0,530)){
+        const item=el('li');
+        const measured=data.results?.find(result=>result.model===row.id);
+        item.append(el('span','model-status-name',row.id),el('small','',row.capabilities.join(', ')+' · '+(row.configured?'aday':'sadece katalog')+' · '+row.evidence+(measured?' · '+(measured.chatLatencyMs??'—')+' ms':'')));
+        list.append(item);
+      }
+      leaders.replaceChildren();
+      for(const [kind,ids] of Object.entries(data.taskLeaders??{}))leaders.append(el('li','',kind+': '+(ids[0]||'ölçülmedi')));
+      for(const row of data.specialistResults??[])leaders.append(el('li','',row.model+': '+row.status+' · '+(row.dimension??'—')+' boyut'));
+      const selected=select.value;
+      select.replaceChildren(...[...new Set([...(data.eligible??[]),...(data.specialists??[])])].map(id=>{const option=el('option','',id);option.value=id;return option;}));
+      if([...select.options].some(option=>option.value===selected))select.value=selected;
+    };
+    function controls(){for(const button of buttons)button.disabled=busy||(!available&&button.dataset.action!=='status');select.disabled=busy;}
+    async function run(action:string){
+      if(busy)return;
+      busy=true;controls();notice.textContent='İşlem yapılıyor…';
+      try{
+        const selected=select.value;
+        const payload=['probe','deep','specialist'].includes(action)?{action,model:selected}:{action};
+        const response=await api('/api/models/status/lab',action==='status'?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const result=await response.json();
+        if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;data={};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
+        data=result;available=true;render();
+        notice.textContent='Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
+      }catch(error){notice.textContent='Model Laboratuvarı: '+(error instanceof Error?error.message:'Bağlantı hatası');}
+      finally{busy=false;controls();}
+    }
+    for(const [action,label] of [['status','Durumu yenile'],['discover','Kataloğu getir'],['batch','Sıradaki testler'],['probe','Sohbet testi'],['deep','Derin test'],['specialist','Embedding testi']]){
+      const button=el('button','',label);button.type='button';button.dataset.action=action;button.addEventListener('click',()=>{void run(action!);});buttons.push(button);actions.append(button);
+    }
+    filter.addEventListener('input',render);
+    controls(); // No automatic provider calls; the owner initiates refresh and every test.
+    return panel;
+  };
+
   const attach = (host: Element) => {
     if (host.querySelector('.app-install')) return;
     const first = host.querySelector('.settings-panel');
     if (first?.nextSibling) host.insertBefore(installPanel(), first.nextSibling); else host.append(installPanel());
     const install = host.querySelector('.app-install');
     if (install?.nextSibling) host.insertBefore(modelPanel(), install.nextSibling); else host.append(modelPanel());
+    host.append(modelLabPanel());
     const results = host.querySelector('.task-results') ?? install;
     const servers = serversPanel();
     if (results?.nextSibling) host.insertBefore(servers, results.nextSibling); else host.append(servers);

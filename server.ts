@@ -57,6 +57,7 @@ import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToo
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
 import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
+import { modelLabAction } from './lib/model-lab-http.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -1621,6 +1622,27 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
+    // This path is covered by production-guard's /api/models/status prefix (session + CSRF).
+    if (url.pathname === '/api/models/status/lab' && ['GET','POST'].includes(req.method)) {
+      const authorized = allowSafeGitHubAutonomy({ optedIn:true, authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal:req.__hafizePrincipal||null, configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent });
+      if (!authorized) { sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'}); return; }
+      if (!MODEL_LAB) { sendJson(res,503,{error:'MODEL_LAB_UNAVAILABLE'}); return; }
+      res.setHeader('Cache-Control','no-store');
+      if (req.method==='GET') { sendJson(res,200,MODEL_LAB.status()); return; }
+      const abort=new AbortController();
+      const close=()=>abort.abort();
+      res.once('close',close);
+      try {
+        const body=await readJson(req,4096);
+        sendJson(res,200,await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])));
+      } catch(error) {
+        if(res.destroyed||res.writableEnded)return;
+        const code=typeof error?.message==='string'&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_LAB_FAILED';
+        const status=code==='MODEL_LAB_BUSY'?409:code==='MODEL_LAB_BUDGET'||code==='MODEL_LAB_PROVIDER_PAUSED'?429:400;
+        sendJson(res,status,{error:code});
+      } finally {res.off('close',close);}
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/api/models/status') {
       sendJson(res, 200, { ...MODEL_ROUTER.status(), internet: await internetStatus() });
       return;
