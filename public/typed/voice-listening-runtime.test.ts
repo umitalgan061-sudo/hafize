@@ -224,7 +224,9 @@ describe('accurate natural interruption',()=>{
  it('recognizes reordered words as distinct speech and waits longer after an unfinished phrase',()=>{
   expect(isPlaybackEcho('yarın bugün akşam sabah ben sen biz','bugün yarın sabah akşam sen ben biz')).toBe(false);
   expect(isPlaybackEcho('bugün hava çok güzel birlikte parka gidelim','bugün hava çok güzel birlikte parka gidelim')).toBe(true);
-  expect(isPlaybackEcho('bugün hava çok güzel birlikte parka gidiyoruz','bugün hava çok güzel birlikte parka gidelim')).toBe(true);
+  expect(isPlaybackEcho('bugün hava çok güzel birlikte parka gidelm','bugün hava çok güzel birlikte parka gidelim')).toBe(true);
+  expect(isPlaybackEcho('bugün hava çok güzel birlikte parka gitmeyelim','bugün hava çok güzel birlikte parka gidelim')).toBe(false);
+  expect(voiceEndOfTurnDelay('Sana bir şey soracağım çünkü',false)).toBeGreaterThan(voiceEndOfTurnDelay('Nasılsın?',false));
   expect(voiceEndOfTurnDelay('Sana bir şey soracağım ama',false)).toBeGreaterThan(voiceEndOfTurnDelay('Nasılsın?',false));
  });
  it('stops audio on a distinct finalized phrase but waits for the complete turn',()=>{
@@ -251,4 +253,12 @@ describe('accurate natural interruption',()=>{
   await vi.advanceTimersByTimeAsync(750);
   expect(p.recognizers[1]).toBeDefined();p.controller.destroy();
  });
+});
+
+it('does not silently send only the first half of a sentence when the rest is provisional',async()=>{
+ const p=page('iPhone Mobile');p.controller.open();
+ p.recognizers[0].onresult?.({results:[...result('Borsa günlüğünü',true),...result('sadece incele',false)]});
+ p.recognizers[0].onend?.();expect(p.composer.sent).toBe(0);
+ await vi.advanceTimersByTimeAsync(750);expect(p.recognizers[1]).toBeDefined();
+ p.controller.destroy();
 });

@@ -91,10 +91,11 @@ export function isPlaybackEcho(value:unknown,reference:unknown):boolean{
   const words=utterance.split(' '),ref=spoken.split(' ');
   if(words.length<7||words.length>ref.length)return false;
   // Compare ordered contiguous windows; identical vocabulary in a different order
-  // is not an echo. Allow one substitution only in a long near-verbatim fragment.
+  // is not an echo. Allow a single-character transcription error in one long word.
+  const typo=(a:string,b:string)=>{if(Math.min(a.length,b.length)<5||Math.abs(a.length-b.length)>1)return false;const longer=a.length>=b.length?a:b,shorter=a.length>=b.length?b:a;let i=0,j=0,edits=0;while(i<longer.length&&j<shorter.length){if(longer[i]===shorter[j]){i++;j++;continue;}if(++edits>1)return false;i++;if(longer.length===shorter.length)j++;}return edits+(longer.length-i)+(shorter.length-j)<=1;};
   for(let i=0;i<=ref.length-words.length;i++){
     let differences=0;
-    for(let j=0;j<words.length;j++){if(words[j]!==ref[i+j]&&++differences>1)break;}
+    for(let j=0;j<words.length;j++){if(words[j]===ref[i+j])continue;if(++differences>1||!typo(words[j]!,ref[i+j]!)){differences=2;break;}}
     if(differences<=1)return true;
   }
   return false;
@@ -102,7 +103,7 @@ export function isPlaybackEcho(value:unknown,reference:unknown):boolean{
 
 /** A pause after a conjunction often means the speaker has not finished. */
 export function voiceEndOfTurnDelay(text:string,ios:boolean):number{
- const unfinished=/\b(?:ve|veya|ama|fakat|çünkü|yani|mesela|eğer|şey|sonra|ile)\s*[,;…]?$/iu.test(text.trim())||/[,;:]\s*$/.test(text);
+ const unfinished=/(?:^|\s)(?:ve|veya|ama|fakat|çünkü|yani|mesela|eğer|şey|sonra|ile)\s*[,;…]?$/iu.test(text.trim())||/[,;:]\s*$/.test(text);
  return ios?(unfinished?3600:IOS_NATURAL_END_GRACE_MS):(unfinished?1300:END_OF_TURN_MS);
 }
 
@@ -622,11 +623,11 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (state === 'closed' || muted || documentRef.hidden) return;
       // Only finalized words can interrupt an answer. Interim guesses and echoed
       // speech must not become new user messages during playback.
-      const said = (manualEnd&&!heardDuringReply?[final,interim].filter(Boolean).join(' '):final).trim();
+      const said = (manualEnd&&!heardDuringReply?[final,interim].filter(Boolean).join(' '):interim?'':final).trim();
       if (said && !isEcho(said)) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
       if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
       if(interruptedBySpeech){interruptedBySpeech=false;}
-      if(interim&&!final&&!rejectedEcho&&!errorCode){retryListening('Sözlerin tam netleşmedi · yeniden dinliyorum…',false);return;}
+      if(interim&&!errorCode){retryListening('Sözlerin tam netleşmedi · yeniden dinliyorum…',false);return;}
       if (heardDuringReply || rejectedEcho) {if(!errorCode){retryListening('Dinlemeye devam ediyorum…',false);return;}}
       if (heardSpeech && !errorCode) {
         retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
