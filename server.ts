@@ -57,6 +57,7 @@ import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToo
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil, formatComprehensiveLabResult } from './lib/model-lab.ts';
 import { createModelLabFileStorage, createModelLabSqliteStorage } from './lib/model-lab-storage.ts';
+import { modelLabConnection } from './lib/model-lab-connection.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
 import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { auditExpertContracts } from './lib/expert-readiness.ts';
@@ -87,26 +88,29 @@ const gateway = freeLlmGateway(process.env);
 const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');
 const NIM_BASE_URL = gateway?.baseUrl ?? (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
+const LAB_CONNECTION = modelLabConnection(process.env);
+const LAB_MODEL_CHAIN = parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
 // Explicit operator allowlist; never auto-promote the discovery catalog.
-const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-CONFIGURED_MODEL_CHAIN.length));
+const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-LAB_MODEL_CHAIN.length));
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
 let MODEL_LAB_STORAGE;
-if (!gateway && NVIDIA_API_KEY && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
-  try { MODEL_LAB_STORAGE = createModelLabFileStorage(process.env.HAFIZE_MODEL_LAB_STORAGE_PATH, NVIDIA_API_KEY, [...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES]); }
+if (LAB_CONNECTION.connection && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
+  try { MODEL_LAB_STORAGE = createModelLabFileStorage(process.env.HAFIZE_MODEL_LAB_STORAGE_PATH, LAB_CONNECTION.connection.apiKey, [...LAB_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES]); }
   catch { console.warn('hafize.model_lab storage configuration invalid'); }
 }
-const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
-  allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
+const LAB_DIRECT = LAB_CONNECTION.connection;
+const MODEL_LAB = LAB_DIRECT ? createModelLab({
+  allowed: [...LAB_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
   storage: MODEL_LAB_STORAGE,
   specialistModels: (process.env.HAFIZE_MODEL_LAB_EMBEDDINGS || 'nvidia/nemotron-3-embed-1b').split(',').map(id=>id.trim()),
-  request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+  request: (path, body, signal) => fetch(LAB_DIRECT.baseUrl + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + LAB_DIRECT.apiKey, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
 let RUNTIME_EVIDENCE;
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
-  extraCandidates: MODEL_LAB ? MODEL_LAB_EXTRA_CANDIDATES : [],
-  preferredModels: (payload, candidates, expertId) => {const verified=MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [];try{return RUNTIME_EVIDENCE?.reorder(verified)??verified;}catch{return verified;}},
+  extraCandidates: MODEL_LAB && !gateway ? MODEL_LAB_EXTRA_CANDIDATES : [],
+  preferredModels: (payload, candidates, expertId) => {const verified=gateway?[]:MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [];try{return RUNTIME_EVIDENCE?.reorder(verified)??verified;}catch{return verified;}},
   observeAttempt: event=>RUNTIME_EVIDENCE?.record(event),
   // Background helpers stay on the quick model unless it is unavailable.
   keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
@@ -1055,7 +1059,7 @@ async function handleAgentRun(req, res) {
   if (labCommand) {
     const authorized = allowSafeGitHubAutonomy({ optedIn: true, authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal, configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId: agent.id, primaryAgentId: AGENT_REGISTRY.defaultAgent });
     if (!authorized) { finishWithAnswer('Model Laboratuvarı: doğrulanmış hesap sahibi olarak Hafize ana ajanında oturum açmalısın (MODEL_LAB_OWNER_REQUIRED). Anahtarı sohbete yazma.', false, true); return; }
-    if (!MODEL_LAB) { const reason=gateway?'Sohbet şu anda farklı bir gateway üzerinden çalışıyor.':!NVIDIA_API_KEY?'Sunucuda NVIDIA_API_KEY yapılandırılmamış.':'Doğrudan resmi NVIDIA API uç noktası yapılandırılmamış.';finishWithAnswer('Model Laboratuvarı kullanılamıyor: '+reason+' (MODEL_LAB_UNAVAILABLE). Anahtar veya gizli bilgileri sohbete yazma.',false,true);return; }
+    if (!MODEL_LAB) { const reason=LAB_CONNECTION.reason==='NVIDIA_KEY_MISSING'?'Sunucuda ayrı NVIDIA_API_KEY yapılandırılmamış. Gateway anahtarı laboratuvar için kullanılmaz.':'Doğrudan resmi NVIDIA API uç noktası yapılandırılmamış.';finishWithAnswer('Model Laboratuvarı kullanılamıyor: '+reason+' (MODEL_LAB_UNAVAILABLE). Anahtar veya gizli bilgileri sohbete yazma.',false,true);return; }
     try {
       if (labCommand.action === 'council') { finishWithAnswer(formatCouncil(await MODEL_LAB.council(labCommand.question, requestAbort.signal)), false); return; }
       if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
@@ -1704,7 +1708,7 @@ const server = createServer(async (req, res) => {
 });
 
 // Default to the existing SQLite DB if no explicit file storage was selected.
-if(MODEL_LAB&&!MODEL_LAB_STORAGE){try{MODEL_LAB.attachStorage(createModelLabSqliteStorage(PLATFORM.db,NVIDIA_API_KEY,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,...MODEL_LAB.status().specialists]));}catch{console.warn('hafize.model_lab sqlite storage unavailable');}}
+if(MODEL_LAB&&LAB_DIRECT&&!MODEL_LAB_STORAGE){try{MODEL_LAB.attachStorage(createModelLabSqliteStorage(PLATFORM.db,LAB_DIRECT.apiKey,[...LAB_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,...MODEL_LAB.status().specialists]));}catch{console.warn('hafize.model_lab sqlite storage unavailable');}}
 try{RUNTIME_EVIDENCE=createRuntimeEvidence(PLATFORM.db,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,process.env.HAFIZE_FAST_MODEL||MODEL_SERVICE_DEFAULTS.fastModel]);}catch{console.warn('hafize.runtime_evidence unavailable');}
 const DAILY_IMPROVEMENT = createDailyImprovement({expertReadiness:()=>auditExpertContracts(AGENT_REGISTRY),runtimeEvidence:()=>{RUNTIME_EVIDENCE?.prune();return RUNTIME_EVIDENCE?.summary()??[];},adaptLeaders:ids=>RUNTIME_EVIDENCE?.reorder(ids)??ids,db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',discoverCatalog:process.env.HAFIZE_DAILY_CATALOG_DISCOVERY==='true',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
 let dailyTimer;
