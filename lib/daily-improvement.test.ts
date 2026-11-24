@@ -66,3 +66,12 @@ it('records daily runtime evidence without enabling provider requests',async()=>
  expect(daily.status().report?.runtimeEvidence).toEqual([row]);
  expect(request).not.toHaveBeenCalled();db.close();
 });
+
+it('marks a failed offline expert contract as partial without making provider calls',async()=>{
+ const db=openHafizeDb(':memory:');
+ const request=vi.fn(async()=>new Response('{}'));
+ const lab=createModelLab({allowed:['nvidia/example'],request});
+ const daily=createDailyImprovement({db,lab,expertHealth:()=>[],expertReadiness:()=>[{agentId:'expert-math',passed:false,mode:'offline_contract',checks:[{key:'model_profile',passed:false}]}]});
+ expect(await daily.tick()).toMatchObject({state:'partial',error:'EXPERT_CONTRACT_CHECK_FAILED'});
+ expect(request).not.toHaveBeenCalled();db.close();
+});

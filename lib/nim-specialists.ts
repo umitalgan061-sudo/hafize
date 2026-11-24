@@ -18,7 +18,26 @@ function lang(value:unknown):string{
   if(typeof value!=='string'||!/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(value))return fail('NIM_LANGUAGE_INVALID');
   return value;
 }
-function wav(bytes:Buffer){return bytes.length>=44&&bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WAVE';}
+/** Validate bounded, uncompressed PCM WAV, including actual chunks, not merely magic bytes. */
+export function isPcmWav(bytes:Buffer):boolean{
+ if(bytes.length<44||bytes.toString('ascii',0,4)!=='RIFF'||bytes.toString('ascii',8,12)!=='WAVE'||bytes.readUInt32LE(4)!==bytes.length-8)return false;
+ let format:{align:number;rate:number;byteRate:number}|null=null;let dataSize=0;let chunks=0;let position=12;
+ while(position+8<=bytes.length){
+  if(++chunks>128)return false;
+  const name=bytes.toString('ascii',position,position+4),size=bytes.readUInt32LE(position+4),start=position+8,end=start+size,next=end+(size%2);
+  if(end>bytes.length||next>bytes.length)return false;
+  if(name==='fmt '){
+   if(format||size<16||bytes.readUInt16LE(start)!==1)return false;
+   const channels=bytes.readUInt16LE(start+2),rate=bytes.readUInt32LE(start+4),byteRate=bytes.readUInt32LE(start+8),align=bytes.readUInt16LE(start+12),bits=bytes.readUInt16LE(start+14);
+   if(channels<1||channels>2||rate<8000||rate>96000||![8,16,24,32].includes(bits)||align!==channels*bits/8||byteRate!==rate*align)return false;
+   format={align,rate,byteRate};
+  }else if(name==='data'){
+   if(!format||dataSize||!size)return false;dataSize=size;
+  }
+  position=next;
+ }
+ return Boolean(position===bytes.length&&format&&dataSize>0&&dataSize%format.align===0&&dataSize/format.byteRate<=300);
+}
 function decode(value:unknown):Buffer{
   if(typeof value!=='string'||value.length>Math.ceil(MAX_FILE/3)*4||!/^[A-Za-z0-9+/]+={0,2}$/.test(value)||value.length%4!==0)return fail('NIM_FILE_INVALID');
   const bytes=Buffer.from(value,'base64');
@@ -62,7 +81,7 @@ export function createNimSpecialists({env,fetchImpl=globalThis.fetch}:{env:Recor
   }
   async function transcribe(input:{data:unknown;language:unknown},signal?:AbortSignal){
     const language=lang(input.language);if(!asrLanguages.includes(language))return fail('NIM_LANGUAGE_NOT_CONFIGURED');
-    const bytes=decode(input.data);if(!wav(bytes))return fail('NIM_AUDIO_FORMAT',415);
+    const bytes=decode(input.data);if(!isPcmWav(bytes))return fail('NIM_AUDIO_FORMAT',415);
     const form=new FormData();form.set('file',new Blob([new Uint8Array(bytes)],{type:'audio/wav'}),'audio.wav');form.set('language',language);form.set('response_format','json');
     return observe('asr',async()=>{
     const response=json(await send('asr','/v1/audio/transcriptions',form,signal));
@@ -76,7 +95,7 @@ export function createNimSpecialists({env,fetchImpl=globalThis.fetch}:{env:Recor
     const form=new FormData();form.set('text',input.text);form.set('language',language);form.set('encoding','LINEAR_PCM');
     return observe('tts',async()=>{
     const bytes=await send('tts','/v1/audio/synthesize',form,signal);
-    if(!wav(bytes))return fail('NIM_AUDIO_INVALID_RESPONSE',502);
+    if(!isPcmWav(bytes))return fail('NIM_AUDIO_INVALID_RESPONSE',502);
     return {data:bytes.toString('base64'),mime:'audio/wav',language,provider:'configured-nim-tts'};
     },signal);
   }

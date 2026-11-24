@@ -1,7 +1,7 @@
 
 import {describe,it,expect,vi} from 'vitest';
-import {createNimSpecialists} from './nim-specialists.ts';
-const audio=Buffer.alloc(44);audio.write('RIFF',0);audio.write('WAVE',8);
+import {createNimSpecialists,isPcmWav} from './nim-specialists.ts';
+const audio=Buffer.alloc(48);audio.write('RIFF',0);audio.writeUInt32LE(40,4);audio.write('WAVE',8);audio.write('fmt ',12);audio.writeUInt32LE(16,16);audio.writeUInt16LE(1,20);audio.writeUInt16LE(1,22);audio.writeUInt32LE(16000,24);audio.writeUInt32LE(32000,28);audio.writeUInt16LE(2,32);audio.writeUInt16LE(16,34);audio.write('data',36);audio.writeUInt32LE(4,40);
 const png=Buffer.from([137,80,78,71,13,10,26,10]);
 describe('standalone NIM services',()=>{
   it('uses fixed multipart paths without forwarding catalog credentials',async()=>{
@@ -36,4 +36,14 @@ it('reports actual service observations without retaining request content or mis
  valid=true;await nim.transcribe({data,language:'tr-TR'});
  expect(nim.status().observations.asr).toMatchObject({state:'passed',error:null});
  expect(JSON.stringify(nim.status())).not.toContain('private transcript');
+});
+
+it('rejects empty, truncated and inconsistent WAV headers before provider calls',async()=>{
+ const broken=Buffer.from(audio);broken.writeUInt32LE(9999,40);
+ expect(isPcmWav(audio)).toBe(true);expect(isPcmWav(audio.subarray(0,44))).toBe(false);expect(isPcmWav(broken)).toBe(false);
+ const rate=Buffer.from(audio);rate.writeUInt32LE(1,28);expect(isPcmWav(rate)).toBe(false);
+ const fetchImpl=vi.fn(async()=>new Response('{}'));
+ const nim=createNimSpecialists({env:{HAFIZE_NIM_ASR_URL:'https://asr.example',HAFIZE_NIM_ASR_LANGUAGES:'tr-TR'},fetchImpl:fetchImpl as typeof fetch});
+ await expect(nim.transcribe({data:broken.toString('base64'),language:'tr-TR'})).rejects.toThrow('NIM_AUDIO_FORMAT');
+ expect(fetchImpl).not.toHaveBeenCalled();
 });

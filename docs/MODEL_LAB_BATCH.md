@@ -68,3 +68,4 @@ Günlük çalışma zamanı ölçümleri ve uyarlanmış liderler Ayarlar > Mode
 
 ## V9 — çevrimdışı uzman denetimi
 Her günlük döngüde 12 uzman kartı, görev modeli profili, yetenekler, görev talimatları, giriş ve çıktı şemaları, kota sınırları, temel gerekli araç izinleri ve izinsiz kritik işlemlerin reddi denetlenir. Eksik uzman veya bozulan izin kuralı raporu kısmi olarak işaretler. Ayarlarda uzman bazında sonuçlar gösterilir. Bu denetim hiçbir araç çalıştırmaz ve model kalitesi veya canlı servis erişimi kanıtı değildir.
+ASR/TTS WAV doğrulaması RIFF uzunluğu, fmt/data parçaları, PCM türü, kanal, örnekleme hızı, blok hizası, veri uzunluğu ve azami 300 saniye sınırını kontrol eder. Desteklenmeyen sıkıştırılmış WAV biçimleri reddedilir; mevcut tarayıcı sesleri değişmez. Bağımsız NIM servisleri hâlâ yapılandırılmalı ve gerçek protokol üzerinde doğrulanmalıdır.
