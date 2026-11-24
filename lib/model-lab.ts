@@ -122,7 +122,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   restore();
   // Called only once during server startup, before the first HTTP request or scheduled probe.
   function attachStorage(next:ModelLabStorage){if(storage||running||batchRunning||results.size||specialistResults.size||timestamps.length)throw Error('MODEL_LAB_STORAGE_ALREADY_INITIALIZED');storage=next;storageHealthy=true;restore();}
-  function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && result.toolProbeStatus === 'passed' ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
+  function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && (result.toolProbeStatus === 'passed'||textOnlyLabModel(model)) ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
   const status = () => ({ eligible, catalog, catalogDelta, publicCatalog:PUBLIC_CATALOG_METADATA,publicInventory:publicModelInventory(eligible,specialists,[...results.values()].filter(row=>fresh(row.model)!==null),[...specialistResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS)), specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
   async function call(path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal?: AbortSignal) {
@@ -259,7 +259,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   function preferred(kind: ModelTaskKind, candidates: readonly string[]) {
     const needsTools = kind.includes('agent') || kind === 'coding';
     const needsReasoning = kind.includes('reasoning') || kind === 'coding';
-    const verified = candidates.flatMap(model => {
+    const verified = candidates.filter(model=>!textOnlyLabModel(model)).flatMap(model => {
       const row = fresh(model);
       const deep = deepFresh(model);
       return row?.status === 'passed' && row.chat && row.turkish && (!deep || deep.language) && (!needsTools || row.tools && (!deep || deep.toolFollowup)) && (!needsReasoning || row.reasoning && (!deep || deep.reasoning)) && (kind !== 'coding' || row.coding && (!deep || deep.coding)) ? [row] : [];
@@ -339,6 +339,15 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     } finally {running=false;}
   }
   /** Explicit owner-requested round. No unlisted models or real tool side effects. */
+  async function translationProbe(signal?:AbortSignal){
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
+    if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
+    if(availableRequests()<1)throw Error('MODEL_LAB_BUDGET');
+    const model='nvidia/riva-translate-4b-instruct-v2',started=now();running=true;
+    let state:ProbeState='failed';let translated=false;
+    try{const response=await call('/chat/completions',{model,messages:[{role:'system',content:'en-tr'},{role:'user',content:'Thank you.'}],stream:false,max_tokens:128,temperature:0},signal);if(!response.ok)state=statusFor(response.status);else{const answer=message(await response.json())?.content;translated=typeof answer==='string'&&/^(?:teşekkür(?:ler| ederim)|sağ ol(?:un)?)[.!]?$/iu.test(answer.trim());state=translated?'passed':'invalid_response';}}catch(error){if(signal?.aborted)throw error;state=error instanceof Error&&error.name==='TimeoutError'?'timeout':'failed';}finally{running=false;}
+    return {model,status:state,translated,mode:'synthetic_translation' as const,testedAt:new Date(started).toISOString(),latencyMs:Math.max(0,now()-started)};
+  }
   async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
     if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -352,7 +361,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     if(specialist&&blockedUntil<=now()&&availableRequests()>0){signal?.throwIfAborted();embedding=await specialistProbe(specialist,signal);}
     return {smoke:smoke.completed,deep,embedding,startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),pending:status().pendingModels,deepPending:status().deepPendingModels,paused:blockedUntil>now()||availableRequests()<2};
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive });
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, translationProbe });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
@@ -368,12 +377,13 @@ export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
   if (/(?:^|[^\p{L}\p{N}_])(?:matematik[\p{L}]*|mantık[\p{L}]*|hesapla[\p{L}]*|kanıtla[\p{L}]*|akıl yürüt[\p{L}]*|analiz[\p{L}]*)(?=$|[^\p{L}\p{N}_])/u.test(text)) return tools ? 'reasoning-agent' : 'reasoning';
   return tools ? 'agent' : 'general';
 }
-export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe' | 'batch' | 'deep' | 'inventory' | 'council' | 'specialist' | 'comprehensive'; model?: string; question?: string } | null {
+export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe' | 'batch' | 'deep' | 'inventory' | 'council' | 'specialist' | 'comprehensive' | 'translation'; model?: string; question?: string } | null {
   if (typeof input !== 'string') return null;
   const text = input.trim();
   // Strict whole-message natural-language variants; never execute quoted, negated or compound requests.
   const normalized=text.toLocaleLowerCase('tr-TR').replace(/ı/g,'i').replace(/\s+/g,' ').replace(/[?!.]+$/,'').trim();
   if (!/[\n\r]/.test(text) && /^(?:lütfen )?(?:nvidia modellerinin (?:gerçek api anahtariyla )?(?:kapsamli )?test edilmesini (?:yapar misin|sağlar misin)|nvidia modellerini (?:gerçek api anahtariyla )?(?:kapsamli )?test (?:et|eder misin|yap)|(?:gerçek api anahtariyla )?kapsamli (?:nvidia )?model test(?:ini|lerini) (?:başlat|yap|eder misin)|nvidia model testlerini kapsamli (?:yap|başlat))(?: lütfen)?$/u.test(normalized)) return {action:'comprehensive'};
+  if (/^riva çeviri testi[?!.]?$/iu.test(text))return {action:'translation'};
   if (/^model kataloğu[?!.]?$/iu.test(text)) return {action:'inventory'};
   const specialist = /^embedding testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/iu.exec(text);
   if(specialist&&MODEL_ID.test(specialist[1]!))return {action:'specialist',model:specialist[1]};

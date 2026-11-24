@@ -1065,6 +1065,7 @@ async function handleAgentRun(req, res) {
     try {
       if (labCommand.action === 'council') { finishWithAnswer(formatCouncil(await MODEL_LAB.council(labCommand.question, requestAbort.signal)), false); return; }
       if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
+      if(labCommand.action==='translation'){const row=await MODEL_LAB.translationProbe(requestAbort.signal);finishWithAnswer('**Riva Translate 4B — gerçek sentetik çeviri testi**\n'+row.model+' · '+row.status+' · '+row.latencyMs+' ms · '+row.testedAt+'\nİngilizce→Türkçe kısa örnek; genel çeviri kalitesi veya ücretsiz erişim garantisi değildir.',false,row.status!=='passed');return;}
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);

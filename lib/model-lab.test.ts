@@ -311,3 +311,19 @@ it('uses Kimi documented request fields for a real-lab synthetic transport witho
  expect(await lab.probe(model)).toMatchObject({model,status:'passed',tools:true});
  expect(request).toHaveBeenCalledTimes(2);
 });
+
+it('uses text-only documented candidates without attempting undocumented tool calls and caches them for a day',async()=>{
+ const model='google/gemma-4-31b-it';let clock=1000000;
+ const request=vi.fn(async(_path:string,body:Record<string,unknown>|null)=>{expect(body?.model).toBe(model);expect(body).not.toHaveProperty('tools');return reply(valid);});
+ const lab=createModelLab({allowed:[model],request,now:()=>clock});
+ expect(await lab.probe(model)).toMatchObject({chat:true,tools:false,toolProbeStatus:'not_run',requests:1});
+ clock+=600001;await lab.probe(model);expect(request).toHaveBeenCalledTimes(1);
+ expect(lab.preferred('general',[model])).toEqual([]);
+});
+it('tests Riva with one synthetic translation request and the documented language-pair prompt',async()=>{
+ const request=vi.fn(async(_path:string,body:Record<string,unknown>|null)=>{expect(body?.model).toBe('nvidia/riva-translate-4b-instruct-v2');expect(body?.messages).toEqual([{role:'system',content:'en-tr'},{role:'user',content:'Thank you.'}]);return reply({content:'Teşekkür ederim.'});});
+ const lab=createModelLab({allowed:[],request});
+ expect(modelLabCommand('Riva çeviri testi')).toEqual({action:'translation'});
+ expect(await lab.translationProbe()).toMatchObject({status:'passed',translated:true});
+ expect(request).toHaveBeenCalledTimes(1);
+});
