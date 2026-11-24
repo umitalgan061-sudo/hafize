@@ -1,8 +1,9 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v174`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v175`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
+  "/release-update.js",
   "/offline.html",
   "/styles.css",
   "/premium.css",
@@ -147,7 +148,7 @@ export function classifyRequest(request: Pick<Request, 'method'|'url'|'mode'|'he
   if (readHeader(request.headers, 'range')) return 'ignore';
   const pathname = pathnameFor(request.url, origin);
   if (!pathname) return 'ignore';
-  if (pathname.startsWith('/api/')) return 'network-only';
+  if (pathname.startsWith('/api/') || pathname==='/release.json') return 'network-only';
   if (request.mode === 'navigate' || readHeader(request.headers, 'accept').toLowerCase().includes('text/html')) return 'navigation';
   if (SHELL_PATHS.has(pathname)) return 'shell';
   return 'network-only';

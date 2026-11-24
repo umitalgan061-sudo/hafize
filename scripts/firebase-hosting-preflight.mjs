@@ -5,7 +5,7 @@
  * Never log credentials or the raw configuration. A missing configuration is a
  * deployment blocker, not a reason to invent rewrites for /api.
  */
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { attachCloudRunRewrite, backendRouteActivated } from './hafize-cloud-run-route.mjs';
 
@@ -51,6 +51,13 @@ export function prepareHostingConfig(rawConfig, projectId, siteId) {
   return { ...config, hosting: { ...hosting, public: 'public', site: siteId } };
 }
 
+export function stampReleaseHtml(html,sha) {
+  if(!/^[0-9a-f]{40}$/.test(sha))throw Error('GITHUB_COMMIT_SHA_MISSING_OR_INVALID');
+  if(!html.includes('</head>')||!html.includes('/typed-build/app-install.js'))throw Error('FIREBASE_HOSTING_INDEX_INVALID');
+  const versioned=html.replace(/(\\b(?:src|href)=\")(\/[a-zA-Z0-9_./-]+\.(?:js|css)(?:\?[^\"]*)?)(\")/g,(_all,prefix,asset,suffix)=>{const url=new URL(asset,'https://release.invalid');url.searchParams.set('release',sha);return prefix+url.pathname+url.search.replaceAll('&','&amp;')+suffix;});
+  return versioned.replace('</head>','<meta name="hafize-release" content="'+sha+'" />\n</head>');
+}
+
 export function prepareRelease(config, projectId, siteId, commitSha, opts = {}) {
   const baseConfig = prepareHostingConfig(config, projectId, siteId);
   // A successfully verified Cloud Run deploy records its activation marker.
@@ -81,6 +88,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.env.GITHUB_SHA,
       { activateCloudRun: process.env.HAFIZE_CLOUD_RUN_ROUTE_ENABLED === 'true' ? true : undefined }
     );
+    const html=readFileSync('public/index.html','utf8');
+    writeFileSync('public/index.html',stampReleaseHtml(html,process.env.GITHUB_SHA));
     process.stdout.write('Firebase Hosting preflight passed; build and existing site config verified.\n');
   } catch (error) {
     process.stderr.write('::error::' + String(error?.message || 'DEPLOY_PREFLIGHT_FAILED') + '\n');

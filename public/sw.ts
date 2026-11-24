@@ -6,7 +6,7 @@ import { CURRENT_CACHE, SHELL_ASSETS, classifyRequest, shouldDeleteCache } from 
 async function matchShell(request) {
   const cache = await caches.open(CURRENT_CACHE);
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, {cache:'no-store'});
     if (response.ok) cache.put(request, response.clone()).catch(() => undefined);
     return response;
   } catch {
@@ -16,7 +16,7 @@ async function matchShell(request) {
 
 async function navigateWithOfflineFallback(request) {
   try {
-    return await fetch(request);
+    return await fetch(request, {cache:'no-store'});
   } catch {
     const cache = await caches.open(CURRENT_CACHE);
     return (await cache.match('/index.html')) || (await cache.match('/offline.html')) || Response.error();
@@ -26,16 +26,15 @@ async function navigateWithOfflineFallback(request) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CURRENT_CACHE)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
+      .then((cache) => cache.addAll(SHELL_ASSETS.map(path=>new Request(path,{cache:'reload'}))))
       .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter(shouldDeleteCache).map((key) => caches.delete(key))))
+    caches.keys().then((keys) => Promise.all(keys.filter(shouldDeleteCache).map((key) => caches.delete(key)))).then(()=>self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {

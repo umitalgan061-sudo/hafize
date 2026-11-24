@@ -266,8 +266,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
         const selected=select.value;
         const payload=['probe','deep','specialist'].includes(action)?{action,model:selected}:{action};
         if(action==='status'){
-          const dailyResponse=await api('/api/models/status/daily').catch(()=>null);
-          if(dailyResponse?.ok){data={...data,dailyImprovement:await dailyResponse.json()};render();}
+          // The lab GET already includes dailyImprovement; avoid serial authentication and duplicate cold-start requests.
         }
         const response=await api('/api/models/status/lab',action==='status'?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const result=await response.json();
@@ -288,7 +287,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
     return panel;
   };
 
-  const specialistPanel = () => {
+  const specialistPanel = (host:Element) => {
     const panel=el('section','settings-panel nim-specialist-panel');
     panel.append(el('h2','','NVIDIA Uzman Servisleri'),el('p','','Yalnız yapılandırılmış NIM servislerine, seçtiğin dosya veya metin açıkça gönderilir. Mevcut Türkçe sesli sohbet ayarları değişmez.'));
     const notice=el('p','app-install-state','Servis durumunu yenile.');notice.setAttribute('role','status');
@@ -358,6 +357,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
       finally{controller=null;busy=false;render();}
     }
     refresh.addEventListener('click',()=>{void refreshStatus();});
+    let wasVisible=false;const visible=()=>{const open=!host.hasAttribute('hidden');if(open&&!wasVisible&&!busy)void refreshStatus();wasVisible=open;};const observer=new root.MutationObserver(visible);observer.observe(host,{attributes:true,attributeFilter:['hidden']});visible();
     execute.addEventListener('click',()=>{void run();});
     cancel.addEventListener('click',()=>controller?.abort());
     clear.addEventListener('click',()=>{release();input.value='';file.value='';});
@@ -388,7 +388,12 @@ function start(documentRef: Document, root: typeof globalThis): void {
     if (first?.nextSibling) host.insertBefore(installPanel(), first.nextSibling); else host.append(installPanel());
     const install = host.querySelector('.app-install');
     if (install?.nextSibling) host.insertBefore(modelPanel(), install.nextSibling); else host.append(modelPanel());
-    host.append(modelLabPanel(host),specialistPanel(),blueprintPanel());
+    const lab=modelLabPanel(host);lab.id='hafizeNvidiaLab';const specialist=specialistPanel(host);specialist.id='hafizeNvidiaSpecialists';const blueprint=blueprintPanel();blueprint.id='hafizeNvidiaBlueprints';
+    const center=el('section','settings-panel nvidia-center model-lab-panel');center.id='hafizeNvidiaCenter';center.append(el('h2','','NVIDIA Merkezi'),el('p','','93 model · 36 Blueprint · testler, servisler ve iş akışları tek yerde.'));
+    const version=el('p','app-install-state');const release=()=>documentRef.querySelector<HTMLMetaElement>('meta[name="hafize-release"]')?.content;version.textContent='Uygulama sürümü: '+(release()?.slice(0,12)??'yerel geliştirme');
+    const shortcuts=el('div','settings-actions');for(const [name,target] of [['Model Laboratuvarı',lab],['Uzman Servisleri',specialist],['Blueprint Atölyesi',blueprint]] as const){const button=el('button','',name);button.type='button';button.addEventListener('click',()=>{target.scrollIntoView({block:'start',behavior:'smooth'});});shortcuts.append(button);}
+    const update=el('button','','Güncel sürümü aç');update.type='button';update.addEventListener('click',()=>{const url=new URL(root.location.href);url.searchParams.set('nvidia','1');url.searchParams.set('refresh',String(Date.now()));root.location.replace(url.href);});shortcuts.append(update);
+    center.append(version,shortcuts);host.prepend(center,lab,specialist,blueprint);
     const results = host.querySelector('.task-results') ?? install;
     const servers = serversPanel();
     if (results?.nextSibling) host.insertBefore(servers, results.nextSibling); else host.append(servers);
@@ -410,6 +415,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const action = params.get('action');
     if (action === 'new') documentRef.querySelector<HTMLElement>('#newChatBtn')?.click();
     if (action === 'voice') documentRef.querySelector<HTMLElement>('#micBtn')?.click();
+    if(params.get('nvidia')==='1'){documentRef.querySelectorAll<HTMLElement>('.nav-item')[3]?.click();documentRef.getElementById('hafizeNvidiaCenter')?.scrollIntoView({block:'start'});}
     const shared = sharedText(root.location.search);
     const input = documentRef.querySelector<HTMLTextAreaElement>('#messageInput');
     if (shared && input) {
