@@ -19,7 +19,7 @@ const COOLDOWN_MS = Object.freeze({ quota: 60 * MINUTE, rate: MINUTE, missing: 3
 const FIRST_RESPONSE_MS = Object.freeze({ stream: 25_000, whole: 90_000 });
 const MAX_RETRY_AFTER_MS = 60 * MINUTE;
 // These have one job a general model cannot do. Vision requests also carry images.
-const SINGLE_PURPOSE = /safety|guard|vl-|vision|embed/i;
+const SINGLE_PURPOSE = /safety|guard|(?:^|[-/])vl(?:[-/]|$)|vision|embed|rerank|transcrib|parakeet|whisper|(?:^|[-/])tts(?:[-/]|$)|(?:^|[-/])ocr(?:[-/]|$)/i;
 
 export type FailureReason = keyof typeof COOLDOWN_MS;
 
@@ -39,7 +39,7 @@ export function parseModelChain(value: unknown): readonly string[] {
 
 function carriesImages(payload: Record<string, unknown>): boolean {
   const messages = Array.isArray(payload.messages) ? payload.messages as { content?: unknown }[] : [];
-  return messages.some((message) => Array.isArray(message.content) && message.content.some((part) => (part as { type?: unknown })?.type === 'image_url'));
+  return messages.some((message) => Array.isArray(message.content) && message.content.some((part) => ['image_url','input_audio','audio_url','video_url','input_video','input_image','file'].includes(String((part as { type?: unknown })?.type))));
 }
 
 type Send = (body: string, signal: AbortSignal) => Promise<Response>;
@@ -141,6 +141,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
   const status = () => ({
     top: chain[0] ?? '',
     current,
+    extraCandidates: extraCandidates.filter(model => !chain.includes(model)).map(model => ({model,ready:ready(model),lastFailure:state(model).lastFailure,retryInSeconds:ready(model)?0:Math.ceil((state(model).cooldownUntil-now())/1000)})),
     chain: chain.map((model) => {
       const entry = state(model);
       return { model, ready: ready(model), lastFailure: entry.lastFailure, retryInSeconds: ready(model) ? 0 : Math.ceil((entry.cooldownUntil - now()) / 1000), lastSuccessAt: entry.lastSuccessAt ? new Date(entry.lastSuccessAt).toISOString() : null };

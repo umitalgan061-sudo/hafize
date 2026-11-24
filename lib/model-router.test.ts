@@ -195,3 +195,10 @@ it('uses configured extra candidates only after measured preference, never arbit
   await router.send(request(),deliver);
   expect(attempts).toEqual(['base','verified-extra','base']);
 });
+
+it('does not swap specialized or non-text inputs into general chat models',()=>{
+  const router=createModelRouter({chain:['base'],extraCandidates:['extra']});
+  for(const model of ['nvidia/test-vl','nvidia/nemotron-ocr','nvidia/parakeet','nvidia/test-rerank']) expect(router.shouldRoute({model})).toBe(false);
+  for(const type of ['input_audio','video_url','file']) expect(router.shouldRoute({model:'base',messages:[{content:[{type}]}]})).toBe(false);
+  expect(router.status().extraCandidates).toEqual([{model:'extra',ready:true,lastFailure:null,retryInSeconds:0}]);
+});

@@ -149,3 +149,24 @@ describe('model lab v2', () => {
     expect(lab.preferred('general',[a])).toEqual([a]);
   });
 });
+
+it('restores only fresh allowed evidence and request budget on restart',async()=>{
+  let saved: unknown;
+  let time=1000000;
+  const storage={load:()=>saved,save:(value:unknown)=>{saved=value;}};
+  const request=async (_path,body)=>reply(body?.tools?tool:valid);
+  const first=createModelLab({allowed:[a,b],request,now:()=>time,storage});
+  await first.probe(a);
+  const restarted=createModelLab({allowed:[a],request,now:()=>time,storage});
+  expect(restarted.status().requestsRemaining).toBe(10);
+  expect(restarted.preferred('agent',[a])).toEqual([a]);
+  time+=24*60*60_000+1;
+  const expired=createModelLab({allowed:[a],request,now:()=>time,storage});
+  expect(expired.status().results).toEqual([]);
+  expect(expired.status().requestsRemaining).toBe(12);
+});
+it('reports storage failures without inventing durable evidence',async()=>{
+  const lab=createModelLab({allowed:[a],request:async(_path,body)=>reply(body?.tools?tool:valid),storage:{load:()=>{throw Error('bad');},save:()=>{throw Error('bad');}}});
+  await lab.probe(a);
+  expect(lab.status().storage).toBe('error');
+});

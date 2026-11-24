@@ -56,6 +56,7 @@ import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.t
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus } from './lib/model-lab.ts';
+import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -83,8 +84,14 @@ const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(proce
 // Explicit operator allowlist; never auto-promote the discovery catalog.
 const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-CONFIGURED_MODEL_CHAIN.length));
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
+let MODEL_LAB_STORAGE;
+if (!gateway && NVIDIA_API_KEY && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
+  try { MODEL_LAB_STORAGE = createModelLabFileStorage(process.env.HAFIZE_MODEL_LAB_STORAGE_PATH, NVIDIA_API_KEY, [...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES]); }
+  catch { console.warn('hafize.model_lab storage configuration invalid'); }
+}
 const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
   allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
+  storage: MODEL_LAB_STORAGE,
   request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
