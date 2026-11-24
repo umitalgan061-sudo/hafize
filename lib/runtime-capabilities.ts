@@ -2,7 +2,7 @@ import { OWNER_PROJECTS, matchOwnerProjects } from './owner-project-catalog.ts';
 /** Server-owned execution facts. Never accept limits or permissions from a model/client. */
 export const MAX_ROOT_CALLS_PER_ROUND = 8;
 export const MAX_EXPERT_CALLS_PER_ROUND = 4;
-export const LONG_RUN_LEDGER_ENTRIES = 4096;
+export const LONG_RUN_LEDGER_ENTRIES = 8192;
 export const MAX_EXPERT_ROUNDS = 24;
 
 export interface RuntimeBudget {

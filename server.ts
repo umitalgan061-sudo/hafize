@@ -66,7 +66,7 @@ import { modelLabConnection } from './lib/model-lab-connection.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
 import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { auditExpertContracts } from './lib/expert-readiness.ts';
-import { expertModelTask } from './lib/expert-model-policy.ts';
+import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -117,7 +117,7 @@ let VOICE_RUNTIME_EVIDENCE;
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
   extraCandidates: MODEL_LAB && !gateway ? productionLabCandidates(MODEL_LAB_EXTRA_CANDIDATES) : [],
-  preferredModels: (payload, candidates, expertId) => {const verified=gateway?[]:MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [];try{return RUNTIME_EVIDENCE?.reorder(verified)??verified;}catch{return verified;}},
+  preferredModels: (payload, candidates, expertId) => {const verified=gateway?[]:MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [];try{return diversifyExpertModels(expertId,RUNTIME_EVIDENCE?.reorder(verified)??verified);}catch{return diversifyExpertModels(expertId,verified);}},
   observeAttempt: event=>event.lane==='voice'?VOICE_RUNTIME_EVIDENCE?.record(event):RUNTIME_EVIDENCE?.record(event),
   preferVoice:ids=>VOICE_RUNTIME_EVIDENCE?.reorderVoice(ids)??ids,
   // Background helpers stay on the quick model unless it is unavailable.
@@ -920,6 +920,7 @@ async function handleAgentRun(req, res) {
     parentAgent: agent,
     parentTaskId: runLedger.rootTaskId,
     runLedger,
+    parentSignal: requestAbort.signal,
     async executeAgent({
       agent: delegatedAgent,
       task,
@@ -971,7 +972,8 @@ async function handleAgentRun(req, res) {
     githubInspect: GITHUB_INSPECT,
     githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
     safeGitHubAutonomy,
-    delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
+    delegateAgent: (args, signal) => delegator.delegate(args, { depth: 0,signal }),
+    delegateTeam: agent.kind==='primary' ? (tasks,signal)=>delegator.delegateBatch(tasks,signal) : undefined,
     approvalGranted: false,
     signal: requestAbort.signal,
     workspaceRoot: ROOT,
