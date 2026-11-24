@@ -1187,7 +1187,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       .catch(() => undefined);
   }
 
-  async function streamAssistantReply(maxTokens = 4096) {
+  async function streamAssistantReply(maxTokens = 4096, voiceConversation = false) {
     const model = ui.modelSelect.value;
     if (!model) throw new Error('MODEL_REQUIRED');
 
@@ -1200,10 +1200,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/chat',
-      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: maxTokens, provider: ui.providerSelect.value },
+      { model, agentId, messages: requestMessages, memory: memoryForRequest(), max_tokens: maxTokens, provider: ui.providerSelect.value, ...(voiceConversation ? { voice_conversation: true } : {}) },
       assistantId,
       ui.providerSelect.value === 'local' ? 'Yerel model boş bir yanıt döndürdü.' : 'NVIDIA modeli boş bir yanıt döndürdü.',
-      ui.providerSelect.value === 'local' ? 180_000 : 60_000
+      ui.providerSelect.value === 'local' ? 180_000 : voiceConversation ? 35_000 : 60_000
     );
     const generated = conversation.messages.find((entry) => entry.id === assistantId);
     if (generated) {
@@ -1409,8 +1409,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       // A greeting never needs the multi-tool agent loop. Keep the full conversation
       // history and agent persona, but stream a short reply directly for voice small talk.
       if (clean && document.documentElement.dataset.voiceMode === 'true'
-          && ui.providerSelect.value !== 'local' && isLightweightVoiceTurn(clean)) {
-        await streamAssistantReply(512);
+          && isLightweightVoiceTurn(clean)) {
+        await streamAssistantReply(192, true);
       } else if (ui.providerSelect.value !== 'local') await runAssistantWithTools();
       else await streamAssistantReply();
       // Stopping a stream ends it quietly, so a takeover by the cloud lands here too: the half answer makes way.
