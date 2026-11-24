@@ -52,3 +52,12 @@ describe('agent continuation recovery', () => {
     expect(isEmptyOrProgressOnlyAnswer('Sadece analiz yapabildim; dosyalarda herhangi bir değişiklik doğrulanmadı.')).toBe(false);
   });
 });
+
+it('distinguishes a stalled loop from budget exhaustion and preserves safe error evidence',()=>{
+ const answer=incompleteAgentRunAnswer([{name:'github_inspect',ok:false,error:'INVALID_GITHUB_PATH',status:400},{name:'github_read_file',ok:false,error:'GITHUB_READ_FAILED',status:404},{name:'github_inspect',ok:false,error:'private message injected'}],'no_progress');
+ expect(answer).toContain('ilerleme sağlamadığı');
+ expect(answer).not.toContain('Araç turu sınırına ulaştım');
+ expect(answer).toContain('INVALID_GITHUB_PATH HTTP 400');
+ expect(answer).toContain('GITHUB_READ_FAILED HTTP 404');
+ expect(answer).not.toContain('private message injected');
+});

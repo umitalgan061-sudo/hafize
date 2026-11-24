@@ -1234,11 +1234,19 @@ async function handleAgentRun(req, res) {
           }
         }
       }
-      if (!result.ok) anyToolFailed = true;
+      if (!result.ok) {
+        anyToolFailed = true;
+        // Only safe tool names/codes/status, never arguments, file contents or secrets.
+        if (['github_inspect','github_read_file','github_develop'].includes(call.function.name)) {
+          const code = typeof result.error === 'string' && /^[A-Z0-9_]{1,80}$/.test(result.error) ? result.error : 'UNKNOWN';
+          console.warn(JSON.stringify({event:'hafize.github.tool_failure',tool:call.function.name,code,status:'status' in result && typeof result.status==='number'?result.status:null}));
+        }
+      }
       toolSummary.push({
         name: call.function.name,
         ok: result.ok,
         error: result.error || null,
+        status: 'status' in result && typeof result.status === 'number' ? result.status : null,
         durationMs: Number.isFinite(result.durationMs) ? result.durationMs : null
       });
       workingMessages.push({
@@ -1252,7 +1260,7 @@ async function handleAgentRun(req, res) {
       for (const update of memorySession.updates.slice(memoryUpdatesSent)) writeSseEvent(res, 'hafize-memory', update);
       memoryUpdatesSent = memorySession.updates.length;
     }
-    if(noProgressRounds>=3){incompleteReason='tool_budget';break;}
+    if(noProgressRounds>=3){incompleteReason='no_progress';break;}
   }
 
   // Either the tool budget was exhausted or the model emitted no substantive
@@ -1281,7 +1289,7 @@ async function handleAgentRun(req, res) {
   }
   const finalText = stripToolMarkup(final.content);
   if (!final.toolCalls.length && !isEmptyOrProgressOnlyAnswer(finalText)) {
-    finishWithAnswer(finalText, final.wrote, incompleteReason === 'tool_budget');
+    finishWithAnswer(finalText, final.wrote, (incompleteReason === 'tool_budget' || incompleteReason === 'no_progress'));
     return;
   }
   // One bounded JSON recovery is useful when streamed tool markup consumes
@@ -1304,7 +1312,7 @@ async function handleAgentRun(req, res) {
     // tool-status evidence rather than another invented or empty model reply.
   }
   if (!isEmptyOrProgressOnlyAnswer(recovered)) {
-    finishWithAnswer(recovered, false, incompleteReason === 'tool_budget');
+    finishWithAnswer(recovered, false, (incompleteReason === 'tool_budget' || incompleteReason === 'no_progress'));
     return;
   }
   finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
