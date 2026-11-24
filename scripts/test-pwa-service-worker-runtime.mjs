@@ -1,118 +1,43 @@
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { createRequire } from 'node:module';
-import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import * as policy from '../public/sw-policy.ts';
 
-const require = createRequire(import.meta.url);
-const policy = require('../public/sw-policy.ts');
-const source = await readFile(new URL('../public/sw.ts', import.meta.url), 'utf8');
-const origin = 'https://hafize.example';
-const handlers = new Map();
-const deleted = [];
-let cachedAssets = null;
-let skipWaitingCalled = false;
-let claimCalled = false;
-let fetchCalls = 0;
-let fetchImpl = async () => ({ source: 'network' });
-
-function pathOf(input) {
-  if (typeof input === 'string') return input;
-  return new URL(input.url).pathname;
-}
-
-const cache = {
-  async addAll(assets) {
-    cachedAssets = [...assets];
-  },
-  async match(input) {
-    const path = pathOf(input);
-    if (path === '/index.html') return { source: 'cached-index' };
-    if (path === '/offline.html') return { source: 'cached-offline' };
-    if (path === '/app.js') return { source: 'cached-app' };
-    return null;
-  }
+const source=readFileSync(new URL('../public/sw.ts',import.meta.url),'utf8').replace(/^import .* from '\.\/sw-policy\.ts';\s*$/m,'');
+const origin='https://hafize.example';
+const handlers=new Map(),deleted=[],stored=[];
+let precached=[],skip=false,claimed=false,calls=0;
+let network=async()=>({ok:true,source:'network',clone(){return this}});
+const pathOf=input=>typeof input==='string'?input:new URL(input.url).pathname;
+const cache={
+ async addAll(items){precached=items.map(pathOf)},
+ async match(input){const path=pathOf(input);return ['/index.html','/offline.html','/hero-donus.bin'].includes(path)?{source:'cached:'+path}:null},
+ async put(request,response){stored.push([pathOf(request),response.source])}
 };
-
-const context = {
-  importScripts(path) {
-    assert.equal(path, '/sw-policy.js');
-  },
-  caches: {
-    async open(name) {
-      assert.equal(name, policy.CURRENT_CACHE);
-      return cache;
-    },
-    async keys() {
-      return ['hafize-shell-v9', policy.CURRENT_CACHE, 'other-app-cache-v1'];
-    },
-    async delete(name) {
-      deleted.push(name);
-      return true;
-    }
-  },
-  fetch(request) {
-    fetchCalls += 1;
-    return fetchImpl(request);
-  },
-  Response: {
-    error() {
-      return { source: 'response-error' };
-    }
-  },
-  self: {
-    HafizeSwPolicy: policy,
-    location: { origin },
-    addEventListener(type, handler) {
-      handlers.set(type, handler);
-    },
-    skipWaiting() {
-      skipWaitingCalled = true;
-    },
-    clients: {
-      claim() {
-        claimCalled = true;
-      }
-    }
-  }
-};
-vm.runInNewContext(source, context, { filename: 'public/sw.ts' });
-
-let installPromise;
-handlers.get('install')({ waitUntil(value) { installPromise = value; } });
-await installPromise;
-assert.deepEqual(cachedAssets, [...policy.SHELL_ASSETS]);
-assert.equal(skipWaitingCalled, true);
-
-let activatePromise;
-handlers.get('activate')({ waitUntil(value) { activatePromise = value; } });
-await activatePromise;
-assert.deepEqual(deleted, ['hafize-shell-v9']);
-assert.equal(claimCalled, true);
-
-async function dispatchFetch(path, options = {}) {
-  let responsePromise = null;
-  const request = {
-    url: path.startsWith('http') ? path : new URL(path, origin).href,
-    method: options.method ?? 'GET',
-    mode: options.mode ?? 'same-origin',
-    headers: options.headers ?? {}
-  };
-  handlers.get('fetch')({ request, respondWith(value) { responsePromise = value; } });
-  return responsePromise ? responsePromise : null;
+vm.runInNewContext(source,{
+ ...policy,URL,Request,Response:{error:()=>({source:'error'})},
+ caches:{open:async name=>{assert.equal(name,policy.CURRENT_CACHE);return cache},keys:async()=>['hafize-shell-v175',policy.CURRENT_CACHE,'other-app'],delete:async name=>{deleted.push(name);return true}},
+ fetch:async(request,options)=>{calls++;assert.equal(options.cache,'no-store');return network(request)},
+ self:{location:{origin},addEventListener:(name,fn)=>handlers.set(name,fn),skipWaiting:()=>{skip=true},clients:{claim:()=>{claimed=true}}}
+});
+async function lifecycle(name){let result;handlers.get(name)({waitUntil:p=>{result=p}});await result}
+await lifecycle('install');assert.deepEqual(precached,[...policy.SHELL_ASSETS]);assert.equal(skip,true);
+await lifecycle('activate');assert.deepEqual(deleted,['hafize-shell-v175']);assert.equal(claimed,true);
+function dispatch(path,options={}){
+ let result=null;
+ handlers.get('fetch')({request:{url:new URL(path,origin).href,method:'GET',mode:'same-origin',headers:{},...options},respondWith:p=>{result=p}});
+ return result;
 }
-
-fetchImpl = async () => ({ source: 'network-navigation' });
-assert.deepEqual(await dispatchFetch('/chat', { mode: 'navigate' }), { source: 'network-navigation' });
-
-fetchImpl = async () => { throw new Error('offline'); };
-assert.deepEqual(await dispatchFetch('/chat', { mode: 'navigate' }), { source: 'cached-index' });
-
-fetchCalls = 0;
-assert.deepEqual(await dispatchFetch('/app.js'), { source: 'cached-app' });
-assert.equal(fetchCalls, 0);
-
-assert.equal(await dispatchFetch('/api/agent/run'), null);
-assert.equal(await dispatchFetch('https://cdn.example/image.png'), null);
-assert.equal(await dispatchFetch('/video.mp4', { headers: { range: 'bytes=0-10' } }), null);
-
-console.log('PWA service worker runtime OK: lifecycle, offline navigation, shell cache and network-only bypass');
+assert.equal((await dispatch('/chat',{mode:'navigate'})).source,'network');
+assert.equal((await dispatch('/hero-donus.bin')).source,'network');
+assert.deepEqual(stored,[['/hero-donus.bin','network']]);
+network=async()=>{throw Error('offline')};
+assert.equal((await dispatch('/chat',{mode:'navigate'})).source,'cached:/index.html');
+assert.equal((await dispatch('/hero-donus.bin?release=new')).source,'cached:/hero-donus.bin');
+const before=calls;
+assert.equal(dispatch('/api/models'),null);
+assert.equal(dispatch('/release.json'),null);
+assert.equal(dispatch('/hero-donus.bin',{headers:{range:'bytes=0-10'}}),null);
+assert.equal(dispatch('/media/hafize-point-portrait-alpha.webm'),null);
+assert.equal(calls,before);
+console.log('PWA service worker runtime OK: network first, offline fallback, scoped activation and single portrait assets');
