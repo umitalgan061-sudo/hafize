@@ -45,3 +45,5 @@
   color: var(--muted);
   font-size: 11px;
 }
+
+.history-search-nav{display:flex;gap:5px;align-items:center;padding:0 4px;flex-wrap:wrap;font-size:11px}.history-search-nav[hidden]{display:none}.history-search-nav button{min-height:36px;border:1px solid var(--line);border-radius:7px;background:transparent;color:inherit;padding:4px 7px;font:inherit}.history-search-nav button:disabled{opacity:.45}.history-search-nav span{margin-left:auto;color:var(--muted)}.history-search-snippet{display:block;grid-column:1/-1;flex-basis:100%;width:100%;font-size:10px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere;padding:2px 7px 5px}.conversation-row:has(.history-search-snippet){flex-wrap:wrap}.history-search-row:focus-within{outline:2px solid var(--premium-orange,var(--line));outline-offset:1px}
