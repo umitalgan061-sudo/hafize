@@ -253,3 +253,27 @@ it('does not promote a model that fails measured Turkish writing quality',async(
  expect(lab.preferred('general',[a])).toEqual([]);
  expect(lab.preferred('coding',[a])).toEqual([]);
 });
+
+it('persists discovery and reports new and removed catalog IDs without promoting them',async()=>{
+ let time=1000000;let snapshot:unknown;let ids=[a,b];
+ const storage={load:()=>snapshot,save:(value:unknown)=>{snapshot=value;}};
+ const request=async()=>new Response(JSON.stringify({data:ids.map(id=>({id}))}));
+ const lab=createModelLab({allowed:[a],request,storage,now:()=>time});
+ await lab.discover();expect(lab.status().catalogDelta).toBeNull();
+ time+=600001;ids=[a,'nvidia/example-c'];
+ const restored=createModelLab({allowed:[a],request,storage,now:()=>time});
+ expect(restored.status().catalog?.ids).toEqual([a,b]);
+ await restored.discover();
+ expect(restored.status().catalogDelta).toMatchObject({added:['nvidia/example-c'],removed:[b],addedCount:1,removedCount:1});
+ expect(restored.preferred('general',[a,'nvidia/example-c'])).toEqual([]);
+ expect(restored.status().eligible).toEqual([a]);
+});
+
+it('does not infer removals from an empty provider catalog or additions from an empty baseline',async()=>{
+ let time=1000000;let ids=[a,b];
+ const lab=createModelLab({allowed:[a],now:()=>time,request:async()=>new Response(JSON.stringify({data:ids.map(id=>({id}))}))});
+ await lab.discover();time+=600001;ids=[];
+ await lab.discover();expect(lab.status().catalog?.ids).toEqual([]);
+ expect(lab.status().catalogDelta).toMatchObject({addedCount:0,removedCount:null,removed:[]});
+ time+=600001;ids=[a,b];await lab.discover();expect(lab.status().catalogDelta).toBeNull();
+});

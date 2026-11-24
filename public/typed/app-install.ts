@@ -192,9 +192,11 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const details=el('details');details.append(el('summary','','Model kataloğu ve test sonuçları'),filter,list);
     const runtimeList=el('ul','settings-memory-list');const runtimeDetails=el('details');runtimeDetails.append(el('summary','','Son günlük çalışma zamanı ölçümleri'),el('p','','Bağlantı ve yanıt başlığı ölçümleri; yanıt doğruluğu testi değildir.'),runtimeList);
     const expertList=el('ul','settings-memory-list');const expertDetails=el('details');expertDetails.append(el('summary','','Günlük uzman yapılandırma denetimi'),el('p','','Çevrimdışı görev kartı, şema ve yetki kontrolü; modelin cevap kalitesi testi değildir.'),expertList);
-    panel.append(notice,actions,select,daily,dailyDetails,runtimeDetails,expertDetails,leaders,details);
+    const planList=el('ul','settings-memory-list');const planDetails=el('details');planDetails.append(el('summary','','Günlük gelişim öncelikleri'),el('p','','Ölçümlere dayalı öneriler; otomatik kod yazma veya canlı yayın işlemi değildir.'),planList);
+    const catalogChanges=el('p','app-install-state');
+    panel.append(notice,actions,select,daily,dailyDetails,planDetails,runtimeDetails,expertDetails,catalogChanges,leaders,details);
     type Row={id:string;capabilities:string[];configured:boolean;listed:boolean;evidence:string};
-    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];expertReadiness?:{agentId:string;passed:boolean;checks:{key:string;passed:boolean}[]}[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
+    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];plan?:{focus:string;tasks:{id:string;priority:string;title:string;evidence:string;acceptance:string}[]};expertReadiness?:{agentId:string;passed:boolean;checks:{key:string;passed:boolean}[]}[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};catalogDelta?:{addedCount:number;removedCount:number|null;added:string[];removed:string[]}|null;inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
     let data:LabData={};let busy=false;let available=false;
     const buttons:HTMLButtonElement[]=[];
     const render=()=>{
@@ -209,6 +211,10 @@ function start(documentRef: Document, root: typeof globalThis): void {
       leaders.replaceChildren();
       const cycle=data.dailyImprovement;
       daily.textContent=cycle?'24 saatlik iyileştirme: '+(cycle.enabled?'etkin':'kapalı')+' · Canlı sentetik test: '+(cycle.liveProbes?'etkin':'kapalı')+' · Son durum: '+(cycle.report?.state??'henüz yok')+(cycle.nextDueAt?' · Sonraki uygun zaman: '+new Date(cycle.nextDueAt).toLocaleString('tr-TR'):''):'Günlük iyileştirme durumu bilinmiyor.';
+      const delta=data.catalogDelta;catalogChanges.textContent=delta?'Son katalog karşılaştırması: '+delta.addedCount+' yeni · '+(delta.removedCount??'belirsiz')+' çıkarılan (erişim/fiyat kanıtı değildir).':'Henüz iki katalog karşılaştırılmadı.';
+      planList.replaceChildren();const plan=cycle?.report?.plan;
+      if(plan){planList.append(el('li','','Haftalık odak: '+plan.focus));for(const task of plan.tasks){const entry=el('li','',(task.priority==='high'?'Öncelikli · ':'')+task.title);entry.append(el('small','',task.evidence+' | Kabul ölçütü: '+task.acceptance));planList.append(entry);}}
+      else planList.append(el('li','','Henüz günlük öneri raporu yok.'));
       dailyHistory.replaceChildren();
       for(const row of (cycle?.history??[]).slice(0,14)){
         const entry=el('li','',new Date(row.startedAt).toLocaleString('tr-TR')+' · '+row.state+' · Sohbet '+row.testedModels+' · Derin '+(row.deepTestedModels??0)+' · Uzman '+row.specialists);

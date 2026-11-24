@@ -28,6 +28,8 @@ export interface DeepProbeResult {
   readonly toolFollowup: boolean;
   readonly latencyMs: number;
 }
+type CatalogSnapshot={ids:string[];listedAt:string;truncated?:boolean};
+type CatalogDelta={comparedAt:string;added:string[];removed:string[];addedCount:number;removedCount:number|null};
 export interface ModelLabSnapshot {
   readonly version: 1;
   readonly results: readonly ProbeResult[];
@@ -35,6 +37,8 @@ export interface ModelLabSnapshot {
   readonly specialistResults?: readonly SpecialistProbeResult[];
   readonly timestamps: readonly number[];
   readonly blockedUntil: number;
+  readonly catalog?:CatalogSnapshot|null;
+  readonly catalogDelta?:CatalogDelta|null;
 }
 export interface ModelLabStorage {
   load(): unknown;
@@ -67,7 +71,8 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   let running = false;
   let batchRunning = false;
   let blockedUntil = 0;
-  let catalog: { ids: string[]; listedAt: string } | null = null;
+  let catalog:CatalogSnapshot|null=null;
+  let catalogDelta:CatalogDelta|null=null;
   let storageHealthy = Boolean(storage);
   const states: readonly string[] = ['passed','failed','unavailable','rate_limited','quota','timeout','invalid_response','auth_rejected'];
   function restore() {
@@ -77,6 +82,11 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       if (!snapshot || snapshot.version !== 1) return;
       const time = now();
       const recent = (v: unknown) => typeof v === 'string' && Number.isFinite(Date.parse(v)) && Date.parse(v) <= time && time-Date.parse(v) < 30*EXPIRY_MS;
+      const savedCatalog=object(snapshot.catalog);
+      const ids=(value:unknown,limit:number)=>Array.isArray(value)?[...new Set(value.filter((id):id is string=>typeof id==='string'&&MODEL_ID.test(id)))].slice(0,limit):[];
+      if(savedCatalog&&recent(savedCatalog.listedAt)&&Array.isArray(savedCatalog.ids))catalog={ids:ids(savedCatalog.ids,CATALOG_LIMIT),listedAt:String(savedCatalog.listedAt),truncated:savedCatalog.truncated===true};
+      const delta=object(snapshot.catalogDelta);
+      if(delta&&recent(delta.comparedAt)&&Number.isInteger(delta.addedCount)&&Number(delta.addedCount)>=0&&Number(delta.addedCount)<=CATALOG_LIMIT&&(delta.removedCount===null||Number.isInteger(delta.removedCount)&&Number(delta.removedCount)>=0&&Number(delta.removedCount)<=CATALOG_LIMIT))catalogDelta={comparedAt:String(delta.comparedAt),added:ids(delta.added,100),removed:ids(delta.removed,100),addedCount:Number(delta.addedCount),removedCount:delta.removedCount===null?null:Number(delta.removedCount)};
       const number = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
       const booleanFields = (row: Record<string,unknown>, fields: string[]) => fields.every(key => typeof row[key] === 'boolean');
       const valid = (row: Record<string,unknown> | null): row is Record<string,unknown> => !!row && typeof row.model === 'string' && eligible.includes(row.model) && recent(row.testedAt) && typeof row.status === 'string' && states.includes(row.status) && number(row.latencyMs);
@@ -104,7 +114,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   }
   function persist() {
     if (!storage) return;
-    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],timestamps:[...timestamps],blockedUntil}); storageHealthy=true; }
+    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],timestamps:[...timestamps],blockedUntil,catalog,catalogDelta}); storageHealthy=true; }
     catch { storageHealthy=false; }
   }
   restore();
@@ -112,7 +122,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   function attachStorage(next:ModelLabStorage){if(storage||running||batchRunning||results.size||specialistResults.size||timestamps.length)throw Error('MODEL_LAB_STORAGE_ALREADY_INITIALIZED');storage=next;storageHealthy=true;restore();}
   function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && result.toolProbeStatus === 'passed' ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
-  const status = () => ({ eligible, catalog, specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
+  const status = () => ({ eligible, catalog, catalogDelta, specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
   async function call(path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -139,7 +149,11 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       const data = object(await response.json())?.data;
       if (!Array.isArray(data)) throw new Error('MODEL_LAB_INVALID_CATALOG');
       const ids = [...new Set(data.slice(0, CATALOG_LIMIT).map(item => object(item)?.id).filter((id): id is string => typeof id === 'string' && MODEL_ID.test(id)))];
-      catalog = { ids, listedAt: new Date(now()).toISOString() };
+      const listedAt=new Date(now()).toISOString();
+      // Empty or partial catalog responses are not proof that models disappeared.
+      const truncated=!ids.length||data.length>CATALOG_LIMIT||data.length!==ids.length;
+      if(catalog?.ids.length){const added=ids.filter(id=>!catalog!.ids.includes(id));const removed=!truncated&&!catalog.truncated?catalog.ids.filter(id=>!ids.includes(id)):[];catalogDelta={comparedAt:listedAt,added:added.slice(0,100),removed:removed.slice(0,100),addedCount:added.length,removedCount:truncated||catalog.truncated?null:removed.length};}else catalogDelta=null;
+      catalog={ids,listedAt,truncated};persist();
       return status();
     } finally { running = false; }
   }

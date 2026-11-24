@@ -1506,6 +1506,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/api/health/live') {
       sendJson(res, 200, {
         status: 'ok',
+        revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT||'')?process.env.RENDER_GIT_COMMIT:null,
         uptimeSeconds: Number(process.uptime().toFixed(3)),
         time: new Date().toISOString()
       });
@@ -1699,7 +1700,7 @@ const server = createServer(async (req, res) => {
 // Default to the existing SQLite DB if no explicit file storage was selected.
 if(MODEL_LAB&&!MODEL_LAB_STORAGE){try{MODEL_LAB.attachStorage(createModelLabSqliteStorage(PLATFORM.db,NVIDIA_API_KEY,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,...MODEL_LAB.status().specialists]));}catch{console.warn('hafize.model_lab sqlite storage unavailable');}}
 try{RUNTIME_EVIDENCE=createRuntimeEvidence(PLATFORM.db,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,process.env.HAFIZE_FAST_MODEL||MODEL_SERVICE_DEFAULTS.fastModel]);}catch{console.warn('hafize.runtime_evidence unavailable');}
-const DAILY_IMPROVEMENT = createDailyImprovement({expertReadiness:()=>auditExpertContracts(AGENT_REGISTRY),runtimeEvidence:()=>{RUNTIME_EVIDENCE?.prune();return RUNTIME_EVIDENCE?.summary()??[];},adaptLeaders:ids=>RUNTIME_EVIDENCE?.reorder(ids)??ids,db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
+const DAILY_IMPROVEMENT = createDailyImprovement({expertReadiness:()=>auditExpertContracts(AGENT_REGISTRY),runtimeEvidence:()=>{RUNTIME_EVIDENCE?.prune();return RUNTIME_EVIDENCE?.summary()??[];},adaptLeaders:ids=>RUNTIME_EVIDENCE?.reorder(ids)??ids,db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',discoverCatalog:process.env.HAFIZE_DAILY_CATALOG_DISCOVERY==='true',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
 let dailyTimer;
 let shutdownServerPromise = null;
 
