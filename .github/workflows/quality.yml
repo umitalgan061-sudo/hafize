@@ -47,6 +47,9 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Native backend startup smoke (no credentials)
+        run: node scripts/native-backend-boot-smoke.mjs
+
       - name: Dependency audit
         run: npm audit --omit=dev --audit-level=high
 
