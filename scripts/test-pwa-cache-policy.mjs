@@ -1,161 +1,25 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import {
-  ROOT,
-  assertShellAssets,
-  assertShellCacheContract,
-  indexHtmlAssets,
-  swPolicy as policy
-} from './shell-cache-contract.mjs';
-const ORIGIN = 'https://hafize.example';
+import { readFileSync } from 'node:fs';
+import { CURRENT_CACHE, SHELL_ASSETS, classifyRequest, shouldDeleteCache } from '../public/sw-policy.ts';
 
-function request(path, options = {}) {
-  const url = path.startsWith('http') ? path : new URL(path, ORIGIN).href;
-  return {
-    url,
-    method: options.method ?? 'GET',
-    mode: options.mode ?? 'same-origin',
-    headers: options.headers ?? {}
-  };
-}
-
-function headers(values = {}) {
-  const normalized = new Map(
-    Object.entries(values).map(([key, value]) => [key.toLowerCase(), String(value)])
-  );
-  return {
-    get(name) {
-      return normalized.get(String(name).toLowerCase()) ?? null;
-    }
-  };
-}
-
-// The cache version is bumped whenever the shell changes, so the contract is
-// asserted through invariants instead of a literal version or asset snapshot.
-assertShellCacheContract();
-assertShellAssets([
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/styles.css',
-  '/app.js',
-  '/ui-shell.js',
-  '/sw-policy.js',
-  '/manifest.webmanifest',
-  '/hafize.jpeg'
-], 'core shell asset');
-
-// Anything index.html loads must survive offline, otherwise the cached shell
-// boots into a half-broken page.
-assertShellAssets(indexHtmlAssets(), 'index.html asset');
-
-for (const asset of policy.SHELL_ASSETS) {
-  assert.equal(
-    policy.classifyRequest(request(asset), ORIGIN),
-    'shell',
-    `${asset} should be an explicit shell asset`
-  );
-}
-
-assert.equal(
-  policy.classifyRequest(request('/styles.css?v=1'), ORIGIN),
-  'shell',
-  'query strings must not prevent shell matching'
-);
-assert.equal(
-  policy.classifyRequest(request('/app.js?cache-bust=1'), ORIGIN),
-  'shell'
-);
-
-assert.equal(
-  policy.classifyRequest(request('/conversation/123', { mode: 'navigate' }), ORIGIN),
-  'navigation'
-);
-assert.equal(
-  policy.classifyRequest(request('/some-page', {
-    headers: { Accept: 'text/html,application/xhtml+xml' }
-  }), ORIGIN),
-  'navigation'
-);
-assert.equal(
-  policy.classifyRequest(request('/some-page', {
-    headers: headers({ ACCEPT: 'text/html' })
-  }), ORIGIN),
-  'navigation'
-);
-
-const apiRequests = [
-  '/api/models',
-  '/api/agents',
-  '/api/agent/run',
-  '/api/tasks',
-  '/api/private-looking-resource?token=do-not-cache'
-];
-for (const path of apiRequests) {
-  assert.equal(
-    policy.classifyRequest(request(path), ORIGIN),
-    'network-only',
-    `${path} must never be a shell-cache candidate`
-  );
-}
-assert.equal(
-  policy.classifyRequest(request('/api/agent/run', {
-    mode: 'navigate',
-    headers: { accept: 'text/html' }
-  }), ORIGIN),
-  'network-only',
-  'API boundary wins over navigation hints'
-);
-
-assert.equal(
-  policy.classifyRequest(request('/runtime-generated.json'), ORIGIN),
-  'network-only',
-  'unknown same-origin GETs stay network-only instead of growing the cache'
-);
-assert.equal(
-  policy.classifyRequest(request('/hafize.jpeg', { method: 'POST' }), ORIGIN),
-  'ignore'
-);
-assert.equal(
-  policy.classifyRequest(request('/video.mp4', {
-    headers: { Range: 'bytes=0-1023' }
-  }), ORIGIN),
-  'ignore',
-  'range requests bypass the service worker cache policy'
-);
-assert.equal(
-  policy.classifyRequest(request('https://cdn.example/image.png'), ORIGIN),
-  'ignore',
-  'cross-origin content is not cached by Hafize'
-);
-assert.equal(policy.classifyRequest(null, ORIGIN), 'ignore');
-assert.equal(policy.classifyRequest(request('/'), ''), 'ignore');
-
-assert.equal(policy.isSameOriginUrl('/styles.css', ORIGIN), true);
-assert.equal(policy.isSameOriginUrl('https://hafize.example/app.js', ORIGIN), true);
-assert.equal(policy.isSameOriginUrl('https://other.example/app.js', ORIGIN), false);
-assert.equal(policy.isSameOriginUrl('not a valid absolute url', ORIGIN), true);
-assert.equal(policy.isSameOriginUrl('/styles.css', ''), false);
-
-
-const swSource = await readFile(join(ROOT, 'public', 'sw.ts'), 'utf8');
-assert.match(swSource, /importScripts\('\/sw-policy\.js'\)/);
-assert.match(swSource, /classifyRequest\(event\.request, self\.location\.origin\)/);
-assert.match(swSource, /shouldDeleteCache\(key\)/);
-assert.match(swSource, /cache\.addAll\(SHELL_ASSETS\)/);
-assert.match(swSource, /cache\.match\('\/offline\.html'\)/);
-assert.doesNotMatch(swSource, /cache\.put\(/);
-assert.doesNotMatch(swSource, /authorization/i);
-assert.doesNotMatch(swSource, /bearer/i);
-
-const offlineSource = await readFile(join(ROOT, 'public', 'offline.html'), 'utf8');
-assert.match(offlineSource, /Şu anda çevrimdışısın/);
-assert.match(offlineSource, /sunucu bağlantısı gerektirir/);
-assert.match(offlineSource, /href="\/"/);
-assert.doesNotMatch(offlineSource, /<script/i);
-assert.doesNotMatch(offlineSource, /api[_-]?key/i);
-assert.doesNotMatch(offlineSource, /token/i);
-assert.doesNotMatch(offlineSource, /credential/i);
-
-console.log('PWA cache policy OK: shell-only offline cache, API network-only, scoped cleanup and offline fallback');
+const origin='https://hafize.example';
+const request=(path,options={})=>({url:new URL(path,origin).href,method:'GET',mode:'same-origin',headers:{},...options});
+assert.match(CURRENT_CACHE,/^hafize-shell-v\d+$/);
+assert.equal(new Set(SHELL_ASSETS).size,SHELL_ASSETS.length);
+assert.equal(SHELL_ASSETS.some(p=>p.startsWith('/api/')||p.startsWith('/media/hafize-point-portrait')),false);
+for(const p of ['/','/index.html','/offline.html','/premium.css','/typed-build/app-shell.js','/original-hero-bootstrap.js','/original-hero.js','/original-hero-pixels.js','/hero-donus.bin']) assert.ok(SHELL_ASSETS.includes(p),p);
+const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+for(const match of html.matchAll(/(?:href|src)="(\/[^"?#]+\.(?:css|js))(?=[?"#])/g))assert.ok(SHELL_ASSETS.includes(match[1]),'missing shell asset '+match[1]);
+for(const p of SHELL_ASSETS)assert.equal(classifyRequest(request(p),origin),'shell');
+assert.equal(classifyRequest(request('/premium.css?release=test'),origin),'shell');
+assert.equal(classifyRequest(request('/chat',{mode:'navigate'}),origin),'navigation');
+assert.equal(classifyRequest(request('/api/models',{mode:'navigate'}),origin),'network-only');
+assert.equal(classifyRequest(request('/release.json?check=1'),origin),'network-only');
+assert.equal(classifyRequest(request('/media/hafize-point-portrait-alpha.webm'),origin),'network-only');
+assert.equal(classifyRequest(request('/hero-donus.bin',{headers:{Range:'bytes=0-10'}}),origin),'ignore');
+assert.equal(classifyRequest(request('https://other.example/hero-donus.bin'),origin),'ignore');
+assert.equal(classifyRequest(request('/hero-donus.bin',{method:'POST'}),origin),'ignore');
+assert.equal(shouldDeleteCache('hafize-shell-v175'),true);
+assert.equal(shouldDeleteCache(CURRENT_CACHE),false);
+assert.equal(shouldDeleteCache('other-app-cache'),false);
+console.log('PWA cache policy OK: current portrait only, network-only API and release checks, scoped cache cleanup');

@@ -1,9 +1,10 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v175`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v176`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
   "/typed-build/release-update.js",
+  "/typed-build/analysis-draft.js",
   "/offline.html",
   "/styles.css",
   "/premium.css",
@@ -112,10 +113,6 @@ export const SHELL_ASSETS = Object.freeze([
   "/composer-focus-guard.js",
   "/manifest.webmanifest",
   "/hafize.jpeg",
-  "/media/hafize-point-portrait.png",
-  "/media/hafize-point-portrait.mp4",
-  "/media/hafize-point-portrait-alpha.png",
-  "/media/hafize-point-portrait-alpha.webm",
   "/original-hero.js",
   "/original-hero-pixels.js",
   "/original-hero-bootstrap.js",
