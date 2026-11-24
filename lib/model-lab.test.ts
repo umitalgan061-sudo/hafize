@@ -66,3 +66,49 @@ describe('NVIDIA model lab', () => {
     expect(modelTaskKind({tools:[{}]})).toBe('agent');
   });
 });
+
+
+describe('model lab bounded batches', () => {
+  it('tests two candidates per command, skips fresh observations, and activates verified candidates',async()=>{
+    const ids=[a,b,'nvidia/example-c'];
+    const requests:string[]=[];
+    const lab=createModelLab({allowed:ids,request:async (_path,body)=>{
+      requests.push(String(body?.model)); return reply(body?.tools?tool:valid);
+    }});
+    const first=await lab.batch();
+    expect(first.completed.map(x=>x.model)).toEqual([a,b]);
+    expect(first.pendingModels).toEqual([ids[2]]);
+    expect(lab.status().verifiedAgentModels).toEqual([a,b]);
+    expect((await lab.batch()).completed.map(x=>x.model)).toEqual([ids[2]]);
+    expect(requests).toEqual([a,a,b,b,ids[2],ids[2]]);
+    expect((await lab.batch()).completed).toEqual([]);
+  });
+  it('halts a batch on a rate limit, honors cooldown and does not probe the next model',async()=>{
+    let time=1000000;
+    const request=vi.fn(async()=>new Response('',{status:429,headers:{'Retry-After':'1200'}}));
+    const lab=createModelLab({allowed:[a,b],request,now:()=>time});
+    const first=await lab.batch();
+    expect(first.completed).toHaveLength(1);
+    expect(first.paused).toBe(true);
+    expect((await lab.batch()).completed).toEqual([]);
+    await expect(lab.probe(b)).rejects.toThrow('MODEL_LAB_PROVIDER_PAUSED');
+    expect(request).toHaveBeenCalledTimes(1);
+    time+=1200001;
+    expect((await lab.batch()).completed).toHaveLength(1);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+  it('retains chat evidence when only the tool probe fails',async()=>{
+    const lab=createModelLab({allowed:[a],request:async (_path,body)=>{
+      if(body?.tools) throw new Error('network');
+      return reply(valid);
+    }});
+    expect(await lab.probe(a)).toMatchObject({status:'passed',chat:true,tools:false,toolProbeStatus:'failed'});
+    expect(lab.preferred('agent',[a])).toEqual([]);
+    expect(lab.preferred('general',[a])).toEqual([a]);
+  });
+  it('recognizes explicit batch continuation, never mixed instructions',()=>{
+    expect(modelLabCommand('Model testlerine devam et')).toEqual({action:'batch'});
+    expect(modelLabCommand('NVIDIA model testlerini başlat')).toEqual({action:'batch'});
+    expect(modelLabCommand('Model testlerine devam et ve dosyaları sil')).toBeNull();
+  });
+});

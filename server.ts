@@ -80,14 +80,16 @@ const gateway = freeLlmGateway(process.env);
 const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');
 const NIM_BASE_URL = gateway?.baseUrl ?? (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
+const MODEL_LAB_EXTRA_CANDIDATES = ['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash'];
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
 const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
-  allowed: [...CONFIGURED_MODEL_CHAIN, 'poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash'],
+  allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
   request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
+  extraCandidates: MODEL_LAB ? MODEL_LAB_EXTRA_CANDIDATES : [],
   preferredModels: (payload, candidates) => MODEL_LAB?.preferred(modelTaskKind(payload), candidates) ?? [],
   // Background helpers stay on the quick model unless it is unavailable.
   keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
@@ -1033,6 +1035,12 @@ async function handleAgentRun(req, res) {
     try {
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
+      if (labCommand.action === 'batch') {
+        if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
+        await MODEL_LAB.batch(requestAbort.signal, (testedModel, result) => {
+          if (streamResponse) writeSseEvent(res, 'hafize-model-lab', { status: 'tested', model: testedModel, result });
+        });
+      }
       finishWithAnswer(formatModelLabStatus(MODEL_LAB.status()), false);
     } catch (error) {
       const code = typeof error?.message === 'string' && /^MODEL_LAB_[A-Z0-9_]+$/.test(error.message) ? error.message : 'MODEL_LAB_FAILED';

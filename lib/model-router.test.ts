@@ -179,3 +179,19 @@ it('uses measured compatible models without expanding the configured chain', asy
   await router.send(request(), async body => { const model=JSON.parse(body).model; calls.push(model); return answer(model==='middle'?503:200); });
   expect(calls).toEqual(['middle','top']);
 });
+
+
+it('uses configured extra candidates only after measured preference, never arbitrary model IDs',async()=>{
+  const attempts:string[]=[];
+  let measured:readonly string[]=[];
+  const router=createModelRouter({chain:['base'],extraCandidates:['verified-extra'],preferredModels:()=>measured,log:()=>{}});
+  const deliver=async(body:string)=>{attempts.push(JSON.parse(body).model);return answer(200);};
+  await router.send(request(),deliver);
+  expect(attempts).toEqual(['base']);
+  measured=['unknown','verified-extra'];
+  await router.send(request(),deliver);
+  expect(attempts).toEqual(['base','verified-extra']);
+  measured=[];
+  await router.send(request(),deliver);
+  expect(attempts).toEqual(['base','verified-extra','base']);
+});
