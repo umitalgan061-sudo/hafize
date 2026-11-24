@@ -3,6 +3,7 @@ import { createGitHubAgentRelease, releaseAuthorizationForRequest } from './lib/
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
+import {createNvidiaAgentWorkspace} from './lib/nvidia-agent-workspace.ts';
 import {deploymentBlueprintProbe} from './lib/deployment-blueprint-probe.ts';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
@@ -131,7 +132,7 @@ const WEB_TOOLS = createWebTools({
 });
 const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 200, 4, 200);
 const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 24, 1, MAX_EXPERT_ROUNDS);
-const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
+const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'orchestrator_list', 'nvidia_workspace', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
 // until restart so the picker stops offering them.
@@ -885,6 +886,7 @@ async function handleAgentRun(req, res) {
   const agentSpan = PLATFORM.telemetry.startSpan('agent.run', { traceId, attributes: { 'agent.id': agent.id, model, streaming: Boolean(streamResponse) } });
   const lastUserIndex = messages.map((message) => message.role).lastIndexOf('user');
   const lastUserText = lastUserIndex >= 0 ? messages[lastUserIndex].content : '';
+  const nvidiaWorkspace=ownerId?createNvidiaAgentWorkspace({lab:MODEL_LAB,ownerRequest:lastUserText,nimStatus:PLATFORM.nimStatus}):undefined;
   const memoryPrep = await PLATFORM.prepareMemory(ownerId, normalizeClientMemory(body.memory), lastUserText);
   const memorySession = createMemorySession(memoryPrep.notes, { persist: runContext.persistence });
   // Images attached to the message are described by the vision model and handed to the main model as text.
@@ -934,7 +936,7 @@ async function handleAgentRun(req, res) {
       return PLATFORM.wrapDelegation(traceId, ({ agent: expert, task: expertTask, repair }) => runDelegatedAgent({
         agent: expert,
         task: repair ? `${expertTask}\n\n${repair}` : expertTask,
-        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry, githubInspect: GITHUB_INSPECT },
+        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry, githubInspect: GITHUB_INSPECT, nvidiaWorkspace },
         maxRounds: EXPERT_TOOL_ROUNDS,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
@@ -970,6 +972,7 @@ async function handleAgentRun(req, res) {
     githubRelease: GITHUB_AGENT_RELEASE,
     githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
+    nvidiaWorkspace,
     githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
     safeGitHubAutonomy,
     delegateAgent: (args, signal) => delegator.delegate(args, { depth: 0,signal }),

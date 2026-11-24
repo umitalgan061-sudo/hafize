@@ -10,7 +10,7 @@ interface Lifecycle { readonly start:(input:{runId:string;parentRunId:string;par
 const bounded=(value:unknown,fallback:number,max:number)=>Number.isInteger(value)?Math.min(Math.max(Number(value),1),max):fallback;
 const clean=(value:unknown,max:number)=>{const text=typeof value==='string'?value.trim():'';return text&&text.length<=max?text:null;};
 const fail=(error:string)=>({ok:false as const,error});
-const TEAM_PERMISSIONS=new Set(['repo.read','pr.read','test.read_result','runtime.status','web.search','web.read','web.wikipedia.read','web.news.read','web.rates.read','research.run','code.run','diagram.render','web.render','vision.analyze','trace.write']);
+const TEAM_PERMISSIONS=new Set(['repo.read','pr.read','test.read_result','runtime.status','web.search','web.read','web.wikipedia.read','web.news.read','web.rates.read','research.run','code.run','diagram.render','web.render','vision.analyze','nvidia.workspace','trace.write']);
 export const independentTeamAgent=(agent:Agent)=>agent.kind==='specialist'&&(agent.toolPolicy.allow??[]).every(p=>TEAM_PERMISSIONS.has(p))&&!(agent.toolPolicy.approvalRequired??[]).length;
 const count=(ledger:AgentRunLedger)=>ledger.snapshot().entries.filter((entry)=>entry.action==='agent.delegate').length;
 

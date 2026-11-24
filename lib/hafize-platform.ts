@@ -66,7 +66,7 @@ export interface PlatformDeps {
 }
 
 // Tools the orchestrator may not plan with (no recursion, no destructive memory edits).
-const ORCHESTRATOR_EXCLUDED = new Set(['orchestrator_run', 'orchestrator_resume', 'memory_forget', 'memory_save', 'action_undo', 'skill_invoke', 'agent_delegate', 'memory_consolidate']);
+const ORCHESTRATOR_EXCLUDED = new Set(['orchestrator_run', 'orchestrator_resume', 'orchestrator_list', 'nvidia_workspace', 'memory_forget', 'memory_save', 'action_undo', 'skill_invoke', 'agent_delegate', 'memory_consolidate']);
 const TOOL_RISK: Readonly<Record<string, 'low' | 'medium' | 'high'>> = Object.freeze({ shell_run: 'high', workspace_sqlite: 'medium', workspace_files: 'medium', image_generate: 'low' });
 const CONVERSATION_ID = /^[A-Za-z0-9_-]{1,120}$/;
 // A message may expand at most this many uploaded documents (the composer allows twenty attachments).
@@ -294,6 +294,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         });
         return summarizeRun(state);
       },
+      orchestrateList: async(args,context)=>({runs:orchestrator.list(owner(context),boundedInt(args.limit,20,1,100)),note:'Yalnız mevcut veritabanındaki görevler. Kalıcı disk yoksa sunucu yeniden başlatıldığında kayıtlar kaybolabilir.'}),
       orchestrateResume: async (args, context) => {
         const hooks = orchestratorHooks(context);
         const extra = boundedInt(args.extraSteps, 0, 0, 20);
@@ -878,6 +879,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
   return Object.freeze({
     db, telemetry, models, memory, consolidator, approvals, journal, sandbox, images, media, research, orchestrator, experts, localTools, prompts, backup,
     createRunContext, prepareMemory, analyzeAttachments, wrapDelegation, handle, capabilities, shutdown, ruleEngine, taskResults,
+    nimStatus:()=>nimSpecialists.status(),
     recordTurn: (ownerId: string, conversationId: string, role: 'user' | 'assistant', content: string) => { if (ownerId && CONVERSATION_ID.test(conversationId)) memory.recordTurn({ ownerId, conversationId, role, content }); }
   });
 }
