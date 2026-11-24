@@ -58,6 +58,7 @@ import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
 import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
+import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -1628,13 +1629,13 @@ const server = createServer(async (req, res) => {
       if (!authorized) { sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'}); return; }
       if (!MODEL_LAB) { sendJson(res,503,{error:'MODEL_LAB_UNAVAILABLE'}); return; }
       res.setHeader('Cache-Control','no-store');
-      if (req.method==='GET') { sendJson(res,200,MODEL_LAB.status()); return; }
+      if (req.method==='GET') { sendJson(res,200,{...MODEL_LAB.status(),dailyImprovement:DAILY_IMPROVEMENT.status()}); return; }
       const abort=new AbortController();
       const close=()=>abort.abort();
       res.once('close',close);
       try {
         const body=await readJson(req,4096);
-        sendJson(res,200,await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])));
+        sendJson(res,200,{...await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])),dailyImprovement:DAILY_IMPROVEMENT.status()});
       } catch(error) {
         if(res.destroyed||res.writableEnded)return;
         const code=typeof error?.message==='string'&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_LAB_FAILED';
@@ -1679,6 +1680,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
+const DAILY_IMPROVEMENT = createDailyImprovement({db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
+let dailyTimer;
 let shutdownServerPromise = null;
 
 function closeHttpServer() {
@@ -1694,9 +1697,10 @@ function closeHttpServer() {
 }
 
 const SHUTDOWN = createShutdownCoordinator({
-  stopWorker: () => { stopScheduleWorkerLoop(); stopRuleEngineLoop(); },
+  stopWorker: () => { stopScheduleWorkerLoop(); stopRuleEngineLoop(); clearInterval(dailyTimer); },
   waitForTick: () => scheduleTickPromise ?? Promise.resolve(),
   closeLease: async () => {
+    await DAILY_IMPROVEMENT.stop().catch(() => {});
     await PLATFORM.shutdown().catch(() => {});
     return SCHEDULE_LEASE_RUNTIME.close();
   },
@@ -1707,6 +1711,8 @@ SHUTDOWN.installSignals();
 
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
+  const tick=()=>{void DAILY_IMPROVEMENT.tick().catch(()=>console.warn('hafize.daily_improvement failed'));};
+  tick();dailyTimer=setInterval(tick,15*60_000);dailyTimer.unref?.();
 });
 // Off unless asked for: this is the only listener that reaches beyond this computer.
 const LOCAL_HTTPS = startLocalHttps({

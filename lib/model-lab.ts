@@ -179,7 +179,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     batchRunning = true;
     const completed: ProbeResult[] = [];
     try {
-      for (const model of eligible.filter(id => !fresh(id)).slice(0, 2)) {
+      for (const model of eligible.filter(id => !fresh(id)).sort((a,b)=>(Date.parse(results.get(a)?.testedAt||'')||0)-(Date.parse(results.get(b)?.testedAt||'')||0)).slice(0, 2)) {
         signal?.throwIfAborted();
         if (blockedUntil > now() || availableRequests() < 2) break;
         const row = await probeOne(model, signal); completed.push(row); progress?.(model, row);
