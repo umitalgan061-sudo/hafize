@@ -215,3 +215,5 @@ it('penalizes the model that owns the broken response, not a concurrent response
   router.penalizeModel(null);
   expect(router.status().chain[1]?.ready).toBe(true);
 });
+
+it('passes trusted expert identity separately without forwarding metadata to NVIDIA',async()=>{const router=createModelRouter({chain:['a','b'],preferredModels:(_payload,_candidates,expertId)=>expertId==='expert-math'?['b']:[],log:()=>{}});await router.send(request(),async(body)=>{expect(JSON.parse(body).model).toBe('b');expect(JSON.parse(body).expertId).toBeUndefined();return answer(200);},undefined,'expert-math');});

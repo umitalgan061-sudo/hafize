@@ -59,6 +59,7 @@ import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, f
 import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
 import { createDailyImprovement } from './lib/daily-improvement.ts';
+import { expertModelTask } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -101,7 +102,7 @@ const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integr
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
   extraCandidates: MODEL_LAB ? MODEL_LAB_EXTRA_CANDIDATES : [],
-  preferredModels: (payload, candidates) => MODEL_LAB?.preferred(modelTaskKind(payload), candidates) ?? [],
+  preferredModels: (payload, candidates, expertId) => MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [],
   // Background helpers stay on the quick model unless it is unavailable.
   keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
 });
@@ -335,7 +336,7 @@ function boundedEnvInteger(value, fallback, min, max) {
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
 }
 
-async function nvidiaFetch(pathname, init = {}) {
+async function nvidiaFetch(pathname, init = {}, expertId) {
   if (!NVIDIA_API_KEY) {
     const error = new Error('NVIDIA_NOT_CONFIGURED');
     error.status = 503;
@@ -357,7 +358,7 @@ async function nvidiaFetch(pathname, init = {}) {
     if (pathname === '/chat/completions' && typeof init.body === 'string') { try { payload = JSON.parse(init.body); } catch { payload = null; } }
     // One bad model must not trip the breaker for the rest; only a chain that failed as a whole counts.
     const response = payload && MODEL_ROUTER.shouldRoute(payload)
-      ? await MODEL_ROUTER.send(init.body, deliver, init.signal)
+      ? await MODEL_ROUTER.send(init.body, deliver, init.signal, expertId)
       : await deliver(init.body, init.signal);
     if (response.ok) {
       NVIDIA_CIRCUIT.recordSuccess();
@@ -377,13 +378,13 @@ async function nvidiaFetch(pathname, init = {}) {
   }
 }
 
-async function nvidiaJsonCompletion(payload, signal) {
+async function nvidiaJsonCompletion(payload, signal, expertId) {
   const upstream = await nvidiaFetch('/chat/completions', {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(payload)
-  });
+  }, expertId);
   const text = await upstream.text();
   if (!upstream.ok) {
     const error = new Error('NVIDIA_CHAT_ERROR');
@@ -904,7 +905,7 @@ async function handleAgentRun(req, res) {
         ownerId: req.__hafizePrincipal?.ownerId,
         sessionId: req.__hafizePrincipal?.sessionId,
         signal: signal ?? requestAbort.signal,
-        complete: (payload, delegatedSignal) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal)
+        complete: (payload, delegatedSignal, expertId) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal, expertId)
       }))({ agent: delegatedAgent, task });
     }
   });

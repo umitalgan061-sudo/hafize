@@ -46,7 +46,7 @@ type Send = (body: string, signal: AbortSignal) => Promise<Response>;
 
 interface ModelState { cooldownUntil: number; lastFailure: FailureReason | null; lastFailureAt: number; lastSuccessAt: number }
 
-export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[]) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
+export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[], expertId?: string) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
   const states = new Map<string, ModelState>();
   // Bind response identity to the actual routed model, not the most recent concurrent request.
   const responseModels = new WeakMap<Response,string>();
@@ -71,9 +71,9 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
    * starts at the top whatever the client asked for. When everything is cooling down the full list
    * runs anyway: a stale cooldown must never be the reason a question goes unanswered.
    */
-  function attemptsFor(requested: string, payload: Record<string, unknown>): string[] {
+  function attemptsFor(requested: string, payload: Record<string, unknown>, expertId?: string): string[] {
     const candidates = [...new Set([...chain, ...extraCandidates])];
-    const measured = preferredModels(payload, candidates).filter(model => candidates.includes(model));
+    const measured = preferredModels(payload, candidates, expertId).filter(model => candidates.includes(model));
     const ordered = keepFirst.includes(requested) ? [requested, ...chain.filter((model) => model !== requested)] : [...new Set([...measured, ...chain])];
     const available = ordered.filter(ready);
     return available.length ? available : ordered;
@@ -90,9 +90,9 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
   }
 
   /** Sends one chat request down the chain. The last response is returned unread, whatever it was. */
-  async function send(rawBody: string, deliver: Send, signal?: AbortSignal | null): Promise<Response> {
+  async function send(rawBody: string, deliver: Send, signal?: AbortSignal | null, expertId?: string): Promise<Response> {
     const payload = JSON.parse(rawBody) as Record<string, unknown>;
-    const attempts = attemptsFor(String(payload.model), payload);
+    const attempts = attemptsFor(String(payload.model), payload, expertId);
     const streaming = payload.stream === true;
     let lastError: unknown = null;
     for (const [index, model] of attempts.entries()) {
