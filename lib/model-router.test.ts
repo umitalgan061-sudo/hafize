@@ -202,3 +202,16 @@ it('does not swap specialized or non-text inputs into general chat models',()=>{
   for(const type of ['input_audio','video_url','file']) expect(router.shouldRoute({model:'base',messages:[{content:[{type}]}]})).toBe(false);
   expect(router.status().extraCandidates).toEqual([{model:'extra',ready:true,lastFailure:null,retryInSeconds:0}]);
 });
+
+it('penalizes the model that owns the broken response, not a concurrent response',async()=>{
+  const router=createModelRouter({chain:['first','second'],keepFirst:['second'],log:()=>{}});
+  const first=await router.send(request({model:'first'}),async()=>answer(200));
+  const second=await router.send(request({model:'second'}),async()=>answer(200));
+  expect(router.modelFor(first)).toBe('first');
+  expect(router.modelFor(second)).toBe('second');
+  expect(router.status().current).toBe('second');
+  router.penalizeModel(router.modelFor(first));
+  expect(router.status().chain.map(m=>m.ready)).toEqual([false,true]);
+  router.penalizeModel(null);
+  expect(router.status().chain[1]?.ready).toBe(true);
+});

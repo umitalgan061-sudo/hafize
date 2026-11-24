@@ -48,6 +48,8 @@ interface ModelState { cooldownUntil: number; lastFailure: FailureReason | null;
 
 export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[]) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
   const states = new Map<string, ModelState>();
+  // Bind response identity to the actual routed model, not the most recent concurrent request.
+  const responseModels = new WeakMap<Response,string>();
   let current = chain[0] ?? '';
 
   const state = (model: string): ModelState => {
@@ -103,6 +105,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
       try {
         const response = await deliver(bodyFor(payload, model), requestSignal);
         if (timer) clearTimeout(timer);
+        responseModels.set(response,model);
         if (response.ok) {
           const entry = state(model);
           entry.cooldownUntil = 0;
@@ -137,6 +140,8 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
 
   /** A stream broke after it began: the model that answered sits out and the round can be retried. */
   const penalizeCurrent = (reason: FailureReason = 'failing') => { if (current) penalize(current, reason); };
+  const modelFor = (response: Response) => responseModels.get(response) ?? null;
+  const penalizeModel = (model: string | null, reason: FailureReason = 'failing') => { if (model && (chain.includes(model) || extraCandidates.includes(model))) penalize(model,reason); };
 
   const status = () => ({
     top: chain[0] ?? '',
@@ -148,5 +153,5 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
     })
   });
 
-  return Object.freeze({ send, shouldRoute, penalizeCurrent, status, top: () => chain[0] ?? '' });
+  return Object.freeze({ send, shouldRoute, penalizeCurrent, modelFor, penalizeModel, status, top: () => chain[0] ?? '' });
 }

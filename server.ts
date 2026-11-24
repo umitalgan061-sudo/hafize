@@ -988,12 +988,13 @@ async function handleAgentRun(req, res) {
     });
     const round = await readNvidiaStream(upstream.body, (delta) => gate.push(delta));
     gate.flush();
-    if (round.usage) PLATFORM.telemetry.recordUsage({ traceId, model, purpose: 'agent.round', promptTokens: Number(round.usage.prompt_tokens), completionTokens: Number(round.usage.completion_tokens) });
+    if (round.usage) PLATFORM.telemetry.recordUsage({ traceId, model: MODEL_ROUTER.modelFor(upstream) || model, purpose: 'agent.round', promptTokens: Number(round.usage.prompt_tokens), completionTokens: Number(round.usage.completion_tokens) });
     if (round.error) {
       const error = new Error('NVIDIA_CHAT_ERROR');
       error.status = 502;
       // Nothing reached the user yet, so the round can start over on the next model.
       error.retryRound = !wrote;
+      error.routedModel = MODEL_ROUTER.modelFor(upstream);
       throw error;
     }
     return { content: round.content, toolCalls: round.toolCalls, wrote };
@@ -1097,7 +1098,7 @@ async function handleAgentRun(req, res) {
       completion = await runRound(roundPayload);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }
-      MODEL_ROUTER.penalizeCurrent();
+      MODEL_ROUTER.penalizeModel(error.routedModel);
       try {
         completion = await runRound(roundPayload);
       } catch (retryError) {

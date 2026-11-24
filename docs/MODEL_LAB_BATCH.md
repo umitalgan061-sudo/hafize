@@ -17,7 +17,9 @@ Geri dönüş: PR revert. Ek model yönlendirmesi test kanıtı süresi dolduğu
 - `Model derin testi: yayıncı/model`: önce normal test gerekir; en fazla iki ek sentetik istek, Türkçe yazım, aritmetik, Python çıktısı ve sahte araç sonucunu yorumlama. Gerçek araç çağrısı yoktur. Aynı 12 istek / 10 dakika bütçesini kullanır.
 - Görev kategorileri: genel, hızlı, akıl yürütme, kodlama, ajan ve hızlı/akıl yürütmeli ajan. Türkçe ekler ve metin parçaları sınıflandırılır. Test edilmiş ek adaylar kategori uyumuna göre öne çıkar; temel zincir korunur.
 - `HAFIZE_MODEL_LAB_CANDIDATES`: isteğe bağlı virgülle ayrılmış operatör onaylı sohbet modeli kimlikleri; mevcut zincirle birlikte en fazla 30 test adayı. NVIDIA kataloğundan otomatik ücretli erişim açılmaz; operatör ücretsiz erişim koşullarını doğrulamalıdır.
-- Sonuçlar halen süreç belleğindedir; kalıcı disk/DB veya multimodal benchmark bu değişikliğin kapsamı dışındadır. Ölçümler küçük sentetik örneklerdir.
+- Sonuçlar varsayılan olarak süreç belleğindedir; isteğe bağlı dosya deposu aşağıda açıklanmıştır. Çok örnekli ortak DB veya multimodal benchmark kapsam dışındadır. Ölçümler küçük sentetik örneklerdir.
 
 ## V2 — isteğe bağlı test deposu ve özel amaçlı modeller
 `HAFIZE_MODEL_LAB_STORAGE_PATH` ayarlanırsa tek süreçli sunucuda sentetik sonuçlar ve istek bütçesi atomik dosya yazımıyla saklanır. Yol mutlak olmalı, üst dizin önceden oluşturulmalı ve yalnız operatör tarafından yönetilmelidir. Anahtar değişince eski sonuçlar kullanılmaz; ham anahtar kaydedilmez. Dosya hatası durum ekranında görülür ve süreç belleği kullanılır. Render ücretsiz geçici dosya sistemi kalıcılık garantisi vermez; kalıcı birim olmadan yeniden dağıtımlarda veri kaybı mümkündür. Çok örnekli dağıtımda ortak atomik bütçe için bir DB gerekir. Görsel, ses, belge ve diğer özel amaçlı girdiler genel sohbet yönlendirmesinden korunur; bu yeni multimodal entegrasyon değildir.
+
+Eşzamanlı sohbetlerde bozuk stream, son kullanılan global modele değil yalnız o yanıtı üreten modele uygulanır. Stream kullanım telemetrisi mümkün olduğunda gerçek yönlendirilmiş model kimliğini gösterir.
