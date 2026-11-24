@@ -9,7 +9,7 @@ describe('local model provider',()=>{
   it('normalizes a successful local completion',async()=>{
     const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({model:'qwen',message:{role:'assistant',content:'ok'}}),{status:200}));
     const provider=createLocalModelProvider({baseUrl:'http://127.0.0.1:11434',fetchImpl});
-    const result=await provider.complete({model:'qwen',messages:[{role:'user',content:'hi'}]});
+    const result=await provider.complete({model:'qwen',messages:[{role:'user',content:'hi'}],stream:false});
     expect(result).toMatchObject({object:'chat.completion',model:'qwen'});
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
