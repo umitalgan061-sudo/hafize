@@ -209,3 +209,17 @@ describe('model council',()=>{
     expect(request).not.toHaveBeenCalled();
   });
 });
+
+it('benchmarks only configured embedding models with synthetic input and shared budget',async()=>{
+  const embed='nvidia/nemotron-3-embed-1b';
+  const request=vi.fn(async(path,body)=>{
+    expect(path).toBe('/embeddings');expect(body.model).toBe(embed);
+    return new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}));
+  });
+  const lab=createModelLab({allowed:[a],specialistModels:[embed,'vendor/unknown'],request});
+  await expect(lab.specialistProbe('vendor/unknown')).rejects.toThrow('MODEL_LAB_MODEL_NOT_ALLOWED');
+  expect(await lab.specialistProbe(embed)).toMatchObject({status:'passed',dimension:2,similarHigher:true});
+  expect(lab.status().requestsRemaining).toBe(11);
+  await lab.specialistProbe(embed);expect(request).toHaveBeenCalledTimes(1);
+  expect(modelLabCommand('Embedding testi: '+embed)).toEqual({action:'specialist',model:embed});
+});

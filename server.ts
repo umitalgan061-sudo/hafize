@@ -92,6 +92,7 @@ if (!gateway && NVIDIA_API_KEY && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
 const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
   allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
   storage: MODEL_LAB_STORAGE,
+  specialistModels: (process.env.HAFIZE_MODEL_LAB_EMBEDDINGS || 'nvidia/nemotron-3-embed-1b').split(',').map(id=>id.trim()),
   request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
@@ -1047,6 +1048,7 @@ async function handleAgentRun(req, res) {
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
+      if (labCommand.action === 'specialist') await MODEL_LAB.specialistProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'batch') {
         if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
         await MODEL_LAB.batch(requestAbort.signal, (testedModel, result) => {
