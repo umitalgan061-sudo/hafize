@@ -1,4 +1,4 @@
-import {modelLabChatPayload} from './model-lab-provider-profile.ts';
+import {modelLabChatPayload,modelLabRequestTimeout} from './model-lab-provider-profile.ts';
 import { catalogInventory, classifyModel } from './model-catalog.ts';
 /** Bounded, synthetic NVIDIA probes. Never benchmark with conversation data or tools that have side effects. */
 export type ProbeState = 'passed' | 'failed' | 'unavailable' | 'rate_limited' | 'quota' | 'timeout' | 'invalid_response' | 'auth_rejected';
@@ -130,7 +130,8 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     if (availableRequests() <= 0) throw new Error('MODEL_LAB_BUDGET');
     timestamps.push(now());
     persist();
-    const response = await request(path, path==='/chat/completions'&&body?modelLabChatPayload(body):body, signal ? AbortSignal.any([signal, AbortSignal.timeout(35_000)]) : AbortSignal.timeout(35_000));
+    const timeout=AbortSignal.timeout(modelLabRequestTimeout(path,body));
+    const response = await request(path, path==='/chat/completions'&&body?modelLabChatPayload(body):body, signal ? AbortSignal.any([signal, timeout]) : timeout);
     if ([401, 402, 429].includes(response.status)) {
       const retry = response.headers.get('retry-after') || '';
       const requested = /^\d+$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - now();

@@ -13,7 +13,7 @@ export async function deploymentKimiProbe({db,lab,until,now=Date.now,log=console
  if(!claim.changes)return;
  if(!lab){emit({state:'unavailable',reason:'NVIDIA_LAB_UNAVAILABLE'});return;}
  try{
-  const row=await lab.probe(KIMI_K31_PRO,AbortSignal.timeout(Math.max(1,Math.min(75_000,expiry-started))));
+  const row=await lab.probe(KIMI_K31_PRO,AbortSignal.timeout(Math.max(1,Math.min(190_000,expiry-started))));
   emit({state:'result',testedAt:row.testedAt,fresh:Date.parse(row.testedAt)>=started,status:row.status,chat:row.chat,tools:row.tools,toolProbeStatus:row.toolProbeStatus,requests:row.requests,latencyMs:row.latencyMs,turkish:row.turkish,reasoning:row.reasoning,coding:row.coding});
  }catch(error){const code=error instanceof Error&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'DEPLOY_PROBE_FAILED';emit({state:'failed',reason:code});}
 }
