@@ -80,7 +80,8 @@ const gateway = freeLlmGateway(process.env);
 const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');
 const NIM_BASE_URL = gateway?.baseUrl ?? (process.env.NIM_BASE_URL || 'https://integrate.api.nvidia.com/v1').replace(/\/+$/, '');
 const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
-const MODEL_LAB_EXTRA_CANDIDATES = ['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash'];
+// Explicit operator allowlist; never auto-promote the discovery catalog.
+const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-CONFIGURED_MODEL_CHAIN.length));
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
 const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
   allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
@@ -1035,6 +1036,7 @@ async function handleAgentRun(req, res) {
     try {
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
+      if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'batch') {
         if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
         await MODEL_LAB.batch(requestAbort.signal, (testedModel, result) => {

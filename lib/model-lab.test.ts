@@ -112,3 +112,40 @@ describe('model lab bounded batches', () => {
     expect(modelLabCommand('Model testlerine devam et ve dosyaları sil')).toBeNull();
   });
 });
+
+describe('model lab v2', () => {
+  it('classifies Turkish suffixes and multimodal text, and keeps tool compatibility for fast tasks', () => {
+    expect(modelTaskKind({messages:[{role:'user',content:'Yazılımı geliştir'}]})).toBe('coding');
+    expect(modelTaskKind({messages:[{role:'user',content:'Matematiksel olarak hesapla'}]})).toBe('reasoning');
+    expect(modelTaskKind({tools:[{}],messages:[{role:'user',content:'Naber?'}]})).toBe('fast-agent');
+    expect(modelTaskKind({tools:[{}],messages:[{role:'user',content:[{type:'text',text:'Bu sonucu analiz et'}]}]})).toBe('reasoning-agent');
+  });
+  it('runs bounded deeper probes using fake tool output and exposes measured task leaders',async()=>{
+    const request=vi.fn(async (_path,body)=>{
+      const messages=body.messages;
+      if(messages.some(m=>m.role==='tool')) return reply({content:'{"answer":45}'});
+      if(messages[0].content.includes('Ankaraya')) return reply({content:JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]})});
+      return reply(body.tools?tool:valid);
+    });
+    const lab=createModelLab({allowed:[a],request});
+    await expect(lab.deepProbe(a)).rejects.toThrow('MODEL_LAB_SMOKE_REQUIRED');
+    await lab.probe(a);
+    expect(await lab.deepProbe(a)).toMatchObject({status:'passed',language:true,reasoning:true,coding:true,toolFollowup:true});
+    expect(lab.status().taskLeaders.coding).toEqual([a]);
+    expect(lab.status().requestsRemaining).toBe(8);
+    await lab.deepProbe(a);
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(modelLabCommand('Model derin testi: nvidia/example-a')).toEqual({action:'deep',model:a});
+  });
+  it('does not prioritize models that fail a measured tool followup',async()=>{
+    const lab=createModelLab({allowed:[a],request:async (_path,body)=>{
+      if(body?.messages && JSON.stringify(body.messages).includes('benchmark_call_1')) return reply({content:'{"answer":44}'});
+      if(JSON.stringify(body).includes('Ankaraya')) return reply({content:JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]})});
+      return reply(body?.tools?tool:valid);
+    }});
+    await lab.probe(a); await lab.deepProbe(a);
+    expect(lab.preferred('fast-agent',[a])).toEqual([]);
+    expect(lab.preferred('agent',[a])).toEqual([]);
+    expect(lab.preferred('general',[a])).toEqual([a]);
+  });
+});

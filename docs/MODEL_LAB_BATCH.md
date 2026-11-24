@@ -12,3 +12,9 @@ Bir test en fazla iki API isteği yapar; on dakikada en fazla 12 laboratuvar ist
 Laguna XS 2.1 ve GLM 5.3 Flash yalnız güncel başarılı sentetik sonuçları görev kategorisine uygunsa mevcut zincirin önüne alınır. Araç kullanan görevler araç çağırma testini geçmelidir. Ölçülmemiş ek adaylar yedek zincire eklenmez. Mevcut ana zincir ve özel amaçlı modeller korunur. Bu basit testler genel zekâ, güvenlik, kod doğruluğu veya üretim erişimi garantisi değildir; kalıcı benchmark deposu, ücretli partner, GPU kurulumu ve multimodal testler bu sürüm kapsamı dışındadır.
 
 Geri dönüş: PR revert. Ek model yönlendirmesi test kanıtı süresi dolduğunda kendiliğinden durur.
+
+## V2
+- `Model derin testi: yayıncı/model`: önce normal test gerekir; en fazla iki ek sentetik istek, Türkçe yazım, aritmetik, Python çıktısı ve sahte araç sonucunu yorumlama. Gerçek araç çağrısı yoktur. Aynı 12 istek / 10 dakika bütçesini kullanır.
+- Görev kategorileri: genel, hızlı, akıl yürütme, kodlama, ajan ve hızlı/akıl yürütmeli ajan. Türkçe ekler ve metin parçaları sınıflandırılır. Test edilmiş ek adaylar kategori uyumuna göre öne çıkar; temel zincir korunur.
+- `HAFIZE_MODEL_LAB_CANDIDATES`: isteğe bağlı virgülle ayrılmış operatör onaylı sohbet modeli kimlikleri; mevcut zincirle birlikte en fazla 30 test adayı. NVIDIA kataloğundan otomatik ücretli erişim açılmaz; operatör ücretsiz erişim koşullarını doğrulamalıdır.
+- Sonuçlar halen süreç belleğindedir; kalıcı disk/DB veya multimodal benchmark bu değişikliğin kapsamı dışındadır. Ölçümler küçük sentetik örneklerdir.
