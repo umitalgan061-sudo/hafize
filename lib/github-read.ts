@@ -5,7 +5,7 @@ const DEFAULT_GITHUB_API = 'https://api.github.com';
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024;
 
 const REPOSITORY_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const ALLOWED_INPUT_KEYS = new Set(['repository', 'path', 'ref']);
+const ALLOWED_INPUT_KEYS = new Set(['repository', 'path', 'ref', 'startLine', 'endLine']);
 const SENSITIVE_FILE_PATTERNS = [
   /^\.env(?:\.|$)/i,
   /(?:^|[._-])(?:credential|secret|token)s?(?:[._-]|$)/i,
@@ -85,6 +85,7 @@ function decodeGitHubContent(payload, maxFileBytes) {
 
 export function createGitHubReadFile({
   token = '',
+  allowPublicRead = false,
   allowedRepositories = [],
   baseUrl = DEFAULT_GITHUB_API,
   fetchImpl = globalThis.fetch,
@@ -95,7 +96,7 @@ export function createGitHubReadFile({
   const authToken = typeof token === 'string' ? token.trim() : '';
 
   return async function githubReadFile(input = {}) {
-    if (!authToken) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
+    if (!authToken && allowPublicRead !== true) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
     if (typeof fetchImpl !== 'function') throw new GitHubReadError('GITHUB_FETCH_UNAVAILABLE', 503);
     if (!input || Array.isArray(input) || typeof input !== 'object') throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
     if (Object.keys(input).some((key) => !ALLOWED_INPUT_KEYS.has(key))) throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
@@ -105,14 +106,20 @@ export function createGitHubReadFile({
 
     const path = normalizePath(input.path);
     const ref = normalizeRef(input.ref);
+    const hasRange = input.startLine !== undefined || input.endLine !== undefined;
+    const startLine = input.startLine ?? 1;
+    const endLine = input.endLine ?? (startLine + 499);
+    if (hasRange && (!Number.isSafeInteger(startLine) || !Number.isSafeInteger(endLine) || startLine < 1 || endLine < startLine || endLine - startLine >= 1000 || endLine > 1000000)) throw new GitHubReadError('INVALID_GITHUB_LINE_RANGE');
     const url = new URL(`${apiBase}/repos/${repository}/contents/${encodeRepoPath(path)}`);
     if (ref) url.searchParams.set('ref', ref);
 
     const response = await fetchImpl(url, {
       method: 'GET',
+      redirect: 'error',
+      signal: AbortSignal.timeout(45_000),
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${authToken}`,
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
         'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'Hafize-AI'
       }
@@ -131,6 +138,16 @@ export function createGitHubReadFile({
     }
 
     const boundedMaxFileBytes = Number.isInteger(maxFileBytes) ? Math.max(1, Math.min(maxFileBytes, 256 * 1024)) : DEFAULT_MAX_FILE_BYTES;
+    if (hasRange) {
+      const decoded = decodeGitHubContent(payload, 1024 * 1024);
+      if (decoded.truncated) throw new GitHubReadError('GITHUB_FILE_TOO_LARGE', 413);
+      // Check the entire decoded file before selecting a window.
+      if (containsPlaintextCredential(decoded.content)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
+      const lines = decoded.content.split(/\r?\n/);
+      const selected = lines.slice(startLine - 1, endLine).join('\n');
+      const selectedBytes = Buffer.from(selected, 'utf8');
+      return { repository, path, ref, sha: decoded.sha, size: decoded.size, content: selectedBytes.subarray(0, boundedMaxFileBytes).toString('utf8'), truncated: selectedBytes.length > boundedMaxFileBytes, startLine, endLine: Math.min(endLine, lines.length), totalLines: lines.length };
+    }
     const decoded = decodeGitHubContent(payload, boundedMaxFileBytes);
     if (containsPlaintextCredential(decoded.content)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
     return { repository, path, ref, ...decoded };
