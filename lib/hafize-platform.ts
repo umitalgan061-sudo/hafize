@@ -20,6 +20,7 @@ import { createSandboxRunner } from './sandbox-runner.ts';
 import { createHeadlessBrowser } from './headless-browser.ts';
 import { createImageStore, createMediaTools, MEDIA_LIMITS, sniffImageType } from './media-tools.ts';
 import { createDocumentStore } from './document-store.ts';
+import { analyzeVideoFrames } from './video-frame-analysis.ts';
 import { createNimSpecialists } from './nim-specialists.ts';
 import { createResearchAgent } from './research-agent.ts';
 import { createResearchSources } from './research-sources.ts';
@@ -632,6 +633,8 @@ export function createHafizePlatform(deps: PlatformDeps) {
   }
 
   // --- HTTP API ---
+  const videoFramesEnabled=env.HAFIZE_VIDEO_FRAMES_ENABLED==='true'&&Boolean(deps.apiKey);
+  let videoFrameAnalysisActive=false;
   async function handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
     const path = url.pathname;
     if (!/^\/api\/(memory|images|documents|uploads|approvals|actions|orchestrator|experts|observability|feedback|backup|task-results|localhost|screen|skills\/(catalog|bundles|updates)|capabilities|prompts|nim-specialists)(\/|$)/.test(path)) return false;
@@ -642,7 +645,14 @@ export function createHafizePlatform(deps: PlatformDeps) {
     const segments = path.split('/').filter(Boolean).slice(1);
     try {
       if (segments[0] === 'nim-specialists') {
-        if (!segments[1]&&method==='GET') {sendJson(res,200,nimSpecialists.status());return true;}
+        if (!segments[1]&&method==='GET') {sendJson(res,200,{...nimSpecialists.status(),videoFrames:videoFramesEnabled});return true;}
+        if(method==='POST'&&segments.length===2&&segments[1]==='video-frames'){
+          if(!videoFramesEnabled){sendJson(res,503,{error:'VIDEO_FRAMES_NOT_ENABLED'});return true;}
+          if(videoFrameAnalysisActive){sendJson(res,429,{error:'VIDEO_FRAMES_BUSY'});return true;}
+          videoFrameAnalysisActive=true;const abort=new AbortController();const close=()=>abort.abort();res.once('close',close);
+          try{const body=await readJson(req,3*1024*1024);const result=await analyzeVideoFrames(models,body,AbortSignal.any([abort.signal,AbortSignal.timeout(90000)]));if(!res.destroyed)sendJson(res,200,result);return true;}
+          finally{videoFrameAnalysisActive=false;res.off('close',close);}
+        }
         if(method==='POST'&&segments.length===2&&['transcribe','synthesize','parse'].includes(segments[1]!)){
           const abort=new AbortController();const close=()=>abort.abort();res.once('close',close);
           try {

@@ -67,6 +67,8 @@ describe('platform HTTP API', () => {
   it('protects specialist status and rejects unconfigured services',async()=>{
     expect((await call('/api/nim-specialists',{owner:''})).status).toBe(401);
     expect(await (await call('/api/nim-specialists')).json()).toMatchObject({asr:false,tts:false,parse:false,verified:false});
+    expect((await call('/api/nim-specialists/video-frames',{owner:'',method:'POST',body:'{}'})).status).toBe(401);
+    expect((await call('/api/nim-specialists/video-frames',{method:'POST',body:'{}'})).status).toBe(503);
     expect((await call('/api/nim-specialists/synthesize',{owner:'',method:'POST',body:JSON.stringify({text:'test',language:'tr-TR'})})).status).toBe(401);
     expect((await call('/api/nim-specialists/synthesize',{method:'POST',body:JSON.stringify({text:'test',language:'tr-TR'})})).status).toBe(400);
   });

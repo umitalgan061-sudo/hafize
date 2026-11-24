@@ -65,3 +65,11 @@ Türkçe derin yazım testi başarısız olduğunda aday ölçülmüş öncelik 
 ## V8 — çalışma zamanı kanıtı
 Gerçek yönlendirme denemelerinin yalnız model kimliği, HTTP başlığı başarısı/sağlayıcı hatası, gecikme ve akış hatası sayıları saatlik SQLite toplamlarında tutulur. Kullanıcı içeriği, anahtar veya yanıt metni saklanmaz. Son 24 saatlik pencerede en az 8 deneme ve %25 hata oranı görülen modeller, yalnız zaten sentetik testlerle doğrulanmış adaylar arasında geriye alınır. Bu erişilebilirlik ölçümüdür, doğruluk kanıtı değildir. Mevcut fallback zinciri korunur. Günlük rapora çalışma zamanı özeti ve uyarlanmış liderler eklenir; ek sağlayıcı çağrısı yapılmaz. 14 günlük saklama, mevcut diskin kalıcılığına bağlıdır.
 Günlük çalışma zamanı ölçümleri ve uyarlanmış liderler Ayarlar > Model Laboratuvarı bölümünde ayrıca gösterilir. İptaller model başarısızlığı sayılmaz; başarısız telemetri sohbeti durdurmaz.
+
+## V9 — çevrimdışı uzman denetimi
+Her günlük döngüde 12 uzman kartı, görev modeli profili, yetenekler, görev talimatları, giriş ve çıktı şemaları, kota sınırları, temel gerekli araç izinleri ve izinsiz kritik işlemlerin reddi denetlenir. Eksik uzman veya bozulan izin kuralı raporu kısmi olarak işaretler. Ayarlarda uzman bazında sonuçlar gösterilir. Bu denetim hiçbir araç çalıştırmaz ve model kalitesi veya canlı servis erişimi kanıtı değildir.
+ASR/TTS WAV doğrulaması RIFF uzunluğu, fmt/data parçaları, PCM türü, kanal, örnekleme hızı, blok hizası, veri uzunluğu ve azami 300 saniye sınırını kontrol eder. Desteklenmeyen sıkıştırılmış WAV biçimleri reddedilir; mevcut tarayıcı sesleri değişmez. Bağımsız NIM servisleri hâlâ yapılandırılmalı ve gerçek protokol üzerinde doğrulanmalıdır.
+
+### Örneklemeli video analizi
+İsteğe bağlı HAFIZE_VIDEO_FRAMES_ENABLED=true ile en fazla dört JPEG kare, 300 saniyelik video süresi ve zaman damgaları mevcut görsel modeline iletilir. Ses ve tam video kapsamı olmadığı açıkça belirtilir. Kareler bu uç noktada saklanmaz. Varsayılan kapalı; canlı model erişimi henüz doğrulanmamıştır.
+Ayarlar > NVIDIA Uzman Servisleri içinde video seçildiğinde tarayıcı, 100 MB ve 300 saniye sınırıyla dört örnek kareyi yerel olarak çıkarır (maksimum 768 px uzun kenar). Ham video gönderilmez; yalnız kullanıcı çalıştırdığında kareler ve isteğe bağlı açıklama iletilir. Kodek/cihaz uyumluluğu gerçek cihazda doğrulanmalıdır.
