@@ -48,10 +48,10 @@ export const OWNER_PROJECTS = [
       "borsa-gunlugu-ua"
     ],
     "urls": [
-      "https://borsa-gunlugu.web.app",
-      "https://borsa-gunlugu-ua.web.app"
+      "https://borsa-gunlugu-ua.web.app",
+      "https://borsa-gunlugu.web.app"
     ],
-    "evidence": "firebase.json target borsa; sites/borsa; projects hafize-23465 and projelerim-8fecd",
+    "evidence": "firebase.json target borsa; sites/borsa; preferred Hosting projelerim-8fecd (ua), legacy hafize-23465; .github/workflows/yayin.yml documents legacy quota exhaustion on 2026-11-13; historical note is not current quota proof",
     "level": "config"
   },
   {
