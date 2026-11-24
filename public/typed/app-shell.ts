@@ -889,8 +889,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
       else if (preference.selectedModel && models.includes(preference.selectedModel)) ui.modelSelect.value = preference.selectedModel;
       modelPreferencesController?.refresh();
     } catch (error) {
-      ui.modelSelect.replaceChildren(new Option(provider === 'local' ? 'Ollama bağlantısı bekleniyor' : 'NVIDIA NIM bağlantısı bekleniyor', ''));
-      if (error instanceof Error && error.message !== 'NVIDIA_NOT_CONFIGURED') showToast(provider === 'local' ? 'Yerel model listesi alınamadı. Ollama’nın çalıştığını kontrol et.' : 'NVIDIA model listesi alınamadı.');
+      ui.modelSelect.replaceChildren(new Option(provider === 'local' ? 'Yerel Ollama / NIM bağlantısı bekleniyor' : 'NVIDIA NIM bağlantısı bekleniyor', ''));
+      if (error instanceof Error && error.message !== 'NVIDIA_NOT_CONFIGURED') showToast(provider === 'local' ? 'Yerel model listesi alınamadı. Ollama veya NVIDIA NIM sunucusunun çalıştığını kontrol et.' : 'NVIDIA model listesi alınamadı.');
     }
   }
 
@@ -1520,7 +1520,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     try { localStorage.setItem('hafize.model-provider.v1', ui.providerSelect.value); } catch {}
     syncToolMode();
     void loadModels();
-    showToast(ui.providerSelect.value === 'local' ? 'Yerel Ollama sağlayıcısı seçildi. Araç çağrıları yerel modelde kapalıdır.' : 'NVIDIA NIM sağlayıcısı seçildi.');
+    showToast(ui.providerSelect.value === 'local' ? 'Yerel sağlayıcı (Ollama / NIM) seçildi. Araç çağrıları yerel modelde kapalıdır.' : 'NVIDIA NIM sağlayıcısı seçildi.');
   });
   ui.messageInput.addEventListener('input', autoResizeComposer);
   ui.messageInput.addEventListener('keydown', (event) => {
