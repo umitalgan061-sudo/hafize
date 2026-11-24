@@ -58,7 +58,7 @@ import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
-import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil, formatComprehensiveLabResult } from './lib/model-lab.ts';
+import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatSingleModelProbe, formatModelInventory, formatCouncil, formatComprehensiveLabResult } from './lib/model-lab.ts';
 import { createModelLabFileStorage, createModelLabSqliteStorage } from './lib/model-lab-storage.ts';
 import { modelLabConnection } from './lib/model-lab-connection.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
@@ -1068,7 +1068,7 @@ async function handleAgentRun(req, res) {
       if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
       if(labCommand.action==='translation'){const row=await MODEL_LAB.translationProbe(requestAbort.signal);finishWithAnswer('**Riva Translate 4B — gerçek sentetik çeviri testi**\n'+row.model+' · '+row.status+' · '+row.latencyMs+' ms · '+row.testedAt+'\nİngilizce→Türkçe kısa örnek; genel çeviri kalitesi veya ücretsiz erişim garantisi değildir.',false,row.status!=='passed');return;}
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
-      if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
+      if (labCommand.action === 'probe') {const row=await MODEL_LAB.probe(labCommand.model,requestAbort.signal);finishWithAnswer(formatSingleModelProbe(row),false,!row.chat);return;}
       if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'specialist') await MODEL_LAB.specialistProbe(labCommand.model, requestAbort.signal);
       if(labCommand.action==='comprehensive'){

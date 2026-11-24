@@ -2,6 +2,8 @@
 // app gets from its manifest: shortcuts (?action=new, ?action=voice) and the share sheet (?text=).
 import qrcode from 'qrcode-generator';
 import {captureVideoFrames} from './video-frame-capture.ts';
+import {PUBLIC_MODEL_CATALOG,PUBLIC_CATALOG_METADATA} from '../../lib/nvidia-public-inventory.ts';
+import {labStatusLabel,labErrorLabel,labCapabilityLabel,labLatency,labTime,labActionAllowed,releaseVerification} from './model-lab-display.ts';
 
 export interface LocalServer { readonly id: string; readonly name: string; readonly url: string; readonly status: string; readonly kind: string; readonly path: string; readonly command: string }
 type InstallPrompt = Event & { prompt: () => Promise<unknown>; userChoice?: Promise<{ outcome: string }> };
@@ -175,15 +177,18 @@ function start(documentRef: Document, root: typeof globalThis): void {
     return panel;
   };
 
-  const modelLabPanel = () => {
+  const modelLabPanel = (host:Element) => {
     const panel=el('section','settings-panel model-lab-panel');
     panel.append(el('h2','','NVIDIA Model Laboratuvarı'),el('p','','Katalog, sentetik testler ve görev bazlı sıralama. Katalogdaki modellerin fiyatı ve erişimi doğrulanmış değildir. Testler ortak istek bütçesini kullanır.'));
-    const notice=el('p','app-install-state','Henüz sorgulanmadı.');
+    const notice=el('p','app-install-state','Sunucu durumu ayarlar açıldığında yüklenir.');
     notice.setAttribute('role','status');
     const filter=el('input');
     filter.type='search'; filter.placeholder='Model veya yetenek ara'; filter.setAttribute('aria-label','Model veya yetenek ara');
     const select=el('select');select.setAttribute('aria-label','Test edilecek model');
     const actions=el('div','settings-actions');
+    const metrics=el('div','lab-metrics');const results=el('div','lab-result-list');const resultTitle=el('h3','','Son gerçek API testleri');
+    const historical=el('details','lab-release-history');historical.append(el('summary','','24 Kasım 2026 — doğrulanmış yayın testleri'),el('p','','Render çalışma kayıtlarından alınan geçmiş sonuçlar. Güncel sunucu durumunu veya tüm yetenekleri garanti etmez.'));
+    const historyRows=el('div','lab-result-list');for(const row of releaseVerification.rows){const item=el('div','lab-result-card');item.append(el('strong','',row.name),el('span','lab-result-state',labStatusLabel(row.status)+' · '+labLatency(row.latencyMs)),el('p','',row.detail));item.dataset.state=row.status;historyRows.append(item);}historical.append(historyRows);historical.open=true;
     const leaders=el('ul','settings-memory-list');
     const daily=el('p','app-install-state');
     const dailyHistory=el('ul','settings-memory-list');
@@ -195,22 +200,34 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const planList=el('ul','settings-memory-list');const planDetails=el('details');planDetails.append(el('summary','','Günlük gelişim öncelikleri'),el('p','','Ölçümlere dayalı öneriler; otomatik kod yazma veya canlı yayın işlemi değildir.'),planList);
     const catalogChanges=el('p','app-install-state');
     const publicList=el('ul','model-status-list');const publicFilter=el('input');publicFilter.type='search';publicFilter.placeholder='NVIDIA Build modelini ara';publicFilter.setAttribute('aria-label','NVIDIA Build modelini ara');const publicSummary=el('p','app-install-state');const publicDetails=el('details');publicDetails.append(el('summary','','NVIDIA Build — tüm katalog envanteri'),publicSummary,publicFilter,publicList);
-    panel.append(notice,actions,select,daily,dailyDetails,planDetails,runtimeDetails,expertDetails,catalogChanges,leaders,details,publicDetails);
+    const selectLabel=el('label','lab-select-label','Test edilecek modeli seç');selectLabel.append(select);
+    const filterKind=el('select');filterKind.setAttribute('aria-label','Katalog filtresi');for(const [value,label] of [['all','Tüm modeller'],['free','Ücretsiz uç nokta etiketi'],['candidate','Test adayları'],['download','İndirilebilir'],['passed','Örneği başarılı']]){const option=el('option','',label!);option.value=value!;filterKind.append(option);}
+    publicDetails.insertBefore(filterKind,publicList);publicDetails.open=true;
+    const helper=el('p','lab-guide','1. Sunucu durumunu kontrol et. 2. Bir model seç veya sıradaki testleri başlat. 3. Sonuçları aşağıdan izle. Testler ücretli servis açmaz; NVIDIA kotasını kullanabilir.');
+    panel.append(notice,metrics,helper,selectLabel,actions,resultTitle,results,historical,publicDetails,details,daily,dailyDetails,planDetails,runtimeDetails,expertDetails,catalogChanges,leaders);
     type Row={id:string;capabilities:string[];configured:boolean;listed:boolean;evidence:string};
-    type LabData={publicCatalog?:{date:string;actualRows:number;reportedTotal:number;reportedFree:number;reportedDownloadable:number;reportedPartner:number};publicInventory?:{publisher:string;name:string;category:string;freeEndpoint:boolean;downloadable:boolean;configured:boolean;evidence:string;integration:string;apiId:string|null}[];dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];plan?:{focus:string;tasks:{id:string;priority:string;title:string;evidence:string;acceptance:string}[]};expertReadiness?:{agentId:string;passed:boolean;checks:{key:string;passed:boolean}[]}[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};catalogDelta?:{addedCount:number;removedCount:number|null;added:string[];removed:string[]}|null;inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
-    let data:LabData={};let busy=false;let available=false;
+    type LabData={publicCatalog?:{date:string;actualRows:number;reportedTotal:number;reportedFree:number;reportedDownloadable:number;reportedPartner:number};publicInventory?:{publisher:string;name:string;category:string;freeEndpoint:boolean;downloadable:boolean;configured:boolean;evidence:string;integration:string;apiId:string|null}[];dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];plan?:{focus:string;tasks:{id:string;priority:string;title:string;evidence:string;acceptance:string}[]};expertReadiness?:{agentId:string;passed:boolean;checks:{key:string;passed:boolean}[]}[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};catalogDelta?:{addedCount:number;removedCount:number|null;added:string[];removed:string[]}|null;inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;status:string;testedAt:string;latencyMs:number;chatLatencyMs:number|null;chat:boolean;turkish:boolean;reasoning:boolean;coding:boolean;tools:boolean;toolProbeStatus:string}[];historicalResults?:{model:string;status:string;testedAt:string}[];translationResult?:{model:string;status:string;testedAt:string;latencyMs:number;translated:boolean}|null;specialistResults?:{model:string;status:string;dimension:number|null;testedAt:string;latencyMs:number;similarHigher:boolean|null}[]};
+    const fallbackInventory=PUBLIC_MODEL_CATALOG.map(row=>({...row,configured:false,evidence:'untested',integration:row.downloadable&&!row.freeEndpoint?'download_requires_host':'adapter_or_access_review'}));
+    let data:LabData={publicCatalog:PUBLIC_CATALOG_METADATA,publicInventory:fallbackInventory};let busy=false;let available=false;let serverCatalog=false;
     const buttons:HTMLButtonElement[]=[];
     const render=()=>{
+      metrics.replaceChildren();for(const [label,value] of [['Katalog',String(data.publicCatalog?.actualRows??93)],['Sohbet adayı',available?String(data.eligible?.length??0):'—'],['Embedding adayı',available?String(data.specialists?.length??0):'—'],['Kalan API isteği',available?String(data.requestsRemaining??'—'):'—']]){const card=el('div','lab-metric');card.append(el('span','',label!),el('strong','',value!));metrics.append(card);}
+      results.replaceChildren();const appendResult=(name:string,status:string,latency:number|undefined,time:string,description:string)=>{const item=el('div','lab-result-card');item.dataset.state=status;item.append(el('strong','',name),el('span','lab-result-state',labStatusLabel(status)+' · '+labLatency(latency)),el('p','',description),el('small','',labTime(time)));results.append(item);};
+      for(const row of data.results??[])appendResult(row.model,row.status,row.latencyMs,row.testedAt,'Türkçe: '+labCapabilityLabel(row.turkish,row.chat)+' · Mantık: '+labCapabilityLabel(row.reasoning,row.chat)+' · Kod: '+labCapabilityLabel(row.coding,row.chat)+' · Araç: '+labStatusLabel(row.toolProbeStatus));
+      for(const row of data.specialistResults??[])appendResult(row.model,row.status,row.latencyMs,row.testedAt,'Embedding · Boyut: '+(row.dimension??'—')+' · Benzerlik: '+labCapabilityLabel(row.similarHigher??undefined,row.status==='passed'||row.status==='invalid_response'));
+      if(data.translationResult){const row=data.translationResult;appendResult(row.model,row.status,row.latencyMs,row.testedAt,'İngilizce → Türkçe: '+labCapabilityLabel(row.translated,row.status==='passed'||row.status==='invalid_response'));}
+      for(const row of data.historicalResults??[])appendResult(row.model,row.status,undefined,row.testedAt,'Önceki test; süresi dolmuş. Güncel erişim kanıtı değildir.');
+      if(!results.children.length)results.append(el('p','lab-empty',available?'Henüz bu sunucu oturumunda kayıtlı sonuç yok. Aşağıda önceki yayın testlerini görebilirsin.':'Güncel sonuçlar sunucu bağlantısı kurulduktan sonra gösterilir.'));
       const search=filter.value.toLocaleLowerCase('tr-TR');
       list.replaceChildren();
       for(const row of (Array.isArray(data.inventory)?data.inventory:[]).filter(row=>(row.id+' '+row.capabilities.join(' ')).toLocaleLowerCase('tr-TR').includes(search)).slice(0,530)){
         const item=el('li');
         const measured=data.results?.find(result=>result.model===row.id);
-        item.append(el('span','model-status-name',row.id),el('small','',row.capabilities.join(', ')+' · '+(row.configured?'aday':'sadece katalog')+' · '+row.evidence+(measured?' · '+(measured.chatLatencyMs??'—')+' ms':'')));
+        item.append(el('span','model-status-name',row.id),el('small','',row.capabilities.join(', ')+' · '+(row.configured?'aday':'sadece katalog')+' · '+labStatusLabel(row.evidence)+(measured?' · '+(measured.chatLatencyMs??'—')+' ms':'')));
         list.append(item);
       }
-      publicList.replaceChildren();const snapshot=data.publicCatalog;publicSummary.textContent=snapshot?snapshot.actualRows+' model · '+snapshot.date+' katalog kaydı · Ücretsiz etiketi erişim garantisi değil.':'Katalog envanteri yüklenmedi.';
-      const query=publicFilter.value.toLocaleLowerCase('tr-TR');for(const model of (data.publicInventory??[]).filter(row=>(row.publisher+' '+row.name+' '+row.category).toLocaleLowerCase('tr-TR').includes(query))){const item=el('li','',model.publisher+' / '+model.name);item.append(el('small','',model.category+' · '+(model.freeEndpoint?'Free Endpoint etiketi':'')+(model.downloadable?' · İndirilebilir':'')+' · '+(model.configured?'test adayı':model.integration==='download_requires_host'?'sunucu/GPU gerekir':'adaptör/erişim incelemesi')+' · '+model.evidence));publicList.append(item);}
+      publicList.replaceChildren();const snapshot=data.publicCatalog??PUBLIC_CATALOG_METADATA;publicSummary.textContent=snapshot.actualRows+' model · '+snapshot.reportedFree+' ücretsiz uç nokta etiketi · '+snapshot.reportedDownloadable+' indirilebilir · '+(serverCatalog?'Sunucu envanteri':'Yerleşik katalog; sunucu envanteri henüz alınmadı')+'. Etiket erişim garantisi değildir.';
+      const query=publicFilter.value.toLocaleLowerCase('tr-TR');for(const model of (data.publicInventory??fallbackInventory).filter(row=>(row.publisher+' '+row.name+' '+row.category).toLocaleLowerCase('tr-TR').includes(query)&&(filterKind.value==='all'||filterKind.value==='free'&&row.freeEndpoint||filterKind.value==='download'&&row.downloadable||filterKind.value==='candidate'&&row.configured||filterKind.value==='passed'&&row.evidence==='passed'))){const item=el('li','',model.publisher+' / '+model.name);item.append(el('small','',model.category+' · '+(model.freeEndpoint?'Free Endpoint etiketi':'')+(model.downloadable?' · İndirilebilir':'')+' · '+(model.configured?'test adayı':model.integration==='download_requires_host'?'sunucu/GPU gerekir':'adaptör/erişim incelemesi')+' · '+labStatusLabel(model.evidence)));if(available&&model.apiId&&[...(data.eligible??[]),...(data.specialists??[])].includes(model.apiId)){const choose=el('button','lab-choose','Modeli seç');choose.type='button';choose.addEventListener('click',()=>{select.value=model.apiId!;controls();select.focus();});item.append(choose);}publicList.append(item);}
       leaders.replaceChildren();
       const cycle=data.dailyImprovement;
       daily.textContent=cycle?'24 saatlik iyileştirme: '+(cycle.enabled?'etkin':'kapalı')+' · Canlı sentetik test: '+(cycle.liveProbes?'etkin':'kapalı')+' · Son durum: '+(cycle.report?.state??'henüz yok')+(cycle.nextDueAt?' · Sonraki uygun zaman: '+new Date(cycle.nextDueAt).toLocaleString('tr-TR'):''):'Günlük iyileştirme durumu bilinmiyor.';
@@ -237,11 +254,12 @@ function start(documentRef: Document, root: typeof globalThis): void {
       const selected=select.value;
       select.replaceChildren(...[...new Set([...(data.eligible??[]),...(data.specialists??[])])].map(id=>{const option=el('option','',id);option.value=id;return option;}));
       if([...select.options].some(option=>option.value===selected))select.value=selected;
+      if(!select.options.length){const empty=el('option','','Sunucu model listesi bekleniyor');empty.value='';select.append(empty);}
     };
-    function controls(){for(const button of buttons)button.disabled=busy||(!available&&button.dataset.action!=='status');select.disabled=busy;}
+    function controls(){for(const button of buttons)button.disabled=!labActionAllowed(button.dataset.action??'',available,busy,select.value,data.eligible??[],data.specialists??[],Boolean(data.running),Boolean(data.blockedUntil),data.requestsRemaining??0);select.disabled=busy||!available;}
     async function run(action:string){
       if(busy)return;
-      busy=true;controls();notice.textContent='İşlem yapılıyor…';
+      busy=true;controls();notice.textContent=action==='status'?'Sunucu durumu yükleniyor…':'API testi çalışıyor. Sonuç alındığında burada görünecek.';panel.setAttribute('aria-busy','true');
       try{
         const selected=select.value;
         const payload=['probe','deep','specialist'].includes(action)?{action,model:selected}:{action};
@@ -251,17 +269,20 @@ function start(documentRef: Document, root: typeof globalThis): void {
         }
         const response=await api('/api/models/status/lab',action==='status'?undefined:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         const result=await response.json();
-        if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;data={dailyImprovement:response.status===503?data.dailyImprovement:undefined};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
-        data={...result,dailyImprovement:result.dailyImprovement??data.dailyImprovement};available=true;render();
-        notice.textContent=(action==='translation'&&result.translation?'Riva: '+result.translation.status+' · '+result.translation.latencyMs+' ms · ':'')+(action==='comprehensive'&&result.comprehensive?'Son tur: '+result.comprehensive.smoke.length+' kısa, '+(result.comprehensive.deep?1:0)+' derin, '+(result.comprehensive.embedding?1:0)+' embedding sonucu · ':'')+'Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
-      }catch(error){notice.textContent='Model Laboratuvarı: '+(error instanceof Error?error.message:'Bağlantı hatası');}
-      finally{busy=false;controls();}
+        if(!response.ok){if(response.status===401||response.status===403||response.status===503){available=false;serverCatalog=false;data={publicCatalog:PUBLIC_CATALOG_METADATA,publicInventory:fallbackInventory,dailyImprovement:response.status===503?data.dailyImprovement:undefined};render();}throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');}
+        serverCatalog=Array.isArray(result.publicInventory);data={...result,publicCatalog:result.publicCatalog??PUBLIC_CATALOG_METADATA,publicInventory:result.publicInventory??fallbackInventory,translationResult:result.translationResult??result.translation??data.translationResult,dailyImprovement:result.dailyImprovement??data.dailyImprovement};available=true;render();
+        notice.textContent=(action==='translation'&&result.translation?'Riva: '+labStatusLabel(result.translation.status)+' · '+labLatency(result.translation.latencyMs)+' · ':'')+(action==='comprehensive'&&result.comprehensive?'Son tur: '+result.comprehensive.smoke.length+' kısa, '+(result.comprehensive.deep?1:0)+' derin, '+(result.comprehensive.embedding?1:0)+' embedding sonucu · ':'')+'Sunucu bağlı · Kalan test isteği: '+String(data.requestsRemaining??'—')+(data.blockedUntil?' · Sağlayıcı bekleme süresi var.':'')+(data.running?' · Başka test devam ediyor.':'');
+      }catch(error){const code=error instanceof Error?error.message:'MODEL_LAB_HTTP_ERROR';notice.textContent=labErrorLabel(code)+' ('+code.replace(/[^A-Z0-9_]/g,'').slice(0,64)+')';}
+      finally{busy=false;panel.removeAttribute('aria-busy');controls();}
     }
     for(const [action,label] of [['status','Durumu yenile'],['discover','Kataloğu getir'],['batch','Sıradaki testler'],['comprehensive','Kapsamlı gerçek API testi'],['translation','Riva çeviri testi'],['probe','Sohbet testi'],['deep','Derin test'],['specialist','Embedding testi']]){
       const button=el('button','',label);button.type='button';button.dataset.action=action;button.addEventListener('click',()=>{void run(action!);});buttons.push(button);actions.append(button);
     }
-    filter.addEventListener('input',render);publicFilter.addEventListener('input',render);
-    controls(); // No automatic provider calls; the owner initiates refresh and every test.
+    filter.addEventListener('input',render);publicFilter.addEventListener('input',render);filterKind.addEventListener('change',render);select.addEventListener('change',controls);
+    render();controls();
+    // Read-only GET on settings open; never auto-run NVIDIA probes. Observe only the workspace visibility.
+    let wasVisible=false;const onVisibility=()=>{const visible=!host.hasAttribute('hidden');if(visible&&!wasVisible)void run('status');wasVisible=visible;};
+    const observer=new root.MutationObserver(onVisibility);observer.observe(host,{attributes:true,attributeFilter:['hidden']});onVisibility();
     return panel;
   };
 
@@ -350,7 +371,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
     if (first?.nextSibling) host.insertBefore(installPanel(), first.nextSibling); else host.append(installPanel());
     const install = host.querySelector('.app-install');
     if (install?.nextSibling) host.insertBefore(modelPanel(), install.nextSibling); else host.append(modelPanel());
-    host.append(modelLabPanel(),specialistPanel());
+    host.append(modelLabPanel(host),specialistPanel());
     const results = host.querySelector('.task-results') ?? install;
     const servers = serversPanel();
     if (results?.nextSibling) host.insertBefore(servers, results.nextSibling); else host.append(servers);

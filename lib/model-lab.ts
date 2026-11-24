@@ -17,6 +17,7 @@ export interface ProbeResult {
   readonly chatLatencyMs: number | null;
   readonly requests: number;
 }
+export type TranslationProbeResult={model:string;status:ProbeState;translated:boolean;mode:'synthetic_translation';testedAt:string;latencyMs:number};
 export type SpecialistProbeResult = {model:string; capability:'embedding'; status:ProbeState; testedAt:string; latencyMs:number; dimension:number|null; similarHigher:boolean|null};
 const EMBEDDING_MODELS = ['nvidia/nemotron-3-embed-1b','nvidia/nemotron-3.5-embed-1b','nvidia/nemotron-3.5-embed-8b'] as const;
 export type ModelTaskKind = 'agent' | 'coding' | 'fast' | 'general' | 'reasoning' | 'fast-agent' | 'reasoning-agent';
@@ -37,6 +38,7 @@ export interface ModelLabSnapshot {
   readonly results: readonly ProbeResult[];
   readonly deepResults: readonly DeepProbeResult[];
   readonly specialistResults?: readonly SpecialistProbeResult[];
+  readonly translationResult?:TranslationProbeResult|null;
   readonly timestamps: readonly number[];
   readonly blockedUntil: number;
   readonly catalog?:CatalogSnapshot|null;
@@ -67,6 +69,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   const eligible = [...new Set(allowed.filter(id => MODEL_ID.test(id)))].slice(0, 30);
   const specialists = [...new Set(specialistModels)].filter(id=>EMBEDDING_MODELS.some(known=>known===id));
   const specialistResults = new Map<string, SpecialistProbeResult>();
+  let translationResult:TranslationProbeResult|null=null;
   const results = new Map<string, ProbeResult>();
   const deepResults = new Map<string, DeepProbeResult>();
   const timestamps: number[] = [];
@@ -110,13 +113,14 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
         const {model,capability,status,testedAt,latencyMs,dimension,similarHigher}=row;
         specialistResults.set(String(model),{model,capability,status,testedAt,latencyMs,dimension,similarHigher} as SpecialistProbeResult);
       }
+      const translation=object(snapshot.translationResult);if(translation&&translation.model==='nvidia/riva-translate-4b-instruct-v2'&&translation.mode==='synthetic_translation'&&recent(translation.testedAt)&&number(translation.latencyMs)&&typeof translation.translated==='boolean'&&typeof translation.status==='string'&&states.includes(translation.status))translationResult={model:String(translation.model),mode:'synthetic_translation',status:translation.status as ProbeState,translated:translation.translated,testedAt:String(translation.testedAt),latencyMs:Number(translation.latencyMs)};
       if (Array.isArray(snapshot.timestamps)) timestamps.push(...snapshot.timestamps.slice(-MAX_REQUESTS).filter((v): v is number => number(v) && v<=time && v>time-WINDOW_MS).sort((a,b)=>a-b));
       if (number(snapshot.blockedUntil) && snapshot.blockedUntil>time) blockedUntil=Math.min(snapshot.blockedUntil,time+60*60_000);
     } catch { storageHealthy=false; }
   }
   function persist() {
     if (!storage) return;
-    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],timestamps:[...timestamps],blockedUntil,catalog,catalogDelta}); storageHealthy=true; }
+    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],translationResult,timestamps:[...timestamps],blockedUntil,catalog,catalogDelta}); storageHealthy=true; }
     catch { storageHealthy=false; }
   }
   restore();
@@ -124,7 +128,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   function attachStorage(next:ModelLabStorage){if(storage||running||batchRunning||results.size||specialistResults.size||timestamps.length)throw Error('MODEL_LAB_STORAGE_ALREADY_INITIALIZED');storage=next;storageHealthy=true;restore();}
   function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && (result.toolProbeStatus === 'passed'||textOnlyLabModel(model)) ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
-  const status = () => ({ eligible, catalog, catalogDelta, publicCatalog:PUBLIC_CATALOG_METADATA,publicInventory:publicModelInventory(eligible,specialists,[...results.values()].filter(row=>fresh(row.model)!==null),[...specialistResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS)), specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
+  const status = () => ({ eligible, catalog, catalogDelta, publicCatalog:PUBLIC_CATALOG_METADATA,translationResult,publicInventory:publicModelInventory(eligible,specialists,[...results.values()].filter(row=>fresh(row.model)!==null),[...specialistResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS)), specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
   async function call(path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -346,7 +350,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     const model='nvidia/riva-translate-4b-instruct-v2',started=now();running=true;
     let state:ProbeState='failed';let translated=false;
     try{const response=await call('/chat/completions',{model,messages:[{role:'system',content:'en-tr'},{role:'user',content:'Thank you.'}],stream:false,max_tokens:128,temperature:0},signal);if(!response.ok)state=statusFor(response.status);else{const answer=message(await response.json())?.content;translated=typeof answer==='string'&&/^(?:teşekkür(?:ler| ederim)|sağ ol(?:un)?)[.!]?$/iu.test(answer.trim());state=translated?'passed':'invalid_response';}}catch(error){if(signal?.aborted)throw error;state=error instanceof Error&&error.name==='TimeoutError'?'timeout':'failed';}finally{running=false;}
-    return {model,status:state,translated,mode:'synthetic_translation' as const,testedAt:new Date(started).toISOString(),latencyMs:Math.max(0,now()-started)};
+    translationResult={model,status:state,translated,mode:'synthetic_translation',testedAt:new Date(started).toISOString(),latencyMs:Math.max(0,now()-started)};persist();return translationResult;
   }
   async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
@@ -401,9 +405,16 @@ export function formatComprehensiveLabResult(run:Awaited<ReturnType<ReturnType<t
   const rows=[...run.smoke.map(row=>row.model+' — sohbet/araç: '+row.status+'/'+row.toolProbeStatus+'; '+row.testedAt),...(run.deep?['Derin '+run.deep.model+' — '+run.deep.status+'; Türkçe: '+run.deep.language+', mantık: '+run.deep.reasoning+', kod: '+run.deep.coding+', araç sonrası: '+run.deep.toolFollowup]:[]),...(run.embedding?['Embedding '+run.embedding.model+' — '+run.embedding.status]:[])];
   return ['**Gerçek NVIDIA API test turu**','Sunucudaki yapılandırılmış anahtar kullanılır; anahtar modele gösterilmez.','Başlangıç: '+run.startedAt,'Bitiş: '+run.finishedAt,...(rows.length?rows:['Bu turda yeni test yapılmadı. Güncel sonuç veya kota durumunu kontrol et.']),'Bekleyen sohbet: '+run.pending.length+' · Derin: '+run.deepPending.length+(run.paused?' · Sağlayıcı/bütçe beklemesi':''),'Bu tur en fazla 5 sentetik API çağrısı kullanır; tüm katalogun tamamlandığı veya ücretsiz olduğu anlamına gelmez. Devam etmek için aynı isteği yinele.'].join('\n');
 }
+export function formatSingleModelProbe(row:ProbeResult):string {
+  const labels:Record<string,string>={passed:'API yanıtı alındı',timeout:'Zaman aşımı — yanıt alınamadı',failed:'İstek başarısız',unavailable:'Model uç noktası kullanılamıyor',rate_limited:'İstek sınırı',quota:'Kota / erişim reddi',invalid_response:'Geçerli yanıt alınamadı',auth_rejected:'Kimlik doğrulaması reddedildi',not_run:'Ölçülmedi'};
+  const ability=(v:boolean)=>!row.chat?'Ölçülmedi':v?'Geçti':'Geçemedi';
+  return ['**Model testi: '+row.model+'**','Sonuç: '+(labels[row.status]??row.status),'Süre: '+(row.latencyMs/1000).toLocaleString('tr-TR',{maximumFractionDigits:2})+' saniye','Türkçe: '+ability(row.turkish)+' · Mantık: '+ability(row.reasoning)+' · Kod: '+ability(row.coding),'Araç testi: '+(labels[row.toolProbeStatus]??row.toolProbeStatus),'Ölçüm tarihi: '+row.testedAt,'',row.status==='timeout'?'Model zamanında yanıt vermedi. Bu, zekâ veya dil yeteneklerinin başarısız olduğunu göstermez.':row.chat?'Bu kısa test genel zekâ veya üretim uyumluluğu garantisi değildir.':'Başarılı erişim doğrulanmadı.','Diğer modeller ve geçmiş sonuçlar: Ayarlar → NVIDIA Model Laboratuvarı.'].join('\n');
+}
 export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createModelLab>['status']>): string {
   return [
     '**NVIDIA Model Laboratuvarı**',
+    'Sohbet test adayı: '+value.eligible.length+' · Embedding test adayı: '+value.specialists.length,
+    'Kayıtlı güncel sohbet sonucu: '+value.results.length+' · Bekleyen: '+value.pendingModels.length,
     'Test edilebilir yapılandırılmış modeller: ' + value.eligible.join(', '),
     'API katalog sayısı: ' + (value.catalog ? value.catalog.ids.length : 'henüz sorgulanmadı'),
     'NVIDIA Build envanteri: '+value.publicCatalog.actualRows+' kayıt (paylaşılan katalog; erişim kanıtı değil)',
@@ -417,7 +428,7 @@ export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createM
     'Araç çağrısı doğrulanan modeller: ' + (value.verifiedAgentModels.join(', ') || 'henüz yok'),
     ...(value.blockedUntil ? ['Sağlayıcı bekleme süresi: ' + value.blockedUntil] : []),
     '',
-    ...value.results.map(row => `${row.model} — ${row.status}; Türkçe: ${row.turkish}, mantık: ${row.reasoning}, kod: ${row.coding}, araç: ${row.toolProbeStatus}; ${row.latencyMs} ms; ${row.testedAt}`),
+    ...value.results.map(row => formatSingleModelProbe(row)),
     '',
     'Göreve göre ölçülen öncelik: ' + Object.entries(value.taskLeaders).map(([kind,ids]) => kind + ': ' + (ids[0] || 'henüz yok')).join(' | '),
     ...value.deepResults.map(row => `Derin test ${row.model} — ${row.status}; Türkçe yazım: ${row.language}, mantık: ${row.reasoning}, kod: ${row.coding}, araç sonrası yanıt: ${row.toolFollowup}; ${row.testedAt}`),
