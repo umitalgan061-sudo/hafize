@@ -130,7 +130,8 @@ export function requestJsonAcceptsSse(req: IncomingMessage): boolean {
 
 export function attachDisconnectAbort(
   req: IncomingMessage,
-  timeoutMs = 120_000
+  timeoutMs = 120_000,
+  res?: ServerResponse
 ): { signal: AbortSignal; cancel: () => void } {
   const controller = new AbortController();
   let timer: NodeJS.Timeout | undefined;
@@ -144,8 +145,10 @@ export function attachDisconnectAbort(
     if (!controller.signal.aborted) controller.abort(new HttpRuntimeError('CLIENT_DISCONNECTED', 499));
   };
 
+  const responseClosed=()=>{if(!res?.writableEnded)abort();};
   req.once('aborted', abort);
-  req.once('close', abort);
+  if(res){res.once('close',responseClosed);if(res.destroyed)responseClosed();}
+  else req.once('close', abort);
 
   return {
     signal: controller.signal,
@@ -153,6 +156,7 @@ export function attachDisconnectAbort(
       if (timer) clearTimeout(timer);
       req.off('aborted', abort);
       req.off('close', abort);
+      res?.off('close',responseClosed);
     }
   };
 }
