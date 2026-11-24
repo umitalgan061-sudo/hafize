@@ -28,6 +28,7 @@ import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/git
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
+import { createGitHubAppCiReader, GitHubAppCiError } from './lib/github-app-ci.ts';
 import { createGitHubAgentInspection } from './lib/github-agent-inspection.ts';
 import { createGitHubAgentDevelopment } from './lib/github-agent-development.ts';
 import { allowSafeGitHubAutonomy } from './lib/github-agent-autonomy.ts';
@@ -805,6 +806,18 @@ async function handleGitHubWorkspaceWrite(req, url, res) {
   }
 }
 
+const GITHUB_APP_CI_READER = createGitHubAppCiReader({fetchImpl:GITHUB_FETCH,allowedRepositories:GITHUB_ALLOWED_REPOS});
+async function handleGitHubAppCi(req,url,res) {
+  if(!req.__hafizePrincipal){sendJson(res,401,{error:'AUTH_REQUIRED'});return;}
+  if(!GITHUB_APP_AUTH){sendJson(res,503,{error:'GITHUB_APP_NOT_CONFIGURED'});return;}
+  const repository=url.searchParams.get('repository')||'',action=url.searchParams.get('action');
+  try{
+    if(action==='runs')sendJson(res,200,await GITHUB_APP_CI_READER.runs({repository,branch:url.searchParams.get('branch')||undefined,limit:Number(url.searchParams.get('limit')||10)}));
+    else if(action==='jobs')sendJson(res,200,await GITHUB_APP_CI_READER.jobs({repository,runId:url.searchParams.get('runId')}));
+    else if(action==='checks')sendJson(res,200,await GITHUB_APP_CI_READER.checks({repository,sha:url.searchParams.get('sha')}));
+    else sendJson(res,400,{error:'GITHUB_CI_INVALID_ACTION'});
+  }catch(error){sendJson(res,error instanceof GitHubAppCiError?error.status:502,{error:error instanceof GitHubAppCiError?error.code:'GITHUB_APP_CI_FAILED'});}
+}
 async function handleGitHubWorkspace(url, res) {
   const action = url.searchParams.get('action') || '';
   const repository = url.searchParams.get('repository') || '';
@@ -1639,6 +1652,9 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && (url.pathname === '/api/github/workspace/write/approval' || url.pathname === '/api/github/workspace/write')) {
       await handleGitHubWorkspaceWrite(req, url, res);
       return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/github/app/ci') {
+      await handleGitHubAppCi(req, url, res);return;
     }
     if (req.method === 'GET' && url.pathname === '/api/github/workspace') {
       await handleGitHubWorkspace(url, res);

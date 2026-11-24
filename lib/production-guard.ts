@@ -109,7 +109,7 @@ if (!globalThis.__HAFIZE_PRODUCTION_GUARD__) {
   }
   function protectedPath(path: string): boolean {
     if (platformPath(path)) return true;
-    return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/skills/consent','/api/connectors/canva/status','/api/connectors/gmail/status','/api/github/workspace','/api/github/workspace/directory','/api/github/workspace/compare','/api/github/workspace/commit','/api/github/workspace/pull','/api/github/workspace/write/approval','/api/github/workspace/write'].includes(path);
+    return ['/api/models','/api/agents','/api/chat','/api/agent/run','/api/skills/consent','/api/connectors/canva/status','/api/connectors/gmail/status','/api/github/app/ci','/api/github/workspace','/api/github/workspace/directory','/api/github/workspace/compare','/api/github/workspace/commit','/api/github/workspace/pull','/api/github/workspace/write/approval','/api/github/workspace/write'].includes(path);
   }
   function isLoopback(req: IncomingMessage): boolean {
     const address = String(req.socket?.remoteAddress || '').toLowerCase();

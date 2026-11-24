@@ -42,6 +42,7 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/github-workspace-actions.js', '/github-workspace-actions.ts')
       .replaceAll('/typed-build/github-workspace-details.js', '/github-workspace-details.ts')
       .replaceAll('/typed-build/github-workspace-write.js', '/github-workspace-write.ts')
+      .replaceAll('/typed-build/github-app-ci-panel.js', '/github-app-ci-panel.ts')
       .replaceAll('/typed-build/workspace-backup.js', '/typed/workspace-backup.ts')
       .replaceAll('/typed-build/system-readiness-panel.js', '/system-readiness-panel.ts')
       .replaceAll('/typed-build/chat-composer-features.js', '/typed/chat-composer-features.ts')
@@ -114,6 +115,7 @@ export default defineConfig({
         'github-workspace-actions': resolve(ROOT, 'public/github-workspace-actions.ts'),
         'github-workspace-details': resolve(ROOT, 'public/github-workspace-details.ts'),
         'github-workspace-write': resolve(ROOT, 'public/github-workspace-write.ts'),
+        'github-app-ci-panel': resolve(ROOT, 'public/github-app-ci-panel.ts'),
         'workspace-backup': resolve(ROOT, 'public/typed/workspace-backup.ts'),
         'system-readiness-panel': resolve(ROOT, 'public/system-readiness-panel.ts'),
         'legacy-app': resolve(ROOT, 'public/typed/legacy-app.ts'),
