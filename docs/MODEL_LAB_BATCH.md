@@ -23,3 +23,8 @@ Geri dönüş: PR revert. Ek model yönlendirmesi test kanıtı süresi dolduğu
 `HAFIZE_MODEL_LAB_STORAGE_PATH` ayarlanırsa tek süreçli sunucuda sentetik sonuçlar ve istek bütçesi atomik dosya yazımıyla saklanır. Yol mutlak olmalı, üst dizin önceden oluşturulmalı ve yalnız operatör tarafından yönetilmelidir. Anahtar değişince eski sonuçlar kullanılmaz; ham anahtar kaydedilmez. Dosya hatası durum ekranında görülür ve süreç belleği kullanılır. Render ücretsiz geçici dosya sistemi kalıcılık garantisi vermez; kalıcı birim olmadan yeniden dağıtımlarda veri kaybı mümkündür. Çok örnekli dağıtımda ortak atomik bütçe için bir DB gerekir. Görsel, ses, belge ve diğer özel amaçlı girdiler genel sohbet yönlendirmesinden korunur; bu yeni multimodal entegrasyon değildir.
 
 Eşzamanlı sohbetlerde bozuk stream, son kullanılan global modele değil yalnız o yanıtı üreten modele uygulanır. Stream kullanım telemetrisi mümkün olduğunda gerçek yönlendirilmiş model kimliğini gösterir.
+
+## V3 — katalog ve model konseyi
+- `Model kataloğu`: katalog, aday yapılandırması, tahmini yetenek ailesi ve güncel gözlemleri tablo halinde gösterir. Fiyat bilinmiyor; hiçbir katalog modeli otomatik eklenmez.
+- `Model konseyi: soru`: güncel sohbet testi olan iki farklı model aynı açık kullanıcı sorusunu bağımsız yanıtlar; bütçe ve üçüncü aday varsa üçüncü model kısa karşılaştırma yazar. En fazla üç istek, mevcut 12/10 dakika bütçesinde. Araçlar kapalıdır. Sorular ve yanıtlar test deposuna yazılmaz. Dış kaynak doğrulaması değildir. Model çıktıları normal sohbet çıktısıdır ve yürütülmez.
+- Belge, görüntü, ses, embedding, rerank ve güvenlik kategorileri sadece katalog aday türleridir; erişim testi veya çalışan üretim adaptörü anlamına gelmez.

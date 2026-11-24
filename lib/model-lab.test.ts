@@ -181,3 +181,31 @@ it('prefers the measured faster model when synthetic quality is equal',async()=>
   expect(lab.preferred('fast',[a,b])).toEqual([b,a]);
   expect(lab.preferred('agent',[a,b])).toEqual([b,a]);
 });
+
+describe('model council',()=>{
+  it('runs distinct verified models and a third text reviewer with no tools',async()=>{
+    const c='nvidia/example-c', seen:string[]=[];
+    const lab=createModelLab({allowed:[a,b,c],now:()=>1000000,request:async (_path,body)=>{
+      if(body?.tools)return reply(tool);
+      const messages=body?.messages as {role:string;content:string}[];
+      if(messages[0]?.role==='user') return reply(valid);
+      seen.push(String(body?.model));
+      expect(body?.tools).toBeUndefined();
+      return reply({content:'Deneme yanıtı'});
+    }});
+    for(const id of [a,b,c])await lab.probe(id);
+    const result=await lab.council('2 + 2 kaç?');
+    expect(seen).toEqual([a,b,c]);
+    expect(result.answers.map(row=>row.model)).toEqual([a,b]);
+    expect(result.review?.model).toBe(c);
+    expect(result.independentVerification).toBe(false);
+    expect(lab.status().requestsRemaining).toBe(3);
+    expect(modelLabCommand('Model konseyi: 2+2?')).toEqual({action:'council',question:'2+2?'});
+  });
+  it('rejects unverified council candidates without API calls',async()=>{
+    const request=vi.fn(async()=>reply(valid));
+    const lab=createModelLab({allowed:[a,b],request});
+    await expect(lab.council('test')).rejects.toThrow('MODEL_LAB_COUNCIL_NEEDS_TWO');
+    expect(request).not.toHaveBeenCalled();
+  });
+});
