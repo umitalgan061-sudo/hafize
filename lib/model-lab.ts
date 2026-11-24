@@ -113,7 +113,7 @@ export function modelLabCommand(input: unknown): { action: 'status' | 'discover'
   const text = input.trim();
   if (/^model laboratuvarı[?!.]?$/iu.test(text)) return { action: 'status' };
   if (/^nvidia modellerini listele[?!.]?$/iu.test(text)) return { action: 'discover' };
-  const match = /^model testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/u.exec(text);
+  const match = /^model testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/iu.exec(text);
   return match && MODEL_ID.test(match[1]!) ? { action: 'probe', model: match[1] } : null;
 }
 export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createModelLab>['status']>): string {
