@@ -405,9 +405,16 @@ export function formatComprehensiveLabResult(run:Awaited<ReturnType<ReturnType<t
   const rows=[...run.smoke.map(row=>row.model+' — sohbet/araç: '+row.status+'/'+row.toolProbeStatus+'; '+row.testedAt),...(run.deep?['Derin '+run.deep.model+' — '+run.deep.status+'; Türkçe: '+run.deep.language+', mantık: '+run.deep.reasoning+', kod: '+run.deep.coding+', araç sonrası: '+run.deep.toolFollowup]:[]),...(run.embedding?['Embedding '+run.embedding.model+' — '+run.embedding.status]:[])];
   return ['**Gerçek NVIDIA API test turu**','Sunucudaki yapılandırılmış anahtar kullanılır; anahtar modele gösterilmez.','Başlangıç: '+run.startedAt,'Bitiş: '+run.finishedAt,...(rows.length?rows:['Bu turda yeni test yapılmadı. Güncel sonuç veya kota durumunu kontrol et.']),'Bekleyen sohbet: '+run.pending.length+' · Derin: '+run.deepPending.length+(run.paused?' · Sağlayıcı/bütçe beklemesi':''),'Bu tur en fazla 5 sentetik API çağrısı kullanır; tüm katalogun tamamlandığı veya ücretsiz olduğu anlamına gelmez. Devam etmek için aynı isteği yinele.'].join('\n');
 }
+export function formatSingleModelProbe(row:ProbeResult):string {
+  const labels:Record<string,string>={passed:'API yanıtı alındı',timeout:'Zaman aşımı — yanıt alınamadı',failed:'İstek başarısız',unavailable:'Model uç noktası kullanılamıyor',rate_limited:'İstek sınırı',quota:'Kota / erişim reddi',invalid_response:'Geçerli yanıt alınamadı',auth_rejected:'Kimlik doğrulaması reddedildi',not_run:'Ölçülmedi'};
+  const ability=(v:boolean)=>!row.chat?'Ölçülmedi':v?'Geçti':'Geçemedi';
+  return ['**Model testi: '+row.model+'**','Sonuç: '+(labels[row.status]??row.status),'Süre: '+(row.latencyMs/1000).toLocaleString('tr-TR',{maximumFractionDigits:2})+' saniye','Türkçe: '+ability(row.turkish)+' · Mantık: '+ability(row.reasoning)+' · Kod: '+ability(row.coding),'Araç testi: '+(labels[row.toolProbeStatus]??row.toolProbeStatus),'Ölçüm tarihi: '+row.testedAt,'',row.status==='timeout'?'Model zamanında yanıt vermedi. Bu, zekâ veya dil yeteneklerinin başarısız olduğunu göstermez.':row.chat?'Bu kısa test genel zekâ veya üretim uyumluluğu garantisi değildir.':'Başarılı erişim doğrulanmadı.','Diğer modeller ve geçmiş sonuçlar: Ayarlar → NVIDIA Model Laboratuvarı.'].join('\n');
+}
 export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createModelLab>['status']>): string {
   return [
     '**NVIDIA Model Laboratuvarı**',
+    'Sohbet test adayı: '+value.eligible.length+' · Embedding test adayı: '+value.specialists.length,
+    'Kayıtlı güncel sohbet sonucu: '+value.results.length+' · Bekleyen: '+value.pendingModels.length,
     'Test edilebilir yapılandırılmış modeller: ' + value.eligible.join(', '),
     'API katalog sayısı: ' + (value.catalog ? value.catalog.ids.length : 'henüz sorgulanmadı'),
     'NVIDIA Build envanteri: '+value.publicCatalog.actualRows+' kayıt (paylaşılan katalog; erişim kanıtı değil)',
@@ -421,7 +428,7 @@ export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createM
     'Araç çağrısı doğrulanan modeller: ' + (value.verifiedAgentModels.join(', ') || 'henüz yok'),
     ...(value.blockedUntil ? ['Sağlayıcı bekleme süresi: ' + value.blockedUntil] : []),
     '',
-    ...value.results.map(row => `${row.model} — ${row.status}; Türkçe: ${row.turkish}, mantık: ${row.reasoning}, kod: ${row.coding}, araç: ${row.toolProbeStatus}; ${row.latencyMs} ms; ${row.testedAt}`),
+    ...value.results.map(row => formatSingleModelProbe(row)),
     '',
     'Göreve göre ölçülen öncelik: ' + Object.entries(value.taskLeaders).map(([kind,ids]) => kind + ': ' + (ids[0] || 'henüz yok')).join(' | '),
     ...value.deepResults.map(row => `Derin test ${row.model} — ${row.status}; Türkçe yazım: ${row.language}, mantık: ${row.reasoning}, kod: ${row.coding}, araç sonrası yanıt: ${row.toolFollowup}; ${row.testedAt}`),
