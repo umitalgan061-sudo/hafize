@@ -31,6 +31,7 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/task-notifications.js', '/typed/task-notifications.ts')
       .replaceAll('/typed-build/live-screen.js', '/typed/live-screen.ts')
       .replaceAll('/typed-build/app-install.js', '/typed/app-install.ts')
+      .replaceAll('/typed-build/release-update.js', '/typed/release-update.ts')
       .replaceAll('/typed-build/app-runtime.js', '/typed/app-runtime.ts')
       .replaceAll('/typed-build/prompt-library-smart-fill.js', '/prompt-library-smart-fill.ts')
       .replaceAll('/typed-build/prompt-library-command-palette.js', '/prompt-library-command-palette.ts')
@@ -98,6 +99,7 @@ export default defineConfig({
         'task-notifications': resolve(ROOT, 'public/typed/task-notifications.ts'),
         'live-screen': resolve(ROOT, 'public/typed/live-screen.ts'),
         'app-install': resolve(ROOT, 'public/typed/app-install.ts'),
+        'release-update': resolve(ROOT, 'public/typed/release-update.ts'),
         'supertonic-worker': resolve(ROOT, 'public/typed/supertonic-worker.js'),
         'piper-worker': resolve(ROOT, 'public/typed/piper-worker.ts'),
         'app-runtime': resolve(ROOT, 'public/typed/app-runtime.ts'),

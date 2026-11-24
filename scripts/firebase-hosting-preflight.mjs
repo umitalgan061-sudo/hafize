@@ -5,7 +5,7 @@
  * Never log credentials or the raw configuration. A missing configuration is a
  * deployment blocker, not a reason to invent rewrites for /api.
  */
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { attachCloudRunRewrite, backendRouteActivated } from './hafize-cloud-run-route.mjs';
 
@@ -51,6 +51,20 @@ export function prepareHostingConfig(rawConfig, projectId, siteId) {
   return { ...config, hosting: { ...hosting, public: 'public', site: siteId } };
 }
 
+export function stampReleaseHtml(html,sha) {
+  if(!/^[0-9a-f]{40}$/.test(sha))throw Error('GITHUB_COMMIT_SHA_MISSING_OR_INVALID');
+  if(!html.includes('</head>')||!html.includes('/typed-build/app-install.js'))throw Error('FIREBASE_HOSTING_INDEX_INVALID');
+  const versioned=html.replace(/(\b(?:src|href)=\")(\/[a-zA-Z0-9_./-]+\.(?:js|css)(?:\?[^\"]*)?)(\")/g,(_all,prefix,asset,suffix)=>{const url=new URL(asset,'https://release.invalid');if(url.pathname.endsWith('.js')&&!['/typed-build/app-install.js','/typed-build/release-update.js'].includes(url.pathname))return _all;url.searchParams.set('release',sha);return prefix+url.pathname+url.search.replaceAll('&','&amp;')+suffix;});
+  return versioned.replace('</head>','<meta name="hafize-release" content="'+sha+'" />\n</head>');
+}
+
+export function withReleaseCacheHeaders(config){
+  // Scope only public shell assets; no API or authentication rules are changed.
+  const headers=Array.isArray(config.hosting.headers)?config.hosting.headers:[];
+  const sources=['/','/index.html','/release.json','/typed-build/**','/sw.js'];
+  return {...config,hosting:{...config.hosting,headers:[...headers,...sources.map(source=>({source,headers:[{key:'Cache-Control',value:'no-cache, max-age=0, must-revalidate'}]}))]}};
+}
+
 export function prepareRelease(config, projectId, siteId, commitSha, opts = {}) {
   const baseConfig = prepareHostingConfig(config, projectId, siteId);
   // A successfully verified Cloud Run deploy records its activation marker.
@@ -74,13 +88,16 @@ export function prepareRelease(config, projectId, siteId, commitSha, opts = {}) 
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
-    prepareRelease(
+    const prepared=prepareRelease(
       process.env.HAFIZE_FIREBASE_HOSTING_CONFIG,
       process.env.HAFIZE_FIREBASE_PROJECT_ID,
       process.env.HAFIZE_FIREBASE_SITE_ID,
       process.env.GITHUB_SHA,
       { activateCloudRun: process.env.HAFIZE_CLOUD_RUN_ROUTE_ENABLED === 'true' ? true : undefined }
     );
+    writeFileSync('firebase.json',JSON.stringify(withReleaseCacheHeaders(prepared),null,2)+'\n',{mode:0o600});
+    const html=readFileSync('public/index.html','utf8');
+    writeFileSync('public/index.html',stampReleaseHtml(html,process.env.GITHUB_SHA));
     process.stdout.write('Firebase Hosting preflight passed; build and existing site config verified.\n');
   } catch (error) {
     process.stderr.write('::error::' + String(error?.message || 'DEPLOY_PREFLIGHT_FAILED') + '\n');

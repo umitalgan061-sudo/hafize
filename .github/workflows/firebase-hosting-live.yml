@@ -85,7 +85,13 @@ jobs:
           for (let attempt = 0; attempt < 6; attempt += 1) {
             try {
               const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
-              if (res.ok && (await res.json())?.commit === sha) { verified = true; break; }
+              if (res.ok && (await res.json())?.commit === sha) {
+                const page=await fetch(`https://${site}.web.app/?release=${sha}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+                const html=await page.text();
+                const module=await fetch(`https://${site}.web.app/typed-build/app-install.js?release=${sha}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
+                const js=await module.text();
+                if(page.ok&&module.ok&&html.includes('name="hafize-release" content="'+sha+'"')&&html.includes('/typed-build/app-install.js?release='+sha)&&js.includes('NVIDIA Merkezi')&&js.includes('NVIDIA Blueprint Atölyesi')){verified=true;break;}
+              }
             } catch { /* CDN propagation or transient connection issue */ }
             if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 5000));
           }
