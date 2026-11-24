@@ -436,7 +436,7 @@ html[data-theme="dark"] .settings-danger { color: #ef8a80 !important; }
 @keyframes polishDraw { from { transform: rotate(-2deg) scaleX(0); } to { transform: rotate(-2deg) scaleX(1); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .welcome, .hero-logo, .hero-point-portrait, .hero-point-canvas, .welcome h1::after, .suggestions button, .message, .toast,
+  .welcome, .hero-logo, .welcome h1::after, .suggestions button, .message, .toast,
   .approval-dialog, .modal, .dialog, body.sidebar-open::after, .chat-scroll-button,
   #composer[data-voice-listening="true"], #composer::before,
   #voiceOutputBtn[data-speaking="true"]::after,
@@ -537,13 +537,11 @@ html[data-theme="light"] { --premium-muted: #6b665f; --muted: #5f625b; }
 @media (max-width: 680px) and (max-height: 740px) {
   .welcome p { display: none; }
   .welcome .hero-logo, .welcome img { width: 44px; height: 44px; }
-  .welcome .hero-point-portrait { width: 118px; height: 108px; }
-  .welcome .hero-point-canvas { display: none; width: 118px; height: 108px; }
   .welcome h1 { font-size: 31px; }
   .chat-stage { padding-top: 16px; }
 }
 @media (max-height: 500px) {
-  .welcome .hero-logo, .welcome img, .welcome .hero-point-portrait, .welcome .hero-point-canvas, .welcome p, .suggestions { display: none; }
+  .welcome .hero-logo, .welcome img, .welcome p, .suggestions { display: none; }
   .welcome h1 { font-size: 26px; margin-top: 0; }
   .chat-stage { padding-top: 10px; }
   .composer textarea { max-height: 72px; }

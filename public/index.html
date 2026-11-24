@@ -128,12 +128,8 @@
 
       <div class="primary-column">
         <section class="chat-stage">
-          <div id="welcome" class="welcome">
-            <video id="heroPointPortrait" class="hero-point-portrait" autoplay muted loop playsinline preload="metadata" poster="/media/hafize-point-portrait-alpha.png" aria-hidden="true">
-              <source src="/media/hafize-point-portrait-alpha.webm" type="video/webm" />
-              <source src="/media/hafize-point-portrait.mp4" type="video/mp4" />
-            </video>
-            <canvas id="heroPointCanvas" class="hero-point-canvas" width="336" height="310" aria-hidden="true"></canvas>
+          <div id="welcome" class="welcome hz-hero-on">
+            <canvas class="hz-hero" width="120" height="112" aria-hidden="true"></canvas>
             <svg class="hero-logo" viewBox="0 0 64 64" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="3.2"><ellipse cx="32" cy="19" rx="7" ry="15"/><ellipse cx="32" cy="45" rx="7" ry="15"/><ellipse cx="19" cy="32" rx="15" ry="7"/><ellipse cx="45" cy="32" rx="15" ry="7"/><ellipse cx="23" cy="23" rx="7" ry="15" transform="rotate(-45 23 23)"/><ellipse cx="41" cy="41" rx="7" ry="15" transform="rotate(-45 41 41)"/><ellipse cx="41" cy="23" rx="7" ry="15" transform="rotate(45 41 23)"/><ellipse cx="23" cy="41" rx="7" ry="15" transform="rotate(45 23 41)"/></g></svg>
             <h1>Merhaba, bugün ne yapalım?</h1>
             <p>Hafize her sorunu yanıtlar; gerektiğinde internetten güncel bilgi, haber, hava durumu ve döviz kurlarını kendisi bulur. Yazı, araştırma, kod ve planlamada da yardımcı olur.</p>
@@ -196,77 +192,6 @@
   </div>
 
   <div id="toast" class="toast hidden" role="status"></div>
-  <script>
-    // Turn the owner-approved video into a transparent, organic field of points.
-    // The source video stays local and is never sent to a server.
-    (() => {
-      const portrait = document.getElementById('heroPointPortrait');
-      const canvas = document.getElementById('heroPointCanvas');
-      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-      if (!portrait || !canvas || !reducedMotion) return;
-      const context = canvas.getContext('2d', { alpha: true });
-      const sample = document.createElement('canvas');
-      const sampleContext = sample.getContext('2d', { willReadFrequently: true });
-      const sampleWidth = 112;
-      const sampleHeight = 104;
-      sample.width = sampleWidth;
-      sample.height = sampleHeight;
-      if (!context || !sampleContext) return;
-
-      let frame = 0;
-      let animation;
-      const drawPoints = () => {
-        if (portrait.readyState < 2) return;
-        sampleContext.clearRect(0, 0, sampleWidth, sampleHeight);
-        sampleContext.drawImage(portrait, 0, 0, sampleWidth, sampleHeight);
-        const pixels = sampleContext.getImageData(0, 0, sampleWidth, sampleHeight).data;
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        const scaleX = canvas.width / sampleWidth;
-        const scaleY = canvas.height / sampleHeight;
-        const stride = 2;
-        for (let y = 1; y < sampleHeight; y += stride) {
-          for (let x = 1; x < sampleWidth; x += stride) {
-            const index = (y * sampleWidth + x) * 4;
-            const red = pixels[index];
-            const green = pixels[index + 1];
-            const blue = pixels[index + 2];
-            const lightness = (red + green + blue) / 3;
-            const saturation = (Math.max(red, green, blue) - Math.min(red, green, blue)) / 255;
-            // The recording background is pale and almost neutral. Keep only the
-            // warm / dark portrait pixels, yielding a genuinely transparent canvas.
-            if (lightness > 210 && saturation < .14) continue;
-            if (lightness > 244) continue;
-            const grain = Math.sin((x * 12.9898) + (y * 78.233) + (frame * .17));
-            if (grain > .72 && lightness > 105) continue;
-            const radius = (lightness < 95 ? 1.35 : .68 + saturation * 1.9) * (grain > .25 ? .82 : 1.1);
-            context.fillStyle = `rgba(${red}, ${green}, ${blue}, ${Math.min(.96, .24 + (255 - lightness) / 290 + saturation * .44)})`;
-            context.beginPath();
-            context.arc((x + .5) * scaleX, (y + .5) * scaleY, radius * scaleX, 0, Math.PI * 2);
-            context.fill();
-          }
-        }
-      };
-      const syncPortraitMotion = () => {
-        if (reducedMotion.matches) {
-          portrait.pause();
-          cancelAnimationFrame(animation);
-          drawPoints();
-          return;
-        }
-        portrait.play().catch(() => {});
-        const animate = () => {
-          frame += 1;
-          drawPoints();
-          animation = requestAnimationFrame(animate);
-        };
-        cancelAnimationFrame(animation);
-        animate();
-      };
-      reducedMotion.addEventListener?.('change', syncPortraitMotion);
-      portrait.addEventListener('loadeddata', syncPortraitMotion, { once: true });
-      syncPortraitMotion();
-    })();
-  </script>
   <script type="module" src="/original-hero-bootstrap.js"></script>
   <script src="/composer-focus-guard.js"></script>
   <script type="module" src="/typed-build/auth.js"></script>

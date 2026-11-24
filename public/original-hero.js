@@ -40,13 +40,17 @@ const CELLS = Array.from({ length: HERO.width * HERO.height }, (_, index) => {
 
 export function mountHero() {
   const welcome = document.querySelector('#welcome');
-  if (!welcome || welcome.querySelector('.hz-hero')) return;
-  const canvas = document.createElement('canvas');
-  canvas.className = 'hz-hero';
-  canvas.setAttribute('aria-hidden', 'true');
-  welcome.prepend(canvas);
-  welcome.classList.add('hz-hero-on');
+  if (!welcome || welcome.dataset.heroMounted) return;
+  const canvas = welcome.querySelector('.hz-hero');
+  if (!canvas) return;
+  welcome.dataset.heroMounted = 'true';
+  const fallback = () => {
+    canvas.remove();
+    welcome.classList.remove('hz-hero-on');
+    welcome.classList.add('hz-hero-fallback');
+  };
   const context = canvas.getContext('2d');
+  if (!context) { fallback(); return; }
   const still = matchMedia('(prefers-reduced-motion: reduce)');
   const state = { data: null, progress: still.matches ? 1 : 0, from: 0, to: 1, startedAt: 0, duration: ASSEMBLE_MS, frame: 0, position: 0, lastStep: 0, onScreen: true, width: 0, height: 0, scale: 1 };
 
@@ -56,8 +60,10 @@ export function mountHero() {
     state.scale = Math.min(3, window.devicePixelRatio || 1);
     state.width = box.width;
     state.height = box.height;
-    canvas.width = Math.round(box.width * state.scale);
-    canvas.height = Math.round(box.height * state.scale);
+    const width = Math.round(box.width * state.scale);
+    const height = Math.round(box.height * state.scale);
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
     return true;
   };
   const lit = (base, frame, index) => (state.data[(base + frame) * FRAME_BYTES + (index >> 3)] >> (7 - (index & 7))) & 1;
@@ -106,7 +112,7 @@ export function mountHero() {
     const due = !state.lastStep || time - state.lastStep >= FRAME_MS;
     if (due && !still.matches) {
       // After a long pause it carries on from where it was, without jumping forward.
-      if (state.lastStep) state.position = (state.position + 1) % HERO.frames;
+      if (state.lastStep && !gathering) state.position = (state.position + 1) % HERO.frames;
       state.lastStep = time;
     }
     if (due || gathering) draw();
@@ -125,10 +131,23 @@ export function mountHero() {
     state.duration = SCATTER_MS;
     wake();
   });
-  new ResizeObserver(() => { if (fit()) { draw(); wake(); } }).observe(canvas);
-  new IntersectionObserver(([entry]) => { state.onScreen = entry.isIntersecting; wake(); }).observe(canvas);
-  new MutationObserver(wake).observe(welcome, { attributes: true, attributeFilter: ['class'] });
-  new MutationObserver(() => { if (state.width) draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  const resize = new ResizeObserver(() => { if (fit()) { draw(); wake(); } });
+  const intersection = new IntersectionObserver(([entry]) => { state.onScreen = entry.isIntersecting; wake(); });
+  const welcomeObserver = new MutationObserver(wake);
+  const themeObserver = new MutationObserver(() => { if (state.width) draw(); });
+  resize.observe(canvas);
+  intersection.observe(canvas);
+  welcomeObserver.observe(welcome, { attributes: true, attributeFilter: ['class'] });
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  const syncMotion = () => {
+    if (still.matches) {
+      if (state.frame) cancelAnimationFrame(state.frame);
+      state.frame = 0; state.progress = 1; state.from = 1; state.to = 1;
+      state.position = 0; state.lastStep = 0;
+      if (fit()) draw();
+    } else { state.lastStep = 0; wake(); }
+  };
+  still.addEventListener('change', syncMotion);
   document.addEventListener('visibilitychange', wake);
   fetch(FRAMES_URL)
     .then((response) => (response.ok ? response.arrayBuffer() : Promise.reject(new Error(String(response.status)))))
@@ -139,7 +158,10 @@ export function mountHero() {
     })
     .catch(() => {
       // Without the frames the app's own logo comes back, so the welcome screen is never left with a hole.
-      canvas.remove();
-      welcome.classList.remove('hz-hero-on');
+      resize.disconnect(); intersection.disconnect(); welcomeObserver.disconnect(); themeObserver.disconnect();
+      still.removeEventListener('change', syncMotion);
+      document.removeEventListener('visibilitychange', wake);
+      if (state.frame) cancelAnimationFrame(state.frame);
+      fallback();
     });
 }
