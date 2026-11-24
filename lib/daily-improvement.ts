@@ -6,8 +6,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { createModelLab } from './model-lab.ts';
 export const DAY_MS=24*60*60*1000;
 export type ExpertHealth={agentId:string;healthy:boolean;reasons:string[];successRate:number|null;p99Ms:number|null;sampleCount:number};
-type DailyReport={plan?:EvolutionPlan;catalogDiscovery?:boolean;catalogChanges?:{addedCount:number;removedCount:number|null;added:string[];removed:string[]}|null;expertReadiness?:ExpertReadiness[];runtimeEvidence?:RuntimeEvidence[];deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
-export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>[],runtimeEvidence=()=>[],adaptLeaders=ids=>[...ids],discoverCatalog=false,liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];expertReadiness?:()=>ExpertReadiness[];runtimeEvidence?:()=>RuntimeEvidence[];adaptLeaders?:(ids:readonly string[])=>string[];discoverCatalog?:boolean;liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
+type DailyReport={plan?:EvolutionPlan;catalogDiscovery?:boolean;catalogChanges?:{addedCount:number;removedCount:number|null;added:string[];removed:string[]}|null;expertReadiness?:ExpertReadiness[];runtimeEvidence?:RuntimeEvidence[];voiceEvidence?:RuntimeEvidence[];deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
+export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>[],runtimeEvidence=()=>[],voiceEvidence=()=>[],adaptLeaders=ids=>[...ids],discoverCatalog=false,liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];expertReadiness?:()=>ExpertReadiness[];runtimeEvidence?:()=>RuntimeEvidence[];voiceEvidence?:()=>RuntimeEvidence[];adaptLeaders?:(ids:readonly string[])=>string[];discoverCatalog?:boolean;liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement (id INTEGER PRIMARY KEY CHECK(id=1), started_at INTEGER NOT NULL, report TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement_history (started_at INTEGER PRIMARY KEY, report TEXT NOT NULL)');
   let inFlight:Promise<DailyReport|null>|null=null;
@@ -48,6 +48,7 @@ export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>
       report.expertReadiness=expertReadiness();
       if(report.expertReadiness.some(row=>!row.passed))report.error='EXPERT_CONTRACT_CHECK_FAILED';
       report.runtimeEvidence=runtimeEvidence();
+      report.voiceEvidence=voiceEvidence();
       // Catalog refresh is optional and consumes one of the existing five daily requests.
       let catalogCall=false;
       if(discoverCatalog&&lab&&!lab.status().blockedUntil&&lab.status().requestsRemaining>0){
@@ -93,7 +94,7 @@ export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>
       report.changes=Object.entries(report.taskLeaders).flatMap(([kind,ids])=>{const old=before[kind]?.[0]??null;const next=ids[0]??null;return old===next?[]:[{kind,before:old,after:next}];});
       report.state=report.error||report.warnings?.length?'partial':'completed';
     }catch(error){report.state='partial';report.error=error instanceof Error&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'DAILY_IMPROVEMENT_INTERRUPTED';}
-    finally{report.finishedAt=new Date(now()).toISOString();controller=null;report.plan=buildEvolutionPlan({now:started,readiness:report.expertReadiness??[],runtime:report.runtimeEvidence??[],catalogChanges:report.catalogChanges??null,pendingModels:lab?.status().pendingModels??[],labAvailable:Boolean(lab),liveProbes,error:report.error});finalize(started,report,claimedReport);}
+    finally{report.finishedAt=new Date(now()).toISOString();controller=null;report.plan=buildEvolutionPlan({now:started,readiness:report.expertReadiness??[],runtime:report.runtimeEvidence??[],voice:report.voiceEvidence??[],expertHealth:report.experts,catalogChanges:report.catalogChanges??null,pendingModels:lab?.status().pendingModels??[],labAvailable:Boolean(lab),liveProbes,error:report.error});finalize(started,report,claimedReport);}
     return report;
   }
   function tick(){if(inFlight)return inFlight;inFlight=execute().finally(()=>{inFlight=null;});return inFlight;}

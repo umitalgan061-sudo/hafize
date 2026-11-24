@@ -48,7 +48,7 @@ type Send = (body: string, signal: AbortSignal) => Promise<Response>;
 
 interface ModelState { cooldownUntil: number; lastFailure: FailureReason | null; lastFailureAt: number; lastSuccessAt: number }
 
-export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], observeAttempt = () => {}, now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[], expertId?: string) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly observeAttempt?: (event:RuntimeAttempt)=>void; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
+export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], observeAttempt = () => {}, preferVoice = ids => [...ids], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[], expertId?: string) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly observeAttempt?: (event:RuntimeAttempt)=>void; readonly preferVoice?: (ids:readonly string[])=>readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
   const states = new Map<string, ModelState>();
   // Bind response identity to the actual routed model, not the most recent concurrent request.
   const responseModels = new WeakMap<Response,string>();
@@ -99,7 +99,10 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
     const streaming = payload.stream === true;
     const voice = voiceFast && streaming;
     // Prefer configured quick candidates over the large general reasoning models, without inventing model IDs.
-    const attempts = voice ? [...allAttempts.filter(id=>id===payload.model||/lightning|bolt|flash/i.test(id)),...allAttempts.filter(id=>id!==payload.model&&!/lightning|bolt|flash/i.test(id))].slice(0,3) : allAttempts;
+    const fast = allAttempts.filter(id=>id===payload.model||/lightning|bolt|flash/i.test(id));
+    let learned=fast; if(voice){try{const ranked=preferVoice(fast);if(ranked.length===fast.length&&new Set(ranked).size===fast.length&&ranked.every(id=>fast.includes(id)))learned=[...ranked];}catch{/* default order */}}
+    const attempts = voice ? [...learned,...allAttempts.filter(id=>!fast.includes(id))].slice(0,3) : allAttempts;
+    const lane=voice?{lane:'voice' as const}:{};
     let lastError: unknown = null;
     for (const [index, model] of attempts.entries()) {
       const isLast = index === attempts.length - 1;
@@ -117,7 +120,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         if (timer) clearTimeout(timer);
         responseModels.set(response,model);
         if (response.ok) {
-          observe({model,outcome:'headers_ok',latencyMs:Math.max(0,now()-started)});
+          observe({model,outcome:'headers_ok',latencyMs:Math.max(0,now()-started),...lane});
           const entry = state(model);
           entry.cooldownUntil = 0;
           entry.lastFailure = null;
@@ -129,7 +132,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         const reason = failureReason(response.status);
         // A rejected key or a malformed request fails the same way everywhere.
         if (!reason) return response;
-        observe({model,outcome:'provider_failure',latencyMs:Math.max(0,now()-started)});
+        observe({model,outcome:'provider_failure',latencyMs:Math.max(0,now()-started),...lane});
         const wait = response.headers.get('retry-after')?.trim() ?? '';
         const retryAfter = /^\d+$/.test(wait) ? Number(wait) * 1000 : Date.parse(wait) - now();
         penalize(model, reason, Number.isFinite(retryAfter) ? retryAfter : 0);
@@ -142,7 +145,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         if (signal?.aborted) throw error;
         lastError = error;
         const reason: FailureReason = timedOut ? 'slow' : 'failing';
-        observe({model,outcome:timedOut?'slow':'provider_failure',latencyMs:Math.max(0,now()-started)});
+        observe({model,outcome:timedOut?'slow':'provider_failure',latencyMs:Math.max(0,now()-started),...lane});
         penalize(model, reason);
         if (isLast) throw error;
         log(`hafize.model ${JSON.stringify({ skipped: model, reason })}`);

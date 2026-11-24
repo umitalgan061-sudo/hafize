@@ -1,11 +1,12 @@
 import type {DatabaseSync} from 'node:sqlite';
 const HOUR=3600000;
-export type RuntimeAttempt={model:string;outcome:'headers_ok'|'provider_failure'|'slow'|'stream_failure';latencyMs:number};
+export type RuntimeAttempt={model:string;outcome:'headers_ok'|'provider_failure'|'slow'|'stream_failure';latencyMs:number;lane?:'voice'};
 export type RuntimeEvidence={model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null};
-export function createRuntimeEvidence(db:DatabaseSync,allowed:readonly string[],now=Date.now){
+export function createRuntimeEvidence(db:DatabaseSync,allowed:readonly string[],now=Date.now,scope:'general'|'voice'='general'){
+ const table=scope==='voice'?'hafize_voice_runtime_evidence':'hafize_runtime_evidence';
  const permitted=new Set(allowed);
- db.exec('CREATE TABLE IF NOT EXISTS hafize_runtime_evidence (model TEXT NOT NULL, hour INTEGER NOT NULL, ok INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0, stream_failures INTEGER NOT NULL DEFAULT 0, latency INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(model,hour))');
- const insert=db.prepare('INSERT INTO hafize_runtime_evidence(model,hour,ok,failures,stream_failures,latency) VALUES(?,?,?,?,?,?) ON CONFLICT(model,hour) DO UPDATE SET ok=ok+excluded.ok,failures=failures+excluded.failures,stream_failures=stream_failures+excluded.stream_failures,latency=latency+excluded.latency');
+ db.exec(`CREATE TABLE IF NOT EXISTS ${table} (model TEXT NOT NULL, hour INTEGER NOT NULL, ok INTEGER NOT NULL DEFAULT 0, failures INTEGER NOT NULL DEFAULT 0, stream_failures INTEGER NOT NULL DEFAULT 0, latency INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(model,hour))`);
+ const insert=db.prepare(`INSERT INTO ${table}(model,hour,ok,failures,stream_failures,latency) VALUES(?,?,?,?,?,?) ON CONFLICT(model,hour) DO UPDATE SET ok=ok+excluded.ok,failures=failures+excluded.failures,stream_failures=stream_failures+excluded.stream_failures,latency=latency+excluded.latency`);
  function record(event:RuntimeAttempt){
   if(!permitted.has(event.model)||!Number.isFinite(event.latencyMs))return;
   const ok=event.outcome==='headers_ok'?1:0;
@@ -14,7 +15,7 @@ export function createRuntimeEvidence(db:DatabaseSync,allowed:readonly string[],
  }
  function summary():RuntimeEvidence[]{
   const hour=Math.floor(now()/HOUR);
-  const rows=db.prepare('SELECT model,SUM(ok) AS ok,SUM(failures) AS failures,SUM(stream_failures) AS streams,SUM(latency) AS latency FROM hafize_runtime_evidence WHERE hour>? AND hour<=? GROUP BY model ORDER BY model').all(hour-24,hour) as {model:string;ok:number;failures:number;streams:number;latency:number}[];
+  const rows=db.prepare(`SELECT model,SUM(ok) AS ok,SUM(failures) AS failures,SUM(stream_failures) AS streams,SUM(latency) AS latency FROM ${table} WHERE hour>? AND hour<=? GROUP BY model ORDER BY model`).all(hour-24,hour) as {model:string;ok:number;failures:number;streams:number;latency:number}[];
   return rows.filter(r=>permitted.has(r.model)).map(r=>({model:r.model,attempts:r.ok+r.failures,headersOk:r.ok,failures:r.failures,streamFailures:r.streams,meanHeaderMs:r.ok?Math.round(r.latency/r.ok):null}));
  }
  function reorder(verified:readonly string[]):string[]{
@@ -25,6 +26,18 @@ export function createRuntimeEvidence(db:DatabaseSync,allowed:readonly string[],
   const degraded=(model:string)=>{const r=rows.get(model);return Boolean(r&&r.attempts>=8&&(r.failures+Math.min(r.streamFailures,r.headersOk))/r.attempts>=0.25);};
   return [...verified.filter(m=>!degraded(m)),...verified.filter(degraded)];
  }
- function prune(){db.prepare('DELETE FROM hafize_runtime_evidence WHERE hour<?').run(Math.floor(now()/HOUR)-24*14);}
- return {record,summary,reorder,prune};
+ // Only reorder existing voice candidates with adequate recent evidence. Never claim semantic quality from latency.
+ function reorderVoice(candidates:readonly string[]):string[]{
+  const rows=new Map(summary().map(r=>[r.model,r]));
+  const mature=(id:string)=>{const row=rows.get(id);return row&&row.attempts>=8?row:undefined;};
+  const unreliable=(row:RuntimeEvidence)=> (row.failures+Math.min(row.streamFailures,row.headersOk))/row.attempts>=0.25;
+  const good=(row:RuntimeEvidence)=>!unreliable(row)&&row.headersOk>=6&&row.meanHeaderMs!==null;
+  // Unmeasured candidates keep their configured position. Only compare well-measured peers.
+  const measured=candidates.filter(id=>mature(id));
+  measured.sort((a,b)=>{const x=mature(a)!,y=mature(b)!;const bad=Number(unreliable(x))-Number(unreliable(y));if(bad)return bad;
+   if(good(x)&&good(y)){const dx=x.meanHeaderMs!,dy=y.meanHeaderMs!;if(Math.abs(dx-dy)>=Math.max(300,Math.min(dx,dy)*0.2))return dx-dy;}return 0;});
+  let i=0;return candidates.map(id=>mature(id)?measured[i++]!:id);
+ }
+ function prune(){db.prepare(`DELETE FROM ${table} WHERE hour<?`).run(Math.floor(now()/HOUR)-24*14);}
+ return {record,summary,reorder,reorderVoice,prune};
 }
