@@ -2,6 +2,8 @@
 // app gets from its manifest: shortcuts (?action=new, ?action=voice) and the share sheet (?text=).
 import qrcode from 'qrcode-generator';
 import {captureVideoFrames} from './video-frame-capture.ts';
+import {BLUEPRINT_CATALOG,BLUEPRINT_META,BLUEPRINT_MODE_LABELS} from '../../lib/nvidia-blueprint-catalog.ts';
+import {checkMarkdown,searchPassages,evaluateCases} from './blueprint-workbench.ts';
 import {PUBLIC_MODEL_CATALOG,PUBLIC_CATALOG_METADATA} from '../../lib/nvidia-public-inventory.ts';
 import {labStatusLabel,labErrorLabel,labCapabilityLabel,labLatency,labTime,labActionAllowed,releaseVerification} from './model-lab-display.ts';
 
@@ -365,13 +367,27 @@ function start(documentRef: Document, root: typeof globalThis): void {
     return panel;
   };
 
+  const blueprintPanel=()=>{
+    const panel=el('section','settings-panel model-lab-panel blueprint-panel');
+    panel.append(el('h2','','NVIDIA Blueprint Atölyesi'),el('p','','36 resmi katalog kaydı. Yerel uyarlama, mevcut Hafize işlevi ve kurulmamış NVIDIA dağıtımı ayrı gösterilir.'));
+    const metrics=el('div','lab-metrics');for(const [label,value] of [['Blueprint',BLUEPRINT_META.total],['Yerel uyarlama',BLUEPRINT_CATALOG.filter(x=>x.mode==='local').length],['Ek altyapı / envanter',BLUEPRINT_CATALOG.filter(x=>x.mode==='host'||x.mode==='catalog').length],['Resmi dağıtım',0]] as const){const card=el('div','lab-metric');card.append(el('span','',label),el('strong','',String(value)));metrics.append(card);}panel.append(metrics);
+    const workflow=el('select');workflow.setAttribute('aria-label','Yerel iş akışı');for(const [id,name] of [['docs','DocsFab — Markdown denetimi'],['search','RAG — yerel kaynak arama'],['eval','Agent Optimization — örnek sonuç karşılaştırma'],['translate','Riva — gerçek NVIDIA çeviri']]){const o=el('option','',name!);o.value=id!;workflow.append(o);}
+    const input=el('textarea');input.rows=6;input.maxLength=20000;input.setAttribute('aria-label','İş akışı girdisi');const query=el('input');query.type='search';query.maxLength=500;query.placeholder='Aranacak kelimeler';query.setAttribute('aria-label','Arama sorgusu');
+    const pair=el('select');pair.setAttribute('aria-label','Çeviri yönü');for(const [id,name] of [['en-tr','İngilizce → Türkçe'],['tr-en','Türkçe → İngilizce']]){const o=el('option','',name!);o.value=id!;pair.append(o);}
+    const info=el('p','lab-guide');const output=el('textarea');output.readOnly=true;output.rows=8;output.setAttribute('aria-label','İş akışı sonucu');const run=el('button','','İşlemi çalıştır');run.type='button';const buttons=el('div','settings-actions');buttons.append(run);
+    const sync=()=>{const mode=workflow.value;query.hidden=mode!=='search';pair.hidden=mode!=='translate';input.maxLength=mode==='translate'?1000:20000;input.placeholder=mode==='docs'?'Markdown belgesini buraya yapıştır':mode==='search'?'Kaynak paragrafları buraya yapıştır':mode==='eval'?'Her satır: beklenen | gerçek':'Çevrilecek genel metni yaz';info.textContent=mode==='translate'?'Yalnız Çevir düğmesine basınca metin resmi NVIDIA API hizmetine gönderilir; özel veya gizli bilgi girme. İstek kotası kullanılır.':'Bu küçük yerel uyarlama cihazda çalışır; resmi NVIDIA Blueprint dağıtımı değildir.';run.textContent=mode==='translate'?'NVIDIA ile çevir':'Yerel işlemi çalıştır';output.value='';};workflow.addEventListener('change',sync);sync();
+    run.addEventListener('click',async()=>{const mode=workflow.value;const text=input.value;if(!text.trim()){output.value='Önce metin gir.';return;}if(mode==='docs'){const result=checkMarkdown(text);output.value=result.lines+' satır · '+result.headings+' başlık\n'+(result.issues.join('\n')||'Temel biçim denetiminde sorun bulunmadı.');}else if(mode==='search'){const result=searchPassages(text,query.value);output.value=result.map(r=>'Kaynak paragraf '+r.source+' · '+r.matches+' eşleşme\n'+r.text).join('\n\n')||'Eşleşen kaynak bulunamadı.';}else if(mode==='eval'){const result=evaluateCases(text);output.value='Başarılı: '+result.passed+'/'+result.total+' · Geçersiz satır: '+result.invalid+'\n'+result.cases.map(c=>'Örnek '+c.case+': '+(c.passed?'Geçti':'Geçemedi')).join('\n');}else if(mode==='translate'){run.disabled=true;workflow.disabled=true;pair.disabled=true;input.disabled=true;output.value='NVIDIA yanıtı bekleniyor…';try{const response=await api('/api/models/status/lab',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'translate_text',text,pair:pair.value,consent:true})});const result=await response.json();if(!response.ok||typeof result.translationOutput?.text!=='string')throw Error(typeof result.error==='string'?result.error:'MODEL_LAB_HTTP_ERROR');output.value=result.translationOutput.text;}catch(error){output.value=labErrorLabel(error instanceof Error?error.message:'MODEL_LAB_HTTP_ERROR');}finally{run.disabled=false;workflow.disabled=false;pair.disabled=false;input.disabled=false;}}});
+    const catalog=el('details');catalog.open=true;const filter=el('input');filter.type='search';filter.placeholder='Blueprint ara';filter.setAttribute('aria-label','Blueprint ara');const mode=el('select');mode.setAttribute('aria-label','Blueprint durum filtresi');for(const [id,name] of [['all','Tümü'],...Object.entries(BLUEPRINT_MODE_LABELS)]){const o=el('option','',name!);o.value=id!;mode.append(o);}const list=el('ul','model-status-list');catalog.append(el('summary','','36 Blueprint — kurulum ve durum'),filter,mode,list);
+    const render=()=>{list.replaceChildren();const q=filter.value.toLocaleLowerCase('tr-TR');for(const row of BLUEPRINT_CATALOG.filter(r=>(r.name+' '+r.area).toLocaleLowerCase('tr-TR').includes(q)&&(mode.value==='all'||r.mode===mode.value))){const li=el('li');li.append(el('strong','',row.name),el('small','',BLUEPRINT_MODE_LABELS[row.mode]+' · '+row.requirement));list.append(li);}};filter.addEventListener('input',render);mode.addEventListener('change',render);render();panel.append(workflow,info,input,query,pair,buttons,output,catalog);return panel;
+  };
+
   const attach = (host: Element) => {
     if (host.querySelector('.app-install')) return;
     const first = host.querySelector('.settings-panel');
     if (first?.nextSibling) host.insertBefore(installPanel(), first.nextSibling); else host.append(installPanel());
     const install = host.querySelector('.app-install');
     if (install?.nextSibling) host.insertBefore(modelPanel(), install.nextSibling); else host.append(modelPanel());
-    host.append(modelLabPanel(host),specialistPanel());
+    host.append(modelLabPanel(host),specialistPanel(),blueprintPanel());
     const results = host.querySelector('.task-results') ?? install;
     const servers = serversPanel();
     if (results?.nextSibling) host.insertBefore(servers, results.nextSibling); else host.append(servers);

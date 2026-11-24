@@ -352,6 +352,12 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     try{const response=await call('/chat/completions',{model,messages:[{role:'system',content:'en-tr'},{role:'user',content:'Thank you.'}],stream:false,max_tokens:128,temperature:0},signal);if(!response.ok)state=statusFor(response.status);else{const answer=message(await response.json())?.content;translated=typeof answer==='string'&&/^(?:teşekkür(?:ler| ederim)|sağ ol(?:un)?)[.!]?$/iu.test(answer.trim());state=translated?'passed':'invalid_response';}}catch(error){if(signal?.aborted)throw error;state=error instanceof Error&&error.name==='TimeoutError'?'timeout':'failed';}finally{running=false;}
     translationResult={model,status:state,translated,mode:'synthetic_translation',testedAt:new Date(started).toISOString(),latencyMs:Math.max(0,now()-started)};persist();return translationResult;
   }
+  async function translateText(input:unknown,pair:unknown,signal?:AbortSignal){
+    if(typeof input!=='string'||!input.trim()||input.length>1000||new TextEncoder().encode(input).length>3000||(pair!=='en-tr'&&pair!=='tr-en'))throw Error('MODEL_LAB_INVALID_TRANSLATION');
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');if(availableRequests()<1)throw Error('MODEL_LAB_BUDGET');
+    const model='nvidia/riva-translate-4b-instruct-v2',started=now();running=true;
+    try{const response=await call('/chat/completions',{model,messages:[{role:'system',content:pair},{role:'user',content:input.trim()}],stream:false,max_tokens:1024,temperature:0},signal);if(!response.ok)throw Error('MODEL_LAB_TRANSLATION_'+response.status);const answer=message(await response.json())?.content;if(typeof answer!=='string'||!answer.trim()||answer.length>12000)throw Error('MODEL_LAB_INVALID_TRANSLATION_RESPONSE');return {model,pair,text:answer.trim(),latencyMs:Math.max(0,now()-started)};}finally{running=false;}
+  }
   async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
     if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -365,7 +371,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     if(specialist&&blockedUntil<=now()&&availableRequests()>0){signal?.throwIfAborted();embedding=await specialistProbe(specialist,signal);}
     return {smoke:smoke.completed,deep,embedding,startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),pending:status().pendingModels,deepPending:status().deepPendingModels,paused:blockedUntil>now()||availableRequests()<2};
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, translationProbe });
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, translationProbe, translateText });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
