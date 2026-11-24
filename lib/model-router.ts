@@ -46,7 +46,7 @@ type Send = (body: string, signal: AbortSignal) => Promise<Response>;
 
 interface ModelState { cooldownUntil: number; lastFailure: FailureReason | null; lastFailureAt: number; lastSuccessAt: number }
 
-export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[]) => readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
+export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[]) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
   const states = new Map<string, ModelState>();
   let current = chain[0] ?? '';
 
@@ -70,7 +70,8 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
    * runs anyway: a stale cooldown must never be the reason a question goes unanswered.
    */
   function attemptsFor(requested: string, payload: Record<string, unknown>): string[] {
-    const measured = preferredModels(payload, chain).filter(model => chain.includes(model));
+    const candidates = [...new Set([...chain, ...extraCandidates])];
+    const measured = preferredModels(payload, candidates).filter(model => candidates.includes(model));
     const ordered = keepFirst.includes(requested) ? [requested, ...chain.filter((model) => model !== requested)] : [...new Set([...measured, ...chain])];
     const available = ordered.filter(ready);
     return available.length ? available : ordered;
