@@ -82,3 +82,28 @@ ayarla ve backend'i yeniden başlat; araç bu durumda mevcut SSE onay
 akışına geri döner. Ajan GitHub yazmasını tümden kapatmak için
 `HAFIZE_GITHUB_AGENT_REPOS` değişkenini açıkça boş tanımla;
 gerekirse `HAFIZE_GITHUB_WRITE_REPOS` de boş bırakılabilir.
+
+
+## Render kurulumu ve onaysız rutin geliştirme
+
+Hafize ve Retake gibi açık depoların salt-okunur incelemesi için
+`HAFIZE_GITHUB_PUBLIC_READ=true` ve açıkça listelenmiş
+`HAFIZE_GITHUB_READ_REPOS` yeterlidir. GitHub API'nin anonim kotası geçerlidir.
+`github_read_file` satır aralıklarını ve blob SHA'yı, `github_inspect`
+depo/dal/dosya listesi, PR merge durumu, commit ve kesin SHA'ya bağlı CI
+sonuçlarını verir. Okuma işlemleri ayrı onay istemez.
+
+Yazma bağlantısı için Render Dashboard > hafize-free > Environment altında
+GitHub App özel anahtarını **Secret Files** bölümüne
+`hafize-github-app.pem` adıyla yükle. Anahtarı chat'e, repoya veya loglara
+koyma. Uygulama kimliği ve kurulum kimliği GitHub App ayarlarından alınır.
+`HAFIZE_GITHUB_APP_PRIVATE_KEY_PATH=/etc/secrets/hafize-github-app.pem`
+olarak tanımlanır. App kurulumunu yalnız gereken depolara ve Contents /
+Pull requests yazma, Actions okuma gibi gereken izinlere sınırla.
+
+`HAFIZE_GITHUB_SAFE_AUTONOMY=true` önceden yetkilendirilmiş, doğrulanmış
+hesap sahibinin ayrı geliştirme dalı ve taslak PR işlerinde tekrar onay
+istememesini sağlar. Bağlantıyı kurmak bu modu doğrulamaz: gerçek kullanıcı
+oturumundan küçük bir branch/file/draft PR denemesiyle commit ve PR kanıtı
+kontrol edilmelidir. Kritik yayın, merge, silme, güvenlik/izin değişiklikleri
+ve keyfi komutlar bu rutin kapsama girmez.

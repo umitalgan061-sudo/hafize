@@ -24,6 +24,7 @@ import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/git
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/github-workspace-write.ts';
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
+import { createGitHubAgentInspection } from './lib/github-agent-inspection.ts';
 import { createGitHubAgentDevelopment } from './lib/github-agent-development.ts';
 import { allowSafeGitHubAutonomy } from './lib/github-agent-autonomy.ts';
 import { parseRuntimeConfig } from './lib/runtime-config.ts';
@@ -91,7 +92,7 @@ const WEB_TOOLS = createWebTools({
 });
 const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 100, 4, 100);
 const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 8, 1, MAX_EXPERT_ROUNDS);
-const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
+const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
 // until restart so the picker stops offering them.
@@ -147,29 +148,35 @@ const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WR
 // Agent access is narrower than the UI writer; Retake is not enabled by default.
 const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')
   .filter((repo) => GITHUB_WRITE_REPOS.some((item) => item.toLowerCase() === repo.toLowerCase()));
-const GITHUB_READ_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_ALLOWED_REPOS.length);
+const GITHUB_PUBLIC_READ = /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_PUBLIC_READ || '').trim());
+const GITHUB_READ_CONFIGURED = Boolean((GITHUB_TOKEN || GITHUB_PUBLIC_READ) && GITHUB_ALLOWED_REPOS.length);
 const GITHUB_WRITE_CONFIGURED = Boolean(GITHUB_TOKEN && GITHUB_WRITE_REPOS.length);
 const GITHUB_READ_FILE = createGitHubReadFile({
+  allowPublicRead: GITHUB_PUBLIC_READ,
   token: GITHUB_TOKEN,
   fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
 const GITHUB_WORKSPACE_READER = createGitHubWorkspaceReader({
+  allowPublicRead: GITHUB_PUBLIC_READ,
   token: GITHUB_TOKEN,
   fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS,
   readFile: GITHUB_READ_FILE
 });
 const GITHUB_WORKSPACE_EXTRA = createGitHubWorkspaceExtra({
+  allowPublicRead: GITHUB_PUBLIC_READ,
   token: GITHUB_TOKEN,
   fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
 const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
+  allowPublicRead: GITHUB_PUBLIC_READ,
   token: GITHUB_TOKEN,
   fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
+const GITHUB_INSPECT = createGitHubAgentInspection({ reader: GITHUB_WORKSPACE_READER, extra: GITHUB_WORKSPACE_EXTRA, details: GITHUB_WORKSPACE_DETAILS, allowedRepositories: GITHUB_ALLOWED_REPOS, token: GITHUB_TOKEN, allowPublicRead: GITHUB_PUBLIC_READ, fetchImpl: GITHUB_FETCH });
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   token: GITHUB_TOKEN,
   fetchImpl: GITHUB_FETCH,
@@ -862,7 +869,7 @@ async function handleAgentRun(req, res) {
       return PLATFORM.wrapDelegation(traceId, ({ agent: expert, task: expertTask, repair }) => runDelegatedAgent({
         agent: expert,
         task: repair ? `${expertTask}\n\n${repair}` : expertTask,
-        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry },
+        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry, githubInspect: GITHUB_INSPECT },
         maxRounds: EXPERT_TOOL_ROUNDS,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
@@ -893,6 +900,8 @@ async function handleAgentRun(req, res) {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    githubInspect: GITHUB_INSPECT,
+    githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
     safeGitHubAutonomy,
     delegateAgent: (args) => delegator.delegate(args, { depth: 0 }),
     approvalGranted: false,
@@ -1484,6 +1493,9 @@ const server = createServer(async (req, res) => {
         localModelEnabled: MODEL_PROVIDER_RUNTIME.publicStatus().localEnabled,
         githubReadConfigured: GITHUB_READ_CONFIGURED,
         githubWriteConfigured: GITHUB_WRITE_CONFIGURED,
+        githubReadMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured',
+        githubAppConfigured: Boolean(GITHUB_APP_AUTH),
+        githubAgentDevelopmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()),
         canvaReadConfigured: CANVA_AGENT_RUNTIME.configured,
         gmailReadConfigured: GMAIL_AGENT_RUNTIME.configured,
         contextCompactionConfigured: true,

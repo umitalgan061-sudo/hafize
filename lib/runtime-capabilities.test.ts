@@ -50,3 +50,13 @@ describe('authoritative runtime awareness', () => {
     expect(result).toMatchObject({ ok: false, error: 'TOOL_ABORTED' });
   });
 });
+
+describe('connection-aware GitHub capability reporting', () => {
+  it('reports public inspection without misrepresenting write access', () => {
+    const snapshot = capabilitySnapshot([{ name: 'github_inspect', state: 'available' }, { name: 'github_develop', state: 'unavailable' }], budget, 13, { readMode: 'public_read_only', appConfigured: false, readRepositories: ['owner/example'], developmentRepositories: [], developmentConfigured: false, safeOwnerDevelopment: false, interactiveApproval: false });
+    const answer = formatCapabilityAnswer(snapshot);
+    expect(answer).toContain('salt-okunur');
+    expect(answer).toContain('GitHub App sunucu kurulumu eksik');
+    expect(snapshot.availableTools).not.toContain('github_develop');
+  });
+});

@@ -29,7 +29,17 @@ export interface ToolInventoryEntry {
   readonly state: 'available' | 'unavailable' | 'not_authorized' | 'approval_required';
 }
 
-export function capabilitySnapshot(inventory: readonly ToolInventoryEntry[], budget: RuntimeBudget | null, agentCount: number) {
+export interface GitHubConnectionStatus {
+  readonly readMode: 'app' | 'configured_credential' | 'public_read_only' | 'not_configured';
+  readonly appConfigured: boolean;
+  readonly readRepositories: readonly string[];
+  readonly developmentRepositories: readonly string[];
+  readonly developmentConfigured: boolean;
+  readonly safeOwnerDevelopment: boolean;
+  readonly interactiveApproval: boolean;
+}
+
+export function capabilitySnapshot(inventory: readonly ToolInventoryEntry[], budget: RuntimeBudget | null, agentCount: number, github: GitHubConnectionStatus | null = null) {
   const availableTools = inventory.filter(item => item.state === 'available').map(item => item.name);
   return {
     catalogSize: inventory.length,
@@ -39,6 +49,7 @@ export function capabilitySnapshot(inventory: readonly ToolInventoryEntry[], bud
     agentCount,
     specialistCount: Math.max(0, agentCount - 1),
     budget: budget ? budgetSnapshot(budget) : null,
+    github,
     availabilityIsNotExecutionProof: true
   };
 }
@@ -51,6 +62,8 @@ export function capabilityInstruction(snapshot: CapabilitySnapshot): string {
     '\nAraç türü, araç turu ve tekil çağrı farklıdır. Kullanıcı kapasiteyi sorarsa bu gerçek değerleri kullan; sınırsız çalışma iddia etme. ' +
     'Katalogdaki ama kullanılabilir olmayan araçları aktif diye sunma. runtime_status güncel sayaçları döndürür. ' +
     'Bir aracın kullanılabilir olması her işlemi yapabileceği, onaysız yazabileceği veya görevin tamamlandığı anlamına gelmez. ' +
+    'GitHub geliştirme talebinde github_inspect ile güncel main SHA, mevcut PR durumu ve ilgili test kanıtlarını doğrula. Eski sohbet veya uyarı mesajından kesin hata teşhisi üretme. ' +
+    'Araç yoksa yetkiyi dolanmak için shell_run, git_run, web, kod çalıştırma veya başka ajan kullanma; eksik bağlantıyı belirt ve izinli salt-okunur analiz yap. ' +
     'Kesinti, sağlayıcı kotası, bağlam ve zaman aşımı daha erken sonlandırabilir.';
 }
 
@@ -77,6 +90,12 @@ export function formatCapabilityAnswer(snapshot: CapabilitySnapshot): string {
     '',
     '**Aktif araçlar:** ' + (snapshot.availableTools.join(', ') || 'yok'),
     '',
+    ...(snapshot.github ? [
+      '**GitHub bağlantısı:** ' + ({ app: 'GitHub App yapılandırılmış (canlı erişim ayrıca doğrulanmalı)', configured_credential: 'okuma kimliği yapılandırılmış', public_read_only: 'izinli açık depoları salt-okunur okuyabilir', not_configured: 'okuma bağlantısı yapılandırılmamış' }[snapshot.github.readMode]),
+      'GitHub yazma: ' + (!snapshot.github.appConfigured ? 'GitHub App sunucu kurulumu eksik' : !snapshot.github.developmentConfigured ? 'geliştirme depo izin listesi/servisi hazır değil' : !snapshot.availableTools.includes('github_develop') ? 'bu oturumun ajan yetkisi veya onay kanalı uygun değil' : 'ayrı dal ve taslak PR hazırlama aracı sunuluyor; gerçek erişim ayrıca doğrulanmalı'),
+      'Okuma depoları: ' + (snapshot.github.readRepositories.join(', ') || 'yok'),
+      'Ajan geliştirme kapsamı: ' + (snapshot.github.developmentRepositories.join(', ') || 'yok'), ''
+    ] : []),
     '**Bu oturumda aktif olmayan araçlar:** ' + (snapshot.unavailableTools.map(item => item.name + ' (' + ({ unavailable: 'bağlantı/servis hazır değil', not_authorized: 'bu ajan için yetkili değil', approval_required: 'izin gerekli', available: 'aktif' }[item.state]) + ')').join(', ') || 'yok'),
     '',
     'Bunlar sunucu tarafından doğrulanan oturum bilgileridir. Araç çağrıları sınırsız değildir; görev daha erken bitebilir veya bağlantı, kota ve zaman aşımı nedeniyle kesilebilir. Aktif araçların her işlemi için gerekli izinler geçerlidir.'

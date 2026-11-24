@@ -18,6 +18,7 @@ export class GitHubWorkspaceDetailsError extends Error {
 
 type Options = {
   readonly token?: string;
+  readonly allowPublicRead?: boolean;
   readonly allowedRepositories?: readonly string[];
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
@@ -54,12 +55,14 @@ export function createGitHubWorkspaceDetails(options: Options = {}) {
   }
 
   async function request(pathname: string): Promise<unknown> {
-    if (!token || typeof fetchImpl !== 'function') throw new GitHubWorkspaceDetailsError('GITHUB_NOT_CONFIGURED', 503);
+    if ((!token && options.allowPublicRead !== true) || typeof fetchImpl !== 'function') throw new GitHubWorkspaceDetailsError('GITHUB_NOT_CONFIGURED', 503);
     const response = await fetchImpl(new URL(baseUrl + pathname), {
       method: 'GET',
+      redirect: 'error',
+      signal: AbortSignal.timeout(45_000),
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: 'Bearer ' + token,
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
         'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'Hafize-GitHub-Workspace'
       }
@@ -124,6 +127,10 @@ export function createGitHubWorkspaceDetails(options: Options = {}) {
       title: clamp(item.title, 240),
       state: clamp(item.state, 20),
       draft: item.draft === true,
+      merged: item.merged === true,
+      mergeCommitSha: clamp(item.merge_commit_sha, 80),
+      headSha: clamp(head.sha, 80),
+      baseSha: clamp(base.sha, 80),
       author: clamp(user.login, 120),
       body: clamp(item.body, MAX_BODY),
       createdAt: clamp(item.created_at, 40),
