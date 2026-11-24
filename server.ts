@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {KIMI_K31_PRO,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
+import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
@@ -93,7 +93,7 @@ const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(proce
 const LAB_CONNECTION = modelLabConnection(process.env);
 const LAB_MODEL_CHAIN = parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
 // Explicit operator allowlist; never auto-promote the discovery catalog.
-const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', KIMI_K31_PRO, ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-LAB_MODEL_CHAIN.length));
+const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', KIMI_K31_PRO,GEMMA_4,OMNI, ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-LAB_MODEL_CHAIN.length));
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
 let MODEL_LAB_STORAGE;
 if (LAB_CONNECTION.connection && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
@@ -104,7 +104,7 @@ const LAB_DIRECT = LAB_CONNECTION.connection;
 const MODEL_LAB = LAB_DIRECT ? createModelLab({
   allowed: [...LAB_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
   storage: MODEL_LAB_STORAGE,
-  specialistModels: (process.env.HAFIZE_MODEL_LAB_EMBEDDINGS || 'nvidia/nemotron-3-embed-1b').split(',').map(id=>id.trim()),
+  specialistModels: (process.env.HAFIZE_MODEL_LAB_EMBEDDINGS || 'nvidia/nemotron-3-embed-1b,nvidia/nemotron-3.5-embed-1b,nvidia/nemotron-3.5-embed-8b').split(',').map(id=>id.trim()),
   request: (path, body, signal) => fetch(LAB_DIRECT.baseUrl + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + LAB_DIRECT.apiKey, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
