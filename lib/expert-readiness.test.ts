@@ -1,9 +1,9 @@
 import {it,expect} from 'vitest';
 import {loadAgentRegistry} from './agent-runtime.ts';
 import {auditExpertContracts} from './expert-readiness.ts';
-it('checks all twelve specialists without contacting a provider or executing tools',async()=>{
+it('checks all 45 specialists without contacting a provider or executing tools',async()=>{
  const registry=await loadAgentRegistry();const report=auditExpertContracts(registry);
- expect(report).toHaveLength(12);expect(report.filter(r=>!r.passed)).toEqual([]);
+ expect(report).toHaveLength(45);expect(report.filter(r=>!r.passed)).toEqual([]);
  expect(report.every(r=>r.mode==='offline_contract')).toBe(true);
 });
 it('detects missing experts and removed critical capability permissions',async()=>{
