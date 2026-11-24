@@ -295,3 +295,19 @@ it('executes at most five exact-model calls in a comprehensive round and skips f
  expect(result.smoke.map(r=>r.model)).toEqual([a]);expect(result.deep?.model).toBe(a);expect(result.embedding?.model).toBe(embed);expect(result.pending).toEqual([b]);expect(request).toHaveBeenCalledTimes(5);
  const second=await lab.comprehensive();expect(second.smoke.map(r=>r.model)).toEqual([b]);expect(second.deep?.model).toBe(b);expect(second.embedding).toBeNull();expect(request).toHaveBeenCalledTimes(9);
 });
+
+it('uses Kimi documented request fields for a real-lab synthetic transport without changing the other candidates',async()=>{
+ const model='moonshotai/kimi-k3.1-pro';
+ const request=vi.fn(async(_path:string,body:Record<string,unknown>|null)=>{
+ expect(body?.model).toBe(model);
+ expect(body?.reasoning_effort).toBe('low');
+ expect(body?.seed).toBe(0);
+ expect(body?.max_tokens).toBe(1024);
+ expect(body).not.toHaveProperty('temperature');
+ expect(body).not.toHaveProperty('tool_choice');
+ return reply(body?.tools?tool:valid);
+ });
+ const lab=createModelLab({allowed:[model],request});
+ expect(await lab.probe(model)).toMatchObject({model,status:'passed',tools:true});
+ expect(request).toHaveBeenCalledTimes(2);
+});
