@@ -1,3 +1,4 @@
+import { OWNER_PROJECTS, OWNER_REPOSITORIES, matchOwnerProjects } from './owner-project-catalog.ts';
 import { describe, expect, it } from 'vitest';
 import { budgetSnapshot, capabilitySnapshot, capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion } from './runtime-capabilities.ts';
 import { getAllowedNvidiaTools, getRuntimeCapabilities, executeNvidiaToolCall, listToolPermissions } from './tool-runtime.ts';
@@ -69,14 +70,32 @@ describe('owner project discovery', () => {
     expect(msg).toContain('umitalgan061-sudo/hafize-siteler');
     expect(msg).toContain('borsa-gunlugu/');
     expect(msg).toContain('borsa-gunlugu-ua.web.app');
-    expect(msg).toContain('Depo okuma izin listesinde değil');
+    expect(msg).toContain('okuma izin listesinde değil');
     expect(msg).toContain('proje yok deme');
-    expect(msg).toContain('Depo ajan geliştirme listesinde değil');
+    expect(msg).toContain('ajan geliştirme listesinde değil');
   });
   it('directs allowed reads to the correct repository without treating that as write permission', () => {
     const msg = capabilityInstruction(capabilitySnapshot([], null, 1, { ...base, readRepositories: ['umitalgan061-sudo/hafize-siteler'] }));
     expect(msg).toContain('github_inspect ile önce bu depoyu kontrol et');
-    expect(msg).toContain('Depo ajan geliştirme listesinde değil');
+    expect(msg).toContain('ajan geliştirme listesinde değil');
     expect(msg).toContain('mevcut canlı site veya erişim kanıtı değildir');
+  });
+});
+
+
+describe('complete owner project inventory',()=>{
+  it('covers every inspected repository, distinguishes subprojects and does not invent unknown URLs',()=>{
+    expect(OWNER_REPOSITORIES.length).toBe(14);
+    expect(OWNER_PROJECTS.filter(p=>p.repository.endsWith('/hafize-siteler')).length).toBe(3);
+    expect(OWNER_PROJECTS.find(p=>p.id==='westeros')?.urls).toEqual([]);
+    expect(OWNER_PROJECTS.find(p=>p.id==='tarim')?.urls).toEqual([]);
+  });
+  it('resolves Turkish project names and URLs without mistaking similar names',()=>{
+    for (const [query,id] of [['Borsa Günlüğü sitesini incele','borsa'],['borsa-gunlugu-ua.web.app','borsa'],['Tiyatro Günlüğü','etkinlik'],['Westeros haritası','westeros'],['Ankara 3D haritası','ankara3d'],['hafize-weight-space-demo-2.web.app','weight2'],['Retake06-ua','retake']]) {
+      expect(matchOwnerProjects(query).map(p=>p.id)).toEqual([id]);
+    }
+    expect(matchOwnerProjects('bilinmeyen proje')).toEqual([]);
+    expect(matchOwnerProjects('Borsa Günlüğü ve Retake').map(p=>p.id)).toEqual(['borsa','retake']);
+    expect(matchOwnerProjects('hafize-ua.web.app').map(p=>p.id)).toEqual(['hafize','hafize-legacy']);
   });
 });
