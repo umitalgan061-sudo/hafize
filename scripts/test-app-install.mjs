@@ -47,3 +47,6 @@ for (const asset of ['/icons/icon-192.png', '/icons/icon-512.png']) assert.equal
 const guard = readFileSync(new URL('lib/production-guard.ts', root), 'utf8');
 for (const route of ['/api/localhost', '/api/screen', '/api/install-info']) assert.equal(guard.includes(`'${route}'`), true, `${route} requires a principal`);
 console.log('app install tests passed');
+
+const {labStatusLabel,labCapabilityLabel,labActionAllowed,releaseVerification}=await import('../public/typed/model-lab-display.ts');
+assert.match(labStatusLabel('timeout'),/yanıt alınamadı/);assert.equal(labCapabilityLabel(false,false),'Ölçülmedi');assert.equal(labCapabilityLabel(false,true),'Geçemedi');assert.equal(labActionAllowed('probe',true,false,'a',['a'],['b'],false,false,12),true);assert.equal(labActionAllowed('probe',true,false,'b',['a'],['b'],false,false,12),false);assert.equal(labActionAllowed('specialist',true,false,'b',['a'],['b'],false,false,12),true);assert.equal(labActionAllowed('status',false,false,'',[],[],false,false,0),true);assert.equal(labActionAllowed('batch',true,false,'a',['a'],[],false,true,12),false);assert.equal(releaseVerification.rows.filter(r=>r.status==='passed').length,4);

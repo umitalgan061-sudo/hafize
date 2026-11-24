@@ -327,3 +327,5 @@ it('tests Riva with one synthetic translation request and the documented languag
  expect(await lab.translationProbe()).toMatchObject({status:'passed',translated:true});
  expect(request).toHaveBeenCalledTimes(1);
 });
+
+it('persists a sanitized translation result across lab restart',async()=>{let snapshot:unknown;const storage={load:()=>snapshot,save:(v:unknown)=>{snapshot=v;}};const request=vi.fn(async()=>reply({content:'Teşekkür ederim.'}));const opts={allowed:[],request,storage};const first=createModelLab(opts);await first.translationProbe();const second=createModelLab(opts);expect(second.status().translationResult).toMatchObject({status:'passed',translated:true,model:'nvidia/riva-translate-4b-instruct-v2'});expect(request).toHaveBeenCalledTimes(1);});
