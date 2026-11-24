@@ -252,6 +252,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let orb: VoiceOrb | null = null;
   let state: VoiceModeState = 'closed';
   let recognition: RecognitionLike | null = null;
+  let recognitionReady=false;
   let muted = false;
   let manualEnd = false;
   let silentRetries = 0;
@@ -260,7 +261,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let echoUntil = 0;
   let playbackActive = false;
   let listeningBlocked = false;
-  const rememberPlayback = (text:string) => {if(text.trim()){echoReference=(echoReference+' '+text).slice(-1600);echoUntil=now()+2200;}};
+  const rememberPlayback = (text:string) => {if(text.trim()){if(!playbackActive&&now()>=echoUntil)echoReference='';echoReference=(echoReference+' '+text).slice(-1600);echoUntil=now()+2200;}};
   const overlapsReply = () => playbackActive || awaitingReply || input.disabled;
   const isEcho = (text:string) => (playbackActive || now()<echoUntil) && isPlaybackEcho(text,echoReference);
   let awaitingReply = false;
@@ -357,7 +358,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const stopRecognition = (abort = false) => {
     const active = recognition;
-    if (abort) { recognition = null; clearRecognitionTimers(); }
+    if (abort) { recognition = null; recognitionReady=false; clearRecognitionTimers(); }
     if (!active) return;
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
     if (abort || recognition !== active) return;
@@ -492,6 +493,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     try { current = new Recognition(); }
     catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
+    recognitionReady=false;
     current.lang = 'tr-TR';
     current.interimResults = true;
     current.continuous = speechProfile.continuous;
@@ -499,6 +501,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.onstart = () => {
       if (recognition !== current) return;
       recognitionStarted = true;
+      recognitionReady=true;
       if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
       recognitionStartTimer = null;
       if(!overlapsReply()){setState('listening', 'Dinliyorum…');setCaption(['', '', ''], 'user');}
@@ -518,6 +521,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         // Safari can dispatch "start" and show the mic dot yet never report
         // speech, transcription, error or end on subsequent voice turns.
         recognition = null;
+        recognitionReady=false;
         clearRecognitionTimers();
         try { current.abort(); } catch { /* session may already be gone */ }
         retryListening('Mikrofon açık görünüyor ama ses tanıma yanıt vermiyor · yeniden deniyorum…', true);
@@ -592,6 +596,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.onend = () => {
       if (recognition !== current) return;
       recognition = null;
+      recognitionReady=false;
       clearRecognitionTimers();
       if (state === 'closed' || muted || documentRef.hidden) return;
       // Only finalized words can interrupt an answer. Interim guesses and echoed
@@ -615,11 +620,13 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         recognitionStartTimer = null;
         if (recognition !== current || recognitionStarted) return;
         recognition = null;
+        recognitionReady=false;
         try { current.abort(); } catch { /* recognition may have already ended */ }
         retryListening('Mikrofon yanıt vermedi, yeniden deneniyor…');
       }, RECOGNITION_START_TIMEOUT_MS);
     } catch {
       recognition = null;
+      recognitionReady=false;
       clearRecognitionTimers();
       retryListening('Mikrofon yeniden başlatılıyor…');
     }
@@ -824,7 +831,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const onOutputState = (event: Event) => {
     const detail = (event as CustomEvent).detail;
     if (state === 'closed' || detail?.source !== 'voice-output') return;
-    if (detail.speaking && (detail.origin === ORIGIN || detail.origin === 'voice-mode-sample')) { playbackActive=true; if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); listen(); if(recognition)statusEl.textContent='Hafize konuşuyor · mikrofon açık'; return; }
+    if (detail.speaking && (detail.origin === ORIGIN || detail.origin === 'voice-mode-sample')) { playbackActive=true; if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); listen(); if(recognitionReady)statusEl.textContent='Hafize konuşuyor · mikrofon açık'; return; }
     if (detail.speaking && detail.origin !== ORIGIN && detail.origin !== 'voice-mode-sample') return;
     if(!detail.speaking&&playbackActive){playbackActive=false;echoUntil=now()+2200;}
     if (!detail.speaking && state === 'speaking') {
