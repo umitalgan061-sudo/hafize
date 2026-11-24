@@ -1,6 +1,7 @@
 // TypeScript migration wave 2026-09.
 // Behavior is preserved while the browser module moves behind the typed Vite boundary.
 // @ts-nocheck
+import {summarizeScheduleRuntime} from './schedule-runtime-card.ts';
 (function installScheduledTasksWorkspace(root) {
   'use strict';
 
@@ -18,6 +19,21 @@
   let controller = null;
   let nextCursor=null, listGeneration=0, listLoading=false, mutationPending=false;
   let loadedIds=new Set();
+  let runtimeAbort=null, runtimeGeneration=0;
+  async function refreshRuntime(){
+    if(!panel||panel.hidden)return;
+    const card=panel.querySelector('#scheduleRuntimeCard');if(!card)return;
+    runtimeAbort?.abort();const request=new AbortController();runtimeAbort=request;const ticket=++runtimeGeneration;
+    const status=card.querySelector('#scheduleRuntimeState');const list=card.querySelector('#scheduleRuntimeSignals');const refresh=card.querySelector('#scheduleRuntimeRefresh');
+    refresh.disabled=true;card.setAttribute('aria-busy','true');status.textContent='Görev motoru durumu alınıyor…';
+    const timer=setTimeout(()=>request.abort(),12000);
+    let report;
+    try{const response=await (root.HafizeAuth?.fetch||root.fetch.bind(root))('/api/health',{cache:'no-store',signal:request.signal,headers:{Accept:'application/json'}});if(!response.ok)throw Error('HEALTH_UNAVAILABLE');report=summarizeScheduleRuntime(await response.json());}catch{report=summarizeScheduleRuntime(null);}finally{clearTimeout(timer);}
+    if(ticket!==runtimeGeneration||panel.hidden)return;
+    status.textContent=report.summary;status.dataset.state=report.state;list.replaceChildren();
+    for(const row of report.signals){const item=make('li',undefined,'schedule-runtime-signal');item.dataset.state=row.state;item.append(make('strong',row.label+' · '+({configured:'Yapılandırılmış',missing:'Eksik',unknown:'Bilinmiyor'}[row.state])),make('small',row.detail));list.append(item);}
+    refresh.disabled=false;card.removeAttribute('aria-busy');runtimeAbort=null;
+  }
 
   const doc = () => root.document;
   const make = (tag, text, className) => {
@@ -134,7 +150,13 @@
     const more=button('Daha fazla görev yükle','more','mini-btn');more.hidden=true;
     listSection.append(filter, list,more);
     const statusNode = make('div', '', 'scheduled-tasks-status'); statusNode.setAttribute('role','status'); statusNode.setAttribute('aria-live','polite');
-    shell.append(head, create, statusNode, listSection); panel.append(shell); doc().body.append(panel);
+    const runtimeCard=make('section',undefined,'schedule-runtime-card');runtimeCard.id='scheduleRuntimeCard';runtimeCard.setAttribute('aria-labelledby','scheduleRuntimeTitle');
+    const runtimeTitle=make('strong','Görev motoru');runtimeTitle.id='scheduleRuntimeTitle';
+    const runtimeStatus=make('p','Görev motoru durumu henüz alınmadı.');runtimeStatus.id='scheduleRuntimeState';runtimeStatus.setAttribute('role','status');
+    const runtimeList=make('ul',undefined,'schedule-runtime-signals');runtimeList.id='scheduleRuntimeSignals';
+    const runtimeRefresh=button('Motor durumunu yenile','','mini-btn');runtimeRefresh.id='scheduleRuntimeRefresh';runtimeRefresh.addEventListener('click',()=>void refreshRuntime());
+    runtimeCard.append(runtimeTitle,runtimeStatus,runtimeList,runtimeRefresh);
+    shell.append(head, runtimeCard, create, statusNode, listSection); panel.append(shell); doc().body.append(panel);
 
     create.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -229,11 +251,11 @@
     if (!panel) return;
     lastFocus = doc().activeElement; panel.hidden = false; selectedStatus = 'all';
     const filter = panel.querySelector('.scheduled-tasks-filter select'); if (filter) filter.value = 'all';
-    refresh(); clearInterval(refreshTimer); refreshTimer = root.setInterval?.(()=>{if(!listLoading&&loadedIds.size<=100)void refresh();}, REFRESH_MS) || 0;
+    refresh(); void refreshRuntime(); clearInterval(refreshTimer); refreshTimer = root.setInterval?.(()=>{if(!listLoading&&loadedIds.size<=100)void refresh();}, REFRESH_MS) || 0;
     panel.querySelector('[data-task-action="close"]')?.focus();
   }
 
-  function close() { if (!panel) return; panel.hidden = true; listGeneration++;listLoading=false; clearInterval(refreshTimer); refreshTimer = 0; controller?.abort?.(); lastFocus?.focus?.(); lastFocus = null; }
+  function close() { if (!panel) return; panel.hidden = true; runtimeGeneration++;runtimeAbort?.abort();runtimeAbort=null; listGeneration++;listLoading=false; clearInterval(refreshTimer); refreshTimer = 0; controller?.abort?.(); lastFocus?.focus?.(); lastFocus = null; }
 
   function boot() {
     if (mounted || !doc()) return;
