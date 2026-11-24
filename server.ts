@@ -1,5 +1,5 @@
-import { createGitHubAgentRelease } from './lib/github-agent-release.ts';
 // @ts-nocheck
+import { createGitHubAgentRelease, releaseAuthorizationForRequest } from './lib/github-agent-release.ts';
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
@@ -967,6 +967,7 @@ async function handleAgentRun(req, res) {
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
     githubRelease: GITHUB_AGENT_RELEASE,
+    githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
     githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
     safeGitHubAutonomy,

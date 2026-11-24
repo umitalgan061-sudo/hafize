@@ -73,7 +73,8 @@ export interface ToolRuntimeContext {
   };
   /** Set ONLY by trusted server after owner session and config checks. */
   readonly safeGitHubAutonomy?: boolean;
-  readonly githubRelease?: {enabled:()=>boolean;execute:(args:unknown,context:{ownerAuthorized:boolean;requestApproval?:ToolRuntimeContext['requestApproval'];signal?:AbortSignal})=>Promise<unknown>};
+  readonly githubReleaseAuthorization?: import('./github-agent-release.ts').ReleaseAuthorization;
+  readonly githubRelease?: {enabled:()=>boolean;execute:(args:unknown,context:{ownerAuthorized:boolean;authorization?:import('./github-agent-release.ts').ReleaseAuthorization;signal?:AbortSignal})=>Promise<unknown>};
   readonly delegateAgent?: (args: unknown) => Promise<unknown>;
   readonly approvalGranted?: boolean;
   readonly canvaReadAuthenticated?: boolean;
@@ -331,9 +332,9 @@ const CATALOG = new Map<string, ToolEntry>([
   ['github_release', {
     permission:'repo.release_request',kind:'repository',timeoutMs:timeout(120_000),
     activity:{running:'GitHub yayın kanıtı kontrol ediliyor',success:'GitHub yayın adımı yanıtlandı',failure:'GitHub yayın adımı engellendi'},
-    definition:strictDefinition('github_release','Sadece yetkili hesap sahibi ve işlem onayıyla: open incelemeye hazır PR açar; merge tam head SHA ve PR numarası ile CI/dal koruması/dosya kapsamı doğrulanır, squash merge yapılır; publish yalnız mevcut main SHA için Hafize Firebase veya Borsa Cloudflare workflow başlatır. Yayın kuyruğu canlı doğrulama değildir. Draft PR merge edilmez. Önce github_inspect kullan.',{action:{type:'string',enum:['open','merge','publish']},repository:{type:'string'},branch:{type:'string'},title:{type:'string'},body:{type:'string'},number:{type:'integer'},sha:{type:'string'},target:{type:'string',enum:['firebase','cloudflare']}},['action','repository']),
-    available:context=>Boolean(context.githubRelease?.enabled()&&context.safeGitHubAutonomy===true&&typeof context.requestApproval==='function'),
-    execute:async(args,context)=>context.githubRelease!.execute(args,{ownerAuthorized:context.safeGitHubAutonomy===true,requestApproval:context.requestApproval,signal:context.signal})
+    definition:strictDefinition('github_release','Sadece yetkili hesap sahibi, önceden tanımlı sunucu izni ve mevcut kullanıcının açık proje/yayın talebi kapsamında, ek onay penceresi olmadan: open incelemeye hazır PR açar; merge tam head SHA ve PR numarası ile CI/dal koruması/dosya kapsamı doğrulanır, squash merge yapılır; publish yalnız mevcut main SHA için Hafize Firebase veya Borsa Cloudflare workflow başlatır. Yayın kuyruğu canlı doğrulama değildir. Draft PR merge edilmez. Önce github_inspect kullan.',{action:{type:'string',enum:['open','merge','publish']},repository:{type:'string'},branch:{type:'string'},title:{type:'string'},body:{type:'string'},number:{type:'integer'},sha:{type:'string'},target:{type:'string',enum:['firebase','cloudflare']}},['action','repository']),
+    available:context=>Boolean(context.githubRelease?.enabled()&&context.safeGitHubAutonomy===true&&context.githubReleaseAuthorization?.actions.length),
+    execute:async(args,context)=>context.githubRelease!.execute(args,{ownerAuthorized:context.safeGitHubAutonomy===true,authorization:context.githubReleaseAuthorization,signal:context.signal})
   }],
   ['canva_read', {
     permission: 'connector.canva.read',

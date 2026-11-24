@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createGitHubAgentRelease,releasePathAllowed} from './github-agent-release.ts';
+import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest} from './github-agent-release.ts';
 import type {createGitHubWorkspaceWriter} from './github-workspace-write.ts';
 const repo='umitalgan061-sudo/hafize-siteler',sha='a'.repeat(40),base='b'.repeat(40);
 function fixture(opts:{failed?:boolean;path?:string;draft?:boolean}={}){
@@ -16,30 +16,45 @@ function fixture(opts:{failed?:boolean;path?:string;draft?:boolean}={}){
   throw Error('unexpected '+p);
  }) as unknown as typeof fetch;
  const release=createGitHubAgentRelease({writer,allowedRepositories:[repo],fetchImpl});
- const requestApproval=vi.fn(async()=>true);
- return {release,fetchImpl,requestApproval};
+ const authorization={repositories:[repo],actions:['open','merge','publish']};
+ return {release,fetchImpl,authorization};
 }
 describe('bounded GitHub release',()=>{
- it('requires authenticated owner and exact approval; does not claim publish on merge',async()=>{
-  const {release,fetchImpl,requestApproval}=fixture();
+ it('requires authenticated owner and scoped standing authorization; does not claim publish on merge',async()=>{
+  const {release,fetchImpl,authorization}=fixture();
   const args={action:'merge',repository:repo,number:3,sha};
-  await expect(release.execute(args,{ownerAuthorized:false,requestApproval})).rejects.toMatchObject({code:'RELEASE_OWNER_APPROVAL_REQUIRED'});
+  await expect(release.execute(args,{ownerAuthorized:false,authorization})).rejects.toMatchObject({code:'RELEASE_NOT_AUTHORIZED_FOR_TASK'});
   expect(fetchImpl).not.toHaveBeenCalled();
-  await expect(release.execute(args,{ownerAuthorized:true,requestApproval})).resolves.toMatchObject({merged:true,published:false,mergeCommitSha:'c'.repeat(40)});
-  expect(requestApproval).toHaveBeenCalledTimes(1);
+  await expect(release.execute(args,{ownerAuthorized:true,authorization})).resolves.toMatchObject({merged:true,published:false,mergeCommitSha:'c'.repeat(40)});
+  expect(fetchImpl).toHaveBeenCalled();
  });
- it('blocks failed CI, draft, and cross-project paths before approval',async()=>{
+ it('blocks failed CI, draft, and cross-project paths before mutation',async()=>{
   for(const [opts,code] of [[{failed:true},'RELEASE_CI_NOT_GREEN'],[{draft:true},'RELEASE_PR_NOT_READY'],[{path:'hafize-worker/src/index.js'},'RELEASE_PATH_NOT_ALLOWED']] as const){
-   const {release,requestApproval}=fixture(opts);
-   await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,requestApproval})).rejects.toMatchObject({code});
-   expect(requestApproval).not.toHaveBeenCalled();
+   const {release,authorization}=fixture(opts);
+   await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,authorization})).rejects.toMatchObject({code});
+   expect(authorization.repositories).toEqual([repo]);
   }
  });
- it('dispatches only known target at exact current main after approval',async()=>{
-  const {release,requestApproval}=fixture();
-  await expect(release.execute({action:'publish',repository:repo,sha:base,target:'cloudflare'},{ownerAuthorized:true,requestApproval})).resolves.toMatchObject({dispatchAccepted:true,published:false});
-  await expect(release.execute({action:'publish',repository:repo,sha,target:'cloudflare'},{ownerAuthorized:true,requestApproval})).rejects.toMatchObject({code:'RELEASE_BASE_MOVED'});
+ it('dispatches only known target at exact current main under standing authorization',async()=>{
+  const {release,authorization}=fixture();
+  await expect(release.execute({action:'publish',repository:repo,sha:base,target:'cloudflare'},{ownerAuthorized:true,authorization})).resolves.toMatchObject({dispatchAccepted:true,published:false});
+  await expect(release.execute({action:'publish',repository:repo,sha,target:'cloudflare'},{ownerAuthorized:true,authorization})).rejects.toMatchObject({code:'RELEASE_BASE_MOVED'});
   expect(releasePathAllowed(repo,'.github/workflows/yayin.yml')).toBe(false);
   expect(releasePathAllowed(repo,'borsa-worker/src/auth.js')).toBe(false);
  });
+});
+
+it('limits no-prompt releases to explicit user requests and the correct project',()=>{
+ expect(releaseAuthorizationForRequest('Borsa Günlüğü hatasını çöz, merge et ve canlıya al',true)).toEqual({repositories:[repo],actions:['open','merge','publish']});
+ expect(releaseAuthorizationForRequest('Borsa Günlüğü sitesini incele',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest('Borsa Günlüğü merge et ve canlıya al',false)).toBeUndefined();
+ expect(releaseAuthorizationForRequest('Borsa Günlüğü merge etme',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest('Borsa Günlüğü ve Retake merge et',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest('Hafize-ua.web.app canlıya al',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest("Hafize'yi geliştir ve merge et",true)?.actions).toEqual(['open','merge']);
+});
+it('rejects an unrelated repository even in an authenticated session',async()=>{
+ const {release,fetchImpl}=fixture();
+ await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,authorization:{repositories:['umitalgan061-sudo/hafize'],actions:['merge']}})).rejects.toMatchObject({code:'RELEASE_NOT_AUTHORIZED_FOR_TASK'});
+ expect(fetchImpl).not.toHaveBeenCalled();
 });
