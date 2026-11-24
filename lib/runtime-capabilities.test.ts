@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { budgetSnapshot, capabilitySnapshot, formatCapabilityAnswer, isStandaloneCapabilityQuestion } from './runtime-capabilities.ts';
+import { budgetSnapshot, capabilitySnapshot, capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion } from './runtime-capabilities.ts';
 import { getAllowedNvidiaTools, getRuntimeCapabilities, executeNvidiaToolCall, listToolPermissions } from './tool-runtime.ts';
 import { createAgentRunLedger } from './agent-run-ledger.ts';
 
@@ -58,5 +58,25 @@ describe('connection-aware GitHub capability reporting', () => {
     expect(answer).toContain('salt-okunur');
     expect(answer).toContain('GitHub App sunucu kurulumu eksik');
     expect(snapshot.availableTools).not.toContain('github_develop');
+  });
+});
+
+
+describe('owner project discovery', () => {
+  const base = { readMode: 'app' as const, appConfigured: true, developmentRepositories: [], developmentConfigured: false, safeOwnerDevelopment: false, interactiveApproval: false };
+  it('points to the Borsa monorepo folder and distinguishes a missing read scope from a missing project', () => {
+    const msg = capabilityInstruction(capabilitySnapshot([], null, 1, { ...base, readRepositories: ['umitalgan061-sudo/hafize', 'umitalgan061-sudo/retake'] }));
+    expect(msg).toContain('umitalgan061-sudo/hafize-siteler');
+    expect(msg).toContain('borsa-gunlugu/');
+    expect(msg).toContain('borsa-gunlugu-ua.web.app');
+    expect(msg).toContain('Depo okuma izin listesinde değil');
+    expect(msg).toContain('proje yok deme');
+    expect(msg).toContain('Depo ajan geliştirme listesinde değil');
+  });
+  it('directs allowed reads to the correct repository without treating that as write permission', () => {
+    const msg = capabilityInstruction(capabilitySnapshot([], null, 1, { ...base, readRepositories: ['umitalgan061-sudo/hafize-siteler'] }));
+    expect(msg).toContain('github_inspect ile önce bu depoyu kontrol et');
+    expect(msg).toContain('Depo ajan geliştirme listesinde değil');
+    expect(msg).toContain('mevcut canlı site veya erişim kanıtı değildir');
   });
 });
