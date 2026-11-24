@@ -3,7 +3,7 @@ export const CURRENT_CACHE = `${CACHE_PREFIX}v175`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
-  "/release-update.js",
+  "/typed-build/release-update.js",
   "/offline.html",
   "/styles.css",
   "/premium.css",

@@ -1,7 +1,7 @@
 // Release checks never clear localStorage, cookies, IndexedDB or conversations.
 (() => {
-  const loaded=document.querySelector('meta[name="hafize-release"]')?.content||'';
-  const valid=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
+  const loaded=document.querySelector<HTMLMetaElement>('meta[name="hafize-release"]')?.content||'';
+  const valid=(value:unknown):value is string=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
   let busy=false,latest='',checked=0;
   const publish=()=>window.dispatchEvent(new CustomEvent('hafize:release-status',{detail:{loaded:valid(loaded)?loaded:null,latest:valid(latest)?latest:null,update:valid(loaded)&&valid(latest)&&loaded!==latest}}));
   const refresh=async(force=false)=>{
@@ -15,7 +15,7 @@
       }
     }catch{}finally{busy=false;publish();}
   };
-  window.HafizeRelease=Object.freeze({loaded:valid(loaded)?loaded:null,check:()=>refresh(true),state:()=>({loaded:valid(loaded)?loaded:null,latest:valid(latest)?latest:null})});
+  Object.assign(window,{HafizeRelease:Object.freeze({loaded:valid(loaded)?loaded:null,check:()=>refresh(true),state:()=>({loaded:valid(loaded)?loaded:null,latest:valid(latest)?latest:null})})});
   const start=()=>{void refresh(true);window.addEventListener('focus',()=>void refresh());document.addEventListener('visibilitychange',()=>{if(!document.hidden)void refresh();});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
