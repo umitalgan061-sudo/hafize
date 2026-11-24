@@ -86,3 +86,20 @@ describe('memory backend', () => {
     expect(backend.pendingConversations()).toHaveLength(0);
   });
 });
+
+it('never compares vectors from different models even when dimensions match, including after restart',async()=>{
+  const db=openHafizeDb(':memory:');const crypto=createEnvelopeCrypto({db,masterKey:randomBytes(32)});
+  let model='nvidia-a';
+  const embed=async(texts:readonly string[])=>({model,vectors:texts.map(()=>[1,0])});
+  const backend=createMemoryBackend({db,crypto,embed});
+  await backend.put({ownerId:'u1',content:'Ankara kalesi'});
+  expect((await backend.query({ownerId:'u1',query:'Ankara'}))[0]?.signals.dense).toBe(1);
+  model='local-b';
+  expect((await backend.query({ownerId:'u1',query:'Ankara'}))[0]?.signals.dense).toBeNull();
+  expect(await backend.query({ownerId:'u1',query:'elma'})).toHaveLength(0);
+  await backend.put({ownerId:'u1',content:'yeşil elma'});
+  const restarted=createMemoryBackend({db,crypto,embed});
+  expect((await restarted.query({ownerId:'u1',query:'elma'})).map(row=>row.content)).toEqual(['yeşil elma']);
+  model='nvidia-a';
+  expect((await restarted.query({ownerId:'u1',query:'Ankara'})).map(row=>row.content)).toEqual(['Ankara kalesi']);
+});

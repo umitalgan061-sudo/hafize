@@ -223,3 +223,16 @@ it('benchmarks only configured embedding models with synthetic input and shared 
   await lab.specialistProbe(embed);expect(request).toHaveBeenCalledTimes(1);
   expect(modelLabCommand('Embedding testi: '+embed)).toEqual({action:'specialist',model:embed});
 });
+
+it('preserves a successful council answer when another model fails transport',async()=>{
+  const lab=createModelLab({allowed:[a,b],now:()=>1000000,request:async(_path,body)=>{
+    if(body?.tools)return reply(tool);
+    if((body?.messages as {role:string}[])[0]?.role==='user')return reply(valid);
+    if(body?.model===b)throw Error('network');
+    return reply({content:'İlk yanıt'});
+  }});
+  await lab.probe(a);await lab.probe(b);
+  const council=await lab.council('Soru');
+  expect(council.answers).toEqual([{model:a,status:'passed',answer:'İlk yanıt'},{model:b,status:'failed',answer:''}]);
+  expect(council.review).toBeNull();
+});

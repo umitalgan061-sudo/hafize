@@ -34,3 +34,5 @@ Eşzamanlı sohbetlerde bozuk stream, son kullanılan global modele değil yaln�
 
 ## V3 — Ayarlar paneli
 Ayarlar > NVIDIA Model Laboratuvarı: durum, katalog arama, görev liderleri, model seçimi, sohbet/derin/embedding ve toplu test düğmeleri. İlk açılışta otomatik API isteği yoktur; düğmeler kullanıcı tarafından çalıştırılır. `/api/models/status/lab` GET/POST uçları mevcut oturum, CSRF ve sahibi doğrulama sınırını kullanır. Konsey soruları bu test HTTP uç noktasına kabul edilmez.
+
+- Hafıza veritabanındaki şifreli vektörler model kimliğiyle eşleştirilir. Boyutları aynı olsa bile farklı embedding modellerinin vektörleri karşılaştırılmaz; eski model kayıtlarında BM25 araması kullanılabilir. Konseyde bir model veya üçüncü değerlendirici ağ hatası verirse başarılı yanıtlar korunur.
