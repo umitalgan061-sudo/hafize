@@ -56,6 +56,21 @@ export function capabilitySnapshot(inventory: readonly ToolInventoryEntry[], bud
 
 export type CapabilitySnapshot = ReturnType<typeof capabilitySnapshot>;
 
+/** Known owner project locations are navigation hints, not authorization or live evidence. */
+export function projectDiscoveryInstruction(github: GitHubConnectionStatus | null): string {
+  if (!github) return '';
+  const repo = 'umitalgan061-sudo/hafize-siteler';
+  const readAllowed = github.readRepositories.some(value => value.toLowerCase() === repo);
+  const agentWriteAllowed = github.developmentRepositories.some(value => value.toLowerCase() === repo);
+  return '\nProje konumlandırma: Borsa Günlüğü (borsa-gunlugu, borsa-gunlugu.web.app, borsa-gunlugu-ua.web.app) için doğrulanacak kaynak ' +
+    repo + ', kaynak klasörü borsa-gunlugu/, kökte firebase.json ve .firebaserc, Hosting hedefi borsa. ' +
+    'Kaynak ve yayın klasörü aynı olmayabilir; gerçek directory, yapılandırma, dal, commit, CI ve canlı adresi ayrı doğrula. ' +
+    'Bu eşleşme mevcut canlı site veya erişim kanıtı değildir. ' +
+    (readAllowed ? 'Depo okuma izin listesinde; github_inspect ile önce bu depoyu kontrol et. ' : 'Depo okuma izin listesinde değil; erişim kapsamı eksik olduğunu söyle, başka depolara bakıp proje yok deme. ') +
+    (agentWriteAllowed ? 'Depo ajan geliştirme listesinde; mevcut dal ve PR güvenlik kuralları geçerlidir. ' : 'Depo ajan geliştirme listesinde değil; yazma veya yayın yapabildiğini iddia etme. ') +
+    'Her isimle aranan projede yalnız depo adına değil izinli monorepo ve alt klasörlere de bak. Arama kapsamı ve kısıtlarını açıkla; bulunamadı ile erişilemedi durumlarını ayır. Merge veya yayın için gerçek yetenek ve sonuç kanıtı gerekir.';
+}
+
 export function capabilityInstruction(snapshot: CapabilitySnapshot): string {
   return 'SUNUCU TARAFINDAN DOĞRULANAN BU OTURUMUN YETENEKLERİ (model tahmini değil): ' +
     JSON.stringify(snapshot) +
@@ -64,7 +79,7 @@ export function capabilityInstruction(snapshot: CapabilitySnapshot): string {
     'Bir aracın kullanılabilir olması her işlemi yapabileceği, onaysız yazabileceği veya görevin tamamlandığı anlamına gelmez. ' +
     'GitHub geliştirme talebinde github_inspect ile güncel main SHA, mevcut PR durumu ve ilgili test kanıtlarını doğrula. Eski sohbet veya uyarı mesajından kesin hata teşhisi üretme. ' +
     'Araç yoksa yetkiyi dolanmak için shell_run, git_run, web, kod çalıştırma veya başka ajan kullanma; eksik bağlantıyı belirt ve izinli salt-okunur analiz yap. ' +
-    'Kesinti, sağlayıcı kotası, bağlam ve zaman aşımı daha erken sonlandırabilir.';
+    'Kesinti, sağlayıcı kotası, bağlam ve zaman aşımı daha erken sonlandırabilir.' + projectDiscoveryInstruction(snapshot.github);
 }
 
 /** Only standalone capability questions take the deterministic response path.

@@ -181,7 +181,11 @@ function hasMetricsAuthorization(req) {
   return provided.length === expected.length && timingSafeEqual(provided, expected);
 }
 
-const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || '');
+// Separate optional read-only additions preserve existing environment configuration.
+const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist([
+  ...parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || ''),
+  ...parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_EXTRA_READ_REPOS || '')
+]);
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 // Agent access is narrower than the UI writer; Retake is not enabled by default.
 const GITHUB_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')

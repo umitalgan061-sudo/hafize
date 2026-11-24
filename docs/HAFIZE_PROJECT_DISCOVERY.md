@@ -1,0 +1,3 @@
+# Proje keşfi ve kapsam
+
+Borsa Günlüğü kaynak deposu `umitalgan061-sudo/hafize-siteler`, kaynak klasörü `borsa-gunlugu/`, Firebase kök config hedefi `borsa`. `.firebaserc` iki hedef tanımlar: `borsa-gunlugu.web.app` ve `borsa-gunlugu-ua.web.app`. Doğrulanacak yerlerdir, canlı çalışma kanıtı değildir. Ajan artık yalnız retake ve hafize depolarına bakıp bu projenin bulunmadığını söylememelidir. `HAFIZE_GITHUB_EXTRA_READ_REPOS` mevcut okuma listesine ekleme yapar, yazma listesi ve GitHub App installation sınırları değişmez. Ek okuma erişimi kurulumu ve gerçek canlı erişim ayrı doğrulanır. Ajan geliştirme aracının merge/deploy sınırları korunur.
