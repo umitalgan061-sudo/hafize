@@ -1,6 +1,7 @@
 // "Uygulamayı yükle" and "Yerel sunucular" on the Settings page, plus the entry points the installed
 // app gets from its manifest: shortcuts (?action=new, ?action=voice) and the share sheet (?text=).
 import qrcode from 'qrcode-generator';
+import {captureVideoFrames} from './video-frame-capture.ts';
 
 export interface LocalServer { readonly id: string; readonly name: string; readonly url: string; readonly status: string; readonly kind: string; readonly path: string; readonly command: string }
 type InstallPrompt = Event & { prompt: () => Promise<unknown>; userChoice?: Promise<{ outcome: string }> };
@@ -272,13 +273,13 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const actions=el('div','settings-actions');actions.append(refresh,execute,cancel,clear);
     const health=el('ul','settings-memory-list');
     panel.append(notice,health,operation,language,file,input,actions,result,audio);
-    type Status={asr:boolean;tts:boolean;parse:boolean;asrLanguages:string[];ttsLanguages:string[];observations?:Record<string,{state:string;lastCheckedAt:string|null;latencyMs:number|null;error:string|null}>};
+    type Status={asr:boolean;tts:boolean;parse:boolean;videoFrames?:boolean;asrLanguages:string[];ttsLanguages:string[];observations?:Record<string,{state:string;lastCheckedAt:string|null;latencyMs:number|null;error:string|null}>};
     let status:Status|null=null;let controller:AbortController|null=null;let audioUrl:string|null=null;let busy=false;
     const release=()=>{audio.pause();audio.removeAttribute('src');if(audioUrl)root.URL.revokeObjectURL(audioUrl);audioUrl=null;audio.hidden=true;result.value='';result.hidden=true;};
     function render(){
       const op=operation.value;
-      language.hidden=op==='parse'||!op;input.hidden=op!=='synthesize';file.hidden=op==='synthesize'||!op;
-      file.accept=op==='parse'?'image/png,image/jpeg':'audio/wav,.wav';
+      language.hidden=op==='parse'||op==='video-frames'||!op;input.hidden=op!=='synthesize'&&op!=='video-frames';input.placeholder=op==='video-frames'?'Karelerde neyin incelenmesini istiyorsun? (isteğe bağlı)':'Seslendirilecek metin';file.hidden=op==='synthesize'||!op;
+      file.accept=op==='video-frames'?'video/mp4,video/webm,video/quicktime':op==='parse'?'image/png,image/jpeg':'audio/wav,.wav';
       const old=language.value;language.replaceChildren();
       for(const code of (op==='transcribe'?status?.asrLanguages:op==='synthesize'?status?.ttsLanguages:[])??[]){const option=el('option','',code);option.value=code;language.append(option);}
       if([...language.options].some(o=>o.value===old))language.value=old;
@@ -289,7 +290,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
       try{
         const response=await api('/api/nim-specialists');if(!response.ok)throw Error('NIM_STATUS_UNAVAILABLE');status=await response.json();
         const selected=operation.value;operation.replaceChildren();
-        for(const [key,label,enabled] of [['transcribe','Sesi yazıya çevir',status?.asr],['synthesize','Metni seslendir',status?.tts],['parse','Belge sayfası / OCR',status?.parse]] as const){
+        for(const [key,label,enabled] of [['transcribe','Sesi yazıya çevir',status?.asr],['synthesize','Metni seslendir',status?.tts],['parse','Belge sayfası / OCR',status?.parse],['video-frames','Video kare analizi (ses hariç)',status?.videoFrames]] as const){
           if(!enabled)continue;const option=el('option','',label);option.value=key;operation.append(option);
         }
         if([...operation.options].some(o=>o.value===selected))operation.value=selected;
@@ -299,6 +300,7 @@ function start(documentRef: Document, root: typeof globalThis): void {
           const configured=status?.[key as 'asr'|'tts'|'parse'];
           health.append(el('li','',label+': '+(!configured?'yapılandırılmadı':observation?.state==='passed'?'son istek başarılı':observation?.state==='failed'?'son istek başarısız':'henüz denenmedi')+(observation?.latencyMs!=null?' · '+observation.latencyMs+' ms':'')+(observation?.error?' · '+observation.error:'')));
         }
+        health.append(el('li','','Video kare analizi: '+(status?.videoFrames?'yapılandırıldı; canlı erişim doğrulanmadı':'kapalı')));
         notice.textContent=operation.options.length?'Yapılandırılmış servisler listelendi. Son istek sonuçları genel erişim garantisi değildir.':'Uzman NIM servisleri yapılandırılmamış. Mevcut sesli sohbet ve görsel analiz kullanılabilir.';
       }catch{status=null;operation.replaceChildren();health.replaceChildren();notice.textContent='Uzman servis durumu alınamadı.';}
       finally{busy=false;render();}
@@ -311,13 +313,14 @@ function start(documentRef: Document, root: typeof globalThis): void {
         const op=operation.value;
         let payload:Record<string,unknown>={language:language.value};
         if(op==='synthesize'){if(!input.value.trim())throw Error('Metin gir.');payload.text=input.value;}
+        else if(op==='video-frames'){const selected=file.files?.[0];if(!selected)throw Error('Video seç.');notice.textContent='Video kareleri cihazda çıkarılıyor; yalnız kareler gönderilecek.';payload={...await captureVideoFrames(selected,current.signal,documentRef,root),prompt:input.value.slice(0,1000)};}
         else{const selected=file.files?.[0];if(!selected||selected.size>6*1024*1024)throw Error('En fazla 6 MB boyutunda dosya seç.');payload.data=encode(new Uint8Array(await selected.arrayBuffer()));}
         if(current.signal.aborted)return;
         const response=await api('/api/nim-specialists/'+op,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:current.signal});
         const value=await response.json();if(!response.ok)throw Error(typeof value.error==='string'?value.error:'NIM_REQUEST_FAILED');
         if(current.signal.aborted)return;
         if(op==='synthesize'){if(value.mime!=='audio/wav'||typeof value.data!=='string')throw Error('Ses yanıtı geçersiz.');const bytes=Uint8Array.from(root.atob(value.data),c=>c.charCodeAt(0));audioUrl=root.URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));audio.src=audioUrl;audio.hidden=false;}
-        else{result.value=String(op==='parse'?value.content??'':value.text??'');result.hidden=false;}
+        else{result.value=op==='video-frames'?'Örneklenen kareler: '+(Array.isArray(value.timestamps)?value.timestamps.map((t:number)=>t.toFixed(2)+' sn').join(', '):'—')+'\nSes incelenmedi; tam video analizi değildir.\n\n'+String(value.analysis??''):String(op==='parse'?value.content??'':value.text??'');result.hidden=false;}
         notice.textContent=value.truncated?'İşlem tamamlandı, fakat belge çıktısı kesildi.':'Uzman servis yanıtı alındı. Sonucu kontrol et.';
       }catch(error){notice.textContent=current.signal.aborted?'İşlem iptal edildi.':(error instanceof Error?error.message:'Uzman servis hatası');}
       finally{controller=null;busy=false;render();}
