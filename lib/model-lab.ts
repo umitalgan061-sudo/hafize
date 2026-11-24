@@ -245,12 +245,14 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     const verified = candidates.flatMap(model => {
       const row = fresh(model);
       const deep = deepFresh(model);
-      return row?.status === 'passed' && row.chat && row.turkish && (!needsTools || row.tools && (!deep || deep.toolFollowup)) && (!needsReasoning || row.reasoning && (!deep || deep.reasoning)) && (kind !== 'coding' || row.coding && (!deep || deep.coding)) ? [row] : [];
+      return row?.status === 'passed' && row.chat && row.turkish && (!deep || deep.language) && (!needsTools || row.tools && (!deep || deep.toolFollowup)) && (!needsReasoning || row.reasoning && (!deep || deep.reasoning)) && (kind !== 'coding' || row.coding && (!deep || deep.coding)) ? [row] : [];
     });
     const latency = (row: ProbeResult) => row.chatLatencyMs ?? row.latencyMs;
     const score = (row: ProbeResult) => {
       const deep = deepFresh(row.model);
-      return Number(row.reasoning)+Number(row.coding)+Number(row.tools) + (deep ? Number(deep.language) + Number(deep.reasoning) + Number(deep.coding) + Number(deep.toolFollowup) : 0);
+      // Relevant abilities count more than unrelated achievements; deep evidence is a bonus.
+      const base=Number(row.reasoning)*(needsReasoning?3:1)+Number(row.coding)*(kind==='coding'?3:1)+Number(row.tools)*(needsTools?3:1);
+      return base+(deep?Number(deep.language)+Number(deep.reasoning)*(needsReasoning?3:1)+Number(deep.coding)*(kind==='coding'?3:1)+Number(deep.toolFollowup)*(needsTools?3:1):0);
     };
     if (kind.startsWith('fast')) verified.sort((a,b) => latency(a)-latency(b) || score(b)-score(a));
     else verified.sort((a,b) => score(b)-score(a) || latency(a)-latency(b));

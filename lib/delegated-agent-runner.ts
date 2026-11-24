@@ -8,6 +8,8 @@ import { isEmptyOrProgressOnlyAnswer } from './agent-continuation-recovery.ts';
 import type { AgentDefinition, AgentRegistry } from './agent-runtime.ts';
 import type { AgentRunLedger } from './agent-run-ledger.ts';
 
+type DelegatedRunResult={ok:boolean;content?:string;error?:string};
+type NestedExecution=(input:{agent:AgentDefinition;task:string;repair?:string})=>Promise<DelegatedRunResult>;
 export interface DelegatedAgentRunInput {
   readonly agent?: AgentDefinition;
   readonly task?: unknown;
@@ -30,6 +32,7 @@ export interface DelegatedAgentRunInput {
   readonly toolContext?: Partial<ToolRuntimeContext>;
   /** Tool rounds before the final answer; 1 keeps the original single-round contract. */
   readonly maxRounds?: number;
+  readonly wrapNestedDelegation?: (execute:NestedExecution)=> (input:{agent:AgentDefinition;task:string})=>Promise<DelegatedRunResult>;
 }
 
 interface DelegatedToolCall {
@@ -92,8 +95,9 @@ export async function runDelegatedAgent({
   sessionId,
   signal,
   toolContext,
-  maxRounds = 1
-}: DelegatedAgentRunInput = {}) {
+  maxRounds = 1,
+  wrapNestedDelegation
+}: DelegatedAgentRunInput = {}):Promise<DelegatedRunResult> {
   if (!agent?.id || typeof task !== 'string' || !task.trim() || typeof traceId !== 'string' || !traceId.trim() || typeof parentTaskId !== 'string' || !parentTaskId.trim()) {
     return { ok: false, error: 'INVALID_DELEGATED_RUN' };
   }
@@ -116,6 +120,7 @@ export async function runDelegatedAgent({
     parentAgent: agent,
     parentTaskId: safeParentTaskId,
     runLedger,
+    parentSignal:signal,
     executeAgent: ({
       agent: nestedAgent,
       task: nestedTask,
@@ -123,9 +128,10 @@ export async function runDelegatedAgent({
       depth: nestedDepth,
       parentTaskId: nestedParentTaskId,
       signal: nestedSignal
-    }) => runDelegatedAgent({
-      agent: nestedAgent,
-      task: nestedTask,
+    }) => {
+      const execute:NestedExecution=({agent,task,repair})=>runDelegatedAgent({
+      agent,
+      task:repair?task+'\n\n'+repair:task,
       traceId: nestedTraceId,
       parentTaskId: nestedParentTaskId,
       depth: nestedDepth,
@@ -142,8 +148,11 @@ export async function runDelegatedAgent({
       sessionId,
       signal: nestedSignal ?? signal,
       toolContext,
-      maxRounds
-    })
+      maxRounds,
+      wrapNestedDelegation
+    });
+    return (wrapNestedDelegation?wrapNestedDelegation(execute):execute)({agent:nestedAgent,task:nestedTask});
+    }
   });
   const delegateAgent = (args: unknown) => nestedDelegator.delegate(args, { depth });
   // Experts get their own tools wired in (web, research, sandbox...) through toolContext; the

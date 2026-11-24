@@ -1,3 +1,4 @@
+import {completionOrigin} from './model-response-origin.ts';
 // Observability hooks: OpenTelemetry-shaped spans (skill.start/end/error, tool calls, model rounds),
 // token usage per model and purpose, and user feedback. Everything is kept in the local database;
 // when OTEL_EXPORTER_OTLP_ENDPOINT is set, finished spans are also exported over OTLP/HTTP JSON.
@@ -168,7 +169,7 @@ export function createTelemetry(options: TelemetryOptions) {
   function recordCompletionUsage(traceId: string, purpose: string, model: string, completion: unknown): void {
     const usage = completion && typeof completion === 'object' ? (completion as { usage?: Record<string, unknown> }).usage : null;
     if (!usage || typeof usage !== 'object') return;
-    recordUsage({ traceId, model, purpose, promptTokens: Number(usage.prompt_tokens), completionTokens: Number(usage.completion_tokens) });
+    recordUsage({ traceId, model:completionOrigin(completion)||model, purpose, promptTokens: Number(usage.prompt_tokens), completionTokens: Number(usage.completion_tokens) });
   }
 
   function recordFeedback({ ownerId, traceId = '', messageId, rating, promptVariant = '' }: { readonly ownerId: string; readonly traceId?: string; readonly messageId: string; readonly rating: string; readonly promptVariant?: string }): boolean {

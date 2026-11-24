@@ -217,3 +217,15 @@ it('penalizes the model that owns the broken response, not a concurrent response
 });
 
 it('passes trusted expert identity separately without forwarding metadata to NVIDIA',async()=>{const router=createModelRouter({chain:['a','b'],preferredModels:(_payload,_candidates,expertId)=>expertId==='expert-math'?['b']:[],log:()=>{}});await router.send(request(),async(body)=>{expect(JSON.parse(body).model).toBe('b');expect(JSON.parse(body).expertId).toBeUndefined();return answer(200);},undefined,'expert-math');});
+
+it('bounds and penalizes a silent final model without cancelling an already-open stream',async()=>{
+  const realSetTimeout=globalThis.setTimeout;
+  globalThis.setTimeout=((fn:()=>void,_ms:number)=>realSetTimeout(fn,5)) as typeof setTimeout;
+  try{
+    const router=createModelRouter({chain:['only'],log:()=>{}});
+    await expect(router.send(request(),async(_body,signal)=>new Promise<Response>((_resolve,reject)=>{
+      signal.addEventListener('abort',()=>reject(new DOMException('timeout','AbortError')),{once:true});
+    }))).rejects.toThrow();
+    expect(router.status().chain[0]).toMatchObject({ready:false,lastFailure:'slow'});
+  }finally{globalThis.setTimeout=realSetTimeout;}
+});
