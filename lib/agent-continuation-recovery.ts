@@ -44,7 +44,7 @@ export function isEmptyOrProgressOnlyAnswer(value: unknown): boolean {
 }
 
 export function incompleteAgentRunAnswer(
-  outcomes: readonly AgentToolOutcome[], reason: 'tool_budget' | 'empty_response'
+  outcomes: readonly AgentToolOutcome[], reason: 'tool_budget' | 'empty_response' | 'interrupted'
 ): string {
   const successes = outcomes.filter((item) => item.ok).length;
   const failures = outcomes.length - successes;
@@ -55,7 +55,7 @@ export function incompleteAgentRunAnswer(
     : 'Bu turda doğrulanmış bir araç sonucu bulunmuyor.';
   const cause = reason === 'tool_budget'
     ? 'Araç turu sınırına ulaştım.'
-    : 'Modelden tamamlanmış bir yanıt alınamadı.';
+    : reason === 'interrupted' ? 'Bağlantı, sağlayıcı veya çalışma süresi nedeniyle görev kesildi.' : 'Modelden tamamlanmış bir yanıt alınamadı.';
   const parts = [
     'İstediğin görevi tamamladığımı doğrulayamıyorum.',
     status,

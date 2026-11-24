@@ -10,6 +10,7 @@ import { WEATHER_TOOL_DEFINITION } from './weather-tool.ts';
 import { WEB_TOOL_DEFINITIONS } from './web-tools.ts';
 import { MEMORY_TOOL_DEFINITIONS } from './memory-tools.ts';
 import type { Telemetry } from './telemetry.ts';
+import { capabilitySnapshot, type RuntimeBudget, type ToolInventoryEntry } from './runtime-capabilities.ts';
 
 /** Runtime services behind the extended tools; each tool is offered only when its service is wired. */
 export type ToolService = (args: Record<string, unknown>, context: ToolRuntimeContext) => Promise<unknown>;
@@ -52,6 +53,10 @@ export interface ToolAgent {
 export interface ToolRuntimeContext {
   readonly traceId: string;
   readonly agent: ToolAgent;
+  /** Trusted execution counters, never populated from tool arguments. */
+  readonly runtimeBudget?: () => RuntimeBudget;
+  /** Exact per-request tool list advertised to the model. */
+  readonly advertisedToolNames?: readonly string[];
   readonly registry?: { readonly agents?: readonly ToolAgent[] };
   readonly nvidiaConfigured?: boolean;
   readonly githubReadConfigured?: boolean;
@@ -234,7 +239,7 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'diagnostic',
     timeoutMs: timeout(10_000, 10_000),
     activity: { running: 'Runtime durumu kontrol ediliyor', success: 'Runtime durumu kontrol edildi', failure: 'Runtime durumu kontrol edilemedi' },
-    definition: definition('runtime_status', 'Hafize runtime durumunu salt-okunur olarak döndürür.', {}),
+    definition: definition('runtime_status', 'Bu oturumdaki gerçek aktif/pasif araç listesi, araç turu bütçesi, kalan süre ve uzman ajan sayısını salt-okunur olarak döndürür. Araç türü ile araç çağrısı aynı değildir.', {}),
     execute: async (_args, context) => ({
       status: 'ok',
       traceId: context.traceId,
@@ -242,7 +247,8 @@ const CATALOG = new Map<string, ToolEntry>([
       agentName: context.agent.name,
       nvidiaConfigured: Boolean(context.nvidiaConfigured),
       githubReadConfigured: Boolean(context.githubReadConfigured),
-      availableAgents: (context.registry?.agents || []).map((agent) => ({ id: agent.id, name: agent.name }))
+      availableAgents: (context.registry?.agents || []).map((agent) => ({ id: agent.id, name: agent.name })),
+      capabilities: getRuntimeCapabilities(context.agent, context)
     })
   }],
   ['agent_delegate', {
@@ -697,6 +703,17 @@ export function getAllowedNvidiaTools(
   }
   return Object.freeze(output);
 }
+export function getRuntimeCapabilities(agent: ToolAgent, context: ToolRuntimeContext) {
+  const advertised = new Set(context.advertisedToolNames ?? getAllowedNvidiaTools(agent, context).map(tool => tool.function.name));
+  const inventory: ToolInventoryEntry[] = catalogEntries().map(entry => {
+    const name = entry.definition.function.name;
+    const authorization = authorize(agent, entry.permission, Boolean(context.approvalGranted));
+    const state = !authorization.allowed ? (authorization.reason === 'approval_required' ? 'approval_required' : 'not_authorized')
+      : advertised.has(name) && (!entry.available || entry.available(context)) ? 'available' : 'unavailable';
+    return { name, state };
+  });
+  return capabilitySnapshot(inventory, context.runtimeBudget?.() ?? null, context.registry?.agents?.length ?? 1);
+}
 export function getPublicToolRunningActivity(name: unknown): Readonly<{ label: string; state: 'running'; tool: string; timeoutMs: number } | null> {
   const entry = typeof name === 'string' ? CATALOG.get(name) : undefined;
   return entry ? Object.freeze({ label: entry.activity.running, state: 'running' as const, tool: name as string, timeoutMs: entry.timeoutMs }) : null;
@@ -743,6 +760,7 @@ export async function executeNvidiaToolCall(
   if (entry.available && !entry.available(context)) {
     return { ok: false, tool: entry.definition.function.name, error: 'TOOL_UNAVAILABLE', durationMs: Date.now() - startedAt };
   }
+  if (context.signal?.aborted) return { ok: false, tool: entry.definition.function.name, error: 'TOOL_ABORTED', durationMs: Date.now() - startedAt };
   let args: Record<string, unknown>;
   try {
     args = parseToolArguments(normalized.function.arguments);

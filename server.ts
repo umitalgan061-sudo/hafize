@@ -44,6 +44,7 @@ import { deliverRequestFailure } from './lib/request-failure.ts';
 import {
   executeNvidiaToolCall,
   getAllowedNvidiaTools,
+  getRuntimeCapabilities,
   getPublicToolActivity,
   getPublicToolRunningActivity,
   listToolPermissions
@@ -53,6 +54,7 @@ import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
+import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
@@ -88,6 +90,7 @@ const WEB_TOOLS = createWebTools({
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
 const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 100, 4, 100);
+const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 8, 1, MAX_EXPERT_ROUNDS);
 const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
@@ -794,7 +797,10 @@ async function handleAgentRun(req, res) {
     ...GMAIL_AGENT_RUNTIME.requestContext({ headers: req.headers })
   };
   const traceId = createTraceId();
-  const runLedger = createAgentRunLedger({ traceId, agentId: agent.id });
+  const runLedger = createAgentRunLedger({ traceId, agentId: agent.id, maxEntries: LONG_RUN_LEDGER_ENTRIES });
+  const runStartedAt = Date.now();
+  let roundsStarted = 0;
+  let completedCalls = 0;
   res.setHeader('X-Hafize-Trace-Id', traceId);
   const requestAbort = attachDisconnectAbort(req, AGENT_TIMEOUT_MS);
   const principal = req.__hafizePrincipal || null;
@@ -851,13 +857,13 @@ async function handleAgentRun(req, res) {
       parentTaskId: delegatedParentTaskId,
       signal
     }) {
-      // Experts run with their own tools (web, research, sandbox, media) for up to three rounds;
+      // Experts use a separate bounded budget;
       // quota, output schema and the delegation audit are enforced around the run.
       return PLATFORM.wrapDelegation(traceId, ({ agent: expert, task: expertTask, repair }) => runDelegatedAgent({
         agent: expert,
         task: repair ? `${expertTask}\n\n${repair}` : expertTask,
         toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry },
-        maxRounds: 3,
+        maxRounds: EXPERT_TOOL_ROUNDS,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
         registry: AGENT_REGISTRY,
@@ -869,7 +875,7 @@ async function handleAgentRun(req, res) {
         skillsRuntime: SKILLS_RUNTIME,
         ownerId: req.__hafizePrincipal?.ownerId,
         sessionId: req.__hafizePrincipal?.sessionId,
-        signal,
+        signal: signal ?? requestAbort.signal,
         complete: (payload, delegatedSignal) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal)
       }))({ agent: delegatedAgent, task });
     }
@@ -878,21 +884,8 @@ async function handleAgentRun(req, res) {
   // The advertised tool list must be built from the same context the tool call
   // executes with: a tool is only offered when its reader is actually wired up,
   // so omitting githubReadFile here would silently drop github_read_file.
-  const tools = getAllowedNvidiaTools(agent, {
-    workspaceRoot: ROOT,
-    githubReadConfigured: GITHUB_READ_CONFIGURED,
-    githubReadFile: GITHUB_READ_FILE,
-    githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
-    safeGitHubAutonomy,
-    delegateAgent: delegator.delegate,
-    ...connectorContext,
-    skillsRuntime: SKILLS_RUNTIME,
-    weatherLookup: WEATHER_LOOKUP,
-    webTools: WEB_TOOLS,
-    memory: memorySession,
-    ...runContext.contextExtras
-  });
-  const toolContext = {
+  const toolContextBase = {
+
     traceId,
     agent,
     registry: AGENT_REGISTRY,
@@ -912,12 +905,16 @@ async function handleAgentRun(req, res) {
     weatherLookup: WEATHER_LOOKUP,
     webTools: WEB_TOOLS,
     memory: memorySession,
-    ...runContext.contextExtras
+    ...runContext.contextExtras,
+    runtimeBudget: () => ({ maxToolRounds: MAX_AGENT_TOOL_ROUNDS, roundsStarted, toolCallsCompleted: completedCalls, timeoutMs: AGENT_TIMEOUT_MS, elapsedMs: Date.now() - runStartedAt, expertMaxRounds: EXPERT_TOOL_ROUNDS, maxCallsPerRound: MAX_ROOT_CALLS_PER_ROUND })
   };
+  const tools = getAllowedNvidiaTools(agent, toolContextBase);
+  const toolContext = { ...toolContextBase, advertisedToolNames: tools.map(tool => tool.function.name) };
+  const capabilities = () => getRuntimeCapabilities(agent, toolContext);
   // Several rounds let the model chain tools (search, then read a result). A round without
   // tool calls is the answer; an empty answer or an exhausted budget falls through to one
   // final streamed completion with tools disabled, so the user never gets a blank reply.
-  const workingMessages = [...conversation];
+  const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities()) }, ...conversation];
   const toolSummary = [];
   const toolLoopGuard = createToolLoopGuard();
   const pendingSkillInvocations = new Map();
@@ -975,6 +972,10 @@ async function handleAgentRun(req, res) {
     return { content: round.content, toolCalls: round.toolCalls, wrote };
   }
   const failRound = (error) => {
+    if (!res.destroyed && !res.writableEnded && (toolSummary.length || requestAbort.signal.aborted)) {
+      finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+      return;
+    }
     agentSpan.end('error', { 'error.code': String(error?.code || error?.message || 'AGENT_RUN_FAILED').slice(0, 80) });
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
     requestAbort.cancel();
@@ -982,11 +983,13 @@ async function handleAgentRun(req, res) {
   };
   const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
     agentSpan.end(unresolved ? 'error' : 'ok', { 'tools.count': toolSummary.length, 'tools.failed': anyToolFailed, 'answer.unresolved': unresolved });
-    PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : content);
+    PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : (streamedAnswer ? answerText + '\n\n' + content : content));
     runLedger.finish({ ok: !anyToolFailed && !unresolved, detail: unresolved ? 'incomplete_agent_answer' : anyToolFailed ? 'tool_failed' : null });
     requestAbort.cancel();
     if (streamResponse) {
       startSse(res);
+      writeSseEvent(res, 'hafize-run-capabilities', capabilities());
+      writeSseEvent(res, 'hafize-run-outcome', { traceId, status: unresolved ? 'incomplete' : anyToolFailed ? 'tool_failed' : 'answered', toolCallsCompleted: completedCalls, roundsStarted, taskLedger: runLedger.snapshot() });
       if (!alreadyWritten && content) writeAnswerDelta((streamedAnswer ? '\n\n' : '') + content);
       if (!res.writableEnded && !res.destroyed) res.end('data: [DONE]\n\n');
       return;
@@ -997,15 +1000,25 @@ async function handleAgentRun(req, res) {
       content,
       promptVariant: promptVariant?.variant || '',
       tools: toolSummary,
+      capabilities: capabilities(),
+      outcome: unresolved ? 'incomplete' : anyToolFailed ? 'tool_failed' : 'answered',
       memoryUpdates: memorySession.updates,
       context: contextMeta,
       taskLedger: runLedger.snapshot()
     });
   };
 
+  // A plain capacity question needs no model guess or tool call. Mixed task requests still run normally.
+  if (!attachmentText && isStandaloneCapabilityQuestion(lastUserText)) {
+    finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
+    return;
+  }
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
+    if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
+    roundsStarted = round + 1;
+    if (streamResponse) writeSseEvent(res, 'hafize-run-capabilities', capabilities());
     if (round > 0 && round % 4 === 0) {
       // Do not spend the entire run reading files without making progress.
       // The user task remains the authority; tool content cannot grant rights.
@@ -1079,10 +1092,13 @@ async function handleAgentRun(req, res) {
     // Tools that bring outside text into the run; after them the model may not write to memory.
     if (normalizedCalls.some((call) => UNTRUSTED_CONTENT_TOOLS.has(call.function.name))) memorySession.markUntrustedContent();
     // Independent calls of one round (e.g. weather + news) run in parallel; results keep call order.
-    const results = await Promise.all(normalizedCalls.map(async (call) => {
+    const results = await Promise.all(normalizedCalls.map(async (call, callIndex) => {
+      // Preserve the tool-response protocol even for calls beyond this bounded batch.
+      if (callIndex >= MAX_ROOT_CALLS_PER_ROUND) return { ok: false, tool: call.function.name, error: 'TOOL_BATCH_LIMIT', durationMs: 0 };
+      if (!toolContext.advertisedToolNames.includes(call.function.name)) return { ok: false, tool: call.function.name, error: 'TOOL_NOT_ADVERTISED', durationMs: 0 };
       const toolTask = runLedger.recordToolStart(call.function.name);
       if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolRunningActivity(call.function.name));
-      if (!toolLoopGuard.shouldRun(call.function.name, call.function.arguments)) {
+      if (call.function.name === 'runtime_status' ? normalizedCalls.findIndex(item => item.function.name === 'runtime_status') !== callIndex : !toolLoopGuard.shouldRun(call.function.name, call.function.arguments)) {
         const result = { ok: false, tool: call.function.name, error: 'REPEATED_TOOL_CALL', reason: 'same_call_already_completed', durationMs: 0 };
         runLedger.recordToolFinish(toolTask.taskId, result);
         if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
@@ -1095,6 +1111,7 @@ async function handleAgentRun(req, res) {
         consentId: skillInvocation.consentId, result: { tool: call.function.name }
       });
       const result = await executeNvidiaToolCall(agent, call, toolContext);
+      completedCalls += 1;
       if (skillInvocation) SKILLS_RUNTIME.auditLog.record({
         stage: result.ok ? 'completed' : 'error', traceId, agentId: agent.id, skillId: skillInvocation.skillId,
         arguments: { skillArguments: skillInvocation.arguments, actionArguments: call.function.arguments },
@@ -1144,6 +1161,10 @@ async function handleAgentRun(req, res) {
   // Either the tool budget was exhausted or the model emitted no substantive
   // answer. A tool activity badge is not evidence of a completed code change.
   // Ask for a concrete evidence-based status, never a fresh promise to start.
+  if (requestAbort.signal.aborted) {
+    finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+    return;
+  }
   const finalInstruction = buildFinalToolInstruction(toolSummary);
   const finalMessages = [
     ...workingMessages,
@@ -1162,8 +1183,8 @@ async function handleAgentRun(req, res) {
     return;
   }
   const finalText = stripToolMarkup(final.content);
-  if (!isEmptyOrProgressOnlyAnswer(finalText)) {
-    finishWithAnswer(finalText, final.wrote);
+  if (!final.toolCalls.length && !isEmptyOrProgressOnlyAnswer(finalText)) {
+    finishWithAnswer(finalText, final.wrote, incompleteReason === 'tool_budget');
     return;
   }
   // One bounded JSON recovery is useful when streamed tool markup consumes
@@ -1186,7 +1207,7 @@ async function handleAgentRun(req, res) {
     // tool-status evidence rather than another invented or empty model reply.
   }
   if (!isEmptyOrProgressOnlyAnswer(recovered)) {
-    finishWithAnswer(recovered, false);
+    finishWithAnswer(recovered, false, incompleteReason === 'tool_budget');
     return;
   }
   finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
@@ -1472,6 +1493,7 @@ const server = createServer(async (req, res) => {
         scheduleLeaseConfigured: Boolean(SCHEDULE_LEASE_RUNTIME.configured && SCHEDULE_EXECUTION_RUNTIME.leaseGuarded),
         nvidiaCircuit: NVIDIA_CIRCUIT.snapshot(),
         agents: AGENT_REGISTRY.agents.length,
+        executionLimits: { maxToolRounds: MAX_AGENT_TOOL_ROUNDS, maxCallsPerRound: MAX_ROOT_CALLS_PER_ROUND, expertMaxRounds: EXPERT_TOOL_ROUNDS, timeoutMs: AGENT_TIMEOUT_MS, catalogSize: listToolPermissions().length },
         skillsRuntimeConfigured: SKILLS_RUNTIME.size > 0,
         memoryBackend: true,
         readiness

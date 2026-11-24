@@ -2,7 +2,7 @@ import { createTaskLedger } from './task-ledger.ts';
 import { createTraceContext, normalizeTaskRelation, assertTraceContinuity } from './trace-consistency.ts';
 import type { TaskLedgerEntry, TaskLedgerSnapshot } from './task-ledger.ts';
 
-interface Options { readonly traceId: unknown; readonly agentId: unknown; readonly action?: unknown; readonly now?: () => number; }
+interface Options { readonly traceId: unknown; readonly agentId: unknown; readonly action?: unknown; readonly now?: () => number; readonly maxEntries?: number; }
 export interface AgentRunLedger {
   readonly rootTaskId: string;
   readonly traceId: string;
@@ -13,9 +13,9 @@ export interface AgentRunLedger {
   readonly finish: (options?: { readonly ok?: boolean; readonly detail?: unknown }) => TaskLedgerEntry;
   readonly snapshot: () => TaskLedgerSnapshot;
 }
-export function createAgentRunLedger({traceId,agentId,action='agent.run',now}:Options):AgentRunLedger{
+export function createAgentRunLedger({traceId,agentId,action='agent.run',now,maxEntries}:Options):AgentRunLedger{
   const context=createTraceContext(traceId);
-  const ledger=createTaskLedger({traceId:context.traceId,now});
+  const ledger=createTaskLedger({traceId:context.traceId,now,maxEntries});
   const root=ledger.add({agentId,action,status:'running'});
   const parent=(taskId:string):TaskLedgerEntry=>{const entry=ledger.read(taskId);if(!entry)throw new Error('TASK_PARENT_NOT_FOUND');assertTraceContinuity(context.traceId,entry.traceId);return entry;};
   function recordToolStart(toolName: unknown, opts: { readonly parentTaskId?: string; readonly toolAgentId?: string } = {}): TaskLedgerEntry {
