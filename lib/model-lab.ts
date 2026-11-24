@@ -9,6 +9,7 @@ export interface ProbeResult {
   readonly reasoning: boolean;
   readonly coding: boolean;
   readonly tools: boolean;
+  readonly toolProbeStatus: ProbeState | 'not_run';
   readonly latencyMs: number;
   readonly requests: number;
 }
@@ -63,7 +64,7 @@ export function createModelLab({ allowed, request, now = Date.now }: {
     if (availableRequests() < 2) throw new Error('MODEL_LAB_BUDGET');
     running = true;
     const started = now();
-    let result: ProbeResult = { model, testedAt: new Date(started).toISOString(), status: 'failed', chat: false, turkish: false, reasoning: false, coding: false, tools: false, latencyMs: 0, requests: 0 };
+    let result: ProbeResult = { model, testedAt: new Date(started).toISOString(), status: 'failed', chat: false, turkish: false, reasoning: false, coding: false, tools: false, toolProbeStatus: 'not_run', latencyMs: 0, requests: 0 };
     try {
       result = { ...result, requests: 1 };
       const response = await call('/chat/completions', { model, stream: false, max_tokens: 256, temperature: 0, messages: [{ role: 'user', content: TEST_MESSAGE }] }, signal);
@@ -78,8 +79,8 @@ export function createModelLab({ allowed, request, now = Date.now }: {
           if (toolResponse.ok) {
             const calls = message(await toolResponse.json())?.tool_calls;
             const tools = Array.isArray(calls) && calls.length === 1 && (() => { const fn = object(object(calls[0])?.function); const args = parseAnswer(fn?.arguments); return fn?.name === 'benchmark_echo' && args?.value === 42 && Object.keys(args).length === 1; })();
-            result = { ...result, tools };
-          }
+            result = { ...result, tools, toolProbeStatus: tools ? 'passed' : 'invalid_response' };
+          } else result = { ...result, toolProbeStatus: statusFor(toolResponse.status) };
         }
       }
     } catch (error) { if (signal?.aborted) throw error; result = { ...result, status: error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'failed' }; }
@@ -96,4 +97,36 @@ export function createModelLab({ allowed, request, now = Date.now }: {
     return verified.map(row => row.model);
   }
   return Object.freeze({ status, discover, probe, preferred });
+}
+
+export function modelTaskKind(payload: Record<string, unknown>): 'agent' | 'coding' | 'fast' | 'general' {
+  const messages = Array.isArray(payload.messages) ? payload.messages : [];
+  const user = [...messages].reverse().map(object).find(row => row?.role === 'user');
+  const text = typeof user?.content === 'string' ? user.content.toLocaleLowerCase('tr-TR') : '';
+  if (/\b(?:kod|python|javascript|typescript|github|commit|debug|refactor|sql|powershell|programlama|yazılım)\b/u.test(text)) return 'coding';
+  if (Array.isArray(payload.tools) && payload.tools.length) return 'agent';
+  if (/^(?:merhaba|selam|naber|nasılsın|günaydın|iyi geceler)[?!. ]*$/u.test(text.trim())) return 'fast';
+  return 'general';
+}
+export function modelLabCommand(input: unknown): { action: 'status' | 'discover' | 'probe'; model?: string } | null {
+  if (typeof input !== 'string') return null;
+  const text = input.trim();
+  if (/^model laboratuvarı[?!.]?$/iu.test(text)) return { action: 'status' };
+  if (/^nvidia modellerini listele[?!.]?$/iu.test(text)) return { action: 'discover' };
+  const match = /^model testi:\s*([a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+)\s*$/u.exec(text);
+  return match && MODEL_ID.test(match[1]!) ? { action: 'probe', model: match[1] } : null;
+}
+export function formatModelLabStatus(value: ReturnType<ReturnType<typeof createModelLab>['status']>): string {
+  return [
+    '**NVIDIA Model Laboratuvarı**',
+    'Test edilebilir yapılandırılmış modeller: ' + value.eligible.join(', '),
+    'API katalog sayısı: ' + (value.catalog ? value.catalog.ids.length : 'henüz sorgulanmadı'),
+    ...(value.catalog ? ['API listesi: ' + value.catalog.ids.join(', ')] : []),
+    'Kalan test API isteği (10 dakikalık pencere): ' + value.requestsRemaining,
+    '',
+    ...value.results.map(row => `${row.model} — ${row.status}; Türkçe: ${row.turkish}, mantık: ${row.reasoning}, kod: ${row.coding}, araç: ${row.toolProbeStatus}; ${row.latencyMs} ms; ${row.testedAt}`),
+    '',
+    'Komutlar: NVIDIA modellerini listele · model testi: yayıncı/model',
+    'Testler kısa sentetik örneklerdir; genel zekâ sıralaması değildir. Ücretli partner veya GPU kiralama kullanılmaz. Katalogda bulunmak ücretsiz erişim kanıtı değildir. Sonuçlar sunucu yeniden başlatılana kadar bellekte saklanır.'
+  ].join('\n');
 }
