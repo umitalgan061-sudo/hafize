@@ -566,7 +566,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         let check = experts.validateOutput(input.agent.id, String(result.content || ''));
         if (!check.ok) {
           if(!experts.consumeCall(input.agent.id)) result={ok:false,error:'EXPERT_QUOTA_EXCEEDED'};
-          else result = await execute({ ...input, repair: `nceki çıktın xemaya uymadı (${check.errors.slice(0, 3).join('; ')}). Yanıtını yalnızca beklenen JSON xemasında yeniden ver.` });
+          else result = await execute({ ...input, repair: `Önceki çıktın şemaya uymadı (${check.errors.slice(0, 3).join('; ')}). Yanıtını yalnızca beklenen JSON şemasında yeniden ver.` });
           check = result.ok ? experts.validateOutput(input.agent.id, String(result.content || '')) : check;
           if (result.ok && !check.ok) result = { ok: false, error: 'EXPERT_OUTPUT_INVALID' } as unknown as T;
         }

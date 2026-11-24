@@ -33,7 +33,16 @@ describe('daily improvement',()=>{
 
 it('alternates deep and breadth days without exceeding the five-request budget',async()=>{
  const db=openHafizeDb(':memory:');let clock=10000000;
- const request=vi.fn(async(path,body)=>new Response(JSON.stringify(path==='/embeddings'?{data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}:{choices:[{message:body?.tools?(Array.isArray(body.messages)&&body.messages.some((m:any)=>m.role==='tool')?{content:'{"answer":45}'}:{tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]}):body?.max_tokens===512?{content:JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]})}:{content:'{"capital":"Ankara","math":383,"code":12}'}}}]})));
+ const request=vi.fn(async(path:string,body:Record<string,unknown>|null)=>{
+   if(path==='/embeddings')return new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}));
+   const content=body?.max_tokens===512?JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]}):'{"capital":"Ankara","math":383,"code":12}';
+   let message:Record<string,unknown>={content};
+   if(body?.tools){
+     if(Array.isArray(body.messages)&&body.messages.some((m:unknown)=>Boolean(m&&typeof m==='object'&&'role' in m&&m.role==='tool')))message={content:'{"answer":45}'};
+     else message={tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]};
+   }
+   return new Response(JSON.stringify({choices:[{message}]}));
+ });
  const lab=createModelLab({allowed:['nvidia/a','nvidia/b','nvidia/c'],specialistModels:['nvidia/nemotron-3-embed-1b'],request,now:()=>clock});
  const daily=createDailyImprovement({db,lab,expertHealth:()=>[],liveProbes:true,now:()=>clock});
  const first=await daily.tick();

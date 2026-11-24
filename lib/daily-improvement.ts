@@ -34,7 +34,7 @@ export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,ena
       if(liveProbes&&lab){
         const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(180000)]);
         const initial=lab.status();
-        let deepCandidate=initial.deepPendingModels?.[0];
+        let deepCandidate:string|undefined=initial.deepPendingModels?.[0];
         let lastWasDeep=false;
         try{if(previous)lastWasDeep=Boolean((JSON.parse(previous.report) as DailyReport).deepTestedModels?.length);}catch{}
         const reserveDeep=!lastWasDeep&&initial.eligible.length>=2&&!initial.blockedUntil&&initial.requestsRemaining>=4;
