@@ -36,6 +36,8 @@ it('retains specialist observations across restart and never restores stale rout
   const next=createModelLab({...options,storage});
   expect(next.status().specialistResults).toHaveLength(1);
   expect(next.preferred('general',allowed)).toEqual([]);
+  expect(next.status().results).toEqual([]);
+  expect(next.status().historicalResults.map(row=>row.model)).toEqual(['nvidia/a','nvidia/b']);
   expect((await next.batch()).completed.map(row=>row.model)).toEqual(['nvidia/c','nvidia/a']);
   expect(createModelLabSqliteStorage(db,'new-key',[...allowed,model]).load()).toBeNull();
   db.close();
