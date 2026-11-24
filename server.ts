@@ -59,6 +59,7 @@ import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, f
 import { createModelLabFileStorage, createModelLabSqliteStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
 import { createDailyImprovement } from './lib/daily-improvement.ts';
+import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
@@ -1698,7 +1699,7 @@ const server = createServer(async (req, res) => {
 // Default to the existing SQLite DB if no explicit file storage was selected.
 if(MODEL_LAB&&!MODEL_LAB_STORAGE){try{MODEL_LAB.attachStorage(createModelLabSqliteStorage(PLATFORM.db,NVIDIA_API_KEY,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,...MODEL_LAB.status().specialists]));}catch{console.warn('hafize.model_lab sqlite storage unavailable');}}
 try{RUNTIME_EVIDENCE=createRuntimeEvidence(PLATFORM.db,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,process.env.HAFIZE_FAST_MODEL||MODEL_SERVICE_DEFAULTS.fastModel]);}catch{console.warn('hafize.runtime_evidence unavailable');}
-const DAILY_IMPROVEMENT = createDailyImprovement({runtimeEvidence:()=>{RUNTIME_EVIDENCE?.prune();return RUNTIME_EVIDENCE?.summary()??[];},adaptLeaders:ids=>RUNTIME_EVIDENCE?.reorder(ids)??ids,db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
+const DAILY_IMPROVEMENT = createDailyImprovement({expertReadiness:()=>auditExpertContracts(AGENT_REGISTRY),runtimeEvidence:()=>{RUNTIME_EVIDENCE?.prune();return RUNTIME_EVIDENCE?.summary()??[];},adaptLeaders:ids=>RUNTIME_EVIDENCE?.reorder(ids)??ids,db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
 let dailyTimer;
 let shutdownServerPromise = null;
 

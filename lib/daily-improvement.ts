@@ -1,11 +1,12 @@
+import type {ExpertReadiness} from './expert-readiness.ts';
 import type {RuntimeEvidence} from './model-runtime-evidence.ts';
 
 import type { DatabaseSync } from 'node:sqlite';
 import type { createModelLab } from './model-lab.ts';
 export const DAY_MS=24*60*60*1000;
 export type ExpertHealth={agentId:string;healthy:boolean;reasons:string[];successRate:number|null;p99Ms:number|null;sampleCount:number};
-type DailyReport={runtimeEvidence?:RuntimeEvidence[];deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
-export function createDailyImprovement({db,lab,expertHealth,runtimeEvidence=()=>[],adaptLeaders=ids=>[...ids],liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];runtimeEvidence?:()=>RuntimeEvidence[];adaptLeaders?:(ids:readonly string[])=>string[];liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
+type DailyReport={expertReadiness?:ExpertReadiness[];runtimeEvidence?:RuntimeEvidence[];deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
+export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>[],runtimeEvidence=()=>[],adaptLeaders=ids=>[...ids],liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];expertReadiness?:()=>ExpertReadiness[];runtimeEvidence?:()=>RuntimeEvidence[];adaptLeaders?:(ids:readonly string[])=>string[];liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement (id INTEGER PRIMARY KEY CHECK(id=1), started_at INTEGER NOT NULL, report TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement_history (started_at INTEGER PRIMARY KEY, report TEXT NOT NULL)');
   let inFlight:Promise<DailyReport|null>|null=null;
@@ -32,6 +33,8 @@ export function createDailyImprovement({db,lab,expertHealth,runtimeEvidence=()=>
     controller=new AbortController();
     try{
       report.experts=expertHealth();
+      report.expertReadiness=expertReadiness();
+      if(report.expertReadiness.some(row=>!row.passed))report.error='EXPERT_CONTRACT_CHECK_FAILED';
       report.runtimeEvidence=runtimeEvidence();
       if(liveProbes&&lab){
         const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(180000)]);
@@ -63,7 +66,7 @@ export function createDailyImprovement({db,lab,expertHealth,runtimeEvidence=()=>
         if(specialist&&!snapshot.blockedUntil&&snapshot.requestsRemaining>0){
           const result=await lab.specialistProbe(specialist,signal);
           report.specialists.push(result.model);
-          if(result.status!=='passed')report.error='SPECIALIST_PROBE_'+result.status;
+          if(result.status!=='passed')report.error=report.error||'SPECIALIST_PROBE_'+result.status;
         }
         if(batch.paused||batch.completed.some(row=>row.status!=='passed'||row.toolProbeStatus!=='passed'))report.error=report.error||'MODEL_TEST_PARTIAL';
       }else if(liveProbes&&!lab)report.error='MODEL_LAB_UNAVAILABLE';

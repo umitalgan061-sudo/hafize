@@ -190,9 +190,10 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const list=el('ul','model-status-list');
     const details=el('details');details.append(el('summary','','Model kataloğu ve test sonuçları'),filter,list);
     const runtimeList=el('ul','settings-memory-list');const runtimeDetails=el('details');runtimeDetails.append(el('summary','','Son günlük çalışma zamanı ölçümleri'),el('p','','Bağlantı ve yanıt başlığı ölçümleri; yanıt doğruluğu testi değildir.'),runtimeList);
-    panel.append(notice,actions,select,daily,dailyDetails,runtimeDetails,leaders,details);
+    const expertList=el('ul','settings-memory-list');const expertDetails=el('details');expertDetails.append(el('summary','','Günlük uzman yapılandırma denetimi'),el('p','','Çevrimdışı görev kartı, şema ve yetki kontrolü; modelin cevap kalitesi testi değildir.'),expertList);
+    panel.append(notice,actions,select,daily,dailyDetails,runtimeDetails,expertDetails,leaders,details);
     type Row={id:string;capabilities:string[];configured:boolean;listed:boolean;evidence:string};
-    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
+    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[];expertReadiness?:{agentId:string;passed:boolean;checks:{key:string;passed:boolean}[]}[];runtimeEvidence?:{model:string;attempts:number;headersOk:number;failures:number;streamFailures:number;meanHeaderMs:number|null}[];taskLeaders?:Record<string,string[]>}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
     let data:LabData={};let busy=false;let available=false;
     const buttons:HTMLButtonElement[]=[];
     const render=()=>{
@@ -214,6 +215,9 @@ function start(documentRef: Document, root: typeof globalThis): void {
         dailyHistory.append(entry);
       }
       if(!dailyHistory.children.length)dailyHistory.append(el('li','','Henüz tamamlanan günlük döngü yok.'));
+      expertList.replaceChildren();
+      for(const row of cycle?.report?.expertReadiness??[]){const entry=el('li','',row.agentId+' · '+(row.passed?'yapılandırma başarılı':'kontrol gerekli'));const failed=row.checks.filter(c=>!c.passed);entry.append(el('small','',failed.length?failed.map(c=>c.key).join(', '):row.checks.length+' kontrol başarılı'));expertList.append(entry);}
+      if(!expertList.children.length)expertList.append(el('li','','Henüz günlük uzman denetimi yok.'));
       runtimeList.replaceChildren();
       for(const row of cycle?.report?.runtimeEvidence??[]){const entry=el('li','',row.model);entry.append(el('small','',row.attempts+' deneme · '+row.headersOk+' başarılı başlık · '+row.failures+' sağlayıcı hatası · '+row.streamFailures+' akış hatası · '+(row.meanHeaderMs??'—')+' ms ortalama başlık'));runtimeList.append(entry);}
       if(!runtimeList.children.length)runtimeList.append(el('li','','Henüz günlük raporda çalışma zamanı örneği yok.'));
