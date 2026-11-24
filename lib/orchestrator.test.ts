@@ -113,3 +113,77 @@ describe('generated result dependencies', () => {
     expect(() => validatePlan([{id:'a',tool:'reason',args:{v:'{{b}}'}},{id:'b',tool:'reason',args:{v:'{{a}}'}}], names, 4)).toThrow('PLAN_HAS_CYCLE');
   });
 });
+
+
+describe('checkpointed work and replay safety', () => {
+  it('persists completed and in-flight steps even when the planner disables checkpoints', async () => {
+    const db = openHafizeDb(':memory:');
+    const orchestrator = createOrchestrator({ db, models: fakeModels() });
+    let observed: any;
+    const state = await orchestrator.run({
+      ownerId:'u1',traceId:'persist',goal:'read then write',tools,
+      initialPlan:[{id:'a',tool:'web_search',checkpoint:false},{id:'b',tool:'shell_run',dependsOn:['a'],checkpoint:false}],
+      requestApproval:async()=>true,
+      executeTool:async name=>{
+        if(name==='shell_run'){
+          const row=db.prepare('SELECT state FROM orchestrator_runs WHERE owner_id=?').get('u1') as {state:string};
+          observed=JSON.parse(row.state);
+        }
+        return {ok:true,value:'evidence'};
+      }
+    });
+    expect(state.status).toBe('succeeded');
+    expect(observed.steps.a.status).toBe('succeeded');
+    expect(observed.steps.b).toMatchObject({status:'running',attempts:1});
+    expect(observed.usage.toolCalls).toBe(2);
+    // Simulate restart after dispatch but before the completion record.
+    db.prepare('UPDATE orchestrator_runs SET state=?, status=? WHERE id=?').run(JSON.stringify(observed),'running',state.runId);
+    const resumed=await createOrchestrator({db,models:fakeModels()}).resume({
+      ownerId:'u1',runId:state.runId,tools,executeTool:async()=>{throw new Error('must not replay');}
+    });
+    expect(resumed.status).toBe('aborted');
+    expect(resumed.abortReason).toBe('mutation_reconciliation_required');
+    expect(resumed.steps.a.status).toBe('succeeded');
+    expect(resumed.steps.b.error).toBe('MUTATION_RESULT_UNCERTAIN');
+  });
+  it('does not retry uncertain mutations or report partial success as completion',async()=>{
+    const db=openHafizeDb(':memory:');
+    const orchestrator=createOrchestrator({db,models:fakeModels('retry')});
+    let writes=0;
+    const result=await orchestrator.run({
+      ownerId:'u1',traceId:'mutation',goal:'write',tools,
+      initialPlan:[{id:'a',tool:'shell_run',retryPolicy:{maxAttempts:3}}],
+      requestApproval:async()=>true,
+      executeTool:async()=>{writes++;return {ok:false,error:'timeout'};}
+    });
+    expect(writes).toBe(1);
+    expect(result.status).toBe('aborted');
+    expect(result.abortReason).toBe('mutation_reconciliation_required');
+  });
+  it('does not dispatch more than the remaining tool budget in parallel', async()=>{
+    const db=openHafizeDb(':memory:');
+    const orchestrator=createOrchestrator({db,models:fakeModels()});
+    let calls=0;
+    const state=await orchestrator.run({
+      ownerId:'u1',traceId:'parallel',goal:'bounded reads',tools,budget:{maxToolCalls:1},
+      initialPlan:[{id:'a',tool:'web_search'},{id:'b',tool:'web_search'},{id:'c',tool:'web_search'}],
+      executeTool:async()=>{calls++;return {ok:true,value:'ok'};}
+    });
+    expect(calls).toBe(1);
+    expect(state.usage.toolCalls).toBe(1);
+    expect(state.status).toBe('aborted');
+  });
+  it('does not run removed tools after a paused plan resumes',async()=>{
+    const db=openHafizeDb(':memory:');
+    const orchestrator=createOrchestrator({db,models:fakeModels()});
+    const paused=await orchestrator.run({
+      ownerId:'u1',traceId:'revoked',goal:'write',tools,
+      initialPlan:[{id:'a',tool:'shell_run'}],executeTool:async()=>{throw new Error('should not run');}
+    });
+    let calls=0;
+    const result=await orchestrator.resume({ownerId:'u1',runId:paused.runId,tools:tools.filter(t=>t.name!=='shell_run'),executeTool:async()=>{calls++;return {ok:true};}});
+    expect(calls).toBe(0);
+    expect(result.steps.a.error).toBe('TOOL_NO_LONGER_AVAILABLE');
+    expect(result.status).toBe('failed');
+  });
+});

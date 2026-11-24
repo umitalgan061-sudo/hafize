@@ -239,7 +239,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
       steps: state.plan.map((step) => ({ id: step.id, title: step.title, tool: step.tool, status: state.steps[step.id]?.status, ...(state.steps[step.id]?.error ? { error: state.steps[step.id]!.error } : {}) })),
       usage: state.usage,
       criticNotes: state.criticNotes.slice(-3),
-      note: state.status === 'awaiting_approval' ? 'Bazı adımlar kullanıcı onayı bekliyor; orchestrator_resume ile sürdürülebilir.' : state.status === 'aborted' ? 'Görev tamamlanmadı; nedeni ve tamamlanan adımları kullanıcıya açıkla.' : 'Nihai sonucu kullanıcıya sun.'
+      note: state.status === 'awaiting_approval' ? 'Bazı adımlar kullanıcı onayı bekliyor; orchestrator_resume ile sürdürülebilir.' : state.status === 'aborted' || state.status === 'failed' ? 'Görev tamamlanmadı; nedeni ve tamamlanan adımları kullanıcıya açıkla. Sonucu belirsiz yazmayı yeniden denemeden önce dış servis kayıtlarını doğrula.' : 'Nihai sonucu kullanıcıya sun.'
     };
   }
 
@@ -247,9 +247,9 @@ export function createHafizePlatform(deps: PlatformDeps) {
     const emit = (context as { emit?: Emit }).emit;
     return {
       tools: orchestratorTools(context),
-      // A step the user approved runs with that approval; the tool does not ask again.
+      // Native tool approval remains authoritative; a model-generated plan cannot grant consent.
       executeTool: async (name: string, args: Json, signal: AbortSignal) => {
-        const result = await runTool({ ...context, ...(TOOL_RISK[name] === 'high' ? { requestApproval: async () => true } : {}) }, name, args, signal);
+        const result = await runTool(context, name, args, signal);
         return result.ok ? { ok: true, value: result.value } : { ok: false, error: result.error };
       },
       requestApproval: context.requestApproval ? async (step: { id: string; title: string; tool: string; args: Json }) => context.requestApproval!({ kind: 'orchestrator.step', title: `Plan adımı onayı: ${step.title}`, detail: `Araç: ${step.tool}\nArgümanlar: ${JSON.stringify(step.args, null, 2).slice(0, 1_500)}`, risk: 'high' }) : undefined,
@@ -296,7 +296,6 @@ export function createHafizePlatform(deps: PlatformDeps) {
         const current = orchestrator.get(String(args.runId || ''), owner(context));
         const state = await orchestrator.resume({
           ownerId: owner(context), runId: String(args.runId || ''),
-          approveStepIds: Array.isArray(args.approveSteps) ? args.approveSteps.map(String) : [],
           ...(extra ? { budget: { maxSteps: current.usage.stepsRun + extra } } : {}),
           tools: hooks.tools, executeTool: hooks.executeTool, requestApproval: hooks.requestApproval as never, emit: hooks.emit as never, signal: context.signal
         });
