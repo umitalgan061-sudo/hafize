@@ -972,6 +972,10 @@ async function handleAgentRun(req, res) {
     return { content: round.content, toolCalls: round.toolCalls, wrote };
   }
   const failRound = (error) => {
+    if (!res.destroyed && !res.writableEnded && (toolSummary.length || requestAbort.signal.aborted)) {
+      finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+      return;
+    }
     agentSpan.end('error', { 'error.code': String(error?.code || error?.message || 'AGENT_RUN_FAILED').slice(0, 80) });
     runLedger.finish({ ok: false, detail: 'INVALID_NVIDIA_RESPONSE' });
     requestAbort.cancel();
@@ -979,12 +983,13 @@ async function handleAgentRun(req, res) {
   };
   const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
     agentSpan.end(unresolved ? 'error' : 'ok', { 'tools.count': toolSummary.length, 'tools.failed': anyToolFailed, 'answer.unresolved': unresolved });
-    PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : content);
+    PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : (streamedAnswer ? answerText + '\n\n' + content : content));
     runLedger.finish({ ok: !anyToolFailed && !unresolved, detail: unresolved ? 'incomplete_agent_answer' : anyToolFailed ? 'tool_failed' : null });
     requestAbort.cancel();
     if (streamResponse) {
       startSse(res);
       writeSseEvent(res, 'hafize-run-capabilities', capabilities());
+      writeSseEvent(res, 'hafize-run-outcome', { traceId, status: unresolved ? 'incomplete' : anyToolFailed ? 'tool_failed' : 'answered', toolCallsCompleted: completedCalls, roundsStarted, taskLedger: runLedger.snapshot() });
       if (!alreadyWritten && content) writeAnswerDelta((streamedAnswer ? '\n\n' : '') + content);
       if (!res.writableEnded && !res.destroyed) res.end('data: [DONE]\n\n');
       return;
@@ -996,6 +1001,7 @@ async function handleAgentRun(req, res) {
       promptVariant: promptVariant?.variant || '',
       tools: toolSummary,
       capabilities: capabilities(),
+      outcome: unresolved ? 'incomplete' : anyToolFailed ? 'tool_failed' : 'answered',
       memoryUpdates: memorySession.updates,
       context: contextMeta,
       taskLedger: runLedger.snapshot()
@@ -1010,7 +1016,7 @@ async function handleAgentRun(req, res) {
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
-    if (requestAbort.signal.aborted) break;
+    if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
     roundsStarted = round + 1;
     if (streamResponse) writeSseEvent(res, 'hafize-run-capabilities', capabilities());
     if (round > 0 && round % 4 === 0) {
@@ -1092,7 +1098,7 @@ async function handleAgentRun(req, res) {
       if (!toolContext.advertisedToolNames.includes(call.function.name)) return { ok: false, tool: call.function.name, error: 'TOOL_NOT_ADVERTISED', durationMs: 0 };
       const toolTask = runLedger.recordToolStart(call.function.name);
       if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolRunningActivity(call.function.name));
-      if (!toolLoopGuard.shouldRun(call.function.name, call.function.arguments)) {
+      if (call.function.name === 'runtime_status' ? normalizedCalls.findIndex(item => item.function.name === 'runtime_status') !== callIndex : !toolLoopGuard.shouldRun(call.function.name, call.function.arguments)) {
         const result = { ok: false, tool: call.function.name, error: 'REPEATED_TOOL_CALL', reason: 'same_call_already_completed', durationMs: 0 };
         runLedger.recordToolFinish(toolTask.taskId, result);
         if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
@@ -1155,6 +1161,10 @@ async function handleAgentRun(req, res) {
   // Either the tool budget was exhausted or the model emitted no substantive
   // answer. A tool activity badge is not evidence of a completed code change.
   // Ask for a concrete evidence-based status, never a fresh promise to start.
+  if (requestAbort.signal.aborted) {
+    finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+    return;
+  }
   const finalInstruction = buildFinalToolInstruction(toolSummary);
   const finalMessages = [
     ...workingMessages,
@@ -1173,8 +1183,8 @@ async function handleAgentRun(req, res) {
     return;
   }
   const finalText = stripToolMarkup(final.content);
-  if (!isEmptyOrProgressOnlyAnswer(finalText)) {
-    finishWithAnswer(finalText, final.wrote);
+  if (!final.toolCalls.length && !isEmptyOrProgressOnlyAnswer(finalText)) {
+    finishWithAnswer(finalText, final.wrote, incompleteReason === 'tool_budget');
     return;
   }
   // One bounded JSON recovery is useful when streamed tool markup consumes
@@ -1197,7 +1207,7 @@ async function handleAgentRun(req, res) {
     // tool-status evidence rather than another invented or empty model reply.
   }
   if (!isEmptyOrProgressOnlyAnswer(recovered)) {
-    finishWithAnswer(recovered, false);
+    finishWithAnswer(recovered, false, incompleteReason === 'tool_budget');
     return;
   }
   finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
