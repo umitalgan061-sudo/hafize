@@ -81,6 +81,7 @@ import { startLocalHttps } from './lib/local-tls.ts';
 import { freeLlmGateway } from './lib/freellm-gateway.ts';
 import { markCompletionOrigin } from './lib/model-response-origin.ts';
 import { createRuntimeEvidence } from './lib/model-runtime-evidence.ts';
+import {createGitHubAppCiReader,GitHubAppCiError} from './lib/github-app-ci.ts';
 import { createModelRouter, parseModelChain } from './lib/model-router.ts';
 import { MODEL_SERVICE_DEFAULTS } from './lib/model-services.ts';
 
@@ -213,6 +214,7 @@ const GITHUB_WORKSPACE_DETAILS = createGitHubWorkspaceDetails({
   fetchImpl: GITHUB_FETCH,
   allowedRepositories: GITHUB_ALLOWED_REPOS
 });
+const GITHUB_CI=GITHUB_APP_AUTH?createGitHubAppCiReader({allowedRepositories:GITHUB_ALLOWED_REPOS,fetchImpl:GITHUB_FETCH}):null;
 const GITHUB_INSPECT = createGitHubAgentInspection({ reader: GITHUB_WORKSPACE_READER, extra: GITHUB_WORKSPACE_EXTRA, details: GITHUB_WORKSPACE_DETAILS, allowedRepositories: GITHUB_ALLOWED_REPOS, token: GITHUB_TOKEN, allowPublicRead: GITHUB_PUBLIC_READ, fetchImpl: GITHUB_FETCH });
 const GITHUB_WORKSPACE_WRITER = createGitHubWorkspaceWriter({
   token: GITHUB_TOKEN,
@@ -1639,6 +1641,17 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && (url.pathname === '/api/github/workspace/write/approval' || url.pathname === '/api/github/workspace/write')) {
       await handleGitHubWorkspaceWrite(req, url, res);
       return;
+    }
+    if (req.method === 'GET' && url.pathname === '/api/github/app/ci') {
+      if(!req.__hafizePrincipal?.ownerId){sendJson(res,401,{error:'AUTH_REQUIRED'});return;}
+      if(!GITHUB_CI){sendJson(res,503,{error:'GITHUB_APP_NOT_CONFIGURED'});return;}
+      const action=url.searchParams.get('action');const repository=url.searchParams.get('repository');
+      try{
+        if(action==='runs'){sendJson(res,200,await GITHUB_CI.runs({repository,branch:url.searchParams.get('branch'),limit:Number(url.searchParams.get('limit')??10)}));return;}
+        if(action==='jobs'){sendJson(res,200,await GITHUB_CI.jobs({repository,runId:url.searchParams.get('runId')}));return;}
+        if(action==='checks'){sendJson(res,200,await GITHUB_CI.checks({repository,sha:url.searchParams.get('sha')}));return;}
+        sendJson(res,400,{error:'GITHUB_CI_INVALID_ACTION'});
+      }catch(error){sendJson(res,error instanceof GitHubAppCiError?error.status:502,{error:error instanceof GitHubAppCiError?error.code:'GITHUB_CI_ENDPOINT_FAILED'});}return;
     }
     if (req.method === 'GET' && url.pathname === '/api/github/workspace') {
       await handleGitHubWorkspace(url, res);

@@ -110,6 +110,7 @@ export default defineConfig({
         'prompt-library-smart-fill-hints': resolve(ROOT, 'public/prompt-library-smart-fill-hints.ts'),
         'conversation-forks': resolve(ROOT, 'public/typed/conversation-forks.ts'),
         'github-workspace': resolve(ROOT, 'public/github-workspace.ts'),
+        'github-app-ci-panel': resolve(ROOT, 'public/github-app-ci-panel.ts'),
         'github-workspace-extra': resolve(ROOT, 'public/github-workspace-extra.ts'),
         'github-workspace-actions': resolve(ROOT, 'public/github-workspace-actions.ts'),
         'github-workspace-details': resolve(ROOT, 'public/github-workspace-details.ts'),

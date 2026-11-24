@@ -1,0 +1,32 @@
+name: Hafize public release verification
+on:
+  workflow_dispatch:
+    inputs:
+      expected_revision:
+        description: 'Optional exact deployed backend and frontend SHA'
+        required: false
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/verify-hafize-backend.mjs'
+      - 'scripts/verify-hafize-backend.test.mjs'
+      - '.github/workflows/hafize-backend-smoke.yml'
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24.21.0'
+          package-manager-cache: false
+      - run: node --test scripts/verify-hafize-backend.test.mjs
+      - name: Verify public release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          HAFIZE_EXPECTED_REVISION: ${{ inputs.expected_revision || '' }}
+        run: node scripts/verify-hafize-backend.mjs
