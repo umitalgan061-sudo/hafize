@@ -58,7 +58,7 @@ export function capabilityInstruction(snapshot: CapabilitySnapshot): string {
  * Do not intercept requests that also instruct the agent to perform work. */
 export function isStandaloneCapabilityQuestion(value: unknown): boolean {
   if (typeof value !== 'string') return false;
-  const text = value.normalize('NFC').toLocaleLowerCase('tr-TR').replace(/[?!.]+$/u, '').replace(/\s+/g, ' ').trim();
+  const text = value.normalize('NFC').toLocaleLowerCase('tr-TR').trim().replace(/[?!.]+$/u, '').replace(/\s+/g, ' ').trim();
   return /^(?:şu anda? |şu an |şuanda |şuan )?(?:kaç (?:tane )?araç(?: çağrısı| turu)? (?:yapabiliyorsun|yapabilirsin|kullanabiliyorsun|kullanabilirsin|var)|(?:aktif )?araçların neler|(?:aktif )?araç listesini göster|(?:araç çağrısı|araç turu) sınırın (?:ne|kaç)|kaç (?:tane )?aracın var)$/u.test(text);
 }
 
