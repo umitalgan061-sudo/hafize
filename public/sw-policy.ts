@@ -4,6 +4,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
   "/typed-build/release-update.js",
+  "/typed-build/analysis-draft.js",
   "/offline.html",
   "/styles.css",
   "/premium.css",
