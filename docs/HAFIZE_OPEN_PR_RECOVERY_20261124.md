@@ -1,0 +1,3 @@
+# 24 Kasım açık PR denetimi
+
+Güncel main dalında eksik olduğu doğrulanan üç özellik eski dalları topluca birleştirmeden geri kazanıldı: #914 kamera yaşam döngüsü ve zaman aşımı, #909 GitHub App salt okunur CI paneli, #974 canlı yayın doğrulama betiği. GitHub kimliği #906'nın tamamını merge etmeden mevcut auth modülü üzerinden kullanılır. PR #855 gibi eski JavaScript tabanlı büyük dallar mevcut TypeScript mimarisini geri alabileceği için toplu merge yapılmaz. Kullanıcı oturumu ve GitHub App Actions/Checks izinleri olmadan panelin gerçek API erişimi doğrulanmış sayılmaz. Canlı smoke yalnız açık sağlık uç noktaları ve commit eşleşmesi; gerçek model cevabı, owner session, merge/deploy yetkisi doğrulamaz.
