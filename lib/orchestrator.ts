@@ -200,7 +200,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
         } catch (error) {
           info.error = String((error as { code?: string })?.code || (error as Error)?.message || 'STEP_FAILED').slice(0, 200);
           if (!REPLAY_SAFE.has(step.tool)) { info.error = 'MUTATION_RESULT_UNCERTAIN'; break; }
-          if (signal.aborted) break;
+          if (signal.aborted) { info.status = 'pending'; info.attempts = Math.max(0, info.attempts - 1); save(state); return; }
           if (info.attempts < maxAttempts) {
             publish('step.retrying', { stepId: step.id, attempt: info.attempts, error: info.error });
             await new Promise((resolve) => setTimeout(resolve, step.retryPolicy.backoffMs * 2 ** (info.attempts - 1)));
