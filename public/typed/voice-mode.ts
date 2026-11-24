@@ -8,6 +8,7 @@
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
 import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog, findVoice, isPiperVoice, synthesize } from './voice-library.ts';
 import { pack, styles } from './supertonic-pack.ts';
+import {zerrePack,zerreStyles} from './zerre-pack.ts';
 
 /** A streaming reply is read as short, *complete* phrases to minimize time to first sound.
  * The cursor uses character offsets in the raw model response (not normalized speech).
@@ -592,15 +593,17 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
 
   const renderSpeakers = () => {
-    const enabled = voiceSelect.value === PIPER_PREFIX + pack.key;
-    speakerField.hidden = !enabled;
-    if (!enabled) return;
-    if (!speakerSelect.options.length) for (const [index,style] of styles.entries()) {
-      const option = documentRef.createElement('option'); option.value=String(index);
-      option.textContent=(style.startsWith('F')?'Kadın ':'Erkek ')+style.slice(1)+' · '+style;
+    const isSupertonic=voiceSelect.value===PIPER_PREFIX+pack.key;
+    const labels=isSupertonic?styles:voiceSelect.value===PIPER_PREFIX+zerrePack.key?zerreStyles:[];
+    speakerField.hidden=!labels.length;
+    while(speakerSelect.options.length)speakerSelect.remove(0);
+    if(!labels.length)return;
+    for(const [index,style] of labels.entries()){
+      const option=documentRef.createElement('option');option.value=String(index);
+      option.textContent=isSupertonic?(style.startsWith('F')?'Kadın ':'Erkek ')+style.slice(1)+' · '+style:style+' · Türkçe';
       speakerSelect.append(option);
     }
-    speakerSelect.value=read(SPEAKER_KEY)||'0';
+    const saved=Number(read(SPEAKER_KEY));speakerSelect.value=String(Number.isInteger(saved)&&saved>=0&&saved<labels.length?saved:0);
   };
   const warmSelected = () => {
     const id=read(VOICE_KEY);
@@ -864,7 +867,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (!settings.hidden) { loadVoices(); rateInput.focus(); }
   });
   on(rateInput, 'input', () => { write(RATE_KEY, rateInput.value); rateOut.textContent = `${Number(rateInput.value).toFixed(2)}×`; });
-  on(voiceSelect, 'change', () => { if (voiceSelect.value) write(VOICE_KEY, voiceSelect.value); else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } renderSpeakers(); warmSelected(); });
+  on(voiceSelect, 'change', () => { if (voiceSelect.value) {if(read(VOICE_KEY)!==voiceSelect.value)write(SPEAKER_KEY,'0');write(VOICE_KEY, voiceSelect.value);} else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } renderSpeakers(); warmSelected(); });
   on(speakerSelect,'change',()=>{write(SPEAKER_KEY,speakerSelect.value);warmSelected();});
   on(sampleBtn, 'click', () => {
     stopRecognition(true);
