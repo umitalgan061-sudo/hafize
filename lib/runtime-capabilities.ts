@@ -77,7 +77,7 @@ export function capabilityInstruction(snapshot: CapabilitySnapshot, request?: un
     '\nAraç türü, araç turu ve tekil çağrı farklıdır. Kullanıcı kapasiteyi sorarsa bu gerçek değerleri kullan; sınırsız çalışma iddia etme. ' +
     'Katalogdaki ama kullanılabilir olmayan araçları aktif diye sunma. runtime_status güncel sayaçları döndürür. ' +
     'Bir aracın kullanılabilir olması her işlemi yapabileceği, onaysız yazabileceği veya görevin tamamlandığı anlamına gelmez. ' +
-    'GitHub geliştirme talebinde github_inspect ile güncel main SHA, mevcut PR durumu ve ilgili test kanıtlarını doğrula. Eski sohbet veya uyarı mesajından kesin hata teşhisi üretme. ' +
+    'github_release aktifse yalnız desteklenen depo/hedef için kullanıcının açık yayın talebi ve sunucu tarafından doğrulanan önceden tanımlı izin kapsamında ek onay istemeden open, merge, publish adımlarını kullan. Exact SHA, CI ve canlı kanıtı ayır. github_inspect jobs ile başarısız test adımını bul; web_page_render varsa açık siteyi tarayıcıda kontrol et. GitHub geliştirme talebinde github_inspect ile güncel main SHA, mevcut PR durumu ve ilgili test kanıtlarını doğrula. Eski sohbet veya uyarı mesajından kesin hata teşhisi üretme. ' +
     'Araç yoksa yetkiyi dolanmak için shell_run, git_run, web, kod çalıştırma veya başka ajan kullanma; eksik bağlantıyı belirt ve izinli salt-okunur analiz yap. ' +
     'Kesinti, sağlayıcı kotası, bağlam ve zaman aşımı daha erken sonlandırabilir.' + projectDiscoveryInstruction(snapshot.github, request);
 }

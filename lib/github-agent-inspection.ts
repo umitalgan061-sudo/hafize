@@ -16,7 +16,7 @@ type Options = {
 const fields: Record<string, readonly string[]> = {
   project: ['path'], repo: [], branches: ['limit'], commits: ['ref', 'limit'], pulls: ['state', 'limit'],
   directory: ['path', 'ref'], commit: ['sha'], pull: ['number'],
-  compare: ['base', 'head'], checks: ['sha']
+  compare: ['base', 'head'], checks: ['sha'], jobs: ['runId']
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -67,6 +67,16 @@ export function createGitHubAgentInspection(options: Options) {
     if (action === 'compare') return options.extra.compare({ repository, base: args.base, head: args.head });
     if (action === 'commit') return options.details.commit({ repository, sha: args.sha });
     if (action === 'pull') return options.details.pull({ repository, number: args.number });
+    if(action==='jobs'){
+      const runId=args.runId;
+      if(typeof runId!=='number'||!Number.isSafeInteger(runId)||runId<1)throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
+      const url=new URL('https://api.github.com/repos/'+repository.split('/').map(encodeURIComponent).join('/')+'/actions/runs/'+runId+'/jobs?per_page=100');
+      const response=await fetchImpl(url,{method:'GET',redirect:'error',signal:AbortSignal.timeout(30_000),headers:{Accept:'application/vnd.github+json','User-Agent':'Hafize-AI','X-GitHub-Api-Version':'2022-11-28',...(options.token?{Authorization:'Bearer '+options.token}:{})}});
+      if(!response.ok)throw new GitHubReadError('GITHUB_READ_FAILED',response.status);
+      const data=record(await response.json());
+      if(!Array.isArray(data.jobs))throw new GitHubReadError('INVALID_GITHUB_RESPONSE',502);
+      return {repository,runId,totalCount:data.total_count,jobs:data.jobs.slice(0,100).map(v=>{const j=record(v);return {id:j.id,name:string(j.name),status:string(j.status),conclusion:string(j.conclusion)||null,steps:Array.isArray(j.steps)?j.steps.slice(0,80).map(v=>{const s=record(v);return {name:string(s.name),status:string(s.status),conclusion:string(s.conclusion)||null};}):[]};})};
+    }
     if (action !== 'checks') return options.reader.inspect(input);
 
     // Evidence is anchored to an exact commit, never to the latest unrelated run.

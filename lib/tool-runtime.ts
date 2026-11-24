@@ -73,6 +73,8 @@ export interface ToolRuntimeContext {
   };
   /** Set ONLY by trusted server after owner session and config checks. */
   readonly safeGitHubAutonomy?: boolean;
+  readonly githubReleaseAuthorization?: import('./github-agent-release.ts').ReleaseAuthorization;
+  readonly githubRelease?: {enabled:()=>boolean;execute:(args:unknown,context:{ownerAuthorized:boolean;authorization?:import('./github-agent-release.ts').ReleaseAuthorization;signal?:AbortSignal})=>Promise<unknown>};
   readonly delegateAgent?: (args: unknown) => Promise<unknown>;
   readonly approvalGranted?: boolean;
   readonly canvaReadAuthenticated?: boolean;
@@ -295,9 +297,9 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'repository',
     timeoutMs: timeout(60_000),
     activity: { running: 'GitHub durumu doğrulanıyor', success: 'GitHub durumu okundu', failure: 'GitHub durumu okunamadı' },
-    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare veya checks oku. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
-      action: { type: 'string', enum: ['project', 'repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks'] },
-      repository: { type: 'string' }, path: { type: 'string' }, ref: { type: 'string' }, limit: { type: 'integer' }, state: { type: 'string' }, number: { type: 'integer' }, sha: { type: 'string' }, base: { type: 'string' }, head: { type: 'string' }
+    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare, checks veya jobs oku. jobs için workflow run ID (runId) kullan; adım sonuçları ile hata aşamasını ayır. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
+      action: { type: 'string', enum: ['project', 'repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks', 'jobs'] },
+      repository: { type: 'string' }, path: { type: 'string' }, ref: { type: 'string' }, limit: { type: 'integer' }, state: { type: 'string' }, number: { type: 'integer' }, runId: { type: 'integer' }, sha: { type: 'string' }, base: { type: 'string' }, head: { type: 'string' }
     }, ['action', 'repository']),
     available: context => Boolean(context.githubReadConfigured && context.githubInspect),
     execute: async (args, context) => context.githubInspect!(args)
@@ -326,6 +328,13 @@ const CATALOG = new Map<string, ToolEntry>([
       requestApproval: context.requestApproval,
       safeAutonomy: context.safeGitHubAutonomy === true
     })
+  }],
+  ['github_release', {
+    permission:'repo.release_request',kind:'repository',timeoutMs:timeout(120_000),
+    activity:{running:'GitHub yayın kanıtı kontrol ediliyor',success:'GitHub yayın adımı yanıtlandı',failure:'GitHub yayın adımı engellendi'},
+    definition:strictDefinition('github_release','Sadece yetkili hesap sahibi, önceden tanımlı sunucu izni ve mevcut kullanıcının açık proje/yayın talebi kapsamında, ek onay penceresi olmadan: open incelemeye hazır PR açar; merge tam head SHA ve PR numarası ile CI/dal koruması/dosya kapsamı doğrulanır, squash merge yapılır; publish yalnız mevcut main SHA için Hafize Firebase veya Borsa Cloudflare workflow başlatır. Yayın kuyruğu canlı doğrulama değildir. Draft PR merge edilmez. Önce github_inspect kullan.',{action:{type:'string',enum:['open','merge','publish']},repository:{type:'string'},branch:{type:'string'},title:{type:'string'},body:{type:'string'},number:{type:'integer'},sha:{type:'string'},target:{type:'string',enum:['firebase','cloudflare']}},['action','repository']),
+    available:context=>Boolean(context.githubRelease?.enabled()&&context.safeGitHubAutonomy===true&&context.githubReleaseAuthorization?.actions.length),
+    execute:async(args,context)=>context.githubRelease!.execute(args,{ownerAuthorized:context.safeGitHubAutonomy===true,authorization:context.githubReleaseAuthorization,signal:context.signal})
   }],
   ['canva_read', {
     permission: 'connector.canva.read',
