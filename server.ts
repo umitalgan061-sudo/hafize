@@ -55,8 +55,9 @@ import { createWebTools } from './lib/web-tools.ts';
 import { createMemorySession, normalizeClientMemory } from './lib/memory-tools.ts';
 import { createToolMarkupGate, parseTextualToolCalls, readNvidiaStream, stripToolMarkup } from './lib/nvidia-stream.ts';
 import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
-import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus } from './lib/model-lab.ts';
+import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
 import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
+import { modelLabAction } from './lib/model-lab-http.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -92,6 +93,7 @@ if (!gateway && NVIDIA_API_KEY && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
 const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integrate.api.nvidia.com/v1' ? createModelLab({
   allowed: [...CONFIGURED_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
   storage: MODEL_LAB_STORAGE,
+  specialistModels: (process.env.HAFIZE_MODEL_LAB_EMBEDDINGS || 'nvidia/nemotron-3-embed-1b').split(',').map(id=>id.trim()),
   request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
@@ -1042,9 +1044,12 @@ async function handleAgentRun(req, res) {
     const authorized = allowSafeGitHubAutonomy({ optedIn: true, authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal, configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId: agent.id, primaryAgentId: AGENT_REGISTRY.defaultAgent });
     if (!authorized || !MODEL_LAB) { finishWithAnswer('Model Laboratuvarı, doğrulanmış hesap sahibi oturumu ve doğrudan NVIDIA API bağlantısı gerektirir.', false, true); return; }
     try {
+      if (labCommand.action === 'council') { finishWithAnswer(formatCouncil(await MODEL_LAB.council(labCommand.question, requestAbort.signal)), false); return; }
+      if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
       if (labCommand.action === 'probe') await MODEL_LAB.probe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
+      if (labCommand.action === 'specialist') await MODEL_LAB.specialistProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'batch') {
         if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
         await MODEL_LAB.batch(requestAbort.signal, (testedModel, result) => {
@@ -1617,6 +1622,27 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
+    // This path is covered by production-guard's /api/models/status prefix (session + CSRF).
+    if (url.pathname === '/api/models/status/lab' && ['GET','POST'].includes(req.method)) {
+      const authorized = allowSafeGitHubAutonomy({ optedIn:true, authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal:req.__hafizePrincipal||null, configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent });
+      if (!authorized) { sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'}); return; }
+      if (!MODEL_LAB) { sendJson(res,503,{error:'MODEL_LAB_UNAVAILABLE'}); return; }
+      res.setHeader('Cache-Control','no-store');
+      if (req.method==='GET') { sendJson(res,200,MODEL_LAB.status()); return; }
+      const abort=new AbortController();
+      const close=()=>abort.abort();
+      res.once('close',close);
+      try {
+        const body=await readJson(req,4096);
+        sendJson(res,200,await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])));
+      } catch(error) {
+        if(res.destroyed||res.writableEnded)return;
+        const code=typeof error?.message==='string'&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_LAB_FAILED';
+        const status=code==='MODEL_LAB_BUSY'?409:code==='MODEL_LAB_BUDGET'||code==='MODEL_LAB_PROVIDER_PAUSED'?429:400;
+        sendJson(res,status,{error:code});
+      } finally {res.off('close',close);}
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/api/models/status') {
       sendJson(res, 200, { ...MODEL_ROUTER.status(), internet: await internetStatus() });
       return;

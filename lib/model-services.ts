@@ -96,6 +96,7 @@ export function createModelServices(config: ModelServicesConfig) {
   const safetyModel = config.safetyModel || MODEL_SERVICE_DEFAULTS.safetyModel;
   const local = config.local?.enabled ? config.local : null;
   const embedCache = new Map<string, number[]>();
+  const embedDimensions = new Map<string, number>();
   let embeddingsBroken = false;
   let lastProvider: 'nvidia' | 'local' = 'nvidia';
 
@@ -164,7 +165,7 @@ export function createModelServices(config: ModelServicesConfig) {
     if (!response.ok) throw new ModelServiceError(response.status === 404 ? 'EMBED_MODEL_UNAVAILABLE' : 'EMBED_FAILED', response.status);
     const data = await response.json() as { data?: Array<{ embedding?: number[]; index?: number }> };
     const rows = (data.data || []).slice().sort((a, b) => Number(a.index) - Number(b.index));
-    if (rows.length !== texts.length || rows.some((row) => !Array.isArray(row.embedding))) throw new ModelServiceError('EMBED_FAILED');
+    if (rows.length !== texts.length || rows.some((row,index) => row.index !== index || !Array.isArray(row.embedding))) throw new ModelServiceError('EMBED_FAILED');
     return rows.map((row) => row.embedding!);
   }
 
@@ -182,31 +183,48 @@ export function createModelServices(config: ModelServicesConfig) {
     return data.embeddings;
   }
 
-  /** Dense vectors for the texts, or null when no embedding provider works (callers fall back to BM25). */
+  /** One request must never mix different embedding spaces, even during provider failover. */
   async function embed(texts: readonly string[], { kind = 'passage', signal }: { readonly kind?: 'query' | 'passage'; readonly signal?: AbortSignal | undefined } = {}): Promise<{ vectors: number[][]; model: string } | null> {
+    signal?.throwIfAborted();
     if (!texts.length) return { vectors: [], model: embedModel };
-    const keys = texts.map((text) => createHash('sha256').update(kind + '\0' + text).digest('hex'));
-    const missing = texts.map((text, index) => (embedCache.has(keys[index]!) ? null : { text: text.slice(0, 8_000), index })).filter((item): item is { text: string; index: number } => item !== null);
-    let model = embedModel;
-    if (missing.length) {
-      let vectors: number[][] | null = null;
-      if (config.apiKey && !embeddingsBroken) {
-        try {
-          vectors = [];
-          for (let offset = 0; offset < missing.length; offset += 32) vectors.push(...await nvidiaEmbed(missing.slice(offset, offset + 32).map((item) => item.text), kind, signal));
-        } catch (error) {
-          vectors = null;
-          if ((error as ModelServiceError)?.code === 'EMBED_MODEL_UNAVAILABLE') embeddingsBroken = true;
+    const input=texts.map(text=>text.slice(0,8_000));
+    async function collect(model:string, loader:(batch:readonly string[])=>Promise<number[][]>) {
+      const keys=input.map(text=>createHash('sha256').update(JSON.stringify([model,kind,text])).digest('hex'));
+      const found=keys.map(key=>embedCache.get(key));
+      const missing=found.flatMap((vector,index)=>vector?[]:[index]);
+      let dimension=embedDimensions.get(model);
+      const staged: {key:string;vector:number[]}[]=[];
+      for(let offset=0;offset<missing.length;offset+=32) {
+        signal?.throwIfAborted();
+        const indices=missing.slice(offset,offset+32);
+        const vectors=await loader(indices.map(index=>input[index]!));
+        if(vectors.length!==indices.length)throw new ModelServiceError('EMBED_FAILED');
+        for(let i=0;i<vectors.length;i++){
+          const vector=vectors[i]!;
+          if(!Array.isArray(vector)||!vector.length||vector.length>16384||vector.some(value=>typeof value!=='number'||!Number.isFinite(value))||!vector.some(value=>value!==0))throw new ModelServiceError('EMBED_VECTOR_INVALID');
+          if(dimension===undefined)dimension=vector.length;
+          if(vector.length!==dimension)throw new ModelServiceError('EMBED_DIMENSION_MISMATCH');
+          const index=indices[i]!;
+          found[index]=vector;
+          staged.push({key:keys[index]!,vector});
         }
       }
-      if (!vectors && local?.embedModel) {
-        try { vectors = await localEmbed(missing.map((item) => item.text), signal); model = `local:${local.embedModel}`; } catch { vectors = null; }
-      }
-      if (!vectors) return null;
-      missing.forEach((item, position) => embedCache.set(keys[item.index]!, vectors![position]!));
-      if (embedCache.size > 5_000) for (const key of [...embedCache.keys()].slice(0, 1_000)) embedCache.delete(key);
+      signal?.throwIfAborted();
+      if(dimension===undefined||found.some(vector=>!vector||vector.length!==dimension))throw new ModelServiceError('EMBED_DIMENSION_MISMATCH');
+      embedDimensions.set(model,dimension);
+      for(const row of staged)embedCache.set(row.key,row.vector);
+      if(embedCache.size>5000)for(const key of [...embedCache.keys()].slice(0,embedCache.size-4000))embedCache.delete(key);
+      return {vectors:found.map(vector=>vector!.slice()),model};
     }
-    return { vectors: keys.map((key) => embedCache.get(key)!), model };
+    if(config.apiKey&&!embeddingsBroken){
+      try{return await collect(embedModel,batch=>nvidiaEmbed(batch,kind,signal));}
+      catch(error){if(signal?.aborted)throw error;if((error as ModelServiceError)?.code==='EMBED_MODEL_UNAVAILABLE')embeddingsBroken=true;}
+    }
+    if(local?.embedModel){
+      try{return await collect('local:'+local.embedModel,batch=>localEmbed(batch,signal));}
+      catch(error){if(signal?.aborted)throw error;}
+    }
+    return null;
   }
 
   /** Describes images with a vision model: description, visible text, objects, structured data. */

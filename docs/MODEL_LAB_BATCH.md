@@ -23,3 +23,16 @@ Geri dönüş: PR revert. Ek model yönlendirmesi test kanıtı süresi dolduğu
 `HAFIZE_MODEL_LAB_STORAGE_PATH` ayarlanırsa tek süreçli sunucuda sentetik sonuçlar ve istek bütçesi atomik dosya yazımıyla saklanır. Yol mutlak olmalı, üst dizin önceden oluşturulmalı ve yalnız operatör tarafından yönetilmelidir. Anahtar değişince eski sonuçlar kullanılmaz; ham anahtar kaydedilmez. Dosya hatası durum ekranında görülür ve süreç belleği kullanılır. Render ücretsiz geçici dosya sistemi kalıcılık garantisi vermez; kalıcı birim olmadan yeniden dağıtımlarda veri kaybı mümkündür. Çok örnekli dağıtımda ortak atomik bütçe için bir DB gerekir. Görsel, ses, belge ve diğer özel amaçlı girdiler genel sohbet yönlendirmesinden korunur; bu yeni multimodal entegrasyon değildir.
 
 Eşzamanlı sohbetlerde bozuk stream, son kullanılan global modele değil yalnız o yanıtı üreten modele uygulanır. Stream kullanım telemetrisi mümkün olduğunda gerçek yönlendirilmiş model kimliğini gösterir.
+
+## V3 — katalog ve model konseyi
+- `Model kataloğu`: katalog, aday yapılandırması, tahmini yetenek ailesi ve güncel gözlemleri tablo halinde gösterir. Fiyat bilinmiyor; hiçbir katalog modeli otomatik eklenmez.
+- `Model konseyi: soru`: güncel sohbet testi olan iki farklı model aynı açık kullanıcı sorusunu bağımsız yanıtlar; bütçe ve üçüncü aday varsa üçüncü model kısa karşılaştırma yazar. En fazla üç istek, mevcut 12/10 dakika bütçesinde. Araçlar kapalıdır. Sorular ve yanıtlar test deposuna yazılmaz. Dış kaynak doğrulaması değildir. Model çıktıları normal sohbet çıktısıdır ve yürütülmez.
+- Belge, görüntü, ses, embedding, rerank ve güvenlik kategorileri sadece katalog aday türleridir; erişim testi veya çalışan üretim adaptörü anlamına gelmez.
+
+- `Embedding testi: nvidia/nemotron-3-embed-1b` mevcut embedding modelini üç sentetik cümle ile tek istekte ölçer. Boyut, geçerli sayısal vektör ve basit benzerlik kontrolü; genel retrieval kalitesi değildir. `HAFIZE_MODEL_LAB_EMBEDDINGS` operatörün erişim/maliyetini onayladığı Nemotron 3/3.5 embedding kimliklerini seçer. Sonuçlar bu sürümde geçici bellektedir, otomatik üretim model değişikliği yoktur. Resmi API: https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-embed-1b-infer .
+- Üretim embedding önbelleği artık model, sağlayıcı, input_type ve gönderilen metinle ayrılır; NVIDIA ve yerel model vektörleri tek batch içinde karıştırılmaz. Hatalı, sıfır veya farklı boyutlu vektörler reddedilir.
+
+## V3 — Ayarlar paneli
+Ayarlar > NVIDIA Model Laboratuvarı: durum, katalog arama, görev liderleri, model seçimi, sohbet/derin/embedding ve toplu test düğmeleri. İlk açılışta otomatik API isteği yoktur; düğmeler kullanıcı tarafından çalıştırılır. `/api/models/status/lab` GET/POST uçları mevcut oturum, CSRF ve sahibi doğrulama sınırını kullanır. Konsey soruları bu test HTTP uç noktasına kabul edilmez.
+
+- Hafıza veritabanındaki şifreli vektörler model kimliğiyle eşleştirilir. Boyutları aynı olsa bile farklı embedding modellerinin vektörleri karşılaştırılmaz; eski model kayıtlarında BM25 araması kullanılabilir. Konseyde bir model veya üçüncü değerlendirici ağ hatası verirse başarılı yanıtlar korunur.

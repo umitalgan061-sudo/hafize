@@ -87,7 +87,7 @@ const KEY_OWNER: Readonly<Record<MemoryNamespace, (ownerId: string) => string>> 
 });
 
 export function createMemoryBackend({ db, crypto, embed = null, now = () => Date.now() }: { readonly db: DatabaseSync; readonly crypto: EnvelopeCrypto; readonly embed?: Embedder | null; readonly now?: () => number }) {
-  const vectorCache = new Map<string, Map<string, Float32Array>>();
+  const vectorCache = new Map<string, Map<string, {model:string;vector:Float32Array}>>();
 
   const cipherFor = (ownerId: string, namespace: MemoryNamespace): OwnerCipher => crypto.forOwner(KEY_OWNER[namespace](ownerId));
   const ownerScope = (ownerId: string, namespace: MemoryNamespace) => (namespace === 'private' ? ownerId : KEY_OWNER[namespace](ownerId));
@@ -132,7 +132,7 @@ export function createMemoryBackend({ db, crypto, embed = null, now = () => Date
       const result = await embed([content], { kind: 'passage' });
       if (!result?.vectors[0]) return;
       db.prepare('UPDATE memories SET embedding_enc = ?, embedding_model = ? WHERE id = ?').run(cipher.encryptVector(result.vectors[0]), result.model, id);
-      vectorCache.get(scope)?.set(id, Float32Array.from(result.vectors[0]));
+      vectorCache.get(scope)?.set(id, {model:result.model,vector:Float32Array.from(result.vectors[0])});
     } catch { /* retrieval falls back to BM25 for this record */ }
   }
 
@@ -267,13 +267,13 @@ export function createMemoryBackend({ db, crypto, embed = null, now = () => Date
     return { imported, skipped };
   }
 
-  function vectorsFor(scope: string, namespace: MemoryNamespace): Map<string, Float32Array> {
+  function vectorsFor(scope: string, namespace: MemoryNamespace): Map<string, {model:string;vector:Float32Array}> {
     let cached = vectorCache.get(scope);
     if (cached) return cached;
     cached = new Map();
     const cipher = crypto.forOwner(namespace === 'private' ? scope : KEY_OWNER[namespace](''));
-    for (const row of db.prepare('SELECT id, embedding_enc FROM memories WHERE owner_id = ? AND embedding_enc IS NOT NULL').all(scope) as Array<{ id: string; embedding_enc: string }>) {
-      try { cached.set(row.id, cipher.decryptVector(row.embedding_enc)); } catch {}
+    for (const row of db.prepare('SELECT id, embedding_enc, embedding_model FROM memories WHERE owner_id = ? AND embedding_enc IS NOT NULL').all(scope) as Array<{ id: string; embedding_enc: string; embedding_model: string | null }>) {
+      try { if(row.embedding_model)cached.set(row.id, {model:row.embedding_model,vector:cipher.decryptVector(row.embedding_enc)}); } catch {}
     }
     vectorCache.set(scope, cached);
     return cached;
@@ -286,7 +286,8 @@ export function createMemoryBackend({ db, crypto, embed = null, now = () => Date
     const scopes = (namespaces?.length ? namespaces.map(assertNamespace) : [...MEMORY_NAMESPACES]);
     const allowedKinds = kinds?.length ? new Set(kinds.map(assertKind)) : null;
     const limit = Math.min(Math.max(Math.trunc(topK), 1), MEMORY_BACKEND_LIMITS.topK);
-    const queryVector = queryText && embed ? (await embed([queryText], { kind: 'query' }).catch(() => null))?.vectors[0] ?? null : null;
+    const queryEmbedding = queryText && embed ? await embed([queryText], { kind: 'query' }).catch(() => null) : null;
+    const queryVector = queryEmbedding?.vectors[0] ?? null;
     const candidates = new Map<string, { record: MemoryRecord; dense: number | null; sparse: number | null; denseRank: number; sparseRank: number }>();
     const filterTags = filter.tags?.length ? cleanTags(filter.tags) : [];
     const accept = (record: MemoryRecord) => (!allowedKinds || allowedKinds.has(record.kind))
@@ -315,7 +316,7 @@ export function createMemoryBackend({ db, crypto, embed = null, now = () => Date
         }
       }
       if (queryVector) {
-        const scored = [...vectorsFor(scope, namespace).entries()].filter(([id]) => records.has(id)).map(([id, vector]) => ({ id, similarity: cosine(queryVector, vector) })).sort((a, b) => b.similarity - a.similarity).slice(0, 200);
+        const scored = [...vectorsFor(scope, namespace).entries()].filter(([id,entry]) => records.has(id) && entry.model===queryEmbedding?.model && entry.vector.length===queryVector.length).map(([id, entry]) => ({ id, similarity: cosine(queryVector, entry.vector) })).sort((a, b) => b.similarity - a.similarity).slice(0, 200);
         scored.forEach((item, index) => {
           if (item.similarity < 0.15) return;
           const entry = candidates.get(item.id) ?? { record: records.get(item.id)!, dense: null, sparse: null, denseRank: Infinity, sparseRank: Infinity };
