@@ -185,11 +185,13 @@ function start(documentRef: Document, root: typeof globalThis): void {
     const actions=el('div','settings-actions');
     const leaders=el('ul','settings-memory-list');
     const daily=el('p','app-install-state');
+    const dailyHistory=el('ul','settings-memory-list');
+    const dailyDetails=el('details');dailyDetails.append(el('summary','','Son 14 iyileştirme döngüsü'),dailyHistory);
     const list=el('ul','model-status-list');
     const details=el('details');details.append(el('summary','','Model kataloğu ve test sonuçları'),filter,list);
-    panel.append(notice,actions,select,daily,leaders,details);
+    panel.append(notice,actions,select,daily,dailyDetails,leaders,details);
     type Row={id:string;capabilities:string[];configured:boolean;listed:boolean;evidence:string};
-    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;report?:{state:string;finishedAt:string|null;experts:unknown[]}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
+    type LabData={dailyImprovement?:{enabled:boolean;liveProbes:boolean;nextDueAt:string|null;history?:{startedAt:string;state:string;testedModels:number;deepTestedModels?:number;specialists:number;changes?:{kind:string;before:string|null;after:string|null}[]}[];report?:{state:string;finishedAt:string|null;experts:unknown[]}};inventory?:Row[];eligible?:string[];specialists?:string[];requestsRemaining?:number;blockedUntil?:string;running?:boolean;taskLeaders?:Record<string,string[]>;results?:{model:string;chatLatencyMs:number|null;tools:boolean}[];specialistResults?:{model:string;status:string;dimension:number|null}[]};
     let data:LabData={};let busy=false;let available=false;
     const buttons:HTMLButtonElement[]=[];
     const render=()=>{
@@ -204,6 +206,13 @@ function start(documentRef: Document, root: typeof globalThis): void {
       leaders.replaceChildren();
       const cycle=data.dailyImprovement;
       daily.textContent=cycle?'24 saatlik iyileştirme: '+(cycle.enabled?'etkin':'kapalı')+' · Canlı sentetik test: '+(cycle.liveProbes?'etkin':'kapalı')+' · Son durum: '+(cycle.report?.state??'henüz yok')+(cycle.nextDueAt?' · Sonraki uygun zaman: '+new Date(cycle.nextDueAt).toLocaleString('tr-TR'):''):'Günlük iyileştirme durumu bilinmiyor.';
+      dailyHistory.replaceChildren();
+      for(const row of (cycle?.history??[]).slice(0,14)){
+        const entry=el('li','',new Date(row.startedAt).toLocaleString('tr-TR')+' · '+row.state+' · Sohbet '+row.testedModels+' · Derin '+(row.deepTestedModels??0)+' · Uzman '+row.specialists);
+        for(const change of row.changes??[])entry.append(el('small','',change.kind+': '+(change.before??'—')+' → '+(change.after??'—')));
+        dailyHistory.append(entry);
+      }
+      if(!dailyHistory.children.length)dailyHistory.append(el('li','','Henüz tamamlanan günlük döngü yok.'));
       for(const [kind,ids] of Object.entries(data.taskLeaders??{}))leaders.append(el('li','',kind+': '+(ids[0]||'ölçülmedi')));
       for(const row of data.specialistResults??[])leaders.append(el('li','',row.model+': '+row.status+' · '+(row.dimension??'—')+' boyut'));
       const selected=select.value;

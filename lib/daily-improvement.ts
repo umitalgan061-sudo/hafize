@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { createModelLab } from './model-lab.ts';
 export const DAY_MS=24*60*60*1000;
 export type ExpertHealth={agentId:string;healthy:boolean;reasons:string[];successRate:number|null;p99Ms:number|null;sampleCount:number};
-type DailyReport={changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
+type DailyReport={deepTestedModels?:string[];warnings?:string[];changes?:{kind:string;before:string|null;after:string|null}[];startedAt:string;finishedAt:string|null;state:'running'|'completed'|'partial'|'failed';experts:ExpertHealth[];liveProbes:boolean;testedModels:string[];specialists:string[];taskLeaders:Record<string,string[]>;error:string|null};
 export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,enabled=true,now=Date.now}:{db:DatabaseSync;lab:ReturnType<typeof createModelLab>|null;expertHealth:()=>ExpertHealth[];liveProbes?:boolean;enabled?:boolean;now?:()=>number}){
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement (id INTEGER PRIMARY KEY CHECK(id=1), started_at INTEGER NOT NULL, report TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS hafize_daily_improvement_history (started_at INTEGER PRIMARY KEY, report TEXT NOT NULL)');
@@ -14,7 +14,8 @@ export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,ena
   function status(){
     const row=read();let report:DailyReport|null=null;
     try{if(row)report=JSON.parse(row.report);}catch{}
-    const history=(db.prepare('SELECT report FROM hafize_daily_improvement_history ORDER BY started_at DESC LIMIT 14').all() as {report:string}[]).flatMap(row=>{try{const item=JSON.parse(row.report) as DailyReport;return [{startedAt:item.startedAt,finishedAt:item.finishedAt,state:item.state,testedModels:item.testedModels.length,specialists:item.specialists.length,changes:item.changes??[]}];}catch{return [];}});
+    const history=(db.prepare('SELECT report FROM hafize_daily_improvement_history ORDER BY started_at DESC LIMIT 14').all() as {report:string}[]).flatMap(row=>{try{const item=JSON.parse(row.report) as DailyReport;return [{startedAt:item.startedAt,finishedAt:item.finishedAt,state:item.state,testedModels:item.testedModels.length,deepTestedModels:item.deepTestedModels?.length??0,specialists:item.specialists.length,changes:item.changes??[]}];}catch{return [];}});
+    if(report?.state==='running'&&!inFlight&&row&&now()-row.started_at>240000)report={...report,state:'partial',error:'DAILY_INTERRUPTED_BEFORE_REPORT'};
     return {enabled,liveProbes,history,intervalHours:24,nextDueAt:row?new Date(row.started_at+DAY_MS).toISOString():null,running:Boolean(inFlight),report};
   }
   async function execute():Promise<DailyReport|null>{
@@ -32,7 +33,18 @@ export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,ena
       report.experts=expertHealth();
       if(liveProbes&&lab){
         const signal=AbortSignal.any([controller.signal,AbortSignal.timeout(180000)]);
-        const batch=await lab.batch(signal);
+        const initial=lab.status();
+        const deepCandidate=initial.deepPendingModels?.[0];
+        report.deepTestedModels=[];
+        report.warnings=[];
+        let batchLimit=2;
+        if(deepCandidate&&!initial.blockedUntil&&initial.requestsRemaining>=4){
+          batchLimit=1;
+          const deep=await lab.deepProbe(deepCandidate,signal);
+          report.deepTestedModels.push(deep.model);
+          if(deep.status!=='passed'||!deep.language||!deep.reasoning||!deep.coding||!deep.toolFollowup)report.warnings.push('DEEP_TEST_QUALITY_CHECK:'+deep.model);
+        }
+        const batch=await lab.batch(signal,undefined,batchLimit);
         report.testedModels=batch.completed.map(row=>row.model);
         const snapshot=lab.status();
         const age=(id:string)=>Date.parse(snapshot.specialistResults.find(row=>row.model===id)?.testedAt||'')||0;
@@ -47,7 +59,7 @@ export function createDailyImprovement({db,lab,expertHealth,liveProbes=false,ena
       report.taskLeaders=lab?.status().taskLeaders??{};
       let before:Record<string,string[]>={};try{if(previous)before=(JSON.parse(previous.report) as DailyReport).taskLeaders||{};}catch{}
       report.changes=Object.entries(report.taskLeaders).flatMap(([kind,ids])=>{const old=before[kind]?.[0]??null;const next=ids[0]??null;return old===next?[]:[{kind,before:old,after:next}];});
-      report.state=report.error?'partial':'completed';
+      report.state=report.error||report.warnings?.length?'partial':'completed';
     }catch(error){report.state='partial';report.error=error instanceof Error&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'DAILY_IMPROVEMENT_INTERRUPTED';}
     finally{report.finishedAt=new Date(now()).toISOString();controller=null;const payload=JSON.stringify(report);db.prepare('UPDATE hafize_daily_improvement SET report=? WHERE id=1 AND started_at=?').run(payload,started);db.prepare('INSERT OR REPLACE INTO hafize_daily_improvement_history(started_at,report) VALUES(?,?)').run(started,payload);db.exec('DELETE FROM hafize_daily_improvement_history WHERE started_at NOT IN (SELECT started_at FROM hafize_daily_improvement_history ORDER BY started_at DESC LIMIT 14)');}
     return report;
