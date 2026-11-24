@@ -54,7 +54,7 @@ export function prepareHostingConfig(rawConfig, projectId, siteId) {
 export function stampReleaseHtml(html,sha) {
   if(!/^[0-9a-f]{40}$/.test(sha))throw Error('GITHUB_COMMIT_SHA_MISSING_OR_INVALID');
   if(!html.includes('</head>')||!html.includes('/typed-build/app-install.js'))throw Error('FIREBASE_HOSTING_INDEX_INVALID');
-  const versioned=html.replace(/(\\b(?:src|href)=\")(\/[a-zA-Z0-9_./-]+\.(?:js|css)(?:\?[^\"]*)?)(\")/g,(_all,prefix,asset,suffix)=>{const url=new URL(asset,'https://release.invalid');url.searchParams.set('release',sha);return prefix+url.pathname+url.search.replaceAll('&','&amp;')+suffix;});
+  const versioned=html.replace(/(\b(?:src|href)=\")(\/[a-zA-Z0-9_./-]+\.(?:js|css)(?:\?[^\"]*)?)(\")/g,(_all,prefix,asset,suffix)=>{const url=new URL(asset,'https://release.invalid');url.searchParams.set('release',sha);return prefix+url.pathname+url.search.replaceAll('&','&amp;')+suffix;});
   return versioned.replace('</head>','<meta name="hafize-release" content="'+sha+'" />\n</head>');
 }
 

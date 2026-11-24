@@ -26,7 +26,7 @@ async function navigateWithOfflineFallback(request) {
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CURRENT_CACHE)
-      .then((cache) => cache.addAll(SHELL_ASSETS.map(path=>new Request(path,{cache:'reload'}))))
+      .then((cache) => cache.addAll(SHELL_ASSETS.map(path=>new Request(new URL(path,self.location.origin),{cache:'reload'}))))
       .then(() => self.skipWaiting())
   );
 });
