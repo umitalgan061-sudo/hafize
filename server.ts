@@ -1,3 +1,4 @@
+import {KIMI_K31_PRO,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 // @ts-nocheck
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
@@ -91,7 +92,7 @@ const CONFIGURED_MODEL_CHAIN = gateway ? [gateway.model] : parseModelChain(proce
 const LAB_CONNECTION = modelLabConnection(process.env);
 const LAB_MODEL_CHAIN = parseModelChain(process.env.HAFIZE_MODEL_CHAIN);
 // Explicit operator allowlist; never auto-promote the discovery catalog.
-const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-LAB_MODEL_CHAIN.length));
+const MODEL_LAB_EXTRA_CANDIDATES = [...new Set(['poolside/laguna-xs-2.1', 'z-ai/glm-5.3-flash', KIMI_K31_PRO, ...(process.env.HAFIZE_MODEL_LAB_CANDIDATES || '').split(',').map(id => id.trim()).filter(id => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id))])].slice(0, Math.max(0,30-LAB_MODEL_CHAIN.length));
 // Benchmark only the official NVIDIA service, not arbitrary gateways or partners.
 let MODEL_LAB_STORAGE;
 if (LAB_CONNECTION.connection && process.env.HAFIZE_MODEL_LAB_STORAGE_PATH) {
@@ -109,7 +110,7 @@ const MODEL_LAB = LAB_DIRECT ? createModelLab({
 let RUNTIME_EVIDENCE;
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
-  extraCandidates: MODEL_LAB && !gateway ? MODEL_LAB_EXTRA_CANDIDATES : [],
+  extraCandidates: MODEL_LAB && !gateway ? productionLabCandidates(MODEL_LAB_EXTRA_CANDIDATES) : [],
   preferredModels: (payload, candidates, expertId) => {const verified=gateway?[]:MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [];try{return RUNTIME_EVIDENCE?.reorder(verified)??verified;}catch{return verified;}},
   observeAttempt: event=>RUNTIME_EVIDENCE?.record(event),
   // Background helpers stay on the quick model unless it is unavailable.
