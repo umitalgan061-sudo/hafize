@@ -128,8 +128,8 @@ const WEB_TOOLS = createWebTools({
   tavilyApiKey: process.env.TAVILY_API_KEY || '',
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
-const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 100, 4, 100);
-const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 8, 1, MAX_EXPERT_ROUNDS);
+const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 200, 4, 200);
+const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 24, 1, MAX_EXPERT_ROUNDS);
 const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
@@ -172,7 +172,7 @@ const SCHEDULE_RUN_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_SCHEDULE_RU
 const CONTEXT_LIMIT_TOKENS = boundedEnvInteger(process.env.HAFIZE_CONTEXT_LIMIT_TOKENS, 128_000, 16_000, 2_000_000);
 const REQUEST_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_REQUEST_TIMEOUT_MS, 180_000, 30_000, 600_000);
 // Agent runs may research, orchestrate several steps and wait for the user's approval.
-const AGENT_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_AGENT_TIMEOUT_MS, 1_800_000, 60_000, 1_800_000);
+const AGENT_TIMEOUT_MS = boundedEnvInteger(process.env.HAFIZE_AGENT_TIMEOUT_MS, 10_800_000, 60_000, 10_800_000);
 
 function hasMetricsAuthorization(req) {
   const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
@@ -1063,7 +1063,7 @@ async function handleAgentRun(req, res) {
     if (streamResponse) {
       startSse(res);
       writeSseEvent(res, 'hafize-run-capabilities', capabilities());
-      writeSseEvent(res, 'hafize-run-outcome', { traceId, status: unresolved ? 'incomplete' : anyToolFailed ? 'tool_failed' : 'answered', toolCallsCompleted: completedCalls, roundsStarted, taskLedger: runLedger.snapshot() });
+      writeSseEvent(res, 'hafize-run-outcome', { traceId, status: unresolved ? 'incomplete' : anyToolFailed ? 'tool_failed' : 'answered', toolCallsCompleted: completedCalls, roundsStarted, taskLedger: runLedger.streamSnapshot() });
       if (!alreadyWritten && content) writeAnswerDelta((streamedAnswer ? '\n\n' : '') + content);
       if (!res.writableEnded && !res.destroyed) res.end('data: [DONE]\n\n');
       return;

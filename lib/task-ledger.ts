@@ -58,7 +58,7 @@ export function createTaskLedger({
 }: TaskLedgerOptions = {}) {
   const safeTraceId = cleanText(traceId, 'traceId', 128);
   const limit = Number.isInteger(maxEntries)
-    ? Math.min(Math.max(Number(maxEntries), 1), 2048)
+    ? Math.min(Math.max(Number(maxEntries), 1), 4096)
     : DEFAULT_MAX_ENTRIES;
   const entries: TaskLedgerEntry[] = [];
   let nextId = 1;

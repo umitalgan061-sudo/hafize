@@ -85,7 +85,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   // Tool runs chain several model calls and web fetches before the answer streams. A self-update (write, branch
   // tests, release, live check) takes 20-40 minutes; while the agent works it sends a heartbeat every 15 s, so the run
   // is given up after 4 silent minutes, not at a fixed time (16 Kasım 2026: one was cut at 15 minutes as "NVIDIA busy").
-  const AGENT_RUN_TIMEOUT_MS = 3_600_000;
+  // Server has 3 hours; allow an extra minute for final response delivery.
+  const AGENT_RUN_TIMEOUT_MS = 10_860_000;
   const AGENT_IDLE_TIMEOUT_MS = 240_000;
   let serverDefaultModel = '';
   // A self-update runs dozens of steps; the screen kept the first 4 and dropped the rest, so a working Hafize looked
@@ -1068,7 +1069,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     }
     if (status === 429 || code === 'RATE_LIMITED') return 'Çok kısa sürede çok fazla istek gönderildi. Birkaç saniye bekleyip tekrar dene.';
     if (code === 'SSE_IDLE_TIMEOUT') return 'Hafize 4 dakikadır hiçbir işaret vermedi, bu yüzden bekleme durduruldu. Buraya kadar yapılan adımlar yukarıda ve araç kaydında duruyor; "Yeniden dene" ya da "devam et" ile kaldığı yerden sürdürebilirsin.';
-    if (code === 'SSE_TIMEOUT') return 'Bu iş bir saati aştığı için durduruldu. Buraya kadar yapılan adımlar yukarıda ve araç kaydında duruyor; işi daha küçük parçalara bölüp "devam et" diyebilirsin.';
+    if (code === 'SSE_TIMEOUT') return 'Bu iş üç saatlik çalışma süresini aştığı için durduruldu. Buraya kadar yapılan adımlar yukarıda ve araç kaydında duruyor; işi daha küçük parçalara bölüp "devam et" diyebilirsin.';
     if (code === 'SSE_NETWORK_ERROR') return 'Hafize sunucusuna ulaşılamadı. Sunucu penceresinin açık olduğundan emin ol.';
     const detail = String(error?.message || '');
     if (status >= 500 || [code, detail].some((value) => value === 'NVIDIA_CHAT_ERROR' || value === 'STREAM_INTERRUPTED' || value === 'NVIDIA_STREAM_ERROR')) return 'NVIDIA şu an yanıt vermedi ya da yanıt yarıda kesildi. Birkaç saniye sonra "Yeniden dene"ye bas.';

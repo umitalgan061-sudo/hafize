@@ -1,0 +1,3 @@
+# Three-hour agent runtime
+
+Interactive agent server deadline 10,800,000 ms (180 minutes); browser SSE 10,860,000 ms with final-delivery grace and existing heartbeat/idle cancellation. Root budget 200 rounds x 8 calls (1600 theoretical), specialist 24 x 4 (96 per specialist), shared ledger 4096. Final SSE uses root and last up to 119 entries, with total/omitted count, bounded by 64 KiB; full snapshot remains in process/JSON. Short voice/chat timeout unchanged. Render env must be set explicitly. External provider limits, connection loss, process restarts, no-progress guards and permission boundaries still apply. Not proof of uninterrupted three-hour live operation.
