@@ -9,4 +9,10 @@
     else if (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) theme = 'dark';
   } catch (e) {}
   document.documentElement.dataset.theme = theme;
+  // Restore saved layout before CSS paints; new users receive the complete UI.
+  var layout = 'classic';
+  try {
+    if (localStorage.getItem('hafize.ui-layout.v1') === 'focused') layout = 'focused';
+  } catch (e) {}
+  document.documentElement.dataset.hafizeLayout = layout;
 })();
