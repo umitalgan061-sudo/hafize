@@ -74,6 +74,7 @@ import { createHafizePlatform } from './lib/hafize-platform.ts';
 import { startLocalHttps } from './lib/local-tls.ts';
 import { freeLlmGateway } from './lib/freellm-gateway.ts';
 import { markCompletionOrigin } from './lib/model-response-origin.ts';
+import { createRuntimeEvidence } from './lib/model-runtime-evidence.ts';
 import { createModelRouter, parseModelChain } from './lib/model-router.ts';
 import { MODEL_SERVICE_DEFAULTS } from './lib/model-services.ts';
 
@@ -100,10 +101,12 @@ const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integr
   request: (path, body, signal) => fetch(NIM_BASE_URL + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + NVIDIA_API_KEY, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
+let RUNTIME_EVIDENCE;
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
   extraCandidates: MODEL_LAB ? MODEL_LAB_EXTRA_CANDIDATES : [],
-  preferredModels: (payload, candidates, expertId) => MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [],
+  preferredModels: (payload, candidates, expertId) => {const verified=MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [];try{return RUNTIME_EVIDENCE?.reorder(verified)??verified;}catch{return verified;}},
+  observeAttempt: event=>RUNTIME_EVIDENCE?.record(event),
   // Background helpers stay on the quick model unless it is unavailable.
   keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
 });
@@ -1694,7 +1697,8 @@ const server = createServer(async (req, res) => {
 
 // Default to the existing SQLite DB if no explicit file storage was selected.
 if(MODEL_LAB&&!MODEL_LAB_STORAGE){try{MODEL_LAB.attachStorage(createModelLabSqliteStorage(PLATFORM.db,NVIDIA_API_KEY,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,...MODEL_LAB.status().specialists]));}catch{console.warn('hafize.model_lab sqlite storage unavailable');}}
-const DAILY_IMPROVEMENT = createDailyImprovement({db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
+try{RUNTIME_EVIDENCE=createRuntimeEvidence(PLATFORM.db,[...CONFIGURED_MODEL_CHAIN,...MODEL_LAB_EXTRA_CANDIDATES,process.env.HAFIZE_FAST_MODEL||MODEL_SERVICE_DEFAULTS.fastModel]);}catch{console.warn('hafize.runtime_evidence unavailable');}
+const DAILY_IMPROVEMENT = createDailyImprovement({runtimeEvidence:()=>{RUNTIME_EVIDENCE?.prune();return RUNTIME_EVIDENCE?.summary()??[];},adaptLeaders:ids=>RUNTIME_EVIDENCE?.reorder(ids)??ids,db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
 let dailyTimer;
 let shutdownServerPromise = null;
 

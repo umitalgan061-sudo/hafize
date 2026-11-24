@@ -1,3 +1,4 @@
+import type {RuntimeAttempt} from './model-runtime-evidence.ts';
 // Which model answers. Requests start at the top of the chain and fall one step whenever a model is
 // out of quota, rate limited, unavailable, failing or too slow to start. A model that failed sits
 // out for a while and is then tried first again, so the top model is always used when it works.
@@ -46,7 +47,7 @@ type Send = (body: string, signal: AbortSignal) => Promise<Response>;
 
 interface ModelState { cooldownUntil: number; lastFailure: FailureReason | null; lastFailureAt: number; lastSuccessAt: number }
 
-export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[], expertId?: string) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
+export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [], preferredModels = () => [], extraCandidates = [], observeAttempt = () => {}, now = Date.now, log = (line: string) => console.log(line) }: { readonly chain?: readonly string[]; readonly keepFirst?: readonly string[]; readonly preferredModels?: (payload: Record<string, unknown>, candidates: readonly string[], expertId?: string) => readonly string[]; readonly extraCandidates?: readonly string[]; readonly observeAttempt?: (event:RuntimeAttempt)=>void; readonly now?: () => number; readonly log?: (line: string) => void } = {}) {
   const states = new Map<string, ModelState>();
   // Bind response identity to the actual routed model, not the most recent concurrent request.
   const responseModels = new WeakMap<Response,string>();
@@ -58,6 +59,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
     return found;
   };
   const ready = (model: string) => state(model).cooldownUntil <= now();
+  const observe=(event:RuntimeAttempt)=>{try{observeAttempt(event);}catch{/* telemetry must not break chat */}};
 
   function penalize(model: string, reason: FailureReason, retryAfterMs = 0): void {
     const entry = state(model);
@@ -101,6 +103,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
       signal?.throwIfAborted();
       const requestSignal = signal ? AbortSignal.any([signal, attempt.signal]) : attempt.signal;
       let timedOut = false;
+      const started=now();
       // The last model also has a finite time to response headers. Once headers arrive,
       // streaming remains cancellable by the caller and is not subject to this timer.
       const timer = setTimeout(() => { timedOut = true; attempt.abort(); }, streaming ? FIRST_RESPONSE_MS.stream : FIRST_RESPONSE_MS.whole);
@@ -109,6 +112,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         if (timer) clearTimeout(timer);
         responseModels.set(response,model);
         if (response.ok) {
+          observe({model,outcome:'headers_ok',latencyMs:Math.max(0,now()-started)});
           const entry = state(model);
           entry.cooldownUntil = 0;
           entry.lastFailure = null;
@@ -120,6 +124,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         const reason = failureReason(response.status);
         // A rejected key or a malformed request fails the same way everywhere.
         if (!reason) return response;
+        observe({model,outcome:'provider_failure',latencyMs:Math.max(0,now()-started)});
         const wait = response.headers.get('retry-after')?.trim() ?? '';
         const retryAfter = /^\d+$/.test(wait) ? Number(wait) * 1000 : Date.parse(wait) - now();
         penalize(model, reason, Number.isFinite(retryAfter) ? retryAfter : 0);
@@ -132,6 +137,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
         if (signal?.aborted) throw error;
         lastError = error;
         const reason: FailureReason = timedOut ? 'slow' : 'failing';
+        observe({model,outcome:timedOut?'slow':'provider_failure',latencyMs:Math.max(0,now()-started)});
         penalize(model, reason);
         if (isLast) throw error;
         log(`hafize.model ${JSON.stringify({ skipped: model, reason })}`);
@@ -143,7 +149,7 @@ export function createModelRouter({ chain = DEFAULT_MODEL_CHAIN, keepFirst = [],
   /** A stream broke after it began: the model that answered sits out and the round can be retried. */
   const penalizeCurrent = (reason: FailureReason = 'failing') => { if (current) penalize(current, reason); };
   const modelFor = (response: Response) => responseModels.get(response) ?? null;
-  const penalizeModel = (model: string | null, reason: FailureReason = 'failing') => { if (model && (chain.includes(model) || extraCandidates.includes(model))) penalize(model,reason); };
+  const penalizeModel = (model: string | null, reason: FailureReason = 'failing') => { if (model && (chain.includes(model) || extraCandidates.includes(model))) {penalize(model,reason);observe({model,outcome:'stream_failure',latencyMs:0});} };
 
   const status = () => ({
     top: chain[0] ?? '',
