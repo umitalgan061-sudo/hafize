@@ -1,0 +1,3 @@
+# Continuous conversational listening
+
+Keep a single browser recognition session active during assistant inference and speech rather than stopping it for the entire reply. Re-arm on browser end; allow finalized distinct user speech to interrupt and cancel previous generation. Filter recent playback text and near-verbatim echoes, not interim guesses; this is a text heuristic, not acoustic echo cancellation. Preserve mute, close, background and permission handling. Safari can suspend or deny overlapping capture; physical simultaneous listening and transcription accuracy require real device tests. No additional recorder, background capture or remote ASR provider is enabled. PWA v190.

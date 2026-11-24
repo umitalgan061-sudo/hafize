@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installVoiceMode } from './voice-mode.ts';
+import { installVoiceMode, isPlaybackEcho } from './voice-mode.ts';
 
 class FakeEl {
   dataset: Record<string, string> = {};
@@ -50,6 +50,7 @@ function page(userAgent: string) {
     return elements.get(selector)!;
   };
   template.querySelector = select as typeof template.querySelector;
+  const events=new Map<string, Array<(event:any)=>void>>();
   const documentRef = {
     hidden: false,
     body,
@@ -59,7 +60,7 @@ function page(userAgent: string) {
       : selector === '#messageInput' ? input : selector === '#micBtn' ? mic
       : selector === '#messages' ? messages : null,
     createElement: (tag: string) => tag === 'div' ? template : new FakeEl(),
-    addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; }
+    addEventListener(name:string,fn:(event:any)=>void) {events.set(name,[...(events.get(name)||[]),fn]);}, removeEventListener() {}, dispatchEvent() { return true; }
   };
   const recognizers: FakeRecognition[] = [];
   const observers: Array<() => void> = [];
@@ -100,6 +101,7 @@ function page(userAgent: string) {
   const controller = installVoiceMode(documentRef as unknown as Document, root as unknown as typeof globalThis);
   if (!controller) throw Error('voice controller was not installed');
   return { controller, recognizers, elements, composer, input, documentRef,
+    emit:(name:string,detail:unknown)=>events.get(name)?.forEach(fn=>fn({detail})),
     notify: () => observers.forEach((callback) => callback()) };
 }
 const result = (transcript: string, isFinal: boolean) =>
@@ -179,4 +181,41 @@ describe('real speech recognition instead of a fake recording indicator', () => 
     expect(rec.stopCalls).toBe(1);
     p.controller.destroy();
   });
+});
+
+describe('overlapping microphone and assistant audio',()=>{
+ it('filters exact and near verbatim playback without discarding a different phrase',()=>{
+  expect(isPlaybackEcho('Bugün hava çok güzel','Bugün hava çok güzel. İstersen yürüyelim.')).toBe(true);
+  expect(isPlaybackEcho('Bugün hava çok güzel gerçekten harika','Bugün hava çok güzel gerçekten harikaydı')).toBe(false);
+  expect(isPlaybackEcho('Peki yarın ne yapacağız','Bugün hava çok güzel')).toBe(false);
+ });
+ it('re-arms while the request is busy, keeps listening during speech, and interrupts with a distinct final phrase',async()=>{
+  const p=page('iPhone Mobile');
+  p.controller.open();
+  p.recognizers[0].onresult?.({results:result('Merhaba',true)});
+  p.recognizers[0].onend?.();
+  p.input.disabled=true;p.notify();
+  const overlap=p.recognizers[1];expect(overlap).toBeDefined();
+  p.emit('hafize:voice-output-state',{source:'voice-output',speaking:true,origin:'voice-mode'});
+  p.emit('hafize:voice-output-progress',{source:'voice-output',origin:'voice-mode',text:'Bugün hava çok güzel.',charIndex:-1,charLength:0});
+  expect(p.controller.state()).toBe('speaking');expect(overlap.abortCalls).toBe(0);
+  overlap.onresult?.({results:result('Bugün hava çok güzel',true)});
+  overlap.onend?.();
+  expect(p.composer.sent).toBe(1);
+  await vi.advanceTimersByTimeAsync(750);
+  const next=p.recognizers[2];expect(next).toBeDefined();
+  next.onresult?.({results:result('Bir dakika başka bir şey soracağım',true)});
+  next.onend?.();
+  expect(p.composer.sent).toBe(2);
+  p.input.disabled=false;p.notify();
+  expect(p.composer.sent).toBe(3);
+  expect(p.input.value).toBe('Bir dakika başka bir şey soracağım');
+  p.controller.destroy();
+ });
+ it('stops microphone on close even during playback',()=>{
+  const p=page('iPhone Mobile');p.controller.open();
+  p.emit('hafize:voice-output-state',{source:'voice-output',speaking:true,origin:'voice-mode'});
+  const rec=p.recognizers[0];p.controller.close();
+  expect(rec.abortCalls).toBe(1);expect(p.controller.state()).toBe('closed');
+ });
 });

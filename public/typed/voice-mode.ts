@@ -1,5 +1,5 @@
 // Voice chat screen. The composer's microphone opens a full-screen conversation with Hafize:
-// listen → send what was said → read the reply aloud → listen again, until the screen is closed.
+// Keep one recognizer active across generation and playback, with bounded reconnects and echo rejection.
 // It drives the existing pieces instead of duplicating them: the composer form sends the message
 // (app-shell.ts), voice-output.ts speaks (hafize:voice-output-speak), and while the screen is open
 // it reports the microphone as busy (hafize:voice-input-state) so hands-free and the composer
@@ -81,11 +81,24 @@ export function recognitionProfile(userAgent: unknown): {
     resumeAfterSpeechMs: ios ? 650 : 120 };
 }
 
+/** Text-level echo rejection. This is not acoustic echo cancellation: browsers own
+ * the microphone and may suspend recognition during audio playback. */
+export function isPlaybackEcho(value:unknown,reference:unknown):boolean{
+  const normalize=(s:unknown)=>typeof s==='string'?s.toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/\p{M}/gu,'').replace(/ı/g,'i').replace(/[^\p{L}\p{N}]+/gu,' ').trim():'';
+  const utterance=normalize(value),spoken=normalize(reference);
+  if(!utterance||!spoken)return false;
+  if((' '+spoken+' ').includes(' '+utterance+' '))return true;
+  const words=utterance.split(' '),ref=new Set(spoken.split(' '));
+  if(words.length<4)return false;
+  // A nearly verbatim multiword fragment can be returned with a transcription typo.
+  return words.filter(w=>ref.has(w)).length/words.length>=0.85;
+}
+
 export function statusText(state: VoiceModeState): string {
   switch (state) {
     case 'listening': return 'Dinliyorum…';
     case 'thinking': return 'Yanıt hazırlanıyor…';
-    case 'speaking': return 'Hafize konuşuyor · sözünü kesmek için dokun';
+    case 'speaking': return 'Hafize konuşuyor…';
     case 'paused': return 'Mikrofon kapalı';
     case 'idle': return 'Konuşmak için küreye dokun';
     default: return '';
@@ -239,10 +252,18 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   let orb: VoiceOrb | null = null;
   let state: VoiceModeState = 'closed';
   let recognition: RecognitionLike | null = null;
+  let recognitionReady=false;
   let muted = false;
   let manualEnd = false;
   let silentRetries = 0;
   let completedSpeechTurns = 0;
+  let echoReference = '';
+  let echoUntil = 0;
+  let playbackActive = false;
+  let listeningBlocked = false;
+  const rememberPlayback = (text:string) => {if(text.trim()){if(!playbackActive&&now()>=echoUntil)echoReference='';echoReference=(echoReference+' '+text).slice(-1600);echoUntil=now()+2200;}};
+  const overlapsReply = () => playbackActive || awaitingReply || input.disabled;
+  const isEcho = (text:string) => (playbackActive || now()<echoUntil) && isPlaybackEcho(text,echoReference);
   let awaitingReply = false;
   let sawBusy = false;
   let spokenUpTo = 0;
@@ -337,7 +358,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const stopRecognition = (abort = false) => {
     const active = recognition;
-    if (abort) { recognition = null; clearRecognitionTimers(); }
+    if (abort) { recognition = null; recognitionReady=false; clearRecognitionTimers(); }
     if (!active) return;
     try { if (abort) active.abort(); else active.stop(); } catch { /* already ended */ }
     if (abort || recognition !== active) return;
@@ -378,6 +399,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (!piece.trim() || typeof Custom !== 'function') return;
     spokenUpTo = end;
     if (!streamStarted) { streamStarted = true; if(responseNoticeTimer) clearTimeout(responseNoticeTimer); responseNoticeTimer=null; setCaption(['', '', ''], 'hafize'); }
+    rememberPlayback(piece);
     documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: piece, origin: ORIGIN, append: true } }));
   };
 
@@ -430,19 +452,20 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
 
   const retryListening = (message: string, failed = true) => {
-    if (state === 'closed' || muted || documentRef.hidden) return;
+    if (state === 'closed' || muted || documentRef.hidden || listeningBlocked) return;
     // A normal silence is not an error. Keep listening until the person closes
     // the screen; only genuine start/network failures have a retry budget.
     if (failed && silentRetries >= MAX_SILENT_RETRIES) {
       silentRetries = 0;
-      setState('idle', speechProfile.awaitNaturalEnd
+      listeningBlocked = true;
+      setState(overlapsReply() ? state : 'idle', speechProfile.awaitNaturalEnd
         ? 'Ses tanıma yanıt vermiyor. iPhone Safari’yi tamamen kapatıp yeniden açmayı veya mikrofon iznini kontrol etmeyi dene.'
         : 'Mikrofon bağlantısı kesildi. Yeniden başlatmak için küreye dokun.');
       return;
     }
     if (failed) silentRetries += 1;
     else silentRetries = 0;
-    setState('thinking', message);
+    if(!overlapsReply())setState('thinking', message);
     if (resumeTimer) clearTimeout(resumeTimer);
     resumeTimer = setTimeout(() => {
       resumeTimer = null;
@@ -451,11 +474,12 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
 
   const listen = () => {
-    if (state === 'closed' || muted || recognition || documentRef.hidden) return;
+    if (state === 'closed' || muted || documentRef.hidden || listeningBlocked) return;
+    if(recognition){if(!overlapsReply()&&state!=='listening')setState('listening');return;}
     manualEnd = false;
-    if (input.disabled) { setState('thinking'); return; }
-    stopSpeech();
-    clearTimers();
+    // Never stop audio output or the reply-feed timers merely to re-arm the microphone.
+    if(resumeTimer){clearTimeout(resumeTimer);resumeTimer=null;}
+    clearRecognitionTimers();
     let final = '';
     let interim = '';
     let errorCode = '';
@@ -463,10 +487,13 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let errorHandled = false;
     let recognizedSomething = false;
     let heardSpeech = false;
+    let heardDuringReply = false;
+    let rejectedEcho = false;
     let current: RecognitionLike;
     try { current = new Recognition(); }
     catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
+    recognitionReady=false;
     current.lang = 'tr-TR';
     current.interimResults = true;
     current.continuous = speechProfile.continuous;
@@ -474,18 +501,19 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.onstart = () => {
       if (recognition !== current) return;
       recognitionStarted = true;
+      recognitionReady=true;
       if (recognitionStartTimer) clearTimeout(recognitionStartTimer);
       recognitionStartTimer = null;
-      setState('listening', 'Dinliyorum…');
+      if(!overlapsReply()){setState('listening', 'Dinliyorum…');setCaption(['', '', ''], 'user');}
+      else statusEl.textContent=playbackActive?'Hafize konuşuyor · mikrofon açık':'Yanıt hazırlanıyor · mikrofon açık';
       screen.dataset.micPhase = 'ready';
-      setCaption(['', '', ''], 'user');
       if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
       recognitionNoResultTimer = setTimeout(() => {
         recognitionNoResultTimer = null;
         if (recognition !== current || recognizedSomething || muted || documentRef.hidden) return;
         // A quiet user is not a broken microphone. On the first session, show
         // an explicit diagnostic rather than aborting legitimate idle capture.
-        if (!heardSpeech && completedSpeechTurns === 0) {
+        if (!heardSpeech && completedSpeechTurns === 0 && !overlapsReply()) {
           screen.dataset.micPhase = 'silent';
           statusEl.textContent = 'Mikrofon açık görünüyor ama ses tanınmadı. Konuş veya yeniden denemek için küreye dokun.';
           return;
@@ -493,6 +521,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         // Safari can dispatch "start" and show the mic dot yet never report
         // speech, transcription, error or end on subsequent voice turns.
         recognition = null;
+        recognitionReady=false;
         clearRecognitionTimers();
         try { current.abort(); } catch { /* session may already be gone */ }
         retryListening('Mikrofon açık görünüyor ama ses tanıma yanıt vermiyor · yeniden deniyorum…', true);
@@ -501,19 +530,20 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.onaudiostart = () => {
       if (recognition !== current || recognizedSomething) return;
       screen.dataset.micPhase = 'connected';
-      statusEl.textContent = 'Mikrofon bağlantısı kuruldu · konuşabilirsin';
+      if(!overlapsReply())statusEl.textContent = 'Mikrofon bağlantısı kuruldu · konuşabilirsin';
     };
     current.onspeechstart = () => {
       if (recognition !== current) return;
       heardSpeech = true;
+      heardDuringReply ||= overlapsReply() || now()<echoUntil;
       screen.dataset.micPhase = 'speech';
       energy = Math.max(energy, 0.7);
-      statusEl.textContent = 'Sesini algıladım · dinliyorum…';
+      if(!overlapsReply())statusEl.textContent = 'Sesini algıladım · dinliyorum…';
     };
     current.onspeechend = () => {
       if (recognition !== current) return;
       screen.dataset.micPhase = 'ending';
-      statusEl.textContent = 'Konuşman tamamlanıyor…';
+      if(!overlapsReply())statusEl.textContent = 'Konuşman tamamlanıyor…';
       // Safari naturally ends after one utterance. Desktop needs its own
       // endpoint when the recognizer is configured for continuous dictation.
       if (!speechProfile.awaitNaturalEnd && (final || interim) && !endOfTurnTimer) {
@@ -525,17 +555,21 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     };
     current.onresult = (event) => {
       if (recognition !== current) return;
-      ({ final, interim } = readTranscript(event.results));
+      heardDuringReply ||= overlapsReply() || now()<echoUntil;
+      // Discard echoed result segments, not the entire recognition session. A real
+      // user phrase that follows an echo in the same session must still be heard.
+      const parts=Array.from(event.results??[]).filter(result=>{const echoed=isEcho(String(result?.[0]?.transcript??''));rejectedEcho ||= echoed;return !echoed;});
+      ({ final, interim } = readTranscript(parts));
       recognizedSomething = Boolean(final || interim);
       if (recognizedSomething) {
         silentRetries = 0;
         if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
         recognitionNoResultTimer = null;
         screen.dataset.micPhase = 'transcribing';
-        statusEl.textContent = 'Dinliyorum…';
+        if(!overlapsReply())statusEl.textContent = 'Dinliyorum…';
       }
       const spoken = [final, interim].filter(Boolean).join(' ');
-      setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
+      if(spoken && (!overlapsReply()||final))setCaption([captionTail(spoken, captionSize()), '', ''], 'user');
       energy = Math.max(energy, 0.5);
       if (endOfTurnTimer) clearTimeout(endOfTurnTimer);
       endOfTurnTimer = null;
@@ -562,18 +596,22 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     current.onend = () => {
       if (recognition !== current) return;
       recognition = null;
+      recognitionReady=false;
       clearRecognitionTimers();
       if (state === 'closed' || muted || documentRef.hidden) return;
-      const said = [final, interim].filter(Boolean).join(' ').trim();
-      if (said) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
+      // Only finalized words can interrupt an answer. Interim guesses and echoed
+      // speech must not become new user messages during playback.
+      const said = (heardDuringReply?final:[final,interim].filter(Boolean).join(' ')).trim();
+      if (said && !isEcho(said)) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
       if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
+      if (heardDuringReply || rejectedEcho) {if(!errorCode){retryListening('Dinlemeye devam ediyorum…',false);return;}}
       if (heardSpeech && !errorCode) {
         retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
         return;
       }
-      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
-      if (errorCode === 'audio-capture') { setState('idle', 'Mikrofon bulunamadı.'); return; }
-      if (errorCode === 'language-not-supported') { setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
+      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { listeningBlocked=true; setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
+      if (errorCode === 'audio-capture') { listeningBlocked=true; setState('idle', 'Mikrofon bulunamadı.'); return; }
+      if (errorCode === 'language-not-supported') { listeningBlocked=true; setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
       retryListening(errorCode === 'network' ? 'Ses bağlantısı yeniden kuruluyor…' : 'Dinlemeye yeniden bağlanıyorum…', Boolean(errorCode && errorCode !== 'no-speech' && errorCode !== 'aborted'));
     };
     try {
@@ -582,11 +620,13 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         recognitionStartTimer = null;
         if (recognition !== current || recognitionStarted) return;
         recognition = null;
+        recognitionReady=false;
         try { current.abort(); } catch { /* recognition may have already ended */ }
         retryListening('Mikrofon yanıt vermedi, yeniden deneniyor…');
       }, RECOGNITION_START_TIMEOUT_MS);
     } catch {
       recognition = null;
+      recognitionReady=false;
       clearRecognitionTimers();
       retryListening('Mikrofon yeniden başlatılıyor…');
     }
@@ -670,6 +710,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     documentRef.dispatchEvent(new CustomEvent('hafize:voice-camera-open',{detail:screen.querySelector('.vm-camera-host')}));
     documentRef.body.classList.add('voice-mode-open');
     muted = false;
+    listeningBlocked=false;playbackActive=false;echoReference='';echoUntil=0;
     silentRetries = 0;
     completedSpeechTurns = 0;
     pendingUtterance = '';
@@ -693,6 +734,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     stopFeeding();
     awaitingReply = false;
     pendingUtterance = '';
+    playbackActive=false;echoReference='';echoUntil=0;
     stopRecognition(true);
     if (state === 'speaking') stopSpeech();
     state = 'closed';
@@ -725,6 +767,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     open(handoff);
   };
   const onOrb = () => {
+    listeningBlocked=false;
     if (state === 'speaking') {
       // Barge-in stops both TTS and any in-flight generation, then reopens ASR.
       streamStopped = true;
@@ -757,7 +800,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const onInputMutation = () => {
     if (state === 'closed') return;
-    if (input.disabled) { if (awaitingReply) sawBusy = true; if (state !== 'speaking') setState('thinking'); return; }
+    if (input.disabled) { if (awaitingReply) sawBusy = true; if (state !== 'speaking') setState('thinking'); if(!pendingUtterance)listen(); return; }
     if (pendingUtterance) {
       const queued = pendingUtterance;
       pendingUtterance = '';
@@ -779,6 +822,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     const Custom = root.CustomEvent;
     if (reply && root.speechSynthesis && typeof Custom === 'function') {
       setCaption(['', '', ''], 'hafize');
+      rememberPlayback(reply);
       documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: reply, origin: ORIGIN } }));
       // voice-output answers with hafize:voice-output-state; if it cannot speak, keep listening.
       resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'thinking') listen(); }, 1500);
@@ -787,11 +831,12 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const onOutputState = (event: Event) => {
     const detail = (event as CustomEvent).detail;
     if (state === 'closed' || detail?.source !== 'voice-output') return;
-    if (detail.speaking && (detail.origin === ORIGIN || detail.origin === 'voice-mode-sample')) { if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); return; }
+    if (detail.speaking && (detail.origin === ORIGIN || detail.origin === 'voice-mode-sample')) { playbackActive=true; if (resumeTimer) { clearTimeout(resumeTimer); resumeTimer = null; } setState('speaking'); listen(); if(recognitionReady)statusEl.textContent='Hafize konuşuyor · mikrofon açık'; return; }
     if (detail.speaking && detail.origin !== ORIGIN && detail.origin !== 'voice-mode-sample') return;
+    if(!detail.speaking&&playbackActive){playbackActive=false;echoUntil=now()+2200;}
     if (!detail.speaking && state === 'speaking') {
       // Spoke faster than the reply is arriving: the next sentence is on its way.
-      if (awaitingReply) { setState('thinking'); return; }
+      if (awaitingReply) { setState('thinking'); listen(); return; }
       setState(muted ? 'paused' : 'idle');
       resumeTimer = setTimeout(() => { resumeTimer = null; if (state === 'idle' && !muted) listen(); }, speechProfile.resumeAfterSpeechMs);
     }
@@ -801,6 +846,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (state !== 'speaking' || detail?.source !== 'voice-output'
         || (detail.origin !== ORIGIN && detail.origin !== 'voice-mode-sample')) return;
     const index = Number(detail.charIndex);
+    if(typeof detail.text==='string') {if(index<0)rememberPlayback(detail.text);else echoUntil=now()+2200;}
     setCaption(captionWindow(detail.text, index, Number(detail.charLength), captionSize()), 'hafize');
     if (index >= 0) energy = Math.max(energy, 0.75);
   };
@@ -826,7 +872,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (state === 'closed') return;
     if (documentRef.hidden) {
       clearTimers(); stopFeeding(); awaitingReply = false; pendingUtterance = '';
-      manualEnd = false; stopRecognition(true); stopSpeech();
+      manualEnd = false; playbackActive=false;echoReference='';echoUntil=0;stopRecognition(true); stopSpeech();
       setState('paused', 'Uygulama arka planda; geri dönünce küreye dokun.');
     } else if (state === 'paused' && !muted) {
       // Safari requires a new foreground gesture to re-open a paused microphone.
@@ -858,7 +904,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       stopRecognition(true);
       if (state === 'listening' || state === 'idle' || state === 'thinking') setState('paused');
     }
-    else if (state === 'paused' || state === 'idle') listen();
+    else {listeningBlocked=false;listen();}
   });
   on(captionsBtn, 'click', () => { captionsOn = !captionsOn; write(CAPTIONS_KEY, String(captionsOn)); renderCaptions(); });
   on(settingsBtn, 'click', () => {
@@ -870,8 +916,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   on(voiceSelect, 'change', () => { if (voiceSelect.value) {if(read(VOICE_KEY)!==voiceSelect.value)write(SPEAKER_KEY,'0');write(VOICE_KEY, voiceSelect.value);} else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } renderSpeakers(); warmSelected(); });
   on(speakerSelect,'change',()=>{write(SPEAKER_KEY,speakerSelect.value);warmSelected();});
   on(sampleBtn, 'click', () => {
-    stopRecognition(true);
     const Custom = root.CustomEvent;
+    rememberPlayback('Merhaba, ben Hafize. Sesim böyle duyuluyor.');
     setState('thinking', 'Ses örneği hazırlanıyor…');
     if (typeof Custom === 'function') documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: 'Merhaba, ben Hafize. Sesim böyle duyuluyor.', origin: 'voice-mode-sample' } }));
   });
