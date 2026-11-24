@@ -87,7 +87,7 @@ const WEB_TOOLS = createWebTools({
   tavilyApiKey: process.env.TAVILY_API_KEY || '',
   braveApiKey: process.env.BRAVE_SEARCH_API_KEY || ''
 });
-const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 8, 4, 12);
+const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 16, 4, 24);
 const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
@@ -1005,6 +1005,16 @@ async function handleAgentRun(req, res) {
 
   let incompleteReason = 'tool_budget';
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
+    if (round > 0 && round % 4 === 0) {
+      // Do not spend the entire run reading files without making progress.
+      // The user task remains the authority; tool content cannot grant rights.
+      workingMessages.push({ role: 'system', content:
+        `Bu görev için kalan araç turu: ${MAX_AGENT_TOOL_ROUNDS - round}. Kullanıcının istediği somut teslimata odaklan. ` +
+        'Kod geliştirme istendiyse aynı dosyaları tekrar tekrar okumak yerine, yeterli kanıtı topladığında izinli GitHub geliştirme aracını kullanarak ayrı dalda değişikliği gerçekleştir ve doğrula. ' +
+        'Araç listesindeki github_develop varsa kapsamına uygun dal/dosya/taslak PR işlemlerini tercih et. ' +
+        'Yapılamayan işlemi belirt; olmayan izin, commit, test veya yayın sonucu uydurma. Kullanıcı izni ve araç güvenlik sınırları değişmez.'
+      });
+    }
     const roundPayload = {
       model,
       messages: workingMessages,
