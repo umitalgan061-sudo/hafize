@@ -1,6 +1,7 @@
 // @ts-nocheck
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
+import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
 import { createServer } from 'node:http';
 import { promisify } from 'node:util';
 import { brotliCompress, constants as zlibConstants, gzip } from 'node:zlib';
@@ -1745,7 +1746,8 @@ SHUTDOWN.installSignals();
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
   const tick=()=>{void DAILY_IMPROVEMENT.tick().catch(()=>console.warn('hafize.daily_improvement failed'));};
-  if(process.env.HAFIZE_KIMI_PROBE_UNTIL){void deploymentKimiProbe({db:PLATFORM.db,lab:MODEL_LAB,until:process.env.HAFIZE_KIMI_PROBE_UNTIL}).catch(()=>console.warn('hafize.deploy_kimi_probe internal_failure')).finally(tick);}else tick();
+  if(process.env.HAFIZE_FREE_MODEL_PROBE_UNTIL){void deploymentFreeModelProbe({db:PLATFORM.db,lab:MODEL_LAB,until:process.env.HAFIZE_FREE_MODEL_PROBE_UNTIL}).catch(()=>console.warn('hafize.deploy_free_model_probe internal_failure')).finally(tick);}
+  else if(process.env.HAFIZE_KIMI_PROBE_UNTIL){void deploymentKimiProbe({db:PLATFORM.db,lab:MODEL_LAB,until:process.env.HAFIZE_KIMI_PROBE_UNTIL}).catch(()=>console.warn('hafize.deploy_kimi_probe internal_failure')).finally(tick);}else tick();
   dailyTimer=setInterval(tick,15*60_000);dailyTimer.unref?.();
 });
 // Off unless asked for: this is the only listener that reaches beyond this computer.
