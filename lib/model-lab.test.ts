@@ -72,7 +72,7 @@ describe('model lab bounded batches', () => {
   it('tests two candidates per command, skips fresh observations, and activates verified candidates',async()=>{
     const ids=[a,b,'nvidia/example-c'];
     const requests:string[]=[];
-    const lab=createModelLab({allowed:ids,request:async (_path,body)=>{
+    const lab=createModelLab({allowed:ids,now:()=>1000000,request:async (_path,body)=>{
       requests.push(String(body?.model)); return reply(body?.tools?tool:valid);
     }});
     const first=await lab.batch();
@@ -169,4 +169,15 @@ it('reports storage failures without inventing durable evidence',async()=>{
   const lab=createModelLab({allowed:[a],request:async(_path,body)=>reply(body?.tools?tool:valid),storage:{load:()=>{throw Error('bad');},save:()=>{throw Error('bad');}}});
   await lab.probe(a);
   expect(lab.status().storage).toBe('error');
+});
+
+it('prefers the measured faster model when synthetic quality is equal',async()=>{
+  let clock=1000000;
+  const lab=createModelLab({allowed:[a,b],now:()=>clock,request:async (_path,body)=>{
+    clock+=body?.model===a?80:10;
+    return reply(body?.tools?tool:valid);
+  }});
+  await lab.probe(a);await lab.probe(b);
+  expect(lab.preferred('fast',[a,b])).toEqual([b,a]);
+  expect(lab.preferred('agent',[a,b])).toEqual([b,a]);
 });
