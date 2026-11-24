@@ -91,3 +91,24 @@ it('produces a bounded daily recommendation plan without external API calls',asy
  expect(report?.plan?.mode).toBe('recommendation_only');
  expect(report?.plan?.tasks.map(t=>t.id)).toContain('model-lab-access');db.close();
 });
+
+it('discovers catalog on alternating days and stays within five daily provider requests',async()=>{
+ const db=openHafizeDb(':memory:');let clock=10000000;
+ const request=vi.fn(async(path:string,body:Record<string,unknown>|null)=>{
+  if(path==='/models')return new Response(JSON.stringify({data:[{id:'nvidia/a'},{id:'nvidia/b'}]}));
+  if(path==='/embeddings')return new Response(JSON.stringify({data:[{index:0,embedding:[1,0]},{index:1,embedding:[1,0]},{index:2,embedding:[0,1]}]}));
+  const content=body?.max_tokens===512?JSON.stringify({language:"Ankara'ya gittim.",reasoning:17.5,coding:[1,9,25]}):'{"capital":"Ankara","math":383,"code":12}';
+  let message:Record<string,unknown>={content};
+  if(body?.tools)message=Array.isArray(body.messages)&&body.messages.some((m:unknown)=>Boolean(m&&typeof m==='object'&&'role' in m&&m.role==='tool'))?{content:'{"answer":45}'}:{tool_calls:[{function:{name:'benchmark_echo',arguments:'{"value":42}'}}]};
+  return new Response(JSON.stringify({choices:[{message}]}));
+ });
+ const lab=createModelLab({allowed:['nvidia/a','nvidia/b'],specialistModels:['nvidia/nemotron-3-embed-1b'],request,now:()=>clock});
+ const daily=createDailyImprovement({db,lab,expertHealth:()=>[],discoverCatalog:true,liveProbes:true,now:()=>clock});
+ expect((await daily.tick())?.catalogDiscovery).toBe(true);
+ expect(request.mock.calls.length).toBeLessThanOrEqual(5);
+ expect(request.mock.calls.some(([path])=>path==='/embeddings')).toBe(false);
+ request.mockClear();clock+=DAY_MS+1;
+ expect((await daily.tick())?.specialists).toEqual(['nvidia/nemotron-3-embed-1b']);
+ expect(request.mock.calls.some(([path])=>path==='/models')).toBe(false);
+ expect(request.mock.calls.length).toBeLessThanOrEqual(5);db.close();
+});

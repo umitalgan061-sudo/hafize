@@ -93,7 +93,7 @@ export function createDailyImprovement({db,lab,expertHealth,expertReadiness=()=>
       report.changes=Object.entries(report.taskLeaders).flatMap(([kind,ids])=>{const old=before[kind]?.[0]??null;const next=ids[0]??null;return old===next?[]:[{kind,before:old,after:next}];});
       report.state=report.error||report.warnings?.length?'partial':'completed';
     }catch(error){report.state='partial';report.error=error instanceof Error&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'DAILY_IMPROVEMENT_INTERRUPTED';}
-    finally{report.finishedAt=new Date(now()).toISOString();controller=null;report.plan=buildEvolutionPlan({now:started,readiness:report.expertReadiness,runtime:report.runtimeEvidence,catalogChanges:report.catalogChanges,pendingModels:lab?.status().pendingModels,labAvailable:Boolean(lab),liveProbes,error:report.error});finalize(started,report,claimedReport);}
+    finally{report.finishedAt=new Date(now()).toISOString();controller=null;report.plan=buildEvolutionPlan({now:started,readiness:report.expertReadiness??[],runtime:report.runtimeEvidence??[],catalogChanges:report.catalogChanges??null,pendingModels:lab?.status().pendingModels??[],labAvailable:Boolean(lab),liveProbes,error:report.error});finalize(started,report,claimedReport);}
     return report;
   }
   function tick(){if(inFlight)return inFlight;inFlight=execute().finally(()=>{inFlight=null;});return inFlight;}
