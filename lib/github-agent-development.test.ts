@@ -145,3 +145,15 @@ describe('GitHub App agent development boundary', () => {
     expect(writer.issueApproval).not.toHaveBeenCalled();
   });
 });
+
+it('restricts optional monorepo development to the Borsa source directory',async()=>{
+ const {writer}=fixture();
+ const repository='umitalgan061-sudo/hafize-siteler';
+ const tool=createGitHubAgentDevelopment({writer:writer as unknown as Writer,allowedRepositories:[repository],sourcePathRestrictions:{[repository]:'borsa-gunlugu/'}});
+ for(const path of ['firebase.json','.github/workflows/live.yml','hafize-uyum/index.html','borsa-gunlugu/../firebase.json','borsa-gunlugu/']) {
+  await expect(tool.execute({operation:'file',repository,branch:BRANCH,path,content:'ok',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'GITHUB_REPO_PATH_NOT_ALLOWED'});
+ }
+ expect(writer.issueApproval).not.toHaveBeenCalled();
+ await tool.execute({operation:'file',repository,branch:BRANCH,path:'borsa-gunlugu/src/main.js',content:'// safe',message:'edit'},{safeAutonomy:true});
+ expect(writer.commitFile).toHaveBeenCalled();
+});
