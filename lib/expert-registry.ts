@@ -97,6 +97,7 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
   /** Ranks specialists for a capability query: capability/description term overlap, trust and health. */
   function resolve(query: string, { limit = 3 }: { readonly limit?: number } = {}) {
     const terms = new Set(tokenize(query));
+    if (!terms.size) return [];
     const trustBonus = { core: 0.15, verified: 0.1, community: 0 } as const;
     return cards().map((card) => {
       const capabilityTokens = tokenize(card.capabilities.join(' '));
@@ -104,27 +105,31 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
       const capabilityHits = capabilityTokens.filter((token) => terms.has(token)).length;
       const descriptionHits = descriptionTokens.filter((token) => terms.has(token)).length;
       const health = healthCheck(card.agentId);
-      const score = (capabilityHits * 1 + descriptionHits * 0.4) / Math.max(1, terms.size) + trustBonus[card.trustLevel] - (health.healthy ? 0 : 0.5);
+      const relevance = (capabilityHits + descriptionHits * 0.4) / terms.size;
+      const performance = health.sampleCount >= 5 && health.successRate !== null ? (health.successRate - 0.5) * 0.2 : 0;
+      const score = relevance + trustBonus[card.trustLevel] + performance - (health.healthy ? 0 : 0.5);
+      if (!relevance || !health.healthy) return null;
       return { agentId: card.agentId, name: card.name, description: card.description, capabilities: card.capabilities, trustLevel: card.trustLevel, version: card.version, healthy: health.healthy, score: Math.round(score * 1000) / 1000 };
-    }).filter((item) => item.score > 0.15).sort((a, b) => b.score - a.score).slice(0, Math.min(Math.max(limit, 1), 10));
+    }).filter((item): item is NonNullable<typeof item> => item !== null && item.score > 0.15).sort((a, b) => b.score - a.score || a.agentId.localeCompare(b.agentId)).slice(0, Math.min(Math.max(limit, 1), 10));
   }
 
   /** Health against the card's SLO, from the last 50 delegations plus tool availability. */
   function healthCheck(agentId: string) {
     const agent = registry.agents.find((item) => item.id === agentId);
-    if (!agent) return { agentId, healthy: false, reasons: ['bilinmeyen ajan'], successRate: null, p99Ms: null };
+    if (!agent) return { agentId, healthy: false, reasons: ['bilinmeyen ajan'], successRate: null, p99Ms: null, sampleCount: 0 };
     const card = cardFor(agent);
     const rows = db.prepare('SELECT latency_ms AS latency, ok FROM delegations WHERE child_agent_id = ? ORDER BY id DESC LIMIT 50').all(agentId) as Array<{ latency: number; ok: number }>;
     const reasons: string[] = [];
-    const missing = (agent.toolPolicy.allow || []).filter((permission) => !['trace.write', 'agent.read_result', 'task.read', 'task.update_ledger', 'skill.invoke'].includes(permission) && !isToolAvailable(permission));
-    if (missing.length === (agent.toolPolicy.allow || []).filter((permission) => permission !== 'trace.write').length && missing.length) reasons.push(`araçlar kullanılamıyor: ${missing.join(', ')}`);
+    const requiredTools = (agent.toolPolicy.allow || []).filter(permission => !['trace.write', 'agent.read_result', 'task.read', 'task.update_ledger', 'skill.invoke'].includes(permission));
+    const missing = requiredTools.filter(permission => !isToolAvailable(permission));
+    if (missing.length === requiredTools.length && missing.length) reasons.push(`araçlar kullanılamıyor: ${missing.join(', ')}`);
     const successRate = rows.length ? rows.filter((row) => row.ok).length / rows.length : null;
     const p99Ms = rows.length ? percentile(rows.map((row) => Number(row.latency)).sort((a, b) => a - b), 99) : null;
     if (successRate !== null && rows.length >= 5 && successRate < card.slo.availability) reasons.push(`başarı oranı ${Math.round(successRate * 100)}% < SLO ${Math.round(card.slo.availability * 100)}%`);
     if (p99Ms !== null && rows.length >= 5 && p99Ms > card.slo.latencyP99Ms) reasons.push(`p99 gecikme ${p99Ms} ms > SLO ${card.slo.latencyP99Ms} ms`);
     const quota = quotaStatus(agentId);
     if (quota.exhausted) reasons.push('günlük kota doldu');
-    return { agentId, healthy: !reasons.length, reasons, successRate, p99Ms, quota };
+    return { agentId, healthy: !reasons.length, reasons, successRate, p99Ms, sampleCount: rows.length, quota };
   }
 
   function quotaStatus(agentId: string) {

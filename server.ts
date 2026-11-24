@@ -58,6 +58,8 @@ import { createToolLoopGuard } from './lib/tool-loop-guard.ts';
 import { createModelLab, modelTaskKind, modelLabCommand, formatModelLabStatus, formatModelInventory, formatCouncil } from './lib/model-lab.ts';
 import { createModelLabFileStorage } from './lib/model-lab-storage.ts';
 import { modelLabAction } from './lib/model-lab-http.ts';
+import { createDailyImprovement } from './lib/daily-improvement.ts';
+import { expertModelTask } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
 
@@ -100,7 +102,7 @@ const MODEL_LAB = !gateway && NVIDIA_API_KEY && NIM_BASE_URL === 'https://integr
 const MODEL_ROUTER = createModelRouter({
   chain: CONFIGURED_MODEL_CHAIN,
   extraCandidates: MODEL_LAB ? MODEL_LAB_EXTRA_CANDIDATES : [],
-  preferredModels: (payload, candidates) => MODEL_LAB?.preferred(modelTaskKind(payload), candidates) ?? [],
+  preferredModels: (payload, candidates, expertId) => MODEL_LAB?.preferred(expertModelTask(expertId) ?? modelTaskKind(payload), candidates) ?? [],
   // Background helpers stay on the quick model unless it is unavailable.
   keepFirst: gateway ? [] : [process.env.HAFIZE_FAST_MODEL || MODEL_SERVICE_DEFAULTS.fastModel]
 });
@@ -334,7 +336,7 @@ function boundedEnvInteger(value, fallback, min, max) {
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, min), max) : fallback;
 }
 
-async function nvidiaFetch(pathname, init = {}) {
+async function nvidiaFetch(pathname, init = {}, expertId) {
   if (!NVIDIA_API_KEY) {
     const error = new Error('NVIDIA_NOT_CONFIGURED');
     error.status = 503;
@@ -356,7 +358,7 @@ async function nvidiaFetch(pathname, init = {}) {
     if (pathname === '/chat/completions' && typeof init.body === 'string') { try { payload = JSON.parse(init.body); } catch { payload = null; } }
     // One bad model must not trip the breaker for the rest; only a chain that failed as a whole counts.
     const response = payload && MODEL_ROUTER.shouldRoute(payload)
-      ? await MODEL_ROUTER.send(init.body, deliver, init.signal)
+      ? await MODEL_ROUTER.send(init.body, deliver, init.signal, expertId)
       : await deliver(init.body, init.signal);
     if (response.ok) {
       NVIDIA_CIRCUIT.recordSuccess();
@@ -376,13 +378,13 @@ async function nvidiaFetch(pathname, init = {}) {
   }
 }
 
-async function nvidiaJsonCompletion(payload, signal) {
+async function nvidiaJsonCompletion(payload, signal, expertId) {
   const upstream = await nvidiaFetch('/chat/completions', {
     method: 'POST',
     signal,
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(payload)
-  });
+  }, expertId);
   const text = await upstream.text();
   if (!upstream.ok) {
     const error = new Error('NVIDIA_CHAT_ERROR');
@@ -903,7 +905,7 @@ async function handleAgentRun(req, res) {
         ownerId: req.__hafizePrincipal?.ownerId,
         sessionId: req.__hafizePrincipal?.sessionId,
         signal: signal ?? requestAbort.signal,
-        complete: (payload, delegatedSignal) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal)
+        complete: (payload, delegatedSignal, expertId) => nvidiaJsonCompletion(payload, delegatedSignal ?? signal ?? requestAbort.signal, expertId)
       }))({ agent: delegatedAgent, task });
     }
   });
@@ -1628,13 +1630,13 @@ const server = createServer(async (req, res) => {
       if (!authorized) { sendJson(res,403,{error:'MODEL_LAB_OWNER_REQUIRED'}); return; }
       if (!MODEL_LAB) { sendJson(res,503,{error:'MODEL_LAB_UNAVAILABLE'}); return; }
       res.setHeader('Cache-Control','no-store');
-      if (req.method==='GET') { sendJson(res,200,MODEL_LAB.status()); return; }
+      if (req.method==='GET') { sendJson(res,200,{...MODEL_LAB.status(),dailyImprovement:DAILY_IMPROVEMENT.status()}); return; }
       const abort=new AbortController();
       const close=()=>abort.abort();
       res.once('close',close);
       try {
         const body=await readJson(req,4096);
-        sendJson(res,200,await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])));
+        sendJson(res,200,{...await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(160000)])),dailyImprovement:DAILY_IMPROVEMENT.status()});
       } catch(error) {
         if(res.destroyed||res.writableEnded)return;
         const code=typeof error?.message==='string'&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_LAB_FAILED';
@@ -1679,6 +1681,8 @@ const server = createServer(async (req, res) => {
   }
 });
 
+const DAILY_IMPROVEMENT = createDailyImprovement({db:PLATFORM.db,lab:MODEL_LAB,expertHealth:()=>PLATFORM.experts.cards().map(card=>PLATFORM.experts.healthCheck(card.agentId)),enabled:process.env.HAFIZE_DAILY_IMPROVEMENT!=='false',liveProbes:process.env.HAFIZE_DAILY_LIVE_PROBES==='true'});
+let dailyTimer;
 let shutdownServerPromise = null;
 
 function closeHttpServer() {
@@ -1694,9 +1698,10 @@ function closeHttpServer() {
 }
 
 const SHUTDOWN = createShutdownCoordinator({
-  stopWorker: () => { stopScheduleWorkerLoop(); stopRuleEngineLoop(); },
+  stopWorker: () => { stopScheduleWorkerLoop(); stopRuleEngineLoop(); clearInterval(dailyTimer); },
   waitForTick: () => scheduleTickPromise ?? Promise.resolve(),
   closeLease: async () => {
+    await DAILY_IMPROVEMENT.stop().catch(() => {});
     await PLATFORM.shutdown().catch(() => {});
     return SCHEDULE_LEASE_RUNTIME.close();
   },
@@ -1707,6 +1712,8 @@ SHUTDOWN.installSignals();
 
 server.listen(PORT, HOST, () => {
   console.log(`Hafize listening on http://${HOST}:${PORT}`);
+  const tick=()=>{void DAILY_IMPROVEMENT.tick().catch(()=>console.warn('hafize.daily_improvement failed'));};
+  tick();dailyTimer=setInterval(tick,15*60_000);dailyTimer.unref?.();
 });
 // Off unless asked for: this is the only listener that reaches beyond this computer.
 const LOCAL_HTTPS = startLocalHttps({

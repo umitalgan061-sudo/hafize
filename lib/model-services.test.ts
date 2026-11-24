@@ -27,3 +27,14 @@ describe('embedding provider isolation',()=>{
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('specialist service validation',()=>{
+  it('makes no rerank request unless enabled and validates all result indices',async()=>{
+    let bad=false;const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({rankings:bad?[{index:1,logit:3},{index:1,logit:2}]:[{index:0,logit:1},{index:1,logit:3}]})));
+    const base={apiKey:'test',chat:async()=>({}),fetchImpl:fetchImpl as typeof fetch};
+    expect(await createModelServices(base).rerank('q',['a','b'])).toBeNull();expect(fetchImpl).not.toHaveBeenCalled();
+    const models=createModelServices({...base,rerankEnabled:true});expect(await models.rerank('q',['a','b'])).toEqual([{index:1,logit:3},{index:0,logit:1}]);bad=true;expect(await models.rerank('q',['a','b'])).toBeNull();
+  });
+  it('does not falsely mark an unknown safety output as checked',async()=>{const models=createModelServices({apiKey:'test',chat:async()=>({choices:[{message:{content:'unexpected'}}]})});expect(await models.safetyCheck('test')).toMatchObject({checked:false});});
+  it('rejects non-image bytes even if the upstream returned base64',async()=>{const models=createModelServices({apiKey:'test',chat:async()=>({}),fetchImpl:async()=>new Response(JSON.stringify({artifacts:[{base64:Buffer.from('not image').toString('base64')}]}))});await expect(models.generateImage({prompt:'test'})).rejects.toThrow('IMAGE_GENERATION_INVALID_FORMAT');});
+});

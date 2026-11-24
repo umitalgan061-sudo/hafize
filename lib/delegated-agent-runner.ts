@@ -46,7 +46,7 @@ interface DelegatedToolMessage {
 }
 
 type NormalizedCompletion = ReturnType<typeof normalizeNvidiaChatCompletion>;
-type CompletionFn = (payload: unknown, signal?: AbortSignal) => Promise<unknown>;
+type CompletionFn = (payload: unknown, signal?: AbortSignal, expertId?: string) => Promise<unknown>;
 
 function normalizeToolCalls(calls: unknown): DelegatedToolCall[] {
   if (!Array.isArray(calls)) return [];
@@ -168,7 +168,7 @@ export async function runDelegatedAgent({
   const context = { ...baseContext, advertisedToolNames: tools.map(tool => tool.function.name) };
   // Token usage of expert runs feeds the delegation audit and the expert's daily quota.
   const completeRecorded: CompletionFn = async (payload, completionSignal) => {
-    const response = await complete(payload, completionSignal);
+    const response = await complete(payload, completionSignal, agent.id);
     toolContext?.telemetry?.recordCompletionUsage(safeTraceId, `expert:${agent.id}`, safeModel, response);
     return response;
   };
