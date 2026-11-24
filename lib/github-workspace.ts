@@ -30,6 +30,7 @@ export class GitHubWorkspaceError extends Error {
 
 type WorkspaceReaderOptions = {
   readonly token?: string;
+  readonly allowPublicRead?: boolean;
   readonly allowedRepositories?: readonly string[];
   readonly baseUrl?: string;
   readonly fetchImpl?: typeof fetch;
@@ -98,15 +99,17 @@ export function createGitHubWorkspaceReader(options: WorkspaceReaderOptions = {}
   const readFile = options.readFile;
 
   async function requestJson(pathname: string, search = new URLSearchParams()): Promise<JsonRecord | JsonRecord[]> {
-    if (!token) throw new GitHubWorkspaceError('GITHUB_NOT_CONFIGURED', 503);
+    if (!token && options.allowPublicRead !== true) throw new GitHubWorkspaceError('GITHUB_NOT_CONFIGURED', 503);
     if (typeof fetchImpl !== 'function') throw new GitHubWorkspaceError('GITHUB_NOT_CONFIGURED', 503);
     const url = new URL(baseUrl + pathname);
     for (const [key, value] of search.entries()) url.searchParams.set(key, value);
     const response = await fetchImpl(url, {
       method: 'GET',
+      redirect: 'error',
+      signal: AbortSignal.timeout(45_000),
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: 'Bearer ' + token,
+        ...(token ? { Authorization: 'Bearer ' + token } : {}),
         'X-GitHub-Api-Version': '2022-11-28',
         'User-Agent': 'Hafize-GitHub-Workspace'
       }
