@@ -25,3 +25,10 @@ const feb2024 = shell.createMonthCells(2024, 1, 29);
 assert.equal(feb2024.some((cell) => cell.day === 29 && !cell.outside && cell.selected), true);
 
 console.log('UI shell OK: theme resolution and Monday-first 42-cell Turkish calendar contract verified');
+
+assert.equal(shell.calendarDateKey(new Date(2026,10,25)),'2026-11-25');
+const input=[{scheduleId:'b',task:'Öğleden sonra',runAt:new Date(2026,10,25,14).toISOString(),status:'scheduled'},{scheduleId:'a',task:'Sabah',runAt:new Date(2026,10,25,9).toISOString(),status:'completed'},{scheduleId:'c',task:'Yarın',runAt:new Date(2026,10,26,10).toISOString(),status:'running'},{scheduleId:'cancel',task:'İptal',runAt:new Date(2026,10,25,8).toISOString(),status:'cancelled'},{scheduleId:'invalid',task:'Hatalı',runAt:'invalid',status:'scheduled'}];
+const agenda=shell.parseDesktopAgendaTasks(input);
+assert.deepEqual(shell.agendaTasksForDate(agenda,new Date(2026,10,25)).map(x=>x.id),['a','b']);
+assert.deepEqual(shell.agendaTasksForDate(agenda,new Date(2026,10,26)).map(x=>x.id),['c']);
+assert.equal(shell.DESKTOP_AGENDA_MEDIA,'(min-width: 1041px) and (hover: hover) and (pointer: fine)');

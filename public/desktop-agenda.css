@@ -1,0 +1,52 @@
+/* Desktop chat only. Keep mobile, touch-first layouts and workspace pages unchanged. */
+.desktop-agenda,.desktop-calendar-today{display:none;}
+@media (min-width:1041px) and (hover:hover) and (pointer:fine) {
+  html[data-hafize-layout="focused"] .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) {
+    --desktop-rail-width: 292px;
+    --desktop-rail-gap: 22px;
+    grid-template-columns:minmax(0,1fr) var(--desktop-rail-width);
+    column-gap:var(--desktop-rail-gap);
+  }
+  html[data-hafize-layout="focused"] .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) > .utility-rail {
+    display:grid!important;
+    grid-column:2;
+    grid-row:2;
+    min-width:0;
+    width:100%;
+    max-height:calc(100dvh - 94px);
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    align-self:start;
+    position:sticky;
+    top:84px;
+    padding:10px 2px 18px;
+    scrollbar-width:thin;
+  }
+  html[data-hafize-layout="focused"] .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) > .utility-rail > :not(.calendar-card):not(.voice-card){display:none!important;}
+  html[data-hafize-layout="focused"] .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) .primary-column form#composer.composer {
+    left:calc(50% - (var(--desktop-rail-width) + var(--desktop-rail-gap))/2);
+    width:min(790px,calc(100vw - var(--desktop-rail-width) - var(--desktop-rail-gap) - 68px));
+  }
+  .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) .calendar-card .desktop-agenda{display:block;}
+  .main:not([data-workspace="settings"]):not([data-workspace="connections"]):not([data-workspace="tasks"]) .calendar-card .calendar-times{display:none;}
+  .desktop-calendar-today{display:inline-flex;align-items:center;border:1px solid var(--premium-line);border-radius:8px;padding:4px 8px;color:var(--premium-text);background:transparent;font-size:11px;margin-inline-start:auto;}
+  .calendar-card .utility-head{margin-bottom:14px;}
+  .calendar-card .calendar-day{position:relative;min-height:28px;font-size:12px;}
+  .calendar-card .calendar-day[aria-current="date"]:not(.selected){box-shadow:inset 0 0 0 1px var(--premium-orange);font-weight:700;}
+  .calendar-card .calendar-day[data-has-tasks="true"]::after{content:"";position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--premium-orange);}
+  .calendar-card .calendar-day.selected[data-has-tasks="true"]::after{background:white;}
+  .desktop-agenda{margin-top:16px;padding-top:14px;border-top:1px solid var(--premium-line);}
+  .desktop-agenda-clock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;}
+  .desktop-agenda-clock time{font-size:25px;line-height:1;font-weight:550;letter-spacing:-.055em;font-variant-numeric:tabular-nums;}
+  .desktop-agenda-clock span{font-size:11px;color:var(--premium-muted);text-align:right;}
+  .desktop-agenda-title{font-size:13px;font-weight:650;margin:0 0 8px;text-transform:capitalize;}
+  .desktop-agenda-status{font-size:11px;color:var(--premium-muted);line-height:1.5;margin:0 0 8px;overflow-wrap:anywhere;}
+  .desktop-agenda-list{display:grid;gap:6px;list-style:none;margin:0;padding:0;max-height:192px;overflow-y:auto;}
+  .desktop-agenda-list li{display:grid;grid-template-columns:42px minmax(0,1fr);gap:8px;align-items:start;padding:8px;border-radius:9px;background:color-mix(in srgb,var(--premium-orange) 5%,var(--premium-surface));}
+  .desktop-agenda-list time{font-size:11px;color:var(--premium-muted);font-variant-numeric:tabular-nums;}
+  .desktop-agenda-list strong{display:block;font-size:12px;font-weight:550;overflow-wrap:anywhere;}
+  .desktop-agenda-list small{display:block;color:var(--premium-muted);font-size:10px;margin-top:3px;}
+  .desktop-agenda-actions{display:flex;gap:6px;margin-top:10px;}
+  .desktop-agenda-actions button{min-height:32px;font-size:11px;flex:1;padding:5px;}
+  .desktop-agenda button:focus-visible,.desktop-calendar-today:focus-visible,.calendar-day:focus-visible{outline:2px solid var(--premium-orange);outline-offset:2px;}
+}

@@ -81,6 +81,7 @@
   <link rel="stylesheet" href="/voice-settings.css" />
   <link rel="stylesheet" href="/task-notifications.css" />
   <link rel="stylesheet" href="/live-screen.css" />
+  <link rel="stylesheet" href="/desktop-agenda.css" />
   <script type="module" src="/typed-build/release-update.js"></script>
 </head>
 <body>
@@ -174,11 +175,18 @@
 
       <aside class="utility-rail" aria-label="Hafize yardımcı araçları">
         <section class="utility-card calendar-card">
-          <div class="utility-head"><span class="mini-icon">▣</span><span>Takvim</span></div>
+          <div class="utility-head"><span class="mini-icon" aria-hidden="true">▣</span><span>Takvim</span><button id="desktopCalendarToday" class="desktop-calendar-today" type="button">Bugün</button></div>
           <div class="calendar-head"><button id="calendarPrev" class="calendar-nav" type="button" aria-label="Önceki ay">‹</button><strong id="calendarMonth"></strong><button id="calendarNext" class="calendar-nav" type="button" aria-label="Sonraki ay">›</button></div>
           <div class="calendar-weekdays" aria-hidden="true"><span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span></div>
           <div id="calendarGrid" class="calendar-grid"></div>
           <div class="calendar-times" aria-label="Örnek saatler"><span>09:30</span><span>13:00</span><span>15:30</span></div>
+          <div class="desktop-agenda" id="desktopAgenda" aria-label="Günlük plan">
+            <div class="desktop-agenda-clock"><time id="desktopAgendaClock"></time><span id="desktopAgendaDate"></span></div>
+            <h2 class="desktop-agenda-title" id="desktopAgendaTitle">Günlük plan</h2>
+            <p class="desktop-agenda-status" id="desktopAgendaStatus" role="status">Planlanmış Hafize görevleri</p>
+            <ul class="desktop-agenda-list" id="desktopAgendaList" aria-labelledby="desktopAgendaTitle"></ul>
+            <div class="desktop-agenda-actions"><button type="button" class="soft-btn" id="desktopAgendaRefresh">Yenile</button><button type="button" class="soft-btn" id="desktopAgendaTasks">Görevler</button></div>
+          </div>
         </section>
         <section class="utility-card voice-card">
           <div class="utility-head"><span class="mini-icon">≋</span><span>Sesli asistan</span></div>
