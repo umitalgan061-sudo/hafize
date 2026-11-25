@@ -30,7 +30,7 @@ const FEATURE_BRANCH = /^hafize\/auto-[a-z0-9][a-z0-9._-]{0,100}$/;
 const DEFAULT_BRANCH = 'main';
 const FIELD_SETS: Readonly<Record<Operation, ReadonlySet<string>>> = {
   branch: new Set(['operation', 'repository', 'branch']),
-  file: new Set(['operation', 'repository', 'branch', 'path', 'content', 'message', 'existingSha']),
+  file: new Set(['operation', 'repository', 'branch', 'path', 'content', 'message', 'existingSha', 'find', 'replace']),
   pull: new Set(['operation', 'repository', 'branch', 'title', 'body'])
 };
 
@@ -94,15 +94,18 @@ export function createGitHubAgentDevelopment(options: Options) {
       if(prefixes && (!prefixes.some(prefix=>path.startsWith(prefix)) || path.split('/').some(segment=>!segment || segment==='.' || segment==='..'))) {
         throw new GitHubWorkspaceWriteError('GITHUB_REPO_PATH_NOT_ALLOWED',403);
       }
-      const fileContent = args.content;
-      if (typeof fileContent !== 'string') return invalid();
-      payload = {
-        repository, branch,
-        path,
-        content: fileContent,
-        message: required(args.message),
-        ...(args.existingSha ? { existingSha: args.existingSha } : {})
-      };
+      const patch = args.find !== undefined || args.replace !== undefined;
+      if (patch) {
+        if (args.content !== undefined || typeof args.find !== 'string' ||
+            typeof args.replace !== 'string' || typeof args.existingSha !== 'string') return invalid();
+        payload = await writer.prepareFilePatch({ repository, branch, path,
+          existingSha: args.existingSha, find: args.find, replace: args.replace, message: required(args.message) });
+      } else {
+        if (typeof args.content !== 'string' || args.content.length > 96 * 1024) return invalid();
+        payload = { repository, branch, path, content: args.content,
+          message: required(args.message), ...(args.existingSha ? { existingSha: args.existingSha } : {}) };
+      }
+      const fileContent = String(payload.content);
       // Approval is tied to the entire normalized content; a preview plus its
       // checksum is displayed without putting installation secrets in the UI.
       summary = 'Depo: ' + repository + '\nDal: ' + branch +
@@ -110,7 +113,7 @@ export function createGitHubAgentDevelopment(options: Options) {
         '\nİşlem: ' + (payload.existingSha ? 'mevcut dosyayı güncelle' : 'yeni dosya oluştur') +
         '\nBayt: ' + Buffer.byteLength(fileContent, 'utf8') +
         '\nSHA-256: ' + createHash('sha256').update(fileContent).digest('hex') +
-        '\nİçerik önizlemesi:\n' + fileContent.slice(0, 1000);
+        '\nİçerik önizlemesi:\n' + (patch ? 'Eski blok:\n'+String(args.find).slice(0,500)+'\nYeni blok:\n'+String(args.replace).slice(0,500) : fileContent.slice(0, 1000));
     } else {
       payload = {
         repository,
