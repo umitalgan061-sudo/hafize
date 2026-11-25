@@ -65,6 +65,19 @@ export function withReleaseCacheHeaders(config){
   return {...config,hosting:{...config.hosting,headers:[...headers,...sources.map(source=>({source,headers:[{key:'Cache-Control',value:'no-cache, max-age=0, must-revalidate'}]}))]}};
 }
 
+export const CANONICAL_HAFIZE_ORIGIN = 'https://hafize-free.onrender.com';
+export function withCanonicalHafizeNavigation(config) {
+  if(config.hosting?.site !== 'hafize-ua') throw Error('FIREBASE_HOSTING_CONFIG_SITE_MISMATCH');
+  const existing = config.hosting.redirects ?? [];
+  if(!Array.isArray(existing)) throw Error('FIREBASE_HOSTING_CONFIG_INVALID_REDIRECTS');
+  // Only the browser entry routes change; keep existing API, assets, auth
+  // and release metadata intact. Use 302 for reversible migration.
+  return {...config,hosting:{...config.hosting,redirects:[
+    ...['/','/index.html'].map(source=>({source,destination:CANONICAL_HAFIZE_ORIGIN+'/',type:302})),
+    ...existing.filter(rule=>!['/','/index.html'].includes(rule?.source))
+  ]}};
+}
+
 export function prepareRelease(config, projectId, siteId, commitSha, opts = {}) {
   const baseConfig = prepareHostingConfig(config, projectId, siteId);
   // A successfully verified Cloud Run deploy records its activation marker.
@@ -95,7 +108,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.env.GITHUB_SHA,
       { activateCloudRun: process.env.HAFIZE_CLOUD_RUN_ROUTE_ENABLED === 'true' ? true : undefined }
     );
-    writeFileSync('firebase.json',JSON.stringify(withReleaseCacheHeaders(prepared),null,2)+'\n',{mode:0o600});
+    writeFileSync('firebase.json',JSON.stringify(withReleaseCacheHeaders(withCanonicalHafizeNavigation(prepared)),null,2)+'\n',{mode:0o600});
     const html=readFileSync('public/index.html','utf8');
     writeFileSync('public/index.html',stampReleaseHtml(html,process.env.GITHUB_SHA));
     process.stdout.write('Firebase Hosting preflight passed; build and existing site config verified.\n');

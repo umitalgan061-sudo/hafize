@@ -17,7 +17,7 @@ export function createProjectDeliveryHealth(fetchImpl:typeof fetch=fetch){
   signal?.throwIfAborted();
   try{
    const r=await fetchImpl(url,{method:options.method??'GET',headers:{Accept:options.json?'application/json':'text/html',...options.headers},redirect:'manual',cache:'no-store',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(20000)]):AbortSignal.timeout(20000)});
-   const evidence={url,status:r.status,reachable:true,ok:r.ok,headers:{allowOrigin:r.headers.get('access-control-allow-origin')??'',contentType:r.headers.get('content-type')??''}};
+   const evidence={url,status:r.status,reachable:true,ok:r.ok,headers:{allowOrigin:r.headers.get('access-control-allow-origin')??'',contentType:r.headers.get('content-type')??'',location:r.headers.get('location')??''}};
    if(options.json&&r.ok)return {...evidence,body:await jsonBounded(r)};
    await r.body?.cancel().catch(()=>{});
    return evidence;
@@ -32,11 +32,11 @@ export function createProjectDeliveryHealth(fetchImpl:typeof fetch=fetch){
   if(sha&&project.id!=='hafize'&&project.id!=='borsa')fail('PROJECT_HEALTH_RELEASE_MARKER_UNSUPPORTED');
   const endpoints=project.urls.map(u=>String(u));
   if(project.id==='hafize') {
-   const marker=FRONT+'/release.json'+(sha?'?commit='+sha:'');
-   const [page,release,live,ready]=await Promise.all([observe(FRONT,signal),observe(marker,signal,{json:true}),observe(BACK+'/api/health/live',signal,{json:true}),observe(BACK+'/api/health/ready',signal,{json:true})]);
+   const marker=BACK+'/release.json'+(sha?'?commit='+sha:'');
+   const [page,release,live,ready,alias]=await Promise.all([observe(BACK,signal),observe(marker,signal,{json:true}),observe(BACK+'/api/health/live',signal,{json:true}),observe(BACK+'/api/health/ready',signal,{json:true}),observe(FRONT,signal)]);
    const body=record(release.body),actual=typeof body.commit==='string'&&SHA.test(body.commit)?body.commit.toLowerCase():null;
    const liveBody=record(live.body),backendSha=typeof liveBody.revision==='string'&&SHA.test(liveBody.revision)?liveBody.revision.toLowerCase():null;
-   return {project:project.id,repository:project.repository,frontend:{status:page.status,reachable:page.reachable,html:page.ok&&Boolean(page.headers?.contentType.includes('text/html')),release:{status:release.status,actualSha:actual,expectedSha:sha,match:sha?actual===sha:null}},backend:{liveStatus:live.status,readyStatus:ready.status,live:live.ok,ready:ready.ok,revision:{actualSha:backendSha,expectedSha:sha,match:sha?backendSha===sha:null}},authenticatedFunctionalTest:false,note:'Frontend and backend revisions are independent evidence; a backend revision is observed from its public live health response. This is not a signed-in functional test.'};
+   return {project:project.id,repository:project.repository,canonicalUrl:BACK,legacyAlias:{url:FRONT,status:alias.status,redirectVerified:[301,302,307,308].includes(alias.status??0)&&alias.headers?.location===BACK+'/'},frontend:{status:page.status,reachable:page.reachable,html:page.ok&&Boolean(page.headers?.contentType.includes('text/html')),release:{status:release.status,actualSha:actual,expectedSha:sha,match:sha?actual===sha:null}},backend:{liveStatus:live.status,readyStatus:ready.status,live:live.ok,ready:ready.ok,revision:{actualSha:backendSha,expectedSha:sha,match:sha?backendSha===sha:null}},authenticatedFunctionalTest:false,note:'Render is the canonical UI and API origin; Firebase is only a navigation alias. Release and health markers are verified on Render. This is not a signed-in functional test.'};
   }
   const pages=await Promise.all(endpoints.map(async url=>{const r=await observe(url,signal);return {url,status:r.status,reachable:r.reachable,html:r.ok&&Boolean(r.headers?.contentType.includes('text/html')),error:r.error??null};}));
   if(project.id==='borsa'){

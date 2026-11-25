@@ -92,7 +92,7 @@ jobs:
           projectId: projelerim-8fecd
           channelId: live
 
-      - name: Verify the public site serves exactly this GitHub commit
+      - name: Verify legacy Hosting redirects to canonical Render
         shell: bash
         run: |
           node --input-type=module <<'JS'
@@ -105,19 +105,18 @@ jobs:
             try {
               const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
               if (res.ok && (await res.json())?.commit === sha) {
-                const page=await fetch(`https://${site}.web.app/?release=${sha}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
-                const html=await page.text();
-                const module=await fetch(`https://${site}.web.app/typed-build/app-install.js?release=${sha}`,{cache:'no-store',signal:AbortSignal.timeout(12000)});
-                const js=await module.text();
-                if(page.ok&&module.ok&&html.includes('name="hafize-release" content="'+sha+'"')&&html.includes('/typed-build/app-install.js?release='+sha)&&js.includes('NVIDIA Merkezi')&&js.includes('NVIDIA Blueprint Atölyesi')){verified=true;break;}
+                const routes=['/','/index.html'];
+                const hosts=[site+'.web.app',site+'.firebaseapp.com'];
+                const pages=await Promise.all(hosts.flatMap(host=>routes.map(path=>fetch('https://'+host+path,{redirect:'manual',cache:'no-store',signal:AbortSignal.timeout(12000)}))));
+                if(pages.every(page=>[301,302,307,308].includes(page.status)&&page.headers.get('location')==='https://hafize-free.onrender.com/')){verified=true;break;}
               }
             } catch { /* CDN propagation or transient connection issue */ }
             if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, 5000));
           }
           if (!verified) {
-            console.error('::error::Live Hosting release marker does not match this GitHub commit.');
+            console.error('::error::Legacy Hosting release marker or canonical redirect verification failed.');
             process.exitCode = 1;
           } else {
-            console.log(`Verified live Firebase Hosting: ${site}.web.app at ${sha}`);
+            console.log(`Verified Firebase alias redirects to https://hafize-free.onrender.com/; alias configuration commit ${sha}`);
           }
           JS

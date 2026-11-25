@@ -1,3 +1,7 @@
+# Canonical Hafize deployment — Render
+
+The main application is https://hafize-free.onrender.com/ (UI and API on one origin). The legacy https://hafize-ua.web.app/ and https://hafize-ua.firebaseapp.com/ are navigation aliases, not independent application releases. Firebase Hosting uses reversible HTTP 302 redirects for / and /index.html; legacy SPA HTML also redirects to Render. API rewrites and existing secrets remain unchanged. The alias release.json identifies the Hosting configuration deployment only, not the running application revision. Verify the real application at Render /release.json and /api/health/live. Render Free has no persistent disk; origin-specific browser storage and sessions are not automatically migrated.
+
 # Hafize — Firebase Hosting live deployment
 
 This repository compiles the front end into `public/typed-build/`. It does

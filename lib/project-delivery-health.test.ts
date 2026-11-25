@@ -26,3 +26,17 @@ describe('project delivery verification',()=>{
   expect(f).not.toHaveBeenCalled();
  });
 });
+
+it('verifies the canonical Render UI and separately checks the Firebase alias',async()=>{
+ const seen:string[]=[];
+ const fetchImpl=vi.fn(async(u:URL|string)=>{
+  const url=new URL(String(u));seen.push(url.href);
+  if(url.hostname==='hafize-ua.web.app')return new Response(null,{status:302,headers:{location:'https://hafize-free.onrender.com/'}});
+  if(url.pathname==='/release.json')return Response.json({commit:SHA});
+  if(url.pathname==='/api/health/live')return Response.json({revision:SHA});
+  if(url.pathname==='/api/health/ready')return Response.json({state:'ready'});
+  return new Response('<html/>',{headers:{'content-type':'text/html'}});
+ }) as unknown as typeof fetch;
+ await expect(createProjectDeliveryHealth(fetchImpl)({project:'hafize',sha:SHA})).resolves.toMatchObject({canonicalUrl:'https://hafize-free.onrender.com',legacyAlias:{redirectVerified:true},frontend:{release:{match:true}},backend:{revision:{match:true}}});
+ expect(seen.some(u=>u.startsWith('https://hafize-ua.web.app/release.json'))).toBe(false);
+});
