@@ -145,35 +145,13 @@ function install(): void {
     const frame = document.createElement('div');
     frame.className = 'hz-frame';
     frame.setAttribute('aria-hidden', 'true');
-    for (const name of ['hz-frame-idle', 'hz-frame-idle-glow', 'hz-frame-thinking', 'hz-frame-thinking-glow']) {
-      const layer = document.createElement('i');
-      layer.className = name;
-      frame.append(layer);
-    }
+    const idle = document.createElement('i');
+    idle.className = 'hz-frame-idle';
+    const canvas = document.createElement('canvas');
+    canvas.id = 'hz-perimeter-canvas';
+    canvas.setAttribute('aria-hidden','true');
+    frame.append(idle,canvas);
     (document.body ?? document.documentElement).append(frame);
-  }
-  const thinking = document.querySelector('.hz-frame-thinking');
-  if (thinking && !thinking.querySelector('.hz-thinking-beam')) {
-    const ns = 'http://www.w3.org/2000/svg';
-    const beam = document.createElementNS(ns, 'svg');
-    beam.setAttribute('class', 'hz-thinking-beam');
-    beam.setAttribute('aria-hidden', 'true');
-    beam.setAttribute('focusable', 'false');
-    for (const [mode, duration] of [['idle','13s'], ['active','5s']]) {
-      const group = document.createElementNS(ns, 'g');
-      group.setAttribute('class', 'hz-beam-'+mode);
-      for (const [name, length, phase] of [['halo',64,32],['tail',60,30],['middle',44,22],['bright',28,14],['core',12,6]] as const) {
-        const ray = document.createElementNS(ns, 'rect');
-        ray.setAttribute('class', 'hz-ray-' + name);
-        for (const [key,value] of Object.entries({x:'0',y:'0',width:'100%',height:'100%',rx:'6',ry:'6',pathLength:'1000','stroke-dasharray':length+' '+(1000-length),'stroke-dashoffset':String(phase)})) ray.setAttribute(key,value);
-        const animation = document.createElementNS(ns, 'animate');
-        for (const [key,value] of Object.entries({attributeName:'stroke-dashoffset',from:String(phase),to:String(phase-1000),dur:duration,repeatCount:'indefinite'})) animation.setAttribute(key,value);
-        ray.append(animation);
-        group.append(ray);
-      }
-      beam.append(group);
-    }
-    thinking.append(beam);
   }
 }
 
