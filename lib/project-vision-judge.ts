@@ -32,6 +32,7 @@ export const VISION_JUDGE_LIMITS = Object.freeze({
   /** base64 is 4/3 of the decoded size; JSON framing stays well below the remainder. */
   maxBodyBytes: 2_800_000,
   callTimeoutMs: 40_000,
+  maxParallelCalls: 4,
   minVotes: 2,
   minAgreement: 2 / 3,
   minScoreMargin: 0.5
@@ -181,7 +182,8 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
     const count = images.length;
     const prompt = judgePrompt(count);
     const jobs = judgeModels.flatMap((model) => judgeOrders(count).map((order) => ({model, order})));
-    const settled = await Promise.allSettled(jobs.map(async ({model, order}) => {
+    const runVote = async ({model, order}: (typeof jobs)[number]) => {
+      signal?.throwIfAborted();
       const content: Json[] = [{type: 'text', text: prompt}];
       order.forEach((candidate, position) => {
         const image = images[candidate];
@@ -200,7 +202,15 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
       }, callSignal);
       const vote = parseJudgeVote(messageText(result), order);
       return {vote, model: completionOrigin(result) ?? model};
-    }));
+    };
+    // Bound memory pressure and upstream fan-out on the free Render instance.
+    // Each model still sees both orders; no partial batch can silently become
+    // an authoritative vote after the client disconnects.
+    const settled: PromiseSettledResult<Awaited<ReturnType<typeof runVote>>>[] = [];
+    for (let offset = 0; offset < jobs.length; offset += VISION_JUDGE_LIMITS.maxParallelCalls) {
+      signal?.throwIfAborted();
+      settled.push(...await Promise.allSettled(jobs.slice(offset, offset + VISION_JUDGE_LIMITS.maxParallelCalls).map(runVote)));
+    }
     signal?.throwIfAborted();
 
     const votes: JudgeVote[] = [];
