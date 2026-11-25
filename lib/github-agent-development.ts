@@ -149,7 +149,10 @@ export function createGitHubAgentDevelopment(options: Options) {
     const ticket = writer.issueApproval(operation, normalized, true);
     const token = ticket.ticket;
     if (operation === 'branch') return writer.createBranch(token, normalized);
-    if (operation === 'file') return writer.commitFile(token, normalized);
+    if (operation === 'file') {
+      const committed = await writer.commitFile(token, normalized);
+      return writer.verifyFileCommit(normalized, committed);
+    }
     return writer.createPullRequest(token, normalized);
   }
 
