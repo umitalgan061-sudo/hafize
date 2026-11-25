@@ -205,3 +205,36 @@ export function parseExplicitMergeCommand(request:unknown):{action:'merge';repos
   return {action:'merge',repository:v.repository,number:v.number,sha:v.sha.toLowerCase()};
  }catch{return null;}
 }
+
+/** Strict standalone structured release requests. Explicit owner intent must
+ * precede the JSON; quoted examples, extra actions, wrong targets and malformed
+ * parameters are not executable commands. The server still checks authorization
+ * for the entire original request and uses the normal journaled release tool. */
+export function parseExplicitReleaseCommand(request:unknown){
+ const merge=parseExplicitMergeCommand(request);
+ if(merge)return merge;
+ if(typeof request!=='string'||request.length>12000)return null;
+ const match=request.match(/^([^\r\n]{1,240})\r?\n(?:[ \t]*\r?\n)*[ \t]*github_release aracını şu parametrelerle çalıştır:[ \t]*\r?\n\s*(\{[^{}]{1,4096}\})\s*$/u);
+ if(!match)return null;
+ const first=match[1].toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i').trim();
+ try{
+  const v=JSON.parse(match[2]);
+  if(!v||Array.isArray(v)||typeof v.repository!=='string'||![HAFIZE,SITES].includes(v.repository))return null;
+  const repo=v.repository;
+  const scope=releaseAuthorizationForRequest(match[1],true);
+  if(!scope?.repositories.includes(repo)||!scope.actions.includes(v.action))return null;
+  if(v.action==='open'){
+   if(![repo+' deposunda pr ac.',repo+' deposunda yalnizca pr ac.',repo+' deposunda pr olustur.'].includes(first))return null;
+   if(Object.keys(v).length!==5||Object.keys(v).some(k=>!['action','repository','branch','title','body'].includes(k)))return null;
+   if(typeof v.branch!=='string'||!BRANCH.test(v.branch)||v.branch.includes('..')||v.branch.endsWith('.lock')||typeof v.title!=='string'||!v.title.trim()||v.title.length>240||typeof v.body!=='string')return null;
+   return {action:'open' as const,repository:repo,branch:v.branch,title:v.title,body:v.body};
+  }
+  if(v.action==='publish'){
+   if(first!==repo+' deposunu canliya al.')return null;
+   if(Object.keys(v).length!==4||Object.keys(v).some(k=>!['action','repository','sha','target'].includes(k)))return null;
+   if(typeof v.sha!=='string'||!SHA.test(v.sha)||!(repo===HAFIZE&&v.target==='firebase'||repo===SITES&&['firebase','cloudflare'].includes(v.target)))return null;
+   return {action:'publish' as const,repository:repo,sha:v.sha.toLowerCase(),target:v.target};
+  }
+ }catch{return null;}
+ return null;
+}

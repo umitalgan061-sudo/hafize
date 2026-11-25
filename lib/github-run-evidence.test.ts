@@ -60,3 +60,8 @@ it('distinguishes a reconciled existing merge from a new merge performed this tu
  const rows=githubReceipt('github_release',{ok:true,value:{repository,action:'merge',number:73,merged:true,existing:true,mergeCommitSha:commit}});
  expect(formatGitHubRunEvidence(rows)).toContain('daha önce birleştirilmiş; GitHub üzerinden doğrulandı');
 });
+
+it('starts checkpoint recognition for plain explicit PR creation requests',()=>{
+ expect(githubWorkRequested('umitalgan061-sudo/hafize deposunda yalnızca PR aç.')).toBe(true);
+ expect(githubWorkRequested('GitHub PR nedir?')).toBe(false);
+});

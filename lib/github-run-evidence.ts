@@ -16,7 +16,7 @@ export function githubWorkRequested(request:unknown,previous:readonly unknown[]=
  const continuation=/\b(?:devam et|kaldigin yerden|tamamla|durma|tum islemleri|butun islemleri)\b/.test(current);
  const text=current+(continuation?' '+previous.slice(-6).map(normal).join(' '):'');
  return /\b(?:github|retake|hafize|depo|repo|pull request|commit|pr|firebase|nvidia)\b/.test(text)&&
- /\b(?:gelistir|duzelt|guncelle|uygula|olustur|entegre et|kodla|kod degisikligi|degistir|yayinla|canliya al|birlestir|merge|deploy|commit|tamamla|devam et|fix|implement|update|patch|write|create)\w*/.test(text);
+ /\b(?:gelistir|duzelt|guncelle|uygula|olustur|entegre et|kodla|kod degisikligi|degistir|yayinla|canliya al|birlestir|merge|deploy|commit|tamamla|devam et|fix|implement|update|patch|write|create|pr ac|pull request ac)\w*/.test(text);
 }
 export type GitHubReceipt={readonly tool:string;readonly line:string;readonly kind:'read'|'branch'|'file'|'pull'|'merge'|'dispatch'|'checks'|'error'};
 /** Only an explicit file edit + commit on a named feature branch, with a
