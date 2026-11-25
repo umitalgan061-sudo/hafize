@@ -223,3 +223,12 @@ describe('long-run orchestration',()=>{
   expect(result.status).toBe('succeeded');expect(result.steps.a.output).toBe('resumed');db.close();
  });
 });
+
+it('blocks restored mutation history even if an approval is supplied',async()=>{
+ const db=openHafizeDb(':memory:');const o=createOrchestrator({db,models:fakeModels()});
+ const state=await o.run({ownerId:'u',traceId:'backup-history',goal:'write',tools,initialPlan:[{id:'a',tool:'shell_run'}],executeTool:async()=>({ok:true,value:'never'})});
+ state.restoredFromBackup=true;state.restoredHistoryOnly=true;
+ db.prepare('UPDATE orchestrator_runs SET state=? WHERE id=?').run(JSON.stringify(state),state.runId);
+ await expect(o.resume({ownerId:'u',runId:state.runId,tools,approveStepIds:['a'],executeTool:async()=>{throw Error('must not execute');}})).rejects.toMatchObject({code:'RESTORED_MUTATION_HISTORY_ONLY'});
+ db.close();
+});

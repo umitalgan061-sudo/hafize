@@ -40,13 +40,15 @@ export interface RunState {
   criticNotes: string[];
   finalAnswer?: string;
   abortReason?: string;
+  restoredFromBackup?: true;
+  restoredHistoryOnly?: true;
 }
 export interface ToolOption { readonly name: string; readonly description: string; readonly risk: 'low' | 'medium' | 'high'; /** Compact argument signature, e.g. `{city: string*, days?: integer}`. */ readonly args?: string }
 export type OrchestratorEvent = Readonly<{ runId: string; type: string; ts: number; payload: Json }>;
 
 // Only these read-only operations may be replayed after an uncertain result.
 // Unknown tools and mutations default to no automatic retry.
-const REPLAY_SAFE = new Set([REASON_TOOL, 'runtime_status', 'web_search', 'web_page_read', 'weather_forecast', 'wikipedia_lookup', 'news_search', 'exchange_rates', 'github_read_file', 'github_inspect', 'memory_search', 'expert_find', 'test_read_result', 'rule_list', 'localhost_list']);
+export const REPLAY_SAFE = new Set([REASON_TOOL, 'runtime_status', 'web_search', 'web_page_read', 'weather_forecast', 'wikipedia_lookup', 'news_search', 'exchange_rates', 'github_read_file', 'github_inspect', 'memory_search', 'expert_find', 'test_read_result', 'rule_list', 'localhost_list']);
 export const ORCHESTRATOR_MAX_STEPS=200;
 export const ORCHESTRATOR_MAX_WALL_MS=180*60*1000;
 export const ORCHESTRATOR_MAX_TOOL_CALLS=1600;
@@ -124,7 +126,8 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     readonly emit?: ((event: OrchestratorEvent) => void) | undefined;
     readonly signal?: AbortSignal | undefined;
   }): Promise<RunState> {
-    const { state, tools, executeTool, requestApproval, emit } = input;
+    const { state, executeTool, requestApproval, emit } = input;
+    const tools=state.restoredFromBackup?input.tools.filter(tool=>REPLAY_SAFE.has(tool.name)&&tool.risk==='low'):input.tools;
     const controller = new AbortController();
     live.set(state.runId, controller);
     const remainingWall=Math.max(1,state.budget.maxWallMs-state.usage.wallMs);
@@ -153,6 +156,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
 
     async function runStep(step: PlanStep): Promise<void> {
       const info = state.steps[step.id]!;
+      if (state.restoredFromBackup&&!REPLAY_SAFE.has(step.tool)) {info.status='failed';info.error='RESTORED_MUTATION_HISTORY_ONLY';save(state);return;}
       if (step.tool !== REASON_TOOL && !toolNames.has(step.tool)) {
         info.status = 'failed'; info.error = 'TOOL_NO_LONGER_AVAILABLE'; save(state); return;
       }
@@ -332,6 +336,8 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     if (live.has(input.runId)) throw new OrchestratorError('RUN_ALREADY_ACTIVE', 409);
     const state = load(input.runId, input.ownerId);
     if (state.status === 'succeeded') return state;
+    if(state.restoredHistoryOnly)throw new OrchestratorError('RESTORED_MUTATION_HISTORY_ONLY',409);
+    if(state.restoredFromBackup&&state.plan.some(step=>!REPLAY_SAFE.has(step.tool)))throw new OrchestratorError('RESTORED_MUTATION_HISTORY_ONLY',409);
     for (const [id, info] of Object.entries(state.steps)) {
       if (info.status === 'running') {
         const step = state.plan.find(item => item.id === id);
@@ -367,7 +373,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
   }
 
   function list(ownerId: string, limit = 20) {
-    return db.prepare('SELECT id, goal, status, created_at AS createdAt, updated_at AS updatedAt FROM orchestrator_runs WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?').all(ownerId, Math.min(Math.max(limit, 1), 100)).map(row=>({...row,activeInProcess:live.has(String(row.id)),interrupted:row.status==='running'&&!live.has(String(row.id))}));
+    return db.prepare('SELECT id, goal, status, state, created_at AS createdAt, updated_at AS updatedAt FROM orchestrator_runs WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?').all(ownerId, Math.min(Math.max(limit, 1), 100)).map(row=>{const {state:raw,...rest}=row;let flags={restoredFromBackup:false,restoredHistoryOnly:false};try{const parsed=JSON.parse(String(raw));flags={restoredFromBackup:parsed.restoredFromBackup===true,restoredHistoryOnly:parsed.restoredHistoryOnly===true};}catch{}return {...rest,...flags,activeInProcess:live.has(String(row.id)),interrupted:row.status==='running'&&!live.has(String(row.id))};});
   }
 
   function events(runId: string, ownerId: string, afterId = 0) {

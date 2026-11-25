@@ -62,3 +62,21 @@ describe('backup', () => {
     expect(await make().backupIfDue(day)).toMatchObject({ target: 'folder' });
   });
 });
+
+it('restores missing task history, but never replays restored mutations or replaces existing state',async()=>{
+ const target=folderTarget(mkdtempSync(join(tmpdir(),'hafize-task-restore-')));
+ const make=()=>{const db=openHafizeDb(':memory:');const memory=createMemoryBackend({db,crypto:createEnvelopeCrypto({db,masterKey:randomBytes(32)})});return {db,service:createBackupService({db,memory,imagesDir:mkdtempSync(join(tmpdir(),'hz-img-')),userSkillsDir:mkdtempSync(join(tmpdir(),'hz-skill-')),target,passphrase:'yedek-parolasi-123'})};};
+ const source=make();
+ for(const [runId,tool] of [['read-task','web_search'],['write-task','github_develop']]){
+  const state={runId,traceId:'trace-'+runId,ownerId:'u1',goal:'deliver',constraints:[],status:'running',plan:[{id:'s1',title:'step',tool,args:{},dependsOn:[],retryPolicy:{maxAttempts:2,backoffMs:0},timeoutMs:90000,checkpoint:true}],steps:{s1:{status:'running',attempts:1,approved:true}},budget:{maxSteps:100,maxWallMs:10800000,maxTokens:2000000,maxToolCalls:1600},usage:{stepsRun:0,toolCalls:1,tokens:0,wallMs:100,startedAt:1000},revisions:0,criticNotes:[]};
+  source.db.prepare('INSERT INTO orchestrator_runs VALUES (?,?,?,?,?,?,?,?)').run(runId,'u1',state.traceId,state.goal,'running',JSON.stringify(state),1000,2000);
+ }
+ await source.service.backupNow();const fresh=make();
+ expect(await fresh.service.restore()).toMatchObject({restoredRuns:2,historyOnlyRuns:1,skippedRuns:0});
+ const read=JSON.parse(String(fresh.db.prepare('SELECT state FROM orchestrator_runs WHERE id=?').get('read-task')?.state));
+ const write=JSON.parse(String(fresh.db.prepare('SELECT state FROM orchestrator_runs WHERE id=?').get('write-task')?.state));
+ expect(read).toMatchObject({restoredFromBackup:true,status:'running'});expect(read.steps.s1.approved).toBeUndefined();
+ expect(write).toMatchObject({restoredHistoryOnly:true,status:'aborted'});
+ expect(await fresh.service.restore()).toMatchObject({restoredRuns:0,skippedRuns:2});
+ source.db.close();fresh.db.close();
+});
