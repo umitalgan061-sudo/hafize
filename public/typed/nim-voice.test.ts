@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createVoiceActivityGate,pcmTo16k,nimVoiceStatus,NimRecognition} from './nim-voice.ts';
+import {createVoiceActivityGate,pcmTo16k,nimVoiceStatus,NimRecognition,NimCaptureSession} from './nim-voice.ts';
 describe('configured NIM voice',()=>{
  it('keeps the start of a phrase and never uploads silence as a phrase',()=>{
   const gate=createVoiceActivityGate(16000);
@@ -26,4 +26,18 @@ describe('configured NIM voice',()=>{
   resolve({getTracks:()=>[{stop}]} as unknown as MediaStream);await Promise.resolve();await Promise.resolve();
   expect(stop).toHaveBeenCalledTimes(1);expect(r.onend).toHaveBeenCalledTimes(1);
  });
+});
+
+it('reuses one microphone for consecutive recognition turns and releases it on explicit session close',async()=>{
+ const stop=vi.fn(),track={stop,addEventListener:vi.fn()};
+ const getUserMedia=vi.fn(async()=>({getTracks:()=>[track]} as unknown as MediaStream));
+ const node={connect:vi.fn(),disconnect:vi.fn(),onaudioprocess:null as ((e:unknown)=>void)|null};
+ const ctx={sampleRate:16000,resume:async()=>{},close:async()=>{},createMediaStreamSource:()=>node,createScriptProcessor:()=>node,createGain:()=>({...node,gain:{value:1}}),destination:{}};
+ const root={navigator:{mediaDevices:{getUserMedia}},AudioContext:class{constructor(){return ctx;}}} as unknown as typeof globalThis;
+ const session=new NimCaptureSession(root),a={frame:vi.fn(),failed:vi.fn()},b={frame:vi.fn(),failed:vi.fn()};
+ await expect(session.attach(a)).resolves.toBe(16000);session.detach(a);
+ node.onaudioprocess?.({inputBuffer:{getChannelData:()=>new Float32Array(16)}});expect(a.frame).not.toHaveBeenCalled();
+ await expect(session.attach(b)).resolves.toBe(16000);expect(getUserMedia).toHaveBeenCalledTimes(1);expect(stop).not.toHaveBeenCalled();
+ node.onaudioprocess?.({inputBuffer:{getChannelData:()=>new Float32Array(16)}});expect(b.frame).toHaveBeenCalledTimes(1);
+ session.close();expect(stop).toHaveBeenCalledTimes(1);expect(node.onaudioprocess).toBeNull();
 });

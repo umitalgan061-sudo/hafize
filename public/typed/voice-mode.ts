@@ -5,7 +5,7 @@
 // it reports the microphone as busy (hafize:voice-input-state) so hands-free and the composer
 // voice panel stay out of the way. Dictation into the composer remains on Ctrl+Shift+M.
 
-import {NIM_ASR_KEY,NIM_TTS_VOICE,nimVoiceStatus,NimRecognition,type NimVoiceStatus} from './nim-voice.ts';
+import {NIM_ASR_KEY,NIM_TTS_VOICE,nimVoiceStatus,NimRecognition,NimCaptureSession,type NimVoiceStatus} from './nim-voice.ts';
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
 import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog, findVoice, isPiperVoice, synthesize } from './voice-library.ts';
 import { pack, styles } from './supertonic-pack.ts';
@@ -222,7 +222,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const messages = documentRef.querySelector<HTMLElement>('#messages');
   const Recognition = ((root as unknown as { SpeechRecognition?: new () => RecognitionLike; webkitSpeechRecognition?: new () => RecognitionLike }).SpeechRecognition
     || (root as unknown as { webkitSpeechRecognition?: new () => RecognitionLike }).webkitSpeechRecognition) ?? null;
-  if (!composer || !input || !mic || !documentRef.body || !Recognition) return null;
+  const nimCaptureSupported=Boolean(root.navigator?.mediaDevices?.getUserMedia&&(root.AudioContext||(root as typeof globalThis&{webkitAudioContext?:typeof AudioContext}).webkitAudioContext));
+  if (!composer || !input || !mic || !documentRef.body || (!Recognition&&!nimCaptureSupported)) return null;
   if (documentRef.querySelector('.voice-mode')) return null;
 
   const screen = documentRef.createElement('div');
@@ -265,7 +266,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const now = () => root.performance?.now?.() ?? Date.now();
   const speechProfile = recognitionProfile(root.navigator?.userAgent);
   let nimStatus:NimVoiceStatus={asrLanguage:null,ttsLanguage:null};let nimStatusAbort:AbortController|null=null;
-  const nimSelected=()=>read(NIM_ASR_KEY)==='true'&&Boolean(nimStatus.asrLanguage);
+  const nimSelected=()=>nimCaptureSupported&&read(NIM_ASR_KEY)==='true'&&Boolean(nimStatus.asrLanguage);
+  const nimCapture=new NimCaptureSession(root);
 
   let orb: VoiceOrb | null = null;
   let state: VoiceModeState = 'closed';
@@ -458,6 +460,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     setState('thinking', 'Yanıt hazırlanıyor…');
     responseNoticeTimer = setTimeout(() => { if(awaitingReply && !streamStarted && state==='thinking') statusEl.textContent='Bağlantı yanıtı bekleniyor · durdurmak için küreye dokun'; }, 6000);
     composer.requestSubmit();
+    if(!muted&&nimSelected())listen();
     stopFeeding();
     feedTimer = setInterval(() => feedSpeech(), FEED_INTERVAL_MS);
     sendTimer = setTimeout(() => {
@@ -477,7 +480,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     // the screen; only genuine start/network failures have a retry budget.
     if (failed && silentRetries >= MAX_SILENT_RETRIES) {
       silentRetries = 0;
-      listeningBlocked = true;
+      listeningBlocked = true;nimCapture.close();
       setState(overlapsReply() ? state : 'idle', speechProfile.awaitNaturalEnd
         ? 'Ses tanıma yanıt vermiyor. iPhone Safari’yi tamamen kapatıp yeniden açmayı veya mikrofon iznini kontrol etmeyi dene.'
         : 'Mikrofon bağlantısı kesildi. Yeniden başlatmak için küreye dokun.');
@@ -495,6 +498,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
 
   const listen = () => {
     if (state === 'closed' || muted || documentRef.hidden || listeningBlocked) return;
+    if(!nimSelected()&&!Recognition){setState('idle','Tarayıcı ses tanıma sunmuyor. Varsa ayarlardan NVIDIA Türkçe ses tanımayı seç.');return;}
     if(recognition){if(!overlapsReply()&&state!=='listening')setState('listening');return;}
     manualEnd = false;
     // Never stop audio output or the reply-feed timers merely to re-arm the microphone.
@@ -510,7 +514,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let heardDuringReply = false;
     let rejectedEcho = false;
     let current: RecognitionLike;
-    try { current = nimSelected()?new NimRecognition(root,nimStatus.asrLanguage!):new Recognition(); }
+    try { current = nimSelected()?new NimRecognition(root,nimStatus.asrLanguage!,nimCapture):new Recognition!(); }
     catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
     recognitionReady=false;
@@ -631,7 +635,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       // speech must not become new user messages during playback.
       const said = (manualEnd&&!heardDuringReply?[final,interim].filter(Boolean).join(' '):interim?'':final).trim();
       if (said && !isEcho(said)) { silentRetries = 0; completedSpeechTurns += 1; manualEnd = false; send(said); return; }
-      if (manualEnd) { manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
+      if (manualEnd) { nimCapture.close();manualEnd = false; setState('paused', 'Dinleme durduruldu. Devam etmek için küreye dokun.'); return; }
       if(interruptedBySpeech){interruptedBySpeech=false;}
       if(interim&&!errorCode){retryListening('Sözlerin tam netleşmedi · yeniden dinliyorum…',false);return;}
       if (heardDuringReply || rejectedEcho) {if(!errorCode){retryListening('Dinlemeye devam ediyorum…',false);return;}}
@@ -639,9 +643,9 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         retryListening('Ses algılandı fakat metne çevrilemedi · yeniden dinliyorum…', true);
         return;
       }
-      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { listeningBlocked=true; setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
-      if (errorCode === 'audio-capture') { listeningBlocked=true; setState('idle', 'Mikrofon bulunamadı.'); return; }
-      if (errorCode === 'language-not-supported') { listeningBlocked=true; setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
+      if (errorCode === 'not-allowed' || errorCode === 'service-not-allowed' || errorCode === 'security') { listeningBlocked=true;nimCapture.close(); setState('idle', 'Mikrofon izni gerekli. Tarayıcı izinlerini kontrol et.'); return; }
+      if (errorCode === 'audio-capture') { listeningBlocked=true;nimCapture.close(); setState('idle', 'Mikrofon bulunamadı.'); return; }
+      if (errorCode === 'language-not-supported') { listeningBlocked=true;nimCapture.close(); setState('idle', 'Türkçe ses tanıma desteklenmiyor.'); return; }
       retryListening(errorCode === 'network' ? 'Ses bağlantısı yeniden kuruluyor…' : 'Dinlemeye yeniden bağlanıyorum…', Boolean(errorCode && errorCode !== 'no-speech' && errorCode !== 'aborted'));
     };
     try {
@@ -652,6 +656,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
         recognition = null;
         recognitionReady=false;
         try { current.abort(); } catch { /* recognition may have already ended */ }
+        if(current instanceof NimRecognition)nimCapture.close();
         retryListening('Mikrofon yanıt vermedi, yeniden deneniyor…');
       }, RECOGNITION_START_TIMEOUT_MS);
     } catch {
@@ -747,7 +752,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     pendingUtterance = '';
     manualEnd = false;
     renderMute(); renderRate(); renderCaptions(); loadVoices(); warmSelected();
-    if((root as typeof globalThis&{HafizeAuth?:unknown}).HafizeAuth){const controller=new AbortController();nimStatusAbort?.abort();nimStatusAbort=controller;void nimVoiceStatus(root,controller.signal).then(s=>{if(controller.signal.aborted||state==='closed')return;nimStatus=s;asrField.hidden=!s.asrLanguage;asrSelect.value=nimSelected()?'nim':'browser';loadVoices();if(nimSelected()&&!muted){stopRecognition(true);listeningBlocked=false;listen();}});}
+    if((root as typeof globalThis&{HafizeAuth?:unknown}).HafizeAuth){const controller=new AbortController();nimStatusAbort?.abort();nimStatusAbort=controller;void nimVoiceStatus(root,controller.signal).then(s=>{if(controller.signal.aborted||state==='closed')return;nimStatus=s;asrField.hidden=!s.asrLanguage||!nimCaptureSupported;asrSelect.value=nimSelected()?'nim':'browser';loadVoices();if(nimSelected()&&!muted){stopRecognition(true);listeningBlocked=false;listen();}});}
     setCaption(['', '', '']);
     if (!orb && canvas) { orb = createVoiceOrb(canvas, root); screen.classList.toggle('vm-webgl', Boolean(orb)); }
     setState('idle');
@@ -768,7 +773,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     awaitingReply = false;
     pendingUtterance = '';
     playbackActive=false;interruptedBySpeech=false;echoReference='';echoUntil=0;
-    stopRecognition(true);
+    stopRecognition(true);nimCapture.close();
     if (state === 'speaking') stopSpeech();
     state = 'closed';
     screen.dataset.state = 'closed';
@@ -904,7 +909,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (state === 'closed') return;
     if (documentRef.hidden) {
       clearTimers(); stopFeeding(); awaitingReply = false; pendingUtterance = '';
-      manualEnd = false; playbackActive=false;interruptedBySpeech=false;echoReference='';echoUntil=0;stopRecognition(true); stopSpeech();
+      manualEnd = false; playbackActive=false;interruptedBySpeech=false;echoReference='';echoUntil=0;stopRecognition(true);nimCapture.close(); stopSpeech();
       setState('paused', 'Uygulama arka planda; geri dönünce küreye dokun.');
     } else if (state === 'paused' && !muted) {
       // Safari requires a new foreground gesture to re-open a paused microphone.
@@ -934,7 +939,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       manualEnd = false;
       interruptedBySpeech=false;
       clearRecognitionTimers();
-      stopRecognition(true);
+      stopRecognition(true);nimCapture.close();
       if (state === 'listening' || state === 'idle' || state === 'thinking') setState('paused');
     }
     else {listeningBlocked=false;listen();}
@@ -947,7 +952,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   });
   on(rateInput, 'input', () => { write(RATE_KEY, rateInput.value); rateOut.textContent = `${Number(rateInput.value).toFixed(2)}×`; });
   on(voiceSelect, 'change', () => { if (voiceSelect.value) {if(read(VOICE_KEY)!==voiceSelect.value)write(SPEAKER_KEY,'0');write(VOICE_KEY, voiceSelect.value);} else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } renderSpeakers(); warmSelected(); });
-  on(asrSelect,'change',()=>{write(NIM_ASR_KEY,String(asrSelect.value==='nim'&&Boolean(nimStatus.asrLanguage)));stopRecognition(true);listeningBlocked=false;if(!muted&&state!=='closed')listen();});
+  on(asrSelect,'change',()=>{write(NIM_ASR_KEY,String(asrSelect.value==='nim'&&Boolean(nimStatus.asrLanguage)));stopRecognition(true);nimCapture.close();listeningBlocked=false;if(!muted&&state!=='closed')listen();});
   on(speakerSelect,'change',()=>{write(SPEAKER_KEY,speakerSelect.value);warmSelected();});
   on(sampleBtn, 'click', () => {
     const Custom = root.CustomEvent;
@@ -955,7 +960,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     if (typeof Custom === 'function') documentRef.dispatchEvent(new Custom(SPEAK_EVENT, { detail: { text: 'Merhaba, ben Hafize. Sesim böyle duyuluyor.', origin: 'voice-mode-sample' } }));
   });
   on(plusBtn, 'click', () => { close(); documentRef.querySelector<HTMLButtonElement>('#attachBtn')?.click(); });
-  on(textInput, 'input', () => { sendBtn.hidden = !textInput.value.trim(); if (textInput.value) stopRecognition(true); });
+  on(textInput, 'input', () => { sendBtn.hidden = !textInput.value.trim(); if (textInput.value){stopRecognition(true);nimCapture.close();} });
   on(form, 'submit', (event) => { event.preventDefault(); const text = textInput.value; textInput.value = ''; sendBtn.hidden = true; send(text); });
   if (root.speechSynthesis) on(root.speechSynthesis, 'voiceschanged', () => { if (state !== 'closed') loadVoices(); });
   const Observer = root.MutationObserver;
