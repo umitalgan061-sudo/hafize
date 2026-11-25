@@ -91,3 +91,14 @@ it('restores only allowed modified files to a separate branch, never merges or d
  expect(createBranch).toHaveBeenCalledTimes(1);expect(commitFile).toHaveBeenCalledTimes(1);expect(createPullRequest).toHaveBeenCalledTimes(1);
  expect(normalizeInput).toHaveBeenCalledWith('file',expect.objectContaining({path,content:'old content',existingSha:blob}));
 });
+
+it('authorizes only PR creation when a merge or publication is explicitly prohibited',()=>{
+ const hafize='umitalgan061-sudo/hafize';
+ expect(releaseAuthorizationForRequest(hafize+' incelemeye hazır gerçek PR oluştur. Şimdilik birleştirme veya canlı yayın yapma.',true)).toEqual({repositories:[hafize],actions:['open']});
+ expect(releaseAuthorizationForRequest(hafize+' PR aç. Merge etme.',true)?.actions).toEqual(['open']);
+ expect(releaseAuthorizationForRequest(hafize+' PR oluştur. Yeni PR açma.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(hafize+' PR açma veya birleştirme yapma.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(hafize+' PR oluştur, sadece incele.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(hafize+' PR oluştur',false)).toBeUndefined();
+ expect(releaseAuthorizationForRequest('Hafize-ua.web.app PR oluştur',true)).toBeUndefined();
+});
