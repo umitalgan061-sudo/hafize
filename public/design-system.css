@@ -323,6 +323,9 @@
     }
   }
   @keyframes hz-thinking-dot-lap{from{offset-distance:0%}to{offset-distance:100%}}
+  /* While thinking, leave only the quiet static baseline and the single point. */
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after{opacity:0}
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body:has(>.hz-frame)>.edge-beam{display:none}
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
     html[data-theme] body:has(>.hz-frame)>.edge-beam{display:none}
     html[data-theme] body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after,
