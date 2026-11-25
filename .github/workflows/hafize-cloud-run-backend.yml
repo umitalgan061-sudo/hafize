@@ -36,6 +36,7 @@ jobs:
           HAFIZE_CLOUD_RUN_AUTH_TOKEN: ${{ secrets.HAFIZE_CLOUD_RUN_AUTH_TOKEN }}
           HAFIZE_CLOUD_RUN_MASTER_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_MASTER_KEY }}
           HAFIZE_CLOUD_RUN_NVIDIA_API_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_NVIDIA_API_KEY }}
+          HAFIZE_PROJECT_AI_TOKEN_HASHES: ${{ secrets.HAFIZE_PROJECT_AI_TOKEN_HASHES }}
         run: |
           node --test scripts/hafize-cloud-run-preflight.test.mjs scripts/hafize-cloud-run-route.test.mjs scripts/firebase-hosting-preflight.test.mjs
           node scripts/hafize-cloud-run-preflight.mjs
@@ -66,6 +67,7 @@ jobs:
           HAFIZE_CLOUD_RUN_AUTH_TOKEN: ${{ secrets.HAFIZE_CLOUD_RUN_AUTH_TOKEN }}
           HAFIZE_CLOUD_RUN_MASTER_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_MASTER_KEY }}
           HAFIZE_CLOUD_RUN_NVIDIA_API_KEY: ${{ secrets.HAFIZE_CLOUD_RUN_NVIDIA_API_KEY }}
+          HAFIZE_PROJECT_AI_TOKEN_HASHES: ${{ secrets.HAFIZE_PROJECT_AI_TOKEN_HASHES }}
         shell: bash
         run: |
           umask 077
@@ -78,6 +80,8 @@ jobs:
             HAFIZE_AUTH_REQUIRED: 'true',
             HAFIZE_COOKIE_SECURE: 'true'
           };
+          // Optional: digests that let separate projects (e.g. Retake) call /api/project-ai.
+          if (process.env.HAFIZE_PROJECT_AI_TOKEN_HASHES) config.HAFIZE_PROJECT_AI_TOKEN_HASHES = process.env.HAFIZE_PROJECT_AI_TOKEN_HASHES;
           writeFileSync(process.env.RUNNER_TEMP + '/hafize-backend-env.yaml', JSON.stringify(config), { mode: 0o600 });
           console.log('Private backend environment prepared securely.');
           JS
