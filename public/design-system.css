@@ -273,102 +273,100 @@
 }
 
 
-/* One continuous perimeter trace for the viewport and one for the composer.
-   The four original edge beams remain a fallback for older mask implementations. */
+/* Screen-edge identity: two independent layers at the viewport's outer edge.
+   The quiet layer always runs. Only actual thinking enables the stronger layer.
+   Neither layer changes layout, colors, scroll, focus, or input handling. */
 @property --hz-perimeter-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
 @keyframes hz-perimeter-turn{to{--hz-perimeter-angle:360deg}}
 @media not all and (forced-colors: active){
-  html[data-theme] body>.hz-frame{display:none}
+  html[data-theme] body>.hz-frame{
+    display:block;position:fixed;inset:0;margin:0;box-sizing:border-box;
+    border-radius:0;z-index:2147483000;pointer-events:none;opacity:1;
+  }
+  html[data-theme] body>.hz-frame>i{
+    display:block;position:absolute;inset:0;margin:0;padding:0;
+    border:0;border-radius:0;box-sizing:border-box;pointer-events:none;
+    background:none;animation:none;filter:none;opacity:1;
+  }
+  html[data-theme] body>.hz-frame>.hz-frame-idle{
+    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hz-beam) 38%,transparent);
+  }
+  html[data-theme] body>.hz-frame>.hz-frame-idle-glow{
+    opacity:.18;
+  }
+  html[data-theme] body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
+    visibility:hidden;opacity:0;
+  }
+  html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking{
+    visibility:visible;opacity:1;
+    box-shadow:inset 0 0 0 2px color-mix(in srgb,#d9774f 88%,transparent);
+  }
+  html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking-glow{
+    visibility:visible;opacity:.38;
+  }
+  /* Fallback: always-visible outlines plus existing moving edge beams. */
   html[data-theme].hafize-working .edge-beam{opacity:1}
-  html[data-theme].hafize-working .edge-beam::after{animation-duration:4s;box-shadow:0 0 12px color-mix(in srgb,var(--hz-beam) 65%,transparent)}
+  html[data-theme].hafize-working .edge-beam::after{
+    animation-duration:4s;box-shadow:0 0 12px color-mix(in srgb,var(--hz-beam) 65%,transparent);
+  }
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
     html[data-theme] body:has(>.hz-frame)>.edge-beam{display:none}
-    html[data-theme] body>.hz-frame{
-      display:block;position:fixed;inset:0;z-index:2147483000;
-      pointer-events:none;opacity:.58;transition:opacity .35s ease;
-    }
-    html[data-theme] body>.hz-frame>i,
+    html[data-theme] body>.hz-frame>i::after,
     html[data-theme] #composer>.hz-composer-pulse{
-      pointer-events:none;box-sizing:border-box;border-radius:inherit;
-      border:0;
+      content:"";position:absolute;inset:0;pointer-events:none;
+      box-sizing:border-box;border-radius:inherit;border:0;
+      -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+      -webkit-mask-composite:xor;
+      mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+      mask-composite:exclude;
+    }
+    html[data-theme] body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after{
+      padding:1px;
+      background:conic-gradient(from var(--hz-perimeter-angle),
+        transparent 0deg 185deg,
+        color-mix(in srgb,var(--hz-beam) 22%,transparent) 230deg,
+        color-mix(in srgb,var(--hz-beam) 64%,transparent) 275deg,
+        color-mix(in srgb,var(--hz-beam-tip) 80%,transparent) 305deg,
+        color-mix(in srgb,var(--hz-beam) 25%,transparent) 335deg,transparent 360deg);
+      animation:hz-perimeter-turn 15s linear infinite;
+    }
+    html[data-theme] body>.hz-frame>.hz-frame-idle-glow::after{padding:3px;filter:blur(3px)}
+    /* Only this independently masked highlight runs fast while thinking. */
+    html[data-theme].hafize-working body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow)::after{
+      padding:2.5px;
+      background:conic-gradient(from var(--hz-perimeter-angle),
+        transparent 0deg 185deg,#d9774f 235deg,#f2a27a 280deg,
+        #ffd2b8 305deg,#e4885a 335deg,transparent 360deg);
+      animation:hz-perimeter-turn 3.8s linear infinite;
+    }
+    html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking-glow::after{padding:5px;filter:blur(5px)}
+    /* Keep the existing brief completion cue subtle, without enabling thinking. */
+    html[data-theme].hafize-flash:not(.hafize-working) body>.hz-frame>.hz-frame-idle::after{animation-duration:3.8s}
+    /* Composer remains the previous independent circulating outline. */
+    html[data-theme] #composer>.hz-composer-pulse{
+      position:absolute;inset:-2px;padding:1.5px;opacity:.8;box-shadow:none;
       background:conic-gradient(from var(--hz-perimeter-angle),
         color-mix(in srgb,var(--hz-beam) 12%,transparent) 0deg 185deg,
         color-mix(in srgb,var(--hz-beam) 35%,transparent) 220deg,
         var(--hz-beam) 278deg,var(--hz-beam-tip) 305deg,
         var(--hz-beam) 325deg,color-mix(in srgb,var(--hz-beam) 12%,transparent) 360deg);
-      -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-      -webkit-mask-composite:xor;
-      mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
-      mask-composite:exclude;
-      animation:hz-perimeter-turn 12s linear infinite;
-    }
-    html[data-theme] body>.hz-frame>i{
-      position:absolute;inset:0;padding:1.5px;transition:padding .35s ease;
-      filter:none;opacity:1;
-    }
-    html[data-theme] body>.hz-frame>i+i{padding:4px;filter:blur(4px);opacity:.18}
-    /* The existing chat-scroll setThinking() owns hafize-working. */
-    html[data-theme].hafize-working body>.hz-frame,
-    html[data-theme].hafize-flash body>.hz-frame{opacity:.98}
-    html[data-theme].hafize-working body>.hz-frame>i,
-    html[data-theme].hafize-flash body>.hz-frame>i{
-      padding:3px;animation-duration:3.8s;
-    }
-    html[data-theme].hafize-working body>.hz-frame>i+i,
-    html[data-theme].hafize-flash body>.hz-frame>i+i{padding:6px;opacity:.4}
-    html[data-theme].hafize-flash body>.hz-frame>i{animation-duration:1.6s}
-    html[data-theme] #composer>.hz-composer-pulse{
-      position:absolute;inset:-2px;padding:1.5px;opacity:.8;box-shadow:none;
-      animation-duration:8s;
+      animation:hz-perimeter-turn 8s linear infinite;
     }
     html[data-theme] #composer[data-voice-listening="true"]>.hz-composer-pulse{opacity:0;animation:none}
     @media(max-width:680px){
-      html[data-theme] body>.hz-frame{opacity:.62}
-      html[data-theme].hafize-working body>.hz-frame,
-      html[data-theme].hafize-flash body>.hz-frame{opacity:.98}
+      html[data-theme] body>.hz-frame>.hz-frame-idle-glow{opacity:.14}
+      html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking-glow{opacity:.28}
       html[data-theme] #composer>.hz-composer-pulse{inset:-1px}
     }
-    @media(prefers-reduced-motion:reduce){
-      html[data-theme] body>.hz-frame>i,
-      html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
-      html[data-theme] body>.hz-frame>i+i{display:none}
-    }
-    html[data-reduced-motion="true"][data-theme] body>.hz-frame>i,
-    html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse{animation:none!important}
-    html[data-reduced-motion="true"][data-theme] body>.hz-frame>i+i{display:none}
   }
+  @media(prefers-reduced-motion:reduce){
+    html[data-theme] body>.hz-frame>i::after,html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
+    html[data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
+  }
+  html[data-reduced-motion="true"][data-theme] body>.hz-frame>i::after,
+  html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse{animation:none!important}
+  html[data-reduced-motion="true"][data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
 }
 @media(forced-colors:active){
   .hz-frame,.edge-beam,#composer>.hz-composer-pulse{display:none!important}
-}
-
-
-/* Thinking: a visible continuous outline at the actual viewport perimeter.
-   The moving highlight rides over the outline; neither can intercept input.
-   Even without CSS masking the fixed inset shadow draws all four outer edges. */
-@media not all and (forced-colors: active){
-  html[data-theme].hafize-working body>.hz-frame{
-    display:block;position:fixed;inset:0;margin:0;box-sizing:border-box;
-    border-radius:0;z-index:2147483000;pointer-events:none;opacity:1;
-    box-shadow:inset 0 0 0 2px #d9774f;
-  }
-  html[data-theme].hafize-working body>.hz-frame>i{
-    pointer-events:none;
-  }
-  @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
-    html[data-theme].hafize-working body>.hz-frame>i:first-child{
-      padding:3px;
-      background:conic-gradient(from var(--hz-perimeter-angle),
-        transparent 0deg 190deg,#d9774f 235deg,#f2a27a 280deg,
-        #ffd2b8 305deg,#e4885a 335deg,transparent 360deg);
-      animation:hz-perimeter-turn 3.8s linear infinite;
-    }
-  }
-  @supports not ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
-    html[data-theme].hafize-working body>.hz-frame>i{display:none}
-  }
-  @media(prefers-reduced-motion:reduce){
-    html[data-theme].hafize-working body>.hz-frame>i:first-child{animation:none!important}
-  }
-  html[data-theme][data-reduced-motion="true"].hafize-working body>.hz-frame>i:first-child{animation:none!important}
 }
