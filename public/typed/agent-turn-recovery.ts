@@ -30,3 +30,18 @@ export function recoverCloudWait(content:string,confirmedPending:boolean):string
  return content===CLOUD_WAIT_TEXT&&!confirmedPending?INTERRUPTED_TEXT:content;
 }
 export function isCloudWait(content:unknown):boolean{return content===CLOUD_WAIT_TEXT;}
+
+/** A client-created ID is not a confirmed server checkpoint. A missing
+ * checkpoint cannot establish that no external mutation occurred. */
+export function agentStreamFailure(error:unknown,confirmed:boolean):string{
+ const e=error&&typeof error==='object'?error as {code?:unknown;status?:unknown}:{};
+ const code=typeof e.code==='string'&&/^[A-Z][A-Z0-9_]{1,79}$/.test(e.code)?e.code:'STREAM_INTERRUPTED';
+ const status=typeof e.status==='number'&&Number.isInteger(e.status)&&e.status>=400&&e.status<=599?' (HTTP '+e.status+')':'';
+ return 'Görev yanıtı kesildi: '+code+status+'. '+(confirmed?'Daha önce doğrulanan sunucu kaydı kontrol edilecek.':'Sunucu görev kaydını henüz doğrulamadı; kayıt durumu kontrol edilecek.');
+}
+export function missingCheckpointAnswer(content:string,confirmed:boolean):string{
+ const previous=typeof content==='string'?content.trim():'';
+ const note=confirmed?'Daha önce doğrulanan görev kaydı artık bulunamıyor. Sunucu yeniden başlatılmış veya kayıt kaybolmuş olabilir.':'Sunucuda bu görev kimliği için kayıt bulunamadı; kayıt oluşturulduğu doğrulanmamıştı.';
+ const details=previous&&previous!=='Görev sunucuya gönderiliyor…'&&previous!==CLOUD_WAIT_TEXT?previous+'\n\n':'';
+ return details+note+' GitHub dalı ve PR durumunu doğrulamadan yazma işlemini yeniden çalıştırma.';
+}

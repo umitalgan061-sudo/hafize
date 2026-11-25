@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {compactToolActivities,recoverCloudWait,CLOUD_WAIT_TEXT,INTERRUPTED_TEXT,settleToolActivities} from './agent-turn-recovery.ts';
+import {compactToolActivities,recoverCloudWait,CLOUD_WAIT_TEXT,INTERRUPTED_TEXT,settleToolActivities,agentStreamFailure,missingCheckpointAnswer} from './agent-turn-recovery.ts';
 describe('agent activity and interrupted turn regression',()=>{
  it('deduplicates separated legacy badges without counters or duplicated GitHub state',()=>{
   const a=compactToolActivities([
@@ -21,4 +21,15 @@ describe('agent activity and interrupted turn regression',()=>{
   expect(recoverCloudWait(CLOUD_WAIT_TEXT,true)).toBe(CLOUD_WAIT_TEXT);
   expect(recoverCloudWait('Gerçek cevap',false)).toBe('Gerçek cevap');
  });
+});
+
+it('preserves the original error and distinguishes absent from previously confirmed checkpoints',()=>{
+ const failure=agentStreamFailure({code:'AGENT_TURN_ALREADY_RUNNING',status:409},false);
+ expect(failure).toContain('AGENT_TURN_ALREADY_RUNNING (HTTP 409)');
+ expect(missingCheckpointAnswer(failure,false)).toContain(failure);
+ expect(missingCheckpointAnswer(failure,false)).toContain('oluşturulduğu doğrulanmamıştı');
+ expect(missingCheckpointAnswer('Verified partial report',true)).toContain('Verified partial report');
+ expect(missingCheckpointAnswer('Verified partial report',true)).toContain('artık bulunamıyor');
+ expect(missingCheckpointAnswer('Görev sunucuya gönderiliyor…',false)).not.toContain('gönderiliyor');
+ expect(agentStreamFailure({code:'injected secret message',status:503},true)).not.toContain('injected');
 });
