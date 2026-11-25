@@ -23,7 +23,15 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  if(!['github_read_file','github_inspect','github_develop','github_release'].includes(tool))return [];
  const outer=rec(result),v=rec(outer.value);
  const item=(kind:GitHubReceipt['kind'],line:string):GitHubReceipt=>({tool,kind,line});
- if(outer.ok!==true)return [item('error',tool+': '+(token(outer.error,CODE)||'TOOL_FAILED')+(typeof outer.status==='number'?' (HTTP '+outer.status+')':''))];
+ if(outer.ok!==true){
+  const hint=tool==='github_develop'&&outer.error==='INVALID_GITHUB_ARGUMENTS'?({
+   GITHUB_ARGS_BRANCH:'Dal oluşturma parametreleri: operation, repository, isteğe bağlı branch.',
+   GITHUB_ARGS_FILE:'Dosya parametreleri: operation, repository, branch, path, message ve content veya find/replace/existingSha.',
+   GITHUB_ARGS_PULL:'Taslak PR parametreleri: operation, repository, branch, title, isteğe bağlı body.',
+   GITHUB_ARGS_OPERATION:'operation değeri branch, file veya pull olmalı.'
+  } as Record<string,string>)[typeof outer.reason==='string'?outer.reason:'']:'';
+  return [item('error',tool+': '+(token(outer.error,CODE)||'TOOL_FAILED')+(typeof outer.status==='number'?' (HTTP '+outer.status+')':'')+(hint?' — '+hint:''))];
+ }
  const repo=token(v.repository,REPO);
  if(!repo)return [item('error',tool+': doğrulanabilir depo bilgisi yok')];
  const root='https://github.com/'+repo;

@@ -205,3 +205,20 @@ it('creates a new file through the real writer without an existing blob SHA',asy
  expect(writes).toHaveLength(1);expect(writes[0]).not.toHaveProperty('sha');
  expect(Buffer.from(String(writes[0]!.content),'base64').toString()).toBe('export const value = 1;\n');
 });
+
+it('accepts only harmless known optional placeholders from model tool calls',async()=>{
+ const {tool,writer}=fixture();
+ await tool.execute({operation:'branch',repository:REPOSITORY,branch:null,path:'',content:null,message:'',existingSha:'',find:null,replace:'',title:null,body:''},{safeAutonomy:true});
+ expect(writer.createBranch).toHaveBeenCalledWith('single-use-ticket',expect.objectContaining({branch:expect.stringMatching(/^hafize\/auto-[a-f0-9]{32}$/),fromRef:'main'}));
+ await tool.execute({operation:'file',repository:REPOSITORY,branch:BRANCH,path:'docs/test.md',content:'safe',message:'test',existingSha:null,find:'',replace:'',title:'',body:null},{safeAutonomy:true});
+ expect(writer.commitFile).toHaveBeenCalledWith('single-use-ticket',expect.objectContaining({content:'safe',path:'docs/test.md'}));
+ for(const extra of [{draft:false},{fromRef:'main'},{force:true},{unknown:null},{path:'docs/unexpected.md'}]){
+  await expect(tool.execute({operation:'branch',repository:REPOSITORY,...extra},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+ }
+ await expect(tool.execute({operation:'file',repository:REPOSITORY,branch:null,path:'docs/test.md',content:'safe',message:'test'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+});
+it('keeps empty replacement meaningful for an explicit patch',async()=>{
+ const {tool,writer}=fixture();
+ await tool.execute({operation:'file',repository:REPOSITORY,branch:BRANCH,path:'docs/test.md',existingSha:'a'.repeat(40),find:'remove me',replace:'',content:null,message:'test'},{safeAutonomy:true});
+ expect(writer.prepareFilePatch).toHaveBeenCalledWith(expect.objectContaining({find:'remove me',replace:''}));
+});
