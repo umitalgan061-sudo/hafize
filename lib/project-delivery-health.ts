@@ -29,7 +29,7 @@ export function createProjectDeliveryHealth(fetchImpl:typeof fetch=fetch){
   const project=OWNER_PROJECTS.find(p=>p.id===args.project);
   if(!project)return fail('PROJECT_HEALTH_UNKNOWN_PROJECT',404);
   const sha=args.sha===undefined?null:typeof args.sha==='string'&&SHA.test(args.sha)?args.sha.toLowerCase():fail('PROJECT_HEALTH_INVALID_SHA');
-  if(sha&&project.id!=='hafize')fail('PROJECT_HEALTH_RELEASE_MARKER_UNSUPPORTED');
+  if(sha&&project.id!=='hafize'&&project.id!=='borsa')fail('PROJECT_HEALTH_RELEASE_MARKER_UNSUPPORTED');
   const endpoints=project.urls.map(u=>String(u));
   if(project.id==='hafize') {
    const marker=FRONT+'/release.json'+(sha?'?commit='+sha:'');
@@ -40,11 +40,12 @@ export function createProjectDeliveryHealth(fetchImpl:typeof fetch=fetch){
   }
   const pages=await Promise.all(endpoints.map(async url=>{const r=await observe(url,signal);return {url,status:r.status,reachable:r.reachable,html:r.ok&&Boolean(r.headers?.contentType.includes('text/html')),error:r.error??null};}));
   if(project.id==='borsa'){
+   const releases=await Promise.all(endpoints.map(async url=>{const result=await observe(url+'/release.json'+(sha?'?commit='+sha:''),signal,{json:true});const body=record(result.body);const actual=body.project==='borsa'&&typeof body.commit==='string'&&SHA.test(body.commit)?body.commit.toLowerCase():null;return {url,status:result.status,actualSha:actual,expectedSha:sha,match:sha?actual===sha:null};}));
    const origins=['https://borsa-gunlugu.web.app','https://borsa-gunlugu.firebaseapp.com','https://borsa-gunlugu-ua.web.app','https://borsa-gunlugu-ua.firebaseapp.com'];
    const [health,auth,...preflight]=await Promise.all([observe(BORSA+'/health',signal,{json:true}),observe(BORSA+'/quotes?symbols=THYAO',signal,{headers:{Origin:origins[2]!}}),...origins.map(origin=>observe(BORSA+'/quotes',signal,{method:'OPTIONS',headers:{Origin:origin,'Access-Control-Request-Method':'GET','Access-Control-Request-Headers':'Authorization'}}))]);
    const checks=preflight.map((r,i)=>({origin:origins[i],status:r.status,passed:r.status===204&&r.headers?.allowOrigin===origins[i]}));
    const h=record(health.body);
-   return {project:project.id,repository:project.repository,pages,worker:{healthStatus:health.status,marketHealth:health.ok&&h.ok===true,fundCount:Number.isSafeInteger(h.funds)?h.funds:null,cors:checks,corsAllPassed:checks.every(r=>r.passed),anonymousRejected:auth.status===401},authenticatedFunctionalTest:false,note:'Public health may use cached data; anonymous rejection and CORS are not proof of signed-in quote retrieval.'};
+   return {project:project.id,repository:project.repository,pages,releases,worker:{healthStatus:health.status,marketHealth:health.ok&&h.ok===true,fundCount:Number.isSafeInteger(h.funds)?h.funds:null,cors:checks,corsAllPassed:checks.every(r=>r.passed),anonymousRejected:auth.status===401},authenticatedFunctionalTest:false,note:'Public health may use cached data; anonymous rejection and CORS are not proof of signed-in quote retrieval.'};
   }
   return {project:project.id,repository:project.repository,pages,hostingKnown:pages.length>0,authenticatedFunctionalTest:false,note:pages.length?'HTTP HTML response is not proof of complete functionality or exact deployed commit.':'No verified hosting destination in project catalog; inspect repository configuration rather than guessing.'};
  };
