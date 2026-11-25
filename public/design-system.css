@@ -161,7 +161,10 @@
   .voice-mode .vm-caption{overflow-wrap:anywhere;line-height:1.55}
   .live-screen-sheet{background:var(--card);border-color:var(--line);box-shadow:var(--hz-float-shadow)}
   .live-screen-sheet-actions button{white-space:normal}
-  .hafize-auth-card{max-height:calc(100dvh - 40px);overflow:auto}
+  html[data-theme] .hafize-auth-card{max-height:calc(100dvh - 40px);overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:18px;color:var(--ink);box-shadow:var(--hz-float-shadow)}
+  html[data-theme] .hafize-auth-card input{border-color:var(--line);background:var(--hz-subtle)}
+  html[data-theme] .hafize-auth-card button{background:var(--hz-solid);color:#fff}
+  html[data-theme] .hafize-auth-card .hafize-auth-error{color:var(--hz-danger)}
   .hafize-auth-card :is(input,button){max-width:100%;min-width:0}
   .hafize-auth-card h2{letter-spacing:-.025em}
   .main :is(button,a,input,textarea,select):focus-visible,#sidebar :is(button,a,input,select):focus-visible{outline-offset:2px}
