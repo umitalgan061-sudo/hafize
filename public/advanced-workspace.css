@@ -11,7 +11,7 @@ html[data-hafize-layout="classic"] .aw-top-toggle[aria-expanded="true"]{
   background:color-mix(in srgb,var(--accent) 10%,var(--card));color:var(--ink);
 }
 html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"]){
-  --aw-width:clamp(380px,32vw,480px);--aw-gap:24px;
+  --aw-width:clamp(300px,23vw,340px);--aw-gap:18px;
   grid-template-columns:minmax(0,1fr);column-gap:var(--aw-gap);
 }
 html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="closed"]>.utility-rail{display:none!important}
@@ -85,7 +85,7 @@ html[data-hafize-layout="classic"] .settings-workspace .settings-panel{backgroun
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"]>.utility-rail{
     display:grid;grid-column:2;grid-row:2;position:sticky;top:84px;align-self:start;justify-self:stretch;
     width:100%;max-width:none;max-height:calc(100dvh - 96px);padding:8px 4px 16px 2px;
-    overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;gap:16px;
+    overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;gap:12px;
   }
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"] .primary-column form#composer.composer[data-aw-composer]{
     left:calc(50% - (var(--aw-width) + var(--aw-gap))/2);
@@ -96,8 +96,8 @@ html[data-hafize-layout="classic"] .settings-workspace .settings-panel{backgroun
 @media(width < 1180px){
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"]>.utility-rail{
     position:fixed;z-index:125;inset:calc(var(--aw-top,76px) + 8px) 12px max(12px,env(safe-area-inset-bottom)) auto;
-    display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:16px;
-    width:min(480px,calc(100vw - 24px));max-width:none;max-height:none;padding:12px;
+    display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:12px;
+    width:min(340px,calc(100vw - 24px));max-width:none;max-height:none;padding:12px;
     overflow:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);
     border-radius:16px;box-shadow:var(--shadow);scrollbar-gutter:stable;
   }
@@ -150,7 +150,7 @@ html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-wor
 }
 html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])>.utility-rail>.utility-card{
   container:aw-card / inline-size;box-sizing:border-box;width:100%;min-width:0;
-  max-width:100%;align-self:start;min-height:0;padding:16px;
+  max-width:100%;align-self:start;min-height:0;padding:12px;
   line-height:1.5;overflow-wrap:anywhere;
 }
 html[data-hafize-layout="classic"] .main:is([data-workspace="tasks"],[data-workspace="connections"])>.utility-rail>.utility-card,
@@ -250,7 +250,7 @@ html[data-hafize-layout="classic"] .main>.topbar .top-spacer{min-width:0}
   html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap{flex:1 1 85px}
   html[data-hafize-layout="classic"] #composer .composer-actions .send-btn{flex-basis:40px;min-width:40px}
 }
-/* Layout switch is deliberately red, with readable white text in both themes. */
+/* Layout switch: red to enter advanced mode, green to return to focused mode. */
 html[data-theme] #sidebar #layoutToggle{
   display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px;
   padding:10px 12px;border:1px solid #a51c29;border-radius:11px;
@@ -263,4 +263,115 @@ html[data-theme] #sidebar #layoutToggle:focus-visible{outline:2px solid var(--in
 @media(forced-colors:active){
   html[data-theme] #sidebar #layoutToggle{background:ButtonFace;color:ButtonText;border:2px solid ButtonText}
   html[data-theme] #sidebar #layoutToggle:focus-visible{outline-color:Highlight}
+}
+
+/* The old mobile finish gave the history block height:0 and a fixed minimum.
+   Advanced mode adds filters, export controls and batch operations exceeding
+   that minimum, so content overflowed into the sidebar footer. Use intrinsic
+   height for every section, with a bounded, separately scrolling chat list. */
+html[data-hafize-layout="classic"] #sidebar{
+  box-sizing:border-box;width:min(310px,calc(100vw - 24px));min-width:0;
+  display:flex;flex-direction:column;gap:12px;
+  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+  align-items:stretch;scrollbar-gutter:stable;
+}
+html[data-hafize-layout="classic"] #sidebar > *{
+  flex:0 0 auto;min-width:0;max-width:100%;
+}
+html[data-hafize-layout="classic"] #sidebar .history-block{
+  height:auto;min-height:0;max-height:none;flex:0 0 auto;
+  display:flex;flex-direction:column;gap:10px;overflow:visible;
+}
+html[data-hafize-layout="classic"] #sidebar .history-block > *{
+  flex:0 0 auto;min-width:0;max-width:100%;
+}
+html[data-hafize-layout="classic"] #sidebar #conversationList{
+  display:flex;flex-direction:column;gap:6px;
+  height:auto;min-height:0;max-height:min(38dvh,340px);flex:0 0 auto;
+  overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+}
+html[data-hafize-layout="classic"] #sidebar .sidebar-footer{
+  margin-top:0;flex:0 0 auto;min-height:0;gap:8px;
+  padding-top:12px;border-top:1px solid var(--line);
+}
+html[data-hafize-layout="classic"] #sidebar :is(.sidebar-footer,.nav-list,.history-block,.conversation-fork-hub,.conversation-workspace)
+  :where(div,section,form,span,p,strong,small,a,label){
+  min-width:0;max-width:100%;overflow-wrap:anywhere;
+}
+html[data-hafize-layout="classic"] #sidebar :is(.sidebar-footer,.nav-list,.history-block,.conversation-fork-hub)
+  :where(button,a.soft-btn,input,select,textarea){
+  box-sizing:border-box;min-width:0;max-width:100%;
+}
+html[data-hafize-layout="classic"] #sidebar :is(.sidebar-footer a.soft-btn,.nav-item,.history-export-btn,.workspace-ghost){
+  white-space:normal;overflow-wrap:anywhere;line-height:1.4;height:auto;
+}
+html[data-hafize-layout="classic"] #sidebar :is(.history-head,.history-export,.history-export-actions,.history-search-nav){
+  flex-wrap:wrap;gap:6px;
+}
+html[data-hafize-layout="classic"] #sidebar .history-export-actions{flex:1 1 100%}
+html[data-hafize-layout="classic"] #sidebar .history-export-actions button{flex:1 1 auto}
+html[data-hafize-layout="classic"] #sidebar .conversation-workspace{
+  margin:0;padding:10px;min-width:0;grid-template-columns:minmax(0,1fr);
+}
+html[data-hafize-layout="classic"] #sidebar .conversation-workspace-head{
+  flex-direction:column;align-items:stretch;
+}
+html[data-hafize-layout="classic"] #sidebar :is(.conversation-workspace-actions,.conversation-workspace-batch,.conversation-workspace-io){
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;
+}
+html[data-hafize-layout="classic"] #sidebar :is(.conversation-workspace-actions,.conversation-workspace-batch,.conversation-workspace-io) button{
+  min-width:0;max-width:100%;width:100%;min-height:32px;height:auto;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.35;
+}
+html[data-hafize-layout="classic"] #sidebar :is(.workspace-batch-count,.conversation-workspace-actions .workspace-ghost){
+  grid-column:1/-1;
+}
+html[data-hafize-layout="classic"] #sidebar #conversationList .conversation-row{
+  display:flex;flex-wrap:wrap;align-items:center;gap:5px;
+  flex:0 0 auto;min-height:44px;height:auto;min-width:0;
+  overflow:visible;padding:5px 6px;box-sizing:border-box;
+}
+html[data-hafize-layout="classic"] #sidebar #conversationList .conversation-row[hidden]{display:none!important}
+html[data-hafize-layout="classic"] #sidebar .conversation-row .conversation-open{
+  flex:1 1 105px;min-width:0;max-width:100%;height:auto;
+  white-space:normal;overflow-wrap:anywhere;text-overflow:clip;line-height:1.4;
+  text-align:start;
+}
+html[data-hafize-layout="classic"] #sidebar .conversation-row .history-manage{
+  flex:0 1 auto;max-width:100%;margin-left:0;opacity:1;gap:3px;
+}
+html[data-hafize-layout="classic"] #sidebar .conversation-row :is(.history-manage-btn,.conversation-delete){
+  min-width:28px;min-height:28px;flex:0 0 auto;padding:3px 5px;
+}
+html[data-hafize-layout="classic"] #sidebar .conversation-row .workspace-row-check{
+  flex:0 0 auto;margin:0;
+}
+html[data-hafize-layout="classic"] #sidebar .conversation-row :is(.history-rename,.history-search-snippet){
+  flex:1 1 100%;width:100%;min-width:0;max-width:100%;margin:0;
+}
+html[data-hafize-layout="classic"] #sidebar .history-rename{
+  flex-wrap:wrap;gap:5px;
+}
+html[data-hafize-layout="classic"] #sidebar .history-rename input{flex:1 1 100%;width:100%}
+html[data-hafize-layout="classic"] #sidebar .conversation-fork-hub-row{
+  grid-template-columns:minmax(0,1fr);gap:6px;
+}
+html[data-hafize-layout="classic"] #sidebar .conversation-fork-hub-row button{white-space:normal;overflow-wrap:anywhere}
+html[data-hafize-layout="classic"] .aw-rail-header{gap:9px;padding-bottom:10px}
+html[data-hafize-layout="classic"] .aw-title{font-size:19px}
+html[data-hafize-layout="classic"] .aw-shortcuts{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+html[data-hafize-layout="classic"] .aw-shortcut{min-height:32px}
+html[data-hafize-layout="classic"] .aw-filter{min-height:30px;padding:5px 9px}
+html[data-hafize-layout="classic"] .aw-filters{gap:5px}
+html[data-hafize-layout="classic"] .aw-search{min-height:36px}
+@media not all and (forced-colors: active){
+  html[data-theme] #sidebar #layoutToggle[aria-pressed="true"]{
+    background:#187348;border-color:#125b38;color:#fff;
+  }
+  html[data-theme="dark"] #sidebar #layoutToggle[aria-pressed="true"]{
+    background:#187348;border-color:#70ba91;color:#fff;
+  }
+  html[data-theme] #sidebar #layoutToggle[aria-pressed="true"]:hover{
+    background:#125b38;border-color:#125b38;color:#fff;
+  }
 }
