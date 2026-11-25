@@ -70,3 +70,23 @@ assert.match(advancedStyles, /html\[data-hafize-layout="classic"\] #sidebar \.hi
 assert.match(advancedStyles, /#sidebar #conversationList\s*\{[^}]*max-height:min\(38dvh,340px\);flex:0 0 auto/s);
 assert.match(advancedStyles, /#sidebar #layoutToggle\[aria-pressed="true"\]\s*\{[^}]*background:#187348;[^}]*color:#fff/s);
 console.log('Advanced layout contract OK: intrinsic sidebar sections, compact right rail, green return switch');
+
+const designSystem=readFileSync(new URL('../public/design-system.css',import.meta.url),'utf8');
+const indexHtml=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
+assert.ok(indexHtml.indexOf('/design-system.css')>indexHtml.indexOf('/advanced-workspace.css'));
+assert.match(designSystem,/html\[data-theme="light"\]\s*\{/);
+assert.match(designSystem,/html\[data-theme="dark"\]\s*\{/);
+assert.match(designSystem,/@container hz-panel \(max-width: 530px\)/);
+assert.doesNotMatch(designSystem,/#layoutToggle/);
+assert.match(designSystem,/@media not all and \(forced-colors: active\)/);
+assert.match(designSystem,/@media\(prefers-reduced-motion:reduce\)/);
+for(const page of ['studio','task-plan','file-analysis']){
+  const html=readFileSync(new URL('../public/'+page+'.html',import.meta.url),'utf8');
+  assert.ok(html.indexOf('/theme-init.js')>=0&&html.indexOf('/theme-init.js')<html.indexOf('/studio.css'));
+}
+const settingsSource=readFileSync(new URL('../public/typed/legacy/settings-workspace.ts',import.meta.url),'utf8');
+assert.match(settingsSource,/heading\.textContent = 'Ayarlar'/);
+const luminance=hex=>{const rgb=hex.match(/[a-f0-9]{2}/gi).map(v=>parseInt(v,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];};
+const contrast=(a,b)=>{const values=[luminance(a),luminance(b)].sort((x,y)=>y-x);return (values[0]+.05)/(values[1]+.05);};
+for(const [fg,bg] of [['302b27','fffdfa'],['69635c','fffdfa'],['f2efea','2b2c2e'],['b8b1a8','2b2c2e'],['ffffff','a94a2c'],['ffffff','b4232b'],['ffffff','187348']])assert.ok(contrast(fg,bg)>=4.5,fg+' / '+bg);
+console.log('Frontend design system contract OK: themes, contrast, standalone tools and retained mode controls');

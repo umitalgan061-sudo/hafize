@@ -150,8 +150,20 @@
     section.setAttribute('aria-labelledby', `${WORKSPACE_ID}Title`);
 
     const appearance = buildPanel(documentRef, 'Görünüm', 'Hafize’nin görünümünü ve hareket davranışını bu cihazda yerel olarak ayarla.');
-    const appearanceTitle = appearance.querySelector('h2');
-    appearanceTitle.id = `${WORKSPACE_ID}Title`;
+    const header = documentRef.createElement('header');
+    header.className = 'hz-settings-page-header';
+    const eyebrow = documentRef.createElement('span');
+    eyebrow.className = 'hz-settings-page-eyebrow';
+    eyebrow.textContent = 'Çalışma alanı';
+    const heading = documentRef.createElement('h1');
+    heading.className = 'hz-settings-page-title';
+    heading.id = `${WORKSPACE_ID}Title`;
+    heading.textContent = 'Ayarlar';
+    const description = documentRef.createElement('p');
+    description.className = 'hz-settings-page-description';
+    description.textContent = 'Görünümü, hafızayı, modelleri, ses seçeneklerini ve uygulama tercihlerini yönet.';
+    header.append(eyebrow, heading, description);
+    section.append(header);
 
     const theme = buildRow(documentRef, 'Tema', 'Açık, koyu veya sistem temasını kullan.');
     const themeStored = storage?.getItem?.(THEME_KEY);
