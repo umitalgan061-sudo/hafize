@@ -294,7 +294,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         });
         return summarizeRun(state);
       },
-      orchestrateList: async(args,context)=>({runs:orchestrator.list(owner(context),boundedInt(args.limit,20,1,100)),note:'Yalnız mevcut veritabanındaki görevler. Kalıcı disk yoksa sunucu yeniden başlatıldığında kayıtlar kaybolabilir.'}),
+      orchestrateList: async(args,context)=>({runs:orchestrator.list(owner(context),boundedInt(args.limit,20,1,100)),note:'Yalnız mevcut veritabanındaki görevler. Şifreli yedekten geri yüklenen salt okunur görevler açık talepte sürdürülebilir; yazma geçmişi yeniden çalıştırılmaz. Kalıcı disk veya harici yedek hedefi yoksa kayıtlar kaybolabilir.'}),
       orchestrateResume: async (args, context) => {
         const hooks = orchestratorHooks(context);
         const extra = boundedInt(args.extraSteps, 0, 0, ORCHESTRATOR_MAX_STEPS);

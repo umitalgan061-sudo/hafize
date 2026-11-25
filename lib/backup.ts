@@ -8,6 +8,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { basename, join } from 'node:path';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import type { DatabaseSync } from 'node:sqlite';
+import {REPLAY_SAFE,ORCHESTRATOR_MAX_STEPS,ORCHESTRATOR_MAX_WALL_MS,ORCHESTRATOR_MAX_TOOL_CALLS,type RunState} from './orchestrator.ts';
+import {validatePlan} from './task-plan.ts';
 import type { MemoryBackend } from './memory-backend.ts';
 
 const MAGIC = Buffer.from('HZB1');
@@ -41,7 +43,7 @@ export function decryptSnapshot(buffer: Buffer, passphrase: string): Record<stri
     const decipher = createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAAD(MAGIC);
     decipher.setAuthTag(tag);
-    return JSON.parse(gunzipSync(Buffer.concat([decipher.update(buffer.subarray(48)), decipher.final()])).toString('utf8')) as Record<string, unknown>;
+    return JSON.parse(gunzipSync(Buffer.concat([decipher.update(buffer.subarray(48)), decipher.final()]),{maxOutputLength:320*1024*1024}).toString('utf8')) as Record<string, unknown>;
   } catch {
     throw new BackupError('BACKUP_DECRYPT_FAILED', 403);
   }
@@ -127,7 +129,7 @@ export function createBackupService({ db, memory, imagesDir, userSkillsDir, targ
     await target.put(name, data);
     const all = await target.list();
     for (const old of all.slice(0, Math.max(0, all.length - KEEP_SNAPSHOTS))) await target.remove(old).catch(() => {});
-    lastResult = { name, bytes: data.length, memories: snapshot.memories.length, images: snapshot.images.length, skills: snapshot.skills.length, at: snapshot.createdAt, target: target.kind };
+    lastResult = { name, bytes: data.length, memories: snapshot.memories.length, images: snapshot.images.length, skills: snapshot.skills.length, orchestratorRuns:snapshot.orchestratorRuns.length, at: snapshot.createdAt, target: target.kind };
     return lastResult;
   }
 
@@ -140,6 +142,34 @@ export function createBackupService({ db, memory, imagesDir, userSkillsDir, targ
     return backupNow();
   }
 
+  // Snapshots may predate a successful external mutation. Import only missing
+  // records. A restored plan containing ANY mutation is history-only; a read-only
+  // plan can be resumed explicitly, with current tool permissions and no new writes.
+  function restoreRuns(raw:unknown){
+    if(!Array.isArray(raw))return {restoredRuns:0,historyOnlyRuns:0,skippedRuns:0};
+    let restoredRuns=0,historyOnlyRuns=0,skippedRuns=0;
+    const validId=/^[a-zA-Z0-9_-]{1,160}$/;
+    for(const row of raw.slice(0,200)){
+      try{
+        if(!row||typeof row!=='object'||typeof row.state!=='string'||row.state.length>8*1024*1024||typeof row.id!=='string'||!validId.test(row.id)||typeof row.owner_id!=='string'||!row.owner_id.trim()||row.owner_id.length>200)throw Error();
+        if(db.prepare('SELECT 1 FROM orchestrator_runs WHERE id=?').get(row.id)){skippedRuns++;continue;}
+        const state=JSON.parse(row.state) as RunState;
+        if(state.runId!==row.id||state.ownerId!==row.owner_id||state.traceId!==row.trace_id||!validId.test(state.traceId)||typeof state.goal!=='string'||!state.goal.trim()||state.goal.length>1000||!Array.isArray(state.constraints)||state.constraints.length>10||!state.constraints.every(x=>typeof x==='string'&&x.length<=300)||!Array.isArray(state.plan)||state.plan.length>ORCHESTRATOR_MAX_STEPS||!state.steps||!state.budget||!state.usage)throw Error();
+        const bounds=(v:unknown,min:number,max:number)=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=min&&v<=max;
+        if(!bounds(state.budget.maxSteps,1,ORCHESTRATOR_MAX_STEPS)||!bounds(state.budget.maxWallMs,10000,ORCHESTRATOR_MAX_WALL_MS)||!bounds(state.budget.maxTokens,1000,2_000_000)||!bounds(state.budget.maxToolCalls,1,ORCHESTRATOR_MAX_TOOL_CALLS)||!bounds(state.usage.stepsRun,0,ORCHESTRATOR_MAX_STEPS)||!bounds(state.usage.toolCalls,0,ORCHESTRATOR_MAX_TOOL_CALLS)||!bounds(state.usage.tokens,0,10_000_000)||!bounds(state.usage.wallMs,0,ORCHESTRATOR_MAX_WALL_MS*2)||!bounds(state.usage.startedAt,0,Number.MAX_SAFE_INTEGER)||!bounds(state.revisions,0,100)||!Array.isArray(state.criticNotes))throw Error();
+        if(!['running','awaiting_approval','succeeded','failed','aborted'].includes(state.status)||state.status!==row.status)throw Error();
+        const plan=validatePlan(state.plan,new Set(state.plan.map(s=>s.tool)),ORCHESTRATOR_MAX_STEPS);
+        if(plan.length!==Object.keys(state.steps).length||plan.some(s=>!Object.hasOwn(state.steps,s.id)||!['pending','running','succeeded','failed','skipped','awaiting_approval'].includes(state.steps[s.id]!.status)||!bounds(state.steps[s.id]!.attempts,0,4)))throw Error();
+        state.plan=plan;state.restoredFromBackup=true;
+        const mutation=plan.some(s=>!REPLAY_SAFE.has(s.tool));
+        if(mutation){state.restoredHistoryOnly=true;if(state.status==='running'||state.status==='awaiting_approval'){state.status='aborted';state.abortReason='restored_mutation_history_only';}historyOnlyRuns++;}
+        for(const step of Object.values(state.steps))delete step.approved;
+        db.prepare('INSERT INTO orchestrator_runs (id,owner_id,trace_id,goal,status,state,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(state.runId,state.ownerId,state.traceId,state.goal.slice(0,500),state.status,JSON.stringify(state),state.usage.startedAt,now().getTime());
+        restoredRuns++;
+      }catch{skippedRuns++;}
+    }
+    return {restoredRuns,historyOnlyRuns,skippedRuns};
+  }
   async function restore(name?: string) {
     if (!target) throw new BackupError('BACKUP_TARGET_NOT_CONFIGURED', 503);
     const names = await target.list();
@@ -175,7 +205,8 @@ export function createBackupService({ db, memory, imagesDir, userSkillsDir, targ
       writeFileSync(join(userSkillsDir, skill.name), skill.content);
       restoredSkills += 1;
     }
-    return { restored: chosen, memories: restoredMemories, skipped, images: restoredImages, skills: restoredSkills, snapshotCreatedAt: snapshot.createdAt };
+    const runs=restoreRuns(snapshot.orchestratorRuns);
+    return { ...runs, restored: chosen, memories: restoredMemories, skipped, images: restoredImages, skills: restoredSkills, snapshotCreatedAt: snapshot.createdAt };
   }
 
   async function list() { return target ? target.list() : []; }
