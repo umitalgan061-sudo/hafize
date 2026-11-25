@@ -120,14 +120,19 @@ function buildPanel(): HTMLElement {
   }));
 
   panel.append(section('Çok adımlı görevler', 'Hafize’nin planlayıp yürüttüğü görevler; kayıt noktasından devam edebilir.', async (body) => {
+    const goal=el('textarea','platform-input');goal.rows=3;goal.maxLength=1000;goal.placeholder='Örn. Bir konu hakkında kaynaklı kapsamlı araştırma yap';goal.setAttribute('aria-label','Bağımsız araştırma hedefi');
+    body.append(el('p','platform-hint','Bağımsız araştırma görevi yalnız kamuya açık web kaynaklarını kullanır; sohbet kapansa da çalışan sunucu sürecinde devam eder. Sunucu uyursa veya yeniden başlarsa kesilebilir. Özel veri veya erişim anahtarı girmeyin.'),goal,button('Bağımsız araştırma başlat',async()=>{
+      const value=goal.value.trim();if(!value){toast('Önce araştırma hedefini yaz.');return;}
+      try{const result=await hafizeApi.platform<Json>('/api/orchestrator/runs','POST',{goal:value});toast(result.accepted?'Görev kabul edildi; durumunu Yenile ile izle.':'Görev kabul edilmedi.');goal.value='';}catch{toast('Araştırma görevi başlatılamadı.');}
+    }));
     const data = await hafizeApi.platform<Json>('/api/orchestrator/runs');
     const labels: Record<string, string> = { running: 'Çalışıyor', awaiting_approval: 'Onay bekliyor', succeeded: 'Tamamlandı', failed: 'Başarısız', aborted: 'Durduruldu' };
     if (!(data.runs || []).length) { body.append(el('p', 'platform-empty', 'Henüz çok adımlı görev yok.')); return; }
     body.append(table(['Hedef', 'Durum', 'Güncelleme', ''], (data.runs || []).map((run: Json) => [
       String(run.goal).slice(0, 90),
-      labels[run.status] || run.status,
+      run.interrupted?'Kesintiye uğradı':run.restoredHistoryOnly?'Yedekten geçmiş':labels[run.status] || run.status,
       date(run.updatedAt),
-      run.status === 'running' ? button('İptal et', async () => { await hafizeApi.platform(`/api/orchestrator/runs/${run.id}/cancel`, 'POST', {}); toast('Görev iptal edildi.'); }) : ''
+      (()=>{const actions=el('div');actions.append(button('Ayrıntı',async()=>{try{const state=await hafizeApi.platform<Json>(`/api/orchestrator/runs/${encodeURIComponent(run.id)}`);const detail=el('div','platform-task-detail');detail.append(el('p','platform-hint',String(state.finalAnswer||state.abortReason||state.status||'')),table(['Adım','Durum'],(state.plan||[]).map((step:Json)=>[String(step.title||step.id),String(state.steps?.[step.id]?.status||'—')])));body.querySelector('.platform-task-detail')?.remove();body.append(detail);}catch{toast('Görev ayrıntısı alınamadı.');}}));if(run.activeInProcess)actions.append(button('İptal et',async()=>{const result=await hafizeApi.platform<Json>(`/api/orchestrator/runs/${encodeURIComponent(run.id)}/cancel`,'POST',{});toast(result.cancelled?'İptal isteği gönderildi.':'Görev artık çalışmıyor.');}));return actions;})()
     ])));
   }));
 
@@ -184,7 +189,7 @@ function buildPanel(): HTMLElement {
     body.append(table(['Yedek dosyası', ''], (data.snapshots || []).slice(-10).reverse().map((name: string) => [name, button('Geri yükle', async () => {
       if (!await askConfirm('Daha yeni kayıtların üzerine yazılmaz.', { title: `${name} geri yüklensin mi?`, ok: 'Geri yükle' })) return;
       const result = await hafizeApi.platform<Json>('/api/backup/restore', 'POST', { name });
-      toast(`Geri yüklendi: ${result.memories} not, ${result.images} görsel.`);
+      toast(`Geri yüklendi: ${result.memories} not, ${result.images} görsel, ${result.restoredRuns||0} görev.`);
     })])));
     body.append(button('Şimdi yedekle', async () => {
       try { const result = await hafizeApi.platform<Json>('/api/backup', 'POST', {}); toast(`Yedek alındı: ${result.name}`); } catch { toast('Yedek alınamadı.'); }

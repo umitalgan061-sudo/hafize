@@ -40,6 +40,7 @@ export interface RunState {
   criticNotes: string[];
   finalAnswer?: string;
   abortReason?: string;
+  detachedReadOnly?: true;
   restoredFromBackup?: true;
   restoredHistoryOnly?: true;
 }
@@ -49,6 +50,8 @@ export type OrchestratorEvent = Readonly<{ runId: string; type: string; ts: numb
 // Only these read-only operations may be replayed after an uncertain result.
 // Unknown tools and mutations default to no automatic retry.
 export const REPLAY_SAFE = new Set([REASON_TOOL, 'runtime_status', 'web_search', 'web_page_read', 'weather_forecast', 'wikipedia_lookup', 'news_search', 'exchange_rates', 'github_read_file', 'github_inspect', 'memory_search', 'expert_find', 'test_read_result', 'rule_list', 'localhost_list']);
+export const DETACHED_READ_TOOLS=new Set(['web_search','web_page_read','wikipedia_lookup','news_search','exchange_rates']);
+const detachedTools=(tools:readonly ToolOption[])=>tools.filter(tool=>tool.risk==='low'&&DETACHED_READ_TOOLS.has(tool.name));
 export const ORCHESTRATOR_MAX_STEPS=200;
 export const ORCHESTRATOR_MAX_WALL_MS=180*60*1000;
 export const ORCHESTRATOR_MAX_TOOL_CALLS=1600;
@@ -127,7 +130,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     readonly signal?: AbortSignal | undefined;
   }): Promise<RunState> {
     const { state, executeTool, requestApproval, emit } = input;
-    const tools=state.restoredFromBackup?input.tools.filter(tool=>REPLAY_SAFE.has(tool.name)&&tool.risk==='low'):input.tools;
+    const tools=state.detachedReadOnly?detachedTools(input.tools):state.restoredFromBackup?input.tools.filter(tool=>REPLAY_SAFE.has(tool.name)&&tool.risk==='low'):input.tools;
     const controller = new AbortController();
     live.set(state.runId, controller);
     const remainingWall=Math.max(1,state.budget.maxWallMs-state.usage.wallMs);
@@ -156,6 +159,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
 
     async function runStep(step: PlanStep): Promise<void> {
       const info = state.steps[step.id]!;
+      if(state.detachedReadOnly&&step.tool!==REASON_TOOL&&!DETACHED_READ_TOOLS.has(step.tool)){info.status='failed';info.error='DETACHED_READ_ONLY';save(state);return;}
       if (state.restoredFromBackup&&!REPLAY_SAFE.has(step.tool)) {info.status='failed';info.error='RESTORED_MUTATION_HISTORY_ONLY';save(state);return;}
       if (step.tool !== REASON_TOOL && !toolNames.has(step.tool)) {
         info.status = 'failed'; info.error = 'TOOL_NO_LONGER_AVAILABLE'; save(state); return;
@@ -304,6 +308,8 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     readonly requestApproval?: ((step: PlanStep, state: RunState) => Promise<boolean>) | undefined;
     readonly emit?: ((event: OrchestratorEvent) => void) | undefined;
     readonly signal?: AbortSignal | undefined;
+    readonly detachedReadOnly?: boolean;
+    readonly onCreated?: (state:RunState)=>void;
   }): Promise<RunState> {
     const goal = String(input.goal || '').replace(/\s+/g, ' ').trim().slice(0, 1_000);
     if (!goal) throw new OrchestratorError('INVALID_GOAL');
@@ -314,15 +320,32 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
       maxToolCalls: clampInt(input.budget?.maxToolCalls, ORCHESTRATOR_DEFAULTS.maxToolCalls, 1, ORCHESTRATOR_MAX_TOOL_CALLS)
     };
     const constraints = (Array.isArray(input.constraints) ? input.constraints : []).map((item) => String(item).slice(0, 300)).filter(Boolean).slice(0, 10);
-    const toolNames = new Set(input.tools.map((tool) => tool.name));
-    const steps = input.initialPlan ? validatePlan(input.initialPlan, toolNames, budget.maxSteps) : await plan(goal, constraints, input.tools, budget.maxSteps, input.traceId, input.signal);
+    const available=input.detachedReadOnly?detachedTools(input.tools):input.tools;
+    const toolNames = new Set(available.map((tool) => tool.name));
+    const steps = input.initialPlan ? validatePlan(input.initialPlan, toolNames, budget.maxSteps) : await plan(goal, constraints, available, budget.maxSteps, input.traceId, input.signal);
     const state: RunState = {
       runId: randomUUID(), traceId: input.traceId, ownerId: input.ownerId, goal, constraints, status: 'running', plan: steps,
       steps: Object.fromEntries(steps.map((step) => [step.id, { status: 'pending' as StepStatus, attempts: 0 }])),
       budget, usage: { stepsRun: 0, toolCalls: 0, tokens: 0, wallMs: 0, startedAt: now() }, revisions: 0, criticNotes: []
     };
-    return execute({ state, tools: input.tools, executeTool: input.executeTool, requestApproval: input.requestApproval, emit: input.emit, signal: input.signal });
+    if(input.detachedReadOnly)state.detachedReadOnly=true;
+    save(state);input.onCreated?.(state);
+    return execute({ state, tools: available, executeTool: input.executeTool, requestApproval: input.detachedReadOnly?undefined:input.requestApproval, emit: input.emit, signal: input.signal });
   }
+
+  const detached=new Set<Promise<RunState>>();
+  const detachedAbort=new AbortController();
+  async function startDetached(input:Omit<Parameters<typeof run>[0],'signal'|'requestApproval'|'emit'|'onCreated'|'detachedReadOnly'>){
+    if(detachedAbort.signal.aborted)throw new OrchestratorError('ORCHESTRATOR_SHUTTING_DOWN',503);
+    let resolve!:(id:string)=>void;let reject!:(e:unknown)=>void;
+    const accepted=new Promise<string>((yes,no)=>{resolve=yes;reject=no;});
+    let created:string|undefined;
+    const work=run({...input,detachedReadOnly:true,signal:detachedAbort.signal,onCreated:state=>{created=state.runId;resolve(state.runId);}});
+    detached.add(work);
+    void work.catch(error=>{if(!created){reject(error);return;}try{const state=load(created,input.ownerId);state.status='aborted';state.abortReason='detached_execution_interrupted';save(state);}catch{}}).finally(()=>detached.delete(work));
+    return {runId:await accepted,accepted:true,detachedReadOnly:true};
+  }
+  async function stopDetached(){detachedAbort.abort();await Promise.allSettled([...detached]);}
 
   /** Continues a checkpointed run (after a crash, a pause for approval or a budget top-up). */
   async function resume(input: {
@@ -373,7 +396,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
   }
 
   function list(ownerId: string, limit = 20) {
-    return db.prepare('SELECT id, goal, status, state, created_at AS createdAt, updated_at AS updatedAt FROM orchestrator_runs WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?').all(ownerId, Math.min(Math.max(limit, 1), 100)).map(row=>{const {state:raw,...rest}=row;let flags={restoredFromBackup:false,restoredHistoryOnly:false};try{const parsed=JSON.parse(String(raw));flags={restoredFromBackup:parsed.restoredFromBackup===true,restoredHistoryOnly:parsed.restoredHistoryOnly===true};}catch{}return {...rest,...flags,activeInProcess:live.has(String(row.id)),interrupted:row.status==='running'&&!live.has(String(row.id))};});
+    return db.prepare('SELECT id, goal, status, state, created_at AS createdAt, updated_at AS updatedAt FROM orchestrator_runs WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?').all(ownerId, Math.min(Math.max(limit, 1), 100)).map(row=>{const {state:raw,...rest}=row;let flags={restoredFromBackup:false,restoredHistoryOnly:false,detachedReadOnly:false};try{const parsed=JSON.parse(String(raw));flags={restoredFromBackup:parsed.restoredFromBackup===true,restoredHistoryOnly:parsed.restoredHistoryOnly===true,detachedReadOnly:parsed.detachedReadOnly===true};}catch{}return {...rest,...flags,activeInProcess:live.has(String(row.id)),interrupted:row.status==='running'&&!live.has(String(row.id))};});
   }
 
   function events(runId: string, ownerId: string, afterId = 0) {
@@ -382,6 +405,6 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
       .map((row) => ({ id: Number(row.id), ts: Number(row.ts), type: String(row.type), payload: JSON.parse(String(row.payload)) }));
   }
 
-  return Object.freeze({ run, resume, cancel, get, list, events, plan });
+  return Object.freeze({ run, resume, cancel, get, list, events, plan,startDetached,stopDetached });
 }
 export type Orchestrator = ReturnType<typeof createOrchestrator>;

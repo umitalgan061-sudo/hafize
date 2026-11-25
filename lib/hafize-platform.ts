@@ -629,6 +629,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
       skills: { userSkills: userSkills.loaded, userSkillErrors: userSkills.errors, updateFeed: Boolean(env.HAFIZE_SKILL_FEED_URL) },
       observability: { otlp: telemetry.otlpEnabled },
       workspace: localTools.root,
+      tasks:{detachedPublicResearch:true,storage:'local_sqlite',externalBackupConfigured:backup.configured,survivesProcessRestart:false},
       experts: experts.cards().length
     };
   }
@@ -808,6 +809,15 @@ export function createHafizePlatform(deps: PlatformDeps) {
       }
 
       if (segments[0] === 'orchestrator' && segments[1] === 'runs') {
+        if(!segments[2]&&method==='POST'){
+          if(ownerId.startsWith('connector:'))throw new HttpRuntimeError('AUTH_REQUIRED',403);
+          const body=await readJson(req,16384);
+          if(Object.keys(body).some(key=>key!=='goal')||typeof body.goal!=='string'||!body.goal.trim()||body.goal.length>1000)throw new HttpRuntimeError('INVALID_GOAL',400);
+          const context={...systemContext(ownerId),webTools:deps.webTools};
+          const hooks=orchestratorHooks(context);
+          const accepted=await orchestrator.startDetached({ownerId,traceId:context.traceId,goal:body.goal,tools:hooks.tools,executeTool:hooks.executeTool});
+          if(!res.destroyed)sendJson(res,202,accepted);return true;
+        }
         if (!segments[2] && method === 'GET') { sendJson(res, 200, { runs: orchestrator.list(ownerId) }); return true; }
         if (segments[2] && !segments[3] && method === 'GET') { sendJson(res, 200, orchestrator.get(segments[2], ownerId) as unknown as Json); return true; }
         if (segments[2] && segments[3] === 'events' && method === 'GET') { sendJson(res, 200, { events: orchestrator.events(segments[2], ownerId, boundedInt(Number(url.searchParams.get('after')), 0, 0, Number.MAX_SAFE_INTEGER)) }); return true; }
@@ -871,6 +881,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
     workspaceWatcher.stop();
     localhostServers.stopAll();
     skillUpdates.stop();
+    await orchestrator.stopDetached();
     browser.shutdown();
     await telemetry.flush().catch(() => {});
     try { db.close(); } catch {}
