@@ -60,3 +60,9 @@ it('distinguishes a reconciled existing merge from a new merge performed this tu
  const rows=githubReceipt('github_release',{ok:true,value:{repository,action:'merge',number:73,merged:true,existing:true,mergeCommitSha:commit}});
  expect(formatGitHubRunEvidence(rows)).toContain('daha önce birleştirilmiş; GitHub üzerinden doğrulandı');
 });
+
+it('reports an already live Render revision without claiming a new publication',()=>{
+ const rows=githubReceipt('github_release',{ok:true,value:{action:'publish',repository,target:'render',requestedSha:commit,published:true,existing:true}});
+ expect(rows[0]?.kind).toBe('read');
+ expect(formatGitHubRunEvidence(rows)).toContain('Yeni yayın isteği gönderilmedi');
+});
