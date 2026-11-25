@@ -183,7 +183,7 @@ export function createWeatherLookup({ fetchImpl = globalThis.fetch as unknown as
     const key=cityKey(location)+':'+days;
     const cached=cache.get(key);
     signal?.throwIfAborted();
-    if(cached&&now()-cached.at<FRESH_MS)return {...cached.value, fetchedAt:new Date(cached.at).toISOString(),freshness:'recent_cache',requestedDays:days};
+    if(cached&&now()-cached.at<FRESH_MS)return {...cached.value, fetchedAt:new Date(cached.at).toISOString(),freshness:'recent_cache',requestedDays:days,...(cached.value.daily.length<days?{warning:'Kaynak istenen gün sayısından daha az tahmin sağladı. Eksik günleri uydurma.'}:{})};
     const save=(value:Result)=>{
       const at=now();cache.delete(key);cache.set(key,{value,at});
       if(cache.size>128)cache.delete(cache.keys().next().value!);
@@ -206,6 +206,7 @@ export function createWeatherLookup({ fetchImpl = globalThis.fetch as unknown as
       match=match||localCity(place,hint);
       const latitude=num(match?.latitude),longitude=num(match?.longitude);
       if(!match||latitude===null||longitude===null||Math.abs(latitude)>90||Math.abs(longitude)>180)throw new WeatherToolError('WEATHER_LOCATION_NOT_FOUND',404);
+      const resolved=match;
       const forecastUrl=FORECAST_URL+'?'+new URLSearchParams({
         latitude:String(latitude),longitude:String(longitude),
         current:'temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,weather_code,wind_speed_10m',
@@ -222,12 +223,12 @@ export function createWeatherLookup({ fetchImpl = globalThis.fetch as unknown as
     return {
       source: 'Open-Meteo',
       location: {
-        name: str(match.name),
-        region: str(match.admin1),
-        country: str(match.country),
+        name: str(resolved.name),
+        region: str(resolved.admin1),
+        country: str(resolved.country),
         latitude,
         longitude,
-        timezone: str(forecast.timezone || match.timezone, 64)
+        timezone: str(forecast.timezone || resolved.timezone, 64)
       },
       current: {
         time: str(current.time, 32),
@@ -255,7 +256,7 @@ export function createWeatherLookup({ fetchImpl = globalThis.fetch as unknown as
         // Alternate service uses resolved coordinates, never an unchecked URL or city guess.
         try {
           const fallback=await getJson(fetchImpl,FALLBACK_URL+encodeURIComponent(latitude+','+longitude)+'?format=j1',signal);
-          return save(normalizeFallback(fallback,match,days));
+          return save(normalizeFallback(fallback,resolved,days));
         } catch {
           signal?.throwIfAborted();
           // Retry the primary once, after attempting the independent service.
