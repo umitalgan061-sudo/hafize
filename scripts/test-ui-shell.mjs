@@ -104,3 +104,12 @@ for(const [fg,bg] of [['302b27','fffaf3'],['696057','fffaf3'],['f2efea','302720'
 const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),'utf8');
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize orange identity contract OK: warm themes, animated accents, contrast and reduced motion');
+
+assert.match(indexHtml,/href="\/design-system\.css\?v=orange-20261125-2"/);
+const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
+assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
+assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
+assert.match(renderServerSource,/const revision = relative === 'index.html'/);
+const releaseUpdateSource=readFileSync(new URL('../public/typed/release-update.ts',import.meta.url),'utf8');
+assert.match(releaseUpdateSource,/if\(valid\(latest\)&&loaded!==latest\)/);
+console.log('Render release refresh contract OK: stamped HTML, versioned CSS and release endpoint');

@@ -1599,7 +1599,8 @@ async function serveStatic(pathname, res, req) {
       return;
     }
 
-    const etag = `W/"${metadata.size.toString(16)}-${Math.trunc(metadata.mtimeMs).toString(16)}"`;
+    const revision = relative === 'index.html' && /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT || '') ? process.env.RENDER_GIT_COMMIT : '';
+    const etag = `W/"${metadata.size.toString(16)}-${Math.trunc(metadata.mtimeMs).toString(16)}${revision ? '-' + revision : ''}"`;
     // Vite emits hashed chunk names (…-B869woxG.js) with mixed case; the app's own entry files are
     // lowercase kebab-case. Only the hashed ones may be cached immutably — an un-hashed name keeps
     // pointing at new content after every build, so it must revalidate (a cheap 304).
@@ -1624,7 +1625,16 @@ async function serveStatic(pathname, res, req) {
       return;
     }
 
-    const content = await readFile(filePath);
+    let content = await readFile(filePath);
+    // Render serves the source HTML directly. Stamp the actual deployed commit so
+    // the release checker works here as well as on the old Firebase build.
+    if (revision) {
+      const html = content.toString('utf8');
+      const marker = '<meta name="hafize-release" content="' + revision + '">';
+      content = Buffer.from(/<meta\s+name=["']hafize-release["'][^>]*>/i.test(html)
+        ? html.replace(/<meta\s+name=["']hafize-release["'][^>]*>/i, marker)
+        : html.replace('</head>', marker + '\n</head>'));
+    }
     const contentType = MIME.get(extname(filePath).toLowerCase()) || 'application/octet-stream';
     const encoded = await compressStatic(relative, etag, content, req.headers['accept-encoding'], extname(filePath).toLowerCase());
     if (encoded) {
@@ -1684,6 +1694,10 @@ const server = createServer(async (req, res) => {
         const code=typeof error?.code==='string'&&/^PROJECT_AI_[A-Z0-9_]+$/.test(error.code)?error.code:'PROJECT_AI_REQUEST_FAILED';
         if(!res.destroyed)sendJson(res,Number.isInteger(error?.status)&&error.status>=400&&error.status<=599?error.status:400,{error:code});
       }finally{grant?.release();request?.cleanup?.();}
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/release.json' && /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT || '')) {
+      sendJson(res, 200, { commit: process.env.RENDER_GIT_COMMIT });
       return;
     }
     if (req.method === 'GET' && url.pathname === '/api/health/live') {
