@@ -90,3 +90,17 @@ const luminance=hex=>{const rgb=hex.match(/[a-f0-9]{2}/gi).map(v=>parseInt(v,16)
 const contrast=(a,b)=>{const values=[luminance(a),luminance(b)].sort((x,y)=>y-x);return (values[0]+.05)/(values[1]+.05);};
 for(const [fg,bg] of [['302b27','fffdfa'],['69635c','fffdfa'],['f2efea','2b2c2e'],['b8b1a8','2b2c2e'],['ffffff','a94a2c'],['ffffff','b4232b'],['ffffff','187348']])assert.ok(contrast(fg,bg)>=4.5,fg+' / '+bg);
 console.log('Frontend design system contract OK: themes, contrast, standalone tools and retained mode controls');
+
+assert.match(designSystem,/--bg:#211c19; --panel:#2b231e; --card:#302720/);
+assert.match(designSystem,/--bg:#faf4ec; --panel:#f3e9dc; --card:#fffaf3/);
+for(const effect of ['hz-orange-beam-x','hz-orange-beam-y','hz-orange-header','hz-orange-composer-breathe']){
+  assert.ok(designSystem.includes('@keyframes '+effect),effect);
+}
+assert.match(designSystem,/html\[data-theme\] \.edge-beam\s*\{[^}]*display:block;opacity:\.92/s);
+assert.match(designSystem,/html\[data-reduced-motion="true"\][^{}]*::after\{animation:none!important/);
+assert.match(designSystem,/pointer-events:none/);
+assert.doesNotMatch(designSystem,/#layoutToggle/);
+for(const [fg,bg] of [['302b27','fffaf3'],['696057','fffaf3'],['f2efea','302720'],['c5b5a7','302720'],['ffffff','b84b23'],['ffffff','a93e17'],['b94b22','fffaf3']])assert.ok(contrast(fg,bg)>=4.5,fg+' / '+bg);
+const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),'utf8');
+assert.match(studioStyles,/@keyframes studio-orange-trace/);
+console.log('Hafize orange identity contract OK: warm themes, animated accents, contrast and reduced motion');
