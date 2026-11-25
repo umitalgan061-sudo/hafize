@@ -31,6 +31,17 @@ export function parseGitHubRepoAllowlist(value) {
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
 }
 
+// A separate explicit server-side opt-in adds only the owner's public Hafize source repository.
+ // Existing read lists, authentication, write permissions, and path checks remain independent.
+export function resolveGitHubReadAllowlist(env = {}) {
+  const selfRead = /^(1|true|yes|on)$/i.test(String(env.HAFIZE_GITHUB_SELF_READ || '').trim());
+  return parseGitHubRepoAllowlist([
+    ...parseGitHubRepoAllowlist(env.HAFIZE_GITHUB_READ_REPOS || ''),
+    ...parseGitHubRepoAllowlist(env.HAFIZE_GITHUB_EXTRA_READ_REPOS || ''),
+    ...(selfRead ? ['umitalgan061-sudo/hafize'] : [])
+  ]);
+}
+
 function normalizeRepository(value) {
   const repository = typeof value === 'string' ? value.trim() : '';
   if (!REPOSITORY_PATTERN.test(repository)) throw new GitHubReadError('INVALID_GITHUB_REPOSITORY');

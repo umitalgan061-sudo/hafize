@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createGitHubReadFile, GitHubReadError, parseGitHubRepoAllowlist } from './github-read.ts';
+import { createGitHubReadFile, GitHubReadError, parseGitHubRepoAllowlist, resolveGitHubReadAllowlist } from './github-read.ts';
 
 function response(payload: unknown, status = 200) {
   return {
@@ -91,5 +91,22 @@ describe('explicit public GitHub read mode', () => {
   it('checks the entire ranged file for credentials before returning a window', async () => {
     const read = createGitHubReadFile({ allowPublicRead: true, allowedRepositories: ['a/b'], fetchImpl: async () => response({ type: 'file', encoding: 'base64', content: Buffer.from('hello\nAPI_KEY=super-secret-value').toString('base64') }) });
     await expect(read({ repository: 'a/b', path: 'README.md', startLine: 1, endLine: 1 })).rejects.toMatchObject({ code: 'GITHUB_CONTENT_CREDENTIAL_BLOCKED' });
+  });
+});
+
+describe('explicit scoped Hafize self read', () => {
+  it('is off by default, adds only Hafize when enabled, and preserves configured repositories', () => {
+    const env = { HAFIZE_GITHUB_READ_REPOS: 'a/b', HAFIZE_GITHUB_EXTRA_READ_REPOS: 'c/d', HAFIZE_GITHUB_WRITE_REPOS: 'x/y' };
+    expect(resolveGitHubReadAllowlist(env)).toEqual(['a/b','c/d']);
+    expect(resolveGitHubReadAllowlist({...env,HAFIZE_GITHUB_SELF_READ:'true'})).toEqual(['a/b','c/d','umitalgan061-sudo/hafize']);
+    expect(resolveGitHubReadAllowlist({...env,HAFIZE_GITHUB_SELF_READ:'false'})).toEqual(['a/b','c/d']);
+  });
+  it('preserves credential and repository boundaries in self-read mode', async () => {
+    let calls = 0;
+    const read = createGitHubReadFile({allowPublicRead:true,allowedRepositories:resolveGitHubReadAllowlist({HAFIZE_GITHUB_SELF_READ:'true'}),fetchImpl:async()=>{calls++;return response({type:'file',encoding:'base64',content:Buffer.from('README').toString('base64'),sha:'abc',size:6});}});
+    await expect(read({repository:'umitalgan061-sudo/hafize',path:'README.md'})).resolves.toMatchObject({content:'README',sha:'abc'});
+    await expect(read({repository:'umitalgan061-sudo/retake',path:'README.md'})).rejects.toMatchObject({code:'GITHUB_REPO_NOT_ALLOWED'});
+    await expect(read({repository:'umitalgan061-sudo/hafize',path:'.env'})).rejects.toMatchObject({code:'SENSITIVE_GITHUB_PATH_BLOCKED'});
+    expect(calls).toBe(1);
   });
 });

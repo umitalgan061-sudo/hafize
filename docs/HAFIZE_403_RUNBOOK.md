@@ -17,3 +17,5 @@ Save and restart/redeploy the existing service, verify the deployed revision, th
 2. Run one synthetic probe, inspect provider result, then audit within the available budget. A catalog row or configured flag is not execution proof.
 3. Verify live README read and the actual backend revision. Only then proceed to branch/PR changes and further integrations.
 4. Never expose API keys, disable allowlists or claim a live result from a unit test. This runbook does not configure or deploy Render itself.
+
+Alternatively set `HAFIZE_GITHUB_SELF_READ=true` after this revision is deployed. This explicit server-side switch adds only `umitalgan061-sudo/hafize` to the read allowlist, preserving both existing lists and all write and authentication settings. It is disabled by default.

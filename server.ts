@@ -27,7 +27,7 @@ import { createAgentDelegator } from './lib/agent-delegation.ts';
 import { createBuiltinSkillsRuntimeSync } from './lib/skills-runtime.ts';
 import { runDelegatedAgent } from './lib/delegated-agent-runner.ts';
 import { createAgentRunLedger } from './lib/agent-run-ledger.ts';
-import { createGitHubReadFile, parseGitHubRepoAllowlist } from './lib/github-read.ts';
+import { createGitHubReadFile, parseGitHubRepoAllowlist, resolveGitHubReadAllowlist } from './lib/github-read.ts';
 import { createGitHubWorkspaceReader, GitHubWorkspaceError } from './lib/github-workspace.ts';
 import { createGitHubWorkspaceExtra, GitHubWorkspaceExtraError } from './lib/github-workspace-extra.ts';
 import { createGitHubWorkspaceDetails, GitHubWorkspaceDetailsError } from './lib/github-workspace-details.ts';
@@ -190,10 +190,7 @@ function hasMetricsAuthorization(req) {
 }
 
 // Separate optional read-only additions preserve existing environment configuration.
-const GITHUB_ALLOWED_REPOS = parseGitHubRepoAllowlist([
-  ...parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_READ_REPOS || ''),
-  ...parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_EXTRA_READ_REPOS || '')
-]);
+const GITHUB_ALLOWED_REPOS = resolveGitHubReadAllowlist(process.env);
 const GITHUB_WRITE_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_WRITE_REPOS || '');
 // Agent access is narrower than the UI writer; Retake is not enabled by default.
 const GITHUB_EXISTING_AGENT_REPOS = parseGitHubRepoAllowlist(process.env.HAFIZE_GITHUB_AGENT_REPOS ?? 'umitalgan061-sudo/hafize')
