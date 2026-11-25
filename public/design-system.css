@@ -7,7 +7,7 @@
     --ink:#302b27; --text:var(--ink); --muted:#696057; --line:#e3cbb8;
     --premium-bg:var(--bg); --premium-text:var(--ink); --premium-muted:var(--muted);
     --premium-surface:var(--card); --premium-surface-strong:var(--card); --premium-line:var(--line);
-    --premium-orange:#c4582c; --premium-orange-strong:#a64018;
+    --premium-orange:#b94b22; --premium-orange-strong:#a64018;
     --soft:#f4e5d6; --hover:#f8e6d5; --hover-strong:#f1d7c0;
     --hz-raised:#fffaf3; --hz-subtle:#f8eee3; --hz-success:#276749; --hz-danger:#a32935;
     --hz-card-shadow:0 2px 8px rgb(61 44 27 / .045);
@@ -207,7 +207,7 @@
       radial-gradient(ellipse at 44% 0%,color-mix(in srgb,var(--hz-beam) 12%,transparent),transparent 54%),
       radial-gradient(ellipse at 100% 86%,color-mix(in srgb,var(--hz-beam) 7%,transparent),transparent 40%),
       var(--bg);
-    background-attachment:fixed;
+    background-attachment:scroll;
   }
   body::before{background:none}
   /* Keep all four existing moving viewport beams visible, including mobile.
@@ -302,9 +302,10 @@
   }
   #composer .send-btn:not(:disabled):hover{background:linear-gradient(145deg,#b84b23,#963810)}
   #messages .message.user:not(.is-background-output){border-color:var(--hz-orange-border)}
+  #messages .tool-activity:not(.failed){border-color:var(--hz-orange-border)!important;background:var(--hz-orange-wash)!important}
   #messages .assistant-message-actions .message-action:hover{border-color:var(--premium-orange);background:var(--hz-orange-wash)}
   #messages .md-code,#messages .md-table-wrap{border-color:var(--hz-orange-border)}
-  .main .calendar-card,.main .voice-card{
+  .main .utility-rail>.utility-card:is(.calendar-card,.voice-card){
     background:radial-gradient(ellipse at 90% 0%,color-mix(in srgb,var(--premium-orange) 13%,transparent),transparent 58%),var(--hz-card-warm);
   }
   .main .calendar-card .calendar-day.selected{background:var(--hz-solid);color:#fff;box-shadow:0 0 10px color-mix(in srgb,var(--hz-beam) 30%,transparent)}
