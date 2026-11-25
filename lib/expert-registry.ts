@@ -111,7 +111,7 @@ export function createExpertRegistry({ registry, db, now = () => Date.now(), isT
       const score = relevance + trustBonus[card.trustLevel] + performance - (health.healthy ? 0 : 0.5);
       if (!relevance || !health.healthy) return null;
       return { agentId: card.agentId, name: card.name, description: card.description, capabilities: card.capabilities, trustLevel: card.trustLevel, version: card.version, healthy: health.healthy, score: Math.round(score * 1000) / 1000 };
-    }).filter((item): item is NonNullable<typeof item> => item !== null && item.score > 0.15).sort((a, b) => b.score - a.score || a.agentId.localeCompare(b.agentId)).slice(0, Math.min(Math.max(limit, 1), 10));
+    }).filter((item): item is NonNullable<typeof item> => item !== null && item.score > 0.15).sort((a, b) => b.score - a.score || a.agentId.localeCompare(b.agentId)).slice(0, Math.min(Math.max(limit, 1), registry.agents.length));
   }
 
   /** Health against the card's SLO, from the last 50 delegations plus tool availability. */

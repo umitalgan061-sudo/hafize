@@ -47,7 +47,10 @@ export type OrchestratorEvent = Readonly<{ runId: string; type: string; ts: numb
 // Only these read-only operations may be replayed after an uncertain result.
 // Unknown tools and mutations default to no automatic retry.
 const REPLAY_SAFE = new Set([REASON_TOOL, 'runtime_status', 'web_search', 'web_page_read', 'weather_forecast', 'wikipedia_lookup', 'news_search', 'exchange_rates', 'github_read_file', 'github_inspect', 'memory_search', 'expert_find', 'test_read_result', 'rule_list', 'localhost_list']);
-export const ORCHESTRATOR_DEFAULTS = Object.freeze({ maxSteps: 12, maxWallMs: 6 * 60 * 1000, maxTokens: 120_000, maxToolCalls: 24, maxParallel: 3, maxRevisions: 3, stepTimeoutMs: DEFAULT_STEP_TIMEOUT_MS });
+export const ORCHESTRATOR_MAX_STEPS=200;
+export const ORCHESTRATOR_MAX_WALL_MS=180*60*1000;
+export const ORCHESTRATOR_MAX_TOOL_CALLS=1600;
+export const ORCHESTRATOR_DEFAULTS = Object.freeze({ maxSteps: 100, maxWallMs: ORCHESTRATOR_MAX_WALL_MS, maxTokens: 2_000_000, maxToolCalls: ORCHESTRATOR_MAX_TOOL_CALLS, maxRevisions: 20, stepTimeoutMs: DEFAULT_STEP_TIMEOUT_MS });
 export function createOrchestrator({ db, models, now = () => Date.now() }: { readonly db: DatabaseSync; readonly models: Pick<ModelServices, 'chatJson' | 'chatText'>; readonly now?: () => number }) {
   const insertEvent = db.prepare('INSERT INTO orchestrator_events (run_id, ts, type, payload) VALUES (?, ?, ?, ?)');
   const live = new Map<string, AbortController>();
@@ -75,7 +78,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     let lastError: unknown = null;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const result = await models.chatJson<{ steps?: unknown }>({
-        traceId, purpose: 'orchestrator.plan', maxTokens: 2_000, signal,
+        traceId, purpose: 'orchestrator.plan', maxTokens: 12_000, signal,
         system: [
           'Sen bir görev planlayıcısısın. Hedefi, verilen araçlarla çalıştırılabilir küçük adımlara böl.',
           `Şema: {"steps": [{"id": "s1", "title": string, "tool": string, "args": object, "dependsOn": string[], "retryPolicy": {"maxAttempts": number}, "timeoutMs": number, "checkpoint": boolean}]}`,
@@ -124,7 +127,10 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     const { state, tools, executeTool, requestApproval, emit } = input;
     const controller = new AbortController();
     live.set(state.runId, controller);
-    const signal = input.signal ? AbortSignal.any([input.signal, controller.signal]) : controller.signal;
+    const remainingWall=Math.max(1,state.budget.maxWallMs-state.usage.wallMs);
+    const deadline=AbortSignal.timeout(remainingWall);
+    const signal = AbortSignal.any([controller.signal,deadline,...(input.signal?[input.signal]:[])]);
+    const abortReason=()=>deadline.aborted?'budget:maxWallTime':'cancelled';
     const risk = new Map(tools.map((tool) => [tool.name, tool.risk]));
     const toolNames = new Set(tools.map((tool) => tool.name));
     const publish = (type: string, payload: Json = {}) => {
@@ -219,7 +225,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
       publish('run.started', { goal: state.goal, steps: state.plan.map((step) => ({ id: step.id, title: step.title, tool: step.tool, dependsOn: step.dependsOn })) });
       save(state);
       for (;;) {
-        if (signal.aborted) { state.status = 'aborted'; state.abortReason = 'cancelled'; break; }
+        if (signal.aborted) { state.status = 'aborted'; state.abortReason = abortReason(); break; }
         const exceeded = checkBudget();
         if (exceeded) { state.status = 'aborted'; state.abortReason = `budget:${exceeded}`; publish('run.budget_exceeded', { guard: exceeded, usage: state.usage }); break; }
         const ready = state.plan.filter((step) => state.steps[step.id]!.status === 'pending' && step.dependsOn.every((dep) => state.steps[dep]?.status === 'succeeded'));
@@ -227,15 +233,22 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
         for (const step of blocked) { state.steps[step.id]!.status = 'skipped'; state.steps[step.id]!.error = 'DEPENDENCY_FAILED'; publish('step.skipped', { stepId: step.id }); }
         if (Object.values(state.steps).some((info) => info.status === 'awaiting_approval')) { state.status = 'awaiting_approval'; break; }
         if (!ready.length) break;
-        await Promise.all(ready.slice(0, Math.min(ORCHESTRATOR_DEFAULTS.maxParallel, state.budget.maxSteps - state.usage.stepsRun)).map(runStep));
-        if (signal.aborted) { state.status = 'aborted'; state.abortReason = 'cancelled'; break; }
+        // All independent, replay-safe low-risk reads can start together. Do not
+        // parallelize unknown tools or mutations: ordering and uncertain writes
+        // must remain auditable. Never bypass the remaining task/call budgets.
+        const first=ready[0]!;
+        const batch=REPLAY_SAFE.has(first.tool)&&risk.get(first.tool)!=='high'&&risk.get(first.tool)!=='medium'
+          ? ready.filter(step=>REPLAY_SAFE.has(step.tool)&&risk.get(step.tool)!=='high'&&risk.get(step.tool)!=='medium') : [first];
+        const selected=batch.slice(0,state.budget.maxSteps-state.usage.stepsRun);
+        await Promise.all(selected.map(runStep));
+        if (signal.aborted) { state.status = 'aborted'; state.abortReason = abortReason(); break; }
         if (Object.values(state.steps).some(info => info.error === 'MUTATION_RESULT_UNCERTAIN')) { state.status = 'aborted'; state.abortReason = 'mutation_reconciliation_required'; break; }
         if (Object.values(state.steps).some((info) => info.status === 'awaiting_approval')) { state.status = 'awaiting_approval'; break; }
         const verdict = await critic(state, signal);
         state.criticNotes.push(`${verdict.decision}: ${verdict.reason}`.slice(0, 300));
         publish('critic', { decision: verdict.decision, reason: verdict.reason });
         if (verdict.decision === 'abort') { state.status = 'aborted'; state.abortReason = `critic: ${verdict.reason}`; break; }
-        if (verdict.decision === 'finish') {
+        if (verdict.decision === 'finish' && !state.plan.some(step=>state.steps[step.id]!.status==='pending'&&!REPLAY_SAFE.has(step.tool))) {
           for (const step of state.plan) if (state.steps[step.id]!.status === 'pending') { state.steps[step.id]!.status = 'skipped'; state.steps[step.id]!.error = 'NOT_NEEDED'; }
           break;
         }
@@ -291,10 +304,10 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
     const goal = String(input.goal || '').replace(/\s+/g, ' ').trim().slice(0, 1_000);
     if (!goal) throw new OrchestratorError('INVALID_GOAL');
     const budget: Budget = {
-      maxSteps: clampInt(input.budget?.maxSteps, ORCHESTRATOR_DEFAULTS.maxSteps, 1, 30),
-      maxWallMs: clampInt(input.budget?.maxWallMs, ORCHESTRATOR_DEFAULTS.maxWallMs, 10_000, 30 * 60 * 1000),
+      maxSteps: clampInt(input.budget?.maxSteps, ORCHESTRATOR_DEFAULTS.maxSteps, 1, ORCHESTRATOR_MAX_STEPS),
+      maxWallMs: clampInt(input.budget?.maxWallMs, ORCHESTRATOR_DEFAULTS.maxWallMs, 10_000, ORCHESTRATOR_MAX_WALL_MS),
       maxTokens: clampInt(input.budget?.maxTokens, ORCHESTRATOR_DEFAULTS.maxTokens, 1_000, 2_000_000),
-      maxToolCalls: clampInt(input.budget?.maxToolCalls, ORCHESTRATOR_DEFAULTS.maxToolCalls, 1, 100)
+      maxToolCalls: clampInt(input.budget?.maxToolCalls, ORCHESTRATOR_DEFAULTS.maxToolCalls, 1, ORCHESTRATOR_MAX_TOOL_CALLS)
     };
     const constraints = (Array.isArray(input.constraints) ? input.constraints : []).map((item) => String(item).slice(0, 300)).filter(Boolean).slice(0, 10);
     const toolNames = new Set(input.tools.map((tool) => tool.name));
@@ -332,10 +345,10 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
       state.status = 'aborted'; state.abortReason = 'mutation_reconciliation_required'; save(state); return state;
     }
     if (input.budget) state.budget = {
-      maxSteps: clampInt(input.budget.maxSteps, state.budget.maxSteps, 1, 30),
-      maxWallMs: clampInt(input.budget.maxWallMs, state.budget.maxWallMs, 10_000, 30 * 60 * 1000),
+      maxSteps: clampInt(input.budget.maxSteps, state.budget.maxSteps, 1, ORCHESTRATOR_MAX_STEPS),
+      maxWallMs: clampInt(input.budget.maxWallMs, state.budget.maxWallMs, 10_000, ORCHESTRATOR_MAX_WALL_MS),
       maxTokens: clampInt(input.budget.maxTokens, state.budget.maxTokens, 1_000, 2_000_000),
-      maxToolCalls: clampInt(input.budget.maxToolCalls, state.budget.maxToolCalls, 1, 100)
+      maxToolCalls: clampInt(input.budget.maxToolCalls, state.budget.maxToolCalls, 1, ORCHESTRATOR_MAX_TOOL_CALLS)
     };
     delete state.abortReason;
     return execute({ state, tools: input.tools, executeTool: input.executeTool, requestApproval: input.requestApproval, emit: input.emit, signal: input.signal });
@@ -354,7 +367,7 @@ export function createOrchestrator({ db, models, now = () => Date.now() }: { rea
   }
 
   function list(ownerId: string, limit = 20) {
-    return db.prepare('SELECT id, goal, status, created_at AS createdAt, updated_at AS updatedAt FROM orchestrator_runs WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?').all(ownerId, Math.min(Math.max(limit, 1), 100));
+    return db.prepare('SELECT id, goal, status, created_at AS createdAt, updated_at AS updatedAt FROM orchestrator_runs WHERE owner_id = ? ORDER BY updated_at DESC LIMIT ?').all(ownerId, Math.min(Math.max(limit, 1), 100)).map(row=>({...row,activeInProcess:live.has(String(row.id)),interrupted:row.status==='running'&&!live.has(String(row.id))}));
   }
 
   function events(runId: string, ownerId: string, afterId = 0) {

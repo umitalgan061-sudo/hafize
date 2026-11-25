@@ -24,7 +24,7 @@ import { analyzeVideoFrames } from './video-frame-analysis.ts';
 import { createNimSpecialists } from './nim-specialists.ts';
 import { createResearchAgent } from './research-agent.ts';
 import { createResearchSources } from './research-sources.ts';
-import { createOrchestrator, type ToolOption } from './orchestrator.ts';
+import { createOrchestrator, ORCHESTRATOR_MAX_STEPS, ORCHESTRATOR_DEFAULTS, type ToolOption } from './orchestrator.ts';
 import { createExpertRegistry } from './expert-registry.ts';
 import { createLocalTools } from './local-tools.ts';
 import { createPromptRegistry } from './prompt-registry.ts';
@@ -289,7 +289,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         const state = await orchestrator.run({
           ownerId: owner(context), traceId: context.traceId, goal: String(args.goal || ''),
           constraints: Array.isArray(args.constraints) ? args.constraints.map(String) : [],
-          budget: { maxSteps: boundedInt(args.maxSteps, 12, 1, 20) },
+          budget: { maxSteps: boundedInt(args.maxSteps, ORCHESTRATOR_DEFAULTS.maxSteps, 1, ORCHESTRATOR_MAX_STEPS) },
           tools: hooks.tools, executeTool: hooks.executeTool, requestApproval: hooks.requestApproval as never, emit: hooks.emit as never, signal: context.signal
         });
         return summarizeRun(state);
@@ -297,7 +297,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
       orchestrateList: async(args,context)=>({runs:orchestrator.list(owner(context),boundedInt(args.limit,20,1,100)),note:'Yalnız mevcut veritabanındaki görevler. Kalıcı disk yoksa sunucu yeniden başlatıldığında kayıtlar kaybolabilir.'}),
       orchestrateResume: async (args, context) => {
         const hooks = orchestratorHooks(context);
-        const extra = boundedInt(args.extraSteps, 0, 0, 20);
+        const extra = boundedInt(args.extraSteps, 0, 0, ORCHESTRATOR_MAX_STEPS);
         const current = orchestrator.get(String(args.runId || ''), owner(context));
         const state = await orchestrator.resume({
           ownerId: owner(context), runId: String(args.runId || ''),
@@ -321,7 +321,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         if (!CONVERSATION_ID.test(conversationId)) throw new HttpRuntimeError('CONVERSATION_ID_REQUIRED', 400);
         return consolidator.consolidateConversation(owner(context), conversationId, { traceId: context.traceId, ...(context.signal ? { signal: context.signal } : {}) });
       },
-      expertFind: async (args) => ({ experts: experts.resolve(String(args.query || ''), { limit: boundedInt(args.limit, 3, 1, 5) }), note: 'Uygun uzmana agent_delegate ile {agentId, task} vererek görevi devret.' }),
+      expertFind: async (args) => ({ experts: experts.resolve(String(args.query || ''), { limit: boundedInt(args.limit, 10, 1, 100) }), note: 'Uygun uzmana agent_delegate ile {agentId, task} vererek görevi devret.' }),
       visionAnalyze: async (args, context) => media.analyze({ ownerId: owner(context), imageIds: args.imageIds ?? args.image_ids, prompt: args.prompt, traceId: context.traceId, signal: context.signal }),
       imageGenerate: async (args, context) => {
         const result = await media.generateImage({ ownerId: owner(context), prompt: args.prompt, width: args.width, height: args.height, seed: args.seed, traceId: context.traceId, signal: context.signal });
