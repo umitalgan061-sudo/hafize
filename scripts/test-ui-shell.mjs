@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=perimeter-20261125-1"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=thinking-border-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -138,3 +138,6 @@ const thinkingSource=readFileSync(new URL('../public/typed/chat-scroll.ts',impor
 assert.match(thinkingSource,/classList\.add\('hafize-working'\)/);
 assert.match(thinkingSource,/classList\.remove\('hafize-working'\)/);
 console.log('Continuous perimeter contract OK: idle/working states, composer ring, fallback and single frame');
+
+assert.match(designSystem,/html\[data-theme\]\.hafize-working body>\.hz-frame\{\s*display:block;position:fixed;inset:0;[^}]*border-radius:0;[^}]*pointer-events:none;opacity:1;\s*box-shadow:inset 0 0 0 2px #d9774f/s);
+console.log('Thinking outer viewport outline contract OK');
