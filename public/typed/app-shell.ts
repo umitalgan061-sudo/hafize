@@ -29,6 +29,7 @@ interface ChatMessage {
   content: string;
   at: string;
   toolActivities?: ToolActivity[];
+  agentCheckpoint?: string;
   alternates?: string[];
   feedback?: 'positive' | 'negative';
   generation?: {
@@ -128,6 +129,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let storageWarningShown = false;
   const STORAGE_WARNING_CHARS = 4_000_000;
   let generationAbort: AbortController | null = null;
+  let activeAgentCheckpoint = '';
+  let checkpointPolling=false;
   let conversations = loadConversations();
   // Entering the app always lands on a new chat; earlier ones wait in the sidebar. A tab the browser put to sleep
   // to save memory reloads when it is looked at again, and that is not an entry.
@@ -234,6 +237,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ...(alternates.length ? { alternates } : {}),
       ...(feedback ? { feedback } : {}),
       ...(generation ? { generation } : {}),
+      ...(source.role==='assistant'&&typeof source.agentCheckpoint==='string'&&/^[a-zA-Z0-9_-]{1,120}$/.test(source.agentCheckpoint)?{agentCheckpoint:source.agentCheckpoint}:{}),
       ...(source.worked && Number.isFinite(source.worked.ms) && source.worked.ms >= 0 && ['bulut', 'bilgisayar', 'sayfa'].includes(source.worked.where)
         ? { worked: { ms: Math.min(86_400_000, Math.floor(source.worked.ms)), where: source.worked.where, ...(source.worked.raw === true ? { raw: true } : {}), ...(source.worked.failed === true ? { failed: true } : {}) } } : {}),
       ...(Array.isArray(source.toolActivities) ? {
@@ -974,6 +978,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
     assistantId: string,
     appendContent: (delta: string) => void
   ): Promise<void> {
+    if(event.type==='hafize-agent-checkpoint'){
+      const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
+      if(row&&event.payload?.id===row.agentCheckpoint){row.content=row.content||'GitHub görevi sunucuda kayıtlı; bağlantı kesilse de sürdürülebilir.';saveConversations();}
+      return;
+    }
     if (handleAgentEvent(event.type, event.payload, { assistantId, showToast })) return;
     if (event.type === 'hafize-skill-consent-required') {
       const request = event.payload && typeof event.payload === 'object' ? event.payload as Record<string, any> : {};
@@ -1077,6 +1086,40 @@ interface JsonPayload { readonly [key: string]: unknown; }
     return `Yanıt alınamadı: ${error?.message || 'bilinmeyen hata'}`;
   }
 
+  const checkpointPath=id=>'/api/task-results/agent-turn/'+encodeURIComponent(id);
+  async function recoverAgentCheckpoints(){
+    if(checkpointPolling||isStreaming||!networkOnline)return;
+    checkpointPolling=true;
+    let changed=false;
+    try{
+      const pending=conversations.flatMap(conversation=>conversation.messages.filter(message=>message.agentCheckpoint).map(message=>({conversation,message}))).slice(-20);
+      for(const {conversation,message} of pending){
+        try{
+          const result=await hafizeApi.request(checkpointPath(message.agentCheckpoint),{timeoutMs:8000,retry:0});
+          if(result.id!==message.agentCheckpoint||result.conversationId!==conversation.id)continue;
+          if(result.status==='running'){
+            const text='GitHub görevi sunucuda devam ediyor. Tarayıcı yeniden bağlandığında sonuç bu sohbete getirilecek.';
+            if(message.content!==text){message.content=text;changed=true;}
+            continue;
+          }
+          if(!['answered','incomplete','interrupted','cancelled'].includes(result.status))continue;
+          const lines=Array.isArray(result.receipts)?result.receipts.slice(-30).map(row=>'- '+String(row.line||'')):[];
+          message.content=result.answer||'GitHub görevi kesildi; son doğrulanmış kayıtlar:\n\n'+(lines.join('\n')||'Henüz doğrulanmış işlem yok.');
+          if(Array.isArray(result.pending)&&result.pending.length&&!message.content.includes('Sonucu belirsiz')){
+            message.content+='\n\nSonucu belirsiz yazma işlemleri var; tekrar çalıştırmadan önce gerçek GitHub durumunu kontrol et.';
+          }
+          message.toolActivities=settleToolActivities(message.toolActivities);
+          delete message.agentCheckpoint;changed=true;
+        }catch(error){
+          if(error?.status===404){
+            message.content=INTERRUPTED_TEXT+' Sunucuda bu görev için kalıcı kayıt bulunamadı.';
+            message.toolActivities=settleToolActivities(message.toolActivities);
+            delete message.agentCheckpoint;changed=true;
+          }
+        }
+      }
+    }finally{checkpointPolling=false;if(changed){saveConversations();render();}}
+  }
   async function consumeAssistantStream(
     endpoint: string,
     payload: Record<string, unknown>,
@@ -1088,6 +1131,11 @@ interface JsonPayload { readonly [key: string]: unknown; }
     let content = '';
     const stopper = new AbortController();
     generationAbort = stopper;
+    activeAgentCheckpoint=endpoint==='/api/agent/run'&&typeof payload.agentTurnId==='string'?payload.agentTurnId:'';
+    if(activeAgentCheckpoint){
+      const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
+      if(row){row.agentCheckpoint=activeAgentCheckpoint;row.content='Görev sunucuya gönderiliyor…';saveConversations();}
+    }
     streamState.begin();
     renderStreamStatus();
     try {
@@ -1116,6 +1164,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
         endedAt: Date.now()
       });
       renderStreamStatus();
+      const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
+      if(row)delete row.agentCheckpoint;
       updateMessage(assistantId, content.trim() ? content : emptyMessage, { persist: true });
       return stats;
     } catch (error) {
@@ -1127,16 +1177,17 @@ interface JsonPayload { readonly [key: string]: unknown; }
       renderStreamStatus();
       // The owner's own stop is not a failure: what was written so far stays.
       if (stopper.signal.aborted) {
-        updateMessage(assistantId, content || 'Yanıt durduruldu.', { persist: true });
+        updateMessage(assistantId, content || (activeAgentCheckpoint?'Durdurma istendi; sunucu durumu tekrar doğrulanacak.':'Yanıt durduruldu.'), { persist: true });
         return { durationMs: 0 } as HafizeSseStats;
       }
       const message=getActiveConversation()?.messages.find(item=>item.id===assistantId);
       if(message)message.toolActivities=settleToolActivities(message.toolActivities);
-      const failure=endpoint==='/api/agent/run'&&message?.toolActivities?.length?INTERRUPTED_TEXT:describeChatFailure(error);
+      const failure=activeAgentCheckpoint?'Bağlantı kesildi; sunucudaki görev kaydı otomatik kontrol edilecek.':endpoint==='/api/agent/run'&&message?.toolActivities?.length?INTERRUPTED_TEXT:describeChatFailure(error);
       updateMessage(assistantId,content.trim()?content+'\n\n'+failure:failure,{persist:true});
       return {durationMs:0,done:false} as HafizeSseStats;
     } finally {
       generationAbort = null;
+      activeAgentCheckpoint='';
     }
   }
 
@@ -1204,7 +1255,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/agent/run',
-      { model, agentId, conversationId: conversation.id, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
+      { model, agentId, conversationId: conversation.id, agentTurnId:uid(), messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
       AGENT_RUN_TIMEOUT_MS,
@@ -1436,6 +1487,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   window.addEventListener('online', handleOnline);
+  window.addEventListener('online',()=>void recoverAgentCheckpoints());
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void recoverAgentCheckpoints();});
+  setInterval(()=>{if(!document.hidden)void recoverAgentCheckpoints();},15000);
   window.addEventListener('offline', handleOffline);
   window.addEventListener('beforeunload', () => { persistOnLifecycle(); streamState.destroy(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) persistOnLifecycle(); });
@@ -1507,7 +1561,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
   });
   ui.composer.addEventListener('submit', (event) => {
     event.preventDefault();
-    if (isStreaming) { generationAbort?.abort(); return; }
+    if (isStreaming) {
+      if(activeAgentCheckpoint){
+        const id=activeAgentCheckpoint;
+        void hafizeApi.request(checkpointPath(id)+'/cancel',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',retry:0,timeoutMs:8000}).catch(()=>showToast('Sunucuda durdurma doğrulanamadı; görev durumu kontrol edilecek.'));
+      }
+      generationAbort?.abort();return;
+    }
     submitMessage(ui.messageInput.value);
   });
   window.addEventListener('hafize:notice', (event) => showToast(String((event as CustomEvent).detail ?? '')));
@@ -1707,6 +1767,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
 
   if (!activeConversationId) createConversation();
   else render();
+  void recoverAgentCheckpoints();
 
   // A phone keeps an installed app alive in the background, so coming back is an entry too. A short look at
   // another app (copying something) stays in the chat. Another tab or a minimized window is not leaving.
