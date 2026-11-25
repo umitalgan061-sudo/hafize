@@ -298,32 +298,34 @@
   html[data-theme] body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
     visibility:hidden;opacity:0;
   }
-  /* One luminous point, not a colored perimeter: the quiet outline stays put. */
+  /* A single elongated light beam follows the real rounded rectangular path.
+     Nested, centered dash segments taper at both ends, not a dot or full outline. */
   html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking{
     visibility:visible;opacity:1;inset:5px;border-radius:6px;box-shadow:none;
   }
   html[data-theme] body>.hz-frame>.hz-frame-thinking-glow{display:none}
-  html[data-theme] body>.hz-frame>.hz-frame-thinking::after{
-    content:"";position:absolute;left:0;top:0;width:7px;height:7px;
-    border-radius:50%;pointer-events:none;box-sizing:border-box;
-    background:#ff9b55;box-shadow:0 0 5px #ffc18a,0 0 12px rgb(255 137 65 / .75);
-    transform:translate(-50%,-50%);
-    animation:hz-thinking-dot-edges 6s linear infinite;
+  .hz-thinking-beam{
+    position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;
+    filter:drop-shadow(0 0 3px rgb(255 139 73 / .45));
   }
-  @keyframes hz-thinking-dot-edges{
-    0%,100%{left:0;top:0}
-    25%{left:100%;top:0}
-    50%{left:100%;top:100%}
-    75%{left:0;top:100%}
+  .hz-thinking-beam rect{
+    fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;
+    stroke-dashoffset:var(--hz-ray-phase);rx:6px;ry:6px;
+    animation:none;
   }
-  @supports (offset-path:inset(0 round 6px)){
-    html[data-theme] body>.hz-frame>.hz-frame-thinking::after{
-      left:0;top:0;transform:none;offset-path:inset(0 round 6px) border-box;
-      offset-anchor:center;offset-rotate:0deg;animation:hz-thinking-dot-lap 6s linear infinite;
-    }
+  .hz-thinking-beam .hz-ray-halo{--hz-ray-phase:32;stroke:#ff8745;stroke-width:7;stroke-opacity:.12;stroke-dasharray:64 936}
+  .hz-thinking-beam .hz-ray-tail{--hz-ray-phase:30;stroke:#e97b41;stroke-width:2;stroke-opacity:.32;stroke-dasharray:60 940}
+  .hz-thinking-beam .hz-ray-middle{--hz-ray-phase:22;stroke:#ff8d4d;stroke-width:2.5;stroke-opacity:.58;stroke-dasharray:44 956}
+  .hz-thinking-beam .hz-ray-bright{--hz-ray-phase:14;stroke:#ffac69;stroke-width:3;stroke-opacity:.9;stroke-dasharray:28 972}
+  .hz-thinking-beam .hz-ray-core{--hz-ray-phase:6;stroke:#ffd7ad;stroke-width:2;stroke-opacity:1;stroke-dasharray:12 988}
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .hz-thinking-beam rect{
+    animation:hz-thinking-beam-lap 5s linear infinite;
   }
-  @keyframes hz-thinking-dot-lap{from{offset-distance:0%}to{offset-distance:100%}}
-  /* While thinking, leave only the quiet static baseline and the single point. */
+  @keyframes hz-thinking-beam-lap{
+    from{stroke-dashoffset:var(--hz-ray-phase)}
+    to{stroke-dashoffset:calc(var(--hz-ray-phase) - 1000)}
+  }
+  /* While thinking, leave only the quiet static baseline and the single beam. */
   html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after{opacity:0}
   html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body:has(>.hz-frame)>.edge-beam{display:none}
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
@@ -371,16 +373,15 @@
     html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking{
       inset:6px;border-radius:12px;
     }
-    @supports (offset-path:inset(0 round 12px)){
-      html[data-theme] body>.hz-frame>.hz-frame-thinking::after{offset-path:inset(0 round 12px) border-box}
-    }
+    .hz-thinking-beam rect{rx:12px;ry:12px}
   }
   @media(prefers-reduced-motion:reduce){
-    html[data-theme] body>.hz-frame>i::after,html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
+    html[data-theme] body>.hz-frame>i::after,html[data-theme] #composer>.hz-composer-pulse,html[data-theme] .hz-thinking-beam rect{animation:none!important}
     html[data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
   }
   html[data-reduced-motion="true"][data-theme] body>.hz-frame>i::after,
-  html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse{animation:none!important}
+  html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse,
+  html[data-reduced-motion="true"][data-theme] .hz-thinking-beam rect{animation:none!important}
   html[data-reduced-motion="true"][data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
 }
 @media(forced-colors:active){
