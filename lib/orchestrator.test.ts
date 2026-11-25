@@ -232,3 +232,17 @@ it('blocks restored mutation history even if an approval is supplied',async()=>{
  await expect(o.resume({ownerId:'u',runId:state.runId,tools,approveStepIds:['a'],executeTool:async()=>{throw Error('must not execute');}})).rejects.toMatchObject({code:'RESTORED_MUTATION_HISTORY_ONLY'});
  db.close();
 });
+
+it('accepts a detached public read task before completion, denies other tools and keeps cancellation owner-scoped',async()=>{
+ const db=openHafizeDb(':memory:');const o=createOrchestrator({db,models:fakeModels()});
+ let release!:()=>void;let entered!:()=>void;
+ const pending=new Promise<void>(r=>{release=r;});const started=new Promise<void>(r=>{entered=r;});
+ const args={ownerId:'u',traceId:'detached',goal:'read',tools,initialPlan:[{id:'a',tool:'web_search'}],executeTool:async()=>{entered();await pending;return {ok:true,value:'evidence'};}};
+ await expect(o.startDetached({...args,initialPlan:[{id:'a',tool:'shell_run'}]})).rejects.toThrow('PLAN_UNKNOWN_TOOL');
+ const accepted=await o.startDetached(args);await started;
+ expect(accepted).toMatchObject({accepted:true,detachedReadOnly:true});
+ expect(o.list('u')[0]).toMatchObject({id:accepted.runId,activeInProcess:true,detachedReadOnly:true});
+ expect(()=>o.cancel(accepted.runId,'other')).toThrow('RUN_NOT_FOUND');
+ expect(o.cancel(accepted.runId,'u')).toBe(true);release();await o.stopDetached();
+ expect(o.get(accepted.runId,'u').status).toBe('aborted');db.close();
+});
