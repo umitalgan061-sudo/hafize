@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { createGitHubAgentDevelopment } from './github-agent-development.ts';
 import { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
 
@@ -13,6 +14,8 @@ function fixture() {
     issueApproval: vi.fn(() => ({ ticket: 'single-use-ticket' })),
     createBranch: vi.fn(async () => ({ action: 'branch', branch: BRANCH })),
     commitFile: vi.fn(async () => ({ action: 'file', branch: BRANCH })),
+    prepareFilePatch: vi.fn(async (input: Record<string,unknown>) => ({...input, content:'complete preserved content'})),
+    verifyFileCommit: vi.fn(async (_input: unknown, result: object) => ({...result,verified:true})),
     createPullRequest: vi.fn(async () => ({ action: 'pull', draft: true }))
   };
   const tool = createGitHubAgentDevelopment({
@@ -176,10 +179,25 @@ it('generates a fresh safe branch only for branch creation; no implicit write ta
  await expect(tool.execute({operation:'file',repository:REPOSITORY,path:'public/x.js',content:'ok',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
 });
 
+it('routes patch through the trusted writer and verifies the commit', async()=>{
+ const {tool,writer}=fixture();
+ const result=await tool.execute({operation:'file',repository:REPOSITORY,branch:BRANCH,path:'app.js',existingSha:'a'.repeat(40),find:'old block',replace:'new block',message:'edit'},{safeAutonomy:true});
+ expect(writer.prepareFilePatch).toHaveBeenCalledWith(expect.objectContaining({find:'old block',replace:'new block',existingSha:'a'.repeat(40)}));
+ expect(writer.commitFile).toHaveBeenCalledWith('single-use-ticket',expect.objectContaining({content:'complete preserved content'}));
+ expect(writer.verifyFileCommit).toHaveBeenCalled();
+ expect(result.verified).toBe(true);
+ await expect(tool.execute({operation:'file',repository:REPOSITORY,branch:BRANCH,path:'app.js',find:'old',replace:'new',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+});
+
 it('creates a new file through the real writer without an existing blob SHA',async()=>{
  const writes:Record<string,unknown>[]=[];
  const writer=createGitHubWorkspaceWriter({token:'test-token',allowedRepositories:[REPOSITORY],fetchImpl:async(url,init)=>{
   if(init?.method==='PUT'){writes.push(JSON.parse(String(init.body)));return new Response(JSON.stringify({content:{sha:'b'.repeat(40)},commit:{sha:'c'.repeat(40)}}));}
+  if(String(url).includes('/contents/')){
+   const bytes=Buffer.from('export const value = 1;\n','utf8');
+   const sha=createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
+   return new Response(JSON.stringify({type:'file',sha,size:bytes.length}));
+  }
   return new Response(JSON.stringify({default_branch:'main',ref:'refs/heads/'+BRANCH,object:{sha:'a'.repeat(40)}}));
  }});
  const tool=createGitHubAgentDevelopment({writer,allowedRepositories:[REPOSITORY]});

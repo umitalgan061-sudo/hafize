@@ -15,6 +15,11 @@ describe('model response contract',()=>{
   it('rejects oversized tool calls',()=>{
     expect(()=>normalizeModelResponse({toolCalls:[{id:'c1',name:'x',arguments:'x'.repeat(16_385)}]})).toThrow('INVALID_MODEL_TOOL_CALL');
   });
+  it('shares the bounded GitHub editor argument limit with the tool runtime',()=>{
+    const args=JSON.stringify({operation:'file',content:'x'.repeat(106075)});
+    expect(normalizeModelResponse({toolCalls:[{id:'c1',name:'github_develop',arguments:args}]}).toolCalls[0]?.arguments).toBe(args);
+    expect(()=>normalizeModelResponse({toolCalls:[{id:'c1',name:'github_develop',arguments:'x'.repeat(131073)}]})).toThrow('INVALID_MODEL_TOOL_CALL');
+  });
   it('rejects non assistant messages',()=>{
     expect(()=>normalizeNvidiaChatCompletion({choices:[{message:{role:'user',content:'x'}}]})).toThrow('INVALID_MODEL_RESPONSE');
   });
