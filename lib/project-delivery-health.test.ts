@@ -11,11 +11,12 @@ describe('project delivery verification',()=>{
  it('checks all 4 Borsa origins, health and anonymous denial independently',async()=>{
   const f=vi.fn(async(u:URL|string,opts?:RequestInit)=>{
    if(opts?.method==='OPTIONS'){const origin=new Headers(opts.headers).get('origin')!;return new Response(null,{status:204,headers:{'access-control-allow-origin':origin.includes('-ua.firebaseapp.com')?'https://wrong.example':origin}});}
+   if(String(u).includes('/release.json'))return Response.json({project:'borsa',commit:SHA});
    if(String(u).endsWith('/health'))return Response.json({ok:false,funds:0});
    if(String(u).includes('/quotes?'))return new Response('',{status:401});
    return new Response('<html/>',{headers:{'content-type':'text/html'}});
   }) as unknown as typeof fetch;
-  await expect(createProjectDeliveryHealth(f)({project:'borsa'})).resolves.toMatchObject({worker:{marketHealth:false,corsAllPassed:false,anonymousRejected:true,cors:expect.arrayContaining([expect.objectContaining({origin:'https://borsa-gunlugu-ua.firebaseapp.com',passed:false})])},authenticatedFunctionalTest:false});
+  await expect(createProjectDeliveryHealth(f)({project:'borsa',sha:SHA})).resolves.toMatchObject({releases:[{actualSha:SHA,match:true},{actualSha:SHA,match:true}],worker:{marketHealth:false,corsAllPassed:false,anonymousRejected:true,cors:expect.arrayContaining([expect.objectContaining({origin:'https://borsa-gunlugu-ua.firebaseapp.com',passed:false})])},authenticatedFunctionalTest:false});
  });
  it('rejects arbitrary destinations and never guesses missing hosting',async()=>{
   const f=vi.fn() as unknown as typeof fetch;const run=createProjectDeliveryHealth(f);

@@ -17,6 +17,11 @@ on:
       - 'config/hafize-cloud-backend-live.json'
       - '.github/workflows/firebase-hosting-live.yml'
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact current main commit (optional for manual runs)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -27,6 +32,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -35,6 +41,11 @@ jobs:
     steps:
       - name: Check out the exact release commit
         uses: actions/checkout@v4
+
+      - name: Verify requested release SHA
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: if [ -n "$EXPECTED_SHA" ]; then test "$EXPECTED_SHA" = "$GITHUB_SHA"; fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -70,6 +81,9 @@ jobs:
             echo '::error::FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA is not configured; no live deploy was attempted.'
             exit 1
           fi
+
+      - name: Verify main did not move
+        run: test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
 
       - name: Deploy only Firebase Hosting to live
         uses: FirebaseExtended/action-hosting-deploy@v0
