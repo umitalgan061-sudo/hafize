@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createGitHubAgentRelease, releaseAuthorizationForRequest } from './lib/github-agent-release.ts';
+import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitMergeCommand } from './lib/github-agent-release.ts';
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
@@ -73,7 +73,7 @@ import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, type GitHubReceipt } from './lib/github-run-evidence.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
@@ -1182,9 +1182,19 @@ async function handleAgentRun(req, res) {
     finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
     return;
   }
+  const explicitMerge=parseExplicitMergeCommand(lastUserText);
+  if(explicitMerge){
+    githubEvidenceMode=true;
+    const authorization=toolContext.githubReleaseAuthorization;
+    if(!durableId||!authorization?.actions.includes('merge')||!authorization.repositories.includes(explicitMerge.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
+      githubReceipts.push(...githubReceipt('github_release',{ok:false,error:'RELEASE_NOT_AUTHORIZED_OR_AVAILABLE'}));
+      finishWithAnswer('',false,true);return;
+    }
+  }
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
   let noProgressRounds=0;
+  let readOnlyWriteRecoveryUsed=false;
   interruptionStage='execution';
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
@@ -1216,7 +1226,9 @@ async function handleAgentRun(req, res) {
 
     let completion;
     try {
-      completion = await runRound(roundPayload);
+      completion = explicitMerge
+        ? {toolCalls:[{id:'explicit-user-merge',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
+        : await runRound(roundPayload);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }
       MODEL_ROUTER.penalizeModel(error.routedModel);
@@ -1247,6 +1259,17 @@ async function handleAgentRun(req, res) {
       }));
 
     if (!normalizedCalls.length) {
+      // A model can finish with prose after reading source even when the owner
+      // explicitly requested a commit. One extra model round, never an automatic
+      // mutation or a forced tool, is allowed only before any write was attempted.
+      if(!readOnlyWriteRecoveryUsed && round+1<MAX_AGENT_TOOL_ROUNDS && durableId &&
+        !requestAbort.signal.aborted && !PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length &&
+        tools.some(t=>t.function.name==='github_develop') &&
+        shouldRecoverReadOnlyWrite(lastUserText,githubReceipts,toolSummary)){
+        readOnlyWriteRecoveryUsed=true;
+        workingMessages.push({role:'system',content:'Kullanıcının son mesajı mevcut izinli geliştirme dalında gerçek dosya düzenleme ve commit istiyor. Şu ana kadar yalnız okuma kanıtı var; yazma yapılmadı. İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Yeni dal, PR, merge veya yayın kendiliğinden başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
+        continue;
+      }
       // "I will start changing the code" without an actual change or result
       // is not a completed development task. Give the model one last chance
       // to supply an honest outcome rather than marking the run successful.
@@ -1363,6 +1386,7 @@ async function handleAgentRun(req, res) {
     if(noProgressRounds===2 || noProgressRounds===4){
       workingMessages.push({role:'system',content:buildProgressRepairInstruction(toolSummary.slice(-12),noProgressRounds)});
     }
+    if(explicitMerge){finishWithAnswer('',false,!results.every(result=>result.ok));return;}
     if(noProgressRounds>=6){incompleteReason='no_progress';break;}
   }
 

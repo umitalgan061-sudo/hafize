@@ -105,16 +105,7 @@ html[data-theme] .toast:not(.hidden),html .toast:not(.hidden){background:color-m
 .unanswered-btn:hover{background:color-mix(in srgb,var(--hz-orange) 20%,transparent)}
 @media (prefers-reduced-motion:reduce){.message.is-new,.message.assistant.is-waiting .content::before{animation:none}.message.assistant.is-streaming .content :is(p,h1,h2,h3,h4,blockquote,li)::after{animation:none}}
 
-/* The light around the screen. */
-@property --hz-frame-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
-.hz-frame{position:fixed;inset:0;z-index:2147483000;pointer-events:none;opacity:0;transition:opacity .6s ease}
-.hz-frame>i{position:absolute;inset:0;padding:3px;border-radius:inherit;background:conic-gradient(from var(--hz-frame-angle),transparent 0deg,transparent 200deg,color-mix(in srgb,var(--hz-orange) 40%,transparent) 250deg,var(--hz-orange) 300deg,#ffd2b8 325deg,var(--hz-orange) 340deg,transparent 360deg);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);animation:hz-frame-run 3.4s linear infinite}
-.hz-frame>i+i{padding:6px;filter:blur(9px);opacity:.55}
-html.hafize-working .hz-frame,html.hafize-flash .hz-frame{opacity:1}
-html.hafize-flash .hz-frame>i{animation-duration:1.6s}
-@keyframes hz-frame-run{to{--hz-frame-angle:360deg}}
-@media (display-mode:standalone) and (pointer:coarse){.hz-frame{border-radius:46px}}
-@media (prefers-reduced-motion:reduce){.hz-frame>i{animation:none;background:color-mix(in srgb,var(--hz-orange) 55%,transparent)}.hz-frame>i+i{display:none}}
+/* Viewport lighting is owned by design-system.css; avoid competing injected styles. */
 
 /* The question window. */
 .hz-ask{width:min(440px,calc(100vw - 28px));max-height:calc(100dvh - 40px);margin:auto;padding:0;border:1px solid color-mix(in srgb,var(--hz-orange) 30%,var(--line,#ddd));border-radius:20px;background:var(--panel,var(--card,#fff));color:var(--text,inherit);box-shadow:0 24px 70px rgb(0 0 0/.32),inset 0 1px 0 rgb(255 255 255/.05);font:15px/1.5 "Segoe UI",system-ui,sans-serif;overflow:auto}
@@ -150,11 +141,17 @@ function install(): void {
   style.id = STYLE_ID;
   style.textContent = CSS;
   document.head.append(style);
-  const frame = document.createElement('div');
-  frame.className = 'hz-frame';
-  frame.setAttribute('aria-hidden', 'true');
-  frame.append(document.createElement('i'), document.createElement('i'));
-  (document.body ?? document.documentElement).append(frame);
+  if (!document.querySelector('.hz-frame')) {
+    const frame = document.createElement('div');
+    frame.className = 'hz-frame';
+    frame.setAttribute('aria-hidden', 'true');
+    for (const name of ['hz-frame-idle', 'hz-frame-idle-glow', 'hz-frame-thinking', 'hz-frame-thinking-glow']) {
+      const layer = document.createElement('i');
+      layer.className = name;
+      frame.append(layer);
+    }
+    (document.body ?? document.documentElement).append(frame);
+  }
 }
 
 /** How far the chat list stands from the screen's edges, measured, so on a phone it can reach them (see the CSS). */

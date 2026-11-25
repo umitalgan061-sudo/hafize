@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest} from './github-agent-release.ts';
+import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest,parseExplicitMergeCommand} from './github-agent-release.ts';
 import type {createGitHubWorkspaceWriter} from './github-workspace-write.ts';
 const repo='umitalgan061-sudo/hafize-siteler',sha='a'.repeat(40),base='b'.repeat(40);
 function fixture(opts:{failed?:boolean;path?:string;draft?:boolean;mainFailed?:boolean;incomplete?:boolean}={}){
@@ -90,4 +90,35 @@ it('restores only allowed modified files to a separate branch, never merges or d
  await expect(release.execute(args,{ownerAuthorized:true,authorization})).resolves.toMatchObject({restoresParent:parent,merged:false,published:false,pull:{number:9}});
  expect(createBranch).toHaveBeenCalledTimes(1);expect(commitFile).toHaveBeenCalledTimes(1);expect(createPullRequest).toHaveBeenCalledTimes(1);
  expect(normalizeInput).toHaveBeenCalledWith('file',expect.objectContaining({path,content:'old content',existingSha:blob}));
+});
+
+it('authorizes only PR creation when a merge or publication is explicitly prohibited',()=>{
+ const hafize='umitalgan061-sudo/hafize';
+ expect(releaseAuthorizationForRequest(hafize+' incelemeye hazır gerçek PR oluştur. Şimdilik birleştirme veya canlı yayın yapma.',true)).toEqual({repositories:[hafize],actions:['open']});
+ expect(releaseAuthorizationForRequest(hafize+' PR aç. Merge etme.',true)?.actions).toEqual(['open']);
+ expect(releaseAuthorizationForRequest(hafize+' PR oluştur. Yeni PR açma.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(hafize+' PR açma veya birleştirme yapma.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(hafize+' PR oluştur, sadece incele.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(hafize+' PR oluştur',false)).toBeUndefined();
+ expect(releaseAuthorizationForRequest('Hafize-ua.web.app PR oluştur',true)).toBeUndefined();
+});
+
+it('distinguishes affirmative merge instructions from a separate prohibition',()=>{
+ const r='umitalgan061-sudo/hafize';
+ const message=r+' deposundaki PR #1051\'i merge et. Gerekli güncel kontrolleri yaparak birleştirme işlemini gerçekleştir.';
+ expect(releaseAuthorizationForRequest(message,true)?.actions).toEqual(['open','merge']);
+ expect(releaseAuthorizationForRequest(message+' Birleştirme yapma.',true)).toBeUndefined();
+ expect(releaseAuthorizationForRequest(message,false)).toBeUndefined();
+});
+it('parses only a single exact user-authored structured merge command',()=>{
+ const r='umitalgan061-sudo/hafize';
+ const args={action:'merge',repository:r,number:1051,sha};
+ const command='github_release aracını şu parametrelerle çalıştır:\n\n';
+ expect(parseExplicitMergeCommand(r+' PR #1051 merge et.\n'+command+JSON.stringify(args))).toEqual(args);
+ expect(parseExplicitMergeCommand(JSON.stringify(args))).toBeNull();
+ expect(parseExplicitMergeCommand(command+JSON.stringify({...args,extra:true}))).toBeNull();
+ expect(parseExplicitMergeCommand(command+JSON.stringify({...args,sha:'main'}))).toBeNull();
+ expect(parseExplicitMergeCommand(command+JSON.stringify({...args,repository:'other/repo'}))).toBeNull();
+ expect(parseExplicitMergeCommand(command+JSON.stringify({...args,action:'publish'}))).toBeNull();
+ expect(parseExplicitMergeCommand(command+JSON.stringify(args)+'\n'+command+JSON.stringify(args))).toBeNull();
 });

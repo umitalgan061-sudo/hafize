@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence } from './github-run-evidence.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite } from './github-run-evidence.ts';
 const repository='umitalgan061-sudo/retake', commit='a'.repeat(40), blob='b'.repeat(40);
 describe('GitHub run evidence',()=>{
  it('rejects imagined operations in arbitrary prose and failed tool results',()=>{
@@ -42,4 +42,16 @@ describe('GitHub run evidence',()=>{
   expect(githubWorkRequested('GitHub nedir?')).toBe(false);
   expect(githubWorkRequested('Bugün hava nasıl?')).toBe(false);
  });
+});
+
+it('recovers an explicit file edit once after read-only progress but never retries an attempted mutation',()=>{
+ const request='GitHub hafize/auto-example dalında public/typed/example.ts dosyasını düzenle, commit et ve doğrula. Yeni dal veya PR oluşturma.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/typed/example.ts',sha:blob}});
+ expect(shouldRecoverReadOnlyWrite(request,read,[{name:'github_read_file',ok:true}])).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request+' Commit etme.',read,[])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite('GitHub hafize/auto-example dalında dosyayı sadece oku.',read,[])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,[],[])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,read,[{name:'github_develop',ok:false}])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,read,[{name:'github_release',ok:true}])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request.replace('hafize/auto-example','main'),read,[])).toBe(false);
 });

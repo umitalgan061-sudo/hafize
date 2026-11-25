@@ -19,6 +19,20 @@ export function githubWorkRequested(request:unknown,previous:readonly unknown[]=
  /\b(?:gelistir|duzelt|guncelle|uygula|olustur|entegre et|kodla|kod degisikligi|degistir|yayinla|canliya al|birlestir|merge|deploy|commit|tamamla|devam et|fix|implement|update|patch|write|create)\w*/.test(text);
 }
 export type GitHubReceipt={readonly tool:string;readonly line:string;readonly kind:'read'|'branch'|'file'|'pull'|'merge'|'dispatch'|'checks'|'error'};
+/** Only an explicit file edit + commit on a named feature branch, with a
+ * successful source read and no attempted mutation, qualifies for one retry.
+ * This is a model reminder, not authorization or an automatic write. */
+export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean}[]):boolean{
+ const s=normal(request);
+ if(!/\bhafize\/auto-[a-z0-9][a-z0-9._-]{0,100}\b/.test(s)||!githubWorkRequested(request))return false;
+ if(!/\b(?:dosya\w*|file|[a-z0-9_-]+\.(?:ts|js|css|html|md))\b/.test(s)||
+    !/\b(?:duzenle|guncelle|degistir|duzelt|edit|update|patch)\b/.test(s)||
+    !/\b(?:commit et|commit yap|commit olustur|commit the change)\b/.test(s))return false;
+ if(/\b(?:commit etme|commit yapma|commit olusturma|dosya\w* (?:degistirme|duzenleme|guncelleme)|sadece oku|yalnizca oku|sadece incele|salt okunur|read only|do not commit)\b/.test(s))return false;
+ return receipts.some(r=>r.tool==='github_read_file'&&r.kind==='read')&&
+   !receipts.some(r=>r.kind==='error'||['file','pull','merge','dispatch'].includes(r.kind))&&
+   !calls.some(c=>c.name==='github_develop'||c.name==='github_release');
+}
 export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  if(!['github_read_file','github_inspect','github_develop','github_release'].includes(tool))return [];
  const outer=rec(result),v=rec(outer.value);
