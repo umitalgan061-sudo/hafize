@@ -610,3 +610,131 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
   html[data-hafize-keyboard="open"] .main > .topbar { padding-top: env(safe-area-inset-top); }
   html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer textarea#messageInput { max-height: 96px; }
 }
+
+/* Shared floating-surface theme. Keep individual layout, stacking, visibility and
+   voice-stage controls intact; only unify colours and constrain overflowing popups.
+   Native forced-colors overrides in feature stylesheets must remain authoritative. */
+@media (forced-colors: none) {
+  html[data-theme] {
+    --overlay-surface: var(--premium-surface-strong, var(--card));
+    --overlay-text: var(--premium-text, var(--ink));
+    --overlay-border: var(--line);
+    --overlay-shadow: var(--premium-shadow, var(--shadow));
+    --overlay-hover: var(--hover);
+    --overlay-danger-text: #991b1b;
+    --overlay-warning-text: #78350f;
+    --overlay-danger-fill: color-mix(in srgb, #dc2626 9%, var(--overlay-surface));
+    --overlay-warning-fill: color-mix(in srgb, #d97706 12%, var(--overlay-surface));
+  }
+  html[data-theme="dark"] {
+    --overlay-danger-text: #ffaaa5;
+    --overlay-warning-text: #fbd38d;
+    --overlay-danger-fill: color-mix(in srgb, #ef4444 16%, var(--overlay-surface));
+    --overlay-warning-fill: color-mix(in srgb, #f59e0b 16%, var(--overlay-surface));
+  }
+
+  /* An opaque surface keeps text legible over chat messages and the composer. */
+  html[data-theme] :is(.modal, .dialog, .alert-dialog, .confirm-dialog,
+    .approval-dialog, .hz-ask, .response-variant-panel,
+    .response-regeneration-options-panel, .conversation-fork-dialog,
+    .prompt-import-preview-panel, .prompt-command-palette, .scheduled-tasks-shell,
+    .scheduled-task-preview-shell, .scheduled-task-detail-shell,
+    .model-preferences-panel, .composer-history-panel, .runtime-details,
+    .live-screen-sheet, [popover]:not(.voice-mode *), [role="menu"]:not(.voice-mode *)) {
+    background-color: var(--overlay-surface);
+    color: var(--overlay-text);
+    border-color: var(--overlay-border);
+    box-shadow: var(--overlay-shadow);
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent) transparent;
+    overscroll-behavior: contain;
+    overflow-wrap: anywhere;
+  }
+
+  /* Backdrops follow the chosen theme, not a hard-coded black overlay. */
+  html[data-theme] :is(.modal-overlay, .dialog-overlay, .approval-backdrop,
+    .conversation-fork-overlay, .prompt-library-import-dialog,
+    .scheduled-tasks-overlay, .scheduled-task-preview-overlay,
+    .scheduled-task-detail-overlay, .response-variant-dialog,
+    .response-regeneration-options) {
+    background: var(--scrim);
+  }
+  html[data-theme] :is(.hz-ask, .live-screen-sheet)::backdrop {
+    background: var(--scrim);
+  }
+
+  /* These panels lacked a scrolling limit; retain their existing anchor and width. */
+  html[data-theme] :is(.conversation-fork-dialog, .live-screen-sheet) {
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+  }
+  html[data-theme] .runtime-details {
+    max-height: min(65dvh, 520px);
+    overflow: auto;
+  }
+  html[data-theme] .composer-history-panel {
+    max-height: min(62dvh, 480px);
+    overflow: auto;
+  }
+  html[data-theme] :is(.model-preferences-panel, .prompt-command-palette) {
+    max-height: min(70dvh, 620px);
+  }
+  html[data-theme] :is(.scheduled-tasks-list, .prompt-library-list,
+    .prompt-command-palette-list, .composer-history-list, .conversation-fork-list,
+    .conversation-fork-compare-list, .response-variant-preview,
+    .github-workspace-result, .message-workspace-results, .hz-ask-text,
+    .model-status-list, .approval-detail) {
+    min-height: 0;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--accent) 55%, transparent) transparent;
+  }
+
+  /* Native option lists also respect the active theme (where the OS permits). */
+  html[data-theme] select:not(.voice-mode select) :is(option, optgroup) {
+    background-color: var(--overlay-surface);
+    color: var(--overlay-text);
+  }
+  html[data-theme] :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]):not(.voice-mode *) {
+    color: var(--overlay-text);
+  }
+  html[data-theme] :is([role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]):not(.voice-mode *):not(:disabled):not([aria-disabled="true"]):is(:hover, :focus-visible, [aria-checked="true"]) {
+    background-color: var(--overlay-hover);
+  }
+
+  /* The drag-and-drop popup and history hover used light-only backgrounds. */
+  html[data-theme] .composer.drag-active::before {
+    background: var(--overlay-surface);
+    color: var(--accent-strong);
+  }
+  html[data-theme] .history-export-btn:hover {
+    background: var(--overlay-hover);
+    color: var(--overlay-text);
+  }
+
+  /* Keep warning/destructive controls recognisable without pastel white cards. */
+  html[data-theme] :is(.modal-actions, .dialog-actions, .alert-actions) button.danger,
+  html[data-theme] .approval-dialog.risk-high :is(.risk-badge, .approval-risk) {
+    background: var(--overlay-danger-fill);
+    color: var(--overlay-danger-text);
+    border-color: color-mix(in srgb, var(--overlay-danger-text) 35%, var(--line));
+  }
+  html[data-theme] :is(.modal-actions, .dialog-actions, .alert-actions) button.danger:hover {
+    background: color-mix(in srgb, var(--overlay-danger-text) 18%, var(--overlay-surface));
+  }
+  html[data-theme] .approval-dialog.risk-medium .risk-badge,
+  html[data-theme] .approval-dialog:not(.risk-high) .approval-risk {
+    background: var(--overlay-warning-fill);
+    color: var(--overlay-warning-text);
+  }
+  html[data-theme] .approval-actions .approval-never,
+  html[data-theme] .runtime-status[data-tone="error"] { color: var(--overlay-danger-text); }
+  html[data-theme] .runtime-status[data-tone="warning"] { color: var(--overlay-warning-text); }
+
+  @media (max-width: 700px) {
+    html[data-theme] :is(.model-preferences-panel, .prompt-command-palette,
+      .composer-history-panel, .runtime-details) {
+      max-height: min(60dvh, 520px);
+    }
+  }
+}
