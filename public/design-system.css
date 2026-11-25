@@ -298,7 +298,7 @@
   #composer .composer-tools .icon-btn,#composer .model-wrap select{border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
   #composer .composer-tools .icon-btn:is(:hover,[aria-pressed="true"]){border-color:var(--premium-orange);color:var(--premium-orange-strong)}
   #composer .send-btn,.voice-mode .vm-send{
-    background:linear-gradient(145deg,#c95829,#a93e17);color:#fff;border-color:#b84b23;box-shadow:var(--hz-glow);
+    background:linear-gradient(145deg,#b84b23,#a93e17);color:#fff;border-color:#b84b23;box-shadow:var(--hz-glow);
   }
   #composer .send-btn:not(:disabled):hover{background:linear-gradient(145deg,#b84b23,#963810)}
   #messages .message.user:not(.is-background-output){border-color:var(--hz-orange-border)}
