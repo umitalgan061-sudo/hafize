@@ -182,6 +182,7 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
     const count = images.length;
     const prompt = judgePrompt(count);
     const jobs = judgeModels.flatMap((model) => judgeOrders(count).map((order) => ({model, order})));
+    const juryStarted = Date.now();
     const diagnostics: Array<{model: string; order: 'forward' | 'reverse'; outcome: string; elapsedMs: number}> = [];
     const runVote = async ({model, order}: (typeof jobs)[number]) => {
       const started = Date.now();
@@ -256,7 +257,7 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
       attempted: jobs.length,
       attemptedModels: [...judgeModels],
       diagnostics,
-      elapsedMs: diagnostics.reduce((max, row) => Math.max(max, row.elapsedMs), 0),
+      elapsedMs: Date.now() - juryStarted,
       models: [...answeringModels].sort(),
       imagesStored: false,
       toolsExecuted: false
