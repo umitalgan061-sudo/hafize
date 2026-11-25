@@ -28,4 +28,26 @@ describe('NVIDIA agent workspace',()=>{
   await expect(w.execute({action:'probe',model:'nvidia/example'})).resolves.toMatchObject({model:'nvidia/example',status:'rate_limited'});
   expect(fetch).toHaveBeenCalledTimes(1);
  });
+ it.each([
+  ['Hafize, NVIDIA modellerini test et, incele, doğrula ve geliştir.',true,'authorized'],
+  ['NVIDIA audit_window işlemini yeniden çalıştır.',true,'authorized'],
+  ['Kaldığın yerden devam et.',false,'provider_not_mentioned'],
+  ['NVIDIA modellerini listele.',false,'test_not_requested'],
+  ['NVIDIA modellerini test etme.',false,'explicit_negative_instruction']
+ ] as const)('reports current request test authorization without leaking the request: %s',async(ownerRequest,authorized,reason)=>{
+  const fetch=vi.fn(async()=>new Response('',{status:429}));
+  const lab=createModelLab({allowed:['nvidia/example'],request:fetch});
+  const w=createNvidiaAgentWorkspace({lab,ownerRequest,nimStatus:()=>({})});
+  const status=await w.execute({action:'status'});
+  expect(status).toMatchObject({testAuthorization:{authorized,reason,source:'current_owner_message',scope:'synthetic_diagnostics_only'}});
+  expect(JSON.stringify(status)).not.toContain(ownerRequest);
+  expect(fetch).not.toHaveBeenCalled();
+  if(authorized){
+   await expect(w.execute({action:'probe',model:'nvidia/example'})).resolves.toMatchObject({status:'rate_limited'});
+   expect(fetch).toHaveBeenCalledTimes(1);
+  }else{
+   await expect(w.execute({action:'probe',model:'nvidia/example'})).rejects.toMatchObject({code:'NVIDIA_WORKSPACE_TEST_NOT_AUTHORIZED',status:403});
+   expect(fetch).not.toHaveBeenCalled();
+  }
+ });
 });
