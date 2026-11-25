@@ -1,3 +1,4 @@
+import { argumentLimit } from './tool-call-boundary.ts';
 const MAX_CONTENT_LENGTH = 64_000;
 const MAX_TOOL_CALLS = 16;
 const MAX_TOOL_ARGUMENT_LENGTH = 16_384;
@@ -78,7 +79,7 @@ function toolCalls(value: unknown): readonly ModelToolCall[] {
     const name = text(fn.name, 120, 'INVALID_MODEL_TOOL_CALL_NAME');
     if (!name) throw new Error('INVALID_MODEL_TOOL_CALL_NAME');
     const args = fn.arguments;
-    if (typeof args !== 'string' || args.length > MAX_TOOL_ARGUMENT_LENGTH) {
+    if (typeof args !== 'string' || args.length > argumentLimit(name)) {
       throw new Error('INVALID_MODEL_TOOL_CALL');
     }
     return Object.freeze({ id, name, arguments: args });
