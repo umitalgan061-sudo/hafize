@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './github-workspace-write.ts';
 
 /**
@@ -70,7 +70,9 @@ export function createGitHubAgentDevelopment(options: Options) {
     if (!allowed.has(repository.toLowerCase())) {
       throw new GitHubWorkspaceWriteError('GITHUB_REPO_NOT_ALLOWED', 403);
     }
-    const branch = featureBranch(args.branch);
+    // Missing branch on creation means a new safe branch, never an existing ref.
+    // All subsequent edits and PRs still require an explicit valid branch.
+    const branch = operation==='branch'&&args.branch===undefined?'hafize/auto-'+randomUUID().replace(/-/g,''):featureBranch(args.branch);
     // No model tool argument can request autonomous write access. The
     // authenticated server alone decides whether its owner opted into
     // preapproved, bounded draft-PR development actions.
