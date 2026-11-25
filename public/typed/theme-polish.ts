@@ -159,11 +159,19 @@ function install(): void {
     beam.setAttribute('class', 'hz-thinking-beam');
     beam.setAttribute('aria-hidden', 'true');
     beam.setAttribute('focusable', 'false');
-    for (const name of ['halo', 'tail', 'middle', 'bright', 'core']) {
-      const ray = document.createElementNS(ns, 'rect');
-      ray.setAttribute('class', 'hz-ray-' + name);
-      for (const [key, value] of Object.entries({x:'0',y:'0',width:'100%',height:'100%',rx:'6',ry:'6',pathLength:'1000'})) ray.setAttribute(key,value);
-      beam.append(ray);
+    for (const [mode, duration] of [['idle','13s'], ['active','5s']]) {
+      const group = document.createElementNS(ns, 'g');
+      group.setAttribute('class', 'hz-beam-'+mode);
+      for (const [name, length, phase] of [['halo',64,32],['tail',60,30],['middle',44,22],['bright',28,14],['core',12,6]] as const) {
+        const ray = document.createElementNS(ns, 'rect');
+        ray.setAttribute('class', 'hz-ray-' + name);
+        for (const [key,value] of Object.entries({x:'0',y:'0',width:'100%',height:'100%',rx:'6',ry:'6',pathLength:'1000','stroke-dasharray':length+' '+(1000-length),'stroke-dashoffset':String(phase)})) ray.setAttribute(key,value);
+        const animation = document.createElementNS(ns, 'animate');
+        for (const [key,value] of Object.entries({attributeName:'stroke-dashoffset',from:String(phase),to:String(phase-1000),dur:duration,repeatCount:'indefinite'})) animation.setAttribute(key,value);
+        ray.append(animation);
+        group.append(ray);
+      }
+      beam.append(group);
     }
     thinking.append(beam);
   }
