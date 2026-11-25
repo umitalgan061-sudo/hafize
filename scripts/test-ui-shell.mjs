@@ -48,3 +48,18 @@ assert.equal(advanced.advancedCardMatches('chat','istem','chat','İstem Kütüph
 assert.equal(advanced.advancedCardMatches('all','olmayan','daily','Takvim'),false);
 assert.equal(advanced.advancedCardMatches('all','','other','Yeni araç'),true);
 console.log('Advanced workspace OK: Turkish search, card categorization and category/query filtering');
+
+/* The rail is a narrow container even on a wide desktop. Keep layout contracts
+   synchronized and the red switch available before advanced mode is selected. */
+const { readFileSync } = await import('node:fs');
+const advancedStyles = readFileSync(new URL('../public/advanced-workspace.css', import.meta.url), 'utf8');
+const advancedSource = readFileSync(new URL('../public/typed/advanced-workspace.ts', import.meta.url), 'utf8');
+assert.match(advancedStyles, /@media\(min-width:1180px\)/);
+assert.match(advancedSource, /matchMedia\('\(min-width: 1180px\)'\)/);
+assert.match(advancedStyles, /container:aw-card \/ inline-size/);
+assert.match(advancedStyles, /@container aw-card \(max-width: 520px\)/);
+assert.match(advancedStyles, /@container aw-card \(max-width: 320px\)/);
+assert.match(advancedStyles, /grid-auto-rows:max-content/);
+assert.match(advancedStyles, /html\[data-theme\] #sidebar #layoutToggle\s*\{[^}]*background:#b4232b;color:#fff/s);
+assert.doesNotMatch(advancedStyles, /\.aw-rail-header\{position:sticky/);
+console.log('Advanced panel fit contract OK: synchronized breakpoints, container queries, red layout switch');

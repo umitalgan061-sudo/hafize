@@ -29,7 +29,7 @@ export function installAdvancedWorkspace(doc:Document, root:Window&typeof global
   const composer=doc.querySelector<HTMLElement>('#composer');
   if(!main||!rail||!top||doc.getElementById('advancedWorkspaceTools'))return ()=>{};
   const html=doc.documentElement;
-  const wide=root.matchMedia('(min-width: 1041px)');
+  const wide=root.matchMedia('(min-width: 1180px)');
   let desktopOpen=true, mobileOpen=false;
   let category:AdvancedCategory='all';
   const button=(label:string,cls:string)=>{const b=doc.createElement('button');b.type='button';b.className=cls;b.textContent=label;return b;};
