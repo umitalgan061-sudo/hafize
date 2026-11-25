@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=thinking-border-20261125-1"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=outer-dual-border-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -126,18 +126,24 @@ console.log('Refined motion contract OK: four edges, top trace, gentle independe
 assert.match(indexHtml, /<span class="hz-composer-pulse" aria-hidden="true"><\/span>/);
 assert.match(designSystem, /#composer>\.hz-composer-pulse\s*\{[^}]*pointer-events:none/s);
 
-assert.match(indexHtml, /<div class="hz-frame" aria-hidden="true"><i><\/i><i><\/i><\/div>/);
+for(const name of ['hz-frame-idle','hz-frame-idle-glow','hz-frame-thinking','hz-frame-thinking-glow']){
+  assert.ok(indexHtml.includes('<i class="'+name+'"></i>'),name);
+}
 assert.match(designSystem, /@property --hz-perimeter-angle/);
 assert.match(designSystem, /mask-composite:exclude/);
 assert.match(designSystem, /body:has\(>\.hz-frame\)>\.edge-beam\{display:none\}/);
-assert.match(designSystem, /html\[data-theme\]\.hafize-working body>\.hz-frame>i,[\s\S]*?padding:3px;animation-duration:3\.8s/);
-assert.match(designSystem, /html\[data-theme\] #composer>\.hz-composer-pulse\{\s*position:absolute;inset:-2px;padding:1\.5px;opacity:\.8;box-shadow:none;\s*animation-duration:8s/);
+assert.match(designSystem, /html\[data-theme\] body>\.hz-frame\{\s*display:block;position:fixed;inset:0;[^}]*pointer-events:none;opacity:1/s);
+assert.match(designSystem, /body>\.hz-frame>\.hz-frame-idle\{\s*box-shadow:inset 0 0 0 1px/);
+assert.match(designSystem, /body>\.hz-frame>:is\(\.hz-frame-thinking,\.hz-frame-thinking-glow\)\{\s*visibility:hidden;opacity:0/);
+assert.match(designSystem, /html\[data-theme\]\.hafize-working body>\.hz-frame>\.hz-frame-thinking\{\s*visibility:visible;opacity:1;\s*box-shadow:inset 0 0 0 2px/);
+assert.match(designSystem, /hz-frame-idle-glow\)::after\{[^}]*animation:hz-perimeter-turn 15s linear infinite/s);
+assert.match(designSystem, /hafize-working body>\.hz-frame>:is\(\.hz-frame-thinking,\.hz-frame-thinking-glow\)::after\{[^}]*animation:hz-perimeter-turn 3\.8s linear infinite/s);
+assert.match(designSystem, /html\[data-theme\] #composer>\.hz-composer-pulse\{\s*position:absolute;inset:-2px;padding:1\.5px;opacity:\.8;box-shadow:none;[^}]*animation:hz-perimeter-turn 8s linear infinite/s);
 const frameSource=readFileSync(new URL('../public/typed/theme-polish.ts',import.meta.url),'utf8');
 assert.match(frameSource,/if \(!document\.querySelector\('\.hz-frame'\)\)/);
+assert.match(frameSource,/const name of \['hz-frame-idle', 'hz-frame-idle-glow', 'hz-frame-thinking', 'hz-frame-thinking-glow'\]/);
+assert.doesNotMatch(frameSource,/\.hz-frame>i\{/);
 const thinkingSource=readFileSync(new URL('../public/typed/chat-scroll.ts',import.meta.url),'utf8');
 assert.match(thinkingSource,/classList\.add\('hafize-working'\)/);
 assert.match(thinkingSource,/classList\.remove\('hafize-working'\)/);
-console.log('Continuous perimeter contract OK: idle/working states, composer ring, fallback and single frame');
-
-assert.match(designSystem,/html\[data-theme\]\.hafize-working body>\.hz-frame\{\s*display:block;position:fixed;inset:0;[^}]*border-radius:0;[^}]*pointer-events:none;opacity:1;\s*box-shadow:inset 0 0 0 2px #d9774f/s);
-console.log('Thinking outer viewport outline contract OK');
+console.log('Dual outer frame contract OK: permanent subtle outline, independent thinking highlight, composer and accessible fallback');
