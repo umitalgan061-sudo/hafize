@@ -905,7 +905,6 @@ async function handleAgentRun(req, res) {
   let interruptionDiagnostic = '';
   try {
   const emitEvent = streamResponse ? (type, payload) => { startSse(res); writeSseEvent(res, type, payload); } : null;
-  if(durableId&&emitEvent)emitEvent('hafize-agent-checkpoint',{id:durableId,status:'running'});
   const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
   const agentSpan = PLATFORM.telemetry.startSpan('agent.run', { traceId, attributes: { 'agent.id': agent.id, model, streaming: Boolean(streamResponse) } });
   const nvidiaWorkspace=ownerId?createNvidiaAgentWorkspace({lab:MODEL_LAB,ownerRequest:lastUserText,nimStatus:PLATFORM.nimStatus}):undefined;
@@ -929,6 +928,7 @@ async function handleAgentRun(req, res) {
   const conversation = preparedConversation.messages;
   // Context headers are set; the stream can start now.
   if (emitEvent) {
+    if(durableId)emitEvent('hafize-agent-checkpoint',{id:durableId,status:'running'});
     emitEvent('hafize-run-meta', { traceId, variant: promptVariant?.variant || '' });
     if (ownerId) emitEvent('hafize-memory-sync', { notes: memoryPrep.semantic });
   }
