@@ -11,7 +11,7 @@ export function normalizeToolActivity(value:unknown):ToolActivity|null{
  if(!label)return null;
  const state=v.state==='running'?'running':typeof v.ok==='boolean'?(v.ok?'success':'failure'):v.state;
  if(state!=='running'&&state!=='success'&&state!=='failure')return null;
- const tool=typeof v.tool==='string'&&/^[a-z0-9_-]{1,100}$/i.test(v.tool)?v.tool:legacy.get(label);
+ const tool=typeof v.tool==='string'&&/^[a-z0-9_-]{1,100}$/i.test(v.tool)?v.tool:legacy.get(label.replace(/ — kesildi$/u,''));
  const error=state==='failure'&&typeof v.error==='string'&&/^[A-Z][A-Z0-9_]{1,99}$/.test(v.error)?v.error:undefined;
  return {label,state,...(tool?{tool}:{}),...(error?{error}:{})};
 }
