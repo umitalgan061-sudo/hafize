@@ -289,6 +289,7 @@
     background:none;animation:none;filter:none;opacity:1;
   }
   html[data-theme] body>.hz-frame>.hz-frame-idle{
+    inset:1px;
     box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hz-beam) 38%,transparent);
   }
   html[data-theme] body>.hz-frame>.hz-frame-idle-glow{
@@ -297,16 +298,19 @@
   html[data-theme] body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
     visibility:hidden;opacity:0;
   }
-  html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking{
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking{
     visibility:visible;opacity:1;
-    box-shadow:inset 0 0 0 2px color-mix(in srgb,#d9774f 88%,transparent);
+    /* Leave the actual viewport edge visible and avoid rounded-screen clipping. */
+    inset:5px;border-radius:6px;
+    box-shadow:inset 0 0 0 3px #ee8249,0 0 9px rgb(238 130 73 / .42);
   }
-  html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking-glow{
-    visibility:visible;opacity:.38;
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking-glow{
+    visibility:visible;opacity:.48;
+    inset:5px;border-radius:6px;
   }
   /* Fallback: always-visible outlines plus existing moving edge beams. */
-  html[data-theme].hafize-working .edge-beam{opacity:1}
-  html[data-theme].hafize-working .edge-beam::after{
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .edge-beam{opacity:1}
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .edge-beam::after{
     animation-duration:4s;box-shadow:0 0 12px color-mix(in srgb,var(--hz-beam) 65%,transparent);
   }
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
@@ -332,16 +336,16 @@
     }
     html[data-theme] body>.hz-frame>.hz-frame-idle-glow::after{padding:3px;filter:blur(3px)}
     /* Only this independently masked highlight runs fast while thinking. */
-    html[data-theme].hafize-working body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow)::after{
-      padding:2.5px;
+    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow)::after{
+      padding:4px;
       background:conic-gradient(from var(--hz-perimeter-angle),
-        transparent 0deg 185deg,#d9774f 235deg,#f2a27a 280deg,
-        #ffd2b8 305deg,#e4885a 335deg,transparent 360deg);
+        transparent 0deg 155deg,#ed8249 220deg,#ff9d59 265deg,
+        #ffe0ba 300deg,#ff9d59 330deg,transparent 360deg);
       animation:hz-perimeter-turn 3.8s linear infinite;
     }
-    html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking-glow::after{padding:5px;filter:blur(5px)}
+    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking-glow::after{padding:6px;filter:blur(5px)}
     /* Keep the existing brief completion cue subtle, without enabling thinking. */
-    html[data-theme].hafize-flash:not(.hafize-working) body>.hz-frame>.hz-frame-idle::after{animation-duration:3.8s}
+    html[data-theme].hafize-flash:not(:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"]))) body>.hz-frame>.hz-frame-idle::after{animation-duration:3.8s}
     /* Composer remains the previous independent circulating outline. */
     html[data-theme] #composer>.hz-composer-pulse{
       position:absolute;inset:-2px;padding:1.5px;opacity:.8;box-shadow:none;
@@ -355,8 +359,14 @@
     html[data-theme] #composer[data-voice-listening="true"]>.hz-composer-pulse{opacity:0;animation:none}
     @media(max-width:680px){
       html[data-theme] body>.hz-frame>.hz-frame-idle-glow{opacity:.14}
-      html[data-theme].hafize-working body>.hz-frame>.hz-frame-thinking-glow{opacity:.28}
+      html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking-glow{opacity:.38}
       html[data-theme] #composer>.hz-composer-pulse{inset:-1px}
+    }
+  }
+  /* Keep the thinking outline inside the usable screen on phones with rounded corners. */
+  @media(max-width:680px){
+    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
+      inset:6px;border-radius:12px;
     }
   }
   @media(prefers-reduced-motion:reduce){
