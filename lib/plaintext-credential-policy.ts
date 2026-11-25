@@ -12,3 +12,19 @@ const REDACTABLE=[ASSIGNMENT,AUTHORIZATION,KNOWN,GOOGLE,PRIVATE_KEY].map((patter
 // "api_key=..." line in documentation does not make the whole page unreadable.
 export function redactPlaintextCredentials(value:string):string{let output=value;for(const pattern of REDACTABLE)output=output.replace(pattern,'[gizlendi]');return output;}
 export const PLAINTEXT_CREDENTIAL_POLICY=Object.freeze({fieldNames:Object.freeze([...FIELDS]),patterns:['assignment','authorization','known-token','google-oauth','private-key'] as const});
+/** Source-only exception for exact nonliteral runtime references, not arbitrary
+ * assignments. The generic credential guard remains unchanged for other inputs.
+ * Never exempt a line containing an actual value, suffix, comment or extra code. */
+const SAFE_SOURCE_REFERENCES=new Set([
+ "const NVIDIA_API_KEY = gateway?.apiKey ?? (process.env.NVIDIA_API_KEY || '');",
+ "const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';",
+ "apiKey: process.env.NVIDIA_API_KEY || '',",
+ "const authToken = typeof token === 'string' ? token.trim() : '';"
+]);
+export function containsSourcePlaintextCredential(value:unknown,path:string):boolean{
+ if(typeof value!=='string'||! /\.(?:[cm]?[jt]sx?)$/i.test(path))return containsPlaintextCredential(value);
+ // The independent token/private-key/Authorization detectors still scan the full original.
+ if(AUTHORIZATION.test(value)||KNOWN.test(value)||GOOGLE.test(value)||PRIVATE_KEY.test(value))return true;
+ const candidate=value.split(/\r?\n/).map(line=>SAFE_SOURCE_REFERENCES.has(line.trim())?'':line).join('\n');
+ return containsPlaintextCredential(candidate);
+}

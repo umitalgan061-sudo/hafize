@@ -110,3 +110,11 @@ describe('explicit scoped Hafize self read', () => {
     expect(calls).toBe(1);
   });
 });
+
+it('reads nonliteral source references while blocking actual credentials and scanning beyond the returned window', async()=>{
+ const safe = "const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';";
+ const read=createGitHubReadFile({allowPublicRead:true,allowedRepositories:['a/b'],fetchImpl:async()=>response({type:'file',encoding:'base64',content:Buffer.from(safe).toString('base64')})});
+ await expect(read({repository:'a/b',path:'server.ts',startLine:1,endLine:1})).resolves.toMatchObject({content:safe});
+ const blocked=createGitHubReadFile({allowPublicRead:true,allowedRepositories:['a/b'],maxFileBytes:5,fetchImpl:async()=>response({type:'file',encoding:'base64',content:Buffer.from(safe+'\nAPI_KEY=super-secret-value').toString('base64')})});
+ await expect(blocked({repository:'a/b',path:'server.ts'})).rejects.toMatchObject({code:'GITHUB_CONTENT_CREDENTIAL_BLOCKED'});
+});

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { containsPlaintextCredential } from './plaintext-credential-policy.ts';
+import { containsSourcePlaintextCredential } from './plaintext-credential-policy.ts';
 
 const DEFAULT_GITHUB_API = 'https://api.github.com';
 const DEFAULT_MAX_FILE_BYTES = 64 * 1024;
@@ -32,7 +32,7 @@ export function parseGitHubRepoAllowlist(value) {
 }
 
 // A separate explicit server-side opt-in adds only the owner's public Hafize source repository.
- // Existing read lists, authentication, write permissions, and path checks remain independent.
+// Existing read lists, authentication, write permissions, and path checks remain independent.
 export function resolveGitHubReadAllowlist(env = {}) {
   const selfRead = /^(1|true|yes|on)$/i.test(String(env.HAFIZE_GITHUB_SELF_READ || '').trim());
   return parseGitHubRepoAllowlist([
@@ -153,14 +153,17 @@ export function createGitHubReadFile({
       const decoded = decodeGitHubContent(payload, 1024 * 1024);
       if (decoded.truncated) throw new GitHubReadError('GITHUB_FILE_TOO_LARGE', 413);
       // Check the entire decoded file before selecting a window.
-      if (containsPlaintextCredential(decoded.content)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
+      if (containsSourcePlaintextCredential(decoded.content, path)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
       const lines = decoded.content.split(/\r?\n/);
       const selected = lines.slice(startLine - 1, endLine).join('\n');
       const selectedBytes = Buffer.from(selected, 'utf8');
       return { repository, path, ref, sha: decoded.sha, size: decoded.size, content: selectedBytes.subarray(0, boundedMaxFileBytes).toString('utf8'), truncated: selectedBytes.length > boundedMaxFileBytes, startLine, endLine: Math.min(endLine, lines.length), totalLines: lines.length };
     }
+    // Scan the full bounded file, even if the caller only receives its first bytes.
+    const full = decodeGitHubContent(payload, 1024 * 1024);
+    if (full.truncated) throw new GitHubReadError('GITHUB_FILE_TOO_LARGE', 413);
+    if (containsSourcePlaintextCredential(full.content, path)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
     const decoded = decodeGitHubContent(payload, boundedMaxFileBytes);
-    if (containsPlaintextCredential(decoded.content)) throw new GitHubReadError('GITHUB_CONTENT_CREDENTIAL_BLOCKED', 403);
     return { repository, path, ref, ...decoded };
   };
 }
