@@ -79,7 +79,10 @@ export function installLayoutMode(documentRef:Document,root:Window&typeof global
   layout=layout==='classic'?'focused':'classic';
   try{root.localStorage?.setItem(LAYOUT_KEY,layout);}catch{}
   render();
+  // Reveal the new layout instead of leaving the sidebar scrim over it.
+  documentRef.getElementById('sidebar')?.classList.remove('open');
   root.dispatchEvent(new CustomEvent('hafize:layout-changed',{detail:{layout}}));
+  documentRef.getElementById('sidebarToggle')?.focus();
  };
  render();
  button?.addEventListener('click',onClick);
