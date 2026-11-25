@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createGitHubAgentDevelopment } from './github-agent-development.ts';
-import type { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
+import { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
 
 type Writer = ReturnType<typeof createGitHubWorkspaceWriter>;
 const REPOSITORY = 'umitalgan061-sudo/hafize';
@@ -174,4 +174,16 @@ it('generates a fresh safe branch only for branch creation; no implicit write ta
  await tool.execute({operation:'branch',repository:REPOSITORY},{safeAutonomy:true});
  expect(writer.normalizeInput.mock.calls[1]![1]).not.toEqual(first);
  await expect(tool.execute({operation:'file',repository:REPOSITORY,path:'public/x.js',content:'ok',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+});
+
+it('creates a new file through the real writer without an existing blob SHA',async()=>{
+ const writes:Record<string,unknown>[]=[];
+ const writer=createGitHubWorkspaceWriter({token:'test-token',allowedRepositories:[REPOSITORY],fetchImpl:async(url,init)=>{
+  if(init?.method==='PUT'){writes.push(JSON.parse(String(init.body)));return new Response(JSON.stringify({content:{sha:'b'.repeat(40)},commit:{sha:'c'.repeat(40)}}));}
+  return new Response(JSON.stringify({default_branch:'main',ref:'refs/heads/'+BRANCH,object:{sha:'a'.repeat(40)}}));
+ }});
+ const tool=createGitHubAgentDevelopment({writer,allowedRepositories:[REPOSITORY]});
+ await tool.execute({operation:'file',repository:REPOSITORY,branch:BRANCH,path:'lib/example.ts',content:'export const value = 1;\n',message:'feat: example'},{safeAutonomy:true});
+ expect(writes).toHaveLength(1);expect(writes[0]).not.toHaveProperty('sha');
+ expect(Buffer.from(String(writes[0]!.content),'base64').toString()).toBe('export const value = 1;\n');
 });
