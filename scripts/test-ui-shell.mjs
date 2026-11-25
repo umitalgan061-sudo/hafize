@@ -63,3 +63,10 @@ assert.match(advancedStyles, /grid-auto-rows:max-content/);
 assert.match(advancedStyles, /html\[data-theme\] #sidebar #layoutToggle\s*\{[^}]*background:#b4232b;color:#fff/s);
 assert.doesNotMatch(advancedStyles, /\.aw-rail-header\{position:sticky/);
 console.log('Advanced panel fit contract OK: synchronized breakpoints, container queries, red layout switch');
+
+assert.match(advancedStyles, /--aw-width:clamp\(300px,23vw,340px\)/);
+assert.match(advancedStyles, /width:min\(340px,calc\(100vw - 24px\)\)/);
+assert.match(advancedStyles, /html\[data-hafize-layout="classic"\] #sidebar \.history-block\s*\{[^}]*height:auto;min-height:0;max-height:none;flex:0 0 auto/s);
+assert.match(advancedStyles, /#sidebar #conversationList\s*\{[^}]*max-height:min\(38dvh,340px\);flex:0 0 auto/s);
+assert.match(advancedStyles, /#sidebar #layoutToggle\[aria-pressed="true"\]\s*\{[^}]*background:#187348;[^}]*color:#fff/s);
+console.log('Advanced layout contract OK: intrinsic sidebar sections, compact right rail, green return switch');
