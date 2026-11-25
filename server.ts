@@ -3,6 +3,7 @@ import { createGitHubAgentRelease, releaseAuthorizationForRequest } from './lib/
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
+import {createProjectAiGateway} from './lib/project-ai-gateway.ts';
 import {createProjectDeliveryHealth} from './lib/project-delivery-health.ts';
 import {createNvidiaAgentWorkspace} from './lib/nvidia-agent-workspace.ts';
 import {deploymentBlueprintProbe} from './lib/deployment-blueprint-probe.ts';
@@ -134,6 +135,7 @@ const WEB_TOOLS = createWebTools({
 const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 200, 4, 200);
 const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 24, 1, MAX_EXPERT_ROUNDS);
 const PROJECT_DELIVERY_HEALTH=createProjectDeliveryHealth();
+const PROJECT_AI=createProjectAiGateway({hashes:process.env.HAFIZE_PROJECT_AI_TOKEN_HASHES,model:NVIDIA_DEFAULT_MODEL,complete:nvidiaJsonCompletion});
 const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'orchestrator_list', 'project_health', 'nvidia_workspace', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
@@ -1573,6 +1575,22 @@ const server = createServer(async (req, res) => {
       if (!requestFinished) requestMetric.abort();
     });
     
+    if(url.pathname.startsWith('/api/project-ai/')){
+      const match=/^\/api\/project-ai\/([a-z0-9-]+)\/text$/.exec(url.pathname);
+      if(!match||req.method!=='POST'){sendJson(res,404,{error:'NOT_FOUND'});return;}
+      let grant;let request;
+      try{
+        grant=PROJECT_AI.authorize(match[1],req.headers.authorization,req.headers.origin);
+        request=attachDisconnectAbort(req,120000,res);
+        const body=await readJson(req,32768);
+        const result=await PROJECT_AI.text(match[1],body,request.signal);
+        if(!res.destroyed)sendJson(res,200,result);
+      }catch(error){
+        const code=typeof error?.code==='string'&&/^PROJECT_AI_[A-Z0-9_]+$/.test(error.code)?error.code:'PROJECT_AI_REQUEST_FAILED';
+        if(!res.destroyed)sendJson(res,Number.isInteger(error?.status)&&error.status>=400&&error.status<=599?error.status:400,{error:code});
+      }finally{grant?.release();request?.cleanup?.();}
+      return;
+    }
     if (req.method === 'GET' && url.pathname === '/api/health/live') {
       sendJson(res, 200, {
         status: 'ok',
@@ -1618,6 +1636,7 @@ const server = createServer(async (req, res) => {
       const readiness = buildReadinessReport();
       sendJson(res, 200, {
         status: 'ok',
+        projectAiGateway: PROJECT_AI.status(),
         nvidiaConfigured: Boolean(NVIDIA_API_KEY),
         localModelEnabled: MODEL_PROVIDER_RUNTIME.publicStatus().localEnabled,
         githubReadConfigured: GITHUB_READ_CONFIGURED,

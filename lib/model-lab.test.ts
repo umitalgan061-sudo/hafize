@@ -331,3 +331,13 @@ it('tests Riva with one synthetic translation request and the documented languag
 it('persists a sanitized translation result across lab restart',async()=>{let snapshot:unknown;const storage={load:()=>snapshot,save:(v:unknown)=>{snapshot=v;}};const request=vi.fn(async()=>reply({content:'Teşekkür ederim.'}));const opts={allowed:[],request,storage};const first=createModelLab(opts);await first.translationProbe();const second=createModelLab(opts);expect(second.status().translationResult).toMatchObject({status:'passed',translated:true,model:'nvidia/riva-translate-4b-instruct-v2'});expect(request).toHaveBeenCalledTimes(1);});
 
 it('reports unmeasured abilities rather than false failures on timeout',async()=>{const {formatSingleModelProbe}=await import('./model-lab.ts');const lab=createModelLab({allowed:[a],request:async()=>{throw new DOMException('timeout','TimeoutError');}});const text=formatSingleModelProbe(await lab.probe(a));expect(text).toContain('Türkçe: Ölçülmedi');expect(text).toContain('Zaman aşımı');expect(text).not.toContain('Türkçe: false');});
+
+it('uses the available request window for a full audit rather than stopping after two candidates',async()=>{
+ const ids=Array.from({length:8},(_,i)=>'nvidia/test-'+i);
+ const request=vi.fn(async(_path,body)=>reply(body?.tools?tool:valid));
+ const lab=createModelLab({allowed:ids,request});
+ const audit=await lab.auditWindow();
+ expect(audit.smoke).toHaveLength(6);expect(audit.pendingModels).toHaveLength(2);
+ expect(audit.requestsRemaining).toBe(0);expect(audit.allCatalogVerified).toBe(false);
+ expect(request).toHaveBeenCalledTimes(12);
+});
