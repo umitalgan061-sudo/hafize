@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { prepareHostingConfig, prepareRelease, stampReleaseHtml, withReleaseCacheHeaders } from './firebase-hosting-preflight.mjs';
+import { prepareHostingConfig, prepareRelease, stampReleaseHtml, withReleaseCacheHeaders, withCanonicalHafizeNavigation } from './firebase-hosting-preflight.mjs';
 
 const project = 'projelerim-8fecd';
 const site = 'hafize-ua';
@@ -80,3 +80,13 @@ test('rejects anything but a full git commit SHA', () => {
 test('release-stamps app modules, stylesheet and updater without changing external links',()=>{const html='<head><link href="/styles.css?v=11"><script src="/typed-build/app-install.js"></script><script src="/typed-build/release-update.js"></script><script src="https://example.org/script.js"></script></head>';const output=stampReleaseHtml(html,sha);assert.match(output,new RegExp('/typed-build/app-install.js\\?release='+sha));assert.match(output,new RegExp('/typed-build/release-update.js\\?release='+sha));assert.ok(output.includes('/styles.css?v=11&amp;release='+sha));assert.ok(output.includes('name="hafize-release" content="'+sha+'"'));assert.ok(output.includes('https://example.org/script.js'));assert.throws(()=>stampReleaseHtml(html,'main'),/GITHUB_COMMIT/);});
 
 test('public cache revalidation keeps original route and security rules',()=>{const config=withReleaseCacheHeaders(existing);assert.deepEqual(config.hosting.rewrites,existing.hosting.rewrites);assert.deepEqual(config.hosting.headers[0],existing.hosting.headers[0]);assert.ok(config.hosting.headers.some(h=>h.source==='/release.json'));assert.ok(config.hosting.headers.slice(1).every(h=>!h.source.startsWith('/api')));});
+
+test('routes the exact legacy site entry to Render without changing API or other configuration',()=>{
+ const config=withCanonicalHafizeNavigation(existing);
+ assert.deepEqual(config.hosting.redirects.slice(0,2),['/','/index.html'].map(source=>({source,destination:'https://hafize-free.onrender.com/',type:302})));
+ assert.deepEqual(config.hosting.redirects.slice(2),existing.hosting.redirects);
+ assert.deepEqual(config.hosting.rewrites,existing.hosting.rewrites);
+ assert.deepEqual(config.hosting.headers,existing.hosting.headers);
+ assert.deepEqual(withCanonicalHafizeNavigation(config),config);
+ assert.throws(()=>withCanonicalHafizeNavigation({hosting:{site:'wrong-site'}}),/SITE_MISMATCH/);
+});

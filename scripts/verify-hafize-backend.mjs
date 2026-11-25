@@ -1,6 +1,6 @@
 import {pathToFileURL} from 'node:url';
 const BACKEND='https://hafize-free.onrender.com';
-const FRONTEND='https://hafize-ua.web.app';
+const FRONTEND=BACKEND;
 const SHA=/^[a-f0-9]{40}$/i;
 async function readJson(fetchImpl,url,allowUnavailable=false){
  const response=await fetchImpl(url,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(60000),headers:{Accept:'application/json'}});
