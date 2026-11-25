@@ -1,3 +1,4 @@
+import { installAdvancedWorkspace } from './advanced-workspace.ts';
 export type Theme = 'light' | 'dark';
 export type UiLayout = 'classic' | 'focused';
 export interface CalendarCell { readonly day:number; readonly month:number; readonly year:number; readonly outside:boolean; readonly selected:boolean; }
@@ -78,7 +79,10 @@ export function installLayoutMode(documentRef:Document,root:Window&typeof global
   layout=layout==='classic'?'focused':'classic';
   try{root.localStorage?.setItem(LAYOUT_KEY,layout);}catch{}
   render();
+  // Reveal the new layout instead of leaving the sidebar scrim over it.
+  documentRef.getElementById('sidebar')?.classList.remove('open');
   root.dispatchEvent(new CustomEvent('hafize:layout-changed',{detail:{layout}}));
+  documentRef.getElementById('sidebarToggle')?.focus();
  };
  render();
  button?.addEventListener('click',onClick);
@@ -96,7 +100,7 @@ export function mobileKeyboardGeometry(layoutHeight:number,visualHeight:number,o
 }
 export function install(documentRef:Document,root:Window&typeof globalThis):UiShellController|null{
  const html=documentRef.documentElement;if(!html)return null;
- const disposers:(()=>void)[]=[installLayoutMode(documentRef,root)];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
+ const disposers:(()=>void)[]=[installLayoutMode(documentRef,root),installAdvancedWorkspace(documentRef,root)];const sidebarDisclosure=installSidebarDisclosure(documentRef);if(sidebarDisclosure)disposers.push(sidebarDisclosure.destroy);
  installChatAccessibility(documentRef);
  const storage=root.localStorage,media=root.matchMedia('(prefers-color-scheme: dark)');
  let theme=resolveTheme(storage?.getItem(THEME_KEY),Boolean(media.matches));
