@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=thinking-beam-20261125-1"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=perimeter-weather-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -149,7 +149,6 @@ console.log('Dual outer frame contract OK: permanent subtle outline, independent
 const generationSource=readFileSync(new URL('../public/typed/app-shell.ts',import.meta.url),'utf8');
 assert.match(generationSource,/function setGenerationUi\(disabled\)\s*\{\s*document\.documentElement\.dataset\.hafizeGenerating = String\(disabled\)/);
 
-assert.match(designSystem,/data-hafize-generating="true"[^{}]*body>\.hz-frame>\.hz-frame-thinking\{\s*visibility:visible;opacity:1;inset:5px;border-radius:6px;box-shadow:none/);
 assert.match(designSystem,/body>\.hz-frame>\.hz-frame-thinking-glow\{display:none\}/);
 assert.doesNotMatch(designSystem,/box-shadow:inset 0 0 0 3px #ee8249/);
 
@@ -157,11 +156,18 @@ for(const name of ['halo','tail','middle','bright','core']){
   assert.match(indexHtml,new RegExp('<rect class="hz-ray-'+name+'"[^>]*pathLength="1000"'));
 }
 assert.match(designSystem,/\.hz-thinking-beam rect\{[^}]*stroke-linecap:round;vector-effect:non-scaling-stroke/s);
-assert.match(designSystem,/\.hz-ray-tail\{[^}]*stroke-dasharray:60 940/);
-assert.match(designSystem,/\.hz-ray-core\{[^}]*stroke-dasharray:12 988/);
-assert.match(designSystem,/animation:hz-thinking-beam-lap 5s linear infinite/);
-assert.match(designSystem,/@keyframes hz-thinking-beam-lap\{\s*from\{stroke-dashoffset:var\(--hz-ray-phase\)\}\s*to\{stroke-dashoffset:calc\(var\(--hz-ray-phase\) - 1000\)\}/);
 assert.match(designSystem,/\.hz-thinking-beam rect\{rx:12px;ry:12px\}/);
 assert.doesNotMatch(designSystem,/hz-thinking-dot|offset-path:inset\(0 round/);
 assert.match(frameSource,/document\.createElementNS\(ns, 'svg'\)/);
-console.log('Thinking light beam contract OK: tapered aligned segments, true rectangular path, desktop/mobile radius and no dot');
+
+assert.match(designSystem,/html\[data-theme\] body>\.hz-frame>\.hz-frame-thinking\{\s*visibility:visible;opacity:1;inset:3px/);
+assert.match(designSystem,/\.hz-thinking-beam \.hz-beam-idle\{opacity:\.76\}/);
+assert.match(designSystem,/\.hz-thinking-beam \.hz-beam-active\{display:none\}/);
+assert.match(designSystem,/data-hafize-generating="true"[^{}]*\.hz-beam-active\{display:inline/);
+assert.match(indexHtml,/<g class="hz-beam-idle">[\s\S]*?dur="13s" repeatCount="indefinite"/);
+assert.match(indexHtml,/<g class="hz-beam-active">[\s\S]*?dur="5s" repeatCount="indefinite"/);
+assert.match(indexHtml,/stroke-dasharray="60 940" stroke-dashoffset="30"><animate attributeName="stroke-dashoffset" from="30" to="-970"/);
+assert.match(indexHtml,/stroke-dasharray="12 988" stroke-dashoffset="6"/);
+assert.match(frameSource,/document\.createElementNS\(ns, 'animate'\)/);
+assert.match(designSystem,/html\[data-theme\] \.hz-thinking-beam\{display:none\}/);
+console.log('Native SVG perimeter beam contract OK: animated idle and active states, tapered dashes and reduced motion');

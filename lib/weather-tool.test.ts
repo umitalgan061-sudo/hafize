@@ -84,3 +84,51 @@ describe('weather tool', () => {
     expect(badArgs).toMatchObject({ ok: false, error: 'INVALID_WEATHER_ARGS', status: 400 });
   });
 });
+
+
+describe('weather resilience',()=>{
+  const alternate={
+    current_condition:[{temp_C:'12',FeelsLikeC:'10',humidity:'62',precipMM:'0',windspeedKmph:'9',weatherCode:'116',localObsDateTime:'2026-10-22 18:00'}],
+    weather:[{date:'2026-10-22',mintempC:'5',maxtempC:'17',hourly:[{time:'1200',weatherCode:'116',chanceofrain:'20'}]}]
+  };
+  const response=(data:unknown,status=200)=>({ok:status<400,status,json:async()=>data});
+  it('uses Ankara city coordinates when geocoding fails, then alternate service when forecast fails',async()=>{
+    const calls:string[]=[];
+    const lookup=createWeatherLookup({fetchImpl:async(url)=>{
+      calls.push(url);
+      if(url.startsWith('https://wttr.in/'))return response(alternate);
+      return response({},502);
+    }});
+    const result=await lookup({location:'Ankara',days:7});
+    expect(result).toMatchObject({source:'wttr.in',freshness:'live',requestedDays:7,location:{name:'Ankara',latitude:39.9334,longitude:32.8597},current:{temperatureC:12,condition:'Parçalı bulutlu'}});
+    expect(result.daily).toHaveLength(1);
+    expect(result).toHaveProperty('warning');
+    expect(calls[1]).toContain('latitude=39.9334');
+    expect(calls).toHaveLength(3);
+  });
+  it('retries primary on malformed or failed upstreams, caches briefly, then labels stale data',async()=>{
+    let clock=Date.UTC(2026,9,22,15);
+    let unavailable=false;
+    let primaryCalls=0;
+    const lookup=createWeatherLookup({now:()=>clock,fetchImpl:async(url)=>{
+      if(url.includes('geocoding-api'))return response({results:[ankara]});
+      if(url.startsWith('https://wttr.in/'))return response({},502);
+      primaryCalls++;
+      return unavailable||primaryCalls===1?response({},502):response(forecast);
+    }});
+    const args={location:'Ankara',days:2};
+    const live=await lookup(args);
+    expect(live).toMatchObject({freshness:'live',source:'Open-Meteo'});
+    expect(primaryCalls).toBe(2);
+    expect(await lookup(args)).toMatchObject({freshness:'recent_cache',fetchedAt:live.fetchedAt});
+    expect(primaryCalls).toBe(2);
+    clock+=6*60_000;unavailable=true;
+    expect(await lookup(args)).toMatchObject({freshness:'stale',fetchedAt:live.fetchedAt});
+    clock+=60*60_000;
+    await expect(lookup(args)).rejects.toMatchObject({code:'WEATHER_UNAVAILABLE'});
+  });
+  it('does not substitute a Turkish city for an explicitly different country',async()=>{
+    const lookup=createWeatherLookup({fetchImpl:async()=>response({},502)});
+    await expect(lookup({location:'Ankara, France'})).rejects.toMatchObject({code:'WEATHER_UNAVAILABLE'});
+  });
+});
