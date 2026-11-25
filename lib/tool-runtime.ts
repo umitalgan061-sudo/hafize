@@ -303,7 +303,7 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'repository',
     timeoutMs: 600_000,
     activity: { running: 'GitHub durumu doğrulanıyor', success: 'GitHub durumu okundu', failure: 'GitHub durumu okunamadı' },
-    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare, checks, wait_checks veya jobs oku. wait_checks aynı SHA için bekleyen CI sonuçlarını iptal edilebilir biçimde izler (waitSeconds, isteğe bağlı workflowPath); eksik sonucu başarı saymaz. jobs için workflow run ID (runId) kullan; adım sonuçları ile hata aşamasını ayır. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
+    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare, checks, wait_checks veya jobs oku. wait_checks aynı SHA için bekleyen CI sonuçlarını iptal edilebilir biçimde izler (waitSeconds, isteğe bağlı workflowPath); eksik sonucu başarı saymaz. jobs için workflow run ID (runId) kullan; adım sonuçları ile hata aşamasını ayır. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma. Yalnız seçilen action alanlarını gönder: project:path; repo: ek alan yok; directory:path/ref; branches:limit; commits:ref/limit; pulls:state/limit; commit:sha; pull:number; compare:base/head; checks:sha; wait_checks:sha/waitSeconds/workflowPath; jobs:runId. Boş/null ilgisiz alanları çıkar. Branch incelemek için commits action ve ref kullan, branch adlı alan gönderme.', {
       action: { type: 'string', enum: ['project', 'repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks', 'wait_checks', 'jobs'] },
       repository: { type: 'string' }, path: { type: 'string' }, ref: { type: 'string' }, limit: { type: 'integer' }, state: { type: 'string' }, number: { type: 'integer' }, runId: { type: 'integer' }, sha: { type: 'string' }, waitSeconds:{type:'integer',minimum:1,maximum:480}, workflowPath:{type:'string'}, base: { type: 'string' }, head: { type: 'string' }
     }, ['action', 'repository']),
@@ -817,7 +817,7 @@ export async function executeNvidiaToolCall(
   if (context.signal?.aborted) return { ok: false, tool: entry.definition.function.name, error: 'TOOL_ABORTED', durationMs: Date.now() - startedAt };
   let args: Record<string, unknown>;
   try {
-    args = parseToolArguments(normalized.function.arguments,normalized.function.name==='agent_delegate'?'agent_delegate':undefined);
+    args = parseToolArguments(normalized.function.arguments,normalized.function.name);
   } catch (error) {
     return { ok: false, tool: entry.definition.function.name, error: sanitizeToolError(error).code, durationMs: Date.now() - startedAt };
   }
@@ -826,7 +826,9 @@ export async function executeNvidiaToolCall(
   const span = context.telemetry?.startSpan('tool.call', { traceId: context.traceId, attributes: { 'tool.name': entry.definition.function.name, 'tool.kind': entry.kind, 'agent.id': context.agent.id } });
   try {
     const value = await entry.execute(args, { ...context, signal });
-    const safe = projectSafeToolExecutionResult({ ok: true as const, value });
+    const source = normalized.function.name==='github_read_file'&&typeof args.repository==='string'&&typeof args.path==='string'
+      ? {repository:args.repository.trim(),path:args.path.trim()} : undefined;
+    const safe = projectSafeToolExecutionResult({ ok: true as const, value },source);
     if (!safe.ok) {
       span?.end('error', { 'error.code': safe.error });
       return { ok: false, tool: entry.definition.function.name, error: safe.error, durationMs: Date.now() - startedAt };
@@ -845,6 +847,8 @@ export async function executeNvidiaToolCall(
         ? { consentRequest: error.consent as Readonly<Record<string, unknown>> }
         : {}),
       ...(safe.status !== null ? { status: safe.status } : {}),
+      ...(normalized.function.name==='github_inspect'&&safe.code==='INVALID_GITHUB_ARGUMENTS'?
+        {reason:'Use only fields for the selected action: project:path; repo:none; directory:path/ref; branches:limit; commits:ref/limit; pulls:state/limit; commit:sha; pull:number; compare:base/head; checks:sha; wait_checks:sha/waitSeconds/workflowPath; jobs:runId. Always include action and repository; omit other fields.'}:{}),
       durationMs: Date.now() - startedAt
     };
   }
