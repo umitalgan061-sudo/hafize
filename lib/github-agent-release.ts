@@ -145,11 +145,19 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:
 export function releaseAuthorizationForRequest(request:unknown,optedIn:boolean):ReleaseAuthorization|undefined{
  if(!optedIn||typeof request!=='string'||request.length>12000)return;
  const s=request.toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i');
- if(/\b(?:merge etme|birlestirme|yayinlama|canliya alma|deploy etme|sadece incele)\b/.test(s))return;
- const publish=/\b(?:canliya al|yayinla|deploy et|canliya yayinla)\b/.test(s);
- const merge=publish||/\b(?:merge et|birlestir)\b/.test(s);
- const rollback=/\b(?:geri al|rollback|geri dondur)\b/.test(s)&&!/\b(?:geri alma|rollback yapma|geri dondurme)\b/.test(s);
- const open=rollback||merge||/\b(?:pr ac|pull request ac)\b/.test(s);
+ // A prohibition on merge/publish must not hide an explicitly requested
+ // PR-only action. Keep the conservative veto for all release mutations
+ // except the narrowly requested PR creation, and respect PR negation too.
+ if(/\b(?:sadece incele|yalnizca incele|salt okunur|sadece oku|yalnizca oku)\b/.test(s))return;
+ const explicitOpen=/\b(?:pr|pull request)(?:'i|i)?\s+(?:ac|olustur)\b/.test(s);
+ const denyOpen=/\b(?:pr|pull request)(?:'i|i)?\s+(?:acma|olusturma|acmayin|olusturmayin|acma(?:yi)?|olusturma(?:yi)?)\b/.test(s)||
+   /\b(?:pr|pull request)\s+(?:ac|olustur)\s+ma\b/.test(s);
+ if(denyOpen)return;
+ const denyRelease=/\b(?:merge etme|merge yapma|birlestirme|birlestirme yapma|yayinlama|canliya alma|canli yayin yapma|deploy etme|deploy yapma)\b/.test(s);
+ const publish=!denyRelease&&/\b(?:canliya al|yayinla|deploy et|canliya yayinla)\b/.test(s);
+ const merge=!denyRelease&&(publish||/\b(?:merge et|birlestir)\b/.test(s));
+ const rollback=!denyRelease&&/\b(?:geri al|rollback|geri dondur)\b/.test(s)&&!/\b(?:geri alma|rollback yapma|geri dondurme)\b/.test(s);
+ const open=rollback||merge||explicitOpen;
  if(!open)return;
  const projects=matchOwnerProjects(request);
  // Shared/ambiguous project names are not production authorization.
