@@ -21,7 +21,7 @@ import { mountChatScroll, type ChatScrollController } from './chat-scroll.ts';
 import { decorateUserAttachments } from './user-attachments.ts';
 import { askChoice, askConfirm } from './theme-polish.ts';
 import { NOTICE_FOLLOW_MS, noticeTarget, shouldFollowNotice, type PlacedResult } from './notice-target.ts';
-import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, type ToolActivity} from './agent-turn-recovery.ts';
+import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, missingCheckpointAnswer, agentStreamFailure, type ToolActivity} from './agent-turn-recovery.ts';
 type Role = 'user' | 'assistant';
 interface ChatMessage {
   id: string;
@@ -30,6 +30,7 @@ interface ChatMessage {
   at: string;
   toolActivities?: ToolActivity[];
   agentCheckpoint?: string;
+  agentCheckpointConfirmed?: boolean;
   alternates?: string[];
   feedback?: 'positive' | 'negative';
   generation?: {
@@ -237,7 +238,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ...(alternates.length ? { alternates } : {}),
       ...(feedback ? { feedback } : {}),
       ...(generation ? { generation } : {}),
-      ...(source.role==='assistant'&&typeof source.agentCheckpoint==='string'&&/^[a-zA-Z0-9_-]{1,120}$/.test(source.agentCheckpoint)?{agentCheckpoint:source.agentCheckpoint}:{}),
+      ...(source.role==='assistant'&&typeof source.agentCheckpoint==='string'&&/^[a-zA-Z0-9_-]{1,120}$/.test(source.agentCheckpoint)?{agentCheckpoint:source.agentCheckpoint,...(source.agentCheckpointConfirmed===true?{agentCheckpointConfirmed:true}:{})}:{}),
       ...(source.worked && Number.isFinite(source.worked.ms) && source.worked.ms >= 0 && ['bulut', 'bilgisayar', 'sayfa'].includes(source.worked.where)
         ? { worked: { ms: Math.min(86_400_000, Math.floor(source.worked.ms)), where: source.worked.where, ...(source.worked.raw === true ? { raw: true } : {}), ...(source.worked.failed === true ? { failed: true } : {}) } } : {}),
       ...(Array.isArray(source.toolActivities) ? {
@@ -980,7 +981,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   ): Promise<void> {
     if(event.type==='hafize-agent-checkpoint'){
       const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
-      if(row&&event.payload?.id===row.agentCheckpoint){row.content=row.content||'GitHub görevi sunucuda kayıtlı; bağlantı kesilse de sürdürülebilir.';saveConversations();}
+      if(row&&event.payload?.id===row.agentCheckpoint&&event.payload?.status==='running'){row.agentCheckpointConfirmed=true;row.content='GitHub görev kaydı sunucu tarafından doğrulandı.';saveConversations();}
       return;
     }
     if (handleAgentEvent(event.type, event.payload, { assistantId, showToast })) return;
@@ -1098,6 +1099,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
           const result=await hafizeApi.request(checkpointPath(message.agentCheckpoint),{timeoutMs:8000,retry:0});
           if(result.id!==message.agentCheckpoint||result.conversationId!==conversation.id)continue;
           if(result.status==='running'){
+            if(!message.agentCheckpointConfirmed){message.agentCheckpointConfirmed=true;changed=true;}
             const text='GitHub görevi sunucuda devam ediyor. Tarayıcı yeniden bağlandığında sonuç bu sohbete getirilecek.';
             if(message.content!==text){message.content=text;changed=true;}
             continue;
@@ -1109,12 +1111,12 @@ interface JsonPayload { readonly [key: string]: unknown; }
             message.content+='\n\nSonucu belirsiz yazma işlemleri var; tekrar çalıştırmadan önce gerçek GitHub durumunu kontrol et.';
           }
           message.toolActivities=settleToolActivities(message.toolActivities);
-          delete message.agentCheckpoint;changed=true;
+          delete message.agentCheckpoint;delete message.agentCheckpointConfirmed;changed=true;
         }catch(error){
           if(error?.status===404){
-            message.content=INTERRUPTED_TEXT+' Sunucuda bu görev için kalıcı kayıt bulunamadı.';
+            message.content=missingCheckpointAnswer(message.content,message.agentCheckpointConfirmed===true);
             message.toolActivities=settleToolActivities(message.toolActivities);
-            delete message.agentCheckpoint;changed=true;
+            delete message.agentCheckpoint;delete message.agentCheckpointConfirmed;changed=true;
           }
         }
       }
@@ -1134,7 +1136,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
     activeAgentCheckpoint=endpoint==='/api/agent/run'&&typeof payload.agentTurnId==='string'?payload.agentTurnId:'';
     if(activeAgentCheckpoint){
       const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
-      if(row){row.agentCheckpoint=activeAgentCheckpoint;row.content='Görev sunucuya gönderiliyor…';saveConversations();}
+      if(row){row.agentCheckpoint=activeAgentCheckpoint;delete row.agentCheckpointConfirmed;row.content='Görev sunucuya gönderiliyor…';saveConversations();}
     }
     streamState.begin();
     renderStreamStatus();
@@ -1165,7 +1167,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       });
       renderStreamStatus();
       const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
-      if(row)delete row.agentCheckpoint;
+      if(row){delete row.agentCheckpoint;delete row.agentCheckpointConfirmed;}
       updateMessage(assistantId, content.trim() ? content : emptyMessage, { persist: true });
       return stats;
     } catch (error) {
@@ -1182,7 +1184,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       }
       const message=getActiveConversation()?.messages.find(item=>item.id===assistantId);
       if(message)message.toolActivities=settleToolActivities(message.toolActivities);
-      const failure=activeAgentCheckpoint?'Bağlantı kesildi; sunucudaki görev kaydı otomatik kontrol edilecek.':endpoint==='/api/agent/run'&&message?.toolActivities?.length?INTERRUPTED_TEXT:describeChatFailure(error);
+      const failure=activeAgentCheckpoint?agentStreamFailure(error,message?.agentCheckpointConfirmed===true):endpoint==='/api/agent/run'&&message?.toolActivities?.length?INTERRUPTED_TEXT:describeChatFailure(error);
       updateMessage(assistantId,content.trim()?content+'\n\n'+failure:failure,{persist:true});
       return {durationMs:0,done:false} as HafizeSseStats;
     } finally {
