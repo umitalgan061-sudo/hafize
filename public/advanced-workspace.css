@@ -11,7 +11,7 @@ html[data-hafize-layout="classic"] .aw-top-toggle[aria-expanded="true"]{
   background:color-mix(in srgb,var(--accent) 10%,var(--card));color:var(--ink);
 }
 html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"]){
-  --aw-width:clamp(300px,25vw,382px);--aw-gap:24px;
+  --aw-width:clamp(380px,32vw,480px);--aw-gap:24px;
   grid-template-columns:minmax(0,1fr);column-gap:var(--aw-gap);
 }
 html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="closed"]>.utility-rail{display:none!important}
@@ -56,7 +56,7 @@ html[data-hafize-layout="classic"] .main:is(:not([data-workspace]),[data-workspa
 html[data-hafize-layout="classic"] .utility-card .utility-head{min-width:0;flex-wrap:wrap;font-size:13px;line-height:1.35}
 html[data-hafize-layout="classic"] .utility-card :is(input,textarea,select){min-width:0;max-width:100%}
 html[data-hafize-layout="classic"] .utility-card pre{max-width:100%;overflow:auto}
-html[data-hafize-layout="classic"] #sidebar .layout-toggle{background:color-mix(in srgb,var(--accent) 11%,var(--card));border-color:color-mix(in srgb,var(--accent) 40%,var(--line));font-weight:650}
+
 html[data-hafize-layout="classic"] .sidebar .nav-item.active{background:color-mix(in srgb,var(--accent) 12%,var(--card));color:var(--ink)}
 html[data-hafize-layout="classic"] .sidebar .nav-item:not(:disabled):hover{background:var(--hover)}
 html[data-hafize-layout="classic"] .main .primary-column form#composer.composer[data-aw-composer]{
@@ -80,28 +80,28 @@ html[data-hafize-layout="classic"] .main[data-workspace="tasks"]>.utility-rail>.
 }
 html[data-hafize-layout="classic"] .main[data-workspace="settings"]>.utility-rail{width:min(100%,1000px)}
 html[data-hafize-layout="classic"] .settings-workspace .settings-panel{background:var(--card);border-radius:15px}
-@media(min-width:1041px){
+@media(min-width:1180px){
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"]{grid-template-columns:minmax(0,1fr) var(--aw-width)}
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"]>.utility-rail{
     display:grid;grid-column:2;grid-row:2;position:sticky;top:84px;align-self:start;justify-self:stretch;
     width:100%;max-width:none;max-height:calc(100dvh - 96px);padding:8px 4px 16px 2px;
-    overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;gap:10px;
+    overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;gap:16px;
   }
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"] .primary-column form#composer.composer[data-aw-composer]{
     left:calc(50% - (var(--aw-width) + var(--aw-gap))/2);
     width:min(790px,calc(100vw - var(--aw-width) - var(--aw-gap) - 72px));
   }
-  html[data-hafize-layout="classic"] .aw-rail-header{position:sticky;top:-8px;z-index:3}
+  html[data-hafize-layout="classic"] .aw-rail-header{position:static}
 }
-@media(max-width:1040px){
+@media(width < 1180px){
   html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"]>.utility-rail{
     position:fixed;z-index:125;inset:calc(var(--aw-top,76px) + 8px) 12px max(12px,env(safe-area-inset-bottom)) auto;
-    display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:10px;
-    width:min(410px,calc(100vw - 24px));max-width:none;max-height:none;padding:12px;
+    display:grid;grid-template-columns:minmax(0,1fr);align-content:start;gap:16px;
+    width:min(480px,calc(100vw - 24px));max-width:none;max-height:none;padding:12px;
     overflow:auto;overscroll-behavior:contain;background:var(--bg);border:1px solid var(--line);
     border-radius:16px;box-shadow:var(--shadow);scrollbar-gutter:stable;
   }
-  html[data-hafize-layout="classic"] .aw-rail-header{position:sticky;top:-12px;z-index:3}
+  html[data-hafize-layout="classic"] .aw-rail-header{position:static}
 }
 @media(max-width:680px){
   html[data-hafize-layout="classic"] .topbar .brand-inline small{display:none}
@@ -139,4 +139,128 @@ html[data-hafize-layout="classic"] .settings-workspace .settings-panel{backgroun
 }
 @media(max-height:650px){
   html[data-hafize-layout="classic"] .aw-rail-header{position:static}
+}
+
+/* Panel-fit pass: viewport width is not card width. The former viewport-only
+   media queries left desktop sidebars with four-column layouts in 300px cards.
+   A rail has one explicit track and content-sized rows; no sticky header covers cards. */
+html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])>.utility-rail{
+  grid-template-columns:minmax(0,1fr);grid-auto-rows:max-content;align-content:start;
+  align-items:start;min-width:0;overflow-x:clip;
+}
+html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])>.utility-rail>.utility-card{
+  container:aw-card / inline-size;box-sizing:border-box;width:100%;min-width:0;
+  max-width:100%;align-self:start;min-height:0;padding:16px;
+  line-height:1.5;overflow-wrap:anywhere;
+}
+html[data-hafize-layout="classic"] .main:is([data-workspace="tasks"],[data-workspace="connections"])>.utility-rail>.utility-card,
+html[data-hafize-layout="classic"] .settings-workspace .settings-panel{
+  container:aw-card / inline-size;min-width:0;max-width:100%;overflow-wrap:anywhere;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(div,section,article,header,footer,form,fieldset,label,ul,ol,li,details,summary,p,h2,h3,h4,span,strong,small,a,code){
+  min-width:0;overflow-wrap:anywhere;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(button,input,select,textarea){
+  min-width:0;max-width:100%;box-sizing:border-box;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(button:not(.calendar-day),a.soft-btn){
+  white-space:normal;overflow-wrap:anywhere;line-height:1.35;height:auto;min-height:32px;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(pre,table,img,video,canvas){
+  max-width:100%;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(pre){
+  white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow:auto;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(.utility-head,.connector-hub-head,.system-readiness-summary,.system-readiness-row,.github-write-history-head,.github-write-history-top,.github-workspace-extra-head,.message-workspace-panel-head,.prompt-library-usage-head,.prompt-library-collections-head,.prompt-library-revisions-head,.prompt-smart-views-head,.prompt-smart-view-history-head,.prompt-smart-view-builder-head,.prompt-smart-view-safety-head,.scheduled-task-row-head,.workspace-backup-head,.privacy-data-head){
+  flex-wrap:wrap;align-items:flex-start;row-gap:6px;
+}
+html[data-hafize-layout="classic"] :is(.utility-card,.settings-panel) :where(.connector-hub-badge,.connector-hub-state,.connector-hub-toggle,.github-write-history-time,.github-write-readiness,.github-workspace-history-item,.scheduled-task-status,.workspace-backup-choice-size){
+  white-space:normal;overflow-wrap:anywhere;max-width:100%;
+}
+html[data-hafize-layout="classic"] .aw-rail-header{position:static;gap:12px;padding:4px 2px 14px}
+html[data-hafize-layout="classic"] .aw-shortcuts{grid-template-columns:repeat(auto-fit,minmax(min(100%,90px),1fr));gap:8px}
+html[data-hafize-layout="classic"] .aw-summary{flex-wrap:wrap}
+html[data-hafize-layout="classic"] .aw-count{flex:1 1 120px}
+html[data-hafize-layout="classic"] .aw-filters{gap:7px}
+html[data-hafize-layout="classic"] .aw-filter{min-height:34px;padding:6px 11px;white-space:normal}
+html[data-hafize-layout="classic"] .aw-close{flex:0 0 38px}
+html[data-hafize-layout="classic"] .aw-shortcut{min-height:38px;white-space:normal}
+html[data-hafize-layout="classic"] #sidebar .conversation-workspace-filters{grid-template-columns:minmax(0,1fr)}
+html[data-hafize-layout="classic"] #sidebar :is(.conversation-workspace-head,.history-head,.history-manage){flex-wrap:wrap}
+html[data-hafize-layout="classic"] #sidebar .conversation-workspace :where(button,input,select){min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap{flex:1 1 125px;max-width:none}
+html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap select{width:100%;min-width:0;text-overflow:ellipsis}
+html[data-hafize-layout="classic"] #composer .composer-actions .agent-hint{flex:1 1 100%;order:3}
+html[data-hafize-layout="classic"] #composer .composer-actions .send-btn{flex:0 0 44px;margin-inline-start:auto}
+html[data-hafize-layout="classic"] #composer .composer-tools{gap:7px;row-gap:8px}
+html[data-hafize-layout="classic"] #composer .composer-tools .icon-btn{height:auto;min-height:36px;line-height:1.3;white-space:normal}
+html[data-hafize-layout="classic"] .main>.topbar{min-width:0}
+html[data-hafize-layout="classic"] .main>.topbar .agent-compact{min-width:0;flex:0 1 auto}
+html[data-hafize-layout="classic"] .main>.topbar .agent-compact select{max-width:100%;min-width:0;text-overflow:ellipsis}
+html[data-hafize-layout="classic"] .main>.topbar .top-spacer{min-width:0}
+@container aw-card (max-width: 520px){
+  :is(.connector-hub-status-row,.prompt-library-toolbar,.prompt-smart-views-toolbar,
+    .prompt-library-collections-toolbar,.prompt-library-revisions-toolbar,
+    .prompt-library-collections-assignment,.prompt-smart-view-history-toolbar,
+    .prompt-smart-view-builder-grid,.prompt-smart-fill-field,.message-workspace-controls,
+    .scheduled-tasks-form-grid,.scheduled-tasks-filter,.scheduled-tasks-templates,
+    .scheduled-task-detail-body,.schedule-runtime-signals){
+    grid-template-columns:minmax(0,1fr);gap:8px;
+  }
+  :is(.prompt-library-usage-stats,.prompt-smart-view-safety-metrics,.scheduled-task-status-summary,
+    .scheduled-task-insights-body,.privacy-data-summary,.lab-metrics,.prompt-library-diagnostics-report){
+    grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:8px;
+  }
+  :is(.github-workspace-details-file,.conversation-fork-row,.conversation-fork-hub-row){
+    grid-template-columns:minmax(0,1fr);gap:8px;
+  }
+  :is(.github-workspace-details-row,.github-workspace-summary-row,.github-workspace-extra-row,
+    .prompt-library-filters,.prompt-item-header,.prompt-library-collection-row,
+    .prompt-smart-view-row,.prompt-smart-view-history-row,.scheduled-task-insight-next,
+    .workspace-backup-head,.privacy-data-row){
+    flex-wrap:wrap;gap:8px;align-items:flex-start;
+  }
+  :is(.prompt-smart-view-info,.prompt-library-collection-info,.prompt-smart-view-history-info){
+    flex:1 1 100%;
+  }
+  .prompt-smart-view-actions{max-width:100%;width:100%;justify-content:flex-start}
+  :is(.prompt-library-collection-actions,.prompt-smart-view-history-actions,.conversation-fork-row-actions,.github-workspace-details-row){justify-content:flex-start}
+  .github-workspace-summary-row strong{max-width:100%;text-align:start}
+  .prompt-library-usage-name{white-space:normal;overflow-wrap:anywhere}
+  .workspace-backup-choice{grid-template-columns:auto minmax(0,1fr)}
+  .workspace-backup-choice-size{grid-column:2}
+  .message-workspace-result{grid-template-columns:auto minmax(0,1fr)}
+}
+@container aw-card (max-width: 320px){
+  :is(.prompt-library-usage-stats,.prompt-smart-view-safety-metrics,.scheduled-task-status-summary,
+    .scheduled-task-insights-body,.privacy-data-summary,.lab-metrics,.prompt-library-diagnostics-report,
+    .conversation-fork-compare-names,.message-workspace-batch){
+    grid-template-columns:minmax(0,1fr);
+  }
+  .prompt-library-usage-row{grid-template-columns:20px minmax(0,1fr)}
+  .prompt-library-usage-count{grid-column:2}
+}
+@media(max-width:680px){
+  html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap{flex:1 1 105px;max-width:none}
+  html[data-hafize-layout="classic"] #composer .composer-actions{align-items:end;gap:8px}
+  html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])>.utility-rail>.utility-card{padding:13px}
+}
+@media(max-width:360px){
+  html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap{flex:1 1 85px}
+  html[data-hafize-layout="classic"] #composer .composer-actions .send-btn{flex-basis:40px;min-width:40px}
+}
+/* Layout switch is deliberately red, with readable white text in both themes. */
+html[data-theme] #sidebar #layoutToggle{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px;
+  padding:10px 12px;border:1px solid #a51c29;border-radius:11px;
+  background:#b4232b;color:#fff;font-weight:700;line-height:1.35;white-space:normal;
+  text-align:center;overflow-wrap:anywhere;
+}
+html[data-theme="dark"] #sidebar #layoutToggle{background:#b4232b;border-color:#ed7780;color:#fff}
+html[data-theme] #sidebar #layoutToggle:hover{background:#921a24;border-color:#921a24;color:#fff}
+html[data-theme] #sidebar #layoutToggle:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+@media(forced-colors:active){
+  html[data-theme] #sidebar #layoutToggle{background:ButtonFace;color:ButtonText;border:2px solid ButtonText}
+  html[data-theme] #sidebar #layoutToggle:focus-visible{outline-color:Highlight}
 }
