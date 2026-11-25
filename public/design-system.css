@@ -3,25 +3,25 @@
 @media not all and (forced-colors: active) {
   html[data-theme="light"] {
     color-scheme: light;
-    --bg:#f7f5f0; --panel:#efebe5; --card:#fffdfa; --surface:#fffdfa;
-    --ink:#302b27; --text:var(--ink); --muted:#69635c; --line:#e1dcd4;
+    --bg:#faf4ec; --panel:#f3e9dc; --card:#fffaf3; --surface:#fffaf3;
+    --ink:#302b27; --text:var(--ink); --muted:#696057; --line:#e3cbb8;
     --premium-bg:var(--bg); --premium-text:var(--ink); --premium-muted:var(--muted);
     --premium-surface:var(--card); --premium-surface-strong:var(--card); --premium-line:var(--line);
-    --premium-orange:#b95330; --premium-orange-strong:#9f4224;
-    --soft:#f0ece6; --hover:#f1ede7; --hover-strong:#eae4dc;
-    --hz-raised:#fffdfa; --hz-subtle:#f5f1eb; --hz-success:#276749; --hz-danger:#a32935;
+    --premium-orange:#b94b22; --premium-orange-strong:#a64018;
+    --soft:#f4e5d6; --hover:#f8e6d5; --hover-strong:#f1d7c0;
+    --hz-raised:#fffaf3; --hz-subtle:#f8eee3; --hz-success:#276749; --hz-danger:#a32935;
     --hz-card-shadow:0 2px 8px rgb(61 44 27 / .045);
     --hz-float-shadow:0 12px 38px rgb(55 38 22 / .13),0 1px 4px rgb(55 38 22 / .06);
   }
   html[data-theme="dark"] {
     color-scheme: dark;
-    --bg:#202122; --panel:#262729; --card:#2b2c2e; --surface:#2b2c2e;
-    --ink:#f2efea; --text:var(--ink); --muted:#b8b1a8; --line:#414143;
+    --bg:#211c19; --panel:#2b231e; --card:#302720; --surface:#302720;
+    --ink:#f2efea; --text:var(--ink); --muted:#c5b5a7; --line:#594032;
     --premium-bg:var(--bg); --premium-text:var(--ink); --premium-muted:var(--muted);
     --premium-surface:var(--card); --premium-surface-strong:var(--card); --premium-line:var(--line);
-    --premium-orange:#eb9a72; --premium-orange-strong:#ffc09b;
-    --soft:#333436; --hover:#343537; --hover-strong:#3a3b3d;
-    --hz-raised:#303133; --hz-subtle:#252628; --hz-success:#8bd5aa; --hz-danger:#f7a0a7;
+    --premium-orange:#f58c50; --premium-orange-strong:#ffc19a;
+    --soft:#3b2b23; --hover:#3d2c23; --hover-strong:#4b3226;
+    --hz-raised:#382c24; --hz-subtle:#2b221d; --hz-success:#8bd5aa; --hz-danger:#f7a0a7;
     --hz-card-shadow:0 2px 8px rgb(0 0 0 / .12);
     --hz-float-shadow:0 12px 40px rgb(0 0 0 / .36),0 1px 4px rgb(0 0 0 / .2);
   }
@@ -29,11 +29,11 @@
     --accent:var(--premium-orange);--accent-strong:var(--premium-orange-strong);
     --hz-radius:14px;--hz-radius-small:9px;--premium-shadow:var(--hz-float-shadow);
     --shadow:var(--hz-float-shadow);--user-bubble:color-mix(in srgb,var(--premium-orange) 8%,var(--card));
-    --hz-solid:#a94a2c;--hz-solid-hover:#913e24;
+    --hz-solid:#b84b23;--hz-solid-hover:#9f3d18;
   }
   body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
   /* Calm desktop surfaces, without removing Hafize's identity and hero animation. */
-  .edge-beam{opacity:.13}
+  .edge-beam{opacity:.85}
   .main>.topbar{background:var(--bg);border-bottom:1px solid var(--line);backdrop-filter:none}
   .main>.topbar .brand-inline strong{letter-spacing:-.025em}
   .main>.topbar .brand-inline small{font-size:11px}
@@ -184,7 +184,151 @@
     .main .primary-column form#composer.composer{box-shadow:0 -5px 24px rgb(0 0 0 / .07)}
   }
   @media(max-height:620px){.welcome h1{font-size:clamp(24px,3.3vw,34px)}}
-  @media(prefers-reduced-motion:reduce){.edge-beam{display:none}}
+  @media(prefers-reduced-motion:reduce){.edge-beam::after{animation:none!important}}
 }
 /* Keep native keyboard, forced-color mode and hidden semantics intact. */
 .hz-settings-page-header[hidden]{display:none!important}
+
+/* Hafize's orange signature. Light is warm ivory, dark is charcoal-copper.
+   Decorative lighting never alters panel geometry, hit targets or feature states. */
+@media not all and (forced-colors: active){
+  html[data-theme]{
+    --hz-beam:#ff863d;--hz-beam-tip:#ffd1a5;
+    --hz-orange-border:color-mix(in srgb,var(--premium-orange) 42%,var(--line));
+    --hz-orange-wash:color-mix(in srgb,var(--premium-orange) 9%,var(--card));
+    --hz-glow:0 0 20px color-mix(in srgb,var(--hz-beam) 24%,transparent);
+    --hz-card-warm:linear-gradient(145deg,color-mix(in srgb,var(--premium-orange) 7%,var(--card)),var(--card) 68%);
+    --user-bubble:color-mix(in srgb,var(--premium-orange) 13%,var(--card));
+  }
+  html[data-theme="light"]{--hz-beam:#ee702b;--hz-beam-tip:#ffae69}
+  html[data-theme="dark"]{--hz-beam:#ff9853;--hz-beam-tip:#ffe0bd}
+  body{
+    background:
+      radial-gradient(ellipse at 44% 0%,color-mix(in srgb,var(--hz-beam) 12%,transparent),transparent 54%),
+      radial-gradient(ellipse at 100% 86%,color-mix(in srgb,var(--hz-beam) 7%,transparent),transparent 40%),
+      var(--bg);
+    background-attachment:scroll;
+  }
+  body::before{background:none}
+  /* Keep all four existing moving viewport beams visible, including mobile.
+     Use transform animation rather than layout-changing left/top offsets. */
+  html[data-theme] .edge-beam{
+    display:block;opacity:.92;filter:none;pointer-events:none;
+    background:color-mix(in srgb,var(--hz-beam) 24%,transparent);
+  }
+  html[data-theme] :is(.edge-top,.edge-bottom){height:2px}
+  html[data-theme] :is(.edge-left,.edge-right){width:2px}
+  html[data-theme] .edge-beam::after{
+    box-shadow:0 0 8px var(--hz-beam),0 0 18px color-mix(in srgb,var(--hz-beam) 65%,transparent);
+    pointer-events:none;
+  }
+  html[data-theme] :is(.edge-top,.edge-bottom)::after{
+    left:0;width:26vw;height:2px;
+    background:linear-gradient(90deg,transparent,var(--hz-beam) 34%,var(--hz-beam-tip) 65%,transparent);
+    animation:hz-orange-beam-x 10s linear infinite;
+  }
+  html[data-theme] :is(.edge-left,.edge-right)::after{
+    top:0;width:2px;height:28vh;
+    background:linear-gradient(180deg,transparent,var(--hz-beam) 34%,var(--hz-beam-tip) 65%,transparent);
+    animation:hz-orange-beam-y 11s linear infinite;
+  }
+  html[data-theme] .edge-bottom::after{animation-direction:reverse;animation-delay:-5s}
+  html[data-theme] .edge-right::after{animation-direction:reverse;animation-delay:-5.5s}
+  @keyframes hz-orange-beam-x{from{transform:translateX(-28vw)}to{transform:translateX(100vw)}}
+  @keyframes hz-orange-beam-y{from{transform:translateY(-30vh)}to{transform:translateY(100vh)}}
+  /* Inset moving highlight along the header; no new element or overlay hit area. */
+  .main>.topbar{
+    background:linear-gradient(100deg,color-mix(in srgb,var(--premium-orange) 7%,var(--bg)),var(--bg) 65%);
+    border-bottom-color:var(--hz-orange-border);
+  }
+  .main>.topbar::after{
+    content:"";position:absolute;inset:auto 0 -1px;height:2px;pointer-events:none;
+    background:linear-gradient(90deg,transparent 0%,var(--hz-beam) 45%,var(--hz-beam-tip) 50%,transparent 60%) no-repeat;
+    background-size:32% 100%;background-position:0 0;
+    animation:hz-orange-header 12s ease-in-out infinite alternate;
+    opacity:.82;
+  }
+  @keyframes hz-orange-header{from{background-position:0 0}to{background-position:100% 0}}
+  .main>.topbar .flower-logo{color:var(--premium-orange);filter:drop-shadow(0 0 6px color-mix(in srgb,var(--hz-beam) 40%,transparent))}
+  .main>.topbar #sidebarToggle,.main>.topbar .theme-toggle,.main>.topbar .agent-compact select{border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
+  .welcome h1::after{
+    width:112px;height:2px;background:linear-gradient(90deg,transparent,var(--hz-beam),var(--hz-beam-tip),transparent);
+    box-shadow:var(--hz-glow);opacity:1;
+  }
+  .welcome :is(.hz-hero,.hero-logo){filter:drop-shadow(0 0 14px color-mix(in srgb,var(--hz-beam) 28%,transparent))}
+  /* Static sparse particles behind the existing animated portrait, confined to
+     its canvas; retain the original portrait and avoid a second JS animation. */
+  .welcome .hz-hero{
+    background-image:radial-gradient(circle at 18% 26%,color-mix(in srgb,var(--hz-beam) 55%,transparent) 0 1px,transparent 2px),
+      radial-gradient(circle at 83% 19%,color-mix(in srgb,var(--hz-beam) 45%,transparent) 0 1px,transparent 2px),
+      radial-gradient(circle at 91% 66%,color-mix(in srgb,var(--hz-beam) 45%,transparent) 0 1px,transparent 2px),
+      radial-gradient(circle at 8% 74%,color-mix(in srgb,var(--hz-beam) 45%,transparent) 0 1px,transparent 2px),
+      radial-gradient(ellipse at center,color-mix(in srgb,var(--hz-beam) 8%,transparent),transparent 68%);
+  }
+  .welcome .suggestions button{border-color:var(--hz-orange-border);background:var(--hz-card-warm)}
+  .welcome .suggestions button:hover{border-color:var(--premium-orange);box-shadow:var(--hz-glow);background:var(--hz-orange-wash)}
+  #sidebar,.main .utility-rail>.utility-card,.settings-workspace>.settings-panel,.live-screen-sheet{
+    border-color:var(--hz-orange-border);background:var(--hz-card-warm);
+  }
+  #sidebar{box-shadow:var(--hz-float-shadow),var(--hz-glow)}
+  .main .utility-rail>.utility-card,.settings-workspace>.settings-panel{box-shadow:var(--hz-card-shadow),inset 0 1px 0 color-mix(in srgb,var(--hz-beam) 10%,transparent)}
+  .main .utility-card .utility-head .mini-icon{background:var(--hz-orange-wash);color:var(--premium-orange)}
+  #sidebar .new-chat,#sidebar .sidebar-footer a.soft-btn,#sidebar .history-search-row{border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
+  #sidebar .nav-item:is(.active,[aria-current="page"]){background:var(--hz-orange-wash);border-color:var(--hz-orange-border);box-shadow:inset 2px 0 0 var(--premium-orange)}
+  html[data-hafize-layout="classic"] .aw-rail-header{border-bottom-color:var(--hz-orange-border)}
+  html[data-hafize-layout="classic"] :is(.aw-shortcut,.aw-filter,.aw-search,.aw-top-toggle){border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
+  html[data-hafize-layout="classic"] .aw-filter[aria-pressed="true"]{border-color:var(--premium-orange);background:color-mix(in srgb,var(--premium-orange) 19%,var(--card))}
+  .main .primary-column form#composer.composer{
+    border-color:var(--hz-orange-border);background:var(--hz-card-warm);
+    box-shadow:var(--hz-float-shadow),var(--hz-glow);
+  }
+  /* Existing composer pseudo-elements are reserved for listening and mobile
+     keyboard fill. Pulse only the unfocused idle box, without changing them. */
+  .main .primary-column form#composer.composer:not(:focus-within):not([data-voice-listening="true"]){
+    animation:hz-orange-composer-breathe 5s ease-in-out infinite;
+  }
+  @keyframes hz-orange-composer-breathe{
+    0%,100%{box-shadow:var(--hz-float-shadow),0 0 12px color-mix(in srgb,var(--hz-beam) 12%,transparent)}
+    50%{box-shadow:var(--hz-float-shadow),0 0 25px color-mix(in srgb,var(--hz-beam) 28%,transparent)}
+  }
+  html[data-theme] .main .primary-column form#composer.composer:focus-within{
+    border-color:color-mix(in srgb,var(--premium-orange) 72%,var(--line))!important;
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--hz-beam) 14%,transparent),var(--hz-float-shadow),var(--hz-glow)!important;
+  }
+  #composer .composer-tools .icon-btn,#composer .model-wrap select{border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
+  #composer .composer-tools .icon-btn:is(:hover,[aria-pressed="true"]){border-color:var(--premium-orange);color:var(--premium-orange-strong)}
+  #composer .send-btn,.voice-mode .vm-send{
+    background:linear-gradient(145deg,#b84b23,#a93e17);color:#fff;border-color:#b84b23;box-shadow:var(--hz-glow);
+  }
+  #composer .send-btn:not(:disabled):hover{background:linear-gradient(145deg,#b84b23,#963810)}
+  #messages .message.user:not(.is-background-output){border-color:var(--hz-orange-border)}
+  #messages .tool-activity:not(.failed){border-color:var(--hz-orange-border)!important;background:var(--hz-orange-wash)!important}
+  #messages .assistant-message-actions .message-action:hover{border-color:var(--premium-orange);background:var(--hz-orange-wash)}
+  #messages .md-code,#messages .md-table-wrap{border-color:var(--hz-orange-border)}
+  .main .utility-rail>.utility-card:is(.calendar-card,.voice-card){
+    background:radial-gradient(ellipse at 90% 0%,color-mix(in srgb,var(--premium-orange) 13%,transparent),transparent 58%),var(--hz-card-warm);
+  }
+  .main .calendar-card .calendar-day.selected{background:var(--hz-solid);color:#fff;box-shadow:0 0 10px color-mix(in srgb,var(--hz-beam) 30%,transparent)}
+  .main .calendar-card .calendar-day[aria-current="date"]:not(.selected){box-shadow:inset 0 0 0 1px var(--premium-orange),var(--hz-glow)}
+  .main .calendar-card :is(.desktop-calendar-today,.mini-btn),.main .voice-card :is(.voice-proxy,.voice-output-toggle){border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
+  .main .voice-card .voice-orb{box-shadow:inset -12px -14px 28px rgb(0 0 0 / .22),0 0 42px color-mix(in srgb,var(--hz-beam) 43%,transparent)}
+  .main .voice-card.listening .voice-orb{box-shadow:0 0 54px color-mix(in srgb,var(--hz-beam) 65%,transparent)}
+  .main .voice-card .voice-orb::before{border-color:color-mix(in srgb,var(--hz-beam) 68%,transparent)}
+  .main .voice-card .voice-orb::after{border-color:var(--hz-beam)}
+  .workspace-navigation-intro,.hz-settings-page-header{border-bottom-color:var(--hz-orange-border)}
+  .settings-workspace .hz-settings-index{border-bottom-color:var(--hz-orange-border)}
+  .settings-workspace .lab-metric{border-color:var(--hz-orange-border);background:var(--hz-orange-wash)}
+  html[data-theme] .hafize-auth-card{border-color:var(--hz-orange-border);background:var(--hz-card-warm);box-shadow:var(--hz-float-shadow),var(--hz-glow)}
+  html[data-theme] .hafize-auth-card input{border-color:var(--hz-orange-border)}
+  @media(max-width:680px){
+    html[data-theme] .edge-beam{opacity:.7}
+    .main>.topbar::after{background-size:42% 100%;animation-duration:10s}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html[data-theme] .edge-beam::after,.main>.topbar::after{animation:none!important}
+    html[data-theme] .edge-beam::after{transform:none!important}
+    .main .primary-column form#composer.composer:not(:focus-within){animation:none!important}
+  }
+  html[data-reduced-motion="true"] :is(.edge-beam,.main>.topbar)::after{animation:none!important;transform:none!important}
+  html[data-reduced-motion="true"] .main .primary-column form#composer.composer:not(:focus-within){animation:none!important}
+}
