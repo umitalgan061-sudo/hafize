@@ -33,7 +33,6 @@
   }
   body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5}
   /* Calm desktop surfaces, without removing Hafize's identity and hero animation. */
-  .edge-beam{opacity:.48}
   .main>.topbar{background:var(--bg);border-bottom:1px solid var(--line);backdrop-filter:none}
   .main>.topbar .brand-inline strong{letter-spacing:-.025em}
   .main>.topbar .brand-inline small{font-size:11px}
@@ -202,28 +201,6 @@
   }
   body{background:var(--bg)}
   body::before{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--premium-orange) 3%,transparent),transparent 45%)}
-  html[data-theme] .edge-beam{
-    display:block;opacity:.82;pointer-events:none;filter:none;background:transparent;
-  }
-  html[data-theme] :is(.edge-top,.edge-bottom){height:2px}
-  html[data-theme] :is(.edge-left,.edge-right){width:2px}
-  html[data-theme] .edge-beam::after{
-    pointer-events:none;box-shadow:0 0 8px color-mix(in srgb,var(--hz-beam) 46%,transparent);
-  }
-  html[data-theme] :is(.edge-top,.edge-bottom)::after{
-    left:0;width:clamp(85px,22vw,280px);height:2px;
-    background:linear-gradient(90deg,transparent,var(--hz-beam) 40%,var(--hz-beam-tip) 58%,transparent);
-    animation:hz-orange-beam-x 11s linear infinite;
-  }
-  html[data-theme] :is(.edge-left,.edge-right)::after{
-    top:0;width:2px;height:clamp(75px,22vh,230px);
-    background:linear-gradient(180deg,transparent,var(--hz-beam) 40%,var(--hz-beam-tip) 58%,transparent);
-    animation:hz-orange-beam-y 12s linear infinite;
-  }
-  html[data-theme] .edge-bottom::after{animation-direction:reverse;animation-delay:-5.5s}
-  html[data-theme] .edge-right::after{animation-direction:reverse;animation-delay:-6s}
-  @keyframes hz-orange-beam-x{from{transform:translateX(calc(-1 * clamp(85px,22vw,280px)))}to{transform:translateX(100vw)}}
-  @keyframes hz-orange-beam-y{from{transform:translateY(calc(-1 * clamp(75px,22vh,230px)))}to{transform:translateY(100vh)}}
   .main>.topbar{background:var(--bg);border-bottom-color:var(--line)}
   .main>.topbar::after{
     content:"";position:absolute;inset:auto 0 -1px;height:2px;pointer-events:none;z-index:1;
@@ -261,7 +238,6 @@
   .main .voice-card .voice-orb{box-shadow:inset -12px -14px 28px rgb(0 0 0 / .22),0 0 30px color-mix(in srgb,var(--premium-orange) 30%,transparent)}
   .main .voice-card.listening .voice-orb{box-shadow:0 0 54px color-mix(in srgb,var(--premium-orange) 60%,transparent)}
   @media(max-width:680px){
-    html[data-theme] .edge-beam{opacity:.78}
     .main>.topbar::after{background-size:27% 100%;opacity:.78}
   }
   @media(prefers-reduced-motion:reduce){
@@ -273,26 +249,15 @@
 }
 
 
-/* Screen-edge motion is rendered by perimeter-motion.js, independently of
-   SVG or CSS animation support. The subtle baseline is always present. */
+/* The original Claude screen light is installed by theme-polish.ts.
+   The earlier premium.css/polish.css edge beams own normal-state motion.
+   Keep the same faint normal-state beams on phones, as requested. */
 @property --hz-perimeter-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
 @keyframes hz-perimeter-turn{to{--hz-perimeter-angle:360deg}}
 @media not all and (forced-colors: active){
-  html[data-theme] body>.hz-frame{
-    display:block;position:fixed;inset:0;margin:0;box-sizing:border-box;
-    border-radius:0;z-index:2147483000;pointer-events:none;opacity:1;
+  @media(max-width:760px){
+    html[data-theme] .edge-beam{display:block;opacity:.32}
   }
-  html[data-theme] body>.hz-frame>.hz-frame-idle{
-    position:absolute;inset:1px;pointer-events:none;
-    box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hz-beam) 38%,transparent);
-  }
-  html[data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking,.hz-frame-thinking-glow){display:none}
-  html[data-theme] body>.hz-frame>#hz-perimeter-canvas{
-    display:block;position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;
-    border:0;margin:0;padding:0;background:transparent;pointer-events:none;
-  }
-  html[data-theme][data-hz-perimeter="running"] body>.edge-beam{display:none}
-  /* The legacy moving edge beams remain available until the canvas starts. */
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
     html[data-theme] #composer>.hz-composer-pulse{
       content:"";position:absolute;inset:0;pointer-events:none;
@@ -319,10 +284,12 @@
   }
   @media(prefers-reduced-motion:reduce){
     html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
-    html[data-theme] #hz-perimeter-canvas,html[data-theme] .edge-beam{display:none}
+    html[data-theme] .edge-beam{display:none}
   }
   html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse{animation:none!important}
-  html[data-reduced-motion="true"][data-theme] :is(#hz-perimeter-canvas,.edge-beam){display:none}
+  html[data-reduced-motion="true"][data-theme] .edge-beam{display:none}
+  html[data-reduced-motion="true"] .hz-frame>i{animation:none!important}
+  html[data-reduced-motion="true"] .hz-frame>i+i{display:none}
 }
 @media(forced-colors:active){
   .hz-frame,.edge-beam,#composer>.hz-composer-pulse{display:none!important}
