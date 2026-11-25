@@ -56,55 +56,102 @@ export function createVoiceActivityGate(rate:number,{silenceMs=850,maxMs=30000,m
  };
 }
 type ResultEvent={results?:ArrayLike<ArrayLike<{transcript?:unknown}>&{isFinal?:boolean}>};
-/** Alternate, explicitly selected capture path. Browser AEC/NS are requested
- * for this single stream. NIM endpoint is batch ASR, not a streaming ASR protocol. */
+type CaptureConsumer={frame:(samples:Float32Array,rate:number)=>void;failed:()=>void};
+/** A single microphone stream per explicitly active conversation. Detaching a
+ * recognizer stops collecting samples, but keeps the acquired microphone ready.
+ * Mute, close, pause, engine switch and page visibility MUST close the session.
+ * Late permission responses from an invalidated session release their tracks. */
+export class NimCaptureSession{
+ private generation=0;private stream:MediaStream|null=null;private ctx:AudioContext|null=null;private node:ScriptProcessorNode|null=null;
+ private source:MediaStreamAudioSourceNode|null=null;private gain:GainNode|null=null;
+ private pending:Promise<void>|null=null;private consumer:CaptureConsumer|null=null;
+ constructor(private root:typeof globalThis){}
+ async attach(consumer:CaptureConsumer){
+  if(this.consumer&&this.consumer!==consumer)throw Error('NIM_CAPTURE_BUSY');
+  this.consumer=consumer;
+  try{
+   if(!this.stream||!this.ctx){
+    if(!this.pending){
+     const generation=this.generation;
+     const opening=this.open(generation);
+     this.pending=opening;
+     void opening.finally(()=>{if(this.pending===opening)this.pending=null;}).catch(()=>{});
+    }
+    await this.pending;
+   }
+   if(this.consumer!==consumer||!this.stream||!this.ctx)throw Error('NIM_CAPTURE_CANCELLED');
+   return this.ctx.sampleRate;
+  }catch(error){if(this.consumer===consumer)this.close();throw error;}
+ }
+ detach(consumer:CaptureConsumer){if(this.consumer===consumer)this.consumer=null;}
+ private async open(generation:number){
+  const media=this.root.navigator?.mediaDevices;const Context=this.root.AudioContext||(this.root as typeof globalThis&{webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
+  if(!media?.getUserMedia||!Context)throw Error('audio-capture');
+  const stream=await media.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+  if(generation!==this.generation){stream.getTracks().forEach(t=>t.stop());throw Error('NIM_CAPTURE_CANCELLED');}
+  this.stream=stream;const ctx=new Context();this.ctx=ctx;await ctx.resume();
+  if(generation!==this.generation)throw Error('NIM_CAPTURE_CANCELLED');
+  this.source=ctx.createMediaStreamSource(stream);this.node=ctx.createScriptProcessor(2048,1,1);this.gain=ctx.createGain();this.gain.gain.value=0;
+  this.node.onaudioprocess=e=>{if(generation===this.generation)this.consumer?.frame(e.inputBuffer.getChannelData(0),ctx.sampleRate);};
+  this.source.connect(this.node);this.node.connect(this.gain);this.gain.connect(ctx.destination);
+  for(const track of stream.getTracks())track.addEventListener?.('ended',()=>{
+   if(generation!==this.generation)return;const consumer=this.consumer;this.close();consumer?.failed();
+  },{once:true});
+ }
+ close(){
+  this.generation++;this.consumer=null;this.pending=null;
+  if(this.node){this.node.onaudioprocess=null;try{this.node.disconnect();}catch{}}
+  try{this.source?.disconnect();this.gain?.disconnect();}catch{}
+  this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;
+  if(this.ctx)void this.ctx.close().catch(()=>undefined);this.ctx=null;this.node=null;this.source=null;this.gain=null;
+ }
+}
+/** Batch speech recognition with persistent capture in an active voice session.
+ * No idle/background audio or audio collected while transcription is pending
+ * is uploaded. This is not a streaming ASR protocol. */
 export class NimRecognition{
  lang='tr-TR';interimResults=false;continuous=false;maxAlternatives=1;
  onstart:(()=>void)|null=null;onend:(()=>void)|null=null;onresult:((event:ResultEvent)=>void)|null=null;onerror:((event:{error?:string})=>void)|null=null;
  onaudiostart:(()=>void)|null=null;onspeechstart:(()=>void)|null=null;onspeechend:(()=>void)|null=null;
- private controller=new AbortController();private stream:MediaStream|null=null;private ctx:AudioContext|null=null;private node:ScriptProcessorNode|null=null;
- private source:MediaStreamAudioSourceNode|null=null;private gain:GainNode|null=null;private gate:ReturnType<typeof createVoiceActivityGate>|null=null;
- private timer:ReturnType<typeof setTimeout>|null=null;private finished=false;private ending=false;
- constructor(private root:typeof globalThis,private language:string){}
+ private controller=new AbortController();private capture:NimCaptureSession;private owned:boolean;private rate=16000;
+ private gate:ReturnType<typeof createVoiceActivityGate>|null=null;
+ private finished=false;private ending=false;
+ private consumer:CaptureConsumer={frame:(samples,rate)=>{
+  if(this.ending||this.finished||!this.gate)return;
+  this.rate=rate;const frame=this.gate.push(samples);if(frame.started)this.onspeechstart?.();if(frame.done)this.stop();
+ },failed:()=>this.fail('audio-capture')};
+ constructor(private root:typeof globalThis,private language:string,session?:NimCaptureSession){this.capture=session??new NimCaptureSession(root);this.owned=!session;}
  start(){void this.begin();}
  private async begin(){
   try{
-   const media=this.root.navigator?.mediaDevices;const Context=this.root.AudioContext||(this.root as typeof globalThis&{webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
-   if(!media?.getUserMedia||!Context)throw Error('audio-capture');
-   const stream=await media.getUserMedia({video:false,audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
-   if(this.finished||this.ending){stream.getTracks().forEach(t=>t.stop());return;}
-   this.stream=stream;const ctx=new Context();this.ctx=ctx;await ctx.resume();if(this.finished||this.ending)return;
-   this.gate=createVoiceActivityGate(ctx.sampleRate);
-   this.source=ctx.createMediaStreamSource(stream);this.node=ctx.createScriptProcessor(2048,1,1);this.gain=ctx.createGain();this.gain.gain.value=0;
-   this.node.onaudioprocess=e=>{if(this.ending||this.finished)return;const frame=this.gate!.push(e.inputBuffer.getChannelData(0));if(frame.started)this.onspeechstart?.();if(frame.done)this.stop();};
-   this.source.connect(this.node);this.node.connect(this.gain);this.gain.connect(ctx.destination);
+   const rate=await this.capture.attach(this.consumer);
+   if(this.finished||this.ending){this.capture.detach(this.consumer);return;}
+   this.rate=rate;this.gate=createVoiceActivityGate(rate);
    this.onstart?.();this.onaudiostart?.();
-   this.timer=setTimeout(()=>this.stop(),60000);
+   // Silence does not end a live NIM microphone session; the activity gate's
+   // preroll is bounded, and actual utterances retain the 30-second safety bound.
   }catch(e){if(!this.finished&&!this.ending){const name=(e as Error)?.name;this.fail(name==='NotAllowedError'?'not-allowed':'audio-capture');}}
  }
  private release(){
-  if(this.timer)clearTimeout(this.timer);this.timer=null;
-  if(this.node){this.node.onaudioprocess=null;try{this.node.disconnect();}catch{}}
-  try{this.source?.disconnect();this.gain?.disconnect();}catch{}
-  this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;
-  if(this.ctx)void this.ctx.close().catch(()=>undefined);this.ctx=null;
+  this.capture.detach(this.consumer);
+  if(this.owned)this.capture.close();
  }
  private finish(){if(this.finished)return;this.finished=true;this.release();this.gate=null;this.onend?.();}
  private fail(error:string){if(this.finished)return;this.ending=true;this.release();this.onerror?.({error});this.finish();}
  stop(){if(this.finished||this.ending)return;this.ending=true;
-  const rate=this.ctx?.sampleRate??16000,data=this.gate?.take()??null;this.release();this.gate=null;
+  const data=this.gate?.take()??null;this.release();this.gate=null;
   if(!data){this.finish();return;}
   this.onspeechend?.();
-  const signal=this.controller.signal;
+  const signal=AbortSignal.any([this.controller.signal,AbortSignal.timeout(60000)]);
   void (async()=>{
-   const wav=wavOf(pcmTo16k(data,rate),16000,1);
+   const wav=wavOf(pcmTo16k(data,this.rate),16000,1);
    const response=await request(this.root,'transcribe',{data:base64(wav),language:this.language},signal);
    if(this.finished||signal.aborted)return;
    if(typeof response?.text==='string'&&response.text.trim()){
     const result=Object.assign([{transcript:response.text.trim()}],{isFinal:true});this.onresult?.({results:[result]});
    }
    this.finish();
-  })().catch(()=>{if(!signal.aborted)this.fail('network');});
+  })().catch(()=>{if(!this.controller.signal.aborted)this.fail('network');});
  }
  abort(){if(this.finished)return;this.controller.abort();this.finish();}
 }
