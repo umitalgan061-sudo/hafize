@@ -91,6 +91,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll});
+ return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;
