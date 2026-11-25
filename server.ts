@@ -5,6 +5,7 @@ import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
 import {createProjectAiGateway} from './lib/project-ai-gateway.ts';
 import {createProjectDeliveryHealth} from './lib/project-delivery-health.ts';
+import {RERANK_URL} from './lib/nvidia-rerank.ts';
 import {createNvidiaAgentWorkspace} from './lib/nvidia-agent-workspace.ts';
 import {deploymentBlueprintProbe} from './lib/deployment-blueprint-probe.ts';
 import { createServer } from 'node:http';
@@ -111,8 +112,9 @@ const LAB_DIRECT = LAB_CONNECTION.connection;
 const MODEL_LAB = LAB_DIRECT ? createModelLab({
   allowed: [...LAB_MODEL_CHAIN, ...MODEL_LAB_EXTRA_CANDIDATES],
   storage: MODEL_LAB_STORAGE,
+  rerankConfigured:true,
   specialistModels: (process.env.HAFIZE_MODEL_LAB_EMBEDDINGS || 'nvidia/nemotron-3-embed-1b,nvidia/nemotron-3.5-embed-1b,nvidia/nemotron-3.5-embed-8b').split(',').map(id=>id.trim()),
-  request: (path, body, signal) => fetch(LAB_DIRECT.baseUrl + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + LAB_DIRECT.apiKey, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+  request: (path, body, signal) => fetch(path==='/reranking'?RERANK_URL:LAB_DIRECT.baseUrl + path, { method: body ? 'POST' : 'GET', redirect: 'error', signal, headers: { Authorization: 'Bearer ' + LAB_DIRECT.apiKey, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
 }) : null;
 // NVIDIA's /models list includes models this key cannot call, so the alphabetical first entry is often unusable.
 let RUNTIME_EVIDENCE;
@@ -1753,7 +1755,7 @@ const server = createServer(async (req, res) => {
       res.once('close',close);
       try {
         const body=await readJson(req,4096);
-        sendJson(res,200,{...await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(body?.action==='comprehensive'?180000:160000)])),dailyImprovement:DAILY_IMPROVEMENT.status()});
+        sendJson(res,200,{...await modelLabAction(MODEL_LAB,body,AbortSignal.any([abort.signal,AbortSignal.timeout(body?.action==='audit_window'?600000:body?.action==='comprehensive'?180000:160000)])),dailyImprovement:DAILY_IMPROVEMENT.status()});
       } catch(error) {
         if(res.destroyed||res.writableEnded)return;
         const code=typeof error?.message==='string'&&/^MODEL_LAB_[A-Z0-9_]+$/.test(error.message)?error.message:'MODEL_LAB_FAILED';

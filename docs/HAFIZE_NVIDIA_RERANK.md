@@ -1,0 +1,3 @@
+# NVIDIA Nemotron rerank and model audit
+
+Hosted API contract documented at https://build.nvidia.com/nvidia/nemotron-3_5-rerank-8b/modelcard. Fixed official model-specific NVIDIA URL; no user supplied endpoint or gateway token. Text-only reranking requires explicit consent or verbatim source in current owner message, uses the same model lab request budget and provider cooldown, validates each source index and finite raw logit, and stores only synthetic test evidence. Raw logits are not probabilities. Catalog labels do not establish free or working access. The audit endpoint now includes a rerank probe ahead of smoke tests; translation and rerank evidence appears in inventory. No private documents automatically sent, no GPU installation or paid resource created.
