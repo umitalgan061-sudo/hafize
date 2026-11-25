@@ -93,10 +93,10 @@ console.log('Frontend design system contract OK: themes, contrast, standalone to
 
 assert.match(designSystem,/--bg:#202122; --panel:#292927; --card:#2e2d2b/);
 assert.match(designSystem,/--bg:#f7f5f0; --panel:#efebe5; --card:#fffdfa/);
-for(const effect of ['hz-orange-beam-x','hz-orange-beam-y','hz-orange-header']){
+for(const effect of ['hz-orange-beam-x','hz-orange-beam-y','hz-orange-header','hz-refined-composer-pulse']){
   assert.ok(designSystem.includes('@keyframes '+effect),effect);
 }
-assert.match(designSystem,/html\[data-theme\] \.edge-beam\s*\{[^}]*display:block;opacity:\.55/s);
+assert.match(designSystem,/html\[data-theme\] \.edge-beam\s*\{[^}]*display:block;opacity:\.76/s);
 assert.match(designSystem,/html\[data-reduced-motion="true"\][^{}]*::after\{animation:none!important/);
 assert.match(designSystem,/pointer-events:none/);
 assert.doesNotMatch(designSystem,/#layoutToggle/);
@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=elegant-20261125-1"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=refined-motion-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -115,3 +115,10 @@ assert.match(renderServerSource,/const revision = relative === 'index.html'/);
 const releaseUpdateSource=readFileSync(new URL('../public/typed/release-update.ts',import.meta.url),'utf8');
 assert.match(releaseUpdateSource,/if\(valid\(latest\)&&loaded!==latest\)/);
 console.log('Render release refresh contract OK: stamped HTML, versioned CSS and release endpoint');
+
+assert.match(designSystem,/animation:hz-refined-composer-pulse 5\.6s ease-in-out infinite/);
+assert.match(designSystem,/form#composer\.composer:not\(:focus-within\):not\(\[data-voice-listening="true"\]\)/);
+assert.match(designSystem,/html\[data-reduced-motion="true"\]\[data-theme\][^{}]*\{animation:none!important\}/);
+assert.doesNotMatch(designSystem,/form#composer\.composer::after|form#composer\.composer::before/);
+assert.match(designSystem,/html\[data-theme\] \.edge-beam\{opacity:\.69\}/);
+console.log('Refined motion contract OK: four edges, top trace, gentle idle composer pulse and mobile support');

@@ -191,7 +191,8 @@
 
 /* Signature accents: the original neutral Hafize palette, with orange reserved
    for fine moving traces, the brand, selected controls and focus. No orange
-   page tint, permanent glowing frame, tinted cards or pulsing idle composer. */
+   page tint, permanent glowing frame or tinted cards. Composer glow is a small
+   shadow-only pulse; fixed positioning and mobile keyboard fill are unchanged. */
 @media not all and (forced-colors: active){
   html[data-theme]{
     --hz-beam:#df875d;
@@ -202,33 +203,33 @@
   body{background:var(--bg)}
   body::before{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--premium-orange) 3%,transparent),transparent 45%)}
   html[data-theme] .edge-beam{
-    display:block;opacity:.55;pointer-events:none;filter:none;background:transparent;
+    display:block;opacity:.76;pointer-events:none;filter:none;background:transparent;
   }
   html[data-theme] :is(.edge-top,.edge-bottom){height:1px}
   html[data-theme] :is(.edge-left,.edge-right){width:1px}
   html[data-theme] .edge-beam::after{
-    pointer-events:none;box-shadow:0 0 7px color-mix(in srgb,var(--hz-beam) 30%,transparent);
+    pointer-events:none;box-shadow:0 0 8px color-mix(in srgb,var(--hz-beam) 46%,transparent);
   }
   html[data-theme] :is(.edge-top,.edge-bottom)::after{
-    left:0;width:19vw;height:1px;
+    left:0;width:clamp(85px,22vw,280px);height:1px;
     background:linear-gradient(90deg,transparent,var(--hz-beam) 40%,var(--hz-beam-tip) 58%,transparent);
-    animation:hz-orange-beam-x 13s linear infinite;
+    animation:hz-orange-beam-x 11s linear infinite;
   }
   html[data-theme] :is(.edge-left,.edge-right)::after{
-    top:0;width:1px;height:19vh;
+    top:0;width:1px;height:clamp(75px,22vh,230px);
     background:linear-gradient(180deg,transparent,var(--hz-beam) 40%,var(--hz-beam-tip) 58%,transparent);
-    animation:hz-orange-beam-y 14s linear infinite;
+    animation:hz-orange-beam-y 12s linear infinite;
   }
-  html[data-theme] .edge-bottom::after{animation-direction:reverse;animation-delay:-6.5s}
-  html[data-theme] .edge-right::after{animation-direction:reverse;animation-delay:-7s}
-  @keyframes hz-orange-beam-x{from{transform:translateX(-20vw)}to{transform:translateX(100vw)}}
-  @keyframes hz-orange-beam-y{from{transform:translateY(-20vh)}to{transform:translateY(100vh)}}
+  html[data-theme] .edge-bottom::after{animation-direction:reverse;animation-delay:-5.5s}
+  html[data-theme] .edge-right::after{animation-direction:reverse;animation-delay:-6s}
+  @keyframes hz-orange-beam-x{from{transform:translateX(calc(-1 * clamp(85px,22vw,280px)))}to{transform:translateX(100vw)}}
+  @keyframes hz-orange-beam-y{from{transform:translateY(calc(-1 * clamp(75px,22vh,230px)))}to{transform:translateY(100vh)}}
   .main>.topbar{background:var(--bg);border-bottom-color:var(--line)}
   .main>.topbar::after{
     content:"";position:absolute;inset:auto 0 -1px;height:1px;pointer-events:none;
     background:linear-gradient(90deg,transparent,var(--hz-beam),transparent) no-repeat;
-    background-size:16% 100%;background-position:0 0;
-    animation:hz-orange-header 18s ease-in-out infinite alternate;opacity:.38;
+    background-size:22% 100%;background-position:0 0;
+    animation:hz-orange-header 14s ease-in-out infinite alternate;opacity:.66;
   }
   @keyframes hz-orange-header{from{background-position:0 0}to{background-position:100% 0}}
   .main>.topbar .flower-logo{color:var(--premium-orange)}
@@ -240,6 +241,15 @@
     background:var(--card);border-color:var(--line);
   }
   .main .primary-column form#composer.composer{background:var(--card);border-color:var(--line)}
+  /* Animate the existing shadow, not position or pseudo-elements. The latter
+     are already reserved for mobile keyboard and voice recording behavior. */
+  html[data-theme] .main .primary-column form#composer.composer:not(:focus-within):not([data-voice-listening="true"]){
+    animation:hz-refined-composer-pulse 5.6s ease-in-out infinite;
+  }
+  @keyframes hz-refined-composer-pulse{
+    0%,100%{box-shadow:var(--hz-float-shadow),0 0 0 1px color-mix(in srgb,var(--hz-beam) 9%,transparent),0 0 9px color-mix(in srgb,var(--hz-beam) 7%,transparent)}
+    50%{box-shadow:var(--hz-float-shadow),0 0 0 1px color-mix(in srgb,var(--hz-beam) 23%,transparent),0 0 20px color-mix(in srgb,var(--hz-beam) 19%,transparent)}
+  }
   html[data-theme] .main .primary-column form#composer.composer:focus-within{
     border-color:color-mix(in srgb,var(--premium-orange) 48%,var(--line))!important;
     box-shadow:var(--hz-focus-glow),var(--hz-float-shadow)!important;
@@ -250,11 +260,13 @@
   .main .voice-card .voice-orb{box-shadow:inset -12px -14px 28px rgb(0 0 0 / .22),0 0 30px color-mix(in srgb,var(--premium-orange) 30%,transparent)}
   .main .voice-card.listening .voice-orb{box-shadow:0 0 54px color-mix(in srgb,var(--premium-orange) 60%,transparent)}
   @media(max-width:680px){
-    html[data-theme] .edge-beam{opacity:.42}
-    .main>.topbar::after{background-size:22% 100%}
+    html[data-theme] .edge-beam{opacity:.69}
+    .main>.topbar::after{background-size:27% 100%;opacity:.65}
   }
   @media(prefers-reduced-motion:reduce){
     html[data-theme] .edge-beam::after,.main>.topbar::after{animation:none!important;transform:none!important}
+    html[data-theme] .main .primary-column form#composer.composer:not(:focus-within):not([data-voice-listening="true"]){animation:none!important}
   }
   html[data-reduced-motion="true"] :is(.edge-beam,.main>.topbar)::after{animation:none!important;transform:none!important}
+  html[data-reduced-motion="true"][data-theme] .main .primary-column form#composer.composer:not(:focus-within):not([data-voice-listening="true"]){animation:none!important}
 }
