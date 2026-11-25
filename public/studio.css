@@ -1,6 +1,6 @@
 /* Shared visual language for the three standalone Hafize tools. */
-:root{color-scheme:light;--bg:#faf4ec;--card:#fffaf3;--ink:#302b27;--muted:#696057;--line:#e3cbb8;--accent:#b84b23;--hover:#f8e6d5;--shadow:0 2px 12px #49311b0b}
-:root[data-theme="dark"]{color-scheme:dark;--bg:#211c19;--card:#302720;--ink:#f2efea;--muted:#c5b5a7;--line:#594032;--accent:#b84b23;--hover:#3d2c23;--shadow:0 2px 12px #0003}
+:root{color-scheme:light;--bg:#f7f5f0;--card:#fffdfa;--ink:#302b27;--muted:#69635c;--line:#e1dcd4;--accent:#a94a2c;--hover:#f0ece6;--shadow:0 2px 12px #49311b0b}
+:root[data-theme="dark"]{color-scheme:dark;--bg:#202122;--card:#2e2d2b;--ink:#f2efea;--muted:#b8b1a8;--line:#41403d;--accent:#a94a2c;--hover:#343330;--shadow:0 2px 12px #0003}
 *{box-sizing:border-box}
 html{font:15px/1.6 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
 body{margin:0;min-height:100dvh}
@@ -37,16 +37,10 @@ th{background:var(--hover)}
 @media(max-width:520px){label{display:flex;margin-inline-end:0}select,input[type="number"]{width:100%}fieldset{padding:12px}button{min-height:40px}}
 @media(forced-colors:active){button,input,textarea,select,fieldset{border-color:ButtonText}}
 
-/* Carry the same orange visual signature into the standalone workspaces. */
+/* Subtle signature detail on the standalone tools, without tinting the surfaces. */
 @media not all and (forced-colors: active){
-  :root{--studio-beam:#ee702b;--studio-tip:#ffae69}
-  :root[data-theme="dark"]{--studio-beam:#ff9853;--studio-tip:#ffe0bd}
-  body{background:radial-gradient(ellipse at 50% 0%,color-mix(in srgb,var(--studio-beam) 12%,transparent),transparent 55%),var(--bg)}
-  body::before{content:"";position:fixed;inset:0 0 auto;height:2px;z-index:10;pointer-events:none;background:linear-gradient(90deg,transparent,var(--studio-beam),var(--studio-tip),transparent) no-repeat;background-size:30% 100%;animation:studio-orange-trace 10s ease-in-out infinite alternate;box-shadow:0 0 10px color-mix(in srgb,var(--studio-beam) 30%,transparent)}
+  body::before{content:"";position:fixed;inset:0 0 auto;height:1px;z-index:10;pointer-events:none;background:linear-gradient(90deg,transparent,#df875d,#ffc3a0,transparent) no-repeat;background-size:20% 100%;opacity:.5;animation:studio-orange-trace 15s ease-in-out infinite alternate}
   @keyframes studio-orange-trace{from{background-position:0 0}to{background-position:100% 0}}
-  h1::after{content:"";display:block;width:100px;height:2px;margin-top:12px;border-radius:2px;background:linear-gradient(90deg,var(--studio-beam),transparent)}
-  fieldset,pre,#output,#grouping:not([hidden]),#csv-controls{border-color:color-mix(in srgb,var(--studio-beam) 35%,var(--line));background:linear-gradient(145deg,color-mix(in srgb,var(--studio-beam) 5%,var(--card)),var(--card) 68%)}
-  main>a:first-child,button:not(:disabled):hover{border-color:var(--studio-beam)}
   @media(prefers-reduced-motion:reduce){body::before{animation:none}}
   html[data-reduced-motion="true"] body::before{animation:none}
 }
