@@ -3,6 +3,7 @@ import { createGitHubAgentRelease, releaseAuthorizationForRequest } from './lib/
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
+import {createProjectDeliveryHealth} from './lib/project-delivery-health.ts';
 import {createNvidiaAgentWorkspace} from './lib/nvidia-agent-workspace.ts';
 import {deploymentBlueprintProbe} from './lib/deployment-blueprint-probe.ts';
 import { createServer } from 'node:http';
@@ -132,7 +133,8 @@ const WEB_TOOLS = createWebTools({
 });
 const MAX_AGENT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_AGENT_TOOL_ROUNDS, 200, 4, 200);
 const EXPERT_TOOL_ROUNDS = boundedEnvInteger(process.env.HAFIZE_EXPERT_TOOL_ROUNDS, 24, 1, MAX_EXPERT_ROUNDS);
-const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'orchestrator_list', 'nvidia_workspace', 'skill_invoke']);
+const PROJECT_DELIVERY_HEALTH=createProjectDeliveryHealth();
+const UNTRUSTED_CONTENT_TOOLS = new Set(['localhost_start', 'web_search', 'web_page_read', 'wikipedia_lookup', 'news_search', 'gmail_read', 'canva_read', 'github_read_file', 'github_inspect', 'agent_delegate', 'fs_read', 'research_run', 'web_page_render', 'vision_analyze', 'workspace_files', 'workspace_sqlite', 'shell_run', 'orchestrator_run', 'orchestrator_resume', 'orchestrator_list', 'project_health', 'nvidia_workspace', 'skill_invoke']);
 const CONVERSATION_ID_PATTERN = /^[A-Za-z0-9_-]{1,120}$/;
 // NVIDIA lists models this key cannot call (404/410). Once seen, they are hidden from /api/models
 // until restart so the picker stops offering them.
@@ -936,7 +938,7 @@ async function handleAgentRun(req, res) {
       return PLATFORM.wrapDelegation(traceId, ({ agent: expert, task: expertTask, repair }) => runDelegatedAgent({
         agent: expert,
         task: repair ? `${expertTask}\n\n${repair}` : expertTask,
-        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry, githubInspect: GITHUB_INSPECT, nvidiaWorkspace },
+        toolContext: { services: runContext.services, webTools: WEB_TOOLS, weatherLookup: WEATHER_LOOKUP, telemetry: PLATFORM.telemetry, githubInspect: GITHUB_INSPECT, nvidiaWorkspace, projectHealth:ownerId?PROJECT_DELIVERY_HEALTH:undefined },
         maxRounds: EXPERT_TOOL_ROUNDS,
         traceId: delegatedTraceId,
         parentTaskId: delegatedParentTaskId,
@@ -973,6 +975,7 @@ async function handleAgentRun(req, res) {
     githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
     nvidiaWorkspace,
+    projectHealth:ownerId?PROJECT_DELIVERY_HEALTH:undefined,
     githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
     safeGitHubAutonomy,
     delegateAgent: (args, signal) => delegator.delegate(args, { depth: 0,signal }),

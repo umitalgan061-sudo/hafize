@@ -1,0 +1,3 @@
+# Project delivery verification
+
+`project_health` is an authenticated read-only agent tool for the fixed owner catalog. It never accepts arbitrary URLs or credentials, never follows redirects, and separates reachability, HTML, exact Hafize frontend SHA, backend readiness, Borsa market health and CORS/auth checks. No claim of authenticated workflow or exact backend deployment. Unknown destinations remain unknown. Existing branch creation can omit the branch name; the server generates a unique compliant feature branch. Edits, PRs and protected paths retain all prior authorization. No production rollback, provider quota, external GPU, or deploy credentials changed.

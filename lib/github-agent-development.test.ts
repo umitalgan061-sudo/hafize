@@ -165,3 +165,13 @@ it('allows Borsa frontend and worker only when explicitly configured',async()=>{
  for(const path of ['borsa-worker/wrangler.toml','borsa-gunlugu/src/main.js']) await tool.execute({operation:'file',repository,branch:BRANCH,path,content:'safe',message:'edit'},{safeAutonomy:true});
  for(const path of ['.github/workflows/yayin.yml','firebase.json','hafize-worker/src/index.js','borsa-worker/../firebase.json']) await expect(tool.execute({operation:'file',repository,branch:BRANCH,path,content:'safe',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'GITHUB_REPO_PATH_NOT_ALLOWED'});
 });
+
+it('generates a fresh safe branch only for branch creation; no implicit write target',async()=>{
+ const {tool,writer}=fixture();
+ await tool.execute({operation:'branch',repository:REPOSITORY},{safeAutonomy:true});
+ const first=writer.normalizeInput.mock.calls[0]![1] as {branch:string};
+ expect(first.branch).toMatch(/^hafize\/auto-[a-f0-9]{32}$/);
+ await tool.execute({operation:'branch',repository:REPOSITORY},{safeAutonomy:true});
+ expect(writer.normalizeInput.mock.calls[1]![1]).not.toEqual(first);
+ await expect(tool.execute({operation:'file',repository:REPOSITORY,path:'public/x.js',content:'ok',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+});

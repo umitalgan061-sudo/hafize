@@ -60,6 +60,7 @@ export interface ToolRuntimeContext {
   readonly advertisedToolNames?: readonly string[];
   readonly registry?: { readonly agents?: readonly ToolAgent[] };
   readonly nvidiaConfigured?: boolean;
+  readonly projectHealth?: (args:unknown,signal?:AbortSignal)=>Promise<unknown>;
   readonly nvidiaWorkspace?: {execute:(args:unknown,signal?:AbortSignal)=>Promise<unknown>};
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: (args: unknown) => Promise<unknown>;
@@ -315,7 +316,7 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(120_000),
     activity: { running: 'İzinli GitHub geliştirme adımı hazırlanıyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı uygulanmadı' },
     definition: strictDefinition('github_develop',
-      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
+      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch işlemi sırasında branch alanını tamamen çıkarırsan sunucu güvenli benzersiz dal üretir; dönen branch değerini kullan. Açık dal örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
       {
         operation: { type: 'string', enum: ['branch', 'file', 'pull'] },
         repository: { type: 'string' },
@@ -326,7 +327,7 @@ const CATALOG = new Map<string, ToolEntry>([
         existingSha: { type: 'string' },
         title: { type: 'string' },
         body: { type: 'string' }
-      }, ['operation', 'repository', 'branch']),
+      }, ['operation', 'repository']),
     available: (context) => Boolean(context.githubDevelopment?.enabled() &&
       (context.safeGitHubAutonomy === true || typeof context.requestApproval === 'function')),
     execute: async (args, context) => context.githubDevelopment!.execute(args, {
@@ -400,6 +401,13 @@ const CATALOG = new Map<string, ToolEntry>([
     definition: MEMORY_TOOL_DEFINITIONS.memory_forget as ToolDefinition,
     available: (context) => typeof context.memory?.forget === 'function',
     execute: async (args, context) => context.memory!.forget(args)
+  }],
+  ['project_health', {
+    permission:'repo.read',kind:'diagnostic',timeoutMs:timeout(90000),
+    activity:{running:'Canlı proje kanıtı kontrol ediliyor',success:'Proje sağlık kanıtı alındı',failure:'Proje sağlık kontrolü tamamlanamadı'},
+    definition:strictDefinition('project_health','Sahibin proje kataloğundaki sabit URL adreslerinde gerçek salt-okunur HTTP kontrolü yapar. Hafize için frontend release.json SHA, backend live/ready; Borsa için halka açık health, dört Firebase origin CORS ve anonim auth reddi; diğer projelerde yalnız HTTP/HTML. project alanında katalog ID kullan. sha yalnız Hafize için isteğe bağlı tam SHA. Oturum açılmış işlev testi veya backend commit kanıtı değildir.',{project:{type:'string'},sha:{type:'string'}},['project']),
+    available:context=>Boolean(context.ownerId&&context.projectHealth),
+    execute:async(args,context)=>context.projectHealth!(args,context.signal)
   }],
   ['nvidia_workspace', {
     permission:'nvidia.workspace',kind:'diagnostic',timeoutMs:180000,
