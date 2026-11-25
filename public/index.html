@@ -15,6 +15,7 @@
     }
   </script>
   <script src="/theme-init.js"></script>
+  <script defer src="/perimeter-motion.js?v=20261125-1"></script>
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/hafize.jpeg" />
   <link rel="apple-touch-icon" href="/icons/icon-180.png?v=hafize-alien-1" />
@@ -83,11 +84,11 @@
   <link rel="stylesheet" href="/live-screen.css" />
   <link rel="stylesheet" href="/desktop-agenda.css" />
   <link rel="stylesheet" href="/advanced-workspace.css" />
-  <link rel="stylesheet" href="/design-system.css?v=perimeter-weather-20261125-1" />
+  <link rel="stylesheet" href="/design-system.css?v=perimeter-canvas-20261125-1" />
   <script type="module" src="/typed-build/release-update.js"></script>
 </head>
 <body>
-  <div class="hz-frame" aria-hidden="true"><i class="hz-frame-idle"></i><i class="hz-frame-idle-glow"></i><i class="hz-frame-thinking"><svg class="hz-thinking-beam" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><g class="hz-beam-idle"><rect class="hz-ray-halo" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="64 936" stroke-dashoffset="32"><animate attributeName="stroke-dashoffset" from="32" to="-968" dur="13s" repeatCount="indefinite"/></rect><rect class="hz-ray-tail" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="60 940" stroke-dashoffset="30"><animate attributeName="stroke-dashoffset" from="30" to="-970" dur="13s" repeatCount="indefinite"/></rect><rect class="hz-ray-middle" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="44 956" stroke-dashoffset="22"><animate attributeName="stroke-dashoffset" from="22" to="-978" dur="13s" repeatCount="indefinite"/></rect><rect class="hz-ray-bright" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="28 972" stroke-dashoffset="14"><animate attributeName="stroke-dashoffset" from="14" to="-986" dur="13s" repeatCount="indefinite"/></rect><rect class="hz-ray-core" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="12 988" stroke-dashoffset="6"><animate attributeName="stroke-dashoffset" from="6" to="-994" dur="13s" repeatCount="indefinite"/></rect></g><g class="hz-beam-active"><rect class="hz-ray-halo" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="64 936" stroke-dashoffset="32"><animate attributeName="stroke-dashoffset" from="32" to="-968" dur="5s" repeatCount="indefinite"/></rect><rect class="hz-ray-tail" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="60 940" stroke-dashoffset="30"><animate attributeName="stroke-dashoffset" from="30" to="-970" dur="5s" repeatCount="indefinite"/></rect><rect class="hz-ray-middle" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="44 956" stroke-dashoffset="22"><animate attributeName="stroke-dashoffset" from="22" to="-978" dur="5s" repeatCount="indefinite"/></rect><rect class="hz-ray-bright" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="28 972" stroke-dashoffset="14"><animate attributeName="stroke-dashoffset" from="14" to="-986" dur="5s" repeatCount="indefinite"/></rect><rect class="hz-ray-core" x="0" y="0" width="100%" height="100%" rx="6" ry="6" pathLength="1000" stroke-dasharray="12 988" stroke-dashoffset="6"><animate attributeName="stroke-dashoffset" from="6" to="-994" dur="5s" repeatCount="indefinite"/></rect></g></svg></i><i class="hz-frame-thinking-glow"></i></div>
+  <div class="hz-frame" aria-hidden="true"><i class="hz-frame-idle"></i><canvas id="hz-perimeter-canvas" aria-hidden="true"></canvas></div>
   <span class="edge-beam edge-top" aria-hidden="true"></span>
   <span class="edge-beam edge-right" aria-hidden="true"></span>
   <span class="edge-beam edge-bottom" aria-hidden="true"></span>

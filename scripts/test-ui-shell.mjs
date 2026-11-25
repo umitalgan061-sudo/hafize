@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=perimeter-weather-20261125-1"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=perimeter-canvas-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -126,48 +126,31 @@ console.log('Refined motion contract OK: four edges, top trace, gentle independe
 assert.match(indexHtml, /<span class="hz-composer-pulse" aria-hidden="true"><\/span>/);
 assert.match(designSystem, /#composer>\.hz-composer-pulse\s*\{[^}]*pointer-events:none/s);
 
-for(const name of ['hz-frame-idle','hz-frame-idle-glow','hz-frame-thinking','hz-frame-thinking-glow']){
-  assert.ok(indexHtml.includes('<i class="'+name+'">'),name);
-}
+assert.match(indexHtml,/<div class="hz-frame" aria-hidden="true"><i class="hz-frame-idle"><\/i><canvas id="hz-perimeter-canvas" aria-hidden="true"><\/canvas><\/div>/);
+assert.match(indexHtml,/<script defer src="\/perimeter-motion\.js\?v=20261125-1"><\/script>/);
 assert.match(designSystem, /@property --hz-perimeter-angle/);
 assert.match(designSystem, /mask-composite:exclude/);
-assert.match(designSystem, /body:has\(>\.hz-frame\)>\.edge-beam\{display:none\}/);
 assert.match(designSystem, /html\[data-theme\] body>\.hz-frame\{\s*display:block;position:fixed;inset:0;[^}]*pointer-events:none;opacity:1/s);
-assert.match(designSystem, /body>\.hz-frame>\.hz-frame-idle\{\s*inset:1px;\s*box-shadow:inset 0 0 0 1px/);
-assert.match(designSystem, /body>\.hz-frame>:is\(\.hz-frame-thinking,\.hz-frame-thinking-glow\)\{\s*visibility:hidden;opacity:0/);
-assert.match(designSystem, /hz-frame-idle-glow\)::after\{[^}]*animation:hz-perimeter-turn 15s linear infinite/s);
+assert.match(designSystem, /body>\.hz-frame>\.hz-frame-idle\{[^}]*inset:1px;[^}]*box-shadow:inset 0 0 0 1px/s);
+assert.match(designSystem, /body>\.hz-frame>#hz-perimeter-canvas\{[^}]*width:100%;height:100%;[^}]*pointer-events:none/s);
+assert.match(designSystem, /data-hz-perimeter="running"\] body>\.edge-beam\{display:none\}/);
 assert.match(designSystem, /html\[data-theme\] #composer>\.hz-composer-pulse\{\s*position:absolute;inset:-2px;padding:1\.5px;opacity:\.8;box-shadow:none;[^}]*animation:hz-perimeter-turn 8s linear infinite/s);
 const frameSource=readFileSync(new URL('../public/typed/theme-polish.ts',import.meta.url),'utf8');
 assert.match(frameSource,/if \(!document\.querySelector\('\.hz-frame'\)\)/);
-assert.match(frameSource,/const name of \['hz-frame-idle', 'hz-frame-idle-glow', 'hz-frame-thinking', 'hz-frame-thinking-glow'\]/);
-assert.doesNotMatch(frameSource,/\.hz-frame>i\{/);
+assert.match(frameSource,/canvas\.id = 'hz-perimeter-canvas'/);
+assert.doesNotMatch(frameSource,/hz-thinking-beam|createElementNS\(ns, 'animate'\)/);
 const thinkingSource=readFileSync(new URL('../public/typed/chat-scroll.ts',import.meta.url),'utf8');
 assert.match(thinkingSource,/classList\.add\('hafize-working'\)/);
 assert.match(thinkingSource,/classList\.remove\('hafize-working'\)/);
-console.log('Dual outer frame contract OK: permanent subtle outline, independent thinking highlight, composer and accessible fallback');
-
 const generationSource=readFileSync(new URL('../public/typed/app-shell.ts',import.meta.url),'utf8');
 assert.match(generationSource,/function setGenerationUi\(disabled\)\s*\{\s*document\.documentElement\.dataset\.hafizeGenerating = String\(disabled\)/);
-
-assert.match(designSystem,/body>\.hz-frame>\.hz-frame-thinking-glow\{display:none\}/);
-assert.doesNotMatch(designSystem,/box-shadow:inset 0 0 0 3px #ee8249/);
-
-for(const name of ['halo','tail','middle','bright','core']){
-  assert.match(indexHtml,new RegExp('<rect class="hz-ray-'+name+'"[^>]*pathLength="1000"'));
-}
-assert.match(designSystem,/\.hz-thinking-beam rect\{[^}]*stroke-linecap:round;vector-effect:non-scaling-stroke/s);
-assert.match(designSystem,/\.hz-thinking-beam rect\{rx:12px;ry:12px\}/);
-assert.doesNotMatch(designSystem,/hz-thinking-dot|offset-path:inset\(0 round/);
-assert.match(frameSource,/document\.createElementNS\(ns, 'svg'\)/);
-
-assert.match(designSystem,/html\[data-theme\] body>\.hz-frame>\.hz-frame-thinking\{\s*visibility:visible;opacity:1;inset:3px/);
-assert.match(designSystem,/\.hz-thinking-beam \.hz-beam-idle\{opacity:\.76\}/);
-assert.match(designSystem,/\.hz-thinking-beam \.hz-beam-active\{display:none\}/);
-assert.match(designSystem,/data-hafize-generating="true"[^{}]*\.hz-beam-active\{display:inline/);
-assert.match(indexHtml,/<g class="hz-beam-idle">[\s\S]*?dur="13s" repeatCount="indefinite"/);
-assert.match(indexHtml,/<g class="hz-beam-active">[\s\S]*?dur="5s" repeatCount="indefinite"/);
-assert.match(indexHtml,/stroke-dasharray="60 940" stroke-dashoffset="30"><animate attributeName="stroke-dashoffset" from="30" to="-970"/);
-assert.match(indexHtml,/stroke-dasharray="12 988" stroke-dashoffset="6"/);
-assert.match(frameSource,/document\.createElementNS\(ns, 'animate'\)/);
-assert.match(designSystem,/html\[data-theme\] \.hz-thinking-beam\{display:none\}/);
-console.log('Native SVG perimeter beam contract OK: animated idle and active states, tapered dashes and reduced motion');
+const perimeterSource=readFileSync(new URL('../public/perimeter-motion.js',import.meta.url),'utf8');
+assert.match(perimeterSource,/ctx\.setLineDash\(\[dash,length-dash\]\)/);
+assert.match(perimeterSource,/ctx\.lineDashOffset=dash\/2-progress\*length/);
+assert.match(perimeterSource,/progress=\(progress\+Math\.min\(now-last,100\)\/\(active\?5000:13000\)\)%1/);
+assert.match(perimeterSource,/requestAnimationFrame\(tick\)/);
+assert.match(perimeterSource,/dataset\.hzPerimeter='running'/);
+assert.match(perimeterSource,/document\.addEventListener\('visibilitychange',sync\)/);
+assert.match(perimeterSource,/root\.dataset\.reducedMotion !== 'true'/);
+assert.doesNotMatch(indexHtml,/class="hz-thinking-beam"|<animate attributeName="stroke-dashoffset"/);
+console.log('Canvas perimeter contract OK: elapsed-time motion, four-edge path, quiet/working colors, visibility and accessibility');

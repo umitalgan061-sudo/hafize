@@ -273,9 +273,8 @@
 }
 
 
-/* Screen-edge identity: two independent layers at the viewport's outer edge.
-   The quiet layer always runs. Only actual thinking enables the stronger layer.
-   Neither layer changes layout, colors, scroll, focus, or input handling. */
+/* Screen-edge motion is rendered by perimeter-motion.js, independently of
+   SVG or CSS animation support. The subtle baseline is always present. */
 @property --hz-perimeter-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
 @keyframes hz-perimeter-turn{to{--hz-perimeter-angle:360deg}}
 @media not all and (forced-colors: active){
@@ -283,48 +282,18 @@
     display:block;position:fixed;inset:0;margin:0;box-sizing:border-box;
     border-radius:0;z-index:2147483000;pointer-events:none;opacity:1;
   }
-  html[data-theme] body>.hz-frame>i{
-    display:block;position:absolute;inset:0;margin:0;padding:0;
-    border:0;border-radius:0;box-sizing:border-box;pointer-events:none;
-    background:none;animation:none;filter:none;opacity:1;
-  }
   html[data-theme] body>.hz-frame>.hz-frame-idle{
-    inset:1px;
+    position:absolute;inset:1px;pointer-events:none;
     box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hz-beam) 38%,transparent);
   }
-  html[data-theme] body>.hz-frame>.hz-frame-idle-glow{
-    opacity:.18;
+  html[data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking,.hz-frame-thinking-glow){display:none}
+  html[data-theme] body>.hz-frame>#hz-perimeter-canvas{
+    display:block;position:absolute;inset:0;width:100%;height:100%;max-width:none;max-height:none;
+    border:0;margin:0;padding:0;background:transparent;pointer-events:none;
   }
-  html[data-theme] body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
-    visibility:hidden;opacity:0;
-  }
-  /* A single SVG beam, always visible; generation changes intensity and speed.
-     SVG dash animation does not depend on CSS masks or custom-property interpolation. */
-  html[data-theme] body>.hz-frame>.hz-frame-thinking{
-    visibility:visible;opacity:1;inset:3px;border-radius:6px;box-shadow:none;
-  }
-  html[data-theme] body>.hz-frame>.hz-frame-thinking-glow{display:none}
-  html[data-theme] body>.hz-frame>.hz-frame-idle-glow{display:none}
-  .hz-thinking-beam{
-    position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;
-  }
-  .hz-thinking-beam rect{
-    fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;rx:6px;ry:6px;
-  }
-  .hz-thinking-beam .hz-beam-idle{opacity:.76}
-  .hz-thinking-beam .hz-beam-active{display:none}
-  .hz-thinking-beam .hz-ray-halo{stroke:#ff8745;stroke-width:6;stroke-opacity:.16}
-  .hz-thinking-beam .hz-ray-tail{stroke:#e97b41;stroke-width:2;stroke-opacity:.32}
-  .hz-thinking-beam .hz-ray-middle{stroke:#ff8d4d;stroke-width:2.5;stroke-opacity:.65}
-  .hz-thinking-beam .hz-ray-bright{stroke:#ffac69;stroke-width:3;stroke-opacity:.9}
-  .hz-thinking-beam .hz-ray-core{stroke:#ffd7ad;stroke-width:2;stroke-opacity:1}
-  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .hz-thinking-beam .hz-beam-idle{display:none}
-  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .hz-thinking-beam .hz-beam-active{display:inline;filter:drop-shadow(0 0 3px rgb(255 139 73 / .55))}
-  html[data-theme] body>.hz-frame>.hz-frame-idle::after{display:none}
-  html[data-theme] body:has(>.hz-frame .hz-thinking-beam)>.edge-beam{display:none}
+  html[data-theme][data-hz-perimeter="running"] body>.edge-beam{display:none}
+  /* The legacy moving edge beams remain available until the canvas starts. */
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
-    html[data-theme] body:has(>.hz-frame)>.edge-beam{display:none}
-    html[data-theme] body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after,
     html[data-theme] #composer>.hz-composer-pulse{
       content:"";position:absolute;inset:0;pointer-events:none;
       box-sizing:border-box;border-radius:inherit;border:0;
@@ -333,17 +302,6 @@
       mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
       mask-composite:exclude;
     }
-    html[data-theme] body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after{
-      padding:1px;
-      background:conic-gradient(from var(--hz-perimeter-angle),
-        transparent 0deg 185deg,
-        color-mix(in srgb,var(--hz-beam) 22%,transparent) 230deg,
-        color-mix(in srgb,var(--hz-beam) 64%,transparent) 275deg,
-        color-mix(in srgb,var(--hz-beam-tip) 80%,transparent) 305deg,
-        color-mix(in srgb,var(--hz-beam) 25%,transparent) 335deg,transparent 360deg);
-      animation:hz-perimeter-turn 15s linear infinite;
-    }
-    html[data-theme] body>.hz-frame>.hz-frame-idle-glow::after{padding:3px;filter:blur(3px)}
     /* Composer remains the previous independent circulating outline. */
     html[data-theme] #composer>.hz-composer-pulse{
       position:absolute;inset:-2px;padding:1.5px;opacity:.8;box-shadow:none;
@@ -356,24 +314,15 @@
     }
     html[data-theme] #composer[data-voice-listening="true"]>.hz-composer-pulse{opacity:0;animation:none}
     @media(max-width:680px){
-      html[data-theme] body>.hz-frame>.hz-frame-idle-glow{opacity:.14}
       html[data-theme] #composer>.hz-composer-pulse{inset:-1px}
     }
   }
-  /* Keep the thinking outline inside the usable screen on phones with rounded corners. */
-  @media(max-width:680px){
-    html[data-theme] body>.hz-frame>.hz-frame-thinking{inset:4px;border-radius:12px}
-    .hz-thinking-beam rect{rx:12px;ry:12px}
-  }
   @media(prefers-reduced-motion:reduce){
-    html[data-theme] body>.hz-frame>i::after,html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
-    html[data-theme] .hz-thinking-beam{display:none}
-    html[data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
+    html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
+    html[data-theme] #hz-perimeter-canvas,html[data-theme] .edge-beam{display:none}
   }
-  html[data-reduced-motion="true"][data-theme] body>.hz-frame>i::after,
   html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse{animation:none!important}
-  html[data-reduced-motion="true"][data-theme] .hz-thinking-beam{display:none}
-  html[data-reduced-motion="true"][data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
+  html[data-reduced-motion="true"][data-theme] :is(#hz-perimeter-canvas,.edge-beam){display:none}
 }
 @media(forced-colors:active){
   .hz-frame,.edge-beam,#composer>.hz-composer-pulse{display:none!important}
