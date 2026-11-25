@@ -182,7 +182,17 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
     const count = images.length;
     const prompt = judgePrompt(count);
     const jobs = judgeModels.flatMap((model) => judgeOrders(count).map((order) => ({model, order})));
+    const juryStarted = Date.now();
+    const diagnostics: Array<{model: string; order: 'forward' | 'reverse'; outcome: string; elapsedMs: number}> = [];
     const runVote = async ({model, order}: (typeof jobs)[number]) => {
+      const started = Date.now();
+      const direction = order[0] === 0 ? 'forward' as const : 'reverse' as const;
+      const record = (outcome: string) => {
+        const row = {model, order: direction, outcome, elapsedMs: Date.now() - started};
+        diagnostics.push(row);
+        // No provider messages, prompts, images, or credentials in logs.
+        console.info('hafize.retake.jury.model ' + JSON.stringify(row));
+      };
       signal?.throwIfAborted();
       const content: Json[] = [{type: 'text', text: prompt}];
       order.forEach((candidate, position) => {
@@ -191,6 +201,7 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
         content.push({type: 'image_url', image_url: {url: `data:${image.mime};base64,${image.base64}`}});
       });
       const callSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(VISION_JUDGE_LIMITS.callTimeoutMs)]) : AbortSignal.timeout(VISION_JUDGE_LIMITS.callTimeoutMs);
+      try {
       const result = await complete({
         model,
         stream: false,
@@ -201,7 +212,16 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
         messages: [{role: 'user', content}]
       }, callSignal);
       const vote = parseJudgeVote(messageText(result), order);
-      return {vote, model: completionOrigin(result) ?? model};
+      const origin = completionOrigin(result) ?? model;
+      if (origin !== model) { record('model-mismatch'); return {vote: null, model}; }
+      record(vote ? 'valid-vote' : 'invalid-vote');
+      return {vote, model};
+      } catch (error) {
+        const status = Number((error as {status?: unknown})?.status);
+        const name = (error as {name?: unknown})?.name;
+        record(callSignal.aborted || name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : Number.isInteger(status) && status >= 400 && status <= 599 ? `http-${status}` : 'upstream-error');
+        throw error;
+      }
     };
     // Bound memory pressure and upstream fan-out on the free Render instance.
     // Each model still sees both orders; no partial batch can silently become
@@ -235,6 +255,9 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
       task: VISION_JUDGE_TASK,
       ...verdict,
       attempted: jobs.length,
+      attemptedModels: [...judgeModels],
+      diagnostics,
+      elapsedMs: Date.now() - juryStarted,
       models: [...answeringModels].sort(),
       imagesStored: false,
       toolsExecuted: false

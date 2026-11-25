@@ -116,3 +116,27 @@ it('limits jury concurrency while preserving both orders for every model', async
   expect(complete).toHaveBeenCalledTimes(8);
   expect(result).toMatchObject({decision:'winner',winner:1,votes:8,attempted:8});
 });
+
+it('keeps working model votes when another model is throttled and reports safe diagnostics', async () => {
+  const candidates=[jpeg(1),jpeg(2)];
+  const underlying=fakeVlm(1,new Map(candidates.map((url,index)=>[url,index])));
+  const jury=createProjectVisionJudge({models:['nvidia/a','meta/b'],complete:async(payload)=>{
+    if(payload.model==='nvidia/a') throw Object.assign(new Error('private-provider-message'),{status:429});
+    return underlying(payload);
+  }});
+  const result=await jury.judge('retake',{task:'face-realism-rank',candidates});
+  expect(result).toMatchObject({decision:'winner',winner:1,votes:2,attemptedModels:['nvidia/a','meta/b']});
+  expect(result.diagnostics.filter(row=>row.outcome==='http-429')).toHaveLength(2);
+  expect(result.diagnostics.filter(row=>row.outcome==='valid-vote')).toHaveLength(2);
+  expect(JSON.stringify(result)).not.toContain('private-provider-message');
+});
+it('discards a substituted model instead of counting it as an independent vote', async () => {
+  const jury=createProjectVisionJudge({models:['nvidia/a'],complete:async()=>{
+    const result={choices:[{message:{content:'{"scores":{"A":9,"B":4},"best":"A"}'}}]};
+    markCompletionOrigin(result,'meta/other');
+    return result;
+  }});
+  const result=await jury.judge('retake',{task:'face-realism-rank',candidates:[jpeg(1),jpeg(2)]});
+  expect(result).toMatchObject({decision:'abstain',votes:0});
+  expect(result.diagnostics.every(row=>row.outcome==='model-mismatch')).toBe(true);
+});
