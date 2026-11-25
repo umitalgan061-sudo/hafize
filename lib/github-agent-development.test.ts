@@ -165,3 +165,11 @@ it('allows Borsa frontend and worker only when explicitly configured',async()=>{
  for(const path of ['borsa-worker/wrangler.toml','borsa-gunlugu/src/main.js']) await tool.execute({operation:'file',repository,branch:BRANCH,path,content:'safe',message:'edit'},{safeAutonomy:true});
  for(const path of ['.github/workflows/yayin.yml','firebase.json','hafize-worker/src/index.js','borsa-worker/../firebase.json']) await expect(tool.execute({operation:'file',repository,branch:BRANCH,path,content:'safe',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'GITHUB_REPO_PATH_NOT_ALLOWED'});
 });
+
+it('generates a valid feature branch when no name is supplied; file and pull still require exact name',async()=>{
+ const {tool,writer}=fixture();
+ await tool.execute({operation:'branch',repository:REPOSITORY},{safeAutonomy:true});
+ expect(writer.createBranch).toHaveBeenCalledWith('single-use-ticket',expect.objectContaining({branch:expect.stringMatching(/^hafize\/auto-[a-f0-9]{24}$/),fromRef:'main'}));
+ await expect(tool.execute({operation:'file',repository:REPOSITORY,path:'lib/example.ts',content:'ok',message:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+ await expect(tool.execute({operation:'pull',repository:REPOSITORY,title:'edit'},{safeAutonomy:true})).rejects.toMatchObject({code:'INVALID_GITHUB_ARGUMENTS'});
+});

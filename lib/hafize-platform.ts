@@ -329,7 +329,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         return { ...result, ...(actionId ? { actionId } : {}) };
       },
       diagramRender: async (args, context) => media.renderDiagram({ ownerId: owner(context), kind: args.kind, source: args.source }),
-      webRender: async (args, context) => media.renderPage({ ownerId: owner(context), url: args.url, screenshot: args.screenshot }),
+      webRender: async (args, context) => media.renderPage({ ownerId: owner(context), url: args.url, screenshot: args.screenshot,viewport:args.viewport,audit:args.audit }),
       actionUndo: async (args, context) => {
         const ownerId = owner(context);
         if (!args.actionId) return { recent: journal.list(ownerId, 10).filter((item) => item.status === 'done') };

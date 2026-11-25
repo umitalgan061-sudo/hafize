@@ -315,7 +315,7 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(120_000),
     activity: { running: 'İzinli GitHub geliştirme adımı hazırlanıyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı uygulanmadı' },
     definition: strictDefinition('github_develop',
-      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
+      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch parametresini boş bırakmak yerine tamamen atla: sunucu benzersiz güvenli dal üretir, sonuçtaki branch değerini file/pull için kullan; branch örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
       {
         operation: { type: 'string', enum: ['branch', 'file', 'pull'] },
         repository: { type: 'string' },
@@ -326,7 +326,7 @@ const CATALOG = new Map<string, ToolEntry>([
         existingSha: { type: 'string' },
         title: { type: 'string' },
         body: { type: 'string' }
-      }, ['operation', 'repository', 'branch']),
+      }, ['operation', 'repository']),
     available: (context) => Boolean(context.githubDevelopment?.enabled() &&
       (context.safeGitHubAutonomy === true || typeof context.requestApproval === 'function')),
     execute: async (args, context) => context.githubDevelopment!.execute(args, {
@@ -510,7 +510,7 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'web',
     timeoutMs: timeout(45000, 45000),
     activity: {"running":"Sayfa tarayıcıda açılıyor","success":"Sayfa tarayıcıda açıldı","failure":"Sayfa açılamadı"},
-    definition: strictDefinition('web_page_render', "JavaScript ile yüklenen bir web sayfasını gerçek tarayıcıda açar ve görünen metnini (isteğe bağlı ekran görüntüsüyle) getirir. web_page_read boş/eksik içerik döndürürse kullan.", {"url":{"type":"string","maxLength":2048},"screenshot":{"type":"boolean"}}, ["url"]),
+    definition: strictDefinition('web_page_render', "JavaScript ile yüklenen bir web sayfasını gerçek tarayıcıda açar ve görünen metnini (isteğe bağlı ekran görüntüsüyle) getirir. web_page_read boş/eksik içerik döndürürse kullan. viewport=mobile/tablet/desktop seç; audit=true ile görünür başlık, form etiketleri, taşma ve görsel yüklenme kontrolleri yap. Bunlar salt-okunur tarayıcı ölçümleri; oturum açma veya tüm işlevlerin geçtiği anlamına gelmez.", {"url":{"type":"string","maxLength":2048},"screenshot":{"type":"boolean"},"viewport":{"type":"string","enum":["mobile","tablet","desktop"]},"audit":{"type":"boolean"}}, ["url"]),
     available: (context) => typeof context.services?.webRender === 'function',
     execute: async (args, context) => context.services!.webRender!(args, context)
   }],
@@ -807,7 +807,7 @@ export async function executeNvidiaToolCall(
   if (context.signal?.aborted) return { ok: false, tool: entry.definition.function.name, error: 'TOOL_ABORTED', durationMs: Date.now() - startedAt };
   let args: Record<string, unknown>;
   try {
-    args = parseToolArguments(normalized.function.arguments,normalized.function.name==='agent_delegate'?'agent_delegate':undefined);
+    args = parseToolArguments(normalized.function.arguments,normalized.function.name);
   } catch (error) {
     return { ok: false, tool: entry.definition.function.name, error: sanitizeToolError(error).code, durationMs: Date.now() - startedAt };
   }

@@ -1,0 +1,3 @@
+# Browser quality and development recovery
+
+web_page_render supports fixed desktop/tablet/mobile viewport and optional read-only DOM diagnostics (overflow, headings, landmarks, labels, unnamed controls, broken visible images, alt attributes, navigation timing). The fresh guarded browser context remains; load events now match the specific session. The audit is heuristic, not a functional, WCAG or real-device test. No arbitrary JavaScript, login or form submission is added. github_develop branch can omit branch to generate a unique safe feature branch; subsequent file/PR operations require exact returned name. Larger existing authorized GitHub file payloads reach the correct parser limit. Existing release and credential controls remain.

@@ -10,6 +10,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { HeadlessBrowser } from './headless-browser.ts';
 import type { ModelServices } from './model-services.ts';
 import { parsePublicUrl } from './web-tools.ts';
+import { browserAuditExpression, browserViewport } from './browser-quality-audit.ts';
 import { redactPlaintextCredentials } from './plaintext-credential-policy.ts';
 
 const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url));
@@ -150,23 +151,25 @@ export function createMediaTools({ models, images, browser }: { readonly models:
     }
   }
 
-  async function renderPage({ ownerId, url, screenshot = false }: { readonly ownerId: string; readonly url: unknown; readonly screenshot?: unknown }) {
+  async function renderPage({ ownerId, url, screenshot = false, viewport, audit=false }: { readonly ownerId: string; readonly url: unknown; readonly screenshot?: unknown; readonly viewport?:unknown; readonly audit?:unknown }) {
     const target = parsePublicUrl(String(url || '')).toString();
-    const page = await browser.openPage({ guardNetwork: true });
+    const dimensions=browserViewport(viewport);
+    const page = await browser.openPage({ guardNetwork: true,...dimensions });
     try {
-      const loaded = browser.waitForLoad(20_000);
+      const loaded = page.waitForLoad(20_000);
       const navigation = await page.send('Page.navigate', { url: target }) as { errorText?: string };
       if (navigation.errorText) throw new MediaToolError('WEB_RENDER_FAILED', 502);
       await loaded;
       await new Promise((resolve) => setTimeout(resolve, 1_500));
       const content = await page.evaluate<{ title: string; text: string; url: string }>(`({ title: document.title, text: (document.body ? document.body.innerText : '').slice(0, 60000), url: location.href })`);
+      const quality=audit===true?await page.evaluate(browserAuditExpression()):undefined;
       let shot: { url: string } | null = null;
       if (screenshot === true) {
         const capture = await page.send('Page.captureScreenshot', { format: 'png' }) as { data?: string };
         if (capture.data) shot = images.save({ ownerId, bytes: Buffer.from(capture.data, 'base64'), mime: 'image/png', model: 'web-render', prompt: target });
       }
       const text = redactPlaintextCredentials(content.text.replace(/\n{3,}/g, '\n\n').trim());
-      return { url: content.url, title: redactPlaintextCredentials(content.title).slice(0, 300), content: text.slice(0, 12_000), truncated: text.length > 12_000, ...(shot ? { screenshotUrl: shot.url, markdown: `![Ekran görüntüsü](${shot.url})` } : {}) };
+      return { url: redactPlaintextCredentials(content.url), ...(audit===true?{viewport:dimensions,quality,verification:'read_only_heuristics',functionalTestsPassed:false}:{}), title: redactPlaintextCredentials(content.title).slice(0, 300), content: text.slice(0, 12_000), truncated: text.length > 12_000, ...(shot ? { screenshotUrl: shot.url, markdown: `![Ekran görüntüsü](${shot.url})` } : {}) };
     } finally {
       await page.close();
     }
