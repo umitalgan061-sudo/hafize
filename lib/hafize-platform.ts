@@ -34,6 +34,7 @@ import { createDevTools } from './dev-tools.ts';
 import { createRuleEngine, type Rule, type RuleEngine } from './rule-engine.ts';
 import { createWorkspaceWatcher } from './workspace-watcher.ts';
 import { createTaskResults } from './task-results.ts';
+import { createAgentTurnCheckpoints, isAgentTurnId } from './agent-turn-checkpoints.ts';
 import { createLocalhostServers } from './localhost-servers.ts';
 import { createScreenWatch, SCREEN_LIMITS } from './screen-watch.ts';
 import { createIdempotencyStore } from './skill-idempotency.ts';
@@ -154,6 +155,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
     }
   });
   const taskResults = createTaskResults({ db, cipherFor: (ownerId) => crypto.forOwner(ownerId) });
+  const agentTurns = createAgentTurnCheckpoints({db,cipherFor:ownerId=>crypto.forOwner(ownerId)});
   const workspaceWatcher = createWorkspaceWatcher({
     dir: env.HAFIZE_WORKSPACE_DIR || join(root, 'workspace'),
     onChange: async (path) => {
@@ -668,6 +670,14 @@ export function createHafizePlatform(deps: PlatformDeps) {
       }
       if (segments[0] === 'capabilities' && method === 'GET') { sendJson(res, 200, capabilities()); return true; }
 
+      if (segments[0] === 'task-results' && segments[1]==='agent-turn') {
+        if(ownerId.startsWith('connector:')||!isAgentTurnId(segments[2])){sendJson(res,404,{error:'NOT_FOUND'});return true;}
+        const turn=agentTurns.get(ownerId,segments[2]);
+        if(!turn){sendJson(res,404,{error:'AGENT_TURN_NOT_FOUND'});return true;}
+        if(method==='GET'&&segments.length===3){sendJson(res,200,turn);return true;}
+        if(method==='POST'&&segments.length===4&&segments[3]==='cancel'){sendJson(res,200,{cancelled:agentTurns.cancel(ownerId,segments[2])});return true;}
+        sendJson(res,405,{error:'METHOD_NOT_ALLOWED'});return true;
+      }
       if (segments[0] === 'task-results') {
         if (!segments[1] && method === 'GET') { sendJson(res, 200, { results: taskResults.list(ownerId) }); return true; }
         if (segments[1] === 'read' && method === 'POST') { const body = await readJson(req); sendJson(res, 200, { updated: taskResults.markRead(ownerId, typeof body.id === 'string' ? body.id : undefined) }); return true; }
@@ -881,6 +891,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
     workspaceWatcher.stop();
     localhostServers.stopAll();
     skillUpdates.stop();
+    agentTurns.cancelAll();
     await orchestrator.stopDetached();
     browser.shutdown();
     await telemetry.flush().catch(() => {});
@@ -889,7 +900,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
 
   return Object.freeze({
     db, telemetry, models, memory, consolidator, approvals, journal, sandbox, images, media, research, orchestrator, experts, localTools, prompts, backup,
-    createRunContext, prepareMemory, analyzeAttachments, wrapDelegation, handle, capabilities, shutdown, ruleEngine, taskResults,
+    createRunContext, prepareMemory, analyzeAttachments, wrapDelegation, handle, capabilities, shutdown, ruleEngine, taskResults, agentTurns,
     nimStatus:()=>nimSpecialists.status(),
     recordTurn: (ownerId: string, conversationId: string, role: 'user' | 'assistant', content: string) => { if (ownerId && CONVERSATION_ID.test(conversationId)) memory.recordTurn({ ownerId, conversationId, role, content }); }
   });
