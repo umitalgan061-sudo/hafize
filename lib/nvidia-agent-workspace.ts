@@ -8,7 +8,7 @@ const fail=(code:string,status=400):never=>{throw Object.assign(new Error(code),
 const object=(v:unknown):Record<string,unknown>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:fail('NVIDIA_WORKSPACE_INVALID_INPUT');
 const nonempty=(v:unknown,n:number)=>typeof v==='string'&&v.trim()&&v.length<=n&&!containsPlaintextCredential(v)?v.trim():fail('NVIDIA_WORKSPACE_INVALID_TEXT');
 const normalize=(s:string)=>s.toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i');
-const keys:Record<string,readonly string[]>={status:['action','category'],blueprints:['action','category'],discover:['action'],probe:['action','model'],deep:['action','model'],embedding_probe:['action','model'],translation_probe:['action'],comprehensive:['action'],audit_window:['action'],council:['action','text'],translate:['action','text','pair'],semantic_search:['action','text','query','model']};
+const keys:Record<string,readonly string[]>={status:['action','category'],blueprints:['action','category'],discover:['action'],probe:['action','model'],deep:['action','model'],embedding_probe:['action','model'],translation_probe:['action'],rerank_probe:['action'],rerank:['action','text','query'],comprehensive:['action'],audit_window:['action'],council:['action','text'],translate:['action','text','pair'],semantic_search:['action','text','query','model']};
 /** No endpoints, credentials or arbitrary paths are accepted from a model. A catalog entry
  * is never proof of availability. Explicit source text must be present in the owner's
  * current request before sending it to the direct NVIDIA lab provider. */
@@ -33,12 +33,14 @@ export function createNvidiaAgentWorkspace({lab,ownerRequest,nimStatus}:{lab:Lab
   try{
    if(action==='translate')return await lab!.translateText(trustedText(args.text,1000),args.pair,signal);
    if(action==='semantic_search')return await lab!.semanticSearch(trustedText(args.text,1400),trustedText(args.query,250),args.model,signal);
+   if(action==='rerank')return await lab!.rankText(trustedText(args.text,14000),trustedText(args.query,1000),signal);
    if(action==='council')return await lab!.council(trustedText(args.text,1200),signal);
    if(!probeAuthorized)fail('NVIDIA_WORKSPACE_TEST_NOT_AUTHORIZED',403);
    if(action==='discover'){await lab!.discover(signal);return {catalog:lab!.status().catalog,listedIsNotAccessProof:true};}
    if(action==='probe')return await lab!.probe(nonempty(args.model,260),signal);
    if(action==='deep')return await lab!.deepProbe(nonempty(args.model,260),signal);
    if(action==='embedding_probe')return await lab!.specialistProbe(nonempty(args.model,260),signal);
+   if(action==='rerank_probe')return await lab!.rerankProbe(signal);
    if(action==='translation_probe')return await lab!.translationProbe(signal);
    if(action==='comprehensive')return await lab!.comprehensive(signal);
    if(action==='audit_window')return await lab!.auditWindow(signal);

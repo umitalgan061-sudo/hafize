@@ -1,3 +1,5 @@
+import {RERANK_MODEL,rerankPayload,validateReranking} from './nvidia-rerank.ts';
+import {containsPlaintextCredential} from './plaintext-credential-policy.ts';
 import {PUBLIC_CATALOG_METADATA,publicModelInventory} from './nvidia-public-inventory.ts';
 import {modelLabChatPayload,modelLabRequestTimeout,textOnlyLabModel} from './model-lab-provider-profile.ts';
 import { catalogInventory, classifyModel } from './model-catalog.ts';
@@ -17,6 +19,7 @@ export interface ProbeResult {
   readonly chatLatencyMs: number | null;
   readonly requests: number;
 }
+export type RerankProbeResult={model:string;status:ProbeState;testedAt:string;latencyMs:number;relevantFirst:boolean};
 export type TranslationProbeResult={model:string;status:ProbeState;translated:boolean;mode:'synthetic_translation';testedAt:string;latencyMs:number};
 export type SpecialistProbeResult = {model:string; capability:'embedding'; status:ProbeState; testedAt:string; latencyMs:number; dimension:number|null; similarHigher:boolean|null};
 const EMBEDDING_MODELS = ['nvidia/nemotron-3-embed-1b','nvidia/nemotron-3.5-embed-1b','nvidia/nemotron-3.5-embed-8b'] as const;
@@ -39,6 +42,7 @@ export interface ModelLabSnapshot {
   readonly deepResults: readonly DeepProbeResult[];
   readonly specialistResults?: readonly SpecialistProbeResult[];
   readonly translationResult?:TranslationProbeResult|null;
+  readonly rerankResult?:RerankProbeResult|null;
   readonly timestamps: readonly number[];
   readonly blockedUntil: number;
   readonly catalog?:CatalogSnapshot|null;
@@ -59,10 +63,11 @@ const statusFor = (status: number): ProbeState => status === 401 ? 'auth_rejecte
 function object(value: unknown): Record<string, unknown> | null { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null; }
 function message(data: unknown) { const choices = object(data)?.choices; return Array.isArray(choices) ? object(object(choices[0])?.message) : null; }
 function parseAnswer(value: unknown) { if (typeof value !== 'string') return null; try { return object(JSON.parse(value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''))); } catch { return null; } }
-export function createModelLab({ allowed, request, now = Date.now, storage, specialistModels = [] }: {
+export function createModelLab({ allowed, request, now = Date.now, storage, specialistModels = [],rerankConfigured=false }: {
   allowed: readonly string[];
   specialistModels?: readonly string[];
-  request: (path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal: AbortSignal) => Promise<Response>;
+  rerankConfigured?:boolean;
+  request: (path: '/models' | '/chat/completions' | '/embeddings' | '/reranking', body: Record<string, unknown> | null, signal: AbortSignal) => Promise<Response>;
   now?: () => number;
   storage?: ModelLabStorage;
 }) {
@@ -70,6 +75,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   const specialists = [...new Set(specialistModels)].filter(id=>EMBEDDING_MODELS.some(known=>known===id));
   const specialistResults = new Map<string, SpecialistProbeResult>();
   let translationResult:TranslationProbeResult|null=null;
+  let rerankResult:RerankProbeResult|null=null;
   const results = new Map<string, ProbeResult>();
   const deepResults = new Map<string, DeepProbeResult>();
   const timestamps: number[] = [];
@@ -114,13 +120,14 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
         specialistResults.set(String(model),{model,capability,status,testedAt,latencyMs,dimension,similarHigher} as SpecialistProbeResult);
       }
       const translation=object(snapshot.translationResult);if(translation&&translation.model==='nvidia/riva-translate-4b-instruct-v2'&&translation.mode==='synthetic_translation'&&recent(translation.testedAt)&&number(translation.latencyMs)&&typeof translation.translated==='boolean'&&typeof translation.status==='string'&&states.includes(translation.status))translationResult={model:String(translation.model),mode:'synthetic_translation',status:translation.status as ProbeState,translated:translation.translated,testedAt:String(translation.testedAt),latencyMs:Number(translation.latencyMs)};
+      const rerank=object(snapshot.rerankResult);if(rerankConfigured&&rerank&&rerank.model===RERANK_MODEL&&recent(rerank.testedAt)&&number(rerank.latencyMs)&&typeof rerank.relevantFirst==='boolean'&&typeof rerank.status==='string'&&states.includes(rerank.status))rerankResult={model:RERANK_MODEL,status:rerank.status as ProbeState,testedAt:String(rerank.testedAt),latencyMs:Number(rerank.latencyMs),relevantFirst:rerank.relevantFirst};
       if (Array.isArray(snapshot.timestamps)) timestamps.push(...snapshot.timestamps.slice(-MAX_REQUESTS).filter((v): v is number => number(v) && v<=time && v>time-WINDOW_MS).sort((a,b)=>a-b));
       if (number(snapshot.blockedUntil) && snapshot.blockedUntil>time) blockedUntil=Math.min(snapshot.blockedUntil,time+60*60_000);
     } catch { storageHealthy=false; }
   }
   function persist() {
     if (!storage) return;
-    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],translationResult,timestamps:[...timestamps],blockedUntil,catalog,catalogDelta}); storageHealthy=true; }
+    try { storage.save({version:1,results:[...results.values()],deepResults:[...deepResults.values()],specialistResults:[...specialistResults.values()],translationResult,rerankResult,timestamps:[...timestamps],blockedUntil,catalog,catalogDelta}); storageHealthy=true; }
     catch { storageHealthy=false; }
   }
   restore();
@@ -128,8 +135,8 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   function attachStorage(next:ModelLabStorage){if(storage||running||batchRunning||results.size||specialistResults.size||timestamps.length)throw Error('MODEL_LAB_STORAGE_ALREADY_INITIALIZED');storage=next;storageHealthy=true;restore();}
   function fresh(model: string) { const result = results.get(model); const ttl = result?.status === 'passed' && (result.toolProbeStatus === 'passed'||textOnlyLabModel(model)) ? EXPIRY_MS : result?.status === 'unavailable' ? 6 * 60 * 60_000 : WINDOW_MS; return result && now() - Date.parse(result.testedAt) < ttl ? result : null; }
   function availableRequests() { while (timestamps.length && timestamps[0]! <= now() - WINDOW_MS) timestamps.shift(); return MAX_REQUESTS - timestamps.length; }
-  const status = () => ({ eligible, catalog, catalogDelta, publicCatalog:PUBLIC_CATALOG_METADATA,translationResult,publicInventory:publicModelInventory(eligible,specialists,[...results.values()].filter(row=>fresh(row.model)!==null),[...specialistResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS)), specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
-  async function call(path: '/models' | '/chat/completions' | '/embeddings', body: Record<string, unknown> | null, signal?: AbortSignal) {
+  const status = () => ({ eligible, catalog, catalogDelta, publicCatalog:PUBLIC_CATALOG_METADATA,translationResult,rerankConfigured,rerankResult,publicInventory:publicModelInventory(eligible,specialists,[...results.values()].filter(row=>fresh(row.model)!==null),[...specialistResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS),[...(rerankConfigured?[RERANK_MODEL]:[]),'nvidia/riva-translate-4b-instruct-v2'],[rerankResult,translationResult].filter((row):row is RerankProbeResult|TranslationProbeResult=>row!==null&&now()-Date.parse(row.testedAt)<EXPIRY_MS)), specialists, specialistResults:[...specialistResults.values()], deepPendingModels:eligible.filter(model=>fresh(model)?.tools&&!deepFresh(model)), inventory: catalogInventory(catalog?.ids ?? [], eligible, [...results.values()].filter(row=>fresh(row.model) !== null)), storage: !storage ? 'memory' : storageHealthy ? 'configured' : 'error', catalogOnlyCount: catalog ? catalog.ids.filter(id => !eligible.includes(id)).length : null, results: [...results.values()].filter(row=>fresh(row.model)!==null), deepResults: [...deepResults.values()].filter(row=>now()-Date.parse(row.testedAt)<EXPIRY_MS), historicalResults: [...results.values()].filter(row=>fresh(row.model)===null).map(row=>({model:row.model,testedAt:row.testedAt,status:row.status})), taskLeaders: Object.fromEntries((['general','fast','reasoning','coding','agent','fast-agent','reasoning-agent'] as const).map(kind => [kind, preferred(kind, eligible)])), requestsRemaining: availableRequests(), windowMs: WINDOW_MS, running: running || batchRunning, blockedUntil: blockedUntil > now() ? new Date(blockedUntil).toISOString() : null, pendingModels: eligible.filter(model => !fresh(model)), verifiedAgentModels: preferred('agent', eligible), note: 'Results are synthetic smoke tests, not general accuracy rankings. Catalog presence does not mean free access. Only configured NVIDIA chat candidates may be probed. No partner endpoints or GPU downloads.' });
+  async function call(path: '/models' | '/chat/completions' | '/embeddings' | '/reranking', body: Record<string, unknown> | null, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (blockedUntil > now()) throw new Error('MODEL_LAB_PROVIDER_PAUSED');
     if (availableRequests() <= 0) throw new Error('MODEL_LAB_BUDGET');
@@ -383,6 +390,34 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       return {model,mode:'semantic_retrieval' as const,latencyMs:Math.max(0,now()-started),results:ranked.sort((a,b)=>b.score-a.score||a.source-b.source).slice(0,5)};
     }finally{running=false;}
   }
+  async function rankText(input:unknown,query:unknown,signal?:AbortSignal){
+    if(!rerankConfigured)throw Error('MODEL_LAB_RERANK_NOT_CONFIGURED');
+    if(typeof input!=='string'||typeof query!=='string'||!input.trim()||!query.trim()||input.length>14000||query.length>1000||new TextEncoder().encode(input+query).length>32000||containsPlaintextCredential(input)||containsPlaintextCredential(query)||/<\/?img\b|data:image\//i.test(input+query))throw Error('MODEL_LAB_INVALID_RERANK_INPUT');
+    const passages=input.trim().split(/\r?\n\s*\r?\n/).map(t=>t.trim()).filter(Boolean);
+    if(passages.length<2||passages.length>24||passages.some(x=>x.length>4000))throw Error('MODEL_LAB_INVALID_RERANK_INPUT');
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');running=true;
+    const started=now();
+    try{
+      const response=await call('/reranking',rerankPayload(query.trim(),passages),signal);
+      if(!response.ok)throw Error('MODEL_LAB_RERANK_'+response.status);
+      const ranked=validateReranking(await response.json(),passages.length);
+      return {model:RERANK_MODEL,mode:'reranking' as const,latencyMs:Math.max(0,now()-started),results:ranked.map(row=>({source:row.index+1,logit:row.logit,text:passages[row.index]!}))};
+    }finally{running=false;}
+  }
+  async function rerankProbe(signal?:AbortSignal){
+    if(!rerankConfigured)throw Error('MODEL_LAB_RERANK_NOT_CONFIGURED');
+    if(rerankResult&&now()-Date.parse(rerankResult.testedAt)<(rerankResult.status==='passed'?EXPIRY_MS:WINDOW_MS))return rerankResult;
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
+    if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
+    if(availableRequests()<1)throw Error('MODEL_LAB_BUDGET');
+    const started=now();running=true;let state:ProbeState='failed',relevantFirst=false;
+    try{
+      const response=await call('/reranking',rerankPayload('What is the capital of Turkey?',['Bananas are a fruit.','Ankara is the capital of Turkey.','The Moon orbits Earth.']),signal);
+      if(!response.ok)state=statusFor(response.status);
+      else {const ranked=validateReranking(await response.json(),3);relevantFirst=ranked[0]?.index===1;state=relevantFirst?'passed':'invalid_response';}
+    }catch(error){if(signal?.aborted)throw error;state=error instanceof Error&&error.name==='TimeoutError'?'timeout':error instanceof Error&&error.message==='MODEL_LAB_INVALID_RERANK_RESPONSE'?'invalid_response':'failed';}finally{running=false;}
+    rerankResult={model:RERANK_MODEL,status:state,testedAt:new Date(started).toISOString(),latencyMs:Math.max(0,now()-started),relevantFirst};persist();return rerankResult;
+  }
   async function comprehensive(signal?:AbortSignal,progress?:(model:string,result:ProbeResult)=>void){
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
     if(blockedUntil>now())throw Error('MODEL_LAB_PROVIDER_PAUSED');
@@ -402,13 +437,15 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
   async function auditWindow(signal?:AbortSignal){
     const started=now(),smoke:ProbeResult[]=[],deep:DeepProbeResult[]=[],embeddings:SpecialistProbeResult[]=[];
     let translation:TranslationProbeResult|null=null;
+    let reranking:RerankProbeResult|null=null;
     const available=()=>blockedUntil<=now()&&availableRequests()>0;
     const pause=(s:string)=>['rate_limited','quota','auth_rejected'].includes(s);
     if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
-    if(available()&&availableRequests()>=2){
+    if(rerankConfigured&&available()&&(!rerankResult||now()-Date.parse(rerankResult.testedAt)>=EXPIRY_MS))reranking=await rerankProbe(signal);
+    if(!pause(reranking?.status??'')&&available()&&availableRequests()>=2){
       const batchResult=await batch(signal,undefined,eligible.length);smoke.push(...batchResult.completed);
     }
-    let halted=smoke.some(r=>pause(r.status)||pause(r.toolProbeStatus));
+    let halted=pause(reranking?.status??'')||smoke.some(r=>pause(r.status)||pause(r.toolProbeStatus));
     for(const id of eligible.filter(id=>fresh(id)?.chat&&fresh(id)?.tools&&!deepFresh(id))){
       if(halted||!available()||availableRequests()<2)break;
       signal?.throwIfAborted();const row=await deepProbe(id,signal);deep.push(row);halted=pause(row.status);
@@ -421,9 +458,9 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
       translation=await translationProbe(signal);
     }
     const s=status();
-    return {startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),smoke,deep,embeddings,translation,pendingModels:s.pendingModels,deepPendingModels:s.deepPendingModels,requestsRemaining:s.requestsRemaining,blockedUntil:s.blockedUntil,allCatalogVerified:false};
+    return {startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),smoke,deep,embeddings,translation,reranking,pendingModels:s.pendingModels,deepPendingModels:s.deepPendingModels,requestsRemaining:s.requestsRemaining,blockedUntil:s.blockedUntil,allCatalogVerified:false};
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, auditWindow, translationProbe, translateText, semanticSearch });
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, auditWindow, translationProbe, translateText, semanticSearch,rerankProbe,rankText });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {
