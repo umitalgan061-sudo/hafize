@@ -1104,6 +1104,10 @@ async function handleAgentRun(req, res) {
   };
   const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
     if (githubEvidenceMode) {
+      // The checkpoint journal may already hold a completed tool result
+      // before a later stream or telemetry step fails. Include its trusted
+      // receipts rather than reporting an empty run.
+      if(durableId)githubReceipts.push(...(PLATFORM.agentTurns.get(ownerId,durableId)?.receipts??[]));
       content = formatGitHubRunEvidence(githubReceipts);
       if(interruptionDiagnostic)content+='\n\nKesinti nedeni: '+interruptionDiagnostic+'.';
       alreadyWritten = false;

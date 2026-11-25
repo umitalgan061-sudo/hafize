@@ -32,6 +32,15 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:
  async function current(repo:string,signal?:AbortSignal){
   return exact(obj(await api(repo,'/git/ref/heads/main','GET',undefined,signal)).object?.sha);
  }
+ // Read-only reconciliation for an exact PR and exact requested head. This
+ // can recover a successful merge after a lost response without another PUT.
+ async function observedMerge(repo:string,number:number,sha:string,signal?:AbortSignal){
+  const pr=obj(await api(repo,'/pulls/'+number,'GET',undefined,signal));
+  if(pr.merged!==true)return null;
+  if(pr.number!==number||pr.state!=='closed'||pr.base?.ref!=='main'||pr.base?.repo?.full_name?.toLowerCase()!==repo||pr.head?.repo?.full_name?.toLowerCase()!==repo||exact(pr.head?.sha)!==sha)fail('RELEASE_MERGED_PR_MISMATCH',409);
+  safeBranch(pr.head.ref);
+  return {action:'merge',repository:repo,number,headSha:sha,mergeCommitSha:exact(pr.merge_commit_sha),merged:true,published:false,existing:true};
+ }
  async function preflight(repo:string,number:number,sha:string,signal?:AbortSignal){
   const pr=obj(await api(repo,'/pulls/'+number,'GET',undefined,signal));
   if(pr.state!=='open'||pr.draft!==false||pr.merged!==false||pr.base?.ref!=='main'||pr.base?.repo?.full_name?.toLowerCase()!==repo||pr.head?.repo?.full_name?.toLowerCase()!==repo||exact(pr.head?.sha)!==sha)fail('RELEASE_PR_NOT_READY',409);
@@ -118,14 +127,26 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:
    return {action:'rollback_pr',repository:repo,branch,restoresParent:plan.parent,sourceSha:sha,pull,merged:false,published:false,note:'Rollback branch and PR only; verify tests before merge and exact live release.'};
   }
   if(action==='merge'){
-   const number=id(args.number),before=await preflight(repo,number,sha,ctx.signal);
+   const number=id(args.number);
+   const existing=await observedMerge(repo,number,sha,ctx.signal);
+   if(existing)return existing;
+   const before=await preflight(repo,number,sha,ctx.signal);
    assertActive();
    const after=await preflight(repo,number,sha,ctx.signal);
    if(after.main!==before.main||JSON.stringify(after.paths)!==JSON.stringify(before.paths))fail('RELEASE_BASE_MOVED',409);
    assertActive();
-   const merged=obj(await api(repo,'/pulls/'+number+'/merge','PUT',{sha,merge_method:'squash'},ctx.signal));
-   if(merged.merged!==true)fail('RELEASE_MERGE_NOT_CONFIRMED',409);
-   return {action:'merge',repository:repo,number,headSha:sha,mergeCommitSha:exact(merged.sha),merged:true,published:false};
+   try{
+    const merged=obj(await api(repo,'/pulls/'+number+'/merge','PUT',{sha,merge_method:'squash'},ctx.signal));
+    if(merged.merged!==true)fail('RELEASE_MERGE_NOT_CONFIRMED',409);
+    return {action:'merge',repository:repo,number,headSha:sha,mergeCommitSha:exact(merged.sha),merged:true,published:false};
+   }catch(error){
+    // A cancelled task cannot launch additional work. Otherwise only inspect,
+    // never send a second merge request, even after a transport failure.
+    if(!ctx.signal?.aborted){
+     try{const verified=await observedMerge(repo,number,sha,ctx.signal);if(verified)return {...verified,reconciled:true};}catch{/* preserve the original failure */}
+    }
+    throw error;
+   }
   }
   const target=args.target;
   const workflow=repo===HAFIZE&&target==='firebase'?'firebase-hosting-live.yml':repo===SITES&&target==='cloudflare'?'borsa-worker-live.yml':repo===SITES&&target==='firebase'?'borsa-hosting-live.yml':'';

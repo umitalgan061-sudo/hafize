@@ -2,13 +2,14 @@ import {describe,it,expect,vi} from 'vitest';
 import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest,parseExplicitMergeCommand} from './github-agent-release.ts';
 import type {createGitHubWorkspaceWriter} from './github-workspace-write.ts';
 const repo='umitalgan061-sudo/hafize-siteler',sha='a'.repeat(40),base='b'.repeat(40);
-function fixture(opts:{failed?:boolean;path?:string;draft?:boolean;mainFailed?:boolean;incomplete?:boolean}={}){
+function fixture(opts:{failed?:boolean;path?:string;draft?:boolean;mainFailed?:boolean;incomplete?:boolean;alreadyMerged?:boolean;lostMergeResponse?:boolean;wrongMergedHead?:boolean}={}){
+ let mergedState=opts.alreadyMerged===true;
  const writer={configured:()=>true} as unknown as ReturnType<typeof createGitHubWorkspaceWriter>;
  const fetchImpl=vi.fn(async(u:URL|string,init?:RequestInit)=>{
   const p=new URL(String(u)).pathname;
   const json=(v:unknown)=>new Response(JSON.stringify(v));
-  if(p.endsWith('/merge'))return json({merged:true,sha:'c'.repeat(40)});
-  if(p.endsWith('/pulls/3'))return json({state:'open',draft:opts.draft??false,merged:false,mergeable:true,mergeable_state:'clean',changed_files:1,head:{ref:'hafize/auto-borsa',sha,repo:{full_name:repo}},base:{ref:'main',sha:base,repo:{full_name:repo}}});
+  if(p.endsWith('/merge')){mergedState=true;if(opts.lostMergeResponse)throw Error('connection lost');return json({merged:true,sha:'c'.repeat(40)});}
+  if(p.endsWith('/pulls/3'))return json({number:3,state:mergedState?'closed':'open',draft:opts.draft??false,merged:mergedState,merge_commit_sha:mergedState?'c'.repeat(40):null,mergeable:true,mergeable_state:'clean',changed_files:1,head:{ref:'hafize/auto-borsa',sha:mergedState&&opts.wrongMergedHead?'d'.repeat(40):sha,repo:{full_name:repo}},base:{ref:'main',sha:base,repo:{full_name:repo}}});
   if(p.endsWith('/heads/main'))return json({object:{sha:base}});
   if(p.endsWith('/files'))return json([{filename:opts.path??'borsa-worker/src/market.js',status:'modified'}]);
   if(p.endsWith('/actions/runs')){const head=new URL(String(u)).searchParams.get('head_sha');return json({total_count:opts.incomplete?2:1,workflow_runs:[{id:42,head_sha:head,head_branch:head===base?'main':'hafize/auto-borsa',path:'.github/workflows/borsa-worker-live.yml',status:'completed',conclusion:opts.failed?'failure':'success'}]});}
@@ -121,4 +122,18 @@ it('parses only a single exact user-authored structured merge command',()=>{
  expect(parseExplicitMergeCommand(command+JSON.stringify({...args,repository:'other/repo'}))).toBeNull();
  expect(parseExplicitMergeCommand(command+JSON.stringify({...args,action:'publish'}))).toBeNull();
  expect(parseExplicitMergeCommand(command+JSON.stringify(args)+'\n'+command+JSON.stringify(args))).toBeNull();
+});
+
+it('reconciles exact already merged PRs without repeating the write',async()=>{
+ const args={action:'merge',repository:repo,number:3,sha};
+ const {release,fetchImpl,authorization}=fixture({alreadyMerged:true});
+ await expect(release.execute(args,{ownerAuthorized:true,authorization})).resolves.toMatchObject({existing:true,merged:true,mergeCommitSha:'c'.repeat(40),published:false});
+ expect((fetchImpl as any).mock.calls.filter(([url]:[URL])=>url.pathname.endsWith('/merge'))).toHaveLength(0);
+ const wrong=fixture({alreadyMerged:true,wrongMergedHead:true});
+ await expect(wrong.release.execute(args,{ownerAuthorized:true,authorization:wrong.authorization})).rejects.toMatchObject({code:'RELEASE_MERGED_PR_MISMATCH'});
+});
+it('recovers a lost merge response by a read, never a second merge request',async()=>{
+ const {release,fetchImpl,authorization}=fixture({lostMergeResponse:true});
+ await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,authorization})).resolves.toMatchObject({existing:true,reconciled:true,merged:true,mergeCommitSha:'c'.repeat(40)});
+ expect((fetchImpl as any).mock.calls.filter(([url]:[URL])=>url.pathname.endsWith('/merge'))).toHaveLength(1);
 });

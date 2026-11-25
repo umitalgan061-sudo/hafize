@@ -49,7 +49,7 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
   if(v.action==='branch'&&branch&&sha(v.fromSha))return [item('branch',repo+' — '+link(branch,root+'/tree/'+encodeURIComponent(branch))+' oluşturuldu; kaynak '+sha(v.fromSha)+'. Dal açmak kod değişikliği değildir.')];
   if(v.action==='file'&&v.verified===true&&branch&&path&&sha(v.commitSha)&&sha(v.blobSha))return [item('file',repo+' — '+path+'; '+link('commit '+sha(v.commitSha),root+'/commit/'+sha(v.commitSha))+'; blob '+sha(v.blobSha)+' (GitHub üzerinden tekrar okundu).')];
   if((v.action==='pull'||v.action==='open')&&positive(v.number))return [item('pull',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.draft===true?' taslak':'')+(v.existing===true?' mevcut PR doğrulandı.':' açıldı.'))];
-  if(v.action==='merge'&&v.merged===true&&positive(v.number)&&sha(v.mergeCommitSha))return [item('merge',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+' birleştirildi; '+link(sha(v.mergeCommitSha),root+'/commit/'+sha(v.mergeCommitSha))+'.')];
+  if(v.action==='merge'&&v.merged===true&&positive(v.number)&&sha(v.mergeCommitSha))return [item('merge',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.existing===true?' daha önce birleştirilmiş; GitHub üzerinden doğrulandı; ':' birleştirildi; ')+link(sha(v.mergeCommitSha),root+'/commit/'+sha(v.mergeCommitSha))+'.')];
   if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+' için yayın isteği kabul edildi. Canlı yayın doğrulanmadı.')];
   return [item('error',repo+' — '+tool+' yanıtı tamamlanmış yazma kanıtı değil.')];
  }
