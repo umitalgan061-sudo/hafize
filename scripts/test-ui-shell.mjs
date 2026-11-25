@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=visible-motion-20261125-2"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=perimeter-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -125,3 +125,16 @@ console.log('Refined motion contract OK: four edges, top trace, gentle independe
 
 assert.match(indexHtml, /<span class="hz-composer-pulse" aria-hidden="true"><\/span>/);
 assert.match(designSystem, /#composer>\.hz-composer-pulse\s*\{[^}]*pointer-events:none/s);
+
+assert.match(indexHtml, /<div class="hz-frame" aria-hidden="true"><i><\/i><i><\/i><\/div>/);
+assert.match(designSystem, /@property --hz-perimeter-angle/);
+assert.match(designSystem, /mask-composite:exclude/);
+assert.match(designSystem, /body:has\(>\.hz-frame\)>\.edge-beam\{display:none\}/);
+assert.match(designSystem, /html\[data-theme\]\.hafize-working body>\.hz-frame>i,[\s\S]*?padding:3px;animation-duration:3\.8s/);
+assert.match(designSystem, /html\[data-theme\] #composer>\.hz-composer-pulse\{\s*position:absolute;inset:-2px;padding:1\.5px;opacity:\.8;box-shadow:none;\s*animation-duration:8s/);
+const frameSource=readFileSync(new URL('../public/typed/theme-polish.ts',import.meta.url),'utf8');
+assert.match(frameSource,/if \(!document\.querySelector\('\.hz-frame'\)\)/);
+const thinkingSource=readFileSync(new URL('../public/typed/chat-scroll.ts',import.meta.url),'utf8');
+assert.match(thinkingSource,/classList\.add\('hafize-working'\)/);
+assert.match(thinkingSource,/classList\.remove\('hafize-working'\)/);
+console.log('Continuous perimeter contract OK: idle/working states, composer ring, fallback and single frame');
