@@ -180,3 +180,33 @@ describe('GitHub App authentication', () => {
     });
   });
 });
+
+it.each([403,429])('recovers bot identity after anonymous HTTP %i',async(status)=>{
+ const {path}=fixture();const now=Date.parse('2026-11-19T12:00:00Z');
+ const calls:Array<{url:string;init?:RequestInit}>=[];
+ const auth=createGitHubAppAuth({appId:'5833389',installationId:'183684460',appSlug:'hafize-umitalgan',privateKeyPath:path,now:()=>now,
+ fetchImpl:vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>{
+  calls.push({url:String(url),init});
+  if(String(url).endsWith('/access_tokens'))return tokenResponse('ghs_'+'d'.repeat(40),new Date(now+3600000).toISOString());
+  if(!new Headers(init?.headers).has('Authorization'))return new Response('{}',{status});
+  return new Response(JSON.stringify({id:123456789,login:'hafize-umitalgan[bot]',type:'Bot'}));
+ })});
+ const [first,second]=await Promise.all([auth.botCommitIdentity(),auth.botCommitIdentity()]);
+ expect(first).toEqual({name:'hafize-umitalgan[bot]',email:'123456789+hafize-umitalgan[bot]@users.noreply.github.com'});
+ expect(first).toBe(second);expect(calls).toHaveLength(3);
+ expect(calls[0]?.url).toBe(calls[2]?.url);
+ expect(calls[2]?.url).toBe('https://api.github.com/users/hafize-umitalgan%5Bbot%5D');
+ expect(calls[2]?.init?.redirect).toBe('error');
+ expect(new Headers(calls[0]?.init?.headers).has('Authorization')).toBe(false);
+ expect(new Headers(calls[2]?.init?.headers).get('Authorization')).toBe('Bearer ghs_'+'d'.repeat(40));
+ await auth.botCommitIdentity();expect(calls).toHaveLength(3);
+ await expect(auth.authenticatedFetch('https://api.github.com/users/another-app')).rejects.toMatchObject({code:'GITHUB_APP_ENDPOINT_BLOCKED'});
+});
+it('rejects a wrong bot after authenticated fallback',async()=>{
+ const {path}=fixture();const now=Date.parse('2026-11-19T12:00:00Z');
+ const auth=createGitHubAppAuth({appId:'5833389',installationId:'183684460',appSlug:'hafize-umitalgan',privateKeyPath:path,now:()=>now,
+ fetchImpl:vi.fn(async(url:RequestInfo|URL,init?:RequestInit)=>String(url).endsWith('/access_tokens')
+ ?tokenResponse('ghs_'+'e'.repeat(40),new Date(now+3600000).toISOString())
+ :new Headers(init?.headers).has('Authorization')?new Response(JSON.stringify({id:123,login:'another-app[bot]',type:'Bot'})):new Response('{}',{status:403}))});
+ await expect(auth.botCommitIdentity()).rejects.toMatchObject({code:'GITHUB_APP_BOT_IDENTITY_INVALID'});
+});

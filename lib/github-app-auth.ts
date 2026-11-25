@@ -46,8 +46,8 @@ function safeHttpStatus(status: number): number {
  * GitHub App installation authentication, entirely on the server.
  *
  * The private key is never sent to the browser. JWTs are limited to the
- * token-exchange endpoint, and installation tokens are used only for
- * repository operations on api.github.com.
+ * token-exchange endpoint. Installation tokens are used for repository
+ * operations and the fixed bot identity lookup on api.github.com.
  */
 export function createGitHubAppAuth(options: GitHubAppAuthOptions) {
   const appId = numericId(options.appId);
@@ -150,18 +150,25 @@ export function createGitHubAppAuth(options: GitHubAppAuthOptions) {
     if (!botInFlight) {
       botInFlight = (async () => {
         const expectedLogin = slug + '[bot]';
-        // Public GitHub user metadata: do NOT attach the installation token.
-        const response = await fetchImpl(
-          GITHUB_API + '/users/' + encodeURIComponent(expectedLogin),
-          {
-            method: 'GET',
-            redirect: 'error',
-            headers: {
-              Accept: 'application/vnd.github+json',
-              'User-Agent': 'Hafize-GitHub-App'
-            }
-          }
-        );
+        const identityUrl = GITHUB_API + '/users/' + encodeURIComponent(expectedLogin);
+        const headers = {
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': GITHUB_API_VERSION,
+          'User-Agent': 'Hafize-GitHub-App'
+        };
+        let response = await fetchImpl(identityUrl, {
+          method: 'GET', redirect: 'error', headers
+        });
+        // Shared cloud egress can exhaust GitHub's anonymous quota. Retry only
+        // the configured bot's fixed identity URL; never a caller URL or redirect.
+        if (response.status === 403 || response.status === 429) {
+          await response.body?.cancel().catch(() => {});
+          const token = await installationToken();
+          response = await fetchImpl(identityUrl, {
+            method: 'GET', redirect: 'error',
+            headers: { ...headers, Authorization: 'Bearer ' + token }
+          });
+        }
         if (!response.ok) {
           throw new GitHubAppAuthError('GITHUB_APP_BOT_IDENTITY_LOOKUP_FAILED', safeHttpStatus(response.status));
         }

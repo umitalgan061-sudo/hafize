@@ -58,8 +58,10 @@ describe('Hafize classic interface restoration', () => {
       removeEventListener: (event: string) => { listeners.delete(event); }
     };
     const html = { dataset: { hafizeLayout: 'classic' } };
+    let closeCount=0,focusCount=0;
     const doc = {
-      documentElement: html, querySelector: () => button
+      documentElement: html, querySelector: () => button,
+      getElementById: (id:string) => id==='sidebar'?{classList:{remove:(name:string)=>{expect(name).toBe('open');closeCount++;}}}:id==='sidebarToggle'?{focus:()=>{focusCount++;}}:null
     } as unknown as Document;
     const fakeWindow = {
       localStorage: {
@@ -78,6 +80,8 @@ describe('Hafize classic interface restoration', () => {
     listeners.get('click')?.();
     expect(html.dataset.hafizeLayout).toBe('focused');
     expect(values.get('hafize.ui-layout.v2')).toBe('focused');
+    expect(closeCount).toBe(2);
+    expect(focusCount).toBe(2);
     dispose();
     expect(listeners.has('click')).toBe(false);
   });
