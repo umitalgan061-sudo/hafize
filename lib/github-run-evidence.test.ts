@@ -55,3 +55,8 @@ it('recovers an explicit file edit once after read-only progress but never retri
  expect(shouldRecoverReadOnlyWrite(request,read,[{name:'github_release',ok:true}])).toBe(false);
  expect(shouldRecoverReadOnlyWrite(request.replace('hafize/auto-example','main'),read,[])).toBe(false);
 });
+
+it('distinguishes a reconciled existing merge from a new merge performed this turn',()=>{
+ const rows=githubReceipt('github_release',{ok:true,value:{repository,action:'merge',number:73,merged:true,existing:true,mergeCommitSha:commit}});
+ expect(formatGitHubRunEvidence(rows)).toContain('daha önce birleştirilmiş; GitHub üzerinden doğrulandı');
+});

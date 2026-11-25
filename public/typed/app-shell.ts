@@ -1292,6 +1292,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
   }
 
   function setGenerationUi(disabled) {
+    document.documentElement.dataset.hafizeGenerating = String(disabled);
     ui.messages.setAttribute('aria-busy', String(disabled));
     ui.messageInput.disabled = disabled;
     ui.agentSelect.disabled = disabled;
