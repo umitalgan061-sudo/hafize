@@ -15,6 +15,21 @@ export function validateCloudRunSecrets(env = {}) {
   if (!nvidia || /\s/.test(nvidia)) {
     throw new Error('HAFIZE_CLOUD_RUN_NVIDIA_API_KEY_MISSING_OR_INVALID');
   }
+  validateProjectAiTokenHashes(env.HAFIZE_PROJECT_AI_TOKEN_HASHES);
+  return true;
+}
+
+/** Optional: per-project SHA-256 digests only (never raw project tokens), e.g. {"retake":"<64 hex>"}. */
+export function validateProjectAiTokenHashes(value) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { parsed = null; }
+  const entries = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? Object.entries(parsed) : [];
+  const valid = entries.length > 0 && entries.length <= 16 &&
+    entries.every(([id, digest]) => /^[a-z0-9-]{1,40}$/.test(id) && typeof digest === 'string' && /^[0-9a-f]{64}$/i.test(digest)) &&
+    new Set(entries.map(([, digest]) => String(digest).toLowerCase())).size === entries.length;
+  if (!valid) throw new Error('HAFIZE_PROJECT_AI_TOKEN_HASHES_INVALID');
   return true;
 }
 

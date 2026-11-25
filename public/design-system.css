@@ -298,24 +298,39 @@
   html[data-theme] body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
     visibility:hidden;opacity:0;
   }
+  /* A single elongated light beam follows the real rounded rectangular path.
+     Nested, centered dash segments taper at both ends, not a dot or full outline. */
   html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking{
-    visibility:visible;opacity:1;
-    /* Leave the actual viewport edge visible and avoid rounded-screen clipping. */
-    inset:5px;border-radius:6px;
-    box-shadow:inset 0 0 0 3px #ee8249,0 0 9px rgb(238 130 73 / .42);
+    visibility:visible;opacity:1;inset:5px;border-radius:6px;box-shadow:none;
   }
-  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking-glow{
-    visibility:visible;opacity:.48;
-    inset:5px;border-radius:6px;
+  html[data-theme] body>.hz-frame>.hz-frame-thinking-glow{display:none}
+  .hz-thinking-beam{
+    position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;
+    filter:drop-shadow(0 0 3px rgb(255 139 73 / .45));
   }
-  /* Fallback: always-visible outlines plus existing moving edge beams. */
-  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .edge-beam{opacity:1}
-  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .edge-beam::after{
-    animation-duration:4s;box-shadow:0 0 12px color-mix(in srgb,var(--hz-beam) 65%,transparent);
+  .hz-thinking-beam rect{
+    fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke;
+    stroke-dashoffset:var(--hz-ray-phase);rx:6px;ry:6px;
+    animation:none;
   }
+  .hz-thinking-beam .hz-ray-halo{--hz-ray-phase:32;stroke:#ff8745;stroke-width:7;stroke-opacity:.12;stroke-dasharray:64 936}
+  .hz-thinking-beam .hz-ray-tail{--hz-ray-phase:30;stroke:#e97b41;stroke-width:2;stroke-opacity:.32;stroke-dasharray:60 940}
+  .hz-thinking-beam .hz-ray-middle{--hz-ray-phase:22;stroke:#ff8d4d;stroke-width:2.5;stroke-opacity:.58;stroke-dasharray:44 956}
+  .hz-thinking-beam .hz-ray-bright{--hz-ray-phase:14;stroke:#ffac69;stroke-width:3;stroke-opacity:.9;stroke-dasharray:28 972}
+  .hz-thinking-beam .hz-ray-core{--hz-ray-phase:6;stroke:#ffd7ad;stroke-width:2;stroke-opacity:1;stroke-dasharray:12 988}
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) .hz-thinking-beam rect{
+    animation:hz-thinking-beam-lap 5s linear infinite;
+  }
+  @keyframes hz-thinking-beam-lap{
+    from{stroke-dashoffset:var(--hz-ray-phase)}
+    to{stroke-dashoffset:calc(var(--hz-ray-phase) - 1000)}
+  }
+  /* While thinking, leave only the quiet static baseline and the single beam. */
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after{opacity:0}
+  html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body:has(>.hz-frame)>.edge-beam{display:none}
   @supports ((mask-composite:exclude) or (-webkit-mask-composite:xor)){
     html[data-theme] body:has(>.hz-frame)>.edge-beam{display:none}
-    html[data-theme] body>.hz-frame>i::after,
+    html[data-theme] body>.hz-frame>:is(.hz-frame-idle,.hz-frame-idle-glow)::after,
     html[data-theme] #composer>.hz-composer-pulse{
       content:"";position:absolute;inset:0;pointer-events:none;
       box-sizing:border-box;border-radius:inherit;border:0;
@@ -335,15 +350,6 @@
       animation:hz-perimeter-turn 15s linear infinite;
     }
     html[data-theme] body>.hz-frame>.hz-frame-idle-glow::after{padding:3px;filter:blur(3px)}
-    /* Only this independently masked highlight runs fast while thinking. */
-    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow)::after{
-      padding:4px;
-      background:conic-gradient(from var(--hz-perimeter-angle),
-        transparent 0deg 155deg,#ed8249 220deg,#ff9d59 265deg,
-        #ffe0ba 300deg,#ff9d59 330deg,transparent 360deg);
-      animation:hz-perimeter-turn 3.8s linear infinite;
-    }
-    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking-glow::after{padding:6px;filter:blur(5px)}
     /* Keep the existing brief completion cue subtle, without enabling thinking. */
     html[data-theme].hafize-flash:not(:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"]))) body>.hz-frame>.hz-frame-idle::after{animation-duration:3.8s}
     /* Composer remains the previous independent circulating outline. */
@@ -359,22 +365,23 @@
     html[data-theme] #composer[data-voice-listening="true"]>.hz-composer-pulse{opacity:0;animation:none}
     @media(max-width:680px){
       html[data-theme] body>.hz-frame>.hz-frame-idle-glow{opacity:.14}
-      html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking-glow{opacity:.38}
       html[data-theme] #composer>.hz-composer-pulse{inset:-1px}
     }
   }
   /* Keep the thinking outline inside the usable screen on phones with rounded corners. */
   @media(max-width:680px){
-    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>:is(.hz-frame-thinking,.hz-frame-thinking-glow){
+    html[data-theme]:is(.hafize-working,[data-hafize-generating="true"],:has(#messages[aria-busy="true"])) body>.hz-frame>.hz-frame-thinking{
       inset:6px;border-radius:12px;
     }
+    .hz-thinking-beam rect{rx:12px;ry:12px}
   }
   @media(prefers-reduced-motion:reduce){
-    html[data-theme] body>.hz-frame>i::after,html[data-theme] #composer>.hz-composer-pulse{animation:none!important}
+    html[data-theme] body>.hz-frame>i::after,html[data-theme] #composer>.hz-composer-pulse,html[data-theme] .hz-thinking-beam rect{animation:none!important}
     html[data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
   }
   html[data-reduced-motion="true"][data-theme] body>.hz-frame>i::after,
-  html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse{animation:none!important}
+  html[data-reduced-motion="true"][data-theme] #composer>.hz-composer-pulse,
+  html[data-reduced-motion="true"][data-theme] .hz-thinking-beam rect{animation:none!important}
   html[data-reduced-motion="true"][data-theme] body>.hz-frame>:is(.hz-frame-idle-glow,.hz-frame-thinking-glow){display:none}
 }
 @media(forced-colors:active){
