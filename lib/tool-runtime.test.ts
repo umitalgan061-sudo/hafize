@@ -63,3 +63,27 @@ describe('typed tool runtime',()=>{
   });
 
 });
+
+it('carries authorized GitHub source content across the result boundary without leaking credentials',async()=>{
+ const reader={...agent,toolPolicy:{...agent.toolPolicy,allow:['repo.read']}};
+ const repository='owner/repo',path='server.ts';
+ const line="const SCHEDULE_AUTH_TOKEN = process.env.HAFIZE_SCHEDULE_AUTH_TOKEN || '';";
+ const call={id:'read-source',function:{name:'github_read_file',arguments:JSON.stringify({repository,path})}};
+ const ctx={...context,agent:reader,registry:{agents:[reader]},githubReadConfigured:true};
+ const good=await executeNvidiaToolCall(reader,call,{...ctx,githubReadFile:async()=>({repository,path,content:line})});
+ expect(good).toMatchObject({ok:true,value:{content:line}});
+ const bad=await executeNvidiaToolCall(reader,call,{...ctx,githubReadFile:async()=>({repository,path,content:line+'\nAPI_KEY=super-secret-value'})});
+ expect(bad).toMatchObject({ok:false,error:'TOOL_RESULT_CREDENTIAL_BLOCKED'});
+});
+it('uses the existing larger GitHub development argument limit during runtime parsing',async()=>{
+ const developer={...agent,toolPolicy:{...agent.toolPolicy,allow:['repo.write_request']}};
+ const content='x'.repeat(20000);
+ const args={operation:'file',repository:'owner/repo',branch:'hafize/auto-test',path:'example.ts',content,message:'test'};
+ const result=await executeNvidiaToolCall(developer,{id:'large-file',function:{name:'github_develop',arguments:JSON.stringify(args)}},{...context,agent:developer,registry:{agents:[developer]},safeGitHubAutonomy:true,githubDevelopment:{enabled:()=>true,execute:async(input)=>({received:(input as {content:string}).content.length})}});
+ expect(result).toMatchObject({ok:true,value:{received:20000}});
+});
+it('returns fixed action-specific inspection guidance without echoing invalid arguments',async()=>{
+ const reader={...agent,toolPolicy:{...agent.toolPolicy,allow:['repo.read']}};
+ const result=await executeNvidiaToolCall(reader,{id:'inspect',function:{name:'github_inspect',arguments:JSON.stringify({action:'repo',repository:'owner/repo',branch:'main'})}},{...context,agent:reader,registry:{agents:[reader]},githubReadConfigured:true,githubInspect:async()=>{throw Object.assign(new Error('invalid'),{code:'INVALID_GITHUB_ARGUMENTS',status:400});}});
+ expect(result).toMatchObject({ok:false,error:'INVALID_GITHUB_ARGUMENTS',status:400,reason:expect.stringContaining('commits:ref/limit')});
+});
