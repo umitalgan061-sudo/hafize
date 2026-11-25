@@ -187,3 +187,39 @@ describe('checkpointed work and replay safety', () => {
     expect(result.status).toBe('failed');
   });
 });
+
+describe('long-run orchestration',()=>{
+ it('starts every independent read concurrently and serializes writes',async()=>{
+  const db=openHafizeDb(':memory:');
+  const o=createOrchestrator({db,models:fakeModels()});
+  let active=0,peak=0,writes=0;
+  const reads=Array.from({length:45},(_,i)=>({id:'r'+i,tool:'web_search'}));
+  const state=await o.run({ownerId:'u',traceId:'full-team',goal:'deliver',tools,initialPlan:[...reads,{id:'w1',tool:'shell_run',dependsOn:reads.map(r=>r.id)},{id:'w2',tool:'shell_run',dependsOn:reads.map(r=>r.id)}],requestApproval:async()=>true,executeTool:async(name)=>{
+    active++;peak=Math.max(peak,active);if(name==='shell_run'){writes++;expect(active).toBe(1);}await Promise.resolve();active--;return {ok:true,value:'evidence'};
+  }});
+  expect(state.status).toBe('succeeded');expect(peak).toBe(45);expect(writes).toBe(2);
+  expect(state.budget.maxWallMs).toBe(10_800_000);expect(state.usage.stepsRun).toBe(47);
+  db.close();
+ });
+ it('does not let the critic silently skip an unfinished mutation',async()=>{
+  const db=openHafizeDb(':memory:');
+  const o=createOrchestrator({db,models:fakeModels('finish')});
+  const state=await o.run({ownerId:'u',traceId:'unfinished',goal:'write',tools,initialPlan:[{id:'a',tool:'web_search'},{id:'b',tool:'shell_run',dependsOn:['a']}],executeTool:async()=>({ok:true,value:'evidence'})});
+  expect(state.status).toBe('awaiting_approval');expect(state.steps.b.status).toBe('awaiting_approval');db.close();
+ });
+ it('distinguishes interrupted database checkpoints from active work and resumes safe reads',async()=>{
+  const db=openHafizeDb(':memory:');const o=createOrchestrator({db,models:fakeModels()});
+  let checkpoint:string='';
+  const state=await o.run({ownerId:'u',traceId:'interrupted',goal:'reads',tools,initialPlan:[{id:'a',tool:'web_search'}],executeTool:async()=>{
+    expect(o.list('u')[0]).toMatchObject({activeInProcess:true,interrupted:false});
+    checkpoint=String((db.prepare('SELECT state FROM orchestrator_runs WHERE owner_id=?').get('u') as {state:string}).state);
+    return {ok:true,value:'evidence'};
+  }});
+  db.prepare('UPDATE orchestrator_runs SET state=?,status=? WHERE id=?').run(checkpoint,'running',state.runId);
+  const next=createOrchestrator({db,models:fakeModels()});
+  expect(next.list('u')[0]).toMatchObject({activeInProcess:false,interrupted:true});
+  expect(next.list('other')).toEqual([]);
+  const result=await next.resume({ownerId:'u',runId:state.runId,tools,executeTool:async()=>({ok:true,value:'resumed'})});
+  expect(result.status).toBe('succeeded');expect(result.steps.a.output).toBe('resumed');db.close();
+ });
+});

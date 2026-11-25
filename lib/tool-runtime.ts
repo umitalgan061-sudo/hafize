@@ -444,18 +444,18 @@ const CATALOG = new Map<string, ToolEntry>([
   ['orchestrator_run', {
     permission: 'orchestrator.run',
     kind: 'orchestrator',
-    timeoutMs: timeout(600000, 600000),
+    timeoutMs: 10_800_000,
     activity: {"running":"Çok adımlı görev planlanıp yürütülüyor","success":"Çok adımlı görev tamamlandı","failure":"Çok adımlı görev tamamlanamadı"},
-    definition: strictDefinition('orchestrator_run', "Karmaşık bir hedefi adımlara böler (bağımlılıklı plan), araçlarla paralel yürütür, her adımdan sonra kendini denetler (tekrar dene / planı değiştir / dur), bütçe sınırlarına uyar ve sonucu birleştirir. Birden çok araç ve adım gerektiren işler için kullan.", {"goal":{"type":"string","maxLength":1000},"constraints":{"type":"array","items":{"type":"string"},"maxItems":10},"maxSteps":{"type":"integer","minimum":1,"maximum":20}}, ["goal"]),
+    definition: strictDefinition('orchestrator_run', "Karmaşık bir hedefi adımlara böler (bağımlılıklı plan), araçlarla paralel yürütür, her adımdan sonra kendini denetler (tekrar dene / planı değiştir / dur), bütçe sınırlarına uyar ve sonucu birleştirir. Birden çok araç ve adım gerektiren işler için kullan.", {"goal":{"type":"string","maxLength":1000},"constraints":{"type":"array","items":{"type":"string"},"maxItems":10},"maxSteps":{"type":"integer","minimum":1,"maximum":200}}, ["goal"]),
     available: (context) => typeof context.services?.orchestrate === 'function',
     execute: async (args, context) => context.services!.orchestrate!(args, context)
   }],
   ['orchestrator_resume', {
     permission: 'orchestrator.run',
     kind: 'orchestrator',
-    timeoutMs: timeout(600000, 600000),
+    timeoutMs: 10_800_000,
     activity: {"running":"Görev kaldığı yerden sürdürülüyor","success":"Görev sürdürüldü","failure":"Görev sürdürülemedi"},
-    definition: strictDefinition('orchestrator_resume', "Kesilen veya bütçesi biten çok adımlı görevi kayıt noktasından sürdürür. Tamamlanan adımları tekrarlamaz. Belirsiz yazma sonucunda önce dış servis kayıtlarını kontrol et; gerekli kullanıcı onayı araç tarafından alınır.", {"runId":{"type":"string"},"extraSteps":{"type":"integer","minimum":1,"maximum":20}}, ["runId"]),
+    definition: strictDefinition('orchestrator_resume', "Kesilen veya bütçesi biten çok adımlı görevi kayıt noktasından sürdürür. Tamamlanan adımları tekrarlamaz. Belirsiz yazma sonucunda önce dış servis kayıtlarını kontrol et; gerekli kullanıcı onayı araç tarafından alınır.", {"runId":{"type":"string"},"extraSteps":{"type":"integer","minimum":1,"maximum":200}}, ["runId"]),
     available: (context) => typeof context.services?.orchestrateResume === 'function',
     execute: async (args, context) => context.services!.orchestrateResume!(args, context)
   }],
@@ -482,7 +482,7 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'delegation',
     timeoutMs: timeout(10000, 10000),
     activity: {"running":"Uygun uzman aranıyor","success":"Uzman bulundu","failure":"Uzman bulunamadı"},
-    definition: strictDefinition('expert_find', "Bir görev için en uygun uzman ajanları yetenek kartlarına, güven düzeyine ve sağlık durumuna göre sıralar. Ardından agent_delegate ile görevi ver.", {"query":{"type":"string","maxLength":300},"limit":{"type":"integer","minimum":1,"maximum":5}}, ["query"]),
+    definition: strictDefinition('expert_find', "Bir görev için en uygun uzman ajanları yetenek kartlarına, güven düzeyine ve sağlık durumuna göre sıralar. Ardından agent_delegate ile görevi ver.", {"query":{"type":"string","maxLength":300},"limit":{"type":"integer","minimum":1,"maximum":100}}, ["query"]),
     available: (context) => typeof context.services?.expertFind === 'function',
     execute: async (args, context) => context.services!.expertFind!(args, context)
   }],
