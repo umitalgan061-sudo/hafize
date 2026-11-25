@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   agentInterruptionDiagnostic,
@@ -75,4 +76,15 @@ it('reports bounded interruption causes without leaking arbitrary provider text'
  const controller=new AbortController();controller.abort(Object.assign(new Error('REQUEST_TIMEOUT'),{status:408}));
  expect(agentInterruptionDiagnostic(new Error('other'),controller.signal)).toBe('execution: REQUEST_TIMEOUT (HTTP 408)');
  expect(agentInterruptionDiagnostic(new Error('secret text'),undefined,'model_round')).toBe('model_round: MODEL_ROUND_FAILED');
+});
+
+it('starts the durable checkpoint stream only after agent response headers and context preparation',()=>{
+ const server=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
+ const handler=server.slice(server.indexOf('async function handleAgentRun'),server.indexOf('async function handleChat'));
+ const header=handler.indexOf("res.setHeader('X-Hafize-Prompt-Variant'");
+ const prepared=handler.indexOf('const preparedConversation = await prepareConversation(');
+ const checkpoint=handler.indexOf("emitEvent('hafize-agent-checkpoint'");
+ expect(header).toBeGreaterThan(0);expect(prepared).toBeGreaterThan(header);
+ expect(checkpoint).toBeGreaterThan(prepared);
+ expect(checkpoint).toBeGreaterThan(handler.indexOf('// Context headers are set; the stream can start now.'));
 });
