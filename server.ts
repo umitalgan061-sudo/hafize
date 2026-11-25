@@ -72,7 +72,7 @@ import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
-import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
+import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
 import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 
@@ -901,9 +901,10 @@ async function handleAgentRun(req, res) {
   const requestAbort={signal:checkpoint?.accepted?AbortSignal.any([connectionAbort.signal,checkpoint.signal]):connectionAbort.signal,cancel:connectionAbort.cancel};
   const durableId=checkpoint?.accepted&&isAgentTurnId(requestedTurnId)?requestedTurnId:'';
   let turnFinished=false;
+  let interruptionStage: 'setup'|'model_round'|'execution' = 'setup';
+  let interruptionDiagnostic = '';
   try {
   const emitEvent = streamResponse ? (type, payload) => { startSse(res); writeSseEvent(res, type, payload); } : null;
-  if(durableId&&emitEvent)emitEvent('hafize-agent-checkpoint',{id:durableId,status:'running'});
   const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
   const agentSpan = PLATFORM.telemetry.startSpan('agent.run', { traceId, attributes: { 'agent.id': agent.id, model, streaming: Boolean(streamResponse) } });
   const nvidiaWorkspace=ownerId?createNvidiaAgentWorkspace({lab:MODEL_LAB,ownerRequest:lastUserText,nimStatus:PLATFORM.nimStatus}):undefined;
@@ -927,6 +928,7 @@ async function handleAgentRun(req, res) {
   const conversation = preparedConversation.messages;
   // Context headers are set; the stream can start now.
   if (emitEvent) {
+    if(durableId)emitEvent('hafize-agent-checkpoint',{id:durableId,status:'running'});
     emitEvent('hafize-run-meta', { traceId, variant: promptVariant?.variant || '' });
     if (ownerId) emitEvent('hafize-memory-sync', { notes: memoryPrep.semantic });
   }
@@ -1089,6 +1091,8 @@ async function handleAgentRun(req, res) {
     return { content: round.content, toolCalls: round.toolCalls, wrote };
   }
   const failRound = (error) => {
+    interruptionDiagnostic=agentInterruptionDiagnostic(error,requestAbort.signal,'model_round');
+    console.warn('hafize.agent.interrupted',traceId,interruptionDiagnostic);
     if ((durableId || (!res.destroyed && !res.writableEnded)) && (githubEvidenceMode || toolSummary.length || requestAbort.signal.aborted)) {
       finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
       return;
@@ -1101,13 +1105,14 @@ async function handleAgentRun(req, res) {
   const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
     if (githubEvidenceMode) {
       content = formatGitHubRunEvidence(githubReceipts);
+      if(interruptionDiagnostic)content+='\n\nKesinti nedeni: '+interruptionDiagnostic+'.';
       alreadyWritten = false;
       // A read or new empty branch is not a delivered code change. Even with
       // receipts the formatter never asserts full user-task completion.
       unresolved = unresolved || !githubReceipts.some(r=>['file','pull','merge','dispatch'].includes(r.kind)) || githubReceipts.some(r=>r.kind==='error');
     }
     if(durableId){
-      const status=requestAbort.signal.aborted?'interrupted':unresolved||anyToolFailed?'incomplete':'answered';
+      const status=requestAbort.signal.aborted||interruptionDiagnostic?'interrupted':unresolved||anyToolFailed?'incomplete':'answered';
       const pending=PLATFORM.agentTurns.get(ownerId,durableId)?.pending??[];
       if(pending.length){content+='\n\nSonucu belirsiz yazma işlemleri var. GitHub üzerinden mutabakat yapılmadan tekrar yazılmayacak.';unresolved=true;}
       PLATFORM.agentTurns.finish(ownerId,durableId,status,content);
@@ -1180,6 +1185,7 @@ async function handleAgentRun(req, res) {
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
   let noProgressRounds=0;
+  interruptionStage='execution';
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
     roundsStarted = round + 1;
@@ -1364,6 +1370,7 @@ async function handleAgentRun(req, res) {
   // answer. A tool activity badge is not evidence of a completed code change.
   // Ask for a concrete evidence-based status, never a fresh promise to start.
   if (requestAbort.signal.aborted) {
+    interruptionDiagnostic=agentInterruptionDiagnostic(undefined,requestAbort.signal,interruptionStage);
     finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
     return;
   }
@@ -1417,9 +1424,22 @@ async function handleAgentRun(req, res) {
     return;
   }
   finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
+  } catch(error) {
+    if(!durableId||turnFinished)throw error;
+    const diagnostic=agentInterruptionDiagnostic(error,requestAbort.signal,interruptionStage);
+    console.warn('hafize.agent.interrupted',traceId,diagnostic);
+    const saved=PLATFORM.agentTurns.get(ownerId,durableId);
+    const answer=formatGitHubRunEvidence(saved?.receipts??[])+'\n\nKesinti nedeni: '+diagnostic+'.'+
+      (saved?.pending?.length?'\n\nSonucu belirsiz yazma işlemleri var; GitHub üzerinden doğrulamadan tekrar yürütülmeyecek.':'');
+    PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',answer);
+    turnFinished=true;
+    // Keep existing transport error handling. The authenticated recovery endpoint
+    // can now return an evidence-based answer even if the connection was lost.
+    throw error;
   } finally {
     requestAbort.cancel();
-    if(durableId&&!turnFinished)PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted');
+    if(durableId&&!turnFinished)PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',
+      'Görev kesildi; doğrulanmış kayıtları kontrol et. Kesinti nedeni: AGENT_EXECUTION_FAILED.');
   }
 }
 

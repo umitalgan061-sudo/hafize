@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+  agentInterruptionDiagnostic,
   buildFinalToolInstruction,
   buildProgressRepairInstruction,
   incompleteAgentRunAnswer,
@@ -66,4 +68,23 @@ it('distinguishes a stalled loop from budget exhaustion and preserves safe error
 it('gives an actionable repair prompt with safe codes and no authorization bypass',()=>{
  const p=buildProgressRepairInstruction([{name:'github_read_file',ok:false,error:'GITHUB_READ_FAILED',status:404},{name:'github_inspect',ok:false,error:'untrusted secret text'}],2);
  expect(p).toContain('HTTP 404');expect(p).toContain('github_develop');expect(p).toContain('Aynı çağrıyı tekrar gönderme');expect(p).not.toContain('untrusted secret text');
+});
+
+it('reports bounded interruption causes without leaking arbitrary provider text',()=>{
+ expect(agentInterruptionDiagnostic(Object.assign(new Error('NVIDIA_CHAT_ERROR'),{status:429,detail:'sensitive provider payload'}),undefined,'model_round')).toBe('model_round: NVIDIA_CHAT_ERROR (HTTP 429)');
+ expect(agentInterruptionDiagnostic(new Error('sensitive provider payload'),undefined,'setup')).toBe('setup: AGENT_SETUP_FAILED');
+ const controller=new AbortController();controller.abort(Object.assign(new Error('REQUEST_TIMEOUT'),{status:408}));
+ expect(agentInterruptionDiagnostic(new Error('other'),controller.signal)).toBe('execution: REQUEST_TIMEOUT (HTTP 408)');
+ expect(agentInterruptionDiagnostic(new Error('secret text'),undefined,'model_round')).toBe('model_round: MODEL_ROUND_FAILED');
+});
+
+it('starts the durable checkpoint stream only after agent response headers and context preparation',()=>{
+ const server=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
+ const handler=server.slice(server.indexOf('async function handleAgentRun'),server.indexOf('async function handleChat'));
+ const header=handler.indexOf("res.setHeader('X-Hafize-Prompt-Variant'");
+ const prepared=handler.indexOf('const preparedConversation = await prepareConversation(');
+ const checkpoint=handler.indexOf("emitEvent('hafize-agent-checkpoint'");
+ expect(header).toBeGreaterThan(0);expect(prepared).toBeGreaterThan(header);
+ expect(checkpoint).toBeGreaterThan(prepared);
+ expect(checkpoint).toBeGreaterThan(handler.indexOf('// Context headers are set; the stream can start now.'));
 });
