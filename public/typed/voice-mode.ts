@@ -5,6 +5,7 @@
 // it reports the microphone as busy (hafize:voice-input-state) so hands-free and the composer
 // voice panel stay out of the way. Dictation into the composer remains on Ctrl+Shift+M.
 
+import {NIM_ASR_KEY,NIM_TTS_VOICE,nimVoiceStatus,NimRecognition,type NimVoiceStatus} from './nim-voice.ts';
 import { createVoiceOrb, type OrbMood, type VoiceOrb } from './voice-orb.ts';
 import { PIPER_PREFIX, SPEAKER_KEY, downloadedKeys, loadCatalog, findVoice, isPiperVoice, synthesize } from './voice-library.ts';
 import { pack, styles } from './supertonic-pack.ts';
@@ -182,6 +183,7 @@ const TEMPLATE = `
   <label class="vm-field"><span>Konuşma hızı <output class="vm-rate-out">1.00×</output></span><input class="vm-rate" type="range" min="0.7" max="1.5" step="0.05" value="1"></label>
   <label class="vm-field"><span>Ses</span><select class="vm-voice"><option value="">Otomatik (en doğal Türkçe ses)</option></select></label>
   <label class="vm-field vm-speaker-field" hidden><span>Türkçe konuşmacı</span><select class="vm-speaker" aria-label="Türkçe konuşmacı"></select></label>
+  <label class="vm-field vm-asr-field" hidden><span>Türkçe ses tanıma</span><select class="vm-asr"><option value="browser">Tarayıcı (varsayılan)</option><option value="nim">NVIDIA NIM (ses sunucuya gönderilir)</option></select></label>
   <button type="button" class="vm-sample">▶ Örnek dinle</button>
 </section>
 <main class="vm-stage">
@@ -245,6 +247,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const rateInput = $<HTMLInputElement>('.vm-rate');
   const rateOut = $<HTMLOutputElement>('.vm-rate-out');
   const voiceSelect = $<HTMLSelectElement>('.vm-voice');
+  const asrSelect=$<HTMLSelectElement>('.vm-asr');const asrField=$<HTMLElement>('.vm-asr-field');
   const sampleBtn = $<HTMLButtonElement>('.vm-sample');
   const speakerSelect = $<HTMLSelectElement>('.vm-speaker');
   const speakerField = $<HTMLElement>('.vm-speaker-field');
@@ -261,6 +264,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   const reduceMotion = () => documentRef.documentElement.dataset.reducedMotion === 'true' || Boolean(root.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const now = () => root.performance?.now?.() ?? Date.now();
   const speechProfile = recognitionProfile(root.navigator?.userAgent);
+  let nimStatus:NimVoiceStatus={asrLanguage:null,ttsLanguage:null};let nimStatusAbort:AbortController|null=null;
+  const nimSelected=()=>read(NIM_ASR_KEY)==='true'&&Boolean(nimStatus.asrLanguage);
 
   let orb: VoiceOrb | null = null;
   let state: VoiceModeState = 'closed';
@@ -384,7 +389,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       if (recognition !== active) return;
       active.onend?.();
       try { active.abort(); } catch { /* already finished */ }
-    }, RECOGNITION_STOP_TIMEOUT_MS);
+    }, active instanceof NimRecognition?65000:RECOGNITION_STOP_TIMEOUT_MS);
   };
 
   const latestMessage = (): HTMLElement | null => {
@@ -505,7 +510,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     let heardDuringReply = false;
     let rejectedEcho = false;
     let current: RecognitionLike;
-    try { current = new Recognition(); }
+    try { current = nimSelected()?new NimRecognition(root,nimStatus.asrLanguage!):new Recognition(); }
     catch { retryListening('Mikrofon oluşturulamadı, yeniden deneniyor…'); return; }
     recognition = current;
     recognitionReady=false;
@@ -523,6 +528,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       else statusEl.textContent=playbackActive?'Hafize konuşuyor · mikrofon açık':'Yanıt hazırlanıyor · mikrofon açık';
       screen.dataset.micPhase = 'ready';
       if (recognitionNoResultTimer) clearTimeout(recognitionNoResultTimer);
+      if(current instanceof NimRecognition)return;
       recognitionNoResultTimer = setTimeout(() => {
         recognitionNoResultTimer = null;
         if (recognition !== current || recognizedSomething || muted || documentRef.hidden) return;
@@ -688,7 +694,8 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
       option.textContent = `${v.name.replace(/\s*-\s*Turkish.*$/i, '').replace(/^Microsoft\s+/i, '')}${v.localService ? '' : ' · çevrimiçi'}`;
       voiceSelect.append(option);
     }
-    voiceSelect.value = voices.some((v) => v.voiceURI === saved) ? saved : '';
+    if(nimStatus.ttsLanguage||saved===NIM_TTS_VOICE){const option=documentRef.createElement('option');option.value=NIM_TTS_VOICE;option.textContent='NVIDIA NIM Türkçe · sunucu'+(nimStatus.ttsLanguage?'':' · bağlantı yok');voiceSelect.append(option);}
+    voiceSelect.value = [...voiceSelect.options].some(v=>v.value===saved)?saved:'';
     // Voices downloaded in Settings; the full library lives there, this is only the quick switch.
     loadCatalog().then(async (catalog) => {
       const owned = await downloadedKeys(catalog);
@@ -740,6 +747,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
     pendingUtterance = '';
     manualEnd = false;
     renderMute(); renderRate(); renderCaptions(); loadVoices(); warmSelected();
+    if((root as typeof globalThis&{HafizeAuth?:unknown}).HafizeAuth){const controller=new AbortController();nimStatusAbort?.abort();nimStatusAbort=controller;void nimVoiceStatus(root,controller.signal).then(s=>{if(controller.signal.aborted||state==='closed')return;nimStatus=s;asrField.hidden=!s.asrLanguage;asrSelect.value=nimSelected()?'nim':'browser';loadVoices();if(nimSelected()&&!muted){stopRecognition(true);listeningBlocked=false;listen();}});}
     setCaption(['', '', '']);
     if (!orb && canvas) { orb = createVoiceOrb(canvas, root); screen.classList.toggle('vm-webgl', Boolean(orb)); }
     setState('idle');
@@ -753,6 +761,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   };
   const close = () => {
     if (state === 'closed') return;
+    nimStatusAbort?.abort();nimStatusAbort=null;
     documentRef.dispatchEvent(new Event('hafize:voice-camera-close'));
     clearTimers();
     stopFeeding();
@@ -938,6 +947,7 @@ export function installVoiceMode(documentRef: Document, root: typeof globalThis)
   });
   on(rateInput, 'input', () => { write(RATE_KEY, rateInput.value); rateOut.textContent = `${Number(rateInput.value).toFixed(2)}×`; });
   on(voiceSelect, 'change', () => { if (voiceSelect.value) {if(read(VOICE_KEY)!==voiceSelect.value)write(SPEAKER_KEY,'0');write(VOICE_KEY, voiceSelect.value);} else { try { storage?.removeItem(VOICE_KEY); } catch { /* ignore */ } } renderSpeakers(); warmSelected(); });
+  on(asrSelect,'change',()=>{write(NIM_ASR_KEY,String(asrSelect.value==='nim'&&Boolean(nimStatus.asrLanguage)));stopRecognition(true);listeningBlocked=false;if(!muted&&state!=='closed')listen();});
   on(speakerSelect,'change',()=>{write(SPEAKER_KEY,speakerSelect.value);warmSelected();});
   on(sampleBtn, 'click', () => {
     const Custom = root.CustomEvent;

@@ -388,6 +388,9 @@ export function hasAudioStalled(nowMs: number, lastAdvancedMs: number, timeoutMs
   return Number.isFinite(nowMs) && Number.isFinite(lastAdvancedMs) && nowMs - lastAdvancedMs >= timeoutMs;
 }
 export function speakChunk(voice: PiperVoice, speaker: number, text: string, rate: number, callbacks: SpeakCallbacks): SpeakHandle {
+  return playWavChunk(async()=>{const {pcm,sampleRate}=await synthesize(voice,speaker,text,rate);return wavOf(pcm,sampleRate);},text,callbacks);
+}
+export function playWavChunk(load:()=>Promise<Uint8Array>,text:string,callbacks:SpeakCallbacks,rate=1):SpeakHandle{
   let stopped = false;
   let url = '';
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -400,13 +403,13 @@ export function speakChunk(voice: PiperVoice, speaker: number, text: string, rat
     callbacks.onerror?.(error);
   };
   (async () => {
-    const { pcm, sampleRate } = await synthesize(voice, speaker, text, rate);
+    const bytes = await load();
     if (stopped) return;
     const audio = (player ||= new Audio());
-    url = URL.createObjectURL(new Blob([wavOf(pcm, sampleRate) as Uint8Array<ArrayBuffer>], { type: 'audio/wav' }));
+    url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'audio/wav' }));
     audio.onended = () => { if (stopped) return; stopped = true; clear(); callbacks.onend?.(); };
     audio.onerror = () => fail(new Error('AUDIO_FAILED'));
-    audio.src = url;
+    audio.src = url;audio.playbackRate=rate;
     try { await audio.play(); } catch (error) { throw new Error((error as Error)?.name === 'NotAllowedError' ? 'AUDIO_BLOCKED' : 'AUDIO_FAILED'); }
     if (stopped) { audio.pause(); return; }
     callbacks.onstart?.();

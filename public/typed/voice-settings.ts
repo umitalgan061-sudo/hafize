@@ -2,6 +2,7 @@
 // browser offers and from the downloadable Piper library. Selecting a voice writes the same keys
 // voice-output.ts reads, so replies, "Seslendir" and the voice chat screen all follow it.
 
+import {NIM_TTS_VOICE,nimVoiceStatus} from './nim-voice.ts';
 import { pack, styles } from './supertonic-pack.ts';
 import {zerrePack,zerreStyles} from './zerre-pack.ts';
 import { PIPER_PREFIX, SPEAKER_KEY, canStoreVoices, downloadVoice, downloadedKeys, formatSize, isPiperVoice, loadCatalog, removeOtherVoices, removeVoice, sampleFor, type PiperVoice } from './voice-library.ts';
@@ -75,6 +76,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
   if (first?.nextSibling) host.insertBefore(panel, first.nextSibling); else host.append(panel);
 
   let catalog: PiperVoice[] = [];
+  let nimTtsAvailable=false;let disposed=false;const nimStatusAbort=new AbortController();
   let owned = new Set<string>();
   let visible = PAGE_SIZE;
   let previewing = '';
@@ -88,6 +90,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
 
   const nameOf = (id: string) => {
     if (!id) return 'Otomatik (en doğal Türkçe ses)';
+    if(id===NIM_TTS_VOICE)return 'NVIDIA NIM Türkçe (sunucu)';
     if (isPiperVoice(id)) return catalog.find((voice) => `${PIPER_PREFIX}${voice.key}` === id)?.name ?? 'İndirilen ses';
     return browserVoices().find((voice) => voice.voiceURI === id)?.name ?? 'Seçili ses';
   };
@@ -132,6 +135,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
     if (chosen()) auto.actions.append(button('Seç', () => select('')));
     else auto.actions.append(el('span', 'voice-badge', 'Seçili'));
     deviceList.append(auto.item);
+    if(nimTtsAvailable||chosen()===NIM_TTS_VOICE){const item=row('NVIDIA NIM Türkçe','Sunucuda yapılandırılmış ses; seçilirse seslendirilecek metin sunucuya gönderilir.',chosen()===NIM_TTS_VOICE);if(nimTtsAvailable){item.actions.append(button(previewLabel(NIM_TTS_VOICE),()=>preview(NIM_TTS_VOICE,sampleFor('tr'))));if(chosen()!==NIM_TTS_VOICE)item.actions.append(button('Seç',()=>select(NIM_TTS_VOICE)));}else item.actions.append(el('span','voice-badge','Bağlantı yok'));deviceList.append(item.item);}
     for (const voice of turkish) {
       const entry = row(voice.name.replace(/^Microsoft\s+/i, ''), `${voice.lang}${voice.localService ? '' : ' · çevrimiçi'}`, chosen() === voice.voiceURI);
       entry.actions.append(button(previewLabel(voice.voiceURI), () => preview(voice.voiceURI, sampleFor(voice.lang.slice(0, 2).toLowerCase()))));
@@ -223,6 +227,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
 
   renderCurrent();
   renderDevice();
+  void nimVoiceStatus(root,nimStatusAbort.signal).then(s=>{if(!disposed){nimTtsAvailable=Boolean(s.ttsLanguage);renderDevice();}});
   if (!canStoreVoices()) libraryHint.textContent += ' Bu bağlantı güvenli olmadığı için indirilen sesler sayfa yenilenince silinir.';
   loadCatalog().then(async (voices) => {
     catalog = voices;
@@ -233,7 +238,7 @@ export function installVoiceSettings(documentRef: Document, host: Element, root:
     owned = await downloadedKeys(voices);
     render();
   }).catch(() => { libraryHint.textContent = 'Ses kütüphanesi şu an yüklenemedi.'; more.hidden = true; });
-  return () => { listeners.forEach((off) => off()); for (const entry of downloads.values()) entry.controller.abort(); panel.remove(); };
+  return () => { disposed=true;nimStatusAbort.abort();listeners.forEach((off) => off()); for (const entry of downloads.values()) entry.controller.abort(); panel.remove(); };
 }
 
 const api = Object.freeze({ describeVoice, installVoiceSettings, languageOptions });
