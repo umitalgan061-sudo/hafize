@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite } from './github-run-evidence.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch } from './github-run-evidence.ts';
 const repository='umitalgan061-sudo/retake', commit='a'.repeat(40), blob='b'.repeat(40);
 describe('GitHub run evidence',()=>{
  it('rejects imagined operations in arbitrary prose and failed tool results',()=>{
@@ -59,4 +59,22 @@ it('recovers an explicit file edit once after read-only progress but never retri
 it('distinguishes a reconciled existing merge from a new merge performed this turn',()=>{
  const rows=githubReceipt('github_release',{ok:true,value:{repository,action:'merge',number:73,merged:true,existing:true,mergeCommitSha:commit}});
  expect(formatGitHubRunEvidence(rows)).toContain('daha önce birleştirilmiş; GitHub üzerinden doğrulandı');
+});
+
+it('keeps the explicitly requested Retake branch and recovers after read-only development progress',()=>{
+ const branch='hafize/auto-7cd111b639fb452aae94371609d77339';
+ const request='Kaldığın yerden devam et. Retake deposundaki '+branch+' geliştirme dalını kontrol et. Önceki üç commit’i koru. Yarım kalan geliştirmeleri tamamla. Gerçek algoritma iyileştirmeleri yap, regresyon testleri ekle ve PR oluştur.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'tools/ultra_mode.py',sha:blob}});
+ expect(requestedExistingFeatureBranch(request)).toBe(branch);
+ expect(violatesExistingFeatureBranch(branch,'github_develop',{operation:'branch',repository})).toBe(true);
+ expect(violatesExistingFeatureBranch(branch,'github_develop',{operation:'file',repository,branch:'hafize/auto-other'})).toBe(true);
+ expect(violatesExistingFeatureBranch(branch,'github_develop',{operation:'file',repository,branch})).toBe(false);
+ expect(violatesExistingFeatureBranch(branch,'github_develop',{operation:'pull',repository,branch})).toBe(false);
+ expect(violatesExistingFeatureBranch(branch,'github_release',{action:'open',repository,branch:'hafize/auto-other'})).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,read,[])).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,[...read,...githubReceipt('github_develop',{ok:true,value:{repository,action:'branch',branch,fromSha:commit}})],[{name:'github_develop',operation:'branch',ok:true}])).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,read,[{name:'github_develop',operation:'file',ok:false}])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request+' Sadece incele.',read,[])).toBe(false);
+ expect(requestedExistingFeatureBranch('Retake '+branch+' dalında çalış, yeni dal oluştur.')).toBeNull();
+ expect(requestedExistingFeatureBranch('Retake '+branch+' dalında çalış, hafize/auto-other dalını kullan.')).toBeNull();
 });
