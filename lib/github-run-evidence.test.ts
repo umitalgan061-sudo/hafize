@@ -43,3 +43,9 @@ describe('GitHub run evidence',()=>{
   expect(githubWorkRequested('Bugün hava nasıl?')).toBe(false);
  });
 });
+
+it('reports fixed argument guidance without displaying arbitrary model or provider text',()=>{
+ const report=formatGitHubRunEvidence(githubReceipt('github_develop',{ok:false,error:'INVALID_GITHUB_ARGUMENTS',status:400,reason:'GITHUB_ARGS_BRANCH'}));
+ expect(report).toContain('Dal oluşturma parametreleri');
+ expect(formatGitHubRunEvidence(githubReceipt('github_develop',{ok:false,error:'INVALID_GITHUB_ARGUMENTS',reason:'untrusted payload'}))).not.toContain('untrusted payload');
+});

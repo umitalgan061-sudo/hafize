@@ -62,8 +62,23 @@ export function createGitHubAgentDevelopment(options: Options) {
   }
 
   async function execute(raw: unknown, context: RequestContext): Promise<Record<string, unknown>> {
-    const args = asRecord(raw);
+    const args = {...asRecord(raw)};
+    // Some model providers emit all declared optional fields as null or "".
+    // Normalize only known harmless placeholders; never ignore unknown keys or
+    // meaningful extra values. Authorization and writer validation stay intact.
     const operation = args.operation;
+    if(operation==='branch'||operation==='file'||operation==='pull'){
+      const known = new Set([...Object.values(FIELD_SETS).flatMap(fields=>[...fields])]);
+      for(const key of Object.keys(args)){
+        if(!FIELD_SETS[operation].has(key)&&known.has(key)&&(args[key]===null||args[key]===''))delete args[key];
+      }
+      if(operation==='branch'&&(args.branch===null||args.branch===''))delete args.branch;
+      if(operation==='file'){
+        if(args.existingSha===null||args.existingSha==='')delete args.existingSha;
+        for(const key of ['content','find','replace'])if(args[key]===null)delete args[key];
+        if(typeof args.content==='string'&&args.content.length>0&&args.find===''&&args.replace===''){delete args.find;delete args.replace;}
+      }
+    }
     if (operation !== 'branch' && operation !== 'file' && operation !== 'pull') return invalid();
     if (Object.keys(args).some((key) => !FIELD_SETS[operation].has(key))) return invalid();
     const repository = required(args.repository);
@@ -101,7 +116,7 @@ export function createGitHubAgentDevelopment(options: Options) {
         payload = await writer.prepareFilePatch({ repository, branch, path,
           existingSha: args.existingSha, find: args.find, replace: args.replace, message: required(args.message) });
       } else {
-        if (typeof args.content !== 'string' || args.content.length > 96 * 1024) return invalid();
+        if (typeof args.content !== 'string' || !args.content.length || args.content.length > 96 * 1024) return invalid();
         payload = { repository, branch, path, content: args.content,
           message: required(args.message), ...(args.existingSha ? { existingSha: args.existingSha } : {}) };
       }
