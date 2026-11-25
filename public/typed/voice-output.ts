@@ -1,3 +1,4 @@
+import {NIM_TTS_VOICE,nimSpeakChunk} from './nim-voice.ts';
 import { SPEAKER_KEY, findVoice, isPiperVoice, speakChunk, synthesize, unlockAudio, type SpeakHandle } from './voice-library.ts';
 export interface VoiceOutputController { readonly isSupported:boolean; readonly isEnabled:()=>boolean; readonly isSpeaking:()=>boolean; readonly setEnabled:(next:boolean)=>boolean; readonly speak:(value:string)=>boolean; readonly cancel:()=>void; readonly syncStreamState:()=>void; readonly destroy:()=>void; }
 export const STORAGE_KEY='hafize.voiceOutput.v1';
@@ -81,6 +82,12 @@ export function installVoiceOutput(documentRef:Document,root:typeof globalThis):
  const next=(token:number)=>{if(token!==generation)return;if((!enabled&&!forced)||!supported||documentRef.hidden||!queue.length){speaking=false;forced=false;render();return;}
   const text=queue.shift()!;const progress=(charIndex:number,charLength:number)=>{if(token!==generation)return;const Custom=(root as typeof globalThis).CustomEvent;if(typeof Custom!=='function'||typeof documentRef.dispatchEvent!=='function')return;documentRef.dispatchEvent(new Custom(VOICE_OUTPUT_PROGRESS_EVENT,{detail:{source:'voice-output',origin,text,charIndex,charLength}}));};
   const chosen=chosenVoice();
+  if(chosen===NIM_TTS_VOICE){
+   let settled=false;let watchdog:ReturnType<typeof setTimeout>;
+   const finish=(error?:Error)=>{if(token!==generation||settled)return;settled=true;clearTimeout(watchdog);piperHandle?.stop();piperHandle=null;if(error){queue=[];speaking=false;forced=false;render();announce('NVIDIA Türkçe sesi kullanılamadı; Ayarlar bölümünden başka bir ses seçebilirsin.');}else next(token);};
+   speaking=true;thinking=false;render();watchdog=setTimeout(()=>finish(Error('NIM_TTS_TIMEOUT')),65000);
+   piperHandle=nimSpeakChunk(root,text,readRate(storage),{onstart:()=>progress(-1,0),onword:progress,onend:()=>finish(),onerror:finish});return;
+  }
   if(isPiperVoice(chosen)){
    // Preserve the selected speaker if synthesis or playback fails.
    let settled=false;
