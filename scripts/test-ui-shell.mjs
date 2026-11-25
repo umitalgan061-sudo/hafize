@@ -91,21 +91,23 @@ const contrast=(a,b)=>{const values=[luminance(a),luminance(b)].sort((x,y)=>y-x)
 for(const [fg,bg] of [['302b27','fffdfa'],['69635c','fffdfa'],['f2efea','2b2c2e'],['b8b1a8','2b2c2e'],['ffffff','a94a2c'],['ffffff','b4232b'],['ffffff','187348']])assert.ok(contrast(fg,bg)>=4.5,fg+' / '+bg);
 console.log('Frontend design system contract OK: themes, contrast, standalone tools and retained mode controls');
 
-assert.match(designSystem,/--bg:#211c19; --panel:#2b231e; --card:#302720/);
-assert.match(designSystem,/--bg:#faf4ec; --panel:#f3e9dc; --card:#fffaf3/);
-for(const effect of ['hz-orange-beam-x','hz-orange-beam-y','hz-orange-header','hz-orange-composer-breathe']){
+assert.match(designSystem,/--bg:#202122; --panel:#292927; --card:#2e2d2b/);
+assert.match(designSystem,/--bg:#f7f5f0; --panel:#efebe5; --card:#fffdfa/);
+for(const effect of ['hz-orange-beam-x','hz-orange-beam-y','hz-orange-header']){
   assert.ok(designSystem.includes('@keyframes '+effect),effect);
 }
-assert.match(designSystem,/html\[data-theme\] \.edge-beam\s*\{[^}]*display:block;opacity:\.92/s);
+assert.match(designSystem,/html\[data-theme\] \.edge-beam\s*\{[^}]*display:block;opacity:\.55/s);
 assert.match(designSystem,/html\[data-reduced-motion="true"\][^{}]*::after\{animation:none!important/);
 assert.match(designSystem,/pointer-events:none/);
 assert.doesNotMatch(designSystem,/#layoutToggle/);
-for(const [fg,bg] of [['302b27','fffaf3'],['696057','fffaf3'],['f2efea','302720'],['c5b5a7','302720'],['ffffff','b84b23'],['ffffff','a93e17'],['b94b22','fffaf3']])assert.ok(contrast(fg,bg)>=4.5,fg+' / '+bg);
+assert.doesNotMatch(designSystem,/hz-orange-composer-breathe|--hz-card-warm/);
+assert.match(designSystem, /\.main \.primary-column form#composer\.composer\{background:var\(--card\);border-color:var\(--line\)\}/);
+for(const [fg,bg] of [['302b27','fffdfa'],['69635c','fffdfa'],['f2efea','2e2d2b'],['b8b1a8','2e2d2b'],['ffffff','a94a2c'],['a04325','fffdfa']])assert.ok(contrast(fg,bg)>=4.5,fg+' / '+bg);
 const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),'utf8');
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
-console.log('Hafize orange identity contract OK: warm themes, animated accents, contrast and reduced motion');
+console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=orange-20261125-2"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=elegant-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
