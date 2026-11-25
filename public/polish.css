@@ -614,7 +614,7 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
 /* Shared floating-surface theme. Keep individual layout, stacking, visibility and
    voice-stage controls intact; only unify colours and constrain overflowing popups.
    Native forced-colors overrides in feature stylesheets must remain authoritative. */
-@media (forced-colors: none) {
+@media not all and (forced-colors: active) {
   html[data-theme] {
     --overlay-surface: var(--premium-surface-strong, var(--card));
     --overlay-text: var(--premium-text, var(--ink));
