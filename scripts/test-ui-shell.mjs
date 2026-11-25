@@ -93,10 +93,10 @@ console.log('Frontend design system contract OK: themes, contrast, standalone to
 
 assert.match(designSystem,/--bg:#202122; --panel:#292927; --card:#2e2d2b/);
 assert.match(designSystem,/--bg:#f7f5f0; --panel:#efebe5; --card:#fffdfa/);
-for(const effect of ['hz-orange-beam-x','hz-orange-beam-y','hz-orange-header','hz-refined-composer-pulse']){
+for(const effect of ['hz-orange-header','hz-refined-composer-pulse']){
   assert.ok(designSystem.includes('@keyframes '+effect),effect);
 }
-assert.match(designSystem,/html\[data-theme\] \.edge-beam\s*\{[^}]*display:block;opacity:\.82/s);
+
 assert.match(designSystem,/html\[data-reduced-motion="true"\][^{}]*::after\{animation:none!important/);
 assert.match(designSystem,/pointer-events:none/);
 assert.doesNotMatch(designSystem,/#layoutToggle/);
@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=perimeter-canvas-20261125-1"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=claude-original-frame-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -120,37 +120,33 @@ assert.match(designSystem,/animation:hz-refined-composer-pulse 5\.6s ease-in-out
 assert.match(designSystem,/#composer\[data-voice-listening="true"\]>\.hz-composer-pulse\{opacity:0;animation:none\}/);
 assert.match(designSystem,/html\[data-reduced-motion="true"\] #composer>\.hz-composer-pulse\{animation:none!important\}/);
 assert.doesNotMatch(designSystem,/form#composer\.composer::after|form#composer\.composer::before/);
-assert.match(designSystem,/html\[data-theme\] \.edge-beam\{opacity:\.78\}/);
+assert.match(designSystem,/html\[data-theme\] \.edge-beam\{display:block;opacity:\.32\}/);
 console.log('Refined motion contract OK: four edges, top trace, gentle independent composer pulse and mobile support');
 
 assert.match(indexHtml, /<span class="hz-composer-pulse" aria-hidden="true"><\/span>/);
 assert.match(designSystem, /#composer>\.hz-composer-pulse\s*\{[^}]*pointer-events:none/s);
 
-assert.match(indexHtml,/<div class="hz-frame" aria-hidden="true"><i class="hz-frame-idle"><\/i><canvas id="hz-perimeter-canvas" aria-hidden="true"><\/canvas><\/div>/);
-assert.match(indexHtml,/<script defer src="\/perimeter-motion\.js\?v=20261125-1"><\/script>/);
-assert.match(designSystem, /@property --hz-perimeter-angle/);
-assert.match(designSystem, /mask-composite:exclude/);
-assert.match(designSystem, /html\[data-theme\] body>\.hz-frame\{\s*display:block;position:fixed;inset:0;[^}]*pointer-events:none;opacity:1/s);
-assert.match(designSystem, /body>\.hz-frame>\.hz-frame-idle\{[^}]*inset:1px;[^}]*box-shadow:inset 0 0 0 1px/s);
-assert.match(designSystem, /body>\.hz-frame>#hz-perimeter-canvas\{[^}]*width:100%;height:100%;[^}]*pointer-events:none/s);
-assert.match(designSystem, /data-hz-perimeter="running"\] body>\.edge-beam\{display:none\}/);
-assert.match(designSystem, /html\[data-theme\] #composer>\.hz-composer-pulse\{\s*position:absolute;inset:-2px;padding:1\.5px;opacity:\.8;box-shadow:none;[^}]*animation:hz-perimeter-turn 8s linear infinite/s);
+// Historical Claude Opus 5.5 co-authored frame: ebd75a7ef7df8c2deedcff018ea9aaa68e01d00c.
 const frameSource=readFileSync(new URL('../public/typed/theme-polish.ts',import.meta.url),'utf8');
-assert.match(frameSource,/if \(!document\.querySelector\('\.hz-frame'\)\)/);
-assert.match(frameSource,/canvas\.id = 'hz-perimeter-canvas'/);
-assert.doesNotMatch(frameSource,/hz-thinking-beam|createElementNS\(ns, 'animate'\)/);
+const premiumFrameSource=readFileSync(new URL('../public/premium.css',import.meta.url),'utf8');
+const polishFrameSource=readFileSync(new URL('../public/polish.css',import.meta.url),'utf8');
+assert.match(frameSource,/@property --hz-frame-angle\{syntax:'<angle>';initial-value:0deg;inherits:false\}/);
+assert.match(frameSource,/\.hz-frame\{position:fixed;inset:0;z-index:2147483000;pointer-events:none;opacity:0;transition:opacity \.6s ease\}/);
+assert.match(frameSource,/\.hz-frame>i\{[^}]*padding:3px;[^}]*animation:hz-frame-run 3\.4s linear infinite\}/);
+assert.match(frameSource,/\.hz-frame>i\+i\{padding:6px;filter:blur\(9px\);opacity:\.55\}/);
+assert.match(frameSource,/html\.hafize-working \.hz-frame,html\.hafize-flash \.hz-frame\{opacity:1\}/);
+assert.match(frameSource,/@keyframes hz-frame-run\{to\{--hz-frame-angle:360deg\}\}/);
+assert.match(frameSource,/frame\.append\(document\.createElement\('i'\), document\.createElement\('i'\)\)/);
+assert.match(premiumFrameSource,/@keyframes beamX/);
+assert.match(premiumFrameSource,/@keyframes beamY/);
+assert.match(polishFrameSource,/\.edge-beam \{ opacity: 0\.32; \}/);
+assert.match(designSystem,/html\[data-theme\] \.edge-beam\{display:block;opacity:\.32\}/);
+assert.doesNotMatch(designSystem,/hz-perimeter-canvas|hz-orange-beam-x|hz-orange-beam-y|body>\.hz-frame/);
+assert.doesNotMatch(indexHtml,/perimeter-motion\.js|hz-perimeter-canvas|class="hz-frame"/);
+assert.match(designSystem,/animation:hz-perimeter-turn 8s linear infinite/);
 const thinkingSource=readFileSync(new URL('../public/typed/chat-scroll.ts',import.meta.url),'utf8');
 assert.match(thinkingSource,/classList\.add\('hafize-working'\)/);
 assert.match(thinkingSource,/classList\.remove\('hafize-working'\)/);
 const generationSource=readFileSync(new URL('../public/typed/app-shell.ts',import.meta.url),'utf8');
-assert.match(generationSource,/function setGenerationUi\(disabled\)\s*\{\s*document\.documentElement\.dataset\.hafizeGenerating = String\(disabled\)/);
-const perimeterSource=readFileSync(new URL('../public/perimeter-motion.js',import.meta.url),'utf8');
-assert.match(perimeterSource,/ctx\.setLineDash\(\[dash,length-dash\]\)/);
-assert.match(perimeterSource,/ctx\.lineDashOffset=dash\/2-progress\*length/);
-assert.match(perimeterSource,/progress=\(progress\+Math\.min\(now-last,100\)\/\(active\?5000:13000\)\)%1/);
-assert.match(perimeterSource,/requestAnimationFrame\(tick\)/);
-assert.match(perimeterSource,/dataset\.hzPerimeter='running'/);
-assert.match(perimeterSource,/document\.addEventListener\('visibilitychange',sync\)/);
-assert.match(perimeterSource,/root\.dataset\.reducedMotion !== 'true'/);
-assert.doesNotMatch(indexHtml,/class="hz-thinking-beam"|<animate attributeName="stroke-dashoffset"/);
-console.log('Canvas perimeter contract OK: elapsed-time motion, four-edge path, quiet/working colors, visibility and accessibility');
+assert.match(generationSource,/document\.documentElement\.dataset\.hafizeGenerating = String\(disabled\)/);
+console.log('Historical screen frame restored: original Claude animation, original idle beams, preserved composer');
