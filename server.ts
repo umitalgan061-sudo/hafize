@@ -73,6 +73,7 @@ import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer } from './lib/agent-continuation-recovery.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, type GitHubReceipt } from './lib/github-run-evidence.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
@@ -1003,6 +1004,12 @@ async function handleAgentRun(req, res) {
   const skillHints = SKILLS_RUNTIME.listForAgent(agent).filter(s=>!s.requiresApproval && s.riskLevel==='low' && !s.sideEffects?.mutates).map(s=>({id:s.name,description:s.description,arguments:s.arguments}));
   const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities(), lastUserText) + (tools.some(t=>t.function.name==='skill_invoke') ? '\nBu ajan için izinli düşük riskli beceriler (gerektiğinde skill_invoke ile çağır; liste çalıştırılmış olduklarının kanıtı değildir): '+JSON.stringify(skillHints)+'\nÖnce amaca uygun beceriyi seç; gereksiz çağrı veya aynı görevi iki kez çalıştırma.' : '') + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
   const toolSummary = [];
+  const githubReceipts: GitHubReceipt[] = [];
+  let githubEvidenceMode = githubWorkRequested(lastUserText, messages.filter(m=>m.role==='user').map(m=>m.content));
+  // GitHub-capable sessions buffer model narrative per round. The tool badges
+  // and heartbeats remain live. A model's premature success claim must never
+  // reach the user before trusted receipts can replace it.
+  const holdGitHubNarrative = githubEvidenceMode || tools.some(t=>['github_develop','github_release'].includes(t.function.name));
   const toolLoopGuard = createToolLoopGuard();
   const pendingSkillInvocations = new Map();
   let anyToolFailed = false;
@@ -1041,6 +1048,7 @@ async function handleAgentRun(req, res) {
     let separatorPending = streamedAnswer;
     let wrote = false;
     const gate = createToolMarkupGate((text) => {
+      if (holdGitHubNarrative) return;
       if (separatorPending) { writeAnswerDelta('\n\n'); separatorPending = false; }
       writeAnswerDelta(text);
       streamedAnswer = true;
@@ -1060,7 +1068,7 @@ async function handleAgentRun(req, res) {
     return { content: round.content, toolCalls: round.toolCalls, wrote };
   }
   const failRound = (error) => {
-    if (!res.destroyed && !res.writableEnded && (toolSummary.length || requestAbort.signal.aborted)) {
+    if (!res.destroyed && !res.writableEnded && (githubEvidenceMode || toolSummary.length || requestAbort.signal.aborted)) {
       finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
       return;
     }
@@ -1070,6 +1078,13 @@ async function handleAgentRun(req, res) {
     deliverRequestFailure(res, error);
   };
   const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
+    if (githubEvidenceMode) {
+      content = formatGitHubRunEvidence(githubReceipts);
+      alreadyWritten = false;
+      // A read or new empty branch is not a delivered code change. Even with
+      // receipts the formatter never asserts full user-task completion.
+      unresolved = unresolved || !githubReceipts.some(r=>['file','pull','merge','dispatch'].includes(r.kind)) || githubReceipts.some(r=>r.kind==='error');
+    }
     agentSpan.end(unresolved ? 'error' : 'ok', { 'tools.count': toolSummary.length, 'tools.failed': anyToolFailed, 'answer.unresolved': unresolved });
     PLATFORM.recordTurn(ownerId, conversationId, 'assistant', alreadyWritten ? answerText : (streamedAnswer ? answerText + '\n\n' + content : content));
     runLedger.finish({ ok: !anyToolFailed && !unresolved, detail: unresolved ? 'incomplete_agent_answer' : anyToolFailed ? 'tool_failed' : null });
@@ -1208,6 +1223,7 @@ async function handleAgentRun(req, res) {
       return;
     }
 
+    if (normalizedCalls.some(call=>['github_develop','github_release'].includes(call.function.name))) githubEvidenceMode=true;
     if (streamResponse) startSse(res);
     workingMessages.push({ role: 'assistant', content, tool_calls: normalizedCalls });
     // Tools that bring outside text into the run; after them the model may not write to memory.
@@ -1247,6 +1263,7 @@ async function handleAgentRun(req, res) {
     noProgressRounds=results.some(result=>result.ok)?0:noProgressRounds+1;
     normalizedCalls.forEach((call, index) => {
       const result = results[index];
+      githubReceipts.push(...githubReceipt(call.function.name,result));
       if (call.function.name === 'skill_invoke' && result.ok && result.value && typeof result.value === 'object') {
         const value = result.value as Record<string, unknown>;
         const permissions = Array.isArray(value.tools) ? value.tools : [];
@@ -1297,6 +1314,10 @@ async function handleAgentRun(req, res) {
   // Ask for a concrete evidence-based status, never a fresh promise to start.
   if (requestAbort.signal.aborted) {
     finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+    return;
+  }
+  if (githubEvidenceMode) {
+    finishWithAnswer('', false, true);
     return;
   }
   const finalInstruction = buildFinalToolInstruction(toolSummary);
