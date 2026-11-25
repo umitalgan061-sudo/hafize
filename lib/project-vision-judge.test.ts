@@ -97,3 +97,22 @@ describe('Retake NVIDIA vision judge', () => {
     await expect(broken.judge('retake', {task: 'face-realism-rank', candidates: [jpeg(1), jpeg(2)]})).rejects.toMatchObject({code: 'PROJECT_AI_UPSTREAM_FAILED', status: 502});
   });
 });
+
+
+it('limits jury concurrency while preserving both orders for every model', async () => {
+  const candidates = [jpeg(1), jpeg(2)];
+  const underlying = fakeVlm(1, new Map(candidates.map((url,index) => [url,index])));
+  let active=0, peak=0;
+  const complete=vi.fn(async (payload: Record<string, unknown>) => {
+    active++; peak=Math.max(peak,active);
+    try {
+      await Promise.resolve();
+      return await underlying(payload);
+    } finally {active--;}
+  });
+  const jury=createProjectVisionJudge({complete,models:['nvidia/a','nvidia/b','nvidia/c','nvidia/d']});
+  const result=await jury.judge('retake',{task:'face-realism-rank',candidates});
+  expect(peak).toBeLessThanOrEqual(VISION_JUDGE_LIMITS.maxParallelCalls);
+  expect(complete).toHaveBeenCalledTimes(8);
+  expect(result).toMatchObject({decision:'winner',winner:1,votes:8,attempted:8});
+});
