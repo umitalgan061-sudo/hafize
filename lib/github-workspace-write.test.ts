@@ -408,7 +408,7 @@ describe('github workspace safe write core', () => {
       maxRef: 200,
       maxBranch: 200,
       maxPath: 400,
-      maxContent: 96 * 1024,
+      maxContent: 256 * 1024,
       maxCommitMessage: 180,
       maxPrTitle: 240,
       maxPrBody: 4000,
