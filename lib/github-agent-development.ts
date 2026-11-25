@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './github-workspace-write.ts';
 
 /**
@@ -70,7 +70,9 @@ export function createGitHubAgentDevelopment(options: Options) {
     if (!allowed.has(repository.toLowerCase())) {
       throw new GitHubWorkspaceWriteError('GITHUB_REPO_NOT_ALLOWED', 403);
     }
-    const branch = featureBranch(args.branch);
+    // Generate a valid, unique branch only when creating a new one. Never silently
+    // remap a file write or a PR to another branch.
+    const branch = operation==='branch'&&args.branch===undefined ? 'hafize/auto-'+randomBytes(12).toString('hex') : featureBranch(args.branch);
     // No model tool argument can request autonomous write access. The
     // authenticated server alone decides whether its owner opted into
     // preapproved, bounded draft-PR development actions.

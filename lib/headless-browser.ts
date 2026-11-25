@@ -30,6 +30,7 @@ type Listener = (method: string, params: Record<string, unknown>, sessionId?: st
 export interface PageSession {
   send(method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>>;
   evaluate<T = unknown>(expression: string): Promise<T>;
+  waitForLoad(timeoutMs:number):Promise<void>;
   close(): Promise<void>;
 }
 
@@ -120,7 +121,7 @@ export function createHeadlessBrowser({ idleMs = 60_000 }: { readonly idleMs?: n
   }
 
   /** Opens a fresh page (own browser context, so cookies never leak between pages). */
-  async function openPage({ guardNetwork = true, width = 1280, height = 900 }: { readonly guardNetwork?: boolean; readonly width?: number; readonly height?: number } = {}): Promise<PageSession> {
+  async function openPage({ guardNetwork = true, width = 1280, height = 900, mobile=false }: { readonly guardNetwork?: boolean; readonly width?: number; readonly height?: number; readonly mobile?:boolean } = {}): Promise<PageSession> {
     await start();
     openPages += 1;
     if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
@@ -130,7 +131,7 @@ export function createHeadlessBrowser({ idleMs = 60_000 }: { readonly idleMs?: n
     const send = (method: string, params: Record<string, unknown> = {}) => rawSend(method, params, sessionId);
     await send('Page.enable');
     await send('Runtime.enable');
-    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile });
     let listener: Listener | null = null;
     if (guardNetwork) {
       await send('Fetch.enable', { patterns: [{ urlPattern: '*', requestStage: 'Request' }] });
@@ -151,6 +152,7 @@ export function createHeadlessBrowser({ idleMs = 60_000 }: { readonly idleMs?: n
     }
     return {
       send,
+      waitForLoad:(timeoutMs:number)=>waitForLoad(timeoutMs,sessionId),
       async evaluate<T>(expression: string): Promise<T> {
         const result = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }) as { result?: { value?: unknown }; exceptionDetails?: { exception?: { description?: string }; text?: string } };
         if (result.exceptionDetails) throw new Error(String(result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'EVALUATION_FAILED').slice(0, 300));
@@ -166,11 +168,11 @@ export function createHeadlessBrowser({ idleMs = 60_000 }: { readonly idleMs?: n
   }
 
   /** Waits for Page.loadEventFired on the given session (or the timeout). */
-  function waitForLoad(timeoutMs: number): Promise<void> {
+  function waitForLoad(timeoutMs: number, sessionId?:string): Promise<void> {
     return new Promise((resolve) => {
       const timer = setTimeout(done, timeoutMs);
       function done() { clearTimeout(timer); listeners.delete(listener); resolve(); }
-      const listener: Listener = (method) => { if (method === 'Page.loadEventFired') done(); };
+      const listener: Listener = (method,_params,eventSession) => { if (method === 'Page.loadEventFired'&&(!sessionId||eventSession===sessionId)) done(); };
       listeners.add(listener);
     });
   }
