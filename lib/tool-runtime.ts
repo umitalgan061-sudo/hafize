@@ -22,6 +22,7 @@ export interface ToolServices {
   readonly localhostStop?: ToolService;
   readonly orchestrate?: ToolService;
   readonly orchestrateResume?: ToolService;
+  readonly orchestrateList?: ToolService;
   readonly memorySearch?: ToolService;
   readonly memoryConsolidate?: ToolService;
   readonly expertFind?: ToolService;
@@ -59,6 +60,7 @@ export interface ToolRuntimeContext {
   readonly advertisedToolNames?: readonly string[];
   readonly registry?: { readonly agents?: readonly ToolAgent[] };
   readonly nvidiaConfigured?: boolean;
+  readonly nvidiaWorkspace?: {execute:(args:unknown,signal?:AbortSignal)=>Promise<unknown>};
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: (args: unknown) => Promise<unknown>;
   readonly githubInspect?: (args: unknown) => Promise<unknown>;
@@ -398,6 +400,20 @@ const CATALOG = new Map<string, ToolEntry>([
     definition: MEMORY_TOOL_DEFINITIONS.memory_forget as ToolDefinition,
     available: (context) => typeof context.memory?.forget === 'function',
     execute: async (args, context) => context.memory!.forget(args)
+  }],
+  ['nvidia_workspace', {
+    permission:'nvidia.workspace',kind:'diagnostic',timeoutMs:180000,
+    activity:{running:'NVIDIA yetenekleri inceleniyor',success:'NVIDIA işlem sonucu alındı',failure:'NVIDIA işlemi tamamlanamadı'},
+    definition:strictDefinition('nvidia_workspace','NVIDIA gerçek envanter ve Blueprint durumunu gösterir (status, blueprints; category isteğe bağlı). Model erişimini sentetik discover, probe, deep, embedding_probe, translation_probe, comprehensive ile yalnız kullanıcı açıkça NVIDIA test/inceleme istediğinde ölçer. Kullanıcı açıkça NVIDIA seçmiş ve ilgili metni bu mesajında vermişse translate (en-tr/tr-en), semantic_search (text/query/model), council (text) çalıştırır. Katalog bir erişim, ücretsiz kullanım veya resmi dağıtım kanıtı değildir. Mevcut kota ve sağlayıcı hatalarını korur.',{action:{type:'string',enum:['status','blueprints','discover','probe','deep','embedding_probe','translation_probe','comprehensive','translate','semantic_search','council']},category:{type:'string'},model:{type:'string'},text:{type:'string'},query:{type:'string'},pair:{type:'string',enum:['en-tr','tr-en']}},['action']),
+    available:context=>Boolean(context.ownerId&&context.nvidiaWorkspace),
+    execute:async(args,context)=>context.nvidiaWorkspace!.execute(args,context.signal)
+  }],
+  ['orchestrator_list', {
+    permission:'orchestrator.run',kind:'orchestrator',timeoutMs:timeout(10000),
+    activity:{running:'Görev kayıtları okunuyor',success:'Görev kayıtları alındı',failure:'Görev kayıtları alınamadı'},
+    definition:strictDefinition('orchestrator_list','Hesap sahibinin kayıtlı çok adımlı görevlerini listeler. Önceki görevden devam istenirse uygun runId bul, tamamlanan adımları tekrar etmeden orchestrator_resume kullan. Belirsiz işlem sonuçlarını yeniden yürütme.',{limit:{type:'integer',minimum:1,maximum:100}},[]),
+    available:context=>Boolean(context.ownerId&&context.services?.orchestrateList),
+    execute:async(args,context)=>context.services!.orchestrateList!(args,context)
   }],
   ['research_run', {
     permission: 'research.run',
