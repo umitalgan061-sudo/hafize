@@ -107,7 +107,7 @@ const studioStyles=readFileSync(new URL('../public/studio.css',import.meta.url),
 assert.match(studioStyles,/@keyframes studio-orange-trace/);
 console.log('Hafize elegant theme contract OK: neutral surfaces, fine animated accents and reduced motion');
 
-assert.match(indexHtml,/href="\/design-system\.css\?v=visible-thinking-border-20261125-2"/);
+assert.match(indexHtml,/href="\/design-system\.css\?v=thinking-dot-20261125-1"/);
 const renderServerSource=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
 assert.match(renderServerSource,/url\.pathname === '\/release\.json'/);
 assert.match(renderServerSource,/const marker = '<meta name="hafize-release" content="' \+ revision/);
@@ -135,9 +135,7 @@ assert.match(designSystem, /body:has\(>\.hz-frame\)>\.edge-beam\{display:none\}/
 assert.match(designSystem, /html\[data-theme\] body>\.hz-frame\{\s*display:block;position:fixed;inset:0;[^}]*pointer-events:none;opacity:1/s);
 assert.match(designSystem, /body>\.hz-frame>\.hz-frame-idle\{\s*inset:1px;\s*box-shadow:inset 0 0 0 1px/);
 assert.match(designSystem, /body>\.hz-frame>:is\(\.hz-frame-thinking,\.hz-frame-thinking-glow\)\{\s*visibility:hidden;opacity:0/);
-assert.match(designSystem, /html\[data-theme\]:is\(\.hafize-working,\[data-hafize-generating="true"\],:has\(#messages\[aria-busy="true"\]\)\) body>\.hz-frame>\.hz-frame-thinking\{[^}]*visibility:visible;opacity:1;[^}]*inset:5px;border-radius:6px;\s*box-shadow:inset 0 0 0 3px #ee8249/);
 assert.match(designSystem, /hz-frame-idle-glow\)::after\{[^}]*animation:hz-perimeter-turn 15s linear infinite/s);
-assert.match(designSystem, /data-hafize-generating="true"[^{}]*body>\.hz-frame>:is\(\.hz-frame-thinking,\.hz-frame-thinking-glow\)::after\{[^}]*animation:hz-perimeter-turn 3\.8s linear infinite/s);
 assert.match(designSystem, /html\[data-theme\] #composer>\.hz-composer-pulse\{\s*position:absolute;inset:-2px;padding:1\.5px;opacity:\.8;box-shadow:none;[^}]*animation:hz-perimeter-turn 8s linear infinite/s);
 const frameSource=readFileSync(new URL('../public/typed/theme-polish.ts',import.meta.url),'utf8');
 assert.match(frameSource,/if \(!document\.querySelector\('\.hz-frame'\)\)/);
@@ -150,5 +148,13 @@ console.log('Dual outer frame contract OK: permanent subtle outline, independent
 
 const generationSource=readFileSync(new URL('../public/typed/app-shell.ts',import.meta.url),'utf8');
 assert.match(generationSource,/function setGenerationUi\(disabled\)\s*\{\s*document\.documentElement\.dataset\.hafizeGenerating = String\(disabled\)/);
-assert.match(designSystem,/inset:6px;border-radius:12px/);
-console.log('Visible thinking border contract OK: 5px desktop inset, 6px mobile inset and explicit generation state');
+
+assert.match(designSystem,/data-hafize-generating="true"[^{}]*body>\.hz-frame>\.hz-frame-thinking\{\s*visibility:visible;opacity:1;inset:5px;border-radius:6px;box-shadow:none/);
+assert.match(designSystem,/body>\.hz-frame>\.hz-frame-thinking::after\{[^}]*width:7px;height:7px;[^}]*border-radius:50%;[^}]*background:#ff9b55/s);
+assert.match(designSystem,/@keyframes hz-thinking-dot-edges\{\s*0%,100%\{left:0;top:0\}\s*25%\{left:100%;top:0\}\s*50%\{left:100%;top:100%\}\s*75%\{left:0;top:100%\}/);
+assert.match(designSystem,/offset-path:inset\(0 round 6px\) border-box/);
+assert.match(designSystem,/offset-path:inset\(0 round 12px\) border-box/);
+assert.match(designSystem,/@keyframes hz-thinking-dot-lap\{from\{offset-distance:0%\}to\{offset-distance:100%\}\}/);
+assert.match(designSystem,/body>\.hz-frame>\.hz-frame-thinking-glow\{display:none\}/);
+assert.doesNotMatch(designSystem,/box-shadow:inset 0 0 0 3px #ee8249/);
+console.log('Single thinking dot contract OK: one luminous point follows all four edges, idle outline retained');
