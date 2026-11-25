@@ -152,6 +152,21 @@ function install(): void {
     }
     (document.body ?? document.documentElement).append(frame);
   }
+  const thinking = document.querySelector('.hz-frame-thinking');
+  if (thinking && !thinking.querySelector('.hz-thinking-beam')) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const beam = document.createElementNS(ns, 'svg');
+    beam.setAttribute('class', 'hz-thinking-beam');
+    beam.setAttribute('aria-hidden', 'true');
+    beam.setAttribute('focusable', 'false');
+    for (const name of ['halo', 'tail', 'middle', 'bright', 'core']) {
+      const ray = document.createElementNS(ns, 'rect');
+      ray.setAttribute('class', 'hz-ray-' + name);
+      for (const [key, value] of Object.entries({x:'0',y:'0',width:'100%',height:'100%',rx:'6',ry:'6',pathLength:'1000'})) ray.setAttribute(key,value);
+      beam.append(ray);
+    }
+    thinking.append(beam);
+  }
 }
 
 /** How far the chat list stands from the screen's edges, measured, so on a phone it can reach them (see the CSS). */
