@@ -90,3 +90,15 @@ export function buildProgressRepairInstruction(outcomes: readonly AgentToolOutco
  'INVALID_GITHUB_BRANCH ise hafize/auto-borsa-market-fix gibi geçerli küçük ASCII dalı seç; kullanıcıya dal adı sorma. REPEATED_TOOL_CALL ise önceki başarılı sonucu kullan. Kod değişikliği istendiyse yeterli kanıt varsa izinli github_develop ile ayrı dal, dosya değişikliği ve taslak PR adımına geç. '+
  'Yeni ve anlamlı bir adım yoksa gerçek engeli ve doğrulanmış bulguları açıkça bildir. Başarı uydurma.';
 }
+
+/** Fixed diagnostic vocabulary: do not echo raw upstream bodies, credentials,
+ * arbitrary exception messages or user content into logs or checkpoints. */
+export function agentInterruptionDiagnostic(error:unknown,signal?:AbortSignal,stage:'setup'|'model_round'|'execution'='execution'):string{
+ const value=signal?.aborted?signal.reason:error;
+ const e=value&&typeof value==='object'?value as {code?:unknown;message?:unknown;name?:unknown;status?:unknown}:{};
+ const allowed=new Set(['REQUEST_TIMEOUT','CLIENT_DISCONNECTED','AGENT_TURN_CANCELLED','AGENT_TURN_SERVER_SHUTDOWN','NVIDIA_CHAT_ERROR','INVALID_NVIDIA_RESPONSE','TOOL_ABORTED','MODEL_LAB_BUDGET','MODEL_LAB_PROVIDER_PAUSED']);
+ const known=[e.code,e.message].find(v=>typeof v==='string'&&allowed.has(v));
+ const status=typeof e.status==='number'&&Number.isInteger(e.status)&&e.status>=400&&e.status<=599?e.status:null;
+ const code=known??(signal?.aborted?'AGENT_ABORTED':e.name==='TimeoutError'?'REQUEST_TIMEOUT':stage==='model_round'?'MODEL_ROUND_FAILED':stage==='setup'?'AGENT_SETUP_FAILED':'AGENT_EXECUTION_FAILED');
+ return stage+': '+code+(status?' (HTTP '+status+')':'');
+}
