@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createGitHubAgentRelease, releaseAuthorizationForRequest } from './lib/github-agent-release.ts';
+import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitMergeCommand } from './lib/github-agent-release.ts';
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
@@ -1182,6 +1182,15 @@ async function handleAgentRun(req, res) {
     finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
     return;
   }
+  const explicitMerge=parseExplicitMergeCommand(lastUserText);
+  if(explicitMerge){
+    githubEvidenceMode=true;
+    const authorization=toolContext.githubReleaseAuthorization;
+    if(!durableId||!authorization?.actions.includes('merge')||!authorization.repositories.includes(explicitMerge.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
+      githubReceipts.push(...githubReceipt('github_release',{ok:false,error:'RELEASE_NOT_AUTHORIZED_OR_AVAILABLE'}));
+      finishWithAnswer('',false,true);return;
+    }
+  }
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
   let noProgressRounds=0;
@@ -1217,7 +1226,9 @@ async function handleAgentRun(req, res) {
 
     let completion;
     try {
-      completion = await runRound(roundPayload);
+      completion = explicitMerge
+        ? {toolCalls:[{id:'explicit-user-merge',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
+        : await runRound(roundPayload);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }
       MODEL_ROUTER.penalizeModel(error.routedModel);
@@ -1375,6 +1386,7 @@ async function handleAgentRun(req, res) {
     if(noProgressRounds===2 || noProgressRounds===4){
       workingMessages.push({role:'system',content:buildProgressRepairInstruction(toolSummary.slice(-12),noProgressRounds)});
     }
+    if(explicitMerge){finishWithAnswer('',false,!results.every(result=>result.ok));return;}
     if(noProgressRounds>=6){incompleteReason='no_progress';break;}
   }
 

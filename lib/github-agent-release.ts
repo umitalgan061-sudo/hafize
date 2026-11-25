@@ -153,7 +153,10 @@ export function releaseAuthorizationForRequest(request:unknown,optedIn:boolean):
  const denyOpen=/\b(?:pr|pull request)(?:'i|i)?\s+(?:acma|olusturma|acmayin|olusturmayin|acma(?:yi)?|olusturma(?:yi)?)\b/.test(s)||
    /\b(?:pr|pull request)\s+(?:ac|olustur)\s+ma\b/.test(s);
  if(denyOpen)return;
- const denyRelease=/\b(?:merge etme|merge yapma|birlestirme|birlestirme yapma|yayinlama|canliya alma|canli yayin yapma|deploy etme|deploy yapma)\b/.test(s);
+ // A positive noun phrase is not the negative imperative "birleştirme".
+ // Remove only the complete affirmative phrase; any separate prohibition remains.
+ const negativeScope=s.replace(/\bbirlestirme islemini gerceklestir\b/g,'');
+ const denyRelease=/\b(?:merge etme|merge yapma|birlestirme|birlestirme yapma|yayinlama|canliya alma|canli yayin yapma|deploy etme|deploy yapma)\b/.test(negativeScope);
  const publish=!denyRelease&&/\b(?:canliya al|yayinla|deploy et|canliya yayinla)\b/.test(s);
  const merge=!denyRelease&&(publish||/\b(?:merge et|birlestir)\b/.test(s));
  const rollback=!denyRelease&&/\b(?:geri al|rollback|geri dondur)\b/.test(s)&&!/\b(?:geri alma|rollback yapma|geri dondurme)\b/.test(s);
@@ -165,4 +168,19 @@ export function releaseAuthorizationForRequest(request:unknown,optedIn:boolean):
  const repository=project==='hafize'?HAFIZE:project==='borsa'?SITES:null;
  if(!repository)return;
  return Object.freeze({repositories:Object.freeze([repository]),actions:Object.freeze([...(publish?['open','merge','publish']:merge?['open','merge']:['open']),...(rollback?['rollback_pr']:[])])});
+}
+
+/** Exact, user-authored merge command. No repository or model output is parsed.
+ * It supplies arguments, not authorization: the ordinary release tool and all
+ * its current owner, repository, CI, branch and SHA checks still execute. */
+export function parseExplicitMergeCommand(request:unknown):{action:'merge';repository:string;number:number;sha:string}|null{
+ if(typeof request!=='string'||request.length>12000)return null;
+ const matches=[...request.matchAll(/(?:^|\n)[ \t]*github_release aracını şu parametrelerle çalıştır:[ \t]*\r?\n\s*(\{[^{}]{1,4096}\})/gu)];
+ if(matches.length!==1)return null;
+ try{
+  const v=JSON.parse(matches[0][1]);
+  if(!v||Array.isArray(v)||Object.keys(v).length!==4||Object.keys(v).some(k=>!['action','repository','number','sha'].includes(k)))return null;
+  if(v.action!=='merge'||![HAFIZE,SITES].includes(v.repository)||!Number.isSafeInteger(v.number)||v.number<1||typeof v.sha!=='string'||!SHA.test(v.sha))return null;
+  return {action:'merge',repository:v.repository,number:v.number,sha:v.sha.toLowerCase()};
+ }catch{return null;}
 }
