@@ -40,3 +40,11 @@ describe('agent checkpoint storage and reconnection',()=>{
   expect(continuationRequested('Kaldığın yerden devam et')).toBe(true);
  });
 });
+
+it('exposes only whether a durable turn is active, including cancellation until finish',()=>{
+ const db=new DatabaseSync(':memory:'),turns=createAgentTurnCheckpoints({db,cipherFor});
+ expect(turns.hasActive()).toBe(false);
+ turns.begin('owner','chat','turn');expect(turns.hasActive()).toBe(true);
+ turns.cancelAll();expect(turns.hasActive()).toBe(true);
+ turns.finish('owner','turn','interrupted');expect(turns.hasActive()).toBe(false);db.close();
+});

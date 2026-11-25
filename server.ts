@@ -935,6 +935,17 @@ async function handleAgentRun(req, res) {
     emitEvent('hafize-run-meta', { traceId, variant: promptVariant?.variant || '' });
     if (ownerId) emitEvent('hafize-memory-sync', { notes: memoryPrep.semantic });
   }
+  // Stream a bounded journal snapshot only to the authenticated task's
+  // own connection. The browser can retain observed receipts even if the
+  // ephemeral Render instance disappears. This is not server-side persistence.
+  const emitCheckpointProgress=()=>{
+    if(!durableId||!streamResponse||res.destroyed||res.writableEnded||!res.writable)return;
+    const saved=PLATFORM.agentTurns.get(ownerId,durableId);
+    if(!saved)return;
+    const pending=saved.pending.map(p=>[p.repository,p.operation,p.branch,p.path,p.sha,p.number===null?'':'PR #'+p.number].filter(Boolean).join(' · ')).join('\n');
+    const evidence=formatGitHubRunEvidence(saved.receipts).slice(0,24000)+(pending?'\n\nSonucu belirsiz yazma hedefleri (tekrar göndermeden doğrula):\n'+pending.slice(0,6000):'');
+    writeSseEvent(res,'hafize-agent-progress',{id:durableId,evidence});
+  };
   const contextMeta = preparedConversation.meta;
   const heartbeat=streamResponse?setInterval(()=>{if(!res.destroyed&&!res.writableEnded&&res.writable)res.write(': heartbeat\n\n');},15_000):null;
   heartbeat?.unref?.();
@@ -1324,6 +1335,7 @@ async function handleAgentRun(req, res) {
           return result;
         }
         PLATFORM.agentTurns.before(ownerId,durableId,[intent]);
+        emitCheckpointProgress();
       }
       const result = await executeNvidiaToolCall(agent, call, toolContext);
       if(durableId){
@@ -1334,6 +1346,7 @@ async function handleAgentRun(req, res) {
         const refused=!result.ok&&typeof status==='number'&&[400,401,403,404,409,422,428].includes(status);
         const settled=intent&&(result.ok&&receipts.some(r=>r.kind!=='error')||refused)?[intent]:[];
         PLATFORM.agentTurns.checkpoint(ownerId,durableId,receipts,settled);
+        if(receipts.length||intent)emitCheckpointProgress();
       }
       completedCalls += 1;
       if (skillInvocation) SKILLS_RUNTIME.auditLog.record({
@@ -1741,6 +1754,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, {
         status: 'ok',
         revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT||'')?process.env.RENDER_GIT_COMMIT:null,
+        durableGitHubTaskActive: PLATFORM.agentTurns.hasActive(),
         uptimeSeconds: Number(process.uptime().toFixed(3)),
         time: new Date().toISOString()
       });

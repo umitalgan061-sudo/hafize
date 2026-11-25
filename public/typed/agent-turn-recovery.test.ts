@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {compactToolActivities,recoverCloudWait,CLOUD_WAIT_TEXT,INTERRUPTED_TEXT,settleToolActivities,agentStreamFailure,missingCheckpointAnswer} from './agent-turn-recovery.ts';
+import {compactToolActivities,recoverCloudWait,CLOUD_WAIT_TEXT,INTERRUPTED_TEXT,settleToolActivities,agentStreamFailure,missingCheckpointAnswer,checkpointEvidence,withCheckpointEvidence} from './agent-turn-recovery.ts';
 describe('agent activity and interrupted turn regression',()=>{
  it('deduplicates separated legacy badges without counters or duplicated GitHub state',()=>{
   const a=compactToolActivities([
@@ -32,4 +32,15 @@ it('preserves the original error and distinguishes absent from previously confir
  expect(missingCheckpointAnswer('Verified partial report',true)).toContain('artık bulunamıyor');
  expect(missingCheckpointAnswer('Görev sunucuya gönderiliyor…',false)).not.toContain('gönderiliyor');
  expect(agentStreamFailure({code:'injected secret message',status:503},true)).not.toContain('injected');
+});
+
+it('retains bounded journal evidence across missing server checkpoints without duplicate reports',()=>{
+ const evidence='- repo — verified commit abc\n\nSonucu belirsiz yazma hedefleri: PR #9';
+ const failure=agentStreamFailure({code:'STREAM_INTERRUPTED'},true);
+ const combined=withCheckpointEvidence(failure,evidence);
+ expect(combined).toContain(evidence);
+ expect(missingCheckpointAnswer(combined,true)).toContain('PR #9');
+ expect(withCheckpointEvidence(combined,evidence)).toBe(combined);
+ expect(checkpointEvidence('x'.repeat(40000))).toHaveLength(32000);
+ expect(checkpointEvidence({secret:'never coerce objects'})).toBe('');
 });

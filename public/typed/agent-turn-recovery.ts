@@ -45,3 +45,14 @@ export function missingCheckpointAnswer(content:string,confirmed:boolean):string
  const details=previous&&previous!=='Görev sunucuya gönderiliyor…'&&previous!==CLOUD_WAIT_TEXT?previous+'\n\n':'';
  return details+note+' GitHub dalı ve PR durumunu doğrulamadan yazma işlemini yeniden çalıştırma.';
 }
+
+/** Browser-only display evidence from the authenticated task stream, not a
+ * replay token, server authorization, or proof that a task is complete. */
+export function checkpointEvidence(value:unknown):string{
+ return typeof value==='string'?value.trim().slice(0,32000):'';
+}
+export function withCheckpointEvidence(content:string,value:unknown):string{
+ const evidence=checkpointEvidence(value);
+ if(!evidence||content.includes(evidence))return content;
+ return content+'\n\nTarayıcıya ulaşan son sunucu kanıtları (yeni işlem yapılmadı):\n\n'+evidence;
+}
