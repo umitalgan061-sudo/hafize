@@ -29,7 +29,7 @@
     const w=width-2*inset,h=height-2*inset;
     const radius=typeof ctx.roundRect==='function'?Math.min(width<=680?12:7,w/2,h/2):0;
     const length=2*(w+h)-8*radius+2*Math.PI*radius;
-    const beam=Math.min(active?240:150,Math.max(85,length*(active?.085:.065)));
+    const beam=Math.min(active?240:150,Math.max(85,length*(active ? .085 : .065)));
     ctx.beginPath();
     if(radius)ctx.roundRect(inset,inset,w,h,radius);else ctx.rect(inset,inset,w,h);
     ctx.lineCap='round';
@@ -58,12 +58,12 @@
       if(raf)cancelAnimationFrame(raf);
       raf=0;last=0;ctx.clearRect(0,0,width,height);return;
     }
-    size();draw(busy());
+    size();
+    if(width<=0||height<=0)return;
+    draw(busy());
+    root.dataset.hzPerimeter='running';
     if(!raf){last=0;raf=requestAnimationFrame(tick);}
   }
-  size();
-  if(width<=0||height<=0)return;
-  root.dataset.hzPerimeter='running';
   sync();
   addEventListener('resize',sync,{passive:true});
   window.visualViewport?.addEventListener('resize',sync,{passive:true});
