@@ -12,6 +12,19 @@ export interface UiShellController {
 const THEME_KEY='hafize.theme.v1';
 const LAYOUT_KEY='hafize.ui-layout.v2';
 export function resolveUiLayout(stored:unknown):UiLayout{return stored==='classic'?'classic':'focused';}
+export const DESKTOP_AGENDA_MEDIA='(min-width: 1041px) and (hover: hover) and (pointer: fine)';
+export type DesktopAgendaTask={id:string;title:string;runAt:string;status:string};
+export const calendarDateKey=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+export function parseDesktopAgendaTasks(raw:unknown):DesktopAgendaTask[]{
+ if(!Array.isArray(raw))return [];
+ const rows=new Map<string,DesktopAgendaTask>();
+ for(const item of raw){
+  if(!item||typeof item!=='object'||typeof item.scheduleId!=='string'||!item.scheduleId||typeof item.task!=='string'||!item.task.trim()||typeof item.runAt!=='string'||!Number.isFinite(Date.parse(item.runAt))||!['scheduled','running','completed','failed'].includes(item.status))continue;
+  rows.set(item.scheduleId,{id:item.scheduleId,title:item.task.slice(0,140),runAt:item.runAt,status:item.status});
+ }
+ return [...rows.values()].sort((a,b)=>Date.parse(a.runAt)-Date.parse(b.runAt)||a.id.localeCompare(b.id));
+}
+export function agendaTasksForDate(tasks:readonly DesktopAgendaTask[],date:Date){const key=calendarDateKey(date);return tasks.filter(task=>calendarDateKey(new Date(task.runAt))===key);}
 export const WEEKDAYS=Object.freeze(['Pzt','Sal','Çar','Per','Cum','Cmt','Paz']);
 export function resolveTheme(stored:unknown,prefersDark:boolean):Theme{return stored==='light'||stored==='dark'?stored:(prefersDark?'dark':'light');}
 export function createMonthCells(year:number,month:number,selectedDay:number):readonly CalendarCell[]{
@@ -104,18 +117,54 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
  const monthLabel=documentRef.querySelector<HTMLElement>('#calendarMonth'),calendarGrid=documentRef.querySelector<HTMLElement>('#calendarGrid');
  monthLabel?.setAttribute('aria-live','polite');calendarGrid?.setAttribute('aria-label','Takvim günleri');
  let cursor=new Date(),selectedDay=cursor.getDate();
+ const desktop=root.matchMedia(DESKTOP_AGENDA_MEDIA),agenda=documentRef.querySelector<HTMLElement>('#desktopAgenda');
+ const agendaTitle=documentRef.querySelector<HTMLElement>('#desktopAgendaTitle'),agendaStatus=documentRef.querySelector<HTMLElement>('#desktopAgendaStatus'),agendaList=documentRef.querySelector<HTMLElement>('#desktopAgendaList');
+ const clock=documentRef.querySelector<HTMLElement>('#desktopAgendaClock'),dateLabel=documentRef.querySelector<HTMLElement>('#desktopAgendaDate');
+ const main=documentRef.querySelector<HTMLElement>('.main');
+ const desktopActive=()=>Boolean(agenda&&desktop.matches&&main&&(!main.dataset.workspace||main.dataset.workspace==='chat')&&!documentRef.hidden);
+ let agendaRows:DesktopAgendaTask[]=[],agendaState:'idle'|'loading'|'ready'|'error'|'auth'='idle',partialAgenda=false,agendaAbort:AbortController|null=null;
+ const formatDay=new Intl.DateTimeFormat('tr-TR',{weekday:'long',day:'numeric',month:'long'}),formatTime=new Intl.DateTimeFormat('tr-TR',{hour:'2-digit',minute:'2-digit'});
+ const updateClock=()=>{if(!desktopActive())return;const date=new Date();if(clock)clock.textContent=formatTime.format(date);if(dateLabel)dateLabel.textContent=formatDay.format(date);};
+ const renderAgenda=()=>{if(!desktopActive()||!agendaTitle||!agendaStatus||!agendaList)return;const date=new Date(cursor.getFullYear(),cursor.getMonth(),selectedDay);agendaTitle.textContent=formatDay.format(date);const rows=agendaTasksForDate(agendaRows,date);agendaList.replaceChildren();
+ const labels:Record<string,string>={scheduled:'Planlandı',running:'Çalışıyor',completed:'Tamamlandı',failed:'Başarısız'};
+ for(const row of rows){const li=documentRef.createElement('li'),time=documentRef.createElement('time'),text=documentRef.createElement('div'),title=documentRef.createElement('strong'),status=documentRef.createElement('small');time.dateTime=row.runAt;time.textContent=formatTime.format(new Date(row.runAt));title.textContent=row.title;status.textContent=labels[row.status]||row.status;text.append(title,status);li.append(time,text);agendaList.append(li);}
+ agendaStatus.textContent=agendaState==='loading'?'Görevler yükleniyor…':agendaState==='auth'?'Görevleri görmek için oturum aç ve Yenile’ye bas.':agendaState==='error'?'Görevler alınamadı. Yeniden dene.':agendaState==='ready'?(rows.length?rows.length+' görev':partialAgenda?'Alınan görevler arasında bu güne ait kayıt yok.':'Bu gün için planlanmış görev yok.')+(partialAgenda?' · Kısmi liste; tümü Görevler bölümünde.':''):'Planlanmış Hafize görevleri';};
  const renderCalendar=(options:{readonly focusSelected?:boolean}={})=>{
   if(!calendarGrid||!monthLabel)return;
   monthLabel.textContent=new Intl.DateTimeFormat('tr-TR',{month:'long',year:'numeric'}).format(cursor);
   const cells=createMonthCells(cursor.getFullYear(),cursor.getMonth(),selectedDay);
   calendarGrid.replaceChildren(...cells.map(cell=>{const button=documentRef.createElement('button');button.type='button';button.className=`calendar-day${cell.outside?' outside':''}${cell.selected?' selected':''}`;button.textContent=String(cell.day);button.tabIndex=cell.selected?0:-1;button.setAttribute('aria-label',`${cell.day} ${cell.month+1} ${cell.year}`);button.setAttribute('aria-pressed',String(cell.selected));
+   const day=new Date(cell.year,cell.month,cell.day);if(calendarDateKey(day)===calendarDateKey(new Date()))button.setAttribute('aria-current','date');if(desktopActive()&&agendaTasksForDate(agendaRows,day).length)button.dataset.hasTasks='true';
    const selectCell=()=>{cursor=new Date(cell.year,cell.month,1);selectedDay=cell.day;renderCalendar({focusSelected:true});};button.addEventListener('click',selectCell);button.addEventListener('keydown',(event)=>{const target=moveCalendarDate(cell.year,cell.month,cell.day,event.key);if(!target)return;event.preventDefault();cursor=new Date(target.year,target.month,1);selectedDay=target.day;renderCalendar({focusSelected:true});});return button;}));
+  renderAgenda();
   if(options.focusSelected)calendarGrid.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
  };
  const prev=documentRef.querySelector<HTMLButtonElement>('#calendarPrev'),next=documentRef.querySelector<HTMLButtonElement>('#calendarNext');
  if(prev)disposers.push(addListener(prev,'click',()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()-1,1);selectedDay=1;renderCalendar({focusSelected:true});}));
  if(next)disposers.push(addListener(next,'click',()=>{cursor=new Date(cursor.getFullYear(),cursor.getMonth()+1,1);selectedDay=1;renderCalendar({focusSelected:true});}));
- renderCalendar();
+ const refreshAgenda=async()=>{
+  if(!desktopActive()||agendaAbort)return;
+  const controller=new AbortController();agendaAbort=controller;agendaState='loading';agendaRows=[];partialAgenda=false;renderCalendar();
+  try{
+   // Same-origin owner session only: background display must not open an auth dialog.
+   const response=await root.fetch('/api/schedules?scope=all&limit=100',{credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'},signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});
+   if(controller.signal.aborted||!desktopActive())return;
+   if(response.status===401||response.status===403){agendaState='auth';return;}
+   if(!response.ok)throw Error('AGENDA_HTTP');
+   const data=await response.json();
+   if(controller.signal.aborted||!desktopActive())return;
+   if(!Array.isArray(data?.schedules))throw Error('AGENDA_INVALID');
+   agendaRows=parseDesktopAgendaTasks(data.schedules);partialAgenda=Boolean(data.listMeta?.nextCursor)||(Number.isFinite(data.listMeta?.total)&&data.listMeta.total>data.schedules.length)||data.schedules.length>=100;agendaState='ready';
+  }catch{if(!controller.signal.aborted)agendaState='error';}
+  finally{if(agendaAbort===controller){agendaAbort=null;if(desktopActive())renderCalendar();}}
+ };
+ const syncAgenda=()=>{if(!desktopActive()){agendaAbort?.abort();agendaAbort=null;agendaRows=[];agendaState='idle';agendaList?.replaceChildren();return;}updateClock();void refreshAgenda();};
+ const today=documentRef.querySelector<HTMLButtonElement>('#desktopCalendarToday'),refresh=documentRef.querySelector<HTMLButtonElement>('#desktopAgendaRefresh'),tasks=documentRef.querySelector<HTMLButtonElement>('#desktopAgendaTasks');
+ if(today)disposers.push(addListener(today,'click',()=>{cursor=new Date();selectedDay=cursor.getDate();renderCalendar({focusSelected:true});}));
+ if(refresh)disposers.push(addListener(refresh,'click',()=>void refreshAgenda()));
+ if(tasks)disposers.push(addListener(tasks,'click',()=>documentRef.querySelectorAll<HTMLButtonElement>('#sidebar .nav-item')[1]?.click()));
+ if(agenda){disposers.push(addListener(desktop,'change',syncAgenda),addListener(root,'hafize:workspace-changed',syncAgenda),addListener(documentRef,'visibilitychange',syncAgenda));const timer=root.setInterval(updateClock,15000);disposers.push(()=>{root.clearInterval(timer);agendaAbort?.abort();agendaAbort=null;});}
+ renderCalendar();syncAgenda();
  // The composer is fixed to the bottom of the window and grows with its text; publish the space it
  // covers so the chat can end above it instead of scrolling underneath.
  const composer=documentRef.querySelector<HTMLElement>('#composer');
