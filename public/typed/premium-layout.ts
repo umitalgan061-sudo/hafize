@@ -113,7 +113,9 @@ function settingsIndex(host: Element): void {
     bar = document.createElement('nav');
     bar.className = 'hz-settings-index';
     bar.setAttribute('aria-label', 'Ayarlar bölümleri');
-    host.prepend(bar);
+    const pageHeader = host.querySelector(':scope > .hz-settings-page-header');
+    if (pageHeader) pageHeader.after(bar);
+    else host.prepend(bar);
   }
   // The page scrolls under the top bar, so the links sit just below it.
   const top = document.querySelector('.topbar')?.getBoundingClientRect();
