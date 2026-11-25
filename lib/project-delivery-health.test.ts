@@ -3,9 +3,9 @@ import {createProjectDeliveryHealth} from './project-delivery-health.ts';
 const SHA='a'.repeat(40);
 describe('project delivery verification',()=>{
  it('checks exact frontend release separately from backend readiness',async()=>{
-  const f=vi.fn(async(u:URL|string)=>String(u).includes('release.json')?Response.json({commit:SHA}):String(u).includes('/ready')?new Response('',{status:503}):new Response('<html/>',{headers:{'content-type':'text/html'}})) as unknown as typeof fetch;
+  const f=vi.fn(async(u:URL|string)=>String(u).includes('release.json')?Response.json({commit:SHA}):String(u).includes('/ready')?new Response('',{status:503}):String(u).includes('/live')?Response.json({revision:'c'.repeat(40)}):new Response('<html/>',{headers:{'content-type':'text/html'}})) as unknown as typeof fetch;
   const run=createProjectDeliveryHealth(f);
-  await expect(run({project:'hafize',sha:SHA})).resolves.toMatchObject({frontend:{release:{actualSha:SHA,match:true}},backend:{live:true,ready:false},authenticatedFunctionalTest:false});
+  await expect(run({project:'hafize',sha:SHA})).resolves.toMatchObject({frontend:{release:{actualSha:SHA,match:true}},backend:{live:true,ready:false,revision:{actualSha:'c'.repeat(40),match:false}},authenticatedFunctionalTest:false});
   await expect(run({project:'hafize',sha:'b'.repeat(40)})).resolves.toMatchObject({frontend:{release:{match:false}}});
  });
  it('checks all 4 Borsa origins, health and anonymous denial independently',async()=>{

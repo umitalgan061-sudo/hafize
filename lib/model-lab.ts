@@ -209,7 +209,7 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     batchRunning = true;
     const completed: ProbeResult[] = [];
     try {
-      for (const model of eligible.filter(id => !fresh(id)).sort((a,b)=>(Date.parse(results.get(a)?.testedAt||'')||0)-(Date.parse(results.get(b)?.testedAt||'')||0)).slice(0, Math.max(0,Math.min(2,Math.floor(limit))))) {
+      for (const model of eligible.filter(id => !fresh(id)).sort((a,b)=>(Date.parse(results.get(a)?.testedAt||'')||0)-(Date.parse(results.get(b)?.testedAt||'')||0)).slice(0, Math.max(0,Math.min(eligible.length,Math.floor(limit))))) {
         signal?.throwIfAborted();
         if (blockedUntil > now() || availableRequests() < 2) break;
         const row = await probeOne(model, signal); completed.push(row); progress?.(model, row);
@@ -396,7 +396,34 @@ export function createModelLab({ allowed, request, now = Date.now, storage, spec
     if(specialist&&blockedUntil<=now()&&availableRequests()>0){signal?.throwIfAborted();embedding=await specialistProbe(specialist,signal);}
     return {smoke:smoke.completed,deep,embedding,startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),pending:status().pendingModels,deepPending:status().deepPendingModels,paused:blockedUntil>now()||availableRequests()<2};
   }
-  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, translationProbe, translateText, semanticSearch });
+  /** Use the remaining laboratory request window, not an arbitrary two-model stop.
+   * Prioritize untested chat candidates, then missing deep/embedding/translation tests.
+   * No sleeping through provider cooldowns or bypassing real quotas. */
+  async function auditWindow(signal?:AbortSignal){
+    const started=now(),smoke:ProbeResult[]=[],deep:DeepProbeResult[]=[],embeddings:SpecialistProbeResult[]=[];
+    let translation:TranslationProbeResult|null=null;
+    const available=()=>blockedUntil<=now()&&availableRequests()>0;
+    const pause=(s:string)=>['rate_limited','quota','auth_rejected'].includes(s);
+    if(running||batchRunning)throw Error('MODEL_LAB_BUSY');
+    if(available()&&availableRequests()>=2){
+      const batchResult=await batch(signal,undefined,eligible.length);smoke.push(...batchResult.completed);
+    }
+    let halted=smoke.some(r=>pause(r.status)||pause(r.toolProbeStatus));
+    for(const id of eligible.filter(id=>fresh(id)?.chat&&fresh(id)?.tools&&!deepFresh(id))){
+      if(halted||!available()||availableRequests()<2)break;
+      signal?.throwIfAborted();const row=await deepProbe(id,signal);deep.push(row);halted=pause(row.status);
+    }
+    for(const id of specialists.filter(id=>!specialistResults.has(id)||now()-Date.parse(specialistResults.get(id)!.testedAt)>=EXPIRY_MS)){
+      if(halted||!available())break;
+      signal?.throwIfAborted();const row=await specialistProbe(id,signal);embeddings.push(row);halted=pause(row.status);
+    }
+    if(!halted&&available()&&(!translationResult||now()-Date.parse(translationResult.testedAt)>=EXPIRY_MS)){
+      translation=await translationProbe(signal);
+    }
+    const s=status();
+    return {startedAt:new Date(started).toISOString(),finishedAt:new Date(now()).toISOString(),smoke,deep,embeddings,translation,pendingModels:s.pendingModels,deepPendingModels:s.deepPendingModels,requestsRemaining:s.requestsRemaining,blockedUntil:s.blockedUntil,allCatalogVerified:false};
+  }
+  return Object.freeze({ status, discover, probe, batch, deepProbe, preferred, council, specialistProbe, attachStorage, comprehensive, auditWindow, translationProbe, translateText, semanticSearch });
 }
 
 export function modelTaskKind(payload: Record<string, unknown>): ModelTaskKind {

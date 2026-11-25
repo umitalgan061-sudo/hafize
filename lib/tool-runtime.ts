@@ -64,7 +64,7 @@ export interface ToolRuntimeContext {
   readonly nvidiaWorkspace?: {execute:(args:unknown,signal?:AbortSignal)=>Promise<unknown>};
   readonly githubReadConfigured?: boolean;
   readonly githubReadFile?: (args: unknown) => Promise<unknown>;
-  readonly githubInspect?: (args: unknown) => Promise<unknown>;
+  readonly githubInspect?: (args: unknown,signal?:AbortSignal) => Promise<unknown>;
   readonly githubConnection?: import('./runtime-capabilities.ts').GitHubConnectionStatus;
   /** GitHub App-only development bridge; safe standing authorization is server-only. */
   readonly githubDevelopment?: {
@@ -301,14 +301,14 @@ const CATALOG = new Map<string, ToolEntry>([
   ['github_inspect', {
     permission: 'repo.read',
     kind: 'repository',
-    timeoutMs: timeout(60_000),
+    timeoutMs: 600_000,
     activity: { running: 'GitHub durumu doğrulanıyor', success: 'GitHub durumu okundu', failure: 'GitHub durumu okunamadı' },
-    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare, checks veya jobs oku. jobs için workflow run ID (runId) kullan; adım sonuçları ile hata aşamasını ayır. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
-      action: { type: 'string', enum: ['project', 'repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks', 'jobs'] },
-      repository: { type: 'string' }, path: { type: 'string' }, ref: { type: 'string' }, limit: { type: 'integer' }, state: { type: 'string' }, number: { type: 'integer' }, runId: { type: 'integer' }, sha: { type: 'string' }, base: { type: 'string' }, head: { type: 'string' }
+    definition: strictDefinition('github_inspect', 'İzinli repoda project (önce bunu kullan: gerçek ana dal, kaynak klasörü, kök dizin, son commit ve açık PR tek çağrıda), repo, directory, branches, commits, commit, pulls, pull, compare, checks, wait_checks veya jobs oku. wait_checks aynı SHA için bekleyen CI sonuçlarını iptal edilebilir biçimde izler (waitSeconds, isteğe bağlı workflowPath); eksik sonucu başarı saymaz. jobs için workflow run ID (runId) kullan; adım sonuçları ile hata aşamasını ayır. Önce güncel dal/PR durumunu doğrula. checks yalnız tam 40 karakterli commit SHA için mevcut workflow sonuçlarını getirir. Okumayı commit, merge, test veya yayın başarısı sayma.', {
+      action: { type: 'string', enum: ['project', 'repo', 'directory', 'branches', 'commits', 'commit', 'pulls', 'pull', 'compare', 'checks', 'wait_checks', 'jobs'] },
+      repository: { type: 'string' }, path: { type: 'string' }, ref: { type: 'string' }, limit: { type: 'integer' }, state: { type: 'string' }, number: { type: 'integer' }, runId: { type: 'integer' }, sha: { type: 'string' }, waitSeconds:{type:'integer',minimum:1,maximum:480}, workflowPath:{type:'string'}, base: { type: 'string' }, head: { type: 'string' }
     }, ['action', 'repository']),
     available: context => Boolean(context.githubReadConfigured && context.githubInspect),
-    execute: async (args, context) => context.githubInspect!(args)
+    execute: async (args, context) => context.githubInspect!(args,context.signal)
   }],
   ['github_develop', {
     permission: 'repo.write_request',
@@ -410,9 +410,9 @@ const CATALOG = new Map<string, ToolEntry>([
     execute:async(args,context)=>context.projectHealth!(args,context.signal)
   }],
   ['nvidia_workspace', {
-    permission:'nvidia.workspace',kind:'diagnostic',timeoutMs:180000,
+    permission:'nvidia.workspace',kind:'diagnostic',timeoutMs:600000,
     activity:{running:'NVIDIA yetenekleri inceleniyor',success:'NVIDIA işlem sonucu alındı',failure:'NVIDIA işlemi tamamlanamadı'},
-    definition:strictDefinition('nvidia_workspace','NVIDIA gerçek envanter ve Blueprint durumunu gösterir (status, blueprints; category isteğe bağlı). Model erişimini sentetik discover, probe, deep, embedding_probe, translation_probe, comprehensive ile yalnız kullanıcı açıkça NVIDIA test/inceleme istediğinde ölçer. Kullanıcı açıkça NVIDIA seçmiş ve ilgili metni bu mesajında vermişse translate (en-tr/tr-en), semantic_search (text/query/model), council (text) çalıştırır. Katalog bir erişim, ücretsiz kullanım veya resmi dağıtım kanıtı değildir. Mevcut kota ve sağlayıcı hatalarını korur.',{action:{type:'string',enum:['status','blueprints','discover','probe','deep','embedding_probe','translation_probe','comprehensive','translate','semantic_search','council']},category:{type:'string'},model:{type:'string'},text:{type:'string'},query:{type:'string'},pair:{type:'string',enum:['en-tr','tr-en']}},['action']),
+    definition:strictDefinition('nvidia_workspace','NVIDIA gerçek envanter ve Blueprint durumunu gösterir (status, blueprints; category isteğe bağlı). Model erişimini sentetik discover, probe, deep, embedding_probe, translation_probe, comprehensive ve audit_window (mevcut laboratuvar kotası kadar bütün adayları sırayla test eder) ile yalnız kullanıcı açıkça NVIDIA test/inceleme istediğinde ölçer. Kullanıcı açıkça NVIDIA seçmiş ve ilgili metni bu mesajında vermişse translate (en-tr/tr-en), semantic_search (text/query/model), council (text) çalıştırır. Katalog bir erişim, ücretsiz kullanım veya resmi dağıtım kanıtı değildir. Mevcut kota ve sağlayıcı hatalarını korur.',{action:{type:'string',enum:['status','blueprints','discover','probe','deep','embedding_probe','translation_probe','comprehensive','audit_window','translate','semantic_search','council']},category:{type:'string'},model:{type:'string'},text:{type:'string'},query:{type:'string'},pair:{type:'string',enum:['en-tr','tr-en']}},['action']),
     available:context=>Boolean(context.ownerId&&context.nvidiaWorkspace),
     execute:async(args,context)=>context.nvidiaWorkspace!.execute(args,context.signal)
   }],

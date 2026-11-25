@@ -53,3 +53,11 @@ it('discovers source directory, branch, current commit and open PRs in one bound
  expect(await inspect({action:'directory',repository,path:'.'})).toMatchObject({path:''});
  await expect(inspect({action:'project',repository:'other/repo',path:'borsa-gunlugu/'})).rejects.toMatchObject({code:'GITHUB_REPO_NOT_ALLOWED'});
 });
+
+it('waits only for exact SHA evidence and does not treat partial run lists as complete',async()=>{
+ const {inspect,fetchImpl}=fixture();
+ const result=await inspect({action:'wait_checks',repository,sha,waitSeconds:1});
+ expect(result).toMatchObject({wait:{complete:false,observedSuccess:false,timedOut:true}});
+ expect(fetchImpl).toHaveBeenCalledTimes(2);
+ const abort=new AbortController();abort.abort();await expect(inspect({action:'wait_checks',repository,sha},abort.signal)).rejects.toBeDefined();
+});
