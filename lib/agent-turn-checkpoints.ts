@@ -52,7 +52,7 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
   const r=db.prepare('SELECT * FROM agent_turn_checkpoints WHERE owner_id=? AND conversation_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').get(owner,conversation) as Row|undefined;
   return r?view(r):null;
  }
- function begin(owner:string,conversation:string,id:string){
+ function begin(owner:string,conversation:string,id:string,inheritedPending:Pending[]=[]){
   if(!owner||!isAgentTurnId(conversation)||!isAgentTurnId(id))return {accepted:false as const,reason:'INVALID_AGENT_TURN'};
   if(row(owner,id))return {accepted:false as const,reason:'AGENT_TURN_ALREADY_RECORDED'};
   if(previous(owner,conversation)?.status==='running')return {accepted:false as const,reason:'AGENT_TURN_ALREADY_RUNNING'};
@@ -61,7 +61,7 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
   db.prepare("DELETE FROM agent_turn_checkpoints WHERE owner_id=? AND status!='running' AND updated_at<?").run(owner,now()-30*DAY);
   const count=db.prepare('SELECT COUNT(*) AS n FROM agent_turn_checkpoints WHERE owner_id=?').get(owner) as {n:number};
   if(Number(count.n)>=2000)return {accepted:false as const,reason:'AGENT_TURN_STORAGE_FULL'};
-  const body:Body={receipts:[],pending:[],answer:''};
+  const body:Body={receipts:[],pending:inheritedPending.slice(0,20),answer:''};
   db.prepare('INSERT INTO agent_turn_checkpoints(owner_id,id,conversation_id,status,body_enc,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').run(owner,id,conversation,'running',cipherFor(owner).encrypt(JSON.stringify(body)),now(),now());
   const controller=new AbortController();
   active.set(key(owner,id),controller);
