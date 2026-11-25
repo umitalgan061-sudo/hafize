@@ -11,8 +11,8 @@ export function normalizeAdvancedSearch(value:string):string {
 }
 export function classifyAdvancedCard(id:string, classes:string, title:string):AdvancedCategory {
   const key=normalizeAdvancedSearch(id+' '+classes+' '+title);
-  if(/calendar|voice-card|takvim|sesli asistan|agenda/.test(key))return 'daily';
   if(/github|connect|baglanti|gmail|canva|notion|slack|figma|linear|browserbridge/.test(key))return 'connections';
+  if(/calendar|voice-card|takvim|sesli asistan|agenda/.test(key))return 'daily';
   if(/schedule|task|gorev|planlan/.test(key))return 'tasks';
   if(/prompt|conversation|messageworkspace|message-workspace|history|sohbet|istem|mesaj/.test(key))return 'chat';
   if(/system|readiness|runtime|model|agent|sistem|durum|hafiza|backup|privacy/.test(key))return 'system';
@@ -85,7 +85,7 @@ export function installAdvancedWorkspace(doc:Document, root:Window&typeof global
   const changeOpen=(next:boolean,focus=false)=>{
     if(wide.matches)desktopOpen=next;else mobileOpen=next;
     syncLayout();notify();
-    if(focus){if(next)search.focus();else toggle.focus();}
+    if(focus){if(next)(wide.matches?search:close).focus();else toggle.focus();}
   };
   toggle.addEventListener('click',()=>changeOpen(!isOpen(),true));
   close.addEventListener('click',()=>changeOpen(false,true));
@@ -115,7 +115,7 @@ export function installAdvancedWorkspace(doc:Document, root:Window&typeof global
   reset.addEventListener('click',clear);search.addEventListener('input',applyFilters);
   search.addEventListener('keydown',e=>{if(e.key==='Escape'&&search.value){e.stopPropagation();clear();}});
   const escape=(event:KeyboardEvent)=>{
-    if(event.key==='Escape'&&active()&&isOpen()&&rail.contains(doc.activeElement)&&!event.defaultPrevented){
+    if(event.key==='Escape'&&active()&&isOpen()&&rail.contains(doc.activeElement)&&!event.defaultPrevented&&!doc.querySelector('dialog[open], .approval-backdrop')){
       event.preventDefault();changeOpen(false,true);
     }
   };
@@ -136,9 +136,13 @@ export function installAdvancedWorkspace(doc:Document, root:Window&typeof global
     for(const card of cards())observer.observe(card,{attributes:true,attributeFilter:['hidden']});
   };
   observeCards();layoutChanged();
+  const measureTop=()=>html.style.setProperty('--aw-top',Math.ceil(top.getBoundingClientRect().height)+'px');
+  const topObserver=typeof root.ResizeObserver==='function'?new root.ResizeObserver(measureTop):null;
+  topObserver?.observe(top);measureTop();
   // The existing composer stays in place; the CSS adjusts its geometry with the rail.
   composer?.setAttribute('data-aw-composer','true');
   return ()=>{
+    topObserver?.disconnect();html.style.removeProperty('--aw-top');
     observer.disconnect();wide.removeEventListener('change',viewportChanged);
     root.removeEventListener('hafize:layout-changed',layoutChanged);
     root.removeEventListener('hafize:workspace-changed',layoutChanged);
