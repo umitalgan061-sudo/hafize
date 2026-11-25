@@ -316,7 +316,7 @@ const CATALOG = new Map<string, ToolEntry>([
     timeoutMs: timeout(120_000),
     activity: { running: 'İzinli GitHub geliştirme adımı hazırlanıyor', success: 'GitHub geliştirme adımı tamamlandı', failure: 'GitHub geliştirme adımı uygulanmadı' },
     definition: strictDefinition('github_develop',
-      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch işlemi sırasında branch alanını tamamen çıkarırsan sunucu güvenli benzersiz dal üretir; dönen branch değerini kullan. Açık dal örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile blob SHA öğren.',
+      'GitHub App ile Git kullanmadan izinli depoda ayrı hafize/auto-* dalı aç (branch işlemi sırasında branch alanını tamamen çıkarırsan sunucu güvenli benzersiz dal üretir; dönen branch değerini kullan. Açık dal örneği: hafize/auto-borsa-market-fix; yalnız küçük ASCII harf, sayı, tire, nokta veya alt çizgi; aynı dalı sonraki file/pull adımlarında kullan), ardından dosya oluştur/güncelle ve yalnız TASLAK PR aç. Yetkili sunucu oturumunda güvenli otonomi açıkken bu işlemler ayrı onay istemez; diğer durumlarda her yazma için onay gerekir. Merge, deploy, workflow değişikliği ve main commit yoktur. Güncellemeden önce github_read_file ile aynı daldaki blob SHA öğren. Büyük dosyada operation=file, path, existingSha, message, find (dosyada yalnız bir kez bulunan tam eski blok) ve replace (yeni blok) gönder; content gönderme. Sunucu tam dosyayı okur, yalnız o bloğu değiştirir, SHA eşleşmezse durur. Okuma aralığı 1000 satırı geçemez. Başarısız okumayı dosyanın yokluğu sayma.',
       {
         operation: { type: 'string', enum: ['branch', 'file', 'pull'] },
         repository: { type: 'string' },
@@ -325,6 +325,8 @@ const CATALOG = new Map<string, ToolEntry>([
         content: { type: 'string' },
         message: { type: 'string' },
         existingSha: { type: 'string' },
+        find: { type: 'string', description: 'Kısmi güncellemede tam ve benzersiz eski kod bloğu' },
+        replace: { type: 'string', description: 'Eski bloğun yerine yazılacak metin' },
         title: { type: 'string' },
         body: { type: 'string' }
       }, ['operation', 'repository']),
