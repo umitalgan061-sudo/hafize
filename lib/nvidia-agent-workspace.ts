@@ -15,8 +15,13 @@ const keys:Record<string,readonly string[]>={status:['action','category'],bluepr
 export function createNvidiaAgentWorkspace({lab,ownerRequest,nimStatus}:{lab:Lab|null;ownerRequest:string;nimStatus:()=>unknown}){
  const request=ownerRequest.trim();
  const normalized=normalize(request);
- const externalAuthorized=/\bnvidia\b|\bnim\b|\briva\b|\bnemotron\b/.test(normalized)&&!/\b(?:kullanma|gonderme|calistirma|test etme)\b/.test(normalized);
- const probeAuthorized=externalAuthorized&&/\b(?:test|dene|dogrula|incele|calistir|kesfet|kontrol|gelistir)\b/.test(normalized);
+ const providerMentioned=/\bnvidia\b|\bnim\b|\briva\b|\bnemotron\b/.test(normalized);
+ const negativeInstruction=/\b(?:kullanma|gonderme|calistirma|test etme)\b/.test(normalized);
+ const testRequested=/\b(?:test|dene|dogrula|incele|calistir|kesfet|kontrol|gelistir)\b/.test(normalized);
+ const externalAuthorized=providerMentioned&&!negativeInstruction;
+ const probeAuthorized=externalAuthorized&&testRequested;
+ // Expose only derived booleans and a reason, never the owner request or credentials.
+ const testAuthorization={authorized:probeAuthorized,reason:negativeInstruction?'explicit_negative_instruction':!providerMentioned?'provider_not_mentioned':!testRequested?'test_not_requested':'authorized',source:'current_owner_message',scope:'synthetic_diagnostics_only'};
  function trustedText(v:unknown,max:number){const text=nonempty(v,max);if(!externalAuthorized||!request.includes(text))fail('NVIDIA_WORKSPACE_SOURCE_NOT_AUTHORIZED',403);return text;}
  async function execute(raw:unknown,signal?:AbortSignal){
   const args=object(raw),action=typeof args.action==='string'?args.action:'';
@@ -26,7 +31,7 @@ export function createNvidiaAgentWorkspace({lab,ownerRequest,nimStatus}:{lab:Lab
   if(action==='status'){
    const current=lab?.status();
    const rows=(current?.publicInventory??PUBLIC_MODEL_CATALOG.map(row=>({...row,configured:false,evidence:'untested',integration:'catalog_only',cost:'unknown'}))).filter(row=>!category||row.category===category);
-   return {connected:Boolean(lab),metadata:PUBLIC_CATALOG_METADATA,models:rows,verifiedAgentModels:current?.verifiedAgentModels??[],taskLeaders:current?.taskLeaders??{},requestsRemaining:current?.requestsRemaining??null,blockedUntil:current?.blockedUntil??null,nim:nimStatus(),catalogIsNotExecutionProof:true};
+   return {connected:Boolean(lab),metadata:PUBLIC_CATALOG_METADATA,models:rows,verifiedAgentModels:current?.verifiedAgentModels??[],taskLeaders:current?.taskLeaders??{},requestsRemaining:current?.requestsRemaining??null,blockedUntil:current?.blockedUntil??null,nim:nimStatus(),catalogIsNotExecutionProof:true,testAuthorization};
   }
   if(action==='blueprints')return {metadata:BLUEPRINT_META,blueprints:BLUEPRINT_CATALOG.filter(row=>!category||row.area===category),note:'Yerel uyarlama veya ilgili özellik, resmi NVIDIA Blueprint dağıtımı değildir.'};
   if(!lab)fail('NVIDIA_WORKSPACE_NOT_CONFIGURED',503);
