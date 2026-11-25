@@ -150,11 +150,13 @@ function install(): void {
   style.id = STYLE_ID;
   style.textContent = CSS;
   document.head.append(style);
-  const frame = document.createElement('div');
-  frame.className = 'hz-frame';
-  frame.setAttribute('aria-hidden', 'true');
-  frame.append(document.createElement('i'), document.createElement('i'));
-  (document.body ?? document.documentElement).append(frame);
+  if (!document.querySelector('.hz-frame')) {
+    const frame = document.createElement('div');
+    frame.className = 'hz-frame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.append(document.createElement('i'), document.createElement('i'));
+    (document.body ?? document.documentElement).append(frame);
+  }
 }
 
 /** How far the chat list stands from the screen's edges, measured, so on a phone it can reach them (see the CSS). */
