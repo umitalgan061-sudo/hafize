@@ -3,7 +3,7 @@ import { GitHubAppCiError } from './github-app-ci.ts';
 import type { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
 type Writer=ReturnType<typeof createGitHubWorkspaceWriter>;
 import { matchOwnerProjects } from './owner-project-catalog.ts';
-export type ReleaseAuthorization={readonly repositories:readonly string[];readonly actions:readonly string[]};
+export type ReleaseAuthorization={readonly repositories:readonly string[];readonly actions:readonly string[];readonly hafizePublishTarget?:'render'|'firebase'};
 type Context={ownerAuthorized:boolean;authorization?:ReleaseAuthorization;signal?:AbortSignal};
 const HAFIZE='umitalgan061-sudo/hafize', SITES='umitalgan061-sudo/hafize-siteler';
 const SHA=/^[a-f0-9]{40}$/i;
@@ -151,6 +151,7 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
    }
   }
   const target=args.target??(repo===HAFIZE?'render':undefined);
+  if(repo===HAFIZE&&target!==(ctx.authorization.hafizePublishTarget??'render'))fail('RELEASE_TARGET_NOT_AUTHORIZED',403);
   if(repo===HAFIZE&&target==='render'){
    if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
    assertActive();
@@ -220,7 +221,7 @@ export function releaseAuthorizationForRequest(request:unknown,optedIn:boolean):
  const project=projects.length===1?projects[0]?.id:projects.length===0&&/\bhafize\b/.test(s)?'hafize':null;
  const repository=project==='hafize'?HAFIZE:project==='borsa'?SITES:null;
  if(!repository)return;
- return Object.freeze({repositories:Object.freeze([repository]),actions:Object.freeze([...(publish?['open','merge','publish']:merge?['open','merge']:['open']),...(rollback?['rollback_pr']:[])])});
+ return Object.freeze({repositories:Object.freeze([repository]),actions:Object.freeze([...(publish?['open','merge','publish']:merge?['open','merge']:['open']),...(rollback?['rollback_pr']:[])]),...(repository===HAFIZE&&publish?{hafizePublishTarget:/\b(?:firebase (?:giris|yonlendirme)|firebase hosting|target\s*"\s*:\s*"firebase")\b/.test(s)?'firebase' as const:'render' as const}:{})});
 }
 
 /** Exact, user-authored merge command. No repository or model output is parsed.
