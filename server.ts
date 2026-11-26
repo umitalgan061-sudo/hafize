@@ -512,9 +512,12 @@ const CONTEXT_COMPACTOR = createContextCompactor({
 
 async function prepareConversation(messages, model, signal, res, provider = 'nvidia') {
   const prepared = await CONTEXT_COMPACTOR.prepare(messages, { model, provider, signal });
-  res.setHeader('X-Hafize-Context-Compacted', prepared.meta.compacted ? '1' : '0');
-  res.setHeader('X-Hafize-Context-Tokens-Before', String(prepared.meta.beforeTokens));
-  res.setHeader('X-Hafize-Context-Tokens-After', String(prepared.meta.afterTokens));
+  // Durable agent SSE can already be open while context compaction runs.
+  if (!res.headersSent && !res.destroyed && !res.writableEnded) {
+    res.setHeader('X-Hafize-Context-Compacted', prepared.meta.compacted ? '1' : '0');
+    res.setHeader('X-Hafize-Context-Tokens-Before', String(prepared.meta.beforeTokens));
+    res.setHeader('X-Hafize-Context-Tokens-After', String(prepared.meta.afterTokens));
+  }
   return prepared;
 }
 
@@ -912,8 +915,20 @@ async function handleAgentRun(req, res) {
   let turnFinished=false;
   let interruptionStage: 'setup'|'model_round'|'execution' = 'setup';
   let interruptionDiagnostic = '';
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
+  const stopHeartbeat=()=>{if(heartbeat){clearInterval(heartbeat);heartbeat=null;}};
   try {
   const emitEvent = streamResponse ? (type, payload) => { startSse(res); writeSseEvent(res, type, payload); } : null;
+  const promptVariant = PLATFORM.prompts.assign('assistant.style', conversationId || traceId);
+  if (promptVariant) res.setHeader('X-Hafize-Prompt-Variant', promptVariant.variant);
+  // Acknowledge the accepted checkpoint before any asynchronous memory, vision
+  // or context preparation. Recovery must survive a disconnect during setup.
+  if (emitEvent && durableId) emitEvent('hafize-agent-checkpoint',{id:durableId,status:'running',recoveryToken:PLATFORM.agentTurns.exportRecovery(ownerId,durableId)});
+  if (streamResponse) {
+    heartbeat=setInterval(()=>{if(res.headersSent&&!res.destroyed&&!res.writableEnded&&res.writable)res.write(': heartbeat\n\n');},15_000);
+    heartbeat.unref?.();
+    res.once('close',stopHeartbeat);res.once('finish',stopHeartbeat);
+  }
   const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
   const agentSpan = PLATFORM.telemetry.startSpan('agent.run', { traceId, attributes: { 'agent.id': agent.id, model, streaming: Boolean(streamResponse) } });
   const nvidiaWorkspace=ownerId?createNvidiaAgentWorkspace({lab:MODEL_LAB,ownerRequest:lastUserText,nimStatus:PLATFORM.nimStatus}):undefined;
@@ -924,8 +939,6 @@ async function handleAgentRun(req, res) {
   if (attachment.untrusted) memorySession.markUntrustedContent();
   const attachmentText = attachment.text;
   const modelMessages = attachmentText ? messages.map((message, index) => (index === lastUserIndex ? { ...message, content: message.content + attachmentText } : message)) : messages;
-  const promptVariant = PLATFORM.prompts.assign('assistant.style', conversationId || traceId);
-  if (promptVariant) res.setHeader('X-Hafize-Prompt-Variant', promptVariant.variant);
   agentSpan.setAttribute('prompt.variant', promptVariant?.variant || 'none');
   PLATFORM.recordTurn(ownerId, conversationId, 'user', lastUserText);
   const preparedConversation = await prepareConversation(
@@ -937,8 +950,7 @@ async function handleAgentRun(req, res) {
   const conversation = preparedConversation.messages;
   // Context headers are set; the stream can start now.
   if (emitEvent) {
-    if(durableId)emitEvent('hafize-agent-checkpoint',{id:durableId,status:'running',recoveryToken:PLATFORM.agentTurns.exportRecovery(ownerId,durableId)});
-    emitEvent('hafize-run-meta', { traceId, variant: promptVariant?.variant || '' });
+    emitEvent('hafize-run-meta', { traceId, variant: promptVariant?.variant || '', context: preparedConversation.meta });
     if (ownerId) emitEvent('hafize-memory-sync', { notes: memoryPrep.semantic });
   }
   // Stream a bounded journal snapshot only to the authenticated task's
@@ -953,10 +965,6 @@ async function handleAgentRun(req, res) {
     writeSseEvent(res,'hafize-agent-progress',{id:durableId,evidence,recoveryToken:PLATFORM.agentTurns.exportRecovery(ownerId,durableId)});
   };
   const contextMeta = preparedConversation.meta;
-  const heartbeat=streamResponse?setInterval(()=>{if(!res.destroyed&&!res.writableEnded&&res.writable)res.write(': heartbeat\n\n');},15_000):null;
-  heartbeat?.unref?.();
-  const stopHeartbeat=()=>{if(heartbeat)clearInterval(heartbeat);};
-  res.once('close',stopHeartbeat);res.once('finish',stopHeartbeat);
 
   const delegator = createAgentDelegator({
     registry: AGENT_REGISTRY,
@@ -1518,10 +1526,19 @@ async function handleAgentRun(req, res) {
       (saved?.pending?.length?'\n\nSonucu belirsiz yazma işlemleri var; GitHub üzerinden doğrulamadan tekrar yürütülmeyecek.':'');
     PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',answer);
     turnFinished=true;
-    // Keep existing transport error handling. The authenticated recovery endpoint
-    // can now return an evidence-based answer even if the connection was lost.
+    // Deliver the verified terminal record when the SSE peer is still present.
+    // A disconnected peer can recover the same record via the authenticated API.
+    if(streamResponse&&!res.destroyed&&!res.writableEnded&&res.writable){
+      startSse(res);
+      writeSseEvent(res,'hafize-agent-progress',{id:durableId,evidence:answer.slice(0,30000),recoveryToken:PLATFORM.agentTurns.exportRecovery(ownerId,durableId)});
+      res.write('data: '+JSON.stringify({choices:[{delta:{content:answer}}]})+'\n\n');
+      res.end('data: [DONE]\n\n');
+      return;
+    }
     throw error;
   } finally {
+    stopHeartbeat();
+    res.off('close',stopHeartbeat);res.off('finish',stopHeartbeat);
     requestAbort.cancel();
     if(durableId&&!turnFinished)PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',
       'Görev kesildi; doğrulanmış kayıtları kontrol et. Kesinti nedeni: AGENT_EXECUTION_FAILED.');
