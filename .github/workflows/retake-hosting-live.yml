@@ -5,7 +5,16 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/retake-hosting-live.yml'
+  # Twice a day: follow the newest green Retake main when site files changed.
+  schedule:
+    - cron: '47 5,17 * * *'   # 08:47 and 20:47 Europe/Istanbul
   workflow_dispatch:
+    inputs:
+      mode:
+        description: "pinned = deploy RETAKE_RELEASE_SHA as written (also a deliberate rollback); follow = newest green Retake main"
+        type: choice
+        options: [pinned, follow]
+        default: pinned
 
 permissions:
   contents: read
@@ -21,37 +30,118 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: projelerim-8fecd
       RETAKE_SITE_ID: retake06-ua
-      # Single source of truth: the checkout below, the commit guard and the
-      # public release marker all read this value. Release = change only this.
+      # Pinned release: deployed when this file changes on main or on a
+      # "pinned" dispatch. The resolve step decides the commit actually
+      # deployed (RELEASE_SHA); checkout, guard and marker all use it.
       RETAKE_RELEASE_SHA: 27a289b9ae1fe6c3186d6774652c156699c72433
+      # "on": scheduled runs follow the newest Retake main whose CI passed
+      # (test + windows-startup) when files the site serves changed, and an
+      # unrelated edit of this file never rolls the site back to an older
+      # pinned commit. Roll back deliberately: set "off" and pin the SHA.
+      RETAKE_AUTO_FOLLOW: "on"
     steps:
+      - name: Resolve the Retake commit to deploy
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          MODE: ${{ inputs.mode || '' }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const SHA = /^[0-9a-f]{40}$/;
+          const api = async (path) => {
+            const response = await fetch('https://api.github.com/repos/umitalgan061-sudo/retake' + path, {
+              headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + process.env.GH_TOKEN, 'User-Agent': 'retake-hosting-release' },
+              signal: AbortSignal.timeout(20000)
+            });
+            if (!response.ok) throw new Error('GITHUB_' + response.status + ' ' + path.split('?')[0]);
+            return response.json();
+          };
+          const liveCommit = async () => {
+            try {
+              const url = new URL('https://retake06-ua.web.app/retake-release.json');
+              url.searchParams.set('t', String(Date.now()));
+              const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+              const body = response.ok ? await response.json() : null;
+              return SHA.test(body?.commit || '') ? body.commit : null;
+            } catch { return null; }
+          };
+          // Files the site serves: everything the hosting config does not ignore.
+          const served = (path) => !/^(?:tools|tests|docs|\.github|functions|worker|ios|models)\//.test(path)
+            && !/\.(?:md|py|ps1)$/i.test(path);
+          const done = (sha, deploy, reason) => {
+            appendFileSync(process.env.GITHUB_OUTPUT, `deploy=${deploy}\nsha=${sha}\n`);
+            if (deploy) appendFileSync(process.env.GITHUB_ENV, `RELEASE_SHA=${sha}\n`);
+            const line = `Retake site: ${deploy ? 'deploy ' + sha.slice(0, 7) : 'no deploy'} (${reason}).`;
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, line + '\n');
+            console.log((deploy ? '' : '::notice::') + line);
+          };
+          const main = async () => {
+          const pinned = process.env.RETAKE_RELEASE_SHA;
+          if (!SHA.test(pinned)) throw new Error('RETAKE_RELEASE_SHA must be a full 40-character commit SHA.');
+          const follow = process.env.EVENT === 'schedule' || process.env.MODE === 'follow';
+          const auto = process.env.RETAKE_AUTO_FOLLOW === 'on';
+          const live = await liveCommit();
+          if (!follow) {
+            if (process.env.EVENT === 'push' && auto && live && live !== pinned) {
+              const relation = await api(`/compare/${live}...${pinned}`).catch(() => null);
+              if (relation?.status === 'behind') return done(pinned, false, `pinned ${pinned.slice(0, 7)} is older than live ${live.slice(0, 7)}; set RETAKE_AUTO_FOLLOW off to roll back`);
+            }
+            return done(pinned, true, 'pinned release');
+          }
+          if (!auto) return done(pinned, false, 'RETAKE_AUTO_FOLLOW is off');
+          const head = String((await api('/commits/main')).sha || '');
+          if (!SHA.test(head)) throw new Error('RETAKE_MAIN_UNKNOWN');
+          if (head === live) return done(head, false, 'newest Retake main is already live');
+          const runs = (await api(`/commits/${head}/check-runs?per_page=100`)).check_runs || [];
+          const latest = (name) => runs.filter((run) => run.name === name).sort((a, b) => b.id - a.id)[0];
+          const failed = ['test', 'windows-startup'].filter((name) => latest(name)?.conclusion !== 'success');
+          if (failed.length) return done(head, false, `Retake CI not green for ${head.slice(0, 7)}: ${failed.join(', ')}`);
+          if (live) {
+            const relation = await api(`/compare/${live}...${head}`).catch(() => null);
+            if (!relation) return done(head, false, `could not compare live ${live.slice(0, 7)} with Retake main`);
+            if (relation.status !== 'ahead') return done(head, false, `Retake main is ${relation.status} of live ${live.slice(0, 7)}`);
+            const files = (relation.files || []).map((file) => file.filename).filter(served);
+            if (!files.length && (relation.files || []).length < 300) return done(head, false, 'no site file changed since the live release');
+          }
+          return done(head, true, live ? 'site files changed on green Retake main' : 'live release unknown');
+          };
+          await main();
+          JS
+
       - name: Check out the verified Retake source commit only
+        if: steps.resolve.outputs.deploy == 'true'
         uses: actions/checkout@v4
         with:
           repository: umitalgan061-sudo/retake
-          ref: ${{ env.RETAKE_RELEASE_SHA }}
+          ref: ${{ steps.resolve.outputs.sha }}
           persist-credentials: false
 
       - name: Confirm the checked-out tree is exactly the release commit
+        if: steps.resolve.outputs.deploy == 'true'
         shell: bash
         run: |
-          if ! printf '%s' "$RETAKE_RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
-            echo '::error::RETAKE_RELEASE_SHA must be a full 40-character commit SHA.'
+          if ! printf '%s' "$RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo '::error::RELEASE_SHA must be a full 40-character commit SHA.'
             exit 1
           fi
           actual="$(git rev-parse HEAD)"
-          if [ "$actual" != "$RETAKE_RELEASE_SHA" ]; then
-            echo "::error::Checked out $actual, expected $RETAKE_RELEASE_SHA; nothing deployed."
+          if [ "$actual" != "$RELEASE_SHA" ]; then
+            echo "::error::Checked out $actual, expected $RELEASE_SHA; nothing deployed."
             exit 1
           fi
           echo "Deploying Retake source $actual"
 
       - name: Set up Node.js
+        if: steps.resolve.outputs.deploy == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '24.21.0'
 
       - name: Prepare strict single-site Hosting-only release
+        if: steps.resolve.outputs.deploy == 'true'
         shell: bash
         run: |
           node --input-type=module <<'JS'
@@ -82,12 +172,13 @@ jobs:
           };
           writeFileSync('firebase-release.json', JSON.stringify({ hosting }, null, 2) + '\n');
           writeFileSync('retake-release.json', JSON.stringify({
-            commit: process.env.RETAKE_RELEASE_SHA, site: process.env.RETAKE_SITE_ID
+            commit: process.env.RELEASE_SHA, site: process.env.RETAKE_SITE_ID
           }) + '\n');
           console.log('Validated exact Retake source SHA and isolated single-site Hosting config.');
           JS
 
       - name: Authenticate with existing Firebase project service account
+        if: steps.resolve.outputs.deploy == 'true'
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HAFIZE_UA }}
         shell: bash
@@ -107,6 +198,7 @@ jobs:
           JS
 
       - name: Deploy ONLY the Retake Hosting site
+        if: steps.resolve.outputs.deploy == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/retake-firebase-sa.json
         shell: bash
@@ -117,11 +209,12 @@ jobs:
             --non-interactive
 
       - name: Verify public Retake release marker from target site
+        if: steps.resolve.outputs.deploy == 'true'
         shell: bash
         run: |
           node --input-type=module <<'JS'
           const url = new URL('https://retake06-ua.web.app/retake-release.json');
-          url.searchParams.set('sha', process.env.RETAKE_RELEASE_SHA);
+          url.searchParams.set('sha', process.env.RELEASE_SHA);
           let passed = false;
           for (let attempt = 0; attempt < 6; attempt++) {
             try {
@@ -131,7 +224,7 @@ jobs:
               });
               if (response.ok) {
                 const data = await response.json();
-                if (data?.commit === process.env.RETAKE_RELEASE_SHA &&
+                if (data?.commit === process.env.RELEASE_SHA &&
                     data?.site === process.env.RETAKE_SITE_ID) {
                   passed = true;
                   break;
@@ -144,11 +237,12 @@ jobs:
             console.error('::error::Retake live site did not serve the expected release.');
             process.exitCode = 1;
           } else {
-            console.log('Verified live Retake Firebase Hosting for ' + process.env.RETAKE_RELEASE_SHA);
+            console.log('Verified live Retake Firebase Hosting for ' + process.env.RELEASE_SHA);
           }
           JS
 
       - name: Verify the live app files are the released bytes, not only the marker
+        if: steps.resolve.outputs.deploy == 'true'
         shell: bash
         run: |
           node --input-type=module <<'JS'
@@ -161,7 +255,7 @@ jobs:
             for (const file of [...pending]) {
               try {
                 const url = new URL('https://retake06-ua.web.app/' + file);
-                url.searchParams.set('sha', process.env.RETAKE_RELEASE_SHA);
+                url.searchParams.set('sha', process.env.RELEASE_SHA);
                 const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
                 if (!response.ok) continue;
                 const live = Buffer.from(await response.arrayBuffer());
@@ -171,10 +265,10 @@ jobs:
             if (pending.size && attempt < 7) await new Promise(resolve => setTimeout(resolve, 5000));
           }
           if (pending.size) {
-            console.error('::error::Live files differ from release ' + process.env.RETAKE_RELEASE_SHA + ': ' + [...pending].join(', '));
+            console.error('::error::Live files differ from release ' + process.env.RELEASE_SHA + ': ' + [...pending].join(', '));
             process.exitCode = 1;
           } else {
-            console.log('Live index.html, app.js, sw.js and src/quality.js match ' + process.env.RETAKE_RELEASE_SHA);
+            console.log('Live index.html, app.js, sw.js and src/quality.js match ' + process.env.RELEASE_SHA);
           }
           JS
 

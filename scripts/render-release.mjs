@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function github(path) {
   const response = await fetch('https://api.github.com/repos/' + repo + path, {
-    headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28' },
+    headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'hafize-render-release' },
     signal: AbortSignal.timeout(20000)
   });
   if (!response.ok) throw new Error('GITHUB_' + response.status);
