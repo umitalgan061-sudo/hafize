@@ -19,3 +19,11 @@ Karar kuralları `scripts/render-release-plan.mjs` içinde, birim testleri `scri
 Sır tanımlı değilken akış hiçbir şey yapmaz. Yalnız `https://api.render.com/deploy/srv-dc1valbl550s73flt7rg?key=…` biçimi kabul edilir (başka servis, başka adres veya ek parametre reddedilir); adres hiçbir zaman günlüğe yazılmaz. Adresin ele geçtiğinden şüphelenirseniz Render'da **Regenerate Hook** yapıp sırrı güncelleyin.
 
 Aynı adres Render ortamında `HAFIZE_RENDER_DEPLOY_HOOK` olarak da tanımlanırsa Hafize'nin uygulama içi yayın aracı da onu kullanabilir (`lib/github-agent-release.ts`); bu iş akışı için gerekli değildir.
+
+## Retake sitesi (retake06-ua) de kendiliğinden güncel kalır
+
+`.github/workflows/retake-hosting-live.yml` günde iki kez (08:47 ve 20:47) Retake ana dalının en yeni commit'ine bakar: CI'ı (`test`, `windows-startup`) yeşilse, canlı `retake-release.json` commit'inin devamıysa ve sitenin sunduğu bir dosya değiştiyse (yalnız `tools/`, test, belge, `.py`/`.ps1` değişikliği sayılmaz) o commit'i yayınlar ve canlı baytları doğrular. Ek sır gerekmez.
+
+- `RETAKE_RELEASE_SHA` değiştiğinde (ya da **Run workflow → pinned**) eskisi gibi o commit yayınlanır.
+- Dosyadaki ilgisiz bir değişiklik canlı siteyi daha eski sabit commit'e **geri döndürmez**. Bilerek geri almak için `RETAKE_AUTO_FOLLOW: "off"` yapıp SHA'yı sabitleyin ya da **Run workflow → pinned** kullanın.
+- **Run workflow → follow** zamanlamayı beklemeden aynı takip kontrolünü yapar.
