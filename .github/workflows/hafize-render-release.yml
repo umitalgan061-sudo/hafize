@@ -1,0 +1,48 @@
+name: Hafize Render — gated release
+
+# Render keeps autoDeployTrigger: off (render.yaml): every main commit would
+# spend free build minutes. This workflow deploys at most twice a day (or on
+# demand), only the newest main commit, only after its "Hafize quality" push
+# run passed, only when a file the service runs changed since the live commit,
+# and verifies the live /release.json afterwards. Without the
+# HAFIZE_RENDER_DEPLOY_HOOK secret it does nothing. See docs/HAFIZE_RENDER_RELEASE.md.
+
+on:
+  schedule:
+    - cron: '17 5,17 * * *'   # 08:17 and 20:17 Europe/Istanbul
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Deploy the newest green main even if only docs/tests changed
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: hafize-render-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.21.0'
+      - name: Unit-test the release decisions
+        run: node --test scripts/render-release-plan.test.mjs
+      - name: Deploy the newest green main to Render and verify it
+        env:
+          HAFIZE_RENDER_DEPLOY_HOOK: ${{ secrets.HAFIZE_RENDER_DEPLOY_HOOK }}
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force || false }}
+        run: node scripts/render-release.mjs
