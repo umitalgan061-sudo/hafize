@@ -21,7 +21,7 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: projelerim-8fecd
       RETAKE_SITE_ID: retake06-ua
-      RETAKE_RELEASE_SHA: 6f924cb4cfebccb6a65c5154e1a990e4200ad8d0
+      RETAKE_RELEASE_SHA: 7c0e6eb3bafae5959dc7e42a229357b55292aa20
     steps:
       - name: Check out the verified Retake source commit only
         uses: actions/checkout@v4
