@@ -134,6 +134,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
   let generationAbort: AbortController | null = null;
   let activeAgentCheckpoint = '';
   let checkpointPolling=false;
+  // One transient 404 during startup/rolling deploy is not a terminal result.
+  // Only poll the existing ID; never automatically replay an agent POST.
+  const checkpointMisses=new Map<string,number>();
   let conversations = loadConversations();
   // Entering the app always lands on a new chat; earlier ones wait in the sidebar. A tab the browser put to sleep
   // to save memory reloads when it is looked at again, and that is not an entry.
@@ -1115,6 +1118,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
             result=await hafizeApi.request(checkpointPath(message.agentCheckpoint)+'/recover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversationId:conversation.id,recoveryToken:token}),timeoutMs:8000,retry:0});
           }
           if(result.id!==message.agentCheckpoint||result.conversationId!==conversation.id)continue;
+          checkpointMisses.delete(message.agentCheckpoint);
           const token=recoveryCapsule(result.recoveryToken);if(token&&token!==message.agentRecoveryToken){message.agentRecoveryToken=token;changed=true;}
           if(result.recovered===true){
             message.content=recoveredCheckpointAnswer(message.content,result,message.agentCheckpointEvidence);
@@ -1139,6 +1143,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
           delete message.agentCheckpoint;delete message.agentCheckpointConfirmed;delete message.agentCheckpointEvidence;changed=true;
         }catch(error){
           if(error?.status===404){
+            const id=message.agentCheckpoint;
+            if(id){
+              const misses=(checkpointMisses.get(id)||0)+1;
+              checkpointMisses.set(id,misses);
+              if(misses<3)continue;
+              checkpointMisses.delete(id);
+            }
             message.content=missingCheckpointAnswer(withCheckpointEvidence(message.content,message.agentCheckpointEvidence),message.agentCheckpointConfirmed===true);
             message.toolActivities=settleToolActivities(message.toolActivities);
             delete message.agentCheckpoint;delete message.agentCheckpointConfirmed;delete message.agentCheckpointEvidence;changed=true;
