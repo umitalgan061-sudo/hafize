@@ -1,7 +1,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {
-  aggregateJudgeVotes, createProjectVisionJudge, decodeJudgeImage, judgeOrders, parseJudgeModels,
-  parseJudgeVote, VISION_JUDGE_DEFAULT_MODELS, VISION_JUDGE_LIMITS
+  aggregateJudgeVotes, createProjectVisionJudge, decodeJudgeImage, judgeOrders, judgePrompt, parseJudgeModels,
+  parseJudgeVote, VISION_JUDGE_DEFAULT_MODELS, VISION_JUDGE_LIMITS, VISION_JUDGE_RESERVE_MODELS
 } from './project-vision-judge.ts';
 import {markCompletionOrigin} from './model-response-origin.ts';
 
@@ -64,7 +64,7 @@ describe('Retake NVIDIA vision judge', () => {
   it('runs every model in both orders, never forwards client choices, and reports only rankings', async () => {
     const candidates = [jpeg(1), jpeg(2), jpeg(3)];
     const complete = fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
-    const judge = createProjectVisionJudge({complete, models: ['nvidia/nemotron-judge-vl', 'meta/judge-vision']});
+    const judge = createProjectVisionJudge({complete, reserves: [], models: ['nvidia/nemotron-judge-vl', 'meta/judge-vision']});
     const result = await judge.judge('retake', {task: 'face-realism-rank', candidates});
     expect(complete).toHaveBeenCalledTimes(4);
     const payloads = complete.mock.calls.map(([payload]) => payload as Record<string, unknown>);
@@ -120,7 +120,7 @@ it('limits jury concurrency while preserving both orders for every model', async
 it('keeps working model votes when another model is throttled and reports safe diagnostics', async () => {
   const candidates=[jpeg(1),jpeg(2)];
   const underlying=fakeVlm(1,new Map(candidates.map((url,index)=>[url,index])));
-  const jury=createProjectVisionJudge({models:['nvidia/a','meta/b'],complete:async(payload)=>{
+  const jury=createProjectVisionJudge({reserves:[],models:['nvidia/a','meta/b'],complete:async(payload)=>{
     if(payload.model==='nvidia/a') throw Object.assign(new Error('private-provider-message'),{status:429});
     return underlying(payload);
   }});
@@ -139,4 +139,83 @@ it('discards a substituted model instead of counting it as an independent vote',
   const result=await jury.judge('retake',{task:'face-realism-rank',candidates:[jpeg(1),jpeg(2)]});
   expect(result).toMatchObject({decision:'abstain',votes:0});
   expect(result.diagnostics.every(row=>row.outcome==='model-mismatch')).toBe(true);
+});
+
+describe('Retake NVIDIA vision jury v2', () => {
+  const vendor = (model: string) => model.split('/')[0];
+
+  it('seats four different vendors and keeps reserves outside the panel', () => {
+    expect(VISION_JUDGE_DEFAULT_MODELS).toHaveLength(VISION_JUDGE_LIMITS.maxModels);
+    expect(new Set(VISION_JUDGE_DEFAULT_MODELS.map(vendor)).size).toBe(VISION_JUDGE_DEFAULT_MODELS.length);
+    expect(VISION_JUDGE_RESERVE_MODELS.some((model) => VISION_JUDGE_DEFAULT_MODELS.includes(model))).toBe(false);
+  });
+
+  it('asks reserve models only when too few panel models answer', async () => {
+    const candidates = [jpeg(1), jpeg(2)];
+    const underlying = fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      if (String(payload.model).startsWith('panel/missing')) throw Object.assign(new Error('gone'), {status: 404});
+      return underlying(payload);
+    });
+    const jury = createProjectVisionJudge({complete, models: ['panel/ok', 'panel/missing-1', 'panel/missing-2'], reserves: ['spare/one', 'spare/two', 'spare/three']});
+    const result = await jury.judge('retake', {task: 'face-realism-rank', candidates});
+    expect(result.reserveModels).toEqual(['spare/one', 'spare/two']);
+    expect(result).toMatchObject({decision: 'winner', winner: 1, votes: 6, attempted: 10});
+    expect(result.models).toEqual(['panel/ok', 'spare/one', 'spare/two']);
+
+    const healthy = fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
+    const full = await createProjectVisionJudge({complete: healthy, models: ['a/1', 'b/2', 'c/3'], reserves: ['spare/one']})
+      .judge('retake', {task: 'face-realism-rank', candidates});
+    expect(full.reserveModels).toEqual([]);
+    expect(healthy).toHaveBeenCalledTimes(6);
+  });
+
+  it('does not start reserves once the jury is already slow', async () => {
+    let clock = 0;
+    const candidates = [jpeg(1), jpeg(2)];
+    const underlying = fakeVlm(0, new Map(candidates.map((url, index) => [url, index])));
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      clock += VISION_JUDGE_LIMITS.reserveStartBeforeMs;
+      if (payload.model === 'panel/missing') throw Object.assign(new Error('gone'), {status: 404});
+      return underlying(payload);
+    });
+    const result = await createProjectVisionJudge({complete, now: () => clock, models: ['panel/ok', 'panel/missing'], reserves: ['spare/one']})
+      .judge('retake', {task: 'face-realism-rank', candidates});
+    expect(result.reserveModels).toEqual([]);
+    expect(complete).toHaveBeenCalledTimes(4);
+  });
+
+  it('accepts a review-sheet layout that points the models at the close-ups', async () => {
+    expect(judgePrompt(2, 'review-sheet')).toMatch(/close-ups of the SAME edit/);
+    expect(judgePrompt(2, 'review-sheet')).toMatch(/catchlight/);
+    expect(judgePrompt(2)).not.toMatch(/close-ups/);
+    const candidates = [jpeg(1), jpeg(2)];
+    const complete = fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
+    const jury = createProjectVisionJudge({complete, models: ['a/1', 'b/2', 'c/3'], reserves: []});
+    const result = await jury.judge('retake', {task: 'face-realism-rank', layout: 'review-sheet', candidates});
+    expect(result.layout).toBe('review-sheet');
+    const prompt = (complete.mock.calls[0][0].messages as Array<{content: Array<{text?: string}>}>)[0].content[0].text;
+    expect(prompt).toMatch(/review sheet/);
+    for (const layout of ['contact-sheet', 3, null]) {
+      await expect(jury.judge('retake', {task: 'face-realism-rank', layout, candidates})).rejects.toThrow('PROJECT_AI_INVALID_INPUT');
+    }
+  });
+
+  it('reads the answer after a reasoning block and gives reasoning models room', async () => {
+    const candidates = [jpeg(1), jpeg(2)];
+    const honest = fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      const answer = await honest(payload) as {choices: Array<{message: {content: string}}>};
+      const result = {choices: [{message: {content: '<think>maybe {"scores":{"A":1,"B":1},"best":"A"}</think>\n' + answer.choices[0].message.content}}]};
+      markCompletionOrigin(result, String(payload.model));
+      return result;
+    });
+    const result = await createProjectVisionJudge({complete, models: ['z-ai/glm', 'nvidia/nemotron-vl', 'mistralai/large'], reserves: []})
+      .judge('retake', {task: 'face-realism-rank', candidates});
+    expect(result).toMatchObject({decision: 'winner', winner: 1, votes: 6});
+    const byModel = new Map(complete.mock.calls.map(([payload]) => [payload.model, payload]));
+    expect(byModel.get('z-ai/glm')).toMatchObject({max_tokens: 1200});
+    expect(byModel.get('z-ai/glm')).not.toHaveProperty('chat_template_kwargs');
+    expect(byModel.get('nvidia/nemotron-vl')).toMatchObject({max_tokens: 400, chat_template_kwargs: {enable_thinking: false}});
+  });
 });

@@ -1732,8 +1732,9 @@ const server = createServer(async (req, res) => {
       const juryStarted=Date.now();
       try{
         grant=PROJECT_AI.authorize(match[1],req.headers.authorization,req.headers.origin);
-        request=attachDisconnectAbort(req,120000,res);
         const judge=match[2]==='vision-judge';
+        // A jury may need its reserve models too; Retake waits 190 s.
+        request=attachDisconnectAbort(req,judge?VISION_JUDGE_LIMITS.requestDeadlineMs:120000,res);
         const body=await readJson(req,judge?VISION_JUDGE_LIMITS.maxBodyBytes:32768);
         const result=judge?await PROJECT_VISION_JUDGE.judge(match[1],body,request.signal):await PROJECT_AI.text(match[1],body,request.signal);
         if(isRetakeJury)console.info('hafize.retake.jury '+JSON.stringify({outcome:'completed',status:200,votes:Number(result?.votes)||0,attempted:Number(result?.attempted)||0,elapsedMs:Date.now()-juryStarted}));
