@@ -1,6 +1,6 @@
 import {describe, it, expect, vi} from 'vitest';
 import {
-  aggregateJudgeVotes, createProjectVisionJudge, decodeJudgeImage, judgeOrders, judgePrompt, parseJudgeModels,
+  aggregateJudgeVotes, createProjectVisionJudge, decodeJudgeImage, judgeModelsFrom, judgeOrders, judgePrompt, parseJudgeModels,
   parseJudgeVote, VISION_JUDGE_DEFAULT_MODELS, VISION_JUDGE_HEALTH, VISION_JUDGE_LIMITS, VISION_JUDGE_RESERVE_MODELS
 } from './project-vision-judge.ts';
 import {markCompletionOrigin} from './model-response-origin.ts';
@@ -35,7 +35,7 @@ describe('Retake NVIDIA vision judge', () => {
 
   it('falls back to audited default models on malformed operator overrides', () => {
     expect(parseJudgeModels('')).toEqual([...VISION_JUDGE_DEFAULT_MODELS]);
-    expect(parseJudgeModels('nvidia/a-vl,meta/b-vision')).toEqual(['nvidia/a-vl', 'meta/b-vision']);
+    expect(parseJudgeModels('nvidia/a-vl,meta/b-vision,google/c-vl')).toEqual(['nvidia/a-vl', 'meta/b-vision', 'google/c-vl']);
     expect(parseJudgeModels('https://evil.example/x')).toEqual([...VISION_JUDGE_DEFAULT_MODELS]);
     expect(parseJudgeModels('a/b,a/b')).toEqual([...VISION_JUDGE_DEFAULT_MODELS]);
     expect(parseJudgeModels('a/1,a/2,a/3,a/4,a/5')).toEqual([...VISION_JUDGE_DEFAULT_MODELS]);
@@ -311,5 +311,37 @@ describe('Retake jury roster health', () => {
     const next = await jury.judge('retake', task);
     expect(next.attemptedModels).toEqual(['a/ok', 'b/ok', 'spare/ok']);
     expect(next.reserveModels).toEqual(['spare/ok']);
+  });
+});
+
+describe('Retake jury panel below the answer quorum', () => {
+  it('tops up a short override with default models, keeping the operator choices first', () => {
+    const live = judgeModelsFrom('nvidia/nemotron-3.5-super-vl-120b-a12b,nvidia/nemotron-3-nano-omni-30b-a3b-reasoning');
+    expect(live.source).toBe('override+default');
+    expect(live.models).toEqual([
+      'nvidia/nemotron-3.5-super-vl-120b-a12b',
+      'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+      VISION_JUDGE_DEFAULT_MODELS[1],
+      VISION_JUDGE_DEFAULT_MODELS[2]
+    ]);
+    expect(new Set(live.models).size).toBe(live.models.length);
+    expect(judgeModelsFrom('x/only').models).toEqual(['x/only', ...VISION_JUDGE_DEFAULT_MODELS.slice(0, 3)]);
+    expect(judgeModelsFrom('a/1,a/2,a/3')).toEqual({models: ['a/1', 'a/2', 'a/3'], source: 'override'});
+    expect(judgeModelsFrom('')).toEqual({models: [...VISION_JUDGE_DEFAULT_MODELS], source: 'default'});
+    expect(judgeModelsFrom('https://evil.example/x').source).toBe('default');
+    expect(VISION_JUDGE_LIMITS.minAnsweringModels + 1).toBeLessThanOrEqual(VISION_JUDGE_LIMITS.maxModels);
+  });
+
+  it('decides from the first batch instead of waiting for reserves, and reports the panel source', async () => {
+    const candidates = [jpeg(1), jpeg(2)];
+    const underlying = fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
+    const complete = vi.fn(async (payload: Record<string, unknown>) => underlying(payload));
+    const panel = judgeModelsFrom('n/one,n/two');
+    const jury = createProjectVisionJudge({complete, models: panel.models, modelsSource: panel.source, reserves: ['spare/one']});
+    const verdict = await jury.judge('retake', {task: 'face-realism-rank', candidates});
+    expect(verdict.decision).toBe('winner');
+    expect(verdict.reserveModels).toEqual([]);
+    expect(verdict.models).toHaveLength(4);
+    expect(jury.status().modelsSource).toBe('override+default');
   });
 });
