@@ -78,13 +78,19 @@ it('reports bounded interruption causes without leaking arbitrary provider text'
  expect(agentInterruptionDiagnostic(new Error('secret text'),undefined,'model_round')).toBe('model_round: MODEL_ROUND_FAILED');
 });
 
-it('starts the durable checkpoint stream only after agent response headers and context preparation',()=>{
+it('acknowledges the durable checkpoint after response headers but before slow setup',()=>{
+ // #1098: recovery must survive a disconnect during memory, vision or context
+ // preparation, so the checkpoint is sent first; context headers become
+ // best-effort (prepareConversation skips them once the stream has started).
  const server=readFileSync(new URL('../server.ts',import.meta.url),'utf8');
  const handler=server.slice(server.indexOf('async function handleAgentRun'),server.indexOf('async function handleChat'));
  const header=handler.indexOf("res.setHeader('X-Hafize-Prompt-Variant'");
- const prepared=handler.indexOf('const preparedConversation = await prepareConversation(');
  const checkpoint=handler.indexOf("emitEvent('hafize-agent-checkpoint'");
- expect(header).toBeGreaterThan(0);expect(prepared).toBeGreaterThan(header);
- expect(checkpoint).toBeGreaterThan(prepared);
- expect(checkpoint).toBeGreaterThan(handler.indexOf('// Context headers are set; the stream can start now.'));
+ const memory=handler.indexOf('await PLATFORM.prepareMemory(');
+ const vision=handler.indexOf('await PLATFORM.analyzeAttachments(');
+ const prepared=handler.indexOf('const preparedConversation = await prepareConversation(');
+ expect(header).toBeGreaterThan(0);
+ expect(checkpoint).toBeGreaterThan(header);
+ for(const slow of [memory,vision,prepared])expect(slow).toBeGreaterThan(checkpoint);
+ expect(server).toMatch(/if \(!res\.headersSent && !res\.destroyed && !res\.writableEnded\) \{\s*res\.setHeader\('X-Hafize-Context-Compacted'/);
 });
