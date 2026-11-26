@@ -59,3 +59,12 @@ export function withCheckpointEvidence(content:string,value:unknown):string{
 
 /** Opaque server-encrypted backup; never include in model message text. */
 export function recoveryCapsule(value:unknown):string{return typeof value==='string'&&value.length<=64000&&/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value)?value:'';}
+
+/** A verified historical snapshot is not a completed run or fresh GitHub read. */
+export function recoveredCheckpointAnswer(content:string,value:unknown,localEvidence:unknown):string{
+ const data=value&&typeof value==='object'?value as Record<string,unknown>:{};
+ const rows=Array.isArray(data.receipts)?data.receipts.slice(-24).map(r=>r&&typeof r.line==='string'?'- '+r.line.slice(0,900):'').filter(Boolean):[];
+ const previous=withCheckpointEvidence(content,localEvidence);
+ const pending=Array.isArray(data.pending)&&data.pending.length>0;
+ return previous+'\n\nŞifreli görev yedeği sunucuda doğrulandı. Bunlar geçmiş işlem kayıtlarıdır; güncel GitHub durumu veya tamamlanmış görev anlamına gelmez.\n\n'+(rows.join('\n')||'Yedekte doğrulanmış işlem kaydı yok.')+'\n\n'+(pending?'Sonucu belirsiz yazma hedefleri var. ':'')+'Yeni yazmadan önce GitHub dalı, dosyalar ve PR durumu yeniden incelenmelidir.';
+}
