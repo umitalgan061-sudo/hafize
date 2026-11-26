@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v214`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v215`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -121,6 +121,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/original-hero.js",
   "/original-hero-pixels.js",
   "/original-hero-bootstrap.js",
+  "/home-voice-luminous-core.js",
   "/hero-donus.bin"
 ]);
 const SHELL_PATHS = new Set(SHELL_ASSETS);
