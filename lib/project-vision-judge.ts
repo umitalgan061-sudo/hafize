@@ -83,14 +83,33 @@ const fail = (code: string, status = 400): never => {
   throw Object.assign(new Error(code), {code, status});
 };
 
-/** Operator override (HAFIZE_RETAKE_JUDGE_MODELS); malformed values fall back to the audited defaults. */
-export function parseJudgeModels(value?: string | null): string[] {
-  if (!value || !value.trim()) return [...VISION_JUDGE_DEFAULT_MODELS];
+export type JudgeModelsSource = 'default' | 'override' | 'override+default';
+
+/**
+ * Operator override (HAFIZE_RETAKE_JUDGE_MODELS); malformed values fall back to the audited defaults.
+ * A panel smaller than the answer quorum can never decide on its own: every request would wait for
+ * the panel and then ask reserves one after another. Such a panel is topped up with default models
+ * (the operator's choices stay first); roster health benches any that do not work.
+ */
+export function judgeModelsFrom(value?: string | null): {models: string[]; source: JudgeModelsSource} {
+  const defaults = {models: [...VISION_JUDGE_DEFAULT_MODELS], source: 'default' as const};
+  if (!value || !value.trim()) return defaults;
   const models = value.split(',').map((item) => item.trim()).filter(Boolean);
   if (!models.length || models.length > VISION_JUDGE_LIMITS.maxModels || models.some((item) => !MODEL_ID.test(item)) || new Set(models).size !== models.length) {
-    return [...VISION_JUDGE_DEFAULT_MODELS];
+    return defaults;
   }
-  return models;
+  if (models.length >= VISION_JUDGE_LIMITS.minAnsweringModels) return {models, source: 'override'};
+  const target = Math.min(VISION_JUDGE_LIMITS.maxModels, VISION_JUDGE_LIMITS.minAnsweringModels + 1);
+  const filled = [...models];
+  for (const model of VISION_JUDGE_DEFAULT_MODELS) {
+    if (filled.length >= target) break;
+    if (!filled.includes(model)) filled.push(model);
+  }
+  return {models: filled, source: 'override+default'};
+}
+
+export function parseJudgeModels(value?: string | null): string[] {
+  return judgeModelsFrom(value).models;
 }
 
 type DecodedImage = {mime: 'image/jpeg' | 'image/png'; base64: string; bytes: number};
@@ -209,7 +228,7 @@ function messageText(result: unknown): string {
   return text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*<\/think>/i, '');
 }
 
-export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAULT_MODELS, reserves = VISION_JUDGE_RESERVE_MODELS, now = Date.now}: {complete: Complete; models?: readonly string[]; reserves?: readonly string[]; now?: () => number}) {
+export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAULT_MODELS, reserves = VISION_JUDGE_RESERVE_MODELS, now = Date.now, modelsSource = 'default'}: {complete: Complete; models?: readonly string[]; reserves?: readonly string[]; now?: () => number; modelsSource?: JudgeModelsSource}) {
   const judgeModels = Object.freeze([...models].slice(0, VISION_JUDGE_LIMITS.maxModels));
   const reserveModels = Object.freeze([...reserves].filter((model) => MODEL_ID.test(model) && !judgeModels.includes(model)).slice(0, VISION_JUDGE_LIMITS.maxReserveModels));
   const health = new Map<string, ModelHealth>();
@@ -387,6 +406,6 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
 
   return Object.freeze({
     judge,
-    status: () => ({models: [...judgeModels], reserveModels: [...reserveModels], layouts: [...VISION_JUDGE_LAYOUTS], projects: [...VISION_JUDGE_PROJECTS], task: VISION_JUDGE_TASK, health: healthStatus()})
+    status: () => ({models: [...judgeModels], reserveModels: [...reserveModels], layouts: [...VISION_JUDGE_LAYOUTS], projects: [...VISION_JUDGE_PROJECTS], task: VISION_JUDGE_TASK, modelsSource, health: healthStatus()})
   });
 }
