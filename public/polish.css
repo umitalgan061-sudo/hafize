@@ -597,19 +597,62 @@ html[data-theme="light"][data-voice-mode="true"], html[data-theme="light"][data-
     font-size: 16px; line-height: 1.5; text-align: start; text-indent: 0;
     caret-color: var(--premium-text); -webkit-text-fill-color: var(--premium-text);
     box-sizing: border-box; display: block; padding: 8px 7px;
+    /* One cap, keyboard up or down: a cap that changed with the keyboard moved the field under its caret. */
+    max-height: 132px;
   }
   html .main .primary-column form#composer.composer textarea#messageInput::placeholder {
     -webkit-text-fill-color: var(--premium-muted); color: var(--premium-muted);
   }
+
+  /* Keyboard up. WebKit places the caret when the field gets focus and does not move it when the
+     field moves afterwards, so the composer keeps its exact size and padding here; it only follows
+     the keyboard edge (ui-shell.ts). The rest of the app is pinned to the part of the page the user
+     can see (--hz-vv-top/--hz-vv-height), so the header stays put and the greeting shrinks to fit
+     instead of the screen above the composer going blank. */
   html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer {
-    bottom: var(--keyboard-bottom, 0px) !important; padding-bottom: 10px;
+    bottom: var(--keyboard-bottom, 0px) !important;
   }
   html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer::after { display: none; }
-  html[data-hafize-keyboard="open"] .main .primary-column .chat-stage { padding-top: 12px !important; overflow: hidden; }
-  html[data-hafize-keyboard="open"] .welcome { display: none !important; }
+  html[data-hafize-keyboard="open"] .app-shell {
+    position: fixed; top: var(--hz-vv-top, 0px); left: 0; right: 0;
+    height: var(--hz-vv-height, 100%); min-height: 0; overflow: hidden;
+  }
+  html[data-hafize-keyboard="open"] .app-shell > .main { height: 100%; min-height: 0; grid-template-rows: auto minmax(0, 1fr); }
+  html[data-hafize-keyboard="open"] .main .primary-column { min-height: 0; }
+  html[data-hafize-keyboard="open"] .main .primary-column .chat-stage {
+    padding-top: 12px !important; overflow: hidden; container: hz-kb-stage / size;
+  }
   html[data-hafize-keyboard="open"] .main > .topbar { padding-top: env(safe-area-inset-top); }
-  html[data-hafize-keyboard="open"] .main .primary-column form#composer.composer textarea#messageInput { max-height: 96px; }
+  html[data-hafize-keyboard="open"] .toast { bottom: calc(var(--keyboard-bottom, 0px) + var(--composer-space, 200px)); }
+
+  /* The greeting, compact: portrait, title and the four starters in one row. */
+  html[data-hafize-keyboard="open"] .welcome:not(.hidden) {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    flex: 1 1 auto; min-height: 0; width: 100%; max-width: none; margin: 0 auto; padding: 0 0 6px;
+    animation: hz-kb-welcome 0.26s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+  html[data-hafize-keyboard="open"] .welcome .hz-hero { flex: 0 1 auto; width: auto; height: clamp(56px, 46cqh, 136px); min-height: 0; margin: 0; }
+  html[data-hafize-keyboard="open"] .welcome .hero-logo { width: auto; height: clamp(40px, 30cqh, 72px); margin: 0; }
+  html[data-hafize-keyboard="open"] .welcome h1 { margin: 0; font-size: clamp(21px, 7.2cqw, 28px); line-height: 1.15; }
+  html[data-hafize-keyboard="open"] .welcome h1::after { margin-top: 8px; }
+  html[data-hafize-keyboard="open"] .welcome p { display: none; }
+  html[data-hafize-keyboard="open"] .welcome .suggestions {
+    display: flex; flex-wrap: nowrap; justify-content: safe center; gap: 6px; width: 100%; max-width: 100%;
+    margin: 2px 0 0; padding: 2px 2px 4px; overflow-x: auto; scrollbar-width: none; -webkit-user-select: none; user-select: none;
+  }
+  html[data-hafize-keyboard="open"] .welcome .suggestions::-webkit-scrollbar { display: none; }
+  html[data-hafize-keyboard="open"] .welcome .suggestions button {
+    flex: 0 0 auto; width: auto; min-height: 34px; padding: 6px 12px; border-radius: 999px;
+    font-size: 12.5px; line-height: 1.2; white-space: nowrap;
+  }
 }
+/* Less room above the keyboard (small phones, a tall advanced composer): drop the starters, then the portrait. */
+@container hz-kb-stage (max-height: 215px) { .welcome .suggestions { display: none !important; } }
+@container hz-kb-stage (max-height: 120px) { .welcome .hz-hero, .welcome .hero-logo { display: none !important; } }
+@container hz-kb-stage (max-height: 60px) { .welcome { visibility: hidden; } }
+@keyframes hz-kb-welcome { from { opacity: 0; transform: translateY(10px) scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { html[data-hafize-keyboard="open"] .welcome { animation: none; } }
+html[data-reduced-motion="true"][data-hafize-keyboard="open"] .welcome { animation: none; }
 
 /* Shared floating-surface theme. Keep individual layout, stacking, visibility and
    voice-stage controls intact; only unify colours and constrain overflowing popups.

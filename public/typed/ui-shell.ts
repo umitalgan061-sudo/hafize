@@ -44,7 +44,9 @@ export function installSidebarDisclosure(documentRef:Document):SidebarDisclosure
  // DOM is the source of truth; a cached flag here made the next ☰ tap a no-op.
  const isOpen=()=>sidebar.classList.contains('open');
  const syncToggle=()=>{const open=isOpen();documentRef.body?.classList.toggle('sidebar-open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-controls',sidebar.id||'sidebar');toggle.setAttribute('aria-label',open?'Menüyü kapat':'Menüyü aç');};
- const render=(next:boolean,focusToggle=false)=>{sidebar.classList.toggle('open',Boolean(next));syncToggle();if(focusToggle)toggle.focus();};
+ // On a touch screen the menu is laid out for the whole screen: opening it while typing puts the keyboard away.
+ const releaseKeyboard=()=>{const active=documentRef.activeElement as HTMLElement|null;if(active?.id==='messageInput'&&typeof active.blur==='function'&&documentRef.defaultView?.matchMedia?.('(pointer: coarse)').matches)active.blur();};
+ const render=(next:boolean,focusToggle=false)=>{if(next&&!isOpen())releaseKeyboard();sidebar.classList.toggle('open',Boolean(next));syncToggle();if(focusToggle)toggle.focus();};
  const onToggle=(event:Event)=>{event.preventDefault();event.stopImmediatePropagation();render(!isOpen());};
  const onKeydown=(event:KeyboardEvent)=>{if(event.key==='Escape'&&isOpen()){event.preventDefault();render(false,true);}};
  const Observer=documentRef.defaultView?.MutationObserver;
@@ -97,6 +99,10 @@ export function mobileKeyboardGeometry(layoutHeight:number,visualHeight:number,o
  const gap=Math.max(0,Math.round(layoutHeight-visualHeight));
  const active=focused&&scale>=0.99&&scale<=1.01&&gap>100;
  return {active,bottom:active?Math.max(0,Math.round(layoutHeight-visualHeight-Math.max(0,offsetTop))):0};
+}
+/** The part of the layout viewport the user can see above the keyboard, in layout CSS pixels. */
+export function visualViewportBox(visualHeight:number,offsetTop:number){
+ return {top:Math.max(0,Math.round(Number.isFinite(offsetTop)?offsetTop:0)),height:Math.max(0,Math.round(Number.isFinite(visualHeight)?visualHeight:0))};
 }
 export function install(documentRef:Document,root:Window&typeof globalThis):UiShellController|null{
  const html=documentRef.documentElement;if(!html)return null;
@@ -182,13 +188,25 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
   const update=()=>{
    frame=0;
    const layoutHeight=html.clientHeight||root.innerHeight;
-   const geometry=mobileKeyboardGeometry(layoutHeight,viewport?.height??layoutHeight,viewport?.offsetTop??0,mobile.matches&&documentRef.activeElement===field,viewport?.scale??1);
+   const visualHeight=viewport?.height??layoutHeight,offsetTop=viewport?.offsetTop??0;
+   const geometry=mobileKeyboardGeometry(layoutHeight,visualHeight,offsetTop,mobile.matches&&documentRef.activeElement===field,viewport?.scale??1);
    html.dataset.hafizeKeyboard=geometry.active?'open':'closed';
    html.style.setProperty('--keyboard-bottom',geometry.bottom+'px');
+   // While the keyboard is up, iOS pans the page so the composer sits above it, which pushed the header
+   // and the greeting off the top of the screen. The shell follows the visible part of the page instead
+   // (polish.css). The composer itself is never resized or re-padded here: WebKit keeps drawing the caret
+   // where the field was when it got focus, so any later shift left the caret beside the text.
+   const box=visualViewportBox(visualHeight,offsetTop);
+   if(geometry.active){html.style.setProperty('--hz-vv-top',box.top+'px');html.style.setProperty('--hz-vv-height',box.height+'px');}
+   else{html.style.removeProperty('--hz-vv-top');html.style.removeProperty('--hz-vv-height');}
    const bounds=composer.getBoundingClientRect();
    if(bounds.height<=0)return;
    // Use the actual fixed composer geometry instead of a forced 320px minimum.
    html.style.setProperty('--composer-space',Math.ceil(bounds.height+12)+'px');
+   // Panels that open above the composer (send history) line up with its edges.
+   html.style.setProperty('--composer-left',Math.round(bounds.left)+'px');
+   html.style.setProperty('--composer-width',Math.round(bounds.width)+'px');
+   html.style.setProperty('--composer-rise',Math.max(0,Math.round(layoutHeight-bounds.top))+'px');
    if(stage){
     const stageTop=stage.getBoundingClientRect().top;
     const height=Math.floor(bounds.top-stageTop-8);
@@ -198,7 +216,7 @@ export function install(documentRef:Document,root:Window&typeof globalThis):UiSh
   };
   const schedule=()=>{if(!frame)frame=root.requestAnimationFrame(update);};
   const sizeObserver=typeof SizeObserver==='function'?new SizeObserver(schedule):null;sizeObserver?.observe(composer);
-  disposers.push(()=>{sizeObserver?.disconnect();if(frame)root.cancelAnimationFrame(frame);html.removeAttribute('data-hafize-keyboard');html.style.removeProperty('--keyboard-bottom');},addListener(root,'resize',schedule),addListener(root,'hafize:layout-changed',schedule),addListener(root,'hafize:workspace-changed',schedule));
+  disposers.push(()=>{sizeObserver?.disconnect();if(frame)root.cancelAnimationFrame(frame);html.removeAttribute('data-hafize-keyboard');for(const name of ['--keyboard-bottom','--hz-vv-top','--hz-vv-height','--composer-left','--composer-width','--composer-rise'])html.style.removeProperty(name);},addListener(root,'resize',schedule),addListener(root,'hafize:layout-changed',schedule),addListener(root,'hafize:workspace-changed',schedule));
   if(viewport)disposers.push(addListener(viewport,'resize',schedule),addListener(viewport,'scroll',schedule));
   if(field)disposers.push(addListener(field,'focus',schedule),addListener(field,'blur',schedule));
   update();

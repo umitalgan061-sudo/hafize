@@ -52,7 +52,10 @@
     const file = doc.createElement('input'); file.type = 'file'; file.accept = 'application/json,.json'; file.hidden = true; file.setAttribute('aria-label', 'Gönderim geçmişi yedeği seç');
     wrapper.append(exportButton, importButton, file);
     const panel = doc.getElementById('composerHistoryPanel');
-    panel?.querySelector('.composer-history-footer')?.prepend(wrapper) || form.after(wrapper);
+    // prepend() returns undefined, so the former `prepend(...) || form.after(...)` always moved the
+    // buttons back out of the panel, behind the fixed composer.
+    const footer = panel?.querySelector('.composer-history-footer');
+    if (footer) footer.prepend(wrapper); else form.after(wrapper);
     exportButton.addEventListener('click', download);
     importButton.addEventListener('click', () => file.click());
     file.addEventListener('change', () => {
