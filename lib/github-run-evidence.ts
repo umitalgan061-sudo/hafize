@@ -11,10 +11,22 @@ const rec=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'
 const token=(value:unknown,pattern:RegExp)=>typeof value==='string'&&pattern.test(value)?value:'';
 const positive=(value:unknown):value is number=>typeof value==='number'&&Number.isSafeInteger(value)&&value>0;
 const normal=(value:unknown)=>typeof value==='string'?value.toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i'):'';
+/** Match only short, scope-free follow-ups. Do not treat arbitrary mentions
+ * of "continue" in unrelated questions as continuation of an old repo task. */
+export function bareDevelopmentContinuation(value:unknown):boolean{
+ const s=normal(value).trim().replace(/[.!\s]+$/g,'').replace(/\s+/g,' ');
+ return /^(?:kaldigin yerden devam et|devam et|tamamla|continue|resume|gelistirmeye devam et|(?:gerekli |tum |butun )?gelistirmeleri (?:kapsamli sekilde )?yap)(?: lutfen)?$/.test(s);
+}
+function substantivePrior(previous:readonly unknown[]):unknown{
+ for(const prior of previous.slice(-12).reverse()){
+  if(bareDevelopmentContinuation(prior))continue;
+  return prior;
+ }
+ return undefined;
+}
 export function githubWorkRequested(request:unknown,previous:readonly unknown[]=[]):boolean{
  const current=normal(request);
- const continuation=/\b(?:devam et|kaldigin yerden|tamamla|durma|tum islemleri|butun islemleri)\b/.test(current);
- const text=current+(continuation?' '+previous.slice(-6).map(normal).join(' '):'');
+ const text=bareDevelopmentContinuation(request)?current+' '+normal(substantivePrior(previous)):current;
  return /\b(?:github|retake|hafize|depo|repo|pull request|commit|pr|firebase|nvidia)\b/.test(text)&&
  /\b(?:gelistir|duzelt|guncelle|uygula|olustur|entegre et|kodla|kod degisikligi|degistir|yayinla|canliya al|birlestir|merge|deploy|commit|pr ac|pull request ac|tamamla|devam et|fix|implement|update|patch|write|create)\w*/.test(text);
 }
@@ -35,13 +47,9 @@ export function requestedExistingFeatureBranch(request:unknown):string|null{
  * an otherwise bare continuation. Never extract authority from assistant
  * output, repository content or a new unrelated task. */
 export function continuationDevelopmentRequest(request:unknown,previous:readonly unknown[]=[]):unknown{
- const bare=(v:unknown)=>/^(?:kaldigin yerden devam et|devam et|tamamla|continue|resume)[.!\s]*$/.test(normal(v).trim());
- if(!bare(request))return request;
- for(const prior of previous.slice(-6).reverse()){
-  if(bare(prior))continue;
-  return requestedExistingFeatureBranch(prior)&&githubWorkRequested(prior)?prior:request;
- }
- return request;
+ if(!bareDevelopmentContinuation(request))return request;
+ const prior=substantivePrior(previous);
+ return requestedExistingFeatureBranch(prior)&&githubWorkRequested(prior)?prior:request;
 }
 export function violatesExistingFeatureBranch(branch:string|null,tool:string,args:unknown):boolean{
  if(!branch||!['github_develop','github_release'].includes(tool))return false;

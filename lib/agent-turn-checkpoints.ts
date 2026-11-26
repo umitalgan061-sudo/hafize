@@ -1,6 +1,6 @@
 import type {DatabaseSync} from 'node:sqlite';
 import {createCipheriv,createDecipheriv,hkdfSync,randomBytes} from 'node:crypto';
-import type {GitHubReceipt} from './github-run-evidence.ts';
+import {bareDevelopmentContinuation,type GitHubReceipt} from './github-run-evidence.ts';
 
 type Cipher={encrypt(plain:string):string;decrypt(sealed:string):string};
 type State='running'|'answered'|'incomplete'|'interrupted'|'cancelled';
@@ -19,7 +19,7 @@ export const durableGitHubTools=new Set(['github_read_file','github_inspect','gi
 export const mutationTools=new Set(['github_develop','github_release']);
 export function continuationRequested(value:unknown):boolean{
  const s=typeof value==='string'?value.toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i'):'';
- return /\b(?:devam et|kaldigin yerden|tamamla|durma|continue|resume)\b/.test(s);
+ return bareDevelopmentContinuation(value)||/\b(?:devam et|kaldigin yerden|tamamla|durma|continue|resume)\b/.test(s);
 }
 export function mutationIntent(tool:string,args:unknown):Pending|null{
  if(!mutationTools.has(tool))return null;

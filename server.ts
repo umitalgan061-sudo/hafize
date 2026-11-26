@@ -893,7 +893,7 @@ async function handleAgentRun(req, res) {
   const lastUserText = lastUserIndex>=0 ? messages[lastUserIndex].content : '';
   const requestedTurnId = body.agentTurnId;
   const durable = safeGitHubAutonomy && !ownerId.startsWith('connector:') && isAgentTurnId(conversationId) && isAgentTurnId(requestedTurnId) &&
-    githubWorkRequested(lastUserText,messages.filter(m=>m.role==='user').map(m=>m.content));
+    githubWorkRequested(lastUserText,messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
   const serverPrior = durable ? PLATFORM.agentTurns.previous(ownerId,conversationId) : null;
   const continuing = durable && continuationRequested(lastUserText);
   const restoredPrior=durable&&!serverPrior?PLATFORM.agentTurns.importRecovery(ownerId,conversationId,body.agentRecoveryToken):null;
@@ -1061,7 +1061,7 @@ async function handleAgentRun(req, res) {
   if(requestedBranch)workingMessages.push({role:'system',content:'Kullanıcının mevcut geliştirme dalı: '+requestedBranch+'. Bu dalı doğrula ve yalnız bu dalı kullan. Yeni dal oluşturma; main değişmişse dalı sessizce değiştirme. Gerekli güncel blob SHA bilgisiyle çalış.'});
   const toolSummary = [];
   const githubReceipts: GitHubReceipt[] = [...reconciliationReceipts];
-  let githubEvidenceMode = githubWorkRequested(lastUserText, messages.filter(m=>m.role==='user').map(m=>m.content));
+  let githubEvidenceMode = githubWorkRequested(lastUserText, messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
   // GitHub-capable sessions buffer model narrative per round. The tool badges
   // and heartbeats remain live. A model's premature success claim must never
   // reach the user before trusted receipts can replace it.
