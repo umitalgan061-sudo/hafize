@@ -11,6 +11,11 @@ import {parseModelJson} from './model-services.ts';
  * Sınırlar: istemci model, prompt, araç veya URL seçemez; görseller saklanmaz,
  * loglanmaz, kimlik tespiti istenmez. Oylar dağınıksa jüri karar vermez ("abstain")
  * ve Retake kendi yerel ArcFace/doku seçimini korur.
+ *
+ * v2: dört farklı üreticiden güncel çok kipli ücretsiz uç nokta (bağımsız
+ * oylar), yanıt vermeyenlerin yerine yedek modeller ve isteğe bağlı "inceleme
+ * paftası" düzeni: her adayda tüm yüzün yanında göz ve ağız yakın planları,
+ * çünkü görsel modeller büyük görselleri küçültür ve ince kusurları kaçırır.
  */
 
 type Json = Record<string, unknown>;
@@ -18,11 +23,20 @@ type Complete = (payload: Json, signal?: AbortSignal) => Promise<unknown>;
 
 export const VISION_JUDGE_TASK = 'face-realism-rank';
 export const VISION_JUDGE_PROJECTS: ReadonlySet<string> = new Set(['retake']);
+// Four vendors, so one model family's taste cannot outvote the others.
 export const VISION_JUDGE_DEFAULT_MODELS: readonly string[] = Object.freeze([
   'nvidia/nemotron-3.5-super-vl-120b-a12b',
-  'meta/llama-3.2-11b-vision-instruct',
-  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
+  'mistralai/mistral-large-4-1t-a52b',
+  'stepfun-ai/step-5-preview',
+  'z-ai/glm-5.3-flash'
 ]);
+// Asked only when too few panel models answered (missing, throttled, no image input).
+export const VISION_JUDGE_RESERVE_MODELS: readonly string[] = Object.freeze([
+  'meta/muse-glimmer-30b',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+  'meta/llama-3.2-11b-vision-instruct'
+]);
+export const VISION_JUDGE_LAYOUTS: readonly string[] = Object.freeze(['face', 'review-sheet']);
 export const VISION_JUDGE_LIMITS = Object.freeze({
   minCandidates: 2,
   maxCandidates: 4,
@@ -33,12 +47,18 @@ export const VISION_JUDGE_LIMITS = Object.freeze({
   maxBodyBytes: 2_800_000,
   callTimeoutMs: 40_000,
   maxParallelCalls: 4,
+  /** Fewer answering panel models than this → ask reserves, while time allows. */
+  minAnsweringModels: 3,
+  maxReserveModels: 2,
+  reserveStartBeforeMs: 85_000,
+  /** The gateway's own deadline for a jury request (Retake waits 190 s). */
+  requestDeadlineMs: 175_000,
   minVotes: 2,
   minAgreement: 2 / 3,
   minScoreMargin: 0.5
 });
 export const VISION_JUDGE_ISSUES: readonly string[] = Object.freeze([
-  'seam', 'tone', 'lighting', 'waxy', 'eyes', 'teeth', 'warp', 'sharpness', 'ghost'
+  'seam', 'tone', 'lighting', 'waxy', 'eyes', 'teeth', 'warp', 'sharpness', 'ghost', 'grain', 'catchlight'
 ]);
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
 const MODEL_ID = /^[a-z0-9][a-z0-9_.-]{0,80}\/[a-z0-9][a-z0-9_.-]{0,120}$/i;
@@ -73,10 +93,15 @@ export function decodeJudgeImage(value: unknown): DecodedImage {
   return {mime, base64, bytes: buffer.length};
 }
 
-export function judgePrompt(count: number): string {
+export function judgePrompt(count: number, layout = 'face'): string {
   const letters = LETTERS.slice(0, count).join(', ');
+  const sheet = layout === 'review-sheet' ? [
+    'Each image is a review sheet of one edit: the whole face with its surroundings on the left; on the right, enlarged close-ups of the SAME edit: the eyes and eyebrows (top) and the mouth (bottom).',
+    'Use the close-ups for fine detail: eyelashes, iris texture and the catchlight reflection in the eyes, eyebrow hairs, lip lines, teeth, pores and grain. Judge the edit as a whole; do not reward an image for the sheet layout itself.'
+  ] : [];
   return [
     `You are a strict photo retouching quality reviewer. Images ${letters} are alternative edits of the SAME photograph; only the face region differs between them.`,
+    ...sheet,
     'Decide which edit looks most like an untouched photo straight from a camera.',
     'Look for: visible seams, halos or dark outlines around the face; skin tone or lighting on the face that does not match the forehead, ears, neck or the rest of the photo;',
     'waxy, plastic or over-smoothed skin; blurry, mismatched or warped eyes, teeth or eyebrows; distorted proportions; sharpness or noise that differs from the surrounding photo; ghosted double edges.',
@@ -161,34 +186,42 @@ function messageText(result: unknown): string {
   const first = Array.isArray(choices) && choices.length ? choices[0] : null;
   const message = first && typeof first === 'object' ? (first as Json).message : null;
   const content = message && typeof message === 'object' ? (message as Json).content : null;
-  return typeof content === 'string' ? content : '';
+  const text = typeof content === 'string' ? content
+    : Array.isArray(content) ? content.map((part) => part && typeof part === 'object' && typeof (part as Json).text === 'string' ? (part as Json).text : '').join('')
+    : '';
+  // Reasoning models may think aloud first; only the answer after it counts.
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*<\/think>/i, '');
 }
 
-export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAULT_MODELS}: {complete: Complete; models?: readonly string[]}) {
+export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAULT_MODELS, reserves = VISION_JUDGE_RESERVE_MODELS, now = Date.now}: {complete: Complete; models?: readonly string[]; reserves?: readonly string[]; now?: () => number}) {
   const judgeModels = Object.freeze([...models].slice(0, VISION_JUDGE_LIMITS.maxModels));
+  const reserveModels = Object.freeze([...reserves].filter((model) => MODEL_ID.test(model) && !judgeModels.includes(model)).slice(0, VISION_JUDGE_LIMITS.maxReserveModels));
 
   async function judge(project: string, input: unknown, signal?: AbortSignal) {
     signal?.throwIfAborted();
     if (!VISION_JUDGE_PROJECTS.has(project)) fail('PROJECT_AI_TASK_NOT_ALLOWED', 403);
     if (!input || typeof input !== 'object' || Array.isArray(input)) fail('PROJECT_AI_INVALID_INPUT');
     const args = input as Json;
-    if (Object.keys(args).some((key) => key !== 'task' && key !== 'candidates')) fail('PROJECT_AI_INVALID_INPUT');
+    if (Object.keys(args).some((key) => key !== 'task' && key !== 'candidates' && key !== 'layout')) fail('PROJECT_AI_INVALID_INPUT');
     if (args.task !== VISION_JUDGE_TASK) fail('PROJECT_AI_INVALID_TASK');
+    const layout = args.layout === undefined ? 'face' : args.layout;
+    if (typeof layout !== 'string' || !VISION_JUDGE_LAYOUTS.includes(layout)) fail('PROJECT_AI_INVALID_INPUT');
     const raw = args.candidates;
     if (!Array.isArray(raw) || raw.length < VISION_JUDGE_LIMITS.minCandidates || raw.length > VISION_JUDGE_LIMITS.maxCandidates) fail('PROJECT_AI_INVALID_INPUT');
     const images = (raw as unknown[]).map(decodeJudgeImage);
     if (images.reduce((total, image) => total + image.bytes, 0) > VISION_JUDGE_LIMITS.maxTotalBytes) fail('PROJECT_AI_IMAGE_TOO_LARGE', 413);
 
     const count = images.length;
-    const prompt = judgePrompt(count);
-    const jobs = judgeModels.flatMap((model) => judgeOrders(count).map((order) => ({model, order})));
-    const juryStarted = Date.now();
+    const prompt = judgePrompt(count, layout as string);
+    const jobsFor = (list: readonly string[]) => list.flatMap((model) => judgeOrders(count).map((order) => ({model, order})));
+    const jobs = jobsFor(judgeModels);
+    const juryStarted = now();
     const diagnostics: Array<{model: string; order: 'forward' | 'reverse'; outcome: string; elapsedMs: number}> = [];
     const runVote = async ({model, order}: (typeof jobs)[number]) => {
-      const started = Date.now();
+      const started = now();
       const direction = order[0] === 0 ? 'forward' as const : 'reverse' as const;
       const record = (outcome: string) => {
-        const row = {model, order: direction, outcome, elapsedMs: Date.now() - started};
+        const row = {model, order: direction, outcome, elapsedMs: now() - started};
         diagnostics.push(row);
         // No provider messages, prompts, images, or credentials in logs.
         console.info('hafize.retake.jury.model ' + JSON.stringify(row));
@@ -206,8 +239,9 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
         model,
         stream: false,
         temperature: 0,
-        max_tokens: 400,
-        // Nemotron VL/Omni reason before answering; a ranking must fit the request window.
+        // Nemotron VL/Omni can skip their reasoning; other reasoning models
+        // need room to think before the JSON answer.
+        max_tokens: /nemotron/i.test(model) ? 400 : 1200,
         ...(/nemotron/i.test(model) ? {chat_template_kwargs: {enable_thinking: false}} : {}),
         messages: [{role: 'user', content}]
       }, callSignal);
@@ -227,11 +261,25 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
     // Each model still sees both orders; no partial batch can silently become
     // an authoritative vote after the client disconnects.
     const settled: PromiseSettledResult<Awaited<ReturnType<typeof runVote>>>[] = [];
-    for (let offset = 0; offset < jobs.length; offset += VISION_JUDGE_LIMITS.maxParallelCalls) {
-      signal?.throwIfAborted();
-      settled.push(...await Promise.allSettled(jobs.slice(offset, offset + VISION_JUDGE_LIMITS.maxParallelCalls).map(runVote)));
-    }
+    const runBatches = async (list: ReturnType<typeof jobsFor>) => {
+      for (let offset = 0; offset < list.length; offset += VISION_JUDGE_LIMITS.maxParallelCalls) {
+        signal?.throwIfAborted();
+        settled.push(...await Promise.allSettled(list.slice(offset, offset + VISION_JUDGE_LIMITS.maxParallelCalls).map(runVote)));
+      }
+    };
+    await runBatches(jobs);
     signal?.throwIfAborted();
+    // Too few independent panel models answered: ask reserves while time allows.
+    const answered = () => new Set(settled.flatMap((row) => row.status === 'fulfilled' && row.value.vote ? [row.value.model] : [])).size;
+    const reservesAsked: string[] = [];
+    if (answered() < VISION_JUDGE_LIMITS.minAnsweringModels && reserveModels.length && now() - juryStarted < VISION_JUDGE_LIMITS.reserveStartBeforeMs) {
+      const needed = Math.min(reserveModels.length, VISION_JUDGE_LIMITS.minAnsweringModels - answered());
+      reservesAsked.push(...reserveModels.slice(0, needed));
+      const reserveJobs = jobsFor(reservesAsked);
+      jobs.push(...reserveJobs);
+      await runBatches(reserveJobs);
+      signal?.throwIfAborted();
+    }
 
     const votes: JudgeVote[] = [];
     const answeringModels = new Set<string>();
@@ -255,9 +303,11 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
       task: VISION_JUDGE_TASK,
       ...verdict,
       attempted: jobs.length,
-      attemptedModels: [...judgeModels],
+      attemptedModels: [...judgeModels, ...reservesAsked],
+      reserveModels: reservesAsked,
+      layout,
       diagnostics,
-      elapsedMs: Date.now() - juryStarted,
+      elapsedMs: now() - juryStarted,
       models: [...answeringModels].sort(),
       imagesStored: false,
       toolsExecuted: false
@@ -266,6 +316,6 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
 
   return Object.freeze({
     judge,
-    status: () => ({models: [...judgeModels], projects: [...VISION_JUDGE_PROJECTS], task: VISION_JUDGE_TASK})
+    status: () => ({models: [...judgeModels], reserveModels: [...reserveModels], layouts: [...VISION_JUDGE_LAYOUTS], projects: [...VISION_JUDGE_PROJECTS], task: VISION_JUDGE_TASK})
   });
 }
