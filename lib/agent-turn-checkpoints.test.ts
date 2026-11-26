@@ -48,3 +48,5 @@ it('exposes only whether a durable turn is active, including cancellation until 
  turns.cancelAll();expect(turns.hasActive()).toBe(true);
  turns.finish('owner','turn','interrupted');expect(turns.hasActive()).toBe(false);db.close();
 });
+
+it('counts concurrent task activity without exposing owner or conversation data',()=>{const db=new DatabaseSync(':memory:'),turns=createAgentTurnCheckpoints({db,cipherFor});turns.begin('owner','chat1','turn1');turns.begin('owner','chat2','turn2');expect(turns.activeCount()).toBe(2);turns.finish('owner','turn1','answered');expect(turns.activeCount()).toBe(1);db.close();});

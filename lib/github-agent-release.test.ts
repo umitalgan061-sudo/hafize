@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest,parseExplicitMergeCommand} from './github-agent-release.ts';
+import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest,parseExplicitMergeCommand,parseExplicitReleaseCommand} from './github-agent-release.ts';
 import type {createGitHubWorkspaceWriter} from './github-workspace-write.ts';
 const repo='umitalgan061-sudo/hafize-siteler',sha='a'.repeat(40),base='b'.repeat(40);
 function fixture(opts:{failed?:boolean;path?:string;draft?:boolean;mainFailed?:boolean;incomplete?:boolean;alreadyMerged?:boolean;lostMergeResponse?:boolean;wrongMergedHead?:boolean}={}){
@@ -137,3 +137,48 @@ it('recovers a lost merge response by a read, never a second merge request',asyn
  await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,authorization})).resolves.toMatchObject({existing:true,reconciled:true,merged:true,mergeCommitSha:'c'.repeat(40)});
  expect((fetchImpl as any).mock.calls.filter(([url]:[URL])=>url.pathname.endsWith('/merge'))).toHaveLength(1);
 });
+
+describe('canonical Render publication',()=>{
+ const hafize='umitalgan061-sudo/hafize';
+ const authorization={repositories:[hafize],actions:['publish']};
+ const writer={configured:()=>true} as unknown as ReturnType<typeof createGitHubWorkspaceWriter>;
+ function renderFixture({live=false,hook='',failed=false,moved=false}:{live?:boolean;hook?:string;failed?:boolean;moved?:boolean}={}){
+  const fetchImpl=vi.fn(async(u:URL|string)=>{
+   const url=new URL(String(u));
+   if(url.pathname.endsWith('/heads/main'))return Response.json({object:{sha:moved?sha:base}});
+   if(url.pathname.endsWith('/actions/runs'))return Response.json({total_count:1,workflow_runs:[{head_sha:base,head_branch:'main',path:'.github/workflows/quality.yml',status:'completed',conclusion:failed?'failure':'success'}]});
+   throw Error('Unexpected GitHub call');
+  }) as unknown as typeof fetch;
+  const renderFetch=vi.fn(async(u:URL|string)=>{
+   const url=new URL(String(u));
+   if(url.hostname==='hafize-free.onrender.com')return Response.json(url.pathname==='/release.json'?{commit:live?base:sha}:{revision:live?base:sha,status:'ok'});
+   if(url.hostname==='api.render.com')return new Response(null,{status:202});
+   throw Error('unexpected origin');
+  }) as unknown as typeof fetch;
+  return {release:createGitHubAgentRelease({writer,allowedRepositories:[hafize],fetchImpl,renderHook:hook,renderFetch}),renderFetch};
+ }
+ const args={action:'publish',repository:hafize,sha:base,target:'render'};
+ it('verifies an already live exact revision without a secret or redeploy',async()=>{
+  const f=renderFixture({live:true});
+  await expect(f.release.execute(args,{ownerAuthorized:true,authorization})).resolves.toMatchObject({target:'render',published:true,existing:true});
+  expect(f.renderFetch).toHaveBeenCalledTimes(2);
+ });
+ it('requires a service-specific configured hook and exact main with passed CI',async()=>{
+  for(const [options,code] of [[{},'RENDER_DEPLOY_HOOK_NOT_CONFIGURED'],[{hook:'https://example.org/deploy/key'},'RENDER_DEPLOY_HOOK_INVALID'],[{hook:'https://api.render.com/deploy/srv-other?key=test'},'RENDER_DEPLOY_HOOK_INVALID'],[{failed:true},'RELEASE_MAIN_TESTS_NOT_GREEN'],[{moved:true},'RELEASE_BASE_MOVED']] as const){
+   const f=renderFixture(options);
+   await expect(f.release.execute(args,{ownerAuthorized:true,authorization})).rejects.toMatchObject({code});
+   expect((f.renderFetch as any).mock.calls.every(([url]:[URL|string])=>new URL(String(url)).hostname==='hafize-free.onrender.com')).toBe(true);
+  }
+ });
+ it('dispatches only the exact approved main SHA and never discloses the hook',async()=>{
+  const f=renderFixture({hook:'https://api.render.com/deploy/srv-dc1valbl550s73flt7rg?key=fixture-only'});
+  const result=await f.release.execute(args,{ownerAuthorized:true,authorization});
+  expect(result).toMatchObject({target:'render',dispatchAccepted:true,published:false});
+  expect(JSON.stringify(result)).not.toContain('fixture-only');
+  const calls=(f.renderFetch as any).mock.calls;
+  expect(new URL(String(calls[2][0])).searchParams.get('ref')).toBe(base);
+  expect(calls[2][1]).toMatchObject({method:'POST',redirect:'error'});
+ });
+});
+
+it('parses only exact standalone Render release commands',()=>{const repo='umitalgan061-sudo/hafize',sha='a'.repeat(40),request=repo+' deposunu canlıya al.\n\ngithub_release aracını şu parametrelerle çalıştır:\n\n'+JSON.stringify({action:'publish',repository:repo,sha,target:'render'});expect(parseExplicitReleaseCommand(request)).toEqual({action:'publish',repository:repo,sha,target:'render'});expect(parseExplicitReleaseCommand(request+'\nYalnızca incele.')).toBeNull();});
