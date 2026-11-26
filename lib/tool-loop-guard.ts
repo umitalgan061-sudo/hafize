@@ -17,7 +17,7 @@ function canonicalValue(value: unknown, depth = 0): unknown {
 
 function canonicalArguments(args: unknown): string {
   const raw = typeof args === 'string' ? args : '{}';
-  try { return JSON.stringify(canonicalValue(JSON.parse(raw))); }
+  try { return JSON.stringify(canonicalValue(typeof args === 'string' ? JSON.parse(raw) : args ?? {})); }
   catch { return raw; }
 }
 
@@ -43,6 +43,7 @@ function refreshableRead(name:unknown,args:unknown):string{
 export function createToolLoopGuard(maxIdenticalCalls = 1) {
   const seen = new Map<string, number>();
   const epochs=new Map<string,number>();
+  const mutationReceipts = new Set<string>();
   const key = (name: unknown, args: unknown): string =>
     `${typeof name === 'string' ? name : ''}\u0000${canonicalArguments(args)}\u0000${epochs.get(refreshableRead(name,args))||0}`;
   return Object.freeze({
@@ -54,11 +55,22 @@ export function createToolLoopGuard(maxIdenticalCalls = 1) {
       if(outer.ok!==true||!repo||v.existing===true)return;
       const validSha=(x:unknown)=>typeof x==='string'&&SHA.test(x);
       const positive=(x:unknown)=>typeof x==='number'&&Number.isSafeInteger(x)&&x>0;
-      const changed=v.action==='file'&&v.verified===true&&validSha(v.commitSha)&&validSha(v.blobSha)||
-        v.action==='branch'&&typeof v.branch==='string'&&v.branch.startsWith('hafize/auto-')&&validSha(v.fromSha)||
-        (v.action==='pull'||v.action==='open')&&positive(v.number)&&validSha(v.headSha)||
-        v.action==='merge'&&v.merged===true&&positive(v.number)&&validSha(v.mergeCommitSha);
-      if(changed)epochs.set(repo,(epochs.get(repo)||0)+1);
+      let receipt: unknown[] | undefined;
+      if(v.action==='file'&&v.verified===true&&validSha(v.commitSha)&&validSha(v.blobSha)) {
+        receipt=['file',v.commitSha];
+      } else if(v.action==='branch'&&typeof v.branch==='string'&&v.branch.startsWith('hafize/auto-')&&validSha(v.fromSha)) {
+        receipt=['branch',v.branch,v.fromSha];
+      } else if((v.action==='pull'||v.action==='open')&&positive(v.number)&&validSha(v.headSha)) {
+        receipt=['pull',v.number];
+      } else if(v.action==='merge'&&v.merged===true&&positive(v.number)&&validSha(v.mergeCommitSha)) {
+        receipt=['merge',v.number,v.mergeCommitSha];
+      }
+      if(!receipt)return;
+      const receiptKey=JSON.stringify([repo,...receipt]);
+      // Replayed or aliased receipts must not reopen a consumed read slot.
+      if(mutationReceipts.has(receiptKey))return;
+      mutationReceipts.add(receiptKey);
+      epochs.set(repo,(epochs.get(repo)||0)+1);
     },
     shouldRun(name: unknown, args: unknown): boolean {
       const callKey = key(name, args);
