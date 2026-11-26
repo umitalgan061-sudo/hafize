@@ -74,7 +74,7 @@ import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, type GitHubReceipt } from './lib/github-run-evidence.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
@@ -1134,6 +1134,9 @@ async function handleAgentRun(req, res) {
       content = formatGitHubRunEvidence(githubReceipts);
       if(interruptionDiagnostic)content+='\n\nKesinti nedeni: '+interruptionDiagnostic+'.';
       if(restoredPrior)content+='\n\nÖnceki görevin şifreli tarayıcı yedeği doğrulandı.'+(recoveryReadOnly?' Sunucu kaydı kayıp olduğundan bu tur yalnız inceleme yapılabilir.':'');
+      if(explicitPullRequested(developmentRequest)&&!githubReceipts.some(r=>r.kind==='pull'||r.kind==='merge')){
+        content+='\n\nİstenen PR bu turda doğrulanmadı; görev tamamlanmış sayılmıyor.';unresolved=true;
+      }
       alreadyWritten = false;
       // A read or new empty branch is not a delivered code change. Even with
       // receipts the formatter never asserts full user-task completion.
@@ -1224,6 +1227,7 @@ async function handleAgentRun(req, res) {
   let budgetReminderIndex = -1;
   let noProgressRounds=0;
   let readOnlyWriteRecoveryUsed=false;
+  let missingPullRecoveryUsed=false;
   interruptionStage='execution';
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
@@ -1297,6 +1301,11 @@ async function handleAgentRun(req, res) {
         shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
         readOnlyWriteRecoveryUsed=true;
         workingMessages.push({role:'system',content:'Kullanıcının son mesajı mevcut izinli geliştirme dalında somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Yeni dal, PR, merge veya yayın kendiliğinden başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
+        continue;
+      }
+      if(!missingPullRecoveryUsed&&round+1<MAX_AGENT_TOOL_ROUNDS&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverMissingPull(developmentRequest,githubReceipts,toolSummary)){
+        missingPullRecoveryUsed=true;
+        workingMessages.push({role:'system',content:'Kullanıcının istediği mevcut dalda dosya değişikliği doğrulandı ancak istenen PR henüz yok. Önce bu dalın güncel PR/diff durumunu kontrol et. Mevcut PR yoksa izinli github_develop pull ile aynı dalda taslak PR aç; PR varsa tekrar oluşturma. Test sonucu uydurma, merge veya yayın başlatma.'});
         continue;
       }
       // "I will start changing the code" without an actual change or result

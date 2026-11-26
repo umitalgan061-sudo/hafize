@@ -64,6 +64,16 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
    !receipts.some(r=>(r.kind==='error'&&!r.line.includes('GITHUB_REQUESTED_BRANCH_MISMATCH'))||['file','pull','merge','dispatch'].includes(r.kind))&&
    !calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&!(c.operation==='branch'&&c.ok===true)&&c.error!=='GITHUB_REQUESTED_BRANCH_MISMATCH'));
 }
+/** Only explicit affirmative PR requests on a named existing feature
+ * branch. A verified file write is progress, not delivery of the PR.
+ * No retry after a PR mutation attempt or a failed/uncertain write. */
+export function explicitPullRequested(request:unknown):boolean{
+ const s=normal(request);
+ return Boolean(requestedExistingFeatureBranch(request))&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(s);
+}
+export function shouldRecoverMissingPull(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string}[]):boolean{
+ return explicitPullRequested(request)&&receipts.some(r=>r.kind==='file')&&!receipts.some(r=>['pull','merge','dispatch','error'].includes(r.kind))&&!calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&(c.operation==='pull'||c.ok!==true)));
+}
 export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  if(!['github_read_file','github_inspect','github_develop','github_release'].includes(tool))return [];
  const outer=rec(result),v=rec(outer.value);
