@@ -4,7 +4,7 @@ import type {GitHubReceipt} from './github-run-evidence.ts';
 
 type Cipher={encrypt(plain:string):string;decrypt(sealed:string):string};
 type State='running'|'answered'|'incomplete'|'interrupted'|'cancelled';
-type Pending={tool:string;repository:string;operation:string;branch:string;path:string;sha:string;number:number|null};
+export type Pending={tool:string;repository:string;operation:string;branch:string;path:string;sha:string;number:number|null;expectedBlob?:string};
 type Body={receipts:GitHubReceipt[];pending:Pending[];answer:string};
 type Row={id:string;owner_id:string;conversation_id:string;status:State;body_enc:string;updated_at:number;created_at:number};
 const ID=/^[a-zA-Z0-9_-]{1,120}$/;
@@ -119,10 +119,20 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
   const r=row(owner,id);if(!r||r.status!=='running')throw Error('AGENT_TURN_NOT_RUNNING');
   const body=read(r);body.pending.push(...intents);update(r,'running',body);
  }
+ // Record only the approved, normalized result hash before the file PUT.
+ // No source, approval ticket, credential or tool arguments in the journal.
+ function preparedFile(owner:string,id:string,target:{repository:string;branch:string;path:string;expectedBlob:string}){
+  const r=row(owner,id);if(!r||r.status!=='running'||!SHA.test(target.expectedBlob))throw Error('AGENT_TURN_NOT_RUNNING');
+  const body=read(r);
+  const matches=body.pending.filter(p=>p.tool==='github_develop'&&p.operation==='file'&&p.repository.toLowerCase()===target.repository.toLowerCase()&&p.branch===target.branch&&p.path===target.path);
+  if(matches.length!==1)throw Error('AGENT_TURN_PENDING_TARGET_MISMATCH');
+  matches[0]!.expectedBlob=target.expectedBlob;
+  update(r,'running',body);
+ }
  function checkpoint(owner:string,id:string,receipts:GitHubReceipt[],settled:Pending[]){
   const r=row(owner,id);if(!r||r.status!=='running')throw Error('AGENT_TURN_NOT_RUNNING');
   const body=read(r);body.receipts.push(...receipts);body.receipts=body.receipts.slice(-MAX_RECEIPTS);
-  for(const intent of settled){const n=body.pending.findIndex(p=>JSON.stringify(p)===JSON.stringify(intent));if(n>=0)body.pending.splice(n,1);}
+  for(const intent of settled){const n=body.pending.findIndex(p=>p.tool===intent.tool&&p.repository===intent.repository&&p.operation===intent.operation&&p.branch===intent.branch&&p.path===intent.path&&p.sha===intent.sha&&p.number===intent.number);if(n>=0)body.pending.splice(n,1);}
   update(r,'running',body);
  }
  function finish(owner:string,id:string,status:Exclude<State,'running'>,answer=''){
@@ -139,6 +149,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
+ return Object.freeze({begin,get,previous,before,preparedFile,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;

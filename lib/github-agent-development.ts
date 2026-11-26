@@ -20,6 +20,7 @@ type RequestContext = {
   readonly requestApproval?: Approval;
   /** Trusted SERVER context only: cannot be supplied as model tool arguments. */
   readonly safeAutonomy?: boolean;
+  readonly onPreparedFile?: (target:{repository:string;branch:string;path:string;expectedBlob:string})=>void;
 };
 type Options = {
   readonly writer: Writer;
@@ -165,6 +166,11 @@ export function createGitHubAgentDevelopment(options: Options) {
     const token = ticket.ticket;
     if (operation === 'branch') return writer.createBranch(token, normalized);
     if (operation === 'file') {
+      if(context.onPreparedFile){
+        const bytes=Buffer.from(String(normalized.content),'utf8');
+        const expectedBlob=createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
+        context.onPreparedFile({repository,branch,path:String(normalized.path),expectedBlob});
+      }
       const committed = await writer.commitFile(token, normalized);
       // The mutation has already returned a commit. A transient read-back
       // error (including 404/403) is NOT a rejected write. Retry only the

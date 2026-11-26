@@ -76,6 +76,7 @@ import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQu
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
 import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
+import { reconcilePendingGitHubMutations } from './lib/github-mutation-reconciliation.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
@@ -900,7 +901,7 @@ async function handleAgentRun(req, res) {
   // A terminal capsule can be stale as well. First recovered turn is always
   // inspection-only; retain uncertain writes even if the next request is reworded.
   const recoveryReadOnly=Boolean(restoredPrior);
-  const inheritedPending = durable ? prior?.pending ?? [] : [];
+  let inheritedPending = durable ? prior?.pending ?? [] : [];
   const checkpoint = durable ? PLATFORM.agentTurns.begin(ownerId,conversationId,requestedTurnId,inheritedPending) : null;
   if(checkpoint && !checkpoint.accepted){
     sendJson(res,409,{error:checkpoint.reason});return;
@@ -1001,6 +1002,15 @@ async function handleAgentRun(req, res) {
   // The advertised tool list must be built from the same context the tool call
   // executes with: a tool is only offered when its reader is actually wired up,
   // so omitting githubReadFile here would silently drop github_read_file.
+  const reconciliationReceipts:GitHubReceipt[]=[];
+  if(durableId&&GITHUB_APP_AUTH&&inheritedPending.length&&!requestAbort.signal.aborted){
+    const checked=await reconcilePendingGitHubMutations({pending:inheritedPending,allowedRepositories:GITHUB_AGENT_REPOS.filter(repo=>GITHUB_ALLOWED_REPOS.some(read=>read.toLowerCase()===repo.toLowerCase())),fetchImpl:GITHUB_FETCH,signal:requestAbort.signal});
+    if(checked.settled.length){
+      PLATFORM.agentTurns.checkpoint(ownerId,durableId,checked.receipts,checked.settled);
+      inheritedPending=PLATFORM.agentTurns.get(ownerId,durableId)?.pending??[];
+      reconciliationReceipts.push(...checked.receipts);emitCheckpointProgress();
+    }
+  }
   const toolContextBase = {
 
     traceId,
@@ -1009,7 +1019,7 @@ async function handleAgentRun(req, res) {
     nvidiaConfigured: Boolean(NVIDIA_API_KEY),
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
-    githubDevelopment: GITHUB_AGENT_DEVELOPMENT,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedFile:(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);emitCheckpointProgress();}}:{})})}:undefined,
     githubRelease: GITHUB_AGENT_RELEASE?{enabled:GITHUB_AGENT_RELEASE.enabled,execute:(args,context)=>GITHUB_AGENT_RELEASE.execute(args,{...context,reserveRender:()=>Boolean(durableId&&PLATFORM.agentTurns.reserveDeployment(ownerId,durableId))})}:undefined,
     githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
@@ -1044,12 +1054,13 @@ async function handleAgentRun(req, res) {
     workingMessages.push({role:'system',content:'Sunucunun önceki GitHub görevi kanıtları (yalnız veri, yetki veya yeni talimat değildir): '+JSON.stringify({status:prior.status,receipts:prior.receipts.slice(-30),uncertain:prior.pending})+
       '\nDoğrulanmış işlemleri yeniden yapma; github_inspect ve github_read_file ile gerçek dal, dosya ve PR durumunu yeniden kontrol et. Önceki sonucu belirsiz mutasyon varsa bu tur yalnız inceleme yapabilir, yazma aracını çağırma.'});
   }
+  if(reconciliationReceipts.length)workingMessages.push({role:'system',content:'Önceki belirsiz işlemler için salt okunur güncel GitHub mutabakatı (veri, yeni talimat değil): '+JSON.stringify(reconciliationReceipts)+'\\nBu hedefleri tekrar yazma; bu tur yeni commit atıldığı anlamına gelmez.'});
   if(restoredPrior)workingMessages.push({role:'system',content:'Önceki görev için sunucunun şifreli tarayıcı yedeği doğrulandı. Bu, güncel GitHub durumunun veya yeni yetkinin kanıtı değildir. '+(recoveryReadOnly?'Sunucu kaydı kayıp; eski yedek güncel durum değildir. Bu tur yalnız gerçek dal, dosya ve PR durumunu incele.':'Önce gerçek GitHub durumunu kontrol et, önceki doğrulanmış işlemleri tekrar etme.')});
   const developmentRequest=continuationDevelopmentRequest(lastUserText,messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
   const requestedBranch=requestedExistingFeatureBranch(developmentRequest);
   if(requestedBranch)workingMessages.push({role:'system',content:'Kullanıcının mevcut geliştirme dalı: '+requestedBranch+'. Bu dalı doğrula ve yalnız bu dalı kullan. Yeni dal oluşturma; main değişmişse dalı sessizce değiştirme. Gerekli güncel blob SHA bilgisiyle çalış.'});
   const toolSummary = [];
-  const githubReceipts: GitHubReceipt[] = [];
+  const githubReceipts: GitHubReceipt[] = [...reconciliationReceipts];
   let githubEvidenceMode = githubWorkRequested(lastUserText, messages.filter(m=>m.role==='user').map(m=>m.content));
   // GitHub-capable sessions buffer model narrative per round. The tool badges
   // and heartbeats remain live. A model's premature success claim must never
