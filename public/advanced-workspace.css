@@ -375,3 +375,109 @@ html[data-hafize-layout="classic"] .aw-search{min-height:36px}
     background:#125b38;border-color:#125b38;color:#fff;
   }
 }
+
+/* Advanced view, installed or in the browser, on a phone (2026-11-26). The desktop control set kept its
+   desktop shape: a two-row header with clipped labels, a composer of three wrapping rows with a
+   two-line "⌘ Araçlar açık" button, keyboard-shortcut help, and a privacy panel half under the
+   composer. Here every control keeps its node, label and listener; only the phone layout changes. */
+html[data-hafize-layout="classic"] .aw-top-toggle{gap:7px}
+.aw-top-icon{
+  flex:0 0 auto;width:15px;height:15px;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linejoin='round'%3E%3Crect x='3.5' y='3.5' width='7' height='7' rx='1.8'/%3E%3Crect x='13.5' y='3.5' width='7' height='7' rx='1.8'/%3E%3Crect x='3.5' y='13.5' width='7' height='7' rx='1.8'/%3E%3Crect x='13.5' y='13.5' width='7' height='7' rx='3.5'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.9' stroke-linejoin='round'%3E%3Crect x='3.5' y='3.5' width='7' height='7' rx='1.8'/%3E%3Crect x='13.5' y='3.5' width='7' height='7' rx='1.8'/%3E%3Crect x='3.5' y='13.5' width='7' height='7' rx='1.8'/%3E%3Crect x='13.5' y='13.5' width='7' height='7' rx='3.5'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+/* Keyboard shortcut help means nothing on a touch screen. */
+@media (pointer:coarse){#composerHistoryHelp{display:none!important}}
+
+@media (max-width:680px){
+  /* Header: one row, the same height as the focused view: ☰ · logo · agent · tools · status · theme. */
+  html[data-hafize-layout="classic"] .main>.topbar{
+    flex-wrap:nowrap;align-items:center;gap:6px;row-gap:0;
+    height:calc(66px + env(safe-area-inset-top));min-height:0;
+    padding-block:env(safe-area-inset-top) 0;
+  }
+  html[data-hafize-layout="classic"] .main>.topbar .brand-inline strong{display:none}
+  html[data-hafize-layout="classic"] .main>.topbar .top-spacer{flex:1 1 0;min-width:0}
+  html[data-hafize-layout="classic"] .main>.topbar .agent-compact{flex:0 1 132px;min-width:64px;max-width:none}
+  html[data-hafize-layout="classic"] .main>.topbar .agent-compact select{
+    width:100%;height:38px;min-height:38px;padding-block:0;font-size:13px;border-radius:10px;
+  }
+  html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"]) .aw-top-toggle{
+    flex:0 0 38px;width:38px;height:38px;min-height:38px;max-width:none;padding:0;border-radius:10px;
+  }
+  html[data-hafize-layout="classic"] .aw-top-icon{width:17px;height:17px}
+  html[data-hafize-layout="classic"] .aw-top-label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  /* The connection badge becomes a lit dot in its tone; its words stay its accessible name. */
+  html[data-hafize-layout="classic"] .main>.topbar #hafizeRuntimeStatus{
+    flex:0 0 34px;display:inline-grid;place-items:center;width:34px;height:34px;max-width:none;
+    padding:0;font-size:0;line-height:0;border-radius:50%;
+  }
+  html[data-hafize-layout="classic"] .main>.topbar #hafizeRuntimeStatus::before{
+    content:"";width:8px;height:8px;border-radius:50%;background:currentColor;
+    box-shadow:0 0 0 3px color-mix(in srgb,currentColor 20%,transparent);
+  }
+  html[data-hafize-layout="classic"] .main>.topbar .theme-toggle{flex:0 0 auto}
+
+  /* Composer: text · one scrolling row of tools with send pinned right · provider, model and preferences. */
+  html[data-hafize-layout="classic"] .main .primary-column form#composer.composer .composer-row{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;
+    grid-template-areas:"tools tools send" "provider model prefs";
+    align-items:center;gap:8px 6px;margin-top:6px;
+  }
+  html[data-hafize-layout="classic"] .main .primary-column form#composer.composer .composer-actions{display:contents}
+  html[data-hafize-layout="classic"] .main .primary-column form#composer.composer .composer-tools{
+    grid-area:tools;display:flex;flex-wrap:nowrap;gap:6px;min-width:0;
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:none;
+    padding:2px 18px 2px 2px;margin:-2px 0 -2px -2px;scroll-padding-inline:2px;
+    -webkit-mask:linear-gradient(90deg,#000 calc(100% - 22px),transparent);
+    mask:linear-gradient(90deg,#000 calc(100% - 22px),transparent);
+  }
+  html[data-hafize-layout="classic"] #composer .composer-tools::-webkit-scrollbar{display:none}
+  html[data-hafize-layout="classic"] .main .primary-column form#composer.composer .composer-tools>*{flex:0 0 auto}
+  html[data-hafize-layout="classic"] .main .primary-column form#composer.composer .composer-tools :is(.icon-btn,#composerHistoryToggle){
+    display:inline-flex;align-items:center;justify-content:center;
+    width:38px;height:38px;min-width:38px;min-height:38px;padding:0;border-radius:10px;
+    line-height:1;white-space:nowrap;
+  }
+  html[data-hafize-layout="classic"] #composer .send-btn{grid-area:send;align-self:center;width:44px;height:40px;margin:0}
+  html[data-hafize-layout="classic"] #composer .composer-provider{grid-area:provider}
+  html[data-hafize-layout="classic"] #composer .composer-model{grid-area:model}
+  html[data-hafize-layout="classic"] #composer #modelPreferencesButton{grid-area:prefs}
+  html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap{display:block;flex:none;max-width:none;min-width:0}
+  html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap>span{
+    position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+  }
+  html[data-hafize-layout="classic"] #composer .composer-actions .model-wrap select{
+    width:100%;height:36px;min-height:36px;padding-block:0;font-size:13px;border-radius:10px;
+  }
+  html[data-hafize-layout="classic"] #composer .composer-actions :is(.agent-hint,.stream-status:empty){display:none}
+  html[data-hafize-layout="classic"] #composer #modelPreferencesButton{
+    display:inline-flex;align-items:center;justify-content:center;width:44px;height:36px;min-height:36px;
+    padding:0;font-size:0;border:1px solid var(--line);border-radius:10px;background:var(--hz-subtle,var(--card));color:var(--ink);
+  }
+
+  /* The three text buttons in the tool row get line icons, like their neighbours; the words stay as names. */
+  html[data-hafize-layout="classic"] #composer :is(#composerHistoryToggle,#toolModeBtn,#screenShareBtn,#modelPreferencesButton){font-size:0;color:var(--ink);background:var(--hz-subtle,var(--card));border:1px solid var(--line)}
+  html[data-hafize-layout="classic"] #composer :is(#composerHistoryToggle,#toolModeBtn,#screenShareBtn,#modelPreferencesButton)::before{
+    content:"";width:17px;height:17px;background:currentColor;
+    -webkit-mask:var(--aw-icon) center/contain no-repeat;mask:var(--aw-icon) center/contain no-repeat;
+  }
+  html[data-hafize-layout="classic"] #composer #composerHistoryToggle{--aw-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 12a8.5 8.5 0 1 0 2.6-6.1'/%3E%3Cpath d='M3.5 4.5v4h4M12 7.5V12l3 2'/%3E%3C/svg%3E")}
+  html[data-hafize-layout="classic"] #composer #toolModeBtn{--aw-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.5 6.5a4 4 0 0 0 5 5l-8.8 8.8a2.1 2.1 0 0 1-3-3z'/%3E%3Cpath d='M14.5 6.5 17 4l3 3-2.5 2.5'/%3E%3C/svg%3E")}
+  html[data-hafize-layout="classic"] #composer #screenShareBtn{--aw-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16'/%3E%3Crect x='8' y='8.5' width='8' height='7' rx='1.4'/%3E%3C/svg%3E")}
+  html[data-hafize-layout="classic"] #composer #modelPreferencesButton{--aw-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M4 7h9M17 7h3M4 17h3M11 17h9'/%3E%3Ccircle cx='15' cy='7' r='2'/%3E%3Ccircle cx='9' cy='17' r='2'/%3E%3C/svg%3E")}
+  html[data-hafize-layout="classic"] #composer :is(#composerHistoryToggle[aria-expanded="true"],#toolModeBtn[aria-pressed="true"],#screenShareBtn[aria-pressed="true"]){
+    color:var(--premium-orange,var(--accent));border-color:color-mix(in srgb,var(--premium-orange,var(--accent)) 55%,var(--line));
+    background:color-mix(in srgb,var(--premium-orange,var(--accent)) 12%,var(--card));
+  }
+  html[data-hafize-layout="classic"] #composer #toolModeBtn:disabled{opacity:.45}
+
+  /* Tool centre: a sheet across the phone under the header, not a narrow card against the right edge. */
+  html[data-hafize-layout="classic"][data-aw-ready="true"] .main:is(:not([data-workspace]),[data-workspace="chat"])[data-aw-rail="open"]>.utility-rail{
+    inset:calc(var(--aw-top,76px) + 8px) 10px max(10px,env(safe-area-inset-bottom)) 10px;
+    width:auto;padding:12px 12px 18px;border-radius:18px;scrollbar-gutter:auto;
+  }
+}
+@media (max-width:350px){
+  html[data-hafize-layout="classic"] .main>.topbar .flower-logo{display:none}
+}

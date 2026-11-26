@@ -34,7 +34,11 @@ export function installAdvancedWorkspace(doc:Document, root:Window&typeof global
   let category:AdvancedCategory='all';
   const button=(label:string,cls:string)=>{const b=doc.createElement('button');b.type='button';b.className=cls;b.textContent=label;return b;};
   const make=(tag:string,cls:string,label?:string)=>{const e=doc.createElement(tag);e.className=cls;if(label!==undefined)e.textContent=label;return e;};
-  const toggle=button('Araç merkezi','aw-top-toggle');
+  // Icon and words: phones show the icon alone (advanced-workspace.css), so the name is also the button's label.
+  const toggle=button('','aw-top-toggle');
+  const toggleLabel=make('span','aw-top-label','Araç merkezi');
+  const toggleIcon=make('span','aw-top-icon');toggleIcon.setAttribute('aria-hidden','true');
+  toggle.append(toggleIcon,toggleLabel);
   toggle.id='advancedWorkspaceTools';toggle.setAttribute('aria-expanded','false');
   const previousRailId=rail.id;
   if(!rail.id)rail.id='advancedWorkspaceRail';
@@ -72,17 +76,25 @@ export function installAdvancedWorkspace(doc:Document, root:Window&typeof global
   const inChat=()=>!main.dataset.workspace||main.dataset.workspace==='chat';
   const active=()=>html.dataset.hafizeLayout==='classic'&&inChat();
   const isOpen=()=>wide.matches?desktopOpen:mobileOpen;
+  // Focus follows the panel only when the user closes it; on load a hidden panel must not pull focus
+  // (and a focus ring) onto the header button because a card inside it focused itself.
+  let shownBefore=false;
   const syncLayout=()=>{
     const visible=active()&&isOpen();
     html.dataset.awReady='true';
     main.dataset.awRail=visible?'open':'closed';
     toggle.setAttribute('aria-expanded',String(visible));
-    toggle.textContent=visible?'Araçları gizle':'Araç merkezi';
+    toggleLabel.textContent=visible?'Araçları gizle':'Araç merkezi';
     toggle.title=visible?'Araç merkezini kapat':'Araç merkezini aç';
-    if(!visible&&rail.contains(doc.activeElement)&&active())toggle.focus();
+    toggle.setAttribute('aria-label',toggle.title);
+    if(!visible&&shownBefore&&rail.contains(doc.activeElement)&&active())toggle.focus();
+    shownBefore=visible;
   };
   const notify=()=>root.dispatchEvent(new root.CustomEvent('hafize:layout-changed',{detail:{layout:html.dataset.hafizeLayout,source:'advanced-workspace'}}));
   const changeOpen=(next:boolean,focus=false)=>{
+    // The phone panel covers the chat; put the keyboard away instead of leaving it over the panel.
+    const typing=doc.activeElement as HTMLElement|null;
+    if(next&&!wide.matches&&typing?.id==='messageInput'&&root.matchMedia('(pointer: coarse)').matches)typing.blur();
     if(wide.matches)desktopOpen=next;else mobileOpen=next;
     syncLayout();notify();
     if(focus){if(next)(wide.matches?search:close).focus();else toggle.focus();}

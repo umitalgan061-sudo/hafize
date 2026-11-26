@@ -24,7 +24,9 @@
     retentionLabel.append(select);
     const note = doc.createElement('small'); note.textContent = 'Geçmiş yalnızca bu cihazdaki localStorage alanında tutulur; sunucuya gönderilmez.';
     body.append(enabledLabel, retentionLabel, note); panel.append(summary, body);
-    form.after(panel);
+    // Inside the history panel it belongs to; left after the form it sat behind the fixed composer.
+    const historyPanel = doc.getElementById('composerHistoryPanel');
+    if (historyPanel) historyPanel.append(panel); else form.after(panel);
     const sync = () => { const current = controller()?.getSettings?.() || api()?.loadSettings?.() || { enabled: true, maxItems: 40 }; enabled.checked = current.enabled; select.value = String(current.maxItems); };
     const persist = () => { controller()?.setSettings?.({ enabled: enabled.checked, maxItems: Number(select.value) }); sync(); };
     enabled.addEventListener('change', persist); select.addEventListener('change', persist); root.addEventListener?.('hafize:composer-history-settings-changed', sync); sync();
