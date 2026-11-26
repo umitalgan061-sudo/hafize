@@ -112,3 +112,13 @@ it('continues a newly created verified branch for the Hafize design request with
  expect(shouldRecoverMissingPull(request,written,[...writes,{name:'github_develop',operation:'pull',ok:false}])).toBe(false);
  expect(shouldRecoverMissingPull(request,[...written,...githubReceipt('github_develop',{ok:true,value:{repository,action:'pull',number:9}})],writes)).toBe(false);
 });
+
+it('recognizes the exact branch-then-edit Turkish instruction from the home assistant regression',()=>{
+ const repository='umitalgan061-sudo/hafize',branch='hafize/auto-8deb40907a8342a489e925e700e4727d';
+ const request='Hafize, incelemelerini tamamladın. Şimdi gerçek geliştirme aşamasına geç. GitHub main dalının güncel sürümünden bir geliştirme dalı oluştur. public/home-voice-luminous-core.js ve gerekli CSS dosyasını düzenle, kendi özgün premium Sesli asistan tasarımını oluştur ve commit et. Ana ekrandaki küreyi geliştir. Tam ekran sesli sohbet küresini koru. Test et, PR aç, merge et ve Render üzerinden canlıya al. Görevi doğrulanmış sonuçlarla tamamla.';
+ const rows=[...githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/home-voice-luminous-core.js',sha:blob}}),...githubReceipt('github_develop',{ok:true,value:{repository,action:'branch',branch,fromSha:commit}})];
+ const calls=[{name:'github_read_file',ok:true},{name:'github_develop',operation:'branch',ok:true}];
+ expect(shouldRecoverReadOnlyWrite(request,rows,calls)).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,rows,[...calls,{name:'github_develop',operation:'file',ok:false}])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request+' Sadece incele.',rows,calls)).toBe(false);
+});
