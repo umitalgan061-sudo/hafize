@@ -247,7 +247,7 @@ const GITHUB_AGENT_WRITER = GITHUB_BORSA_AGENT_ENABLED ? createGitHubWorkspaceWr
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_AGENT_REPOS
 }) : GITHUB_WORKSPACE_WRITER;
-const GITHUB_AGENT_RELEASE = GITHUB_APP_AUTH ? createGitHubAgentRelease({writer:GITHUB_AGENT_WRITER,allowedRepositories:GITHUB_AGENT_REPOS,fetchImpl:GITHUB_FETCH}) : null;
+const GITHUB_AGENT_RELEASE = GITHUB_APP_AUTH ? createGitHubAgentRelease({writer:GITHUB_AGENT_WRITER,allowedRepositories:GITHUB_AGENT_REPOS,fetchImpl:GITHUB_FETCH,renderHook:process.env.HAFIZE_RENDER_DEPLOY_HOOK||''}) : null;
 const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
   ? createGitHubAgentDevelopment({ writer: GITHUB_AGENT_WRITER, allowedRepositories: GITHUB_AGENT_REPOS,
       sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: ['borsa-gunlugu/', 'borsa-worker/'] } : {} })

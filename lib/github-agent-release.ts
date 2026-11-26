@@ -21,12 +21,14 @@ export function releasePathAllowed(repo:string,path:string){
  if(repo===SITES)return /^(?:borsa-gunlugu|borsa-worker)\/src\/[a-zA-Z0-9_/-][a-zA-Z0-9_./-]*\.(?:js|ts|css|html)$/.test(path);
  return false;
 }
-export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:{writer:Writer;allowedRepositories:readonly string[];fetchImpl:typeof fetch}){
+const RENDER_ORIGIN='https://hafize-free.onrender.com';
+const RENDER_SERVICE='srv-dc1valbl550s73flt7rg';
+export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,renderHook='',renderFetch=globalThis.fetch}:{writer:Writer;allowedRepositories:readonly string[];fetchImpl:typeof fetch;renderHook?:string;renderFetch?:typeof fetch}){
  const allowed=new Set<string>(allowedRepositories.map(r=>r.toLowerCase()).filter(r=>r===HAFIZE||r===SITES));
  const enabled=()=>allowed.size>0&&writer.configured();
  async function api(repo:string,path:string,method='GET',body?:unknown,signal?:AbortSignal){
   const r=await fetchImpl(new URL('https://api.github.com/repos/'+repo+path),{method,redirect:'error',headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'Hafize-Release','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)});
-  if(!r.ok)fail('RELEASE_GITHUB_HTTP_FAILED',r.status);
+  if(!r.ok){await r.body?.cancel().catch(()=>{});fail(r.status===403&&method==='POST'&&path.endsWith('/dispatches')?'RELEASE_WORKFLOW_DISPATCH_FORBIDDEN':'RELEASE_GITHUB_HTTP_FAILED',r.status);}
   return r.status===204?null:await r.json();
  }
  async function current(repo:string,signal?:AbortSignal){
@@ -148,7 +150,35 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:
     throw error;
    }
   }
-  const target=args.target;
+  const target=args.target??(repo===HAFIZE?'render':undefined);
+  if(repo===HAFIZE&&target==='render'){
+   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
+   assertActive();
+   await verifiedMainTests(repo,sha,'quality.yml',ctx.signal);
+   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
+   assertActive();
+   // Read the public fixed-origin release markers without any GitHub or Render credentials.
+   try{
+    const responses=await Promise.all(['/release.json','/api/health/live'].map(path=>renderFetch(RENDER_ORIGIN+path,{redirect:'error',cache:'no-store',signal:ctx.signal?AbortSignal.any([ctx.signal,AbortSignal.timeout(10000)]):AbortSignal.timeout(10000)})));
+    if(responses.every(r=>r.ok)){
+     const [release,health]=await Promise.all(responses.map(r=>r.json()));
+     if(release?.commit===sha&&health?.revision===sha&&health?.status==='ok')return {action:'publish',repository:repo,target:'render',requestedSha:sha,published:true,existing:true};
+    }else await Promise.all(responses.map(r=>r.body?.cancel().catch(()=>{})));
+   }catch{/* Public health is diagnostic, not an authorization or success signal. */}
+   assertActive();
+   let hook:URL;
+   try{hook=new URL(renderHook);}catch{return fail('RENDER_DEPLOY_HOOK_NOT_CONFIGURED',409);}
+   if(hook.origin!=='https://api.render.com'||hook.pathname!=='/deploy/'+RENDER_SERVICE||hook.username||hook.password||hook.hash||!hook.searchParams.get('key')||[...hook.searchParams.keys()].some(k=>k!=='key')||hook.searchParams.getAll('key').length!==1)fail('RENDER_DEPLOY_HOOK_INVALID',409);
+   hook.searchParams.set('ref',sha);
+   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
+   assertActive();
+   // Never return or log the hook URL; a transport failure may include it.
+   let response:Response;
+   try{response=await renderFetch(hook,{method:'POST',redirect:'error',signal:ctx.signal?AbortSignal.any([ctx.signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)});}catch{return fail('RENDER_DEPLOY_REQUEST_UNCERTAIN',502);}
+   if(!response.ok){await response.body?.cancel().catch(()=>{});return fail('RENDER_DEPLOY_HTTP_FAILED',response.status);}
+   await response.body?.cancel().catch(()=>{});
+   return {action:'publish',repository:repo,target:'render',requestedSha:sha,dispatchAccepted:true,published:false,note:'Verify the exact Render release and live health after deployment. No automatic repeat.'};
+  }
   const workflow=repo===HAFIZE&&target==='firebase'?'firebase-hosting-live.yml':repo===SITES&&target==='cloudflare'?'borsa-worker-live.yml':repo===SITES&&target==='firebase'?'borsa-hosting-live.yml':'';
   if(!workflow)fail('RELEASE_TARGET_NOT_SUPPORTED');
   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
