@@ -30,7 +30,7 @@ export function githubWorkRequested(request:unknown,previous:readonly unknown[]=
  return /\b(?:github|retake|hafize|depo|repo|pull request|commit|pr|firebase|nvidia)\b/.test(text)&&
  /\b(?:gelistir|duzelt|guncelle|uygula|olustur|entegre et|kodla|kod degisikligi|degistir|yayinla|canliya al|birlestir|merge|deploy|commit|pr ac|pull request ac|tamamla|devam et|fix|implement|update|patch|write|create)\w*/.test(text);
 }
-export type GitHubReceipt={readonly tool:string;readonly line:string;readonly kind:'read'|'branch'|'file'|'pull'|'merge'|'dispatch'|'checks'|'error'};
+export type GitHubReceipt={readonly tool:string;readonly line:string;readonly kind:'read'|'branch'|'file'|'pull'|'merge'|'dispatch'|'checks'|'error';readonly repository?:string;readonly branch?:string};
 /** Only a single explicit feature branch named in the latest user request.
  * It is a restriction, never an authorization. Ambiguous branch requests
  * keep the existing tool constraints. */
@@ -58,15 +58,31 @@ export function violatesExistingFeatureBranch(branch:string|null,tool:string,arg
  if(tool==='github_develop')return v.operation==='branch'||(['file','pull'].includes(String(v.operation))&&v.branch!==branch);
  return v.action==='open'&&v.branch!==branch;
 }
+/** A newly created feature branch is trusted only from current tool receipts.
+ * This narrows recovery to the single repository read and branch created here;
+ * never derives a target from model prose or grants additional permissions. */
+export function verifiedCreatedFeatureBranch(receipts:readonly GitHubReceipt[]):{repository:string;branch:string}|null{
+ const rows=receipts.filter(r=>r.tool==='github_develop'&&r.kind==='branch');
+ const unique=[...new Map(rows.map(r=>[r.repository+'|'+r.branch,r])).values()];
+ if(unique.length!==1)return null;
+ const row=unique[0];
+ if(!row.repository||!REPO.test(row.repository)||!row.branch||!/^hafize\/auto-[a-z0-9][a-z0-9._-]{0,100}$/.test(row.branch)||row.branch.includes('..')||row.branch.endsWith('.lock'))return null;
+ if(!receipts.some(r=>r.kind==='read'&&r.tool==='github_read_file'&&r.repository===row.repository))return null;
+ if(receipts.some(r=>r.repository&&r.repository!==row.repository))return null;
+ return {repository:row.repository,branch:row.branch};
+}
 /** Bounded model recovery after inspection, with no attempted file, PR,
  * merge or publish mutation. A verified branch creation is not delivery.
  * Never replay a mutation, override permission, or choose code automatically. */
 export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string;error?:string|null}[]):boolean{
  const s=normal(request);
- if(!requestedExistingFeatureBranch(request)||!githubWorkRequested(request))return false;
+ const named=requestedExistingFeatureBranch(request),created=verifiedCreatedFeatureBranch(receipts);
+ if((!named&&!created)||!githubWorkRequested(request))return false;
+ if(named&&created&&named!==created.branch)return false;
  const explicitEdit=/\b(?:dosya\w*|file|[a-z0-9_-]+\.(?:ts|js|css|html|md|py))\b/.test(s)&&/\b(?:duzenle|guncelle|degistir|duzelt|edit|update|patch)\b/.test(s)&&/\b(?:commit et|commit yap|commit olustur|commit the change)\b/.test(s);
  const development=/\b(?:gelistir|iyilestir|algoritma iyilestirmeleri yap|gelistirmeleri tamamla|kod degisikligi yap)\b/.test(s)&&/\b(?:pr olustur|pr ac|test\w* ekle|regresyon test\w*|kod degisikligi|algoritma)\b/.test(s);
- if(!explicitEdit&&!development)return false;
+ const newBranchDevelopment=Boolean(created)&&/\b(?:tasarla|gelistir|iyilestir|duzenle|guncelle|degistir|uygula|kod degisiklik\w*|implement|update|patch)\w*/.test(s)&&/\b(?:commit|pr ac|pr olustur|merge|canliya al|kod degisiklik\w*)\b/.test(s);
+ if(!explicitEdit&&!development&&!newBranchDevelopment)return false;
  if(/\b(?:commit etme|commit yapma|commit olusturma|dosya\w* (?:degistirme|duzenleme|guncelleme)|sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|read only|do not commit|degisiklik yapma|kod yazma)\b/.test(s))return false;
  return receipts.some(r=>r.tool==='github_read_file'&&r.kind==='read')&&
    !receipts.some(r=>(r.kind==='error'&&!r.line.includes('GITHUB_REQUESTED_BRANCH_MISMATCH'))||['file','pull','merge','dispatch'].includes(r.kind))&&
@@ -80,12 +96,15 @@ export function explicitPullRequested(request:unknown):boolean{
  return Boolean(requestedExistingFeatureBranch(request))&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(s);
 }
 export function shouldRecoverMissingPull(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string}[]):boolean{
- return explicitPullRequested(request)&&receipts.some(r=>r.kind==='file')&&!receipts.some(r=>['pull','merge','dispatch','error'].includes(r.kind))&&!calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&(c.operation==='pull'||c.ok!==true)));
+ const created=verifiedCreatedFeatureBranch(receipts);
+ const s=normal(request);
+ const newBranchPull=Boolean(created)&&githubWorkRequested(request)&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(s)&&receipts.some(r=>r.kind==='file'&&r.repository===created?.repository&&r.branch===created?.branch);
+ return (explicitPullRequested(request)||newBranchPull)&&receipts.some(r=>r.kind==='file')&&!receipts.some(r=>['pull','merge','dispatch','error'].includes(r.kind))&&!calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&(c.operation==='pull'||c.ok!==true)));
 }
 export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  if(!['github_read_file','github_inspect','github_develop','github_release'].includes(tool))return [];
  const outer=rec(result),v=rec(outer.value);
- const item=(kind:GitHubReceipt['kind'],line:string):GitHubReceipt=>({tool,kind,line});
+ const item=(kind:GitHubReceipt['kind'],line:string,scope?:{repository:string;branch?:string}):GitHubReceipt=>({tool,kind,line,...scope});
  if(outer.ok!==true){
   const hints:Record<string,string>={
    GITHUB_ARGS_BRANCH:'Dal parametreleri: operation, repository ve isteğe bağlı branch.',
@@ -117,15 +136,15 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  const path=token(v.path,PATH);
  const link=(label:string,url:string)=>'['+label+']('+url+')';
  if(tool==='github_develop'||tool==='github_release'){
-  if(v.action==='branch'&&branch&&sha(v.fromSha))return [item('branch',repo+' — '+link(branch,root+'/tree/'+encodeURIComponent(branch))+' oluşturuldu; kaynak '+sha(v.fromSha)+'. Dal açmak kod değişikliği değildir.')];
-  if(v.action==='file'&&v.verified===true&&branch&&path&&sha(v.commitSha)&&sha(v.blobSha))return [item('file',repo+' — '+path+'; '+link('commit '+sha(v.commitSha),root+'/commit/'+sha(v.commitSha))+'; blob '+sha(v.blobSha)+' (GitHub üzerinden tekrar okundu).')];
+  if(v.action==='branch'&&branch&&sha(v.fromSha))return [item('branch',repo+' — '+link(branch,root+'/tree/'+encodeURIComponent(branch))+' oluşturuldu; kaynak '+sha(v.fromSha)+'. Dal açmak kod değişikliği değildir.',{repository:repo,branch})];
+  if(v.action==='file'&&v.verified===true&&branch&&path&&sha(v.commitSha)&&sha(v.blobSha))return [item('file',repo+' — '+path+'; '+link('commit '+sha(v.commitSha),root+'/commit/'+sha(v.commitSha))+'; blob '+sha(v.blobSha)+' (GitHub üzerinden tekrar okundu).',{repository:repo,branch})];
   if((v.action==='pull'||v.action==='open')&&positive(v.number))return [item('pull',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.draft===true?' taslak':'')+(v.existing===true?' mevcut PR doğrulandı; yeni PR açılmadı.':' açıldı.'))];
   if(v.action==='merge'&&v.merged===true&&positive(v.number)&&sha(v.mergeCommitSha))return [item('merge',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.existing===true?' daha önce birleştirilmiş; GitHub üzerinden doğrulandı; ':' birleştirildi; ')+link(sha(v.mergeCommitSha),root+'/commit/'+sha(v.mergeCommitSha))+'.')];
   if(v.action==='publish'&&v.target==='render'&&v.published===true&&v.existing===true&&sha(v.requestedSha))return [item('read',repo+' — Render uygulaması zaten bu SHA ile canlı: '+sha(v.requestedSha)+'. Yeni yayın isteği gönderilmedi.')];
   if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+(v.target==='render'?' için Render':' için')+' yayın isteği kabul edildi.'+(v.target==='render'&&typeof v.deployId==='string'&&/^dep-[a-z0-9]{8,80}$/.test(v.deployId)?' Dağıtım '+v.deployId+'.':'')+' Canlı yayın doğrulanmadı.')];
   return [item('error',repo+' — '+tool+' yanıtı tamamlanmış yazma kanıtı değil.')];
  }
- if(tool==='github_read_file'&&path&&sha(v.sha))return [item('read',repo+' — '+path+' blob '+sha(v.sha)+(v.truncated===true?' (kısmi okuma).':' okundu.'))];
+ if(tool==='github_read_file'&&path&&sha(v.sha))return [item('read',repo+' — '+path+' blob '+sha(v.sha)+(v.truncated===true?' (kısmi okuma).':' okundu.'),{repository:repo})];
  if(tool==='github_inspect'&&Array.isArray(v.runs)&&sha(v.sha)){
   const rows=v.runs.slice(0,12).flatMap(raw=>{const run=rec(raw);if(sha(run.headSha)!==sha(v.sha)||!positive(run.id))return [];
    const status=token(run.status,/^[a-z_]{1,40}$/)||'unknown';

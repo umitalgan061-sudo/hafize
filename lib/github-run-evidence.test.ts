@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, bareDevelopmentContinuation } from './github-run-evidence.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
 const repository='umitalgan061-sudo/retake', commit='a'.repeat(40), blob='b'.repeat(40);
 describe('GitHub run evidence',()=>{
  it('rejects imagined operations in arbitrary prose and failed tool results',()=>{
@@ -90,3 +90,25 @@ it('detects a requested PR missing after a verified code change without replayin
 it('keeps the current named project and branch for repeated Turkish improvement follow-ups without reaching across unrelated topics',()=>{const prior='Retake hafize/auto-example dalında kodu geliştir, test ekle ve PR oluştur.';const short='Gerekli geliştirmeleri kapsamlı şekilde yap lütfen';expect(bareDevelopmentContinuation(short)).toBe(true);expect(githubWorkRequested(short,[prior,short,short])).toBe(true);expect(continuationDevelopmentRequest(short,[prior,short,short])).toBe(prior);expect(githubWorkRequested(short,[prior,'Bugün hava nasıl?',short])).toBe(false);expect(continuationDevelopmentRequest(short,[prior,'Bugün hava nasıl?'])).toBe(short);expect(githubWorkRequested('Bu tarifi geliştirmeye devam et',[prior])).toBe(false);expect(githubWorkRequested(short,[])).toBe(false);});
 
 it('distinguishes an existing verified PR from a newly opened PR',()=>{const rows=githubReceipt('github_develop',{ok:true,value:{repository,action:'pull',number:73,draft:true,existing:true}});expect(formatGitHubRunEvidence(rows)).toContain('yeni PR açılmadı');});
+
+it('continues a newly created verified branch for the Hafize design request without needing the user to name a branch',()=>{
+ const repository='umitalgan061-sudo/hafize',branch='hafize/auto-cb902070982141b585079bbb7a45016a';
+ const request='Hafize ana ekranındaki Sesli asistan küresini yeniden tasarla. GitHub main dalının güncel halinden ilerle. Gerçek kod değişikliklerini yap, test et, commit oluştur, PR aç, merge et ve Render üzerinden canlıya al.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/design-system.css',sha:blob}});
+ const created=githubReceipt('github_develop',{ok:true,value:{repository,action:'branch',branch,fromSha:commit}});
+ const rows=[...read,...created],calls=[{name:'github_read_file',ok:true},{name:'github_develop',operation:'branch',ok:true}];
+ expect(verifiedCreatedFeatureBranch(rows)).toEqual({repository,branch});
+ expect(shouldRecoverReadOnlyWrite(request,rows,calls)).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,read,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request+' Sadece oku.',rows,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,rows,[...calls,{name:'github_develop',operation:'file',ok:false}])).toBe(false);
+ expect(verifiedCreatedFeatureBranch([...rows,...githubReceipt('github_develop',{ok:true,value:{repository,action:'branch',branch:'hafize/auto-other',fromSha:commit}})])).toBeNull();
+ expect(verifiedCreatedFeatureBranch([...rows,...githubReceipt('github_read_file',{ok:true,value:{repository:'other/repo',path:'app.js',sha:blob}})])).toBeNull();
+ const file=githubReceipt('github_develop',{ok:true,value:{repository,action:'file',branch,path:'public/design-system.css',commitSha:commit,blobSha:blob,verified:true}});
+ const written=[...rows,...file],writes=[...calls,{name:'github_develop',operation:'file',ok:true}];
+ expect(shouldRecoverReadOnlyWrite(request,written,writes)).toBe(false);
+ expect(shouldRecoverMissingPull(request,written,writes)).toBe(true);
+ expect(shouldRecoverMissingPull(request+' PR açma.',written,writes)).toBe(false);
+ expect(shouldRecoverMissingPull(request,written,[...writes,{name:'github_develop',operation:'pull',ok:false}])).toBe(false);
+ expect(shouldRecoverMissingPull(request,[...written,...githubReceipt('github_develop',{ok:true,value:{repository,action:'pull',number:9}})],writes)).toBe(false);
+});
