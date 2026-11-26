@@ -65,7 +65,7 @@ describe('github workspace safe write core', () => {
     const writer = makeWriter(async (url) => {
       calls.push(url);
       if (url.pathname.endsWith('/commits/main')) return jsonResponse({ sha: 'a'.repeat(40) });
-      return jsonResponse({ ref: 'refs/heads/feature/x' });
+      return jsonResponse({ ref: 'refs/heads/feature/x',object:{type:'commit',sha:'a'.repeat(40)} });
     });
     const ticket = writer.issueApproval('branch', {
       repository: 'owner/repo',
