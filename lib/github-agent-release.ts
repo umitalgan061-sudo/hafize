@@ -4,7 +4,7 @@ import type { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
 type Writer=ReturnType<typeof createGitHubWorkspaceWriter>;
 import { matchOwnerProjects } from './owner-project-catalog.ts';
 export type ReleaseAuthorization={readonly repositories:readonly string[];readonly actions:readonly string[];readonly hafizePublishTarget?:'render'|'firebase'};
-type Context={ownerAuthorized:boolean;authorization?:ReleaseAuthorization;signal?:AbortSignal};
+type Context={ownerAuthorized:boolean;authorization?:ReleaseAuthorization;signal?:AbortSignal;reserveRender?:()=>boolean};
 const HAFIZE='umitalgan061-sudo/hafize', SITES='umitalgan061-sudo/hafize-siteler';
 const SHA=/^[a-f0-9]{40}$/i;
 const BRANCH=/^hafize\/auto-[a-z0-9][a-z0-9._-]{0,100}$/;
@@ -175,12 +175,18 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
    if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
    assertActive();
    if(otherActiveTasks())fail('RENDER_ACTIVE_TASKS',409);
+   // Atomically fence admission in the outgoing server before dispatch. The
+   // trusted task callback is never a model parameter. Keep the fence for an
+   // uncertain dispatch too: do not repeat or start another durable task.
+   if(!ctx.reserveRender?.())fail('RENDER_DEPLOYMENT_PENDING',409);
    // Never return or log the hook URL; a transport failure may include it.
    let response:Response;
    try{response=await renderFetch(hook,{method:'POST',redirect:'error',signal:ctx.signal?AbortSignal.any([ctx.signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)});}catch{return fail('RENDER_DEPLOY_REQUEST_UNCERTAIN',502);}
    if(!response.ok){await response.body?.cancel().catch(()=>{});return fail('RENDER_DEPLOY_HTTP_FAILED',response.status);}
-   await response.body?.cancel().catch(()=>{});
-   return {action:'publish',repository:repo,target:'render',requestedSha:sha,dispatchAccepted:true,published:false,note:'Verify the exact Render release and live health after deployment. No automatic repeat.'};
+   if(![200,202].includes(response.status)){await response.body?.cancel().catch(()=>{});return fail('RENDER_DEPLOY_REQUEST_UNCERTAIN',502);}
+   let deployId:string|undefined;
+   if(response.status===200){try{const data=await response.json();if(typeof data?.deploy?.id==='string'&&/^dep-[a-z0-9]{8,80}$/.test(data.deploy.id))deployId=data.deploy.id;}catch{/* accepted, ID unavailable */}}else await response.body?.cancel().catch(()=>{});
+   return {action:'publish',repository:repo,target:'render',requestedSha:sha,dispatchAccepted:true,published:false,...(deployId?{deployId}:{}),note:'Verify the exact Render release and live health after deployment. No automatic repeat.'};
   }
   const workflow=repo===HAFIZE&&target==='firebase'?'firebase-hosting-live.yml':repo===SITES&&target==='cloudflare'?'borsa-worker-live.yml':repo===SITES&&target==='firebase'?'borsa-hosting-live.yml':'';
   if(!workflow)fail('RELEASE_TARGET_NOT_SUPPORTED');

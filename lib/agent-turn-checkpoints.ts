@@ -29,6 +29,16 @@ export function mutationIntent(tool:string,args:unknown):Pending|null{
 export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:DatabaseSync;cipherFor:(owner:string)=>Cipher;now?:()=>number}){
  db.exec('CREATE TABLE IF NOT EXISTS agent_turn_checkpoints (owner_id TEXT NOT NULL,id TEXT NOT NULL,conversation_id TEXT NOT NULL,status TEXT NOT NULL,body_enc TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(owner_id,id)); CREATE INDEX IF NOT EXISTS agent_turn_checkpoints_conversation ON agent_turn_checkpoints(owner_id,conversation_id,updated_at);');
  const active=new Map<string,AbortController>();
+ // Local admission fence: the outgoing process may keep serving during a
+ // Render build. Do not admit new durable tasks after a self-deploy dispatch.
+ // Bounded expiry avoids permanently locking a service after a failed build.
+ let deployUntil=0;
+ const deploymentPending=()=>now()<deployUntil;
+ function reserveDeployment(owner:string,id:string){
+  if(!active.has(key(owner,id))||active.size!==1||deploymentPending())return false;
+  deployUntil=now()+15*60*1000;
+  return true;
+ }
  const key=(owner:string,id:string)=>owner+'\0'+id;
  const row=(owner:string,id:string)=>db.prepare('SELECT * FROM agent_turn_checkpoints WHERE owner_id=? AND id=?').get(owner,id) as Row|undefined;
  function read(r:Row):Body{
@@ -55,6 +65,7 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
  function begin(owner:string,conversation:string,id:string,inheritedPending:Pending[]=[]){
   if(!owner||!isAgentTurnId(conversation)||!isAgentTurnId(id))return {accepted:false as const,reason:'INVALID_AGENT_TURN'};
   if(row(owner,id))return {accepted:false as const,reason:'AGENT_TURN_ALREADY_RECORDED'};
+  if(deploymentPending())return {accepted:false as const,reason:'RENDER_DEPLOYMENT_PENDING'};
   if(previous(owner,conversation)?.status==='running')return {accepted:false as const,reason:'AGENT_TURN_ALREADY_RUNNING'};
   // Never delete an in-flight record. Old terminal history is bounded; uncertain
   // writes stay visible for at least the same retention interval.
@@ -91,6 +102,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size});
+ return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;

@@ -31,6 +31,18 @@ export function requestedExistingFeatureBranch(request:unknown):string|null{
  if(/\b(?:yeni (?:bir )?dal (?:ac|olustur)|yeni (?:bir )?gelistirme dali (?:ac|olustur))\b/.test(s))return null;
  return matches[0];
 }
+/** Inherit only the immediately preceding substantive user request for
+ * an otherwise bare continuation. Never extract authority from assistant
+ * output, repository content or a new unrelated task. */
+export function continuationDevelopmentRequest(request:unknown,previous:readonly unknown[]=[]):unknown{
+ const bare=(v:unknown)=>/^(?:kaldigin yerden devam et|devam et|tamamla|continue|resume)[.!\s]*$/.test(normal(v).trim());
+ if(!bare(request))return request;
+ for(const prior of previous.slice(-6).reverse()){
+  if(bare(prior))continue;
+  return requestedExistingFeatureBranch(prior)&&githubWorkRequested(prior)?prior:request;
+ }
+ return request;
+}
 export function violatesExistingFeatureBranch(branch:string|null,tool:string,args:unknown):boolean{
  if(!branch||!['github_develop','github_release'].includes(tool))return false;
  let v:Record<string,unknown>;
@@ -69,6 +81,7 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
    RELEASE_BASE_MOVED:'Güncel main SHA değerini yeniden doğrula.',
    RELEASE_WORKFLOW_DISPATCH_FORBIDDEN:'GitHub Actions yayın izni reddedildi.',
    RENDER_ACTIVE_TASKS:'Başka bir GitHub görevi devam ederken Render yayını başlatılmadı.',
+   RENDER_DEPLOYMENT_PENDING:'Yayın için mevcut görev kapısı rezerve edilmiş veya aktif görev doğrulanamamış; tekrar yayın göndermeden durumu doğrula.',
    RENDER_DEPLOY_HOOK_NOT_CONFIGURED:'Render servisine özel yayın bağlantısı yapılandırılmamış.',
    RELEASE_TARGET_NOT_AUTHORIZED:'Firebase yönlendirme yayını açıkça istenmedikçe Render hedefini kullan.'
   };
@@ -89,7 +102,7 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
   if((v.action==='pull'||v.action==='open')&&positive(v.number))return [item('pull',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.draft===true?' taslak':'')+(v.existing===true?' mevcut PR doğrulandı.':' açıldı.'))];
   if(v.action==='merge'&&v.merged===true&&positive(v.number)&&sha(v.mergeCommitSha))return [item('merge',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.existing===true?' daha önce birleştirilmiş; GitHub üzerinden doğrulandı; ':' birleştirildi; ')+link(sha(v.mergeCommitSha),root+'/commit/'+sha(v.mergeCommitSha))+'.')];
   if(v.action==='publish'&&v.target==='render'&&v.published===true&&v.existing===true&&sha(v.requestedSha))return [item('read',repo+' — Render uygulaması zaten bu SHA ile canlı: '+sha(v.requestedSha)+'. Yeni yayın isteği gönderilmedi.')];
-  if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+(v.target==='render'?' için Render':' için')+' yayın isteği kabul edildi. Canlı yayın doğrulanmadı.')];
+  if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+(v.target==='render'?' için Render':' için')+' yayın isteği kabul edildi.'+(v.target==='render'&&typeof v.deployId==='string'&&/^dep-[a-z0-9]{8,80}$/.test(v.deployId)?' Dağıtım '+v.deployId+'.':'')+' Canlı yayın doğrulanmadı.')];
   return [item('error',repo+' — '+tool+' yanıtı tamamlanmış yazma kanıtı değil.')];
  }
  if(tool==='github_read_file'&&path&&sha(v.sha))return [item('read',repo+' — '+path+' blob '+sha(v.sha)+(v.truncated===true?' (kısmi okuma).':' okundu.'))];

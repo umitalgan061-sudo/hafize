@@ -152,7 +152,7 @@ describe('canonical Render publication',()=>{
   const renderFetch=vi.fn(async(u:URL|string)=>{
    const url=new URL(String(u));
    if(url.hostname==='hafize-free.onrender.com')return Response.json(url.pathname==='/release.json'?{commit:live?base:sha}:{revision:live?base:sha,status:'ok'});
-   if(url.hostname==='api.render.com')return new Response(null,{status:202});
+   if(url.hostname==='api.render.com')return Response.json({deploy:{id:'dep-fixture123456'}});
    throw Error('unexpected origin');
   }) as unknown as typeof fetch;
   return {release:createGitHubAgentRelease({writer,allowedRepositories:[hafize],fetchImpl,renderHook:hook,renderFetch,otherActiveTasks:()=>busy}),renderFetch};
@@ -172,8 +172,11 @@ describe('canonical Render publication',()=>{
  });
  it('dispatches only the exact approved main SHA and never discloses the hook',async()=>{
   const f=renderFixture({hook:'https://api.render.com/deploy/srv-dc1valbl550s73flt7rg?key=fixture-only'});
-  const result=await f.release.execute(args,{ownerAuthorized:true,authorization});
-  expect(result).toMatchObject({target:'render',dispatchAccepted:true,published:false});
+  await expect(f.release.execute(args,{ownerAuthorized:true,authorization})).rejects.toMatchObject({code:'RENDER_DEPLOYMENT_PENDING'});
+  expect((f.renderFetch as any).mock.calls.every(([url]:[URL|string])=>new URL(String(url)).hostname==='hafize-free.onrender.com')).toBe(true);
+  (f.renderFetch as any).mockClear();
+  const result=await f.release.execute(args,{ownerAuthorized:true,authorization,reserveRender:()=>true});
+  expect(result).toMatchObject({target:'render',dispatchAccepted:true,published:false,deployId:'dep-fixture123456'});
   expect(JSON.stringify(result)).not.toContain('fixture-only');
   const calls=(f.renderFetch as any).mock.calls;
   expect(new URL(String(calls[2][0])).searchParams.get('ref')).toBe(base);
