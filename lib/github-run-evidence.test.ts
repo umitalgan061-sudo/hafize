@@ -112,3 +112,27 @@ it('continues a newly created verified branch for the Hafize design request with
  expect(shouldRecoverMissingPull(request,written,[...writes,{name:'github_develop',operation:'pull',ok:false}])).toBe(false);
  expect(shouldRecoverMissingPull(request,[...written,...githubReceipt('github_develop',{ok:true,value:{repository,action:'pull',number:9}})],writes)).toBe(false);
 });
+
+
+describe('GitHub evidence scope and current-turn delivery',()=>{
+ it('does not count an existing PR or merge as a new mutation',()=>{
+  const pull=githubReceipt('github_develop',{ok:true,value:{repository,action:'pull',number:73,existing:true}});
+  const merge=githubReceipt('github_release',{ok:true,value:{repository,action:'merge',number:73,merged:true,existing:true,mergeCommitSha:commit}});
+  const report=formatGitHubRunEvidence([...pull,...merge]);
+  expect(report).toContain('Bu turda doğrulanmış dosya değişikliği, PR, birleştirme veya yayın isteği yok.');
+  expect(report).toContain('yeni PR açılmadı');
+  expect(report).toContain('daha önce birleştirilmiş');
+  const newPull=githubReceipt('github_develop',{ok:true,value:{repository,action:'pull',number:74}});
+  expect(formatGitHubRunEvidence([...pull,...newPull])).not.toContain('Bu turda doğrulanmış dosya değişikliği');
+ });
+ it('requires verified file changes on the specifically requested branch before recovering a missing PR',()=>{
+  const branch='hafize/auto-example',request='Retake '+branch+' dalında kodu geliştir ve PR oluştur.';
+  const receipt=(repo:string,ref:string)=>githubReceipt('github_develop',{ok:true,value:{repository:repo,action:'file',branch:ref,path:'app.js',commitSha:commit,blobSha:blob,verified:true}});
+  const calls=[{name:'github_develop',operation:'file',ok:true}];
+  const correct=receipt(repository,branch),wrong=receipt(repository,'hafize/auto-other'),other=receipt('other/repo',branch);
+  expect(shouldRecoverMissingPull(request,correct,calls)).toBe(true);
+  expect(shouldRecoverMissingPull(request,wrong,calls)).toBe(false);
+  expect(shouldRecoverMissingPull(request,[...correct,...wrong],calls)).toBe(false);
+  expect(shouldRecoverMissingPull(request,[...correct,...other],calls)).toBe(false);
+ });
+});
