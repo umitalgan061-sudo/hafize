@@ -948,7 +948,7 @@ async function handleAgentRun(req, res) {
     if(!durableId||!streamResponse||res.destroyed||res.writableEnded||!res.writable)return;
     const saved=PLATFORM.agentTurns.get(ownerId,durableId);
     if(!saved)return;
-    const pending=saved.pending.map(p=>[p.repository,p.operation,p.branch,p.path,p.sha,p.number===null?'':'PR #'+p.number].filter(Boolean).join(' · ')).join('\n');
+    const pending=saved.pending.map(p=>[p.repository,p.operation,p.preparedBranch||p.branch,p.path,p.expectedBlob||p.sha,p.target||'',p.number===null?'':'PR #'+p.number].filter(Boolean).join(' · ')).join('\n');
     const evidence=formatGitHubRunEvidence(saved.receipts).slice(0,24000)+(pending?'\n\nSonucu belirsiz yazma hedefleri (tekrar göndermeden doğrula):\n'+pending.slice(0,6000):'');
     writeSseEvent(res,'hafize-agent-progress',{id:durableId,evidence,recoveryToken:PLATFORM.agentTurns.exportRecovery(ownerId,durableId)});
   };
@@ -1019,7 +1019,7 @@ async function handleAgentRun(req, res) {
     nvidiaConfigured: Boolean(NVIDIA_API_KEY),
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
-    githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedFile:(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);emitCheckpointProgress();}}:{})})}:undefined,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedBranch:(target)=>{PLATFORM.agentTurns.preparedBranch(ownerId,durableId,target);emitCheckpointProgress();},onPreparedFile:(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);emitCheckpointProgress();}}:{})})}:undefined,
     githubRelease: GITHUB_AGENT_RELEASE?{enabled:GITHUB_AGENT_RELEASE.enabled,execute:(args,context)=>GITHUB_AGENT_RELEASE.execute(args,{...context,reserveRender:()=>Boolean(durableId&&PLATFORM.agentTurns.reserveDeployment(ownerId,durableId))})}:undefined,
     githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
@@ -1156,7 +1156,7 @@ async function handleAgentRun(req, res) {
     if(durableId){
       const status=requestAbort.signal.aborted||interruptionDiagnostic?'interrupted':unresolved||anyToolFailed?'incomplete':'answered';
       const pending=PLATFORM.agentTurns.get(ownerId,durableId)?.pending??[];
-      if(pending.length){content+='\n\nSonucu belirsiz yazma işlemleri var. GitHub üzerinden mutabakat yapılmadan tekrar yazılmayacak.';unresolved=true;}
+      if(pending.length){content+='\n\nSonucu belirsiz yazma işlemleri var. GitHub üzerinden mutabakat yapılmadan tekrar yazılmayacak.\n'+pending.slice(0,20).map(p=>'- '+[p.repository,p.operation,p.preparedBranch||p.branch,p.path,p.target||'',p.number?'PR #'+p.number:'',p.expectedBlob||p.sha].filter(Boolean).join(' · ')).join('\n');unresolved=true;}
       PLATFORM.agentTurns.finish(ownerId,durableId,status,content);
       turnFinished=true;
       emitCheckpointProgress();
