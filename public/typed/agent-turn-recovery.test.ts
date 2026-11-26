@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {compactToolActivities,recoverCloudWait,CLOUD_WAIT_TEXT,INTERRUPTED_TEXT,settleToolActivities,agentStreamFailure,missingCheckpointAnswer,checkpointEvidence,withCheckpointEvidence,recoveryCapsule} from './agent-turn-recovery.ts';
+import {compactToolActivities,recoverCloudWait,CLOUD_WAIT_TEXT,INTERRUPTED_TEXT,settleToolActivities,agentStreamFailure,missingCheckpointAnswer,checkpointEvidence,withCheckpointEvidence,recoveryCapsule,recoveredCheckpointAnswer} from './agent-turn-recovery.ts';
 describe('agent activity and interrupted turn regression',()=>{
  it('deduplicates separated legacy badges without counters or duplicated GitHub state',()=>{
   const a=compactToolActivities([
@@ -46,3 +46,5 @@ it('retains bounded journal evidence across missing server checkpoints without d
 });
 
 it('retains only bounded opaque encrypted recovery capsules',()=>{expect(recoveryCapsule('v1.abc.def.ghi')).toBe('v1.abc.def.ghi');expect(recoveryCapsule('v1.abc.def.'+'a'.repeat(64000))).toBe('');expect(recoveryCapsule({token:'v1.a.b.c'})).toBe('');expect(recoveryCapsule('v1.a.b.c\n')).toBe('');});
+
+it('displays verified historical evidence without claiming the old task is live or completed',()=>{const text=recoveredCheckpointAnswer('STREAM_INTERRUPTED',{receipts:[{line:'commit abc'}],pending:[{}]},'local evidence');expect(text).toContain('STREAM_INTERRUPTED');expect(text).toContain('commit abc');expect(text).toContain('local evidence');expect(text).toContain('Sonucu belirsiz');expect(text).toContain('güncel GitHub durumu veya tamamlanmış görev anlamına gelmez');});

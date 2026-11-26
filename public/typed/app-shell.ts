@@ -21,7 +21,7 @@ import { mountChatScroll, type ChatScrollController } from './chat-scroll.ts';
 import { decorateUserAttachments } from './user-attachments.ts';
 import { askChoice, askConfirm } from './theme-polish.ts';
 import { NOTICE_FOLLOW_MS, noticeTarget, shouldFollowNotice, type PlacedResult } from './notice-target.ts';
-import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, missingCheckpointAnswer, agentStreamFailure, checkpointEvidence, recoveryCapsule, withCheckpointEvidence, type ToolActivity} from './agent-turn-recovery.ts';
+import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, missingCheckpointAnswer, agentStreamFailure, checkpointEvidence, recoveryCapsule, recoveredCheckpointAnswer, withCheckpointEvidence, type ToolActivity} from './agent-turn-recovery.ts';
 type Role = 'user' | 'assistant';
 interface ChatMessage {
   id: string;
@@ -1107,11 +1107,24 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const pending=conversations.flatMap(conversation=>conversation.messages.filter(message=>message.agentCheckpoint).map(message=>({conversation,message}))).slice(-20);
       for(const {conversation,message} of pending){
         try{
-          const result=await hafizeApi.request(checkpointPath(message.agentCheckpoint),{timeoutMs:8000,retry:0});
+          let result;
+          try{result=await hafizeApi.request(checkpointPath(message.agentCheckpoint),{timeoutMs:8000,retry:0});}
+          catch(error){
+            const token=recoveryCapsule(message.agentRecoveryToken);
+            if(error?.status!==404||!token)throw error;
+            result=await hafizeApi.request(checkpointPath(message.agentCheckpoint)+'/recover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversationId:conversation.id,recoveryToken:token}),timeoutMs:8000,retry:0});
+          }
           if(result.id!==message.agentCheckpoint||result.conversationId!==conversation.id)continue;
           const token=recoveryCapsule(result.recoveryToken);if(token&&token!==message.agentRecoveryToken){message.agentRecoveryToken=token;changed=true;}
+          if(result.recovered===true){
+            message.content=recoveredCheckpointAnswer(message.content,result,message.agentCheckpointEvidence);
+            message.toolActivities=settleToolActivities(message.toolActivities);
+            delete message.agentCheckpoint;delete message.agentCheckpointConfirmed;delete message.agentCheckpointEvidence;changed=true;continue;
+          }
           if(result.status==='running'){
             if(!message.agentCheckpointConfirmed){message.agentCheckpointConfirmed=true;changed=true;}
+            const lines=Array.isArray(result.receipts)?result.receipts.slice(-30).map(row=>'- '+String(row.line||'')).join('\n'):'';
+            if(lines&&lines!==message.agentCheckpointEvidence){message.agentCheckpointEvidence=checkpointEvidence(lines);changed=true;}
             const text='GitHub görevi sunucuda devam ediyor. Tarayıcı yeniden bağlandığında sonuç bu sohbete getirilecek.';
             if(message.content!==text){message.content=text;changed=true;}
             continue;

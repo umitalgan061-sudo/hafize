@@ -89,6 +89,16 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
    return {id:payload.id as string,conversationId:conversation,status:payload.status as State,receipts:payload.receipts as GitHubReceipt[],pending:payload.pending as Pending[],answer:'',updatedAt:String(payload.updatedAt)};
   }catch{return null;}
  }
+ // Preview only: a capsule cannot become a running task or refresh its own
+ // expiration. Never replace a newer server record with browser history.
+ function recoveryPreview(owner:string,conversation:string,id:string,value:unknown){
+  if(!owner||!isAgentTurnId(conversation)||!isAgentTurnId(id))return null;
+  const live=get(owner,id);
+  if(live)return live.conversationId===conversation?{...live,recovered:false}:null;
+  const saved=importRecovery(owner,conversation,value);
+  if(!saved||saved.id!==id)return null;
+  return {...saved,status:'interrupted' as const,snapshotStatus:saved.status,recovered:true};
+ }
  function begin(owner:string,conversation:string,id:string,inheritedPending:Pending[]=[]){
   if(!owner||!isAgentTurnId(conversation)||!isAgentTurnId(id))return {accepted:false as const,reason:'INVALID_AGENT_TURN'};
   if(row(owner,id))return {accepted:false as const,reason:'AGENT_TURN_ALREADY_RECORDED'};
@@ -129,6 +139,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryAvailable:()=>Boolean(capsuleKey)});
+ return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;
