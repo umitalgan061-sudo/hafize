@@ -20,6 +20,7 @@ type RequestContext = {
   readonly requestApproval?: Approval;
   /** Trusted SERVER context only: cannot be supplied as model tool arguments. */
   readonly safeAutonomy?: boolean;
+  readonly onPreparedBranch?: (target:{repository:string;branch:string})=>void;
   readonly onPreparedFile?: (target:{repository:string;branch:string;path:string;expectedBlob:string})=>void;
 };
 type Options = {
@@ -164,7 +165,7 @@ export function createGitHubAgentDevelopment(options: Options) {
     // normalized repository, operation and entire content fingerprint.
     const ticket = writer.issueApproval(operation, normalized, true);
     const token = ticket.ticket;
-    if (operation === 'branch') return writer.createBranch(token, normalized);
+    if (operation === 'branch') {context.onPreparedBranch?.({repository,branch});return writer.createBranch(token, normalized);}
     if (operation === 'file') {
       if(context.onPreparedFile){
         const bytes=Buffer.from(String(normalized.content),'utf8');

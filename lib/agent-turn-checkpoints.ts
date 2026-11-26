@@ -4,7 +4,7 @@ import type {GitHubReceipt} from './github-run-evidence.ts';
 
 type Cipher={encrypt(plain:string):string;decrypt(sealed:string):string};
 type State='running'|'answered'|'incomplete'|'interrupted'|'cancelled';
-export type Pending={tool:string;repository:string;operation:string;branch:string;path:string;sha:string;number:number|null;expectedBlob?:string};
+export type Pending={tool:string;repository:string;operation:string;branch:string;path:string;sha:string;number:number|null;expectedBlob?:string;preparedBranch?:string;target?:'render'|'firebase'|'cloudflare'};
 type Body={receipts:GitHubReceipt[];pending:Pending[];answer:string};
 type Row={id:string;owner_id:string;conversation_id:string;status:State;body_enc:string;updated_at:number;created_at:number};
 const ID=/^[a-zA-Z0-9_-]{1,120}$/;
@@ -25,7 +25,7 @@ export function mutationIntent(tool:string,args:unknown):Pending|null{
  if(!mutationTools.has(tool))return null;
  let o:Record<string,unknown>={};
  try{const parsed=typeof args==='string'?JSON.parse(args):args;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))o=parsed as Record<string,unknown>;}catch{}
- return {tool,repository:safe(o.repository,REPO),operation:safe(o.operation??o.action,/^[a-z_]{1,30}$/),branch:safe(o.branch,PATH),path:safe(o.path,PATH),sha:safe(o.existingSha??o.sha,SHA),number:typeof o.number==='number'&&Number.isSafeInteger(o.number)&&o.number>0?o.number:null};
+ return {tool,repository:safe(o.repository,REPO),operation:safe(o.operation??o.action,/^[a-z_]{1,30}$/),branch:safe(o.branch,PATH),path:safe(o.path,PATH),sha:safe(o.existingSha??o.sha,SHA),number:typeof o.number==='number'&&Number.isSafeInteger(o.number)&&o.number>0?o.number:null,...(o.target==='render'||o.target==='firebase'||o.target==='cloudflare'?{target:o.target}:{})};
 }
 export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKey}:{db:DatabaseSync;cipherFor:(owner:string)=>Cipher;now?:()=>number;recoveryKey?:Buffer}){
  db.exec('CREATE TABLE IF NOT EXISTS agent_turn_checkpoints (owner_id TEXT NOT NULL,id TEXT NOT NULL,conversation_id TEXT NOT NULL,status TEXT NOT NULL,body_enc TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(owner_id,id)); CREATE INDEX IF NOT EXISTS agent_turn_checkpoints_conversation ON agent_turn_checkpoints(owner_id,conversation_id,updated_at);');
@@ -121,6 +121,13 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
  }
  // Record only the approved, normalized result hash before the file PUT.
  // No source, approval ticket, credential or tool arguments in the journal.
+ function preparedBranch(owner:string,id:string,target:{repository:string;branch:string}){
+  const r=row(owner,id);if(!r||r.status!=='running'||!/^hafize\/auto-[a-z0-9][a-z0-9._-]{0,100}$/.test(target.branch)||target.branch.includes('..')||target.branch.endsWith('.lock'))throw Error('AGENT_TURN_PENDING_TARGET_MISMATCH');
+  const body=read(r);
+  const matches=body.pending.filter(p=>p.tool==='github_develop'&&p.operation==='branch'&&p.repository.toLowerCase()===target.repository.toLowerCase()&&(!p.branch||p.branch===target.branch));
+  if(matches.length!==1)throw Error('AGENT_TURN_PENDING_TARGET_MISMATCH');
+  matches[0]!.preparedBranch=target.branch;update(r,'running',body);
+ }
  function preparedFile(owner:string,id:string,target:{repository:string;branch:string;path:string;expectedBlob:string}){
   const r=row(owner,id);if(!r||r.status!=='running'||!SHA.test(target.expectedBlob))throw Error('AGENT_TURN_NOT_RUNNING');
   const body=read(r);
@@ -132,7 +139,7 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
  function checkpoint(owner:string,id:string,receipts:GitHubReceipt[],settled:Pending[]){
   const r=row(owner,id);if(!r||r.status!=='running')throw Error('AGENT_TURN_NOT_RUNNING');
   const body=read(r);body.receipts.push(...receipts);body.receipts=body.receipts.slice(-MAX_RECEIPTS);
-  for(const intent of settled){const n=body.pending.findIndex(p=>p.tool===intent.tool&&p.repository===intent.repository&&p.operation===intent.operation&&p.branch===intent.branch&&p.path===intent.path&&p.sha===intent.sha&&p.number===intent.number);if(n>=0)body.pending.splice(n,1);}
+  for(const intent of settled){const n=body.pending.findIndex(p=>p.tool===intent.tool&&p.repository===intent.repository&&p.operation===intent.operation&&p.branch===intent.branch&&p.path===intent.path&&p.sha===intent.sha&&p.number===intent.number&&p.target===intent.target);if(n>=0)body.pending.splice(n,1);}
   update(r,'running',body);
  }
  function finish(owner:string,id:string,status:Exclude<State,'running'>,answer=''){
@@ -149,6 +156,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,preparedFile,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
+ return Object.freeze({begin,get,previous,before,preparedBranch,preparedFile,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;

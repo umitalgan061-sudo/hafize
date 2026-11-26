@@ -8,7 +8,7 @@ const safeBranch=(v:string)=>BRANCH.test(v)&&!v.includes('..')&&!v.endsWith('.lo
 const safePath=(v:string)=>SOURCE.test(v)&&!v.split('/').some(x=>!x||x.startsWith('.')||/(?:secret|credential|token|private[-_]?key|auth|permission|security)/i.test(x));
 /** Positive, fresh, read-only reconciliation. Absence or mismatches never
  * settle a target. No write, no credentials in results, no source in prompts. */
-export async function reconcilePendingGitHubMutations({pending,allowedRepositories,fetchImpl,signal}:{pending:readonly Pending[];allowedRepositories:readonly string[];fetchImpl:typeof fetch;signal?:AbortSignal}){
+export async function reconcilePendingGitHubMutations({pending,allowedRepositories,fetchImpl,publicFetch=globalThis.fetch,signal}:{pending:readonly Pending[];allowedRepositories:readonly string[];fetchImpl:typeof fetch;publicFetch?:typeof fetch;signal?:AbortSignal}){
  const allowed=new Set(allowedRepositories.map(r=>r.toLowerCase()));
  const settled:Pending[]=[],receipts:GitHubReceipt[]=[];
  for(const p of pending.slice(0,20)){
@@ -23,7 +23,12 @@ export async function reconcilePendingGitHubMutations({pending,allowedRepositori
   };
   try{
    let line='';
-   if(p.tool==='github_develop'&&p.operation==='file'&&safeBranch(p.branch)&&safePath(p.path)&&p.expectedBlob&&SHA.test(p.expectedBlob)){
+   if(p.tool==='github_develop'&&p.operation==='branch'&&safeBranch(p.preparedBranch||p.branch)){
+    const branch=p.preparedBranch||p.branch;
+    if(p.branch&&p.branch!==branch)continue;
+    const ref=await get('/git/ref/heads/'+branch.split('/').map(encodeURIComponent).join('/'));
+    if(ref?.ref==='refs/heads/'+branch&&ref.object?.type==='commit'&&SHA.test(ref.object?.sha??''))line=repo+' — '+branch+' dalı '+ref.object.sha+' commitinde mevcut; yeni dal açılmadı, oluşturan kimlik belirlenmedi.';
+   }else if(p.tool==='github_develop'&&p.operation==='file'&&safeBranch(p.branch)&&safePath(p.path)&&p.expectedBlob&&SHA.test(p.expectedBlob)){
     // Resolve immutable branch head first; read only metadata of the exact
     // file at that commit. Content is never returned or logged.
     const ref=await get('/git/ref/heads/'+p.branch.split('/').map(encodeURIComponent).join('/'));
@@ -41,6 +46,14 @@ export async function reconcilePendingGitHubMutations({pending,allowedRepositori
    }else if(p.tool==='github_release'&&p.operation==='merge'&&p.number&&Number.isSafeInteger(p.number)&&p.number>0&&SHA.test(p.sha)){
     const pr=await get('/pulls/'+p.number);
     if(pr?.number===p.number&&pr.state==='closed'&&pr.merged===true&&pr.head?.sha===p.sha&&safeBranch(pr.head?.ref??'')&&pr.head?.repo?.full_name?.toLowerCase()===repo&&pr.base?.ref==='main'&&pr.base?.repo?.full_name?.toLowerCase()===repo&&SHA.test(pr.merge_commit_sha??''))line=repo+' — PR #'+p.number+' zaten birleştirilmiş; '+pr.merge_commit_sha+' doğrulandı. Yeni merge yapılmadı.';
+   }
+   if(!line&&p.tool==='github_release'&&p.operation==='publish'&&p.target==='render'&&repo==='umitalgan061-sudo/hafize'&&SHA.test(p.sha)){
+    const publicSignal=signal?AbortSignal.any([signal,AbortSignal.timeout(8000)]):AbortSignal.timeout(8000);
+    const responses=await Promise.all(['/release.json','/api/health/live'].map(path=>publicFetch('https://hafize-free.onrender.com'+path,{method:'GET',redirect:'error',cache:'no-store',signal:publicSignal})));
+    if(responses.every(r=>r.ok)){
+     const [release,health]=await Promise.all(responses.map(r=>r.json()));
+     if(release?.commit===p.sha&&health?.revision===p.sha&&health?.status==='ok')line=repo+' — Render üzerinde '+p.sha+' canlı ve sağlıklı olarak doğrulandı. Yeni yayın isteği gönderilmedi.';
+    }else await Promise.all(responses.map(r=>r.body?.cancel().catch(()=>{})));
    }
    if(line){settled.push(p);receipts.push({tool:'github_inspect',kind:'read',line});}
   }catch{/* Remain uncertain on transport, malformed or partial evidence. */}
