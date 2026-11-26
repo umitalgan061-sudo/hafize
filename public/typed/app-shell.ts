@@ -21,7 +21,7 @@ import { mountChatScroll, type ChatScrollController } from './chat-scroll.ts';
 import { decorateUserAttachments } from './user-attachments.ts';
 import { askChoice, askConfirm } from './theme-polish.ts';
 import { NOTICE_FOLLOW_MS, noticeTarget, shouldFollowNotice, type PlacedResult } from './notice-target.ts';
-import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, missingCheckpointAnswer, agentStreamFailure, checkpointEvidence, withCheckpointEvidence, type ToolActivity} from './agent-turn-recovery.ts';
+import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, missingCheckpointAnswer, agentStreamFailure, checkpointEvidence, recoveryCapsule, withCheckpointEvidence, type ToolActivity} from './agent-turn-recovery.ts';
 type Role = 'user' | 'assistant';
 interface ChatMessage {
   id: string;
@@ -32,6 +32,7 @@ interface ChatMessage {
   agentCheckpoint?: string;
   agentCheckpointConfirmed?: boolean;
   agentCheckpointEvidence?: string;
+  agentRecoveryToken?: string;
   alternates?: string[];
   feedback?: 'positive' | 'negative';
   generation?: {
@@ -240,6 +241,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
       ...(feedback ? { feedback } : {}),
       ...(generation ? { generation } : {}),
       ...(source.role==='assistant'&&typeof source.agentCheckpoint==='string'&&/^[a-zA-Z0-9_-]{1,120}$/.test(source.agentCheckpoint)?{agentCheckpoint:source.agentCheckpoint,...(source.agentCheckpointConfirmed===true?{agentCheckpointConfirmed:true}:{}),...(checkpointEvidence(source.agentCheckpointEvidence)?{agentCheckpointEvidence:checkpointEvidence(source.agentCheckpointEvidence)}:{})}:{}),
+      ...(source.role==='assistant'&&recoveryCapsule(source.agentRecoveryToken)?{agentRecoveryToken:recoveryCapsule(source.agentRecoveryToken)}:{}),
       ...(source.worked && Number.isFinite(source.worked.ms) && source.worked.ms >= 0 && ['bulut', 'bilgisayar', 'sayfa'].includes(source.worked.where)
         ? { worked: { ms: Math.min(86_400_000, Math.floor(source.worked.ms)), where: source.worked.where, ...(source.worked.raw === true ? { raw: true } : {}), ...(source.worked.failed === true ? { failed: true } : {}) } } : {}),
       ...(Array.isArray(source.toolActivities) ? {
@@ -984,13 +986,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
       const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
       const evidence=checkpointEvidence(event.payload?.evidence);
       if(row?.agentCheckpoint&&event.payload?.id===row.agentCheckpoint&&evidence){
-        row.agentCheckpointConfirmed=true;row.agentCheckpointEvidence=evidence;saveConversations();
+        row.agentCheckpointConfirmed=true;row.agentCheckpointEvidence=evidence;const token=recoveryCapsule(event.payload?.recoveryToken);if(token)row.agentRecoveryToken=token;saveConversations();
       }
       return;
     }
     if(event.type==='hafize-agent-checkpoint'){
       const row=getActiveConversation()?.messages.find(item=>item.id===assistantId);
-      if(row&&event.payload?.id===row.agentCheckpoint&&event.payload?.status==='running'){row.agentCheckpointConfirmed=true;row.content='GitHub görev kaydı sunucu tarafından doğrulandı.';saveConversations();}
+      if(row&&event.payload?.id===row.agentCheckpoint&&event.payload?.status==='running'){row.agentCheckpointConfirmed=true;row.content='GitHub görev kaydı sunucu tarafından doğrulandı.';const token=recoveryCapsule(event.payload?.recoveryToken);if(token)row.agentRecoveryToken=token;saveConversations();}
       return;
     }
     if (handleAgentEvent(event.type, event.payload, { assistantId, showToast })) return;
@@ -1107,6 +1109,7 @@ interface JsonPayload { readonly [key: string]: unknown; }
         try{
           const result=await hafizeApi.request(checkpointPath(message.agentCheckpoint),{timeoutMs:8000,retry:0});
           if(result.id!==message.agentCheckpoint||result.conversationId!==conversation.id)continue;
+          const token=recoveryCapsule(result.recoveryToken);if(token&&token!==message.agentRecoveryToken){message.agentRecoveryToken=token;changed=true;}
           if(result.status==='running'){
             if(!message.agentCheckpointConfirmed){message.agentCheckpointConfirmed=true;changed=true;}
             const text='GitHub görevi sunucuda devam ediyor. Tarayıcı yeniden bağlandığında sonuç bu sohbete getirilecek.';
@@ -1261,12 +1264,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
     const agentId = getConversationAgentId(conversation);
     if (!agentId) throw new Error('AGENT_REQUIRED');
     const requestMessages = getRequestMessages(conversation);
+    const recoveryToken=[...conversation.messages].reverse().map(m=>recoveryCapsule(m.agentRecoveryToken)).find(Boolean)||'';
     const startedAt = performance.now();
 
     const assistantId = addMessage('assistant', '', { persist: false });
     const stats = await consumeAssistantStream(
       '/api/agent/run',
-      { model, agentId, conversationId: conversation.id, agentTurnId:uid(), messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
+      { model, agentId, conversationId: conversation.id, agentTurnId:uid(), ...(recoveryToken?{agentRecoveryToken:recoveryToken}:{}), messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096 },
       assistantId,
       'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.',
       AGENT_RUN_TIMEOUT_MS,

@@ -1,4 +1,5 @@
 import type {DatabaseSync} from 'node:sqlite';
+import {createCipheriv,createDecipheriv,hkdfSync,randomBytes} from 'node:crypto';
 import type {GitHubReceipt} from './github-run-evidence.ts';
 
 type Cipher={encrypt(plain:string):string;decrypt(sealed:string):string};
@@ -26,8 +27,10 @@ export function mutationIntent(tool:string,args:unknown):Pending|null{
  try{const parsed=typeof args==='string'?JSON.parse(args):args;if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))o=parsed as Record<string,unknown>;}catch{}
  return {tool,repository:safe(o.repository,REPO),operation:safe(o.operation??o.action,/^[a-z_]{1,30}$/),branch:safe(o.branch,PATH),path:safe(o.path,PATH),sha:safe(o.existingSha??o.sha,SHA),number:typeof o.number==='number'&&Number.isSafeInteger(o.number)&&o.number>0?o.number:null};
 }
-export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:DatabaseSync;cipherFor:(owner:string)=>Cipher;now?:()=>number}){
+export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKey}:{db:DatabaseSync;cipherFor:(owner:string)=>Cipher;now?:()=>number;recoveryKey?:Buffer}){
  db.exec('CREATE TABLE IF NOT EXISTS agent_turn_checkpoints (owner_id TEXT NOT NULL,id TEXT NOT NULL,conversation_id TEXT NOT NULL,status TEXT NOT NULL,body_enc TEXT NOT NULL,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,PRIMARY KEY(owner_id,id)); CREATE INDEX IF NOT EXISTS agent_turn_checkpoints_conversation ON agent_turn_checkpoints(owner_id,conversation_id,updated_at);');
+ // Separate domain key: does not depend on per-owner keys in the ephemeral DB.
+ const capsuleKey=recoveryKey&&recoveryKey.length>=32?Buffer.from(hkdfSync('sha256',recoveryKey,Buffer.alloc(0),'hafize-agent-checkpoint-capsule-v1',32)):null;
  const active=new Map<string,AbortController>();
  // Local admission fence: the outgoing process may keep serving during a
  // Render build. Do not admit new durable tasks after a self-deploy dispatch.
@@ -61,6 +64,30 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
   if(!owner||!isAgentTurnId(conversation))return null;
   const r=db.prepare('SELECT * FROM agent_turn_checkpoints WHERE owner_id=? AND conversation_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').get(owner,conversation) as Row|undefined;
   return r?view(r):null;
+ }
+ /** Authenticated browser backup, not a replay/authorization token. */
+ function exportRecovery(owner:string,id:string):string{
+  if(!capsuleKey)return '';
+  const saved=get(owner,id);if(!saved)return '';
+  const payload={id:saved.id,conversationId:saved.conversationId,status:saved.status,receipts:saved.receipts.slice(-24).map(r=>({...r,line:r.line.slice(0,900)})),pending:saved.pending.slice(0,20),answer:'',updatedAt:saved.updatedAt,issuedAt:now()};
+  const raw=Buffer.from(JSON.stringify(payload));
+  if(raw.length>45000)return '';
+  const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',capsuleKey,iv);
+  cipher.setAAD(Buffer.from(JSON.stringify(['hafize-agent-recovery-v1',owner,saved.conversationId])));
+  const data=Buffer.concat([cipher.update(raw),cipher.final()]);
+  return ['v1',iv.toString('base64url'),cipher.getAuthTag().toString('base64url'),data.toString('base64url')].join('.');
+ }
+ function importRecovery(owner:string,conversation:string,value:unknown){
+  if(!capsuleKey||!owner||!isAgentTurnId(conversation)||typeof value!=='string'||value.length>64000)return null;
+  const parts=value.split('.');if(parts.length!==4||parts[0]!=='v1'||!parts.slice(1).every(p=>/^[A-Za-z0-9_-]+$/.test(p)))return null;
+  try{
+   const iv=Buffer.from(parts[1]!,'base64url'),tag=Buffer.from(parts[2]!,'base64url');
+   if(iv.length!==12||tag.length!==16)return null;
+   const decipher=createDecipheriv('aes-256-gcm',capsuleKey,iv);decipher.setAAD(Buffer.from(JSON.stringify(['hafize-agent-recovery-v1',owner,conversation])));decipher.setAuthTag(tag);
+   const payload=JSON.parse(Buffer.concat([decipher.update(Buffer.from(parts[3]!,'base64url')),decipher.final()]).toString('utf8'));
+   if(!isAgentTurnId(payload.id)||payload.conversationId!==conversation||!['running','answered','incomplete','interrupted','cancelled'].includes(payload.status)||!Number.isSafeInteger(payload.issuedAt)||payload.issuedAt>now()||now()-payload.issuedAt>30*DAY||!Array.isArray(payload.receipts)||!Array.isArray(payload.pending)||payload.receipts.length>24||payload.pending.length>20)return null;
+   return {id:payload.id as string,conversationId:conversation,status:payload.status as State,receipts:payload.receipts as GitHubReceipt[],pending:payload.pending as Pending[],answer:'',updatedAt:String(payload.updatedAt)};
+  }catch{return null;}
  }
  function begin(owner:string,conversation:string,id:string,inheritedPending:Pending[]=[]){
   if(!owner||!isAgentTurnId(conversation)||!isAgentTurnId(id))return {accepted:false as const,reason:'INVALID_AGENT_TURN'};
@@ -102,6 +129,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now}:{db:Datab
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending});
+ return Object.freeze({begin,get,previous,before,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryAvailable:()=>Boolean(capsuleKey)});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;

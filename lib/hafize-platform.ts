@@ -155,7 +155,8 @@ export function createHafizePlatform(deps: PlatformDeps) {
     }
   });
   const taskResults = createTaskResults({ db, cipherFor: (ownerId) => crypto.forOwner(ownerId) });
-  const agentTurns = createAgentTurnCheckpoints({db,cipherFor:ownerId=>crypto.forOwner(ownerId)});
+  const recoveryKey=master.source==='env'?master.key:typeof env.HAFIZE_AUTH_TOKEN==='string'&&Buffer.byteLength(env.HAFIZE_AUTH_TOKEN,'utf8')>=32?Buffer.from(env.HAFIZE_AUTH_TOKEN,'utf8'):undefined;
+  const agentTurns = createAgentTurnCheckpoints({db,cipherFor:ownerId=>crypto.forOwner(ownerId),recoveryKey});
   const workspaceWatcher = createWorkspaceWatcher({
     dir: env.HAFIZE_WORKSPACE_DIR || join(root, 'workspace'),
     onChange: async (path) => {
@@ -674,7 +675,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         if(ownerId.startsWith('connector:')||!isAgentTurnId(segments[2])){sendJson(res,404,{error:'NOT_FOUND'});return true;}
         const turn=agentTurns.get(ownerId,segments[2]);
         if(!turn){sendJson(res,404,{error:'AGENT_TURN_NOT_FOUND'});return true;}
-        if(method==='GET'&&segments.length===3){sendJson(res,200,turn);return true;}
+        if(method==='GET'&&segments.length===3){sendJson(res,200,{...turn,recoveryToken:agentTurns.exportRecovery(ownerId,turn.id)});return true;}
         if(method==='POST'&&segments.length===4&&segments[3]==='cancel'){sendJson(res,200,{cancelled:agentTurns.cancel(ownerId,segments[2])});return true;}
         sendJson(res,405,{error:'METHOD_NOT_ALLOWED'});return true;
       }

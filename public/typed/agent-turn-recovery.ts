@@ -56,3 +56,6 @@ export function withCheckpointEvidence(content:string,value:unknown):string{
  if(!evidence||content.includes(evidence))return content;
  return content+'\n\nTarayıcıya ulaşan son sunucu kanıtları (yeni işlem yapılmadı):\n\n'+evidence;
 }
+
+/** Opaque server-encrypted backup; never include in model message text. */
+export function recoveryCapsule(value:unknown):string{return typeof value==='string'&&value.length<=64000&&/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(value)?value:'';}
