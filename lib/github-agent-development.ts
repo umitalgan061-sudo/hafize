@@ -166,7 +166,14 @@ export function createGitHubAgentDevelopment(options: Options) {
     if (operation === 'branch') return writer.createBranch(token, normalized);
     if (operation === 'file') {
       const committed = await writer.commitFile(token, normalized);
-      return writer.verifyFileCommit(normalized, committed);
+      // The mutation has already returned a commit. A transient read-back
+      // error (including 404/403) is NOT a rejected write. Retry only the
+      // immutable commit verification, never the PUT or approval ticket.
+      try{return await writer.verifyFileCommit(normalized, committed);}
+      catch{
+        try{return await writer.verifyFileCommit(normalized, committed);}
+        catch{throw new GitHubWorkspaceWriteError('GITHUB_COMMIT_VERIFICATION_FAILED',502);}
+      }
     }
     return writer.createPullRequest(token, normalized);
   }
