@@ -6,13 +6,17 @@ on:
     paths:
       - render.yaml
       - scripts/render-free-blueprint.test.mjs
+      - scripts/render-release*.mjs
       - .github/workflows/hafize-render-free.yml
+      - .github/workflows/hafize-render-release.yml
   pull_request:
     branches: [main]
     paths:
       - render.yaml
       - scripts/render-free-blueprint.test.mjs
+      - scripts/render-release*.mjs
       - .github/workflows/hafize-render-free.yml
+      - .github/workflows/hafize-render-release.yml
 
 permissions:
   contents: read
@@ -26,4 +30,4 @@ jobs:
         with:
           node-version: '24.21.0'
       - name: Verify Render Free plan, auth and no embedded credentials
-        run: node --test scripts/render-free-blueprint.test.mjs
+        run: node --test scripts/render-free-blueprint.test.mjs scripts/render-release-plan.test.mjs
