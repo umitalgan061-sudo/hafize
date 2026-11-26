@@ -71,6 +71,13 @@ export function verifiedCreatedFeatureBranch(receipts:readonly GitHubReceipt[]):
  if(receipts.some(r=>r.repository&&r.repository!==row.repository))return null;
  return {repository:row.repository,branch:row.branch};
 }
+/** A completed recovery statement is history, not a new read-only command.
+ * Strip only the exact leading transition to a new instruction, solely for
+ * restriction matching. All actual restrictions and runtime fences remain.
+ */
+function currentDirectiveForRestrictions(s:string):string{
+ return s.replace(/^(?:hafize\s*,\s*)?salt okunur kurtarma turunu tamamladin[.!]\s+simdi\s+/, '');
+}
 /** Bounded model recovery after inspection, with no attempted file, PR,
  * merge or publish mutation. A verified branch creation is not delivery.
  * Never replay a mutation, override permission, or choose code automatically. */
@@ -83,7 +90,7 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
  const development=/\b(?:gelistir|iyilestir|algoritma iyilestirmeleri yap|gelistirmeleri tamamla|kod degisikligi yap)\b/.test(s)&&/\b(?:pr olustur|pr ac|test\w* ekle|regresyon test\w*|kod degisikligi|algoritma)\b/.test(s);
  const newBranchDevelopment=Boolean(created)&&/\b(?:tasarla|gelistir|iyilestir|duzenle|guncelle|degistir|uygula|kod degisiklik\w*|implement|update|patch)\w*/.test(s)&&/\b(?:commit|pr ac|pr olustur|merge|canliya al|kod degisiklik\w*)\b/.test(s);
  if(!explicitEdit&&!development&&!newBranchDevelopment)return false;
- if(/\b(?:commit etme|commit yapma|commit olusturma|dosya\w* (?:degistirme|duzenleme|guncelleme)|sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|read only|do not commit|degisiklik yapma|kod yazma)\b/.test(s))return false;
+ if(/\b(?:commit etme|commit yapma|commit olusturma|dosya\w* (?:degistirme|duzenleme|guncelleme)|sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|read only|do not commit|degisiklik yapma|kod yazma)\b/.test(currentDirectiveForRestrictions(s)))return false;
  return receipts.some(r=>r.tool==='github_read_file'&&r.kind==='read')&&
    !receipts.some(r=>(r.kind==='error'&&!r.line.includes('GITHUB_REQUESTED_BRANCH_MISMATCH'))||['file','pull','merge','dispatch'].includes(r.kind))&&
    !calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&!(c.operation==='branch'&&c.ok===true)&&c.error!=='GITHUB_REQUESTED_BRANCH_MISMATCH'));
@@ -93,12 +100,12 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
  * No retry after a PR mutation attempt or a failed/uncertain write. */
 export function explicitPullRequested(request:unknown):boolean{
  const s=normal(request);
- return Boolean(requestedExistingFeatureBranch(request))&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(s);
+ return Boolean(requestedExistingFeatureBranch(request))&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(currentDirectiveForRestrictions(s));
 }
 export function shouldRecoverMissingPull(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string}[]):boolean{
  const created=verifiedCreatedFeatureBranch(receipts);
  const s=normal(request);
- const newBranchPull=Boolean(created)&&githubWorkRequested(request)&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(s)&&receipts.some(r=>r.kind==='file'&&r.repository===created?.repository&&r.branch===created?.branch);
+ const newBranchPull=Boolean(created)&&githubWorkRequested(request)&&/\b(?:pr|pull request)\s+(?:olustur|ac|hazirla)\b/.test(s)&&!/\b(?:pr|pull request)\s+(?:olusturma|acma|hazirlama|istemiyorum)\b|\b(?:sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|degisiklik yapma|kod yazma|do not open)\b/.test(currentDirectiveForRestrictions(s))&&receipts.some(r=>r.kind==='file'&&r.repository===created?.repository&&r.branch===created?.branch);
  return (explicitPullRequested(request)||newBranchPull)&&receipts.some(r=>r.kind==='file')&&!receipts.some(r=>['pull','merge','dispatch','error'].includes(r.kind))&&!calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&(c.operation==='pull'||c.ok!==true)));
 }
 export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{

@@ -122,3 +122,21 @@ it('recognizes the exact branch-then-edit Turkish instruction from the home assi
  expect(shouldRecoverReadOnlyWrite(request,rows,[...calls,{name:'github_develop',operation:'file',ok:false}])).toBe(false);
  expect(shouldRecoverReadOnlyWrite(request+' Sadece incele.',rows,calls)).toBe(false);
 });
+
+it('does not confuse a completed read-only recovery with a new read-only restriction',()=>{
+ const repository='umitalgan061-sudo/hafize',branch='hafize/auto-8deb40907a8342a489e925e700e4727d';
+ const history='Hafize, salt okunur kurtarma turunu tamamladın. Şimdi ';
+ const instruction='mevcut '+branch+' dalında public/home-voice-luminous-core.js dosyasını düzenle ve commit et. github_develop operation=file aracını kullan. Yeni dal oluşturma. Gerçek kod değişikliğini tamamla.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/home-voice-luminous-core.js',sha:blob}});
+ const calls=[{name:'github_read_file',ok:true}];
+ expect(shouldRecoverReadOnlyWrite(history+instruction,read,calls)).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(history+instruction+' Sadece oku.',read,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(history+instruction+' Salt okunur çalış.',read,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(history+instruction+' Commit etme.',read,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite('Hafize, salt okunur çalış. '+instruction,read,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(history+instruction,read,[...calls,{name:'github_develop',operation:'file',ok:false}])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(history+instruction,[],calls)).toBe(false);
+ const file=githubReceipt('github_develop',{ok:true,value:{repository,action:'file',branch,path:'public/home-voice-luminous-core.js',commitSha:commit,blobSha:blob,verified:true}});
+ expect(shouldRecoverMissingPull(history+instruction+' PR oluştur.',[...read,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(true);
+ expect(shouldRecoverMissingPull(history+instruction+' PR oluştur. PR açma.',[...read,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(false);
+});
