@@ -23,7 +23,7 @@ jobs:
       RETAKE_SITE_ID: retake06-ua
       # Single source of truth: the checkout below, the commit guard and the
       # public release marker all read this value. Release = change only this.
-      RETAKE_RELEASE_SHA: 7fea8d25e452e7ea87b6fa66ad3ab33b8ddbd16f
+      RETAKE_RELEASE_SHA: 27a289b9ae1fe6c3186d6774652c156699c72433
     steps:
       - name: Check out the verified Retake source commit only
         uses: actions/checkout@v4
