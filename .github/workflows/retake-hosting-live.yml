@@ -21,14 +21,30 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: projelerim-8fecd
       RETAKE_SITE_ID: retake06-ua
-      RETAKE_RELEASE_SHA: f966a0a3901cd818e2d7526c9874800d90de608f
+      # Single source of truth: the checkout below, the commit guard and the
+      # public release marker all read this value. Release = change only this.
+      RETAKE_RELEASE_SHA: 7fea8d25e452e7ea87b6fa66ad3ab33b8ddbd16f
     steps:
       - name: Check out the verified Retake source commit only
         uses: actions/checkout@v4
         with:
           repository: umitalgan061-sudo/retake
-          ref: a80e1fa770baad41915707372f7990a048d0ce98
+          ref: ${{ env.RETAKE_RELEASE_SHA }}
           persist-credentials: false
+
+      - name: Confirm the checked-out tree is exactly the release commit
+        shell: bash
+        run: |
+          if ! printf '%s' "$RETAKE_RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo '::error::RETAKE_RELEASE_SHA must be a full 40-character commit SHA.'
+            exit 1
+          fi
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$RETAKE_RELEASE_SHA" ]; then
+            echo "::error::Checked out $actual, expected $RETAKE_RELEASE_SHA; nothing deployed."
+            exit 1
+          fi
+          echo "Deploying Retake source $actual"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -129,6 +145,36 @@ jobs:
             process.exitCode = 1;
           } else {
             console.log('Verified live Retake Firebase Hosting for ' + process.env.RETAKE_RELEASE_SHA);
+          }
+          JS
+
+      - name: Verify the live app files are the released bytes, not only the marker
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const files = ['index.html', 'app.js', 'sw.js', 'src/quality.js'];
+          const digest = (data) => createHash('sha256').update(data).digest('hex');
+          const pending = new Set(files);
+          for (let attempt = 0; attempt < 8 && pending.size; attempt++) {
+            for (const file of [...pending]) {
+              try {
+                const url = new URL('https://retake06-ua.web.app/' + file);
+                url.searchParams.set('sha', process.env.RETAKE_RELEASE_SHA);
+                const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(12000) });
+                if (!response.ok) continue;
+                const live = Buffer.from(await response.arrayBuffer());
+                if (digest(live) === digest(readFileSync(file))) pending.delete(file);
+              } catch { /* CDN propagation delay */ }
+            }
+            if (pending.size && attempt < 7) await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          if (pending.size) {
+            console.error('::error::Live files differ from release ' + process.env.RETAKE_RELEASE_SHA + ': ' + [...pending].join(', '));
+            process.exitCode = 1;
+          } else {
+            console.log('Live index.html, app.js, sw.js and src/quality.js match ' + process.env.RETAKE_RELEASE_SHA);
           }
           JS
 
