@@ -1397,6 +1397,9 @@ async function handleAgentRun(req, res) {
       if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
       return result;
     }));
+    // Advance only after the entire batch finishes, so a parallel read never
+    // consumes the new post-mutation verification slot prematurely.
+    normalizedCalls.forEach((call,index)=>toolLoopGuard.observeGitHubMutation(call.function.name,results[index]));
     noProgressRounds=results.some(result=>result.ok)?0:noProgressRounds+1;
     normalizedCalls.forEach((call, index) => {
       const result = results[index];
