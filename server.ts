@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitMergeCommand } from './lib/github-agent-release.ts';
+import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitReleaseCommand } from './lib/github-agent-release.ts';
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
@@ -247,7 +247,7 @@ const GITHUB_AGENT_WRITER = GITHUB_BORSA_AGENT_ENABLED ? createGitHubWorkspaceWr
   commitIdentity: GITHUB_APP_AUTH ? GITHUB_APP_AUTH.botCommitIdentity : undefined,
   allowedRepositories: GITHUB_AGENT_REPOS
 }) : GITHUB_WORKSPACE_WRITER;
-const GITHUB_AGENT_RELEASE = GITHUB_APP_AUTH ? createGitHubAgentRelease({writer:GITHUB_AGENT_WRITER,allowedRepositories:GITHUB_AGENT_REPOS,fetchImpl:GITHUB_FETCH}) : null;
+const GITHUB_AGENT_RELEASE = GITHUB_APP_AUTH ? createGitHubAgentRelease({writer:GITHUB_AGENT_WRITER,allowedRepositories:GITHUB_AGENT_REPOS,fetchImpl:GITHUB_FETCH,renderHook:process.env.HAFIZE_RENDER_DEPLOY_HOOK||'',otherActiveTasks:()=>PLATFORM.agentTurns.activeCount()>1}) : null;
 const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
   ? createGitHubAgentDevelopment({ writer: GITHUB_AGENT_WRITER, allowedRepositories: GITHUB_AGENT_REPOS,
       sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: ['borsa-gunlugu/', 'borsa-worker/'] } : {} })
@@ -1202,11 +1202,11 @@ async function handleAgentRun(req, res) {
     finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
     return;
   }
-  const explicitMerge=parseExplicitMergeCommand(lastUserText);
+  const explicitMerge=parseExplicitReleaseCommand(lastUserText);
   if(explicitMerge){
     githubEvidenceMode=true;
     const authorization=toolContext.githubReleaseAuthorization;
-    if(!durableId||!authorization?.actions.includes('merge')||!authorization.repositories.includes(explicitMerge.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
+    if(!durableId||!authorization?.actions.includes(explicitMerge.action)||!authorization.repositories.includes(explicitMerge.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
       githubReceipts.push(...githubReceipt('github_release',{ok:false,error:'RELEASE_NOT_AUTHORIZED_OR_AVAILABLE'}));
       finishWithAnswer('',false,true);return;
     }
@@ -1247,7 +1247,7 @@ async function handleAgentRun(req, res) {
     let completion;
     try {
       completion = explicitMerge
-        ? {toolCalls:[{id:'explicit-user-merge',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
+        ? {toolCalls:[{id:'explicit-user-release',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
         : await runRound(roundPayload);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }

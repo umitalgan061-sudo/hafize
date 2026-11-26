@@ -21,12 +21,14 @@ export function releasePathAllowed(repo:string,path:string){
  if(repo===SITES)return /^(?:borsa-gunlugu|borsa-worker)\/src\/[a-zA-Z0-9_/-][a-zA-Z0-9_./-]*\.(?:js|ts|css|html)$/.test(path);
  return false;
 }
-export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:{writer:Writer;allowedRepositories:readonly string[];fetchImpl:typeof fetch}){
+const RENDER_ORIGIN='https://hafize-free.onrender.com';
+const RENDER_SERVICE='srv-dc1valbl550s73flt7rg';
+export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,renderHook='',renderFetch=globalThis.fetch,otherActiveTasks=()=>false}:{writer:Writer;allowedRepositories:readonly string[];fetchImpl:typeof fetch;renderHook?:string;renderFetch?:typeof fetch;otherActiveTasks?:()=>boolean}){
  const allowed=new Set<string>(allowedRepositories.map(r=>r.toLowerCase()).filter(r=>r===HAFIZE||r===SITES));
  const enabled=()=>allowed.size>0&&writer.configured();
  async function api(repo:string,path:string,method='GET',body?:unknown,signal?:AbortSignal){
   const r=await fetchImpl(new URL('https://api.github.com/repos/'+repo+path),{method,redirect:'error',headers:{Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'Hafize-Release','Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{}),signal:signal?AbortSignal.any([signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)});
-  if(!r.ok)fail('RELEASE_GITHUB_HTTP_FAILED',r.status);
+  if(!r.ok){await r.body?.cancel().catch(()=>{});fail(r.status===403&&method==='POST'&&path.endsWith('/dispatches')?'RELEASE_WORKFLOW_DISPATCH_FORBIDDEN':'RELEASE_GITHUB_HTTP_FAILED',r.status);}
   return r.status===204?null:await r.json();
  }
  async function current(repo:string,signal?:AbortSignal){
@@ -148,7 +150,37 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl}:
     throw error;
    }
   }
-  const target=args.target;
+  const target=args.target??(repo===HAFIZE?'render':undefined);
+  if(repo===HAFIZE&&target==='render'){
+   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
+   assertActive();
+   await verifiedMainTests(repo,sha,'quality.yml',ctx.signal);
+   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
+   assertActive();
+   // Read the public fixed-origin release markers without any GitHub or Render credentials.
+   try{
+    const responses=await Promise.all(['/release.json','/api/health/live'].map(path=>renderFetch(RENDER_ORIGIN+path,{redirect:'error',cache:'no-store',signal:ctx.signal?AbortSignal.any([ctx.signal,AbortSignal.timeout(10000)]):AbortSignal.timeout(10000)})));
+    if(responses.every(r=>r.ok)){
+     const [release,health]=await Promise.all(responses.map(r=>r.json()));
+     if(release?.commit===sha&&health?.revision===sha&&health?.status==='ok')return {action:'publish',repository:repo,target:'render',requestedSha:sha,published:true,existing:true};
+    }else await Promise.all(responses.map(r=>r.body?.cancel().catch(()=>{})));
+   }catch{/* Public health is diagnostic, not an authorization or success signal. */}
+   assertActive();
+   if(otherActiveTasks())fail('RENDER_ACTIVE_TASKS',409);
+   let hook:URL;
+   try{hook=new URL(renderHook);}catch{return fail('RENDER_DEPLOY_HOOK_NOT_CONFIGURED',409);}
+   if(hook.origin!=='https://api.render.com'||hook.pathname!=='/deploy/'+RENDER_SERVICE||hook.username||hook.password||hook.hash||!hook.searchParams.get('key')||[...hook.searchParams.keys()].some(k=>k!=='key')||hook.searchParams.getAll('key').length!==1)fail('RENDER_DEPLOY_HOOK_INVALID',409);
+   hook.searchParams.set('ref',sha);
+   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
+   assertActive();
+   if(otherActiveTasks())fail('RENDER_ACTIVE_TASKS',409);
+   // Never return or log the hook URL; a transport failure may include it.
+   let response:Response;
+   try{response=await renderFetch(hook,{method:'POST',redirect:'error',signal:ctx.signal?AbortSignal.any([ctx.signal,AbortSignal.timeout(15000)]):AbortSignal.timeout(15000)});}catch{return fail('RENDER_DEPLOY_REQUEST_UNCERTAIN',502);}
+   if(!response.ok){await response.body?.cancel().catch(()=>{});return fail('RENDER_DEPLOY_HTTP_FAILED',response.status);}
+   await response.body?.cancel().catch(()=>{});
+   return {action:'publish',repository:repo,target:'render',requestedSha:sha,dispatchAccepted:true,published:false,note:'Verify the exact Render release and live health after deployment. No automatic repeat.'};
+  }
   const workflow=repo===HAFIZE&&target==='firebase'?'firebase-hosting-live.yml':repo===SITES&&target==='cloudflare'?'borsa-worker-live.yml':repo===SITES&&target==='firebase'?'borsa-hosting-live.yml':'';
   if(!workflow)fail('RELEASE_TARGET_NOT_SUPPORTED');
   if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
@@ -204,4 +236,37 @@ export function parseExplicitMergeCommand(request:unknown):{action:'merge';repos
   if(v.action!=='merge'||![HAFIZE,SITES].includes(v.repository)||!Number.isSafeInteger(v.number)||v.number<1||typeof v.sha!=='string'||!SHA.test(v.sha))return null;
   return {action:'merge',repository:v.repository,number:v.number,sha:v.sha.toLowerCase()};
  }catch{return null;}
+}
+
+/** Strict standalone structured release requests. Explicit owner intent must
+ * precede the JSON; quoted examples, extra actions, wrong targets and malformed
+ * parameters are not executable commands. The server still checks authorization
+ * for the entire original request and uses the normal journaled release tool. */
+export function parseExplicitReleaseCommand(request:unknown){
+ const merge=parseExplicitMergeCommand(request);
+ if(merge)return merge;
+ if(typeof request!=='string'||request.length>12000)return null;
+ const match=request.match(/^([^\r\n]{1,240})\r?\n(?:[ \t]*\r?\n)*[ \t]*github_release aracını şu parametrelerle çalıştır:[ \t]*\r?\n\s*(\{[^{}]{1,4096}\})\s*$/u);
+ if(!match)return null;
+ const first=match[1].toLocaleLowerCase('tr-TR').normalize('NFD').replace(/\p{M}/gu,'').replace(/ı/g,'i').trim();
+ try{
+  const v=JSON.parse(match[2]);
+  if(!v||Array.isArray(v)||typeof v.repository!=='string'||![HAFIZE,SITES].includes(v.repository))return null;
+  const repo=v.repository;
+  const scope=releaseAuthorizationForRequest(match[1],true);
+  if(!scope?.repositories.includes(repo)||!scope.actions.includes(v.action))return null;
+  if(v.action==='open'){
+   if(![repo+' deposunda pr ac.',repo+' deposunda yalnizca pr ac.',repo+' deposunda pr olustur.'].includes(first))return null;
+   if(Object.keys(v).length!==5||Object.keys(v).some(k=>!['action','repository','branch','title','body'].includes(k)))return null;
+   if(typeof v.branch!=='string'||!BRANCH.test(v.branch)||v.branch.includes('..')||v.branch.endsWith('.lock')||typeof v.title!=='string'||!v.title.trim()||v.title.length>240||typeof v.body!=='string')return null;
+   return {action:'open' as const,repository:repo,branch:v.branch,title:v.title,body:v.body};
+  }
+  if(v.action==='publish'){
+   if(first!==repo+' deposunu canliya al.')return null;
+   if(Object.keys(v).length!==4||Object.keys(v).some(k=>!['action','repository','sha','target'].includes(k)))return null;
+   if(typeof v.sha!=='string'||!SHA.test(v.sha)||!(repo===HAFIZE&&['render','firebase'].includes(v.target)||repo===SITES&&['firebase','cloudflare'].includes(v.target)))return null;
+   return {action:'publish' as const,repository:repo,sha:v.sha.toLowerCase(),target:v.target};
+  }
+ }catch{return null;}
+ return null;
 }
