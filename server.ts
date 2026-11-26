@@ -74,7 +74,7 @@ import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, type GitHubReceipt } from './lib/github-run-evidence.ts';
+import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 import { reconcilePendingGitHubMutations } from './lib/github-mutation-reconciliation.ts';
 
@@ -1247,6 +1247,7 @@ async function handleAgentRun(req, res) {
   let noProgressRounds=0;
   let readOnlyWriteRecoveryUsed=false;
   let missingPullRecoveryUsed=false;
+  let recoveryBranch:ReturnType<typeof verifiedCreatedFeatureBranch>=null;
   interruptionStage='execution';
   for (let round = 0; round < MAX_AGENT_TOOL_ROUNDS; round += 1) {
     if (requestAbort.signal.aborted) { incompleteReason = 'interrupted'; break; }
@@ -1319,12 +1320,14 @@ async function handleAgentRun(req, res) {
         tools.some(t=>t.function.name==='github_develop') &&
         shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
         readOnlyWriteRecoveryUsed=true;
-        workingMessages.push({role:'system',content:'Kullanıcının son mesajı mevcut izinli geliştirme dalında somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Yeni dal, PR, merge veya yayın kendiliğinden başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
+        recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts);
+        workingMessages.push({role:'system',content:'Kullanıcının son mesajı somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. '+(recoveryBranch?'Bu tur doğrulanan hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. Aynı dalı kullan; ikinci dal açma. ':'')+'İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Kullanıcı açıkça istemediyse PR, merge veya yayın başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
         continue;
       }
       if(!missingPullRecoveryUsed&&round+1<MAX_AGENT_TOOL_ROUNDS&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverMissingPull(developmentRequest,githubReceipts,toolSummary)){
         missingPullRecoveryUsed=true;
-        workingMessages.push({role:'system',content:'Kullanıcının istediği mevcut dalda dosya değişikliği doğrulandı ancak istenen PR henüz yok. Önce bu dalın güncel PR/diff durumunu kontrol et. Mevcut PR yoksa izinli github_develop pull ile aynı dalda taslak PR aç; PR varsa tekrar oluşturma. Test sonucu uydurma, merge veya yayın başlatma.'});
+        recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??recoveryBranch;
+        workingMessages.push({role:'system',content:'Kullanıcının istediği dosya değişikliği doğrulandı ancak istenen PR henüz yok. '+(recoveryBranch?'Doğrulanan hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. ':'')+'Önce bu dalın güncel PR/diff durumunu kontrol et. Mevcut PR yoksa izinli github_develop pull ile aynı dalda taslak PR aç; PR varsa tekrar oluşturma. Test sonucu uydurma; merge veya yayın yalnız mevcut açık kullanıcı yetkisi ve gerçek kontrollerle yapılabilir.'});
         continue;
       }
       // "I will start changing the code" without an actual change or result
@@ -1356,7 +1359,10 @@ async function handleAgentRun(req, res) {
         if (streamResponse) writeSseEvent(res, 'hafize-tool-activity', getPublicToolActivity(call.function.name, result));
         return result;
       }
-      if(violatesExistingFeatureBranch(requestedBranch,call.function.name,call.function.arguments)){
+      const recoveryMutation=Boolean(recoveryBranch&&['github_develop','github_release'].includes(call.function.name));
+      let recoveryRepositoryMismatch=false;
+      if(recoveryMutation){try{const args=JSON.parse(call.function.arguments);recoveryRepositoryMismatch=args?.repository!==recoveryBranch?.repository;}catch{recoveryRepositoryMismatch=true;}}
+      if(recoveryRepositoryMismatch||violatesExistingFeatureBranch(requestedBranch??recoveryBranch?.branch??null,call.function.name,call.function.arguments)){
         const result={ok:false,tool:call.function.name,error:'GITHUB_REQUESTED_BRANCH_MISMATCH',status:400,durationMs:0};
         runLedger.recordToolFinish(toolTask.taskId,result);
         if(streamResponse)writeSseEvent(res,'hafize-tool-activity',getPublicToolActivity(call.function.name,result));
