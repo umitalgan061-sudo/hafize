@@ -1089,8 +1089,8 @@ async function handleAgentRun(req, res) {
     answerText += delta;
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`);
   };
-  async function runRound(payload) {
-    if (!streamResponse) {
+  async function runRound(payload, bufferedRepair = false) {
+    if (!streamResponse || bufferedRepair) {
       const raw = await nvidiaJsonCompletion(payload, requestAbort.signal);
       PLATFORM.telemetry.recordCompletionUsage(traceId, 'agent.round', model, raw);
       const completion = normalizeRootCompletion(raw);
@@ -1245,7 +1245,9 @@ async function handleAgentRun(req, res) {
   let incompleteReason = 'tool_budget';
   let budgetReminderIndex = -1;
   let noProgressRounds=0;
-  let readOnlyWriteRecoveryUsed=false;
+  let readOnlyWriteRecoveryRounds=0;
+  let bufferedRepairNext=false;
+  let branchStageAnnounced=false;
   let missingPullRecoveryUsed=false;
   let recoveryBranch:ReturnType<typeof verifiedCreatedFeatureBranch>=null;
   interruptionStage='execution';
@@ -1277,16 +1279,18 @@ async function handleAgentRun(req, res) {
       roundPayload.tool_choice = 'auto';
     }
 
+    const bufferedRepair=bufferedRepairNext;
+    bufferedRepairNext=false;
     let completion;
     try {
       completion = explicitMerge
         ? {toolCalls:[{id:'explicit-user-release',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
-        : await runRound(roundPayload);
+        : await runRound(roundPayload,bufferedRepair);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }
       MODEL_ROUTER.penalizeModel(error.routedModel);
       try {
-        completion = await runRound(roundPayload);
+        completion = await runRound(roundPayload,bufferedRepair);
       } catch (retryError) {
         failRound(retryError);
         return;
@@ -1313,19 +1317,23 @@ async function handleAgentRun(req, res) {
 
     if (!normalizedCalls.length) {
       // A model can finish with prose after reading source even when the owner
-      // explicitly requested a commit. One extra model round, never an automatic
-      // mutation or a forced tool, is allowed only before any write was attempted.
-      if(!readOnlyWriteRecoveryUsed && round+1<MAX_AGENT_TOOL_ROUNDS && durableId &&
+      // explicitly requested a commit. At most two buffered model repair rounds,
+      // never an automatic mutation or forced tool, before any file write attempt.
+      if(readOnlyWriteRecoveryRounds<2 && round+1<MAX_AGENT_TOOL_ROUNDS && durableId &&
         !requestAbort.signal.aborted && !PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length &&
         tools.some(t=>t.function.name==='github_develop') &&
         shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
-        readOnlyWriteRecoveryUsed=true;
-        recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts);
+        readOnlyWriteRecoveryRounds+=1;
+        bufferedRepairNext=true;
+        recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??recoveryBranch;
+        console.info(JSON.stringify({event:'hafize.github.delivery_repair',stage:'file',attempt:readOnlyWriteRecoveryRounds,verifiedBranch:Boolean(recoveryBranch)}));
         workingMessages.push({role:'system',content:'Kullanıcının son mesajı somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. '+(recoveryBranch?'Bu tur doğrulanan hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. Aynı dalı kullan; ikinci dal açma. ':'')+'İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Kullanıcı açıkça istemediyse PR, merge veya yayın başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
         continue;
       }
       if(!missingPullRecoveryUsed&&round+1<MAX_AGENT_TOOL_ROUNDS&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverMissingPull(developmentRequest,githubReceipts,toolSummary)){
         missingPullRecoveryUsed=true;
+        bufferedRepairNext=true;
+        console.info(JSON.stringify({event:'hafize.github.delivery_repair',stage:'pull',attempt:1}));
         recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??recoveryBranch;
         workingMessages.push({role:'system',content:'Kullanıcının istediği dosya değişikliği doğrulandı ancak istenen PR henüz yok. '+(recoveryBranch?'Doğrulanan hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. ':'')+'Önce bu dalın güncel PR/diff durumunu kontrol et. Mevcut PR yoksa izinli github_develop pull ile aynı dalda taslak PR aç; PR varsa tekrar oluşturma. Test sonucu uydurma; merge veya yayın yalnız mevcut açık kullanıcı yetkisi ve gerçek kontrollerle yapılabilir.'});
         continue;
@@ -1336,6 +1344,9 @@ async function handleAgentRun(req, res) {
       if (isEmptyOrProgressOnlyAnswer(stripToolMarkup(content))) {
         incompleteReason = 'empty_response';
         break;
+      }
+      if(durableId&&githubEvidenceMode&&!githubReceipts.some(r=>r.kind==='file')&&githubReceipts.some(r=>r.kind==='branch')){
+        console.info(JSON.stringify({event:'hafize.github.delivery_incomplete',stage:'file',repairAttempts:readOnlyWriteRecoveryRounds,pending:Boolean(PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length),writerAdvertised:tools.some(t=>t.function.name==='github_develop')}));
       }
       finishWithAnswer(content, completion.wrote);
       return;
@@ -1454,6 +1465,16 @@ async function handleAgentRun(req, res) {
         content: JSON.stringify(result)
       });
     });
+    // A branch receipt is an intermediate stage, not the requested deliverable.
+    // Guide the next round immediately, before the model can end with prose.
+    if(!branchStageAnnounced&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
+      const verified=verifiedCreatedFeatureBranch(githubReceipts);
+      if(verified){
+        branchStageAnnounced=true;recoveryBranch=verified;
+        workingMessages.push({role:'system',content:'Geliştirme teslimat aşaması: dal başarıyla doğrulandı ('+verified.repository+' / '+verified.branch+'). Bu bir kod değişikliği değildir. Kullanıcı somut kod değişikliği istiyor. Aynı dalda gerekli kaynak dosyasını ve blob SHA değerini github_read_file ile doğrula; ardından tek dosya için github_develop operation=file, repository, branch, path, existingSha, message ve content veya tam benzersiz find/replace alanlarını kullan. Kapsam dışına çıkma. Yeni dal açma. Güvenli değişiklik belirlenemiyorsa dur ve nedenini açıkla. Gerçek dosya değişikliği olmadan başarı raporlama.'});
+        console.info(JSON.stringify({event:'hafize.github.delivery_stage',stage:'file',verifiedBranch:true}));
+      }
+    }
     if (streamResponse) {
       for (const update of memorySession.updates.slice(memoryUpdatesSent)) writeSseEvent(res, 'hafize-memory', update);
       memoryUpdatesSent = memorySession.updates.length;
