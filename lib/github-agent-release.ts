@@ -98,9 +98,6 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
   assertActive();
   if(action==='open'){
    const branch=safeBranch(args.branch);
-   const existing=await api(repo,'/pulls?state=open&base=main&head='+encodeURIComponent(repo.split('/')[0]+':'+branch)+'&per_page=20','GET',undefined,ctx.signal);
-   if(!Array.isArray(existing))fail('RELEASE_INVALID_RESPONSE',502);
-   if(existing.length){const pr=obj(existing[0]);return {action:'open',repository:repo,number:id(pr.number),draft:pr.draft===true,headSha:exact(pr.head?.sha),existing:true,note:pr.draft?'Existing draft PR must be marked ready by GitHub; do not create duplicate PR.':'Existing ready PR; verify exact SHA CI.'};}
    const payload=writer.normalizeInput('pull',{repository:repo,head:branch,base:'main',title:text(args.title,240),body:typeof args.body==='string'?args.body:'',draft:false});
    assertActive();
    const ticket=writer.issueApproval('pull',payload,true);

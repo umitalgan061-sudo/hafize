@@ -65,7 +65,7 @@ describe('github workspace safe write core', () => {
     const writer = makeWriter(async (url) => {
       calls.push(url);
       if (url.pathname.endsWith('/commits/main')) return jsonResponse({ sha: 'a'.repeat(40) });
-      return jsonResponse({ ref: 'refs/heads/feature/x' });
+      return jsonResponse({ ref: 'refs/heads/feature/x',object:{type:'commit',sha:'a'.repeat(40)} });
     });
     const ticket = writer.issueApproval('branch', {
       repository: 'owner/repo',
@@ -198,7 +198,7 @@ describe('github workspace safe write core', () => {
     const writer = makeWriter(async (url, init) => {
       requests.push({ url, init });
       if (url.pathname.endsWith('/commits/main')) return jsonResponse({ sha: 'b'.repeat(40) });
-      return jsonResponse({ ref: 'refs/heads/feature/demo' });
+      return jsonResponse({ ref: 'refs/heads/feature/demo',object:{type:'commit',sha:'b'.repeat(40)} });
     });
     const ticket = writer.issueApproval('branch', {
       repository: 'owner/repo',
@@ -340,8 +340,10 @@ describe('github workspace safe write core', () => {
 
   it('creates a pull request without exposing response details', async () => {
     const writer = makeWriter(async (_url, init) => {
+      if(init.method==='GET')return jsonResponse([]);
       expect(init.method).toBe('POST');
       return jsonResponse({
+        state:'open',draft:true,head:{ref:'feature/write',sha:'a'.repeat(40),repo:{full_name:'owner/repo'}},base:{ref:'main',repo:{full_name:'owner/repo'}},
         number: 42,
         title: 'feat: demo',
         html_url: 'https://github.com/owner/repo/pull/42',
@@ -371,7 +373,7 @@ describe('github workspace safe write core', () => {
       head: 'feature/write',
       base: 'main',
       draft: true,
-      htmlUrl: 'https://github.com/owner/repo/pull/42'
+      htmlUrl: 'https://github.com/owner/repo/pull/42',headSha:'a'.repeat(40)
     });
   });
 
@@ -463,3 +465,8 @@ describe('GitHub Firebase workflow dispatch approval', () => {
       .rejects.toMatchObject({ code: 'GITHUB_WRITE_FAILED', status: 403 });
   });
 });
+
+it('reuses the exact existing open PR without posting or changing draft state',async()=>{const methods:string[]=[];const writer=makeWriter(async(_url,init)=>{methods.push(String(init?.method));return jsonResponse([{number:7,state:'open',draft:false,head:{ref:'feature/write',sha:'a'.repeat(40),repo:{full_name:'owner/repo'}},base:{ref:'main',repo:{full_name:'owner/repo'}}}]);});const args={repository:'owner/repo',head:'feature/write',base:'main',title:'test',draft:true};const ticket=writer.issueApproval('pull',args,true);expect(await writer.createPullRequest(ticket.ticket,args)).toMatchObject({number:7,existing:true,draft:false});expect(methods).toEqual(['GET']);});
+it('refuses unrelated or ambiguous PR lookup before any mutation',async()=>{const methods:string[]=[];const writer=makeWriter(async(_url,init)=>{methods.push(String(init?.method));return jsonResponse([{number:7,state:'open',draft:true,head:{ref:'feature/write',sha:'a'.repeat(40),repo:{full_name:'other/repo'}},base:{ref:'main',repo:{full_name:'owner/repo'}}}]);});const args={repository:'owner/repo',head:'feature/write',base:'main',title:'test',draft:true};await expect(writer.createPullRequest(writer.issueApproval('pull',args,true).ticket,args)).rejects.toMatchObject({code:'GITHUB_PR_PREFLIGHT_FAILED',status:409});expect(methods).toEqual(['GET']);});
+it('recovers lost PR response with a read, never a second POST',async()=>{const methods:string[]=[];const writer=makeWriter(async(_url,init)=>{methods.push(String(init?.method));if(methods.length===1)return jsonResponse([]);if(init?.method==='POST')throw Error('connection lost');return jsonResponse([{number:8,state:'open',draft:true,head:{ref:'feature/write',sha:'a'.repeat(40),repo:{full_name:'owner/repo'}},base:{ref:'main',repo:{full_name:'owner/repo'}}}]);});const args={repository:'owner/repo',head:'feature/write',base:'main',title:'test',draft:true};expect(await writer.createPullRequest(writer.issueApproval('pull',args,true).ticket,args)).toMatchObject({number:8,existing:true});expect(methods).toEqual(['GET','POST','GET']);});
+it('rejects a branch response that does not prove the exact expected ref and SHA',async()=>{const writer=makeWriter(async(url)=>url.pathname.endsWith('/commits/main')?jsonResponse({sha:'a'.repeat(40)}):jsonResponse({ref:'refs/heads/feature/other',object:{type:'commit',sha:'a'.repeat(40)}}));const args={repository:'owner/repo',branch:'feature/demo',fromRef:'main'};await expect(writer.createBranch(writer.issueApproval('branch',args,true).ticket,args)).rejects.toMatchObject({code:'INVALID_GITHUB_RESPONSE',status:502});});

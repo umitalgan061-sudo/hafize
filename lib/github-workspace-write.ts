@@ -44,6 +44,8 @@ export type GitHubWriteErrorCode =
   | 'GITHUB_ENDPOINT_FAILED'
   | 'GITHUB_WRITE_FAILED'
   | 'INVALID_GITHUB_RESPONSE'
+  | 'GITHUB_PR_PREFLIGHT_FAILED'
+  | 'GITHUB_PR_VERIFICATION_FAILED'
   | 'GITHUB_COMMIT_VERIFICATION_FAILED'
   | 'GITHUB_PATCH_ANCHOR_NOT_UNIQUE'
   | 'GITHUB_HEAD_MOVED'
@@ -432,7 +434,9 @@ export function createGitHubWorkspaceWriter(options: Options = {}) {
       '/repos/' + encodedRepository(repo) + '/git/refs',
       { ref: 'refs/heads/' + newBranch, sha: fromSha }
     ));
-    const createdRef = clamp(response.ref, 260) || 'refs/heads/' + newBranch;
+    const createdRef = clamp(response.ref, 260);
+    const refObject=response.object&&typeof response.object==='object'?response.object as JsonRecord:{};
+    if(createdRef!=='refs/heads/'+newBranch||refObject.type!=='commit'||sha(refObject.sha)!==fromSha)throw new GitHubWorkspaceWriteError('INVALID_GITHUB_RESPONSE',502);
     return Object.freeze({
       action: 'branch',
       repository: repo,
@@ -554,38 +558,38 @@ export function createGitHubWorkspaceWriter(options: Options = {}) {
     return Object.freeze({ ...recorded, blobSha: expected, verified: true });
   }
 
+  // One exact open PR per source/base. Reuse only verified same-repository
+  // matches. A lost POST response may be reconciled with GET, never another POST.
   async function createPullRequest(ticket: unknown, input: unknown): Promise<JsonRecord> {
     const payload = consumeApproval(ticket, 'pull', input);
     const repo = String(payload.repository);
     const head = String(payload.head);
     const base = String(payload.base);
-    const body: JsonRecord = {
-      title: String(payload.title),
-      head,
-      base,
-      draft: payload.draft === true
+    const root='/repos/'+encodedRepository(repo)+'/pulls';
+    const parse=(raw:unknown,existing:boolean):JsonRecord=>{
+      const pr=safeResponseRecord(raw);
+      const h=safeResponseRecord(pr.head),b=safeResponseRecord(pr.base);
+      const hr=safeResponseRecord(h.repo),br=safeResponseRecord(b.repo);
+      const number=pr.number;
+      if(typeof number!=='number'||!Number.isSafeInteger(number)||number<1||pr.state!=='open'||h.ref!==head||b.ref!==base||String(hr.full_name).toLowerCase()!==repo.toLowerCase()||String(br.full_name).toLowerCase()!==repo.toLowerCase()||!sha(h.sha)||typeof pr.draft!=='boolean'||(!existing&&pr.draft!==(payload.draft===true)))throw new GitHubWorkspaceWriteError('GITHUB_PR_VERIFICATION_FAILED',502);
+      return Object.freeze({action:'pull',repository:repo,number,title:String(payload.title),head,base,draft:pr.draft,htmlUrl:'https://github.com/'+repo+'/pull/'+number,headSha:sha(h.sha),...(existing?{existing:true}:{})});
     };
-    if (payload.body) body.body = String(payload.body);
-    const response = safeResponseRecord(await request(
-      'POST',
-      '/repos/' + encodedRepository(repo) + '/pulls',
-      body
-    ));
-    const number = typeof response.number === 'number' ? response.number : 0;
-    const htmlUrl = clamp(response.html_url, 500);
-    if (!number || !htmlUrl.startsWith('https://github.com/')) {
-      throw new GitHubWorkspaceWriteError('INVALID_GITHUB_RESPONSE', 502);
+    const observed=async()=>{
+      const list=await request('GET',root+'?state=open&base='+encodeURIComponent(base)+'&head='+encodeURIComponent(repo.split('/')[0]+':'+head)+'&per_page=100');
+      if(!Array.isArray(list)||list.length>1)throw new GitHubWorkspaceWriteError('GITHUB_PR_VERIFICATION_FAILED',502);
+      return list.length?parse(list[0],true):null;
+    };
+    let existing:JsonRecord|null;
+    try{existing=await observed();}catch{throw new GitHubWorkspaceWriteError('GITHUB_PR_PREFLIGHT_FAILED',409);}
+    if(existing)return existing;
+    const body:JsonRecord={title:String(payload.title),head,base,draft:payload.draft===true};
+    if(payload.body)body.body=String(payload.body);
+    try{return parse(await request('POST',root,body),false);}
+    catch(error){
+      try{const recovered=await observed();if(recovered)return recovered;}catch{/* Keep uncertainty. */}
+      if(error instanceof GitHubWorkspaceWriteError&&error.code==='GITHUB_WRITE_FAILED'&&[400,401,403,404,409,422].includes(error.status))throw error;
+      throw new GitHubWorkspaceWriteError('GITHUB_PR_VERIFICATION_FAILED',502);
     }
-    return Object.freeze({
-      action: 'pull',
-      repository: repo,
-      number,
-      title: String(payload.title),
-      head,
-      base,
-      draft: payload.draft === true,
-      htmlUrl
-    });
   }
 
   async function dispatchFirebaseDeploy(ticket: unknown, input: unknown): Promise<JsonRecord> {
