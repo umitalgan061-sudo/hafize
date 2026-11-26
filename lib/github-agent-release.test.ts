@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest,parseExplicitMergeCommand} from './github-agent-release.ts';
+import {createGitHubAgentRelease,releasePathAllowed,releaseAuthorizationForRequest,parseExplicitMergeCommand,parseExplicitReleaseCommand} from './github-agent-release.ts';
 import type {createGitHubWorkspaceWriter} from './github-workspace-write.ts';
 const repo='umitalgan061-sudo/hafize-siteler',sha='a'.repeat(40),base='b'.repeat(40);
 function fixture(opts:{failed?:boolean;path?:string;draft?:boolean;mainFailed?:boolean;incomplete?:boolean;alreadyMerged?:boolean;lostMergeResponse?:boolean;wrongMergedHead?:boolean}={}){
@@ -136,4 +136,21 @@ it('recovers a lost merge response by a read, never a second merge request',asyn
  const {release,fetchImpl,authorization}=fixture({lostMergeResponse:true});
  await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,authorization})).resolves.toMatchObject({existing:true,reconciled:true,merged:true,mergeCommitSha:'c'.repeat(40)});
  expect((fetchImpl as any).mock.calls.filter(([url]:[URL])=>url.pathname.endsWith('/merge'))).toHaveLength(1);
+});
+
+it('routes exact standalone PR creation and publication commands without model-selected arguments',()=>{
+ const r='umitalgan061-sudo/hafize',line='github_release aracını şu parametrelerle çalıştır:\n\n';
+ const open={action:'open',repository:r,branch:'hafize/auto-test',title:'Fix label',body:'Scoped change'};
+ const publish={action:'publish',repository:r,sha,target:'firebase'};
+ const cmd=(first:string,args:unknown)=>first+'\n\n'+line+JSON.stringify(args);
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunda yalnızca PR aç.',open))).toEqual(open);
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunu canlıya al.',publish))).toEqual(publish);
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunda PR aç.',publish))).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunu canlıya al.',{...publish,target:'cloudflare'}))).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunu canlıya al.',{...publish,sha:'main'}))).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunda PR aç.',{...open,branch:'main'}))).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunda PR açma.',open))).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd('Örnek: '+r+' deposunda PR aç.',open))).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunda PR aç.',open)+'\nAyrıca merge et.')).toBeNull();
+ expect(parseExplicitReleaseCommand(cmd(r+' deposunda PR aç.',{...open,extra:true}))).toBeNull();
 });

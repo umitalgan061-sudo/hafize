@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitMergeCommand } from './lib/github-agent-release.ts';
+import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitReleaseCommand } from './lib/github-agent-release.ts';
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
@@ -1200,11 +1200,11 @@ async function handleAgentRun(req, res) {
     finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
     return;
   }
-  const explicitMerge=parseExplicitMergeCommand(lastUserText);
-  if(explicitMerge){
+  const explicitRelease=parseExplicitReleaseCommand(lastUserText);
+  if(explicitRelease){
     githubEvidenceMode=true;
     const authorization=toolContext.githubReleaseAuthorization;
-    if(!durableId||!authorization?.actions.includes('merge')||!authorization.repositories.includes(explicitMerge.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
+    if(!durableId||!authorization?.actions.includes(explicitRelease.action)||!authorization.repositories.includes(explicitRelease.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
       githubReceipts.push(...githubReceipt('github_release',{ok:false,error:'RELEASE_NOT_AUTHORIZED_OR_AVAILABLE'}));
       finishWithAnswer('',false,true);return;
     }
@@ -1244,8 +1244,8 @@ async function handleAgentRun(req, res) {
 
     let completion;
     try {
-      completion = explicitMerge
-        ? {toolCalls:[{id:'explicit-user-merge',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
+      completion = explicitRelease
+        ? {toolCalls:[{id:'explicit-user-release',name:'github_release',arguments:JSON.stringify(explicitRelease)}],content:'',wrote:false}
         : await runRound(roundPayload);
     } catch (error) {
       if (!error?.retryRound) { failRound(error); return; }
@@ -1406,7 +1406,7 @@ async function handleAgentRun(req, res) {
     if(noProgressRounds===2 || noProgressRounds===4){
       workingMessages.push({role:'system',content:buildProgressRepairInstruction(toolSummary.slice(-12),noProgressRounds)});
     }
-    if(explicitMerge){finishWithAnswer('',false,!results.every(result=>result.ok));return;}
+    if(explicitRelease){finishWithAnswer('',false,!results.every(result=>result.ok));return;}
     if(noProgressRounds>=6){incompleteReason='no_progress';break;}
   }
 
