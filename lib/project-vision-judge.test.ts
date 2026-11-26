@@ -1,7 +1,7 @@
 import {describe, it, expect, vi} from 'vitest';
 import {
   aggregateJudgeVotes, createProjectVisionJudge, decodeJudgeImage, judgeOrders, judgePrompt, parseJudgeModels,
-  parseJudgeVote, VISION_JUDGE_DEFAULT_MODELS, VISION_JUDGE_LIMITS, VISION_JUDGE_RESERVE_MODELS
+  parseJudgeVote, VISION_JUDGE_DEFAULT_MODELS, VISION_JUDGE_HEALTH, VISION_JUDGE_LIMITS, VISION_JUDGE_RESERVE_MODELS
 } from './project-vision-judge.ts';
 import {markCompletionOrigin} from './model-response-origin.ts';
 
@@ -217,5 +217,99 @@ describe('Retake NVIDIA vision jury v2', () => {
     expect(byModel.get('z-ai/glm')).toMatchObject({max_tokens: 1200});
     expect(byModel.get('z-ai/glm')).not.toHaveProperty('chat_template_kwargs');
     expect(byModel.get('nvidia/nemotron-vl')).toMatchObject({max_tokens: 400, chat_template_kwargs: {enable_thinking: false}});
+  });
+});
+
+describe('Retake jury roster health', () => {
+  const candidates = [jpeg(1), jpeg(2)];
+  const truth = () => fakeVlm(1, new Map(candidates.map((url, index) => [url, index])));
+  const task = {task: 'face-realism-rank', candidates};
+
+  it('benches a model that keeps failing and seats a reserve in the first batch', async () => {
+    let clock = 1_000;
+    const underlying = truth();
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      if (payload.model === 'c/dead') throw Object.assign(new Error('private provider text'), {status: 502});
+      return underlying(payload);
+    });
+    const jury = createProjectVisionJudge({complete, now: () => clock, models: ['a/ok', 'b/ok', 'c/dead'], reserves: ['spare/one']});
+    const first = await jury.judge('retake', task);
+    expect(first.reserveModels).toEqual(['spare/one']);
+    expect(first.benchedModels).toEqual([]);
+    await jury.judge('retake', task);
+    const deadCalls = () => complete.mock.calls.filter(([payload]) => payload.model === 'c/dead').length;
+    expect(deadCalls()).toBe(VISION_JUDGE_HEALTH.benchAfterFailures);
+    const third = await jury.judge('retake', task);
+    expect(deadCalls()).toBe(VISION_JUDGE_HEALTH.benchAfterFailures);
+    expect(third).toMatchObject({decision: 'winner', winner: 1, benchedModels: ['c/dead'], reserveModels: ['spare/one'], attempted: 6});
+    expect(third.attemptedModels).toEqual(['a/ok', 'b/ok', 'spare/one']);
+    const status = jury.status();
+    expect(status.health.benched).toEqual(['c/dead']);
+    expect(status.health.models['c/dead']).toMatchObject({calls: 4, valid: 0, failures: 4, benchedForS: VISION_JUDGE_HEALTH.benchMs / 1000});
+    expect(status.health.models['a/ok']).toMatchObject({calls: 6, valid: 6, failures: 0, benchedForS: 0});
+    expect(JSON.stringify(status)).not.toMatch(/private provider text|base64|image/);
+  });
+
+  it('gives a benched model its seat back after the bench and clears it on a valid vote', async () => {
+    let clock = 0;
+    let broken = true;
+    const underlying = truth();
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      if (payload.model === 'c/flaky' && broken) throw Object.assign(new Error('x'), {name: 'TimeoutError'});
+      return underlying(payload);
+    });
+    const jury = createProjectVisionJudge({complete, now: () => clock, models: ['a/ok', 'b/ok', 'c/flaky'], reserves: []});
+    await jury.judge('retake', task);
+    await jury.judge('retake', task);
+    expect(jury.status().health.benched).toEqual(['c/flaky']);
+    expect(jury.status().health.models['c/flaky']?.timeouts).toBe(4);
+    clock += VISION_JUDGE_HEALTH.benchMs + 1;
+    broken = false;
+    const back = await jury.judge('retake', task);
+    expect(back.attemptedModels).toContain('c/flaky');
+    expect(back.models).toContain('c/flaky');
+    expect(jury.status().health.benched).toEqual([]);
+  });
+
+  it('treats rate limits as neutral and benches models that left the free catalog for longer', async () => {
+    let clock = 0;
+    const underlying = truth();
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      if (payload.model === 'c/busy') throw Object.assign(new Error('x'), {status: 429});
+      if (payload.model === 'd/gone') throw Object.assign(new Error('x'), {status: 404});
+      return underlying(payload);
+    });
+    const jury = createProjectVisionJudge({complete, now: () => clock, models: ['a/ok', 'b/ok', 'c/busy', 'd/gone'], reserves: []});
+    for (let round = 0; round < 3; round += 1) await jury.judge('retake', task);
+    const health = jury.status().health;
+    expect(health.benched).toEqual(['d/gone']);
+    expect(health.models['c/busy']).toMatchObject({rateLimited: 6, failures: 0, benchedForS: 0});
+    expect(health.models['d/gone']).toMatchObject({calls: 2, benchedForS: VISION_JUDGE_HEALTH.missingBenchMs / 1000});
+    expect(complete.mock.calls.filter(([payload]) => payload.model === 'd/gone')).toHaveLength(2);
+  });
+
+  it('still asks an all-benched panel when no reserve can take a seat', async () => {
+    const complete = vi.fn(async () => { throw Object.assign(new Error('x'), {status: 500}); });
+    const jury = createProjectVisionJudge({complete, models: ['a/only'], reserves: []});
+    for (let round = 0; round < 2; round += 1) await expect(jury.judge('retake', task)).rejects.toMatchObject({code: 'PROJECT_AI_UPSTREAM_FAILED'});
+    expect(jury.status().health.benched).toEqual(['a/only']);
+    await expect(jury.judge('retake', task)).rejects.toMatchObject({code: 'PROJECT_AI_UPSTREAM_FAILED'});
+    expect(complete).toHaveBeenCalledTimes(6);
+  });
+
+  it('never seats a benched reserve', async () => {
+    let clock = 0;
+    const underlying = truth();
+    const complete = vi.fn(async (payload: Record<string, unknown>) => {
+      if (String(payload.model).includes('dead')) throw Object.assign(new Error('x'), {status: 503});
+      return underlying(payload);
+    });
+    const jury = createProjectVisionJudge({complete, now: () => clock, models: ['a/ok', 'b/ok', 'c/dead'], reserves: ['spare/dead', 'spare/ok']});
+    for (let round = 0; round < 2; round += 1) await jury.judge('retake', task);
+    const health = jury.status().health;
+    expect(health.benched.sort()).toEqual(['c/dead', 'spare/dead']);
+    const next = await jury.judge('retake', task);
+    expect(next.attemptedModels).toEqual(['a/ok', 'b/ok', 'spare/ok']);
+    expect(next.reserveModels).toEqual(['spare/ok']);
   });
 });

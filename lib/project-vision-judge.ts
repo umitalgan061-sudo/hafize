@@ -57,6 +57,22 @@ export const VISION_JUDGE_LIMITS = Object.freeze({
   minAgreement: 2 / 3,
   minScoreMargin: 0.5
 });
+/**
+ * Roster health (in memory, numbers only). Free catalog models disappear or
+ * stall without notice; a model that keeps failing is benched for a while and
+ * a reserve takes its seat in the first batch instead of after ~85 s of waiting.
+ * Rate limits (429) are shared-key pressure, not a broken model: neutral.
+ */
+export const VISION_JUDGE_HEALTH = Object.freeze({
+  windowCalls: 24,
+  benchAfterFailures: 4,
+  benchMs: 15 * 60_000,
+  /** Two consecutive 404/410 replies: the model left the free catalog. */
+  missingAfterFailures: 2,
+  missingBenchMs: 2 * 60 * 60_000
+});
+type ModelHealth = {outcomes: string[]; latencies: number[]; consecutive: number; missing: number; benchedUntil: number};
+
 export const VISION_JUDGE_ISSUES: readonly string[] = Object.freeze([
   'seam', 'tone', 'lighting', 'waxy', 'eyes', 'teeth', 'warp', 'sharpness', 'ghost', 'grain', 'catchlight'
 ]);
@@ -196,6 +212,57 @@ function messageText(result: unknown): string {
 export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAULT_MODELS, reserves = VISION_JUDGE_RESERVE_MODELS, now = Date.now}: {complete: Complete; models?: readonly string[]; reserves?: readonly string[]; now?: () => number}) {
   const judgeModels = Object.freeze([...models].slice(0, VISION_JUDGE_LIMITS.maxModels));
   const reserveModels = Object.freeze([...reserves].filter((model) => MODEL_ID.test(model) && !judgeModels.includes(model)).slice(0, VISION_JUDGE_LIMITS.maxReserveModels));
+  const health = new Map<string, ModelHealth>();
+  const healthOf = (model: string): ModelHealth => {
+    let row = health.get(model);
+    if (!row) { row = {outcomes: [], latencies: [], consecutive: 0, missing: 0, benchedUntil: 0}; health.set(model, row); }
+    return row;
+  };
+  const isBenched = (model: string, at = now()) => (health.get(model)?.benchedUntil ?? 0) > at;
+  const noteOutcome = (model: string, outcome: string, elapsedMs: number) => {
+    const row = healthOf(model);
+    row.outcomes.push(outcome);
+    if (row.outcomes.length > VISION_JUDGE_HEALTH.windowCalls) row.outcomes.shift();
+    if (outcome === 'http-429') return;
+    if (outcome === 'valid-vote') {
+      row.consecutive = 0; row.missing = 0; row.benchedUntil = 0;
+      row.latencies.push(Math.max(0, Math.round(elapsedMs)));
+      if (row.latencies.length > VISION_JUDGE_HEALTH.windowCalls) row.latencies.shift();
+      return;
+    }
+    row.consecutive += 1;
+    row.missing = outcome === 'http-404' || outcome === 'http-410' ? row.missing + 1 : 0;
+    if (row.missing >= VISION_JUDGE_HEALTH.missingAfterFailures) row.benchedUntil = now() + VISION_JUDGE_HEALTH.missingBenchMs;
+    else if (row.consecutive >= VISION_JUDGE_HEALTH.benchAfterFailures) row.benchedUntil = now() + VISION_JUDGE_HEALTH.benchMs;
+  };
+  /** Benched panel seats go to healthy reserves; an all-benched panel with no spare is asked anyway. */
+  const roster = () => {
+    const at = now();
+    const benched = judgeModels.filter((model) => isBenched(model, at));
+    const active = judgeModels.filter((model) => !benched.includes(model));
+    const spares = reserveModels.filter((model) => !isBenched(model, at));
+    const substitutes = spares.slice(0, benched.length);
+    const seated = [...active, ...substitutes];
+    if (!seated.length) return {seated: [...judgeModels], substitutes: [] as string[], benched: [] as string[], spares};
+    return {seated, substitutes, benched, spares: spares.filter((model) => !substitutes.includes(model))};
+  };
+  const healthStatus = () => {
+    const at = now();
+    const models: Record<string, {calls: number; valid: number; timeouts: number; rateLimited: number; failures: number; medianMs: number | null; benchedForS: number}> = {};
+    for (const [model, row] of health) {
+      const sorted = [...row.latencies].sort((a, b) => a - b);
+      models[model] = {
+        calls: row.outcomes.length,
+        valid: row.outcomes.filter((outcome) => outcome === 'valid-vote').length,
+        timeouts: row.outcomes.filter((outcome) => outcome === 'timeout').length,
+        rateLimited: row.outcomes.filter((outcome) => outcome === 'http-429').length,
+        failures: row.outcomes.filter((outcome) => outcome !== 'valid-vote' && outcome !== 'http-429').length,
+        medianMs: sorted[Math.floor(sorted.length / 2)] ?? null,
+        benchedForS: row.benchedUntil > at ? Math.ceil((row.benchedUntil - at) / 1000) : 0
+      };
+    }
+    return {benched: [...health.keys()].filter((model) => isBenched(model, at)), models};
+  };
 
   async function judge(project: string, input: unknown, signal?: AbortSignal) {
     signal?.throwIfAborted();
@@ -214,7 +281,8 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
     const count = images.length;
     const prompt = judgePrompt(count, layout as string);
     const jobsFor = (list: readonly string[]) => list.flatMap((model) => judgeOrders(count).map((order) => ({model, order})));
-    const jobs = jobsFor(judgeModels);
+    const seats = roster();
+    const jobs = jobsFor(seats.seated);
     const juryStarted = now();
     const diagnostics: Array<{model: string; order: 'forward' | 'reverse'; outcome: string; elapsedMs: number}> = [];
     const runVote = async ({model, order}: (typeof jobs)[number]) => {
@@ -223,6 +291,7 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
       const record = (outcome: string) => {
         const row = {model, order: direction, outcome, elapsedMs: now() - started};
         diagnostics.push(row);
+        noteOutcome(model, outcome, row.elapsedMs);
         // No provider messages, prompts, images, or credentials in logs.
         console.info('hafize.retake.jury.model ' + JSON.stringify(row));
       };
@@ -272,9 +341,10 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
     // Too few independent panel models answered: ask reserves while time allows.
     const answered = () => new Set(settled.flatMap((row) => row.status === 'fulfilled' && row.value.vote ? [row.value.model] : [])).size;
     const reservesAsked: string[] = [];
-    if (answered() < VISION_JUDGE_LIMITS.minAnsweringModels && reserveModels.length && now() - juryStarted < VISION_JUDGE_LIMITS.reserveStartBeforeMs) {
-      const needed = Math.min(reserveModels.length, VISION_JUDGE_LIMITS.minAnsweringModels - answered());
-      reservesAsked.push(...reserveModels.slice(0, needed));
+    const spares = seats.spares.filter((model) => !isBenched(model));
+    if (answered() < VISION_JUDGE_LIMITS.minAnsweringModels && spares.length && now() - juryStarted < VISION_JUDGE_LIMITS.reserveStartBeforeMs) {
+      const needed = Math.min(spares.length, VISION_JUDGE_LIMITS.minAnsweringModels - answered());
+      reservesAsked.push(...spares.slice(0, needed));
       const reserveJobs = jobsFor(reservesAsked);
       jobs.push(...reserveJobs);
       await runBatches(reserveJobs);
@@ -303,8 +373,9 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
       task: VISION_JUDGE_TASK,
       ...verdict,
       attempted: jobs.length,
-      attemptedModels: [...judgeModels, ...reservesAsked],
-      reserveModels: reservesAsked,
+      attemptedModels: [...seats.seated, ...reservesAsked],
+      reserveModels: [...seats.substitutes, ...reservesAsked],
+      benchedModels: seats.benched,
       layout,
       diagnostics,
       elapsedMs: now() - juryStarted,
@@ -316,6 +387,6 @@ export function createProjectVisionJudge({complete, models = VISION_JUDGE_DEFAUL
 
   return Object.freeze({
     judge,
-    status: () => ({models: [...judgeModels], reserveModels: [...reserveModels], layouts: [...VISION_JUDGE_LAYOUTS], projects: [...VISION_JUDGE_PROJECTS], task: VISION_JUDGE_TASK})
+    status: () => ({models: [...judgeModels], reserveModels: [...reserveModels], layouts: [...VISION_JUDGE_LAYOUTS], projects: [...VISION_JUDGE_PROJECTS], task: VISION_JUDGE_TASK, health: healthStatus()})
   });
 }
