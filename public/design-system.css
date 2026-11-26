@@ -245,7 +245,61 @@
     #composer>.hz-composer-pulse{animation:none!important}
   }
   html[data-reduced-motion="true"] :is(.edge-beam,.main>.topbar)::after{animation:none!important;transform:none!important}
-  html[data-reduced-motion="true"] #composer>.hz-composer-pulse{animation:none!important}
+html[data-reduced-motion="true"] #composer>.hz-composer-pulse{animation:none!important}
+}
+
+/* Home rail voice assistant: a point-cloud signature that echoes the Hafize
+   hero portrait. This intentionally applies only to the compact rail orb;
+   the full voice-mode WebGL sphere remains unchanged. */
+@media not all and (forced-colors: active){
+  .main .voice-card .voice-orb{
+    --orb-dot:color-mix(in srgb,var(--premium-orange) 88%,#ffd6bd);
+    position:relative;isolation:isolate;display:grid;place-items:center;
+    width:108px;height:108px;overflow:visible;border-radius:50%;
+    background:radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--premium-orange) 11%,transparent),transparent 53%)!important;
+    box-shadow:0 0 24px color-mix(in srgb,var(--premium-orange) 18%,transparent)!important;
+    animation:hz-voice-orb-drift 7s ease-in-out infinite;
+  }
+  .main .voice-card .voice-orb::before,
+  .main .voice-card .voice-orb::after{content:"";position:absolute;pointer-events:none;border-radius:50%;z-index:-1}
+  .main .voice-card .voice-orb::before{
+    inset:-10px;border:1px solid color-mix(in srgb,var(--premium-orange) 22%,transparent);
+    box-shadow:0 0 0 5px color-mix(in srgb,var(--premium-orange) 4%,transparent),0 0 28px color-mix(in srgb,var(--premium-orange) 14%,transparent);
+  }
+  .main .voice-card .voice-orb::after{
+    inset:19px -17px 22px;border:1px solid color-mix(in srgb,var(--premium-orange) 48%,transparent);
+    transform:rotate(-18deg);animation:hz-voice-orbit 11s linear infinite;
+  }
+  .voice-orb-halo{position:absolute;inset:7px;border-radius:50%;z-index:-1;opacity:.7;
+    background:conic-gradient(from 15deg,transparent 0 10%,color-mix(in srgb,var(--premium-orange) 28%,transparent) 18%,transparent 29% 61%,color-mix(in srgb,var(--premium-orange) 20%,transparent) 74%,transparent 88%);
+    -webkit-mask:radial-gradient(transparent 59%,#000 61% 63%,transparent 65%);mask:radial-gradient(transparent 59%,#000 61% 63%,transparent 65%);
+    animation:hz-voice-orbit 16s linear infinite reverse;
+  }
+  .voice-orb-field{position:absolute;border-radius:50%;inset:13px;pointer-events:none;
+    background-image:radial-gradient(circle,var(--orb-dot) 0 1.15px,transparent 1.8px);
+    background-size:9px 9px;-webkit-mask:radial-gradient(circle at 47% 44%,#000 0 38%,rgba(0,0,0,.82) 55%,transparent 75%);mask:radial-gradient(circle at 47% 44%,#000 0 38%,rgba(0,0,0,.82) 55%,transparent 75%);
+  }
+  .voice-orb-field-back{inset:8px;opacity:.36;background-size:11px 11px;filter:blur(.15px);transform:scale(.96);animation:hz-voice-cloud-back 13s ease-in-out infinite;}
+  .voice-orb-field-front{opacity:.88;mix-blend-mode:screen;animation:hz-voice-cloud-front 8s ease-in-out infinite;}
+  .voice-orb-core{position:absolute;width:27px;height:27px;border-radius:50%;opacity:.9;
+    background:radial-gradient(circle at 38% 34%,#fff5eb 0 5%,#ffb184 8% 12%,color-mix(in srgb,var(--premium-orange) 64%,transparent) 15% 25%,transparent 65%);
+    box-shadow:0 0 17px color-mix(in srgb,var(--premium-orange) 48%,transparent);animation:hz-voice-core 4.6s ease-in-out infinite;
+  }
+  .voice-orb-spark{position:absolute;width:3px;height:3px;border-radius:50%;background:#ffe3d2;box-shadow:25px -17px 0 -1px color-mix(in srgb,var(--premium-orange) 85%,#fff),-31px 13px 0 -1px color-mix(in srgb,var(--premium-orange) 62%,transparent),19px 30px 0 -1px color-mix(in srgb,var(--premium-orange) 50%,transparent);animation:hz-voice-spark 5.8s ease-in-out infinite;}
+  .main .voice-card.listening .voice-orb,.main .voice-card.speaking .voice-orb{animation-duration:1.2s;box-shadow:0 0 34px color-mix(in srgb,var(--premium-orange) 46%,transparent)!important;}
+  .voice-card.listening .voice-orb-field-front,.voice-card.speaking .voice-orb-field-front{animation-duration:1.35s;}
+  .voice-card.listening .voice-orb-core,.voice-card.speaking .voice-orb-core{animation-duration:.82s;transform:scale(1.24);}
+  .voice-card.thinking .voice-orb-field-front{opacity:.56;animation-duration:2.5s;}
+  @keyframes hz-voice-orb-drift{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-3px) scale(1.025)}}
+  @keyframes hz-voice-orbit{to{transform:rotate(342deg)}}
+  @keyframes hz-voice-cloud-back{0%,100%{transform:scale(.96) rotate(0deg)}50%{transform:scale(1.03) rotate(18deg)}}
+  @keyframes hz-voice-cloud-front{0%,100%{transform:scale(1) rotate(0deg);filter:brightness(.92)}50%{transform:scale(1.08) rotate(-16deg);filter:brightness(1.23)}}
+  @keyframes hz-voice-core{0%,100%{transform:scale(.86);opacity:.62}50%{transform:scale(1.15);opacity:1}}
+  @keyframes hz-voice-spark{0%,100%{transform:rotate(0deg) scale(.8);opacity:.52}50%{transform:rotate(18deg) scale(1.25);opacity:1}}
+  @media (prefers-reduced-motion:reduce){
+    .main .voice-card .voice-orb,.main .voice-card .voice-orb::after,.voice-orb-halo,.voice-orb-field,.voice-orb-core,.voice-orb-spark{animation:none!important}
+  }
+  html[data-reduced-motion="true"] .main .voice-card :is(.voice-orb,.voice-orb::after,.voice-orb-halo,.voice-orb-field,.voice-orb-core,.voice-orb-spark){animation:none!important}
 }
 
 
