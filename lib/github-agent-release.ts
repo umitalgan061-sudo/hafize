@@ -151,7 +151,7 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
    }
   }
   const target=args.target??(repo===HAFIZE?'render':undefined);
-  if(repo===HAFIZE&&target!==(ctx.authorization.hafizePublishTarget??'render'))fail('RELEASE_TARGET_NOT_AUTHORIZED',403);
+  if(repo===HAFIZE&&target!==(ctx.authorization?.hafizePublishTarget??'render'))fail('RELEASE_TARGET_NOT_AUTHORIZED',403);
   if(repo===HAFIZE&&target==='render'){
    if(await current(repo,ctx.signal)!==sha)fail('RELEASE_BASE_MOVED',409);
    assertActive();
