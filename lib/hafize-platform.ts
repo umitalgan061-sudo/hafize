@@ -675,7 +675,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
         if(ownerId.startsWith('connector:')||!isAgentTurnId(segments[2])){sendJson(res,404,{error:'NOT_FOUND'});return true;}
         if(method==='POST'&&segments.length===4&&segments[3]==='recover'){
           const body=await readJson(req,72*1024);
-          const preview=agentTurns.recoveryPreview(ownerId,body.conversationId,segments[2],body.recoveryToken);
+          const preview=agentTurns.recoveryPreview(ownerId,typeof body.conversationId==='string'?body.conversationId:'',segments[2],body.recoveryToken);
           if(!preview){sendJson(res,404,{error:'AGENT_TURN_RECOVERY_NOT_FOUND'});return true;}
           sendJson(res,200,preview);return true;
         }
