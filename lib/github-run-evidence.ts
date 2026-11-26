@@ -56,7 +56,26 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  if(!['github_read_file','github_inspect','github_develop','github_release'].includes(tool))return [];
  const outer=rec(result),v=rec(outer.value);
  const item=(kind:GitHubReceipt['kind'],line:string):GitHubReceipt=>({tool,kind,line});
- if(outer.ok!==true)return [item('error',tool+': '+(token(outer.error,CODE)||'TOOL_FAILED')+(typeof outer.status==='number'?' (HTTP '+outer.status+')':''))];
+ if(outer.ok!==true){
+  const hints:Record<string,string>={
+   GITHUB_ARGS_BRANCH:'Dal parametreleri: operation, repository ve isteğe bağlı branch.',
+   GITHUB_ARGS_FILE:'Dosya parametreleri: branch/path/message ve content veya find/replace/existingSha.',
+   GITHUB_ARGS_PULL:'PR parametreleri: branch/title ve isteğe bağlı body.',
+   GITHUB_ARGS_OPERATION:'operation: branch, file veya pull.'
+  };
+  const errors:Record<string,string>={
+   GITHUB_REQUESTED_BRANCH_MISMATCH:'Kullanıcının belirttiği mevcut dalı kullan.',
+   GITHUB_HEAD_MOVED:'Dalın son durumunu ve blob SHA değerini yeniden oku; önceki yazmayı kontrol et.',
+   RELEASE_BASE_MOVED:'Güncel main SHA değerini yeniden doğrula.',
+   RELEASE_WORKFLOW_DISPATCH_FORBIDDEN:'GitHub Actions yayın izni reddedildi.',
+   RENDER_ACTIVE_TASKS:'Başka bir GitHub görevi devam ederken Render yayını başlatılmadı.',
+   RENDER_DEPLOY_HOOK_NOT_CONFIGURED:'Render servisine özel yayın bağlantısı yapılandırılmamış.',
+   RELEASE_TARGET_NOT_AUTHORIZED:'Firebase yönlendirme yayını açıkça istenmedikçe Render hedefini kullan.'
+  };
+  const code=token(outer.error,CODE)||'TOOL_FAILED';
+  const hint=tool==='github_develop'&&code==='INVALID_GITHUB_ARGUMENTS'?hints[token(outer.reason,CODE)]:errors[code];
+  return [item('error',tool+': '+code+(typeof outer.status==='number'?' (HTTP '+outer.status+')':'')+(hint?' — '+hint:''))];
+ }
  const repo=token(v.repository,REPO);
  if(!repo)return [item('error',tool+': doğrulanabilir depo bilgisi yok')];
  const root='https://github.com/'+repo;
@@ -69,7 +88,8 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
   if(v.action==='file'&&v.verified===true&&branch&&path&&sha(v.commitSha)&&sha(v.blobSha))return [item('file',repo+' — '+path+'; '+link('commit '+sha(v.commitSha),root+'/commit/'+sha(v.commitSha))+'; blob '+sha(v.blobSha)+' (GitHub üzerinden tekrar okundu).')];
   if((v.action==='pull'||v.action==='open')&&positive(v.number))return [item('pull',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.draft===true?' taslak':'')+(v.existing===true?' mevcut PR doğrulandı.':' açıldı.'))];
   if(v.action==='merge'&&v.merged===true&&positive(v.number)&&sha(v.mergeCommitSha))return [item('merge',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.existing===true?' daha önce birleştirilmiş; GitHub üzerinden doğrulandı; ':' birleştirildi; ')+link(sha(v.mergeCommitSha),root+'/commit/'+sha(v.mergeCommitSha))+'.')];
-  if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+' için yayın isteği kabul edildi. Canlı yayın doğrulanmadı.')];
+  if(v.action==='publish'&&v.target==='render'&&v.published===true&&v.existing===true&&sha(v.requestedSha))return [item('read',repo+' — Render uygulaması zaten bu SHA ile canlı: '+sha(v.requestedSha)+'. Yeni yayın isteği gönderilmedi.')];
+  if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+(v.target==='render'?' için Render':' için')+' yayın isteği kabul edildi. Canlı yayın doğrulanmadı.')];
   return [item('error',repo+' — '+tool+' yanıtı tamamlanmış yazma kanıtı değil.')];
  }
  if(tool==='github_read_file'&&path&&sha(v.sha))return [item('read',repo+' — '+path+' blob '+sha(v.sha)+(v.truncated===true?' (kısmi okuma).':' okundu.'))];

@@ -142,7 +142,7 @@ describe('canonical Render publication',()=>{
  const hafize='umitalgan061-sudo/hafize';
  const authorization={repositories:[hafize],actions:['publish']};
  const writer={configured:()=>true} as unknown as ReturnType<typeof createGitHubWorkspaceWriter>;
- function renderFixture({live=false,hook='',failed=false,moved=false}:{live?:boolean;hook?:string;failed?:boolean;moved?:boolean}={}){
+ function renderFixture({live=false,hook='',failed=false,moved=false,busy=false}:{live?:boolean;hook?:string;failed?:boolean;moved?:boolean;busy?:boolean}={}){
   const fetchImpl=vi.fn(async(u:URL|string)=>{
    const url=new URL(String(u));
    if(url.pathname.endsWith('/heads/main'))return Response.json({object:{sha:moved?sha:base}});
@@ -155,7 +155,7 @@ describe('canonical Render publication',()=>{
    if(url.hostname==='api.render.com')return new Response(null,{status:202});
    throw Error('unexpected origin');
   }) as unknown as typeof fetch;
-  return {release:createGitHubAgentRelease({writer,allowedRepositories:[hafize],fetchImpl,renderHook:hook,renderFetch}),renderFetch};
+  return {release:createGitHubAgentRelease({writer,allowedRepositories:[hafize],fetchImpl,renderHook:hook,renderFetch,otherActiveTasks:()=>busy}),renderFetch};
  }
  const args={action:'publish',repository:hafize,sha:base,target:'render'};
  it('verifies an already live exact revision without a secret or redeploy',async()=>{
@@ -164,7 +164,7 @@ describe('canonical Render publication',()=>{
   expect(f.renderFetch).toHaveBeenCalledTimes(2);
  });
  it('requires a service-specific configured hook and exact main with passed CI',async()=>{
-  for(const [options,code] of [[{},'RENDER_DEPLOY_HOOK_NOT_CONFIGURED'],[{hook:'https://example.org/deploy/key'},'RENDER_DEPLOY_HOOK_INVALID'],[{hook:'https://api.render.com/deploy/srv-other?key=test'},'RENDER_DEPLOY_HOOK_INVALID'],[{failed:true},'RELEASE_MAIN_TESTS_NOT_GREEN'],[{moved:true},'RELEASE_BASE_MOVED']] as const){
+  for(const [options,code] of [[{},'RENDER_DEPLOY_HOOK_NOT_CONFIGURED'],[{hook:'https://example.org/deploy/key'},'RENDER_DEPLOY_HOOK_INVALID'],[{hook:'https://api.render.com/deploy/srv-other?key=test'},'RENDER_DEPLOY_HOOK_INVALID'],[{failed:true},'RELEASE_MAIN_TESTS_NOT_GREEN'],[{moved:true},'RELEASE_BASE_MOVED'],[{busy:true},'RENDER_ACTIVE_TASKS']] as const){
    const f=renderFixture(options);
    await expect(f.release.execute(args,{ownerAuthorized:true,authorization})).rejects.toMatchObject({code});
    expect((f.renderFetch as any).mock.calls.every(([url]:[URL|string])=>new URL(String(url)).hostname==='hafize-free.onrender.com')).toBe(true);
@@ -182,3 +182,5 @@ describe('canonical Render publication',()=>{
 });
 
 it('parses only exact standalone Render release commands',()=>{const repo='umitalgan061-sudo/hafize',sha='a'.repeat(40),request=repo+' deposunu canlıya al.\n\ngithub_release aracını şu parametrelerle çalıştır:\n\n'+JSON.stringify({action:'publish',repository:repo,sha,target:'render'});expect(parseExplicitReleaseCommand(request)).toEqual({action:'publish',repository:repo,sha,target:'render'});expect(parseExplicitReleaseCommand(request+'\nYalnızca incele.')).toBeNull();});
+
+it('defaults Hafize publication authority to Render and requires explicit Firebase alias intent',()=>{expect(releaseAuthorizationForRequest('Hafize deposunu canlıya al',true)?.hafizePublishTarget).toBe('render');expect(releaseAuthorizationForRequest('Hafize Firebase yönlendirme ayarını canlıya al',true)?.hafizePublishTarget).toBe('firebase');});
