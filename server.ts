@@ -75,7 +75,7 @@ import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic, deliveryRepairModel, deliveryRepairTokenBudget } from './lib/agent-continuation-recovery.ts';
-import { pullDeliveryInstruction, namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
+import { explicitPatchRecoveryTarget, pullDeliveryInstruction, namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 import {AGENT_JOURNAL_HEARTBEAT_MS} from './lib/upstash-agent-journal.ts';
 import {patchCompletionAccepted,explicitFileEditPath,exactFileSnapshot,validatedFilePatch} from './lib/agent-file-patch-proposal.ts';
@@ -1381,6 +1381,7 @@ async function handleAgentRun(req, res) {
   let bufferedRepairNext=false;
   let explicitPatchAttempted=false;
   let explicitPatchNext:{repository:string;branch:string;path:string}|null=null;
+  const explicitPath=explicitFileEditPath(developmentRequest);
   let branchStageAnnounced=false;
   let missingPullRecoveryUsed=false;
 
@@ -1413,6 +1414,17 @@ async function handleAgentRun(req, res) {
       roundPayload.tool_choice = 'auto';
     }
 
+    // Prefer the scoped editor as soon as trusted target evidence exists.
+    // Do not let exploratory reads consume the entire development budget.
+    if(!explicitMerge&&!explicitPatchAttempted&&explicitPath&&durableId&&!recoveryReadOnly&&
+      !requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&
+      tools.some(t=>t.function.name==='github_develop')&&tools.some(t=>t.function.name==='github_read_file')){
+      const target=explicitPatchRecoveryTarget(developmentRequest,githubReceipts,toolSummary);
+      if(target&&(!requestedBranch||requestedBranch===target.branch)){
+        explicitPatchAttempted=true;recoveryBranch=target;explicitPatchNext={...target,path:explicitPath};
+        console.info(JSON.stringify({event:'hafize.github.patch_proposal',stage:'scheduled',trigger:'verified_target'}));
+      }
+    }
     const bufferedRepair=bufferedRepairNext;
     bufferedRepairNext=false;
     let completion;
@@ -1463,7 +1475,7 @@ async function handleAgentRun(req, res) {
             }
           }
           for(const used of proposalModels)stalledDeliveryModels.add(used);
-        }else console.info(JSON.stringify({event:'hafize.github.patch_proposal',stage:'snapshot_unavailable'}));
+        }else console.info(JSON.stringify({event:'hafize.github.patch_proposal',stage:'snapshot_unavailable',readOk:readResult.ok,status:'status' in readResult&&typeof readResult.status==='number'?readResult.status:null}));
       }else completion = explicitMerge
         ? {toolCalls:[{id:'explicit-user-release',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
         : await runRound(roundPayload,bufferedRepair);
@@ -1497,18 +1509,6 @@ async function handleAgentRun(req, res) {
       }));
 
     if (!normalizedCalls.length) {
-      const explicitPath=explicitFileEditPath(developmentRequest);
-      if(!explicitPatchAttempted&&explicitPath&&round+1<MAX_AGENT_TOOL_ROUNDS&&durableId&&!recoveryReadOnly&&
-        !requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&
-        tools.some(t=>t.function.name==='github_develop')&&tools.some(t=>t.function.name==='github_read_file')&&
-        shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
-        const target=verifiedCreatedFeatureBranch(githubReceipts)??namedReadTarget(developmentRequest,githubReceipts);
-        if(target&&(!requestedBranch||requestedBranch===target.branch)){
-          explicitPatchAttempted=true;recoveryBranch=target;explicitPatchNext={...target,path:explicitPath};
-          console.info(JSON.stringify({event:'hafize.github.patch_proposal',stage:'scheduled'}));
-          continue;
-        }
-      }
       // A model can finish with prose after reading source even when the owner
       // explicitly requested a commit. At most two buffered model repair rounds,
       // never an automatic mutation or forced tool, before any file write attempt.

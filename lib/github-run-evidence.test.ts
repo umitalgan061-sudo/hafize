@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {pullDeliveryInstruction,namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
+import {pullDeliveryInstruction,namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, explicitPatchRecoveryTarget, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
 const repository='umitalgan061-sudo/retake', commit='a'.repeat(40), blob='b'.repeat(40);
 describe('GitHub run evidence',()=>{
  it('rejects imagined operations in arbitrary prose and failed tool results',()=>{
@@ -204,4 +204,24 @@ it('recovers a locally rejected file argument only with pre-write proof, never g
   expect(shouldRecoverReadOnlyWrite(request,[...read,...githubReceipt('github_develop',other)],[{name:'github_develop',operation:'file',...other}])).toBe(false);
  }
  expect(shouldRecoverReadOnlyWrite(request,[...read,...rejected],[{...call,reason:undefined}])).toBe(false);
+});
+
+it('starts exact scoped editing after a verified read even if exploratory file reads hit 404',()=>{
+ const repository='umitalgan061-sudo/hafize',branch='hafize/auto-56bb84ffefb24aaf9a93594a70ed6036';
+ const request='Hafize, mevcut '+branch+' dalında public/home-voice-luminous-core.js dosyasını kendi yaratıcılığınla geliştir ve commit et. Tam ekran sesli sohbet tasarımını koru.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/home-voice-luminous-core.js',sha:blob}});
+ const notFound=githubReceipt('github_read_file',{ok:false,error:'GITHUB_READ_FAILED',status:404});
+ const calls=[{name:'github_read_file',ok:true},{name:'github_read_file',ok:false,error:'GITHUB_READ_FAILED',status:404}];
+ expect(shouldRecoverReadOnlyWrite(request,read,calls)).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,[...read,...notFound],calls)).toBe(false);
+ expect(explicitPatchRecoveryTarget(request,[...read,...notFound],calls)).toEqual({repository,branch});
+ expect(explicitPatchRecoveryTarget(request,notFound,calls)).toBeNull();
+ expect(explicitPatchRecoveryTarget(request+' Commit etme.',[...read,...notFound],calls)).toBeNull();
+ for(const status of [401,403,429,500,502]){
+  const failure=githubReceipt('github_read_file',{ok:false,error:'GITHUB_READ_FAILED',status});
+  expect(explicitPatchRecoveryTarget(request,[...read,...failure],calls)).toBeNull();
+ }
+ expect(explicitPatchRecoveryTarget(request,[...read,...notFound],[...calls,{name:'github_develop',operation:'file',ok:false,error:'GITHUB_WRITE_FAILED',status:502}])).toBeNull();
+ expect(explicitPatchRecoveryTarget(request,[...read,...notFound],[...calls,{name:'github_release',ok:false}])).toBeNull();
+ expect(explicitPatchRecoveryTarget(request,[...read,...githubReceipt('github_read_file',{ok:true,value:{repository:'other/repo',path:'app.js',sha:blob}})],calls)).toBeNull();
 });
