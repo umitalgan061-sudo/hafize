@@ -22,6 +22,7 @@ import { decorateUserAttachments } from './user-attachments.ts';
 import { askChoice, askConfirm } from './theme-polish.ts';
 import { NOTICE_FOLLOW_MS, noticeTarget, shouldFollowNotice, type PlacedResult } from './notice-target.ts';
 import {compactToolActivities, normalizeToolActivity, settleToolActivities, recoverCloudWait, isCloudWait, CLOUD_WAIT_TEXT, INTERRUPTED_TEXT, missingCheckpointAnswer, agentStreamFailure, checkpointEvidence, recoveryCapsule, recoveredCheckpointAnswer, withCheckpointEvidence, type ToolActivity} from './agent-turn-recovery.ts';
+import { mountImageGenerationVisual } from './image-generation-visual.ts';
 type Role = 'user' | 'assistant';
 interface ChatMessage {
   id: string;
@@ -541,6 +542,17 @@ interface JsonPayload { readonly [key: string]: unknown; }
     conversation.updatedAt = new Date().toISOString();
     const container = ui.messages.querySelector(`[data-message-id="${CSS.escape(messageId)}"] .tool-activities`);
     if (container) renderToolActivities(container, message.toolActivities);
+    const imageActivity = message.toolActivities.find((item) => item.tool === 'image_generate');
+    if (imageActivity) {
+      const article = ui.messages.querySelector(`[data-message-id="${CSS.escape(messageId)}"]`);
+      let stage = article?.querySelector('.image-generation-stage') as HTMLElement | null;
+      if (!stage && article) {
+        stage = document.createElement('div');
+        stage.className = 'image-generation-stage';
+        article.querySelector('.content')?.before(stage);
+      }
+      if (stage) mountImageGenerationVisual(stage, imageActivity, message.content);
+    }
   }
 
   function renderConversationList() {
@@ -660,6 +672,13 @@ interface JsonPayload { readonly [key: string]: unknown; }
         activities.setAttribute('aria-live', 'polite');
         renderToolActivities(activities, getMessageToolActivities(message));
         article.append(activities);
+        const imageActivity = getMessageToolActivities(message).find((item) => item.tool === 'image_generate');
+        if (imageActivity) {
+          const stage = document.createElement('div');
+          stage.className = 'image-generation-stage';
+          mountImageGenerationVisual(stage, imageActivity, message.content);
+          article.append(stage);
+        }
       }
       article.append(content);
       if (message.role === 'assistant') {
