@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   agentInterruptionDiagnostic,
+  deliveryRepairModel,
+  deliveryRepairTokenBudget,
   buildFinalToolInstruction,
   buildProgressRepairInstruction,
   incompleteAgentRunAnswer,
@@ -93,4 +95,16 @@ it('acknowledges the durable checkpoint after response headers but before slow s
  expect(checkpoint).toBeGreaterThan(header);
  for(const slow of [memory,vision,prepared])expect(slow).toBeGreaterThan(checkpoint);
  expect(server).toMatch(/if \(!res\.headersSent && !res\.destroyed && !res\.writableEnded\) \{\s*res\.setHeader\('X-Hafize-Context-Compacted'/);
+});
+
+it('chooses a distinct ready configured chat model without global penalties',()=>{
+ const chain=[{model:'nvidia/primary',ready:true},{model:'nvidia/slow',ready:false},{model:'nvidia/embed-1b',ready:true},{model:'nvidia/alternate',ready:true},{model:'nvidia/third',ready:true}];
+ const tried=new Set(['nvidia/primary']);
+ expect(deliveryRepairModel(chain,tried)).toBe('nvidia/alternate');
+ tried.add('nvidia/alternate');expect(deliveryRepairModel(chain,tried)).toBe('nvidia/third');
+ tried.add('nvidia/third');expect(deliveryRepairModel(chain,tried)).toBeNull();
+ expect(deliveryRepairModel([{model:'gateway-model',ready:true}],new Set(['gateway-model']))).toBeNull();
+ expect(deliveryRepairTokenBudget(4096)).toBe(6144);
+ expect(deliveryRepairTokenBudget(8192)).toBe(8192);
+ expect(deliveryRepairTokenBudget(999999)).toBe(8192);
 });
