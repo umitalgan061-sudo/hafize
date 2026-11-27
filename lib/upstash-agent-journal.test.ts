@@ -77,3 +77,22 @@ it('fails closed on a stale heartbeat and never overwrites the new process check
  await expect(a.save(()=>snapshot)).rejects.toThrow('AGENT_JOURNAL_CONFLICT');
  expect((await j.load('owner','chat-1')).record?.snapshot.id).toBe('turn-2');
 });
+
+it('recovers exact latest terminal or active result after process replacement without a browser capsule',async()=>{
+ const f=fake();let time=1000;
+ const a=createUpstashAgentJournal({env,recoveryKey,fetchImpl:f.fetchImpl,now:()=>time})!;
+ const session=a.session('owner','chat-1',await a.load('owner','chat-1'));
+ await session.save(()=>snapshot);
+ const b=createUpstashAgentJournal({env,recoveryKey,fetchImpl:f.fetchImpl,now:()=>time})!;
+ expect(await b.preview('owner','chat-1','turn-1')).toMatchObject({id:'turn-1',status:'running',source:'redis',recovered:false});
+ time+=6*60*1000;
+ expect(await b.preview('owner','chat-1','turn-1')).toMatchObject({status:'interrupted'});
+ await session.save(()=>({...snapshot,status:'answered',answer:'verified result'}));
+ const writes=f.requests.filter(x=>x[0]==='EVAL').length;
+ expect(await b.preview('owner','chat-1','turn-1')).toMatchObject({status:'answered',answer:'verified result',source:'redis'});
+ expect(await b.preview('owner','chat-1','other-turn')).toBeNull();
+ expect(await b.preview('other-owner','chat-1','turn-1')).toBeNull();
+ expect(await b.preview('owner','other-chat','turn-1')).toBeNull();
+ expect(await b.preview('owner','../bad','turn-1')).toBeNull();
+ expect(f.requests.filter(x=>x[0]==='EVAL')).toHaveLength(writes);
+});

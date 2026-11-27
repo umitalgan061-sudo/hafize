@@ -107,5 +107,16 @@ export function createUpstashAgentJournal({env,recoveryKey,fetchImpl=globalThis.
   }
   return {save,renew};
  }
- return {configured,load,session,isBusy:(loaded:Loaded)=>loaded.record?.snapshot.status==='running'&&loaded.record.leaseUntil>now()};
+ const isBusy=(loaded:Loaded)=>loaded.record?.snapshot.status==='running'&&loaded.record.leaseUntil>now();
+ /** Read-only result recovery scoped to the authenticated owner, exact
+  * conversation and turn. Never renew a lease or restore executable state. */
+ async function preview(owner:string,conversation:string,id:string){
+  if(!ID.test(conversation)||!ID.test(id))return null;
+  const loaded=await load(owner,conversation);
+  const snapshot=loaded.record?.snapshot;
+  if(!snapshot||snapshot.id!==id)return null;
+  const status=snapshot.status==='running'&&!isBusy(loaded)?'interrupted' as const:snapshot.status;
+  return {...snapshot,status,recovered:false as const,source:'redis' as const};
+ }
+ return {configured,load,session,isBusy,preview};
 }

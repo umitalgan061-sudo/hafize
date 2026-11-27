@@ -1114,8 +1114,8 @@ interface JsonPayload { readonly [key: string]: unknown; }
           try{result=await hafizeApi.request(checkpointPath(message.agentCheckpoint),{timeoutMs:8000,retry:0});}
           catch(error){
             const token=recoveryCapsule(message.agentRecoveryToken);
-            if(error?.status!==404||!token)throw error;
-            result=await hafizeApi.request(checkpointPath(message.agentCheckpoint)+'/recover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversationId:conversation.id,recoveryToken:token}),timeoutMs:8000,retry:0});
+            if(error?.status!==404)throw error;
+            result=await hafizeApi.request(checkpointPath(message.agentCheckpoint)+'/recover',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversationId:conversation.id,...(token?{recoveryToken:token}:{})}),timeoutMs:12000,retry:0});
           }
           if(result.id!==message.agentCheckpoint||result.conversationId!==conversation.id)continue;
           checkpointMisses.delete(message.agentCheckpoint);
