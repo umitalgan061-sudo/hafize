@@ -94,6 +94,12 @@ describe('self-portrait model replies', () => {
     expect(parseConcept('{"name":"x"}')).toBeNull();
   });
 
+  it('finds the answer after reasoning that contains stray braces', () => {
+    const reply = 'Düşünüyorum: şablon {"name": ...} gibi olmalı, ayrıca {kısa} notlar.\nSon cevap:\n' + JSON.stringify(concept) + '\nBitti {.';
+    expect(parseConcept(reply)?.name).toBe('Hafıza İpliği');
+    expect(parseCritique('önce {"x":1} sonra {"score": 6, "verdict": "orta", "fixes": []}')?.score).toBe(6);
+  });
+
   it('parses a critique within 0..10', () => {
     expect(parseCritique('{"score": 7.5, "verdict": "iyi", "fixes": ["a", "b"]}')).toEqual({ score: 7.5, verdict: 'iyi', fixes: ['a', 'b'] });
     expect(parseCritique('{"score": 12}')).toBeNull();

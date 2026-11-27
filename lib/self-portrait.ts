@@ -141,12 +141,43 @@ export type PortraitConcept = {
   readonly states: { readonly idle: string; readonly listening: string; readonly thinking: string; readonly speaking: string };
 };
 
-// Model replies are untrusted text; an unreadable one is simply null.
-const modelJson = (text: unknown): unknown => { try { return parseModelJson(String(text ?? '')); } catch { return null; } };
+/** Every balanced JSON object in a reply, in order (reasoning text may contain stray braces). */
+export function jsonObjects(text: string): Record<string, unknown>[] {
+  const found: Record<string, unknown>[] = [];
+  const source = text.length > 60_000 ? text.slice(-60_000) : text;
+  for (let start = source.indexOf('{'); start >= 0 && found.length < 40; start = source.indexOf('{', start + 1)) {
+    let depth = 0;
+    let inString = false;
+    for (let i = start; i < source.length; i += 1) {
+      const ch = source[i];
+      if (inString) { if (ch === '\\') i += 1; else if (ch === '"') inString = false; continue; }
+      if (ch === '"') inString = true;
+      else if (ch === '{') depth += 1;
+      else if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          try { const value = JSON.parse(source.slice(start, i + 1)); if (value && typeof value === 'object' && !Array.isArray(value)) found.push(value); } catch { /* not JSON */ }
+          break;
+        }
+      }
+    }
+  }
+  return found;
+}
+// Model replies are untrusted text; an unreadable one is simply null. Prefer the
+// last object that carries the wanted key: answers follow their reasoning.
+const modelJson = (text: unknown, key = ''): unknown => {
+  const source = String(text ?? '');
+  if (key) {
+    const hit = jsonObjects(source).filter((o) => key in o).at(-1);
+    if (hit) return hit;
+  }
+  try { return parseModelJson(source); } catch { return null; }
+};
 const clean = (value: unknown, max: number) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';
 
 export function parseConcept(text: unknown): PortraitConcept | null {
-  const raw = modelJson(text) as Record<string, unknown> | null;
+  const raw = modelJson(text, 'essence') as Record<string, unknown> | null;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const states = (raw.states && typeof raw.states === 'object' ? raw.states : {}) as Record<string, unknown>;
   const palette = Array.isArray(raw.palette) ? raw.palette.map((c) => clean(c, 9).toLowerCase()).filter((c) => /^#[0-9a-f]{6}$/.test(c)).slice(0, 8) : [];
@@ -165,7 +196,7 @@ export function parseConcept(text: unknown): PortraitConcept | null {
 export type PortraitCritique = { readonly score: number; readonly verdict: string; readonly fixes: readonly string[] };
 
 export function parseCritique(text: unknown): PortraitCritique | null {
-  const raw = modelJson(text) as Record<string, unknown> | null;
+  const raw = modelJson(text, 'score') as Record<string, unknown> | null;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   // Models write 7, "7", "7,5" or "7/10".
   const score = typeof raw.score === 'number' ? raw.score : Number(String(raw.score ?? '').trim().replace(',', '.').replace(/\s*\/\s*10$/, ''));
