@@ -54,3 +54,26 @@ describe('encrypted Upstash task journal',()=>{
   await expect(j.load('owner','chat-1')).rejects.toThrow('AGENT_JOURNAL_CORRUPT');
  });
 });
+
+it('renews an active journal during long model or CI waits and stops after terminal state',async()=>{
+ const f=fake();let time=1000;
+ const j=createUpstashAgentJournal({env,recoveryKey,fetchImpl:f.fetchImpl,now:()=>time})!;
+ const session=j.session('owner','chat-1',await j.load('owner','chat-1'));
+ await session.save(()=>snapshot);
+ const n=f.requests.length;await session.renew();expect(f.requests.length).toBe(n);
+ time+=4*60*1000;await session.renew();
+ time+=2*60*1000;expect(j.isBusy(await j.load('owner','chat-1'))).toBe(true);
+ await session.save(()=>({...snapshot,status:'answered'}));
+ time+=60_000;const terminal=f.requests.length;await session.renew();expect(f.requests.length).toBe(terminal);
+ expect(j.isBusy(await j.load('owner','chat-1'))).toBe(false);
+});
+it('fails closed on a stale heartbeat and never overwrites the new process checkpoint',async()=>{
+ const f=fake();let time=1000;
+ const j=createUpstashAgentJournal({env,recoveryKey,fetchImpl:f.fetchImpl,now:()=>time})!;
+ const a=j.session('owner','chat-1',await j.load('owner','chat-1'));await a.save(()=>snapshot);
+ time+=6*60*1000;
+ const b=j.session('owner','chat-1',await j.load('owner','chat-1'));await b.save(()=>({...snapshot,id:'turn-2',status:'incomplete'}));
+ await expect(a.renew()).rejects.toThrow('AGENT_JOURNAL_CONFLICT');
+ await expect(a.save(()=>snapshot)).rejects.toThrow('AGENT_JOURNAL_CONFLICT');
+ expect((await j.load('owner','chat-1')).record?.snapshot.id).toBe('turn-2');
+});
