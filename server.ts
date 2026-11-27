@@ -37,7 +37,7 @@ import { createGitHubWorkspaceWriter, GitHubWorkspaceWriteError } from './lib/gi
 import { createGitHubAppAuth } from './lib/github-app-auth.ts';
 import { createGitHubAgentInspection } from './lib/github-agent-inspection.ts';
 import { createGitHubAgentDevelopment } from './lib/github-agent-development.ts';
-import { allowSafeGitHubAutonomy } from './lib/github-agent-autonomy.ts';
+import { allowSafeGitHubAutonomy, durableOwnerAdmission } from './lib/github-agent-autonomy.ts';
 import { parseRuntimeConfig } from './lib/runtime-config.ts';
 import { createCanvaAgentRuntime } from './lib/canva-agent-runtime.ts';
 import { createGmailAgentRuntime } from './lib/gmail-agent-runtime.ts';
@@ -938,8 +938,11 @@ async function handleAgentRun(req, res) {
   const lastUserIndex = messages.map(message=>message.role).lastIndexOf('user');
   const lastUserText = lastUserIndex>=0 ? messages[lastUserIndex].content : '';
   const requestedTurnId = body.agentTurnId;
-  const durable = safeGitHubAutonomy && !ownerId.startsWith('connector:') && isAgentTurnId(conversationId) && isAgentTurnId(requestedTurnId) &&
-    githubWorkRequested(lastUserText,messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
+  const githubWork=githubWorkRequested(lastUserText,messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
+  const admission=durableOwnerAdmission({safeOwner:safeGitHubAutonomy&&!ownerId.startsWith('connector:'),githubWork,validConversation:isAgentTurnId(conversationId),validTurn:isAgentTurnId(requestedTurnId)});
+  const durable=admission.durable;
+  if(githubWork)console.info(JSON.stringify({event:'hafize.agent.admission',durable,safeOwner:safeGitHubAutonomy,validConversation:isAgentTurnId(conversationId),validTurn:isAgentTurnId(requestedTurnId),journalConfigured:Boolean(PLATFORM.agentJournal?.configured)}));
+  if(admission.missingIds){sendJson(res,400,{error:'INVALID_AGENT_TURN'});return;}
   const journal=durable?PLATFORM.agentJournal:null;
   let remoteLoaded=null;
   try{
@@ -1145,12 +1148,12 @@ async function handleAgentRun(req, res) {
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedBranch:async(target)=>{PLATFORM.agentTurns.preparedBranch(ownerId,durableId,target);await persistAgentTurn();requestAbort.signal.throwIfAborted();emitCheckpointProgress();},onPreparedFile:async(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);await persistAgentTurn();requestAbort.signal.throwIfAborted();emitCheckpointProgress();}}:{})})}:undefined,
     githubRelease: GITHUB_AGENT_RELEASE?{enabled:GITHUB_AGENT_RELEASE.enabled,execute:(args,context)=>GITHUB_AGENT_RELEASE.execute(args,{...context,expectedBranch:requestedBranch??recoveryBranch?.branch??undefined,reserveRender:()=>Boolean(durableId&&PLATFORM.agentTurns.reserveDeployment(ownerId,durableId))})}:undefined,
-    githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
+    githubReleaseAuthorization: safeGitHubAutonomy&&durableId ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
     nvidiaWorkspace,
     projectHealth:ownerId?PROJECT_DELIVERY_HEALTH:undefined,
-    githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy, interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
-    safeGitHubAutonomy,
+    githubConnection: { readMode: GITHUB_READ_CONFIGURED ? (GITHUB_APP_AUTH ? 'app' : GITHUB_TOKEN ? 'configured_credential' : 'public_read_only') : 'not_configured', appConfigured: Boolean(GITHUB_APP_AUTH), readRepositories: GITHUB_ALLOWED_REPOS, developmentRepositories: GITHUB_AGENT_REPOS, developmentConfigured: Boolean(GITHUB_AGENT_DEVELOPMENT?.enabled()), safeOwnerDevelopment: safeGitHubAutonomy&&Boolean(durableId), interactiveApproval: typeof runContext.contextExtras.requestApproval === 'function' },
+    safeGitHubAutonomy:safeGitHubAutonomy&&Boolean(durableId),
     delegateAgent: (args, signal) => delegator.delegate(args, { depth: 0,signal }),
     delegateTeam: agent.kind==='primary' ? (tasks,signal)=>delegator.delegateBatch(tasks,signal) : undefined,
     approvalGranted: false,
@@ -1166,7 +1169,7 @@ async function handleAgentRun(req, res) {
     ...runContext.contextExtras,
     runtimeBudget: () => ({ maxToolRounds: MAX_AGENT_TOOL_ROUNDS, roundsStarted, toolCallsCompleted: completedCalls, timeoutMs: AGENT_TIMEOUT_MS, elapsedMs: Date.now() - runStartedAt, expertMaxRounds: EXPERT_TOOL_ROUNDS, maxCallsPerRound: MAX_ROOT_CALLS_PER_ROUND })
   };
-  const tools = getAllowedNvidiaTools(agent, toolContextBase).filter(tool=>!durableId || (durableGitHubTools.has(tool.function.name) && ((!inheritedPending.length&&!recoveryReadOnly) || !mutationTools.has(tool.function.name))));
+  const tools = getAllowedNvidiaTools(agent, toolContextBase).filter(tool=>(!admission.blockStandingWrites||!mutationTools.has(tool.function.name))&&(!durableId || (durableGitHubTools.has(tool.function.name) && ((!inheritedPending.length&&!recoveryReadOnly) || !mutationTools.has(tool.function.name)))));
   const toolContext = { ...toolContextBase, advertisedToolNames: tools.map(tool => tool.function.name) };
   const capabilities = () => getRuntimeCapabilities(agent, toolContext);
   // Several rounds let the model chain tools (search, then read a result). A round without
