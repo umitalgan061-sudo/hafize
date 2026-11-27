@@ -483,7 +483,7 @@ async function nvidiaStreamText(payload, signal, expertId) {
     error.status = 502;
     throw error;
   }
-  return { text: text || String(round?.content || ''), model: MODEL_ROUTER.modelFor(upstream) || payload?.model || '' };
+  return { text: text || String(round?.content || ''), model: MODEL_ROUTER.modelFor(upstream) || payload?.model || '', finishReason: String(round?.finishReason || '') };
 }
 
 function normalizeRootCompletion(response) {

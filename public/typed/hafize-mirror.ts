@@ -25,6 +25,7 @@ const PUBLISH_KEY = 'hafize.mirror.publish.v1';
 const PHASES: Record<string, (d: Json) => string> = {
   queued: () => 'Sıraya alındı',
   imagining: () => 'Kendini hayal ediyor…',
+  'imagining-retry': (d) => 'Fikri okunamadı (' + String(d.model || '').split('/').pop() + (d.chars !== undefined ? ', ' + d.chars + ' karakter' : '') + (d.finish ? ', ' + d.finish : '') + (d.error ? ', ' + d.error : '') + '); yeniden düşünüyor…',
   imagined: (d) => 'Kendini hayal etti: “' + (d.name || '') + '”',
   coding: () => 'Kendi kodunu yazıyor…',
   coded: () => 'Kodu hazır',
