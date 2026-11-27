@@ -35,6 +35,7 @@ import { createRuleEngine, type Rule, type RuleEngine } from './rule-engine.ts';
 import { createWorkspaceWatcher } from './workspace-watcher.ts';
 import { createTaskResults } from './task-results.ts';
 import { createAgentTurnCheckpoints, isAgentTurnId } from './agent-turn-checkpoints.ts';
+import { createUpstashAgentJournal } from './upstash-agent-journal.ts';
 import { createLocalhostServers } from './localhost-servers.ts';
 import { createScreenWatch, SCREEN_LIMITS } from './screen-watch.ts';
 import { createIdempotencyStore } from './skill-idempotency.ts';
@@ -157,6 +158,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
   const taskResults = createTaskResults({ db, cipherFor: (ownerId) => crypto.forOwner(ownerId) });
   const recoveryKey=master.source==='env'?master.key:typeof env.HAFIZE_AUTH_TOKEN==='string'&&Buffer.byteLength(env.HAFIZE_AUTH_TOKEN,'utf8')>=32?Buffer.from(env.HAFIZE_AUTH_TOKEN,'utf8'):undefined;
   const agentTurns = createAgentTurnCheckpoints({db,cipherFor:ownerId=>crypto.forOwner(ownerId),recoveryKey});
+  const agentJournal = createUpstashAgentJournal({env,recoveryKey});
   const workspaceWatcher = createWorkspaceWatcher({
     dir: env.HAFIZE_WORKSPACE_DIR || join(root, 'workspace'),
     onChange: async (path) => {
@@ -907,7 +909,7 @@ export function createHafizePlatform(deps: PlatformDeps) {
 
   return Object.freeze({
     db, telemetry, models, memory, consolidator, approvals, journal, sandbox, images, media, research, orchestrator, experts, localTools, prompts, backup,
-    createRunContext, prepareMemory, analyzeAttachments, wrapDelegation, handle, capabilities, shutdown, ruleEngine, taskResults, agentTurns,
+    createRunContext, prepareMemory, analyzeAttachments, wrapDelegation, handle, capabilities, shutdown, ruleEngine, taskResults, agentTurns, agentJournal,
     nimStatus:()=>nimSpecialists.status(),
     recordTurn: (ownerId: string, conversationId: string, role: 'user' | 'assistant', content: string) => { if (ownerId && CONVERSATION_ID.test(conversationId)) memory.recordTurn({ ownerId, conversationId, role, content }); }
   });
