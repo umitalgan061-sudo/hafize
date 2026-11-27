@@ -25,3 +25,10 @@ export function allowSafeGitHubAutonomy(input: SafeAutonomyRequest): boolean {
   // after authenticating a signed session (or bearer connector, excluded above).
   return typeof sessionId === 'string' && /^[a-f0-9]{64}$/.test(sessionId);
 }
+
+/** A standing write grant cannot bypass durable task admission. Read-only
+ * chat and separately approved non-owner flows retain their existing policy. */
+export function durableOwnerAdmission({safeOwner,githubWork,validConversation,validTurn}:{safeOwner:boolean;githubWork:boolean;validConversation:boolean;validTurn:boolean}){
+ const durable=safeOwner&&githubWork&&validConversation&&validTurn;
+ return {durable,missingIds:safeOwner&&githubWork&&(!validConversation||!validTurn),blockStandingWrites:safeOwner&&!durable};
+}

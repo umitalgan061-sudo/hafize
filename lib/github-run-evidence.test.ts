@@ -215,6 +215,11 @@ it('starts exact scoped editing after a verified read even if exploratory file r
  expect(shouldRecoverReadOnlyWrite(request,read,calls)).toBe(true);
  expect(shouldRecoverReadOnlyWrite(request,[...read,...notFound],calls)).toBe(false);
  expect(explicitPatchRecoveryTarget(request,[...read,...notFound],calls)).toEqual({repository,branch});
+ const directory=githubReceipt('github_read_file',{ok:false,error:'GITHUB_PATH_NOT_FILE',status:400});
+ expect(shouldRecoverReadOnlyWrite(request,[...read,...directory],calls)).toBe(false);
+ expect(explicitPatchRecoveryTarget(request,[...read,...directory],calls)).toEqual({repository,branch});
+ expect(explicitPatchRecoveryTarget(request,directory,calls)).toBeNull();
+ expect(explicitPatchRecoveryTarget(request,[...read,...directory],[...calls,{name:'github_develop',operation:'file',ok:false,error:'GITHUB_WRITE_FAILED',status:502}])).toBeNull();
  expect(explicitPatchRecoveryTarget(request,notFound,calls)).toBeNull();
  expect(explicitPatchRecoveryTarget(request+' Commit etme.',[...read,...notFound],calls)).toBeNull();
  for(const status of [401,403,429,500,502]){

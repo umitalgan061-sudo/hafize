@@ -1383,6 +1383,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (!agentId) return showToast('Önce Hafize ajan listesinin hazır olması gerekiyor.');
 
     const message = conversation.messages[index];
+    // Regenerating a GitHub task is not a harmless text alternative. Keep
+    // its recovery token/evidence and require a fresh explicit user request.
+    if(message.agentCheckpoint||recoveryCapsule(message.agentRecoveryToken))return showToast('GitHub görevini yeniden üretmek yerine yeni bir devam mesajı gönder; önceki görev kaydı korunuyor.');
     const previousContent = message.content;
     const requestMessages = buildRegenerationMessages(
       conversation.messages.slice(0, index),
@@ -1399,9 +1402,10 @@ interface JsonPayload { readonly [key: string]: unknown; }
     try {
       const useTools = ui.providerSelect.value !== 'local';
       const endpoint = useTools ? '/api/agent/run' : '/api/chat';
+      const recoveryToken=[...conversation.messages.slice(0,index)].reverse().map(m=>recoveryCapsule(m.agentRecoveryToken)).find(Boolean)||'';
       await consumeAssistantStream(
         endpoint,
-        { model, agentId, conversationId: conversation.id, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, ...(useTools ? {} : { provider: ui.providerSelect.value }) },
+        { model, agentId, conversationId: conversation.id, messages: requestMessages, memory: memoryForRequest(), max_tokens: 4096, ...(useTools ? {agentTurnId:uid(),...(recoveryToken?{agentRecoveryToken:recoveryToken}:{})} : { provider: ui.providerSelect.value }) },
         message.id,
         useTools
           ? 'Ajan araçları çalıştırdı ancak model boş bir yanıt döndürdü.'
