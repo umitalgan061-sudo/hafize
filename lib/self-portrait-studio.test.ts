@@ -89,6 +89,17 @@ describe('self-portrait studio', () => {
     expect(() => studio.start('stranger', { action: 'reflect', session: done.result?.session, candidate: done.result?.candidate.id, sheet: JPEG })).toThrow('SELF_PORTRAIT_SESSION_NOT_FOUND');
   });
 
+  it('lets a reloaded mirror find the running work and its session', async () => {
+    const { studio } = studioWith();
+    expect(studio.active('owner')).toEqual({ job: null, session: null });
+    const first = await imagineAndCode(studio);
+    const now = studio.active('owner');
+    expect(now.job).toMatchObject({ action: 'code', status: 'done' });
+    expect(now.session?.id).toBe(first.result?.session);
+    expect(now.session?.candidates[0]).toMatchObject({ id: first.result?.candidate.id, rendered: false });
+    expect(studio.active('stranger')).toEqual({ job: null, session: null });
+  });
+
   it('repairs with the browser compiler log', async () => {
     const { studio, calls } = studioWith();
     const first = await imagineAndCode(studio);

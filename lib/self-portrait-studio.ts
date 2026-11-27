@@ -51,7 +51,7 @@ type Job = {
   readonly id: string; readonly ownerId: string; readonly action: string; readonly createdAt: number;
   status: 'running' | 'done' | 'failed'; phase: string; updatedAt: number;
   readonly log: { at: string; phase: string; detail?: Json }[];
-  result: Json | null; error: string | null; readonly abort: AbortController; progress?: { chars: number };
+  result: Json | null; error: string | null; readonly abort: AbortController; progress?: { chars: number }; session?: string;
 };
 
 const SESSION_TTL = 3 * 60 * 60 * 1000;
@@ -199,6 +199,7 @@ export function createSelfPortraitStudio({
       const idea = await imagine(previous, signal, phase);
       const s: Session = { id: randomUUID(), ownerId: job.ownerId, createdAt: now(), concept: idea.concept, conceptModel: idea.model, candidates: new Map(), repairs: 0, reflections: 0, published: false };
       sessions.set(s.id, s);
+      job.session = s.id;
       phase('imagined', { name: idea.concept.name });
       return { session: s.id, concept: publicConcept(s) };
     }
@@ -283,7 +284,7 @@ export function createSelfPortraitStudio({
     if ([...jobs.values()].some((j) => j.ownerId === ownerId && j.status === 'running' && (action !== 'publish' || j.action === 'publish'))) fail('SELF_PORTRAIT_BUSY', 409);
     if (action === 'publish' && publishing) fail('SELF_PORTRAIT_PUBLISH_BUSY', 409);
     if (action !== 'imagine' || body.session !== undefined) session(ownerId, body.session);
-    const job: Job = { id: randomUUID(), ownerId, action, createdAt: now(), updatedAt: now(), status: 'running', phase: 'queued', log: [], result: null, error: null, abort: new AbortController() };
+    const job: Job = { id: randomUUID(), ownerId, action, createdAt: now(), updatedAt: now(), status: 'running', phase: 'queued', log: [], result: null, error: null, abort: new AbortController(), ...(typeof body.session === 'string' && action !== 'imagine' ? { session: body.session } : {}) };
     jobs.set(job.id, job);
     const timer = setTimeout(() => job.abort.abort(new SelfPortraitError('SELF_PORTRAIT_TIMEOUT', 504)), action === 'publish' ? PUBLISH_TIMEOUT : action === 'imagine' ? IMAGINE_TIMEOUT : STEP_TIMEOUT);
     timer.unref?.();
@@ -307,7 +308,20 @@ export function createSelfPortraitStudio({
     return { available: true, publishAvailable: Boolean(publisher?.available()), visionModels, limits: SELF_PORTRAIT_LIMITS, path: SELF_PORTRAIT_PATH };
   }
 
-  return Object.freeze({ start, get, status });
+  /** The owner's latest job and its session, so a reloaded mirror can continue. */
+  function active(ownerId: string) {
+    prune();
+    const owned = [...jobs.values()].filter((j) => j.ownerId === ownerId).sort((a, b) => b.createdAt - a.createdAt);
+    const latest = owned.find((j) => j.status === 'running') ?? owned[0] ?? null;
+    const own = [...sessions.values()].filter((x) => x.ownerId === ownerId).sort((a, b) => b.createdAt - a.createdAt);
+    const s = (latest?.session ? sessions.get(latest.session) : undefined) ?? (latest?.action === 'imagine' && latest.status === 'running' ? undefined : own[0]);
+    return {
+      job: latest ? snapshot(latest) : null,
+      session: s && s.ownerId === ownerId ? { id: s.id, concept: publicConcept(s), published: s.published, candidates: [...s.candidates.values()].map((c) => ({ ...publicCandidate(c), rendered: c.rendered })) } : null
+    };
+  }
+
+  return Object.freeze({ start, get, status, active });
 }
 
 type Release = { readonly execute: (args: unknown, ctx: Json) => Promise<Json> };
