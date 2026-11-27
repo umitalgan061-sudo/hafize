@@ -268,7 +268,7 @@ const SELF_PORTRAIT = createSelfPortraitStudio({
   vision: (payload, signal) => nvidiaJsonCompletion(payload, signal, undefined, true),
   visionModels: SELF_PORTRAIT_VISION_MODELS,
   model: NVIDIA_DEFAULT_MODEL,
-  publisher: GITHUB_AGENT_RELEASE ? createSelfPortraitPublisher({ writer: GITHUB_AGENT_WRITER, release: GITHUB_AGENT_RELEASE, fetchImpl: GITHUB_FETCH, reserveRender: () => PLATFORM.agentTurns.reserveIdleDeployment() }) : null
+  publisher: GITHUB_AGENT_RELEASE ? createSelfPortraitPublisher({ writer: GITHUB_AGENT_WRITER, release: GITHUB_AGENT_RELEASE, fetchImpl: GITHUB_FETCH, reserveRender: () => AGENT_REQUEST_DRAIN.canReserveDeployment()&&PLATFORM.agentTurns.reserveIdleDeployment() }) : null
 });
 // Standing consent requires explicit server opt-in and owner session authentication.
 const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
@@ -964,6 +964,7 @@ async function handleAgentRun(req, res) {
   // Admission may have awaited Redis while shutdown began. Do not create a
   // new checkpoint after the shutdown cancellation sweep.
   if(AGENT_REQUEST_DRAIN.closing()){sendJson(res,503,{error:'AGENT_TURN_SERVER_SHUTDOWN'});return;}
+  if(PLATFORM.agentTurns.deploymentPending()){sendJson(res,409,{error:'RENDER_DEPLOYMENT_PENDING'});return;}
   const checkpoint = durable ? PLATFORM.agentTurns.begin(ownerId,conversationId,requestedTurnId,inheritedPending) : null;
   if(checkpoint && !checkpoint.accepted){
     sendJson(res,409,{error:checkpoint.reason});return;
@@ -1144,7 +1145,7 @@ async function handleAgentRun(req, res) {
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
     githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedBranch:async(target)=>{PLATFORM.agentTurns.preparedBranch(ownerId,durableId,target);await persistAgentTurn();requestAbort.signal.throwIfAborted();emitCheckpointProgress();},onPreparedFile:async(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);await persistAgentTurn();requestAbort.signal.throwIfAborted();emitCheckpointProgress();}}:{})})}:undefined,
-    githubRelease: GITHUB_AGENT_RELEASE?{enabled:GITHUB_AGENT_RELEASE.enabled,execute:(args,context)=>GITHUB_AGENT_RELEASE.execute(args,{...context,expectedBranch:requestedBranch??recoveryBranch?.branch??undefined,reserveRender:()=>Boolean(durableId&&PLATFORM.agentTurns.reserveDeployment(ownerId,durableId))})}:undefined,
+    githubRelease: GITHUB_AGENT_RELEASE?{enabled:GITHUB_AGENT_RELEASE.enabled,execute:(args,context)=>GITHUB_AGENT_RELEASE.execute(args,{...context,expectedBranch:requestedBranch??recoveryBranch?.branch??undefined,reserveRender:()=>Boolean(durableId&&AGENT_REQUEST_DRAIN.canReserveDeployment(1)&&PLATFORM.agentTurns.reserveDeployment(ownerId,durableId))})}:undefined,
     githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
     nvidiaWorkspace,
@@ -2047,7 +2048,7 @@ const server = createServer(async (req, res) => {
         revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT||'')?process.env.RENDER_GIT_COMMIT:null,
         durableGitHubTaskActive: PLATFORM.agentTurns.hasActive()||AGENT_REQUEST_DRAIN.activeCount()>0,
         durableGitHubJournalConfigured: Boolean(PLATFORM.agentJournal?.configured),
-        durableGitHubDeploymentPending: PLATFORM.agentTurns.deploymentPending(),
+        durableGitHubDeploymentPending: AGENT_REQUEST_DRAIN.closing()||PLATFORM.agentTurns.deploymentPending(),
         uptimeSeconds: Number(process.uptime().toFixed(3)),
         time: new Date().toISOString()
       });
@@ -2258,6 +2259,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/agent/run') {
       if (!acquireRateLimit(AGENT_RATE_LIMITER, req, res)) return;
+      if(PLATFORM.agentTurns.deploymentPending()){sendJson(res,409,{error:'RENDER_DEPLOYMENT_PENDING'});return;}
       const task=AGENT_REQUEST_DRAIN.start(()=>handleAgentRun(req,res));
       if(!task){sendJson(res,503,{error:'AGENT_TURN_SERVER_SHUTDOWN'});return;}
       await task;
