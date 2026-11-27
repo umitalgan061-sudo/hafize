@@ -41,3 +41,24 @@ describe('agent request drain',()=>{
   }finally{vi.useRealTimers();}
  });
 });
+
+it('blocks release while any other agent handler is admitted or still saving',async()=>{
+ const drain=createAgentRequestDrain();
+ expect(drain.canReserveDeployment()).toBe(true);
+ expect(drain.canReserveDeployment(1)).toBe(false);
+ let first!:()=>void,second!:()=>void;
+ const a=drain.start(()=>new Promise<void>(resolve=>{first=resolve;}))!;
+ expect(drain.canReserveDeployment()).toBe(false);
+ expect(drain.canReserveDeployment(1)).toBe(true);
+ const b=drain.start(()=>new Promise<void>(resolve=>{second=resolve;}))!;
+ expect(drain.canReserveDeployment()).toBe(false);
+ expect(drain.canReserveDeployment(1)).toBe(false);
+ await Promise.resolve();
+ second();await b;
+ expect(drain.canReserveDeployment(1)).toBe(true);
+ first();await a;
+ expect(drain.canReserveDeployment()).toBe(true);
+ drain.stop();
+ expect(drain.canReserveDeployment()).toBe(false);
+ expect(drain.canReserveDeployment(1)).toBe(false);
+});

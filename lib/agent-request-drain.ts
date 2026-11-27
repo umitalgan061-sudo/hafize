@@ -26,5 +26,11 @@ export function createAgentRequestDrain(){
    ]);
   }finally{if(timer!==undefined)clearTimeout(timer);}
  }
- return Object.freeze({start,stop,drain,closing:()=>closing,activeCount:()=>active.size});
+ // A release from an agent handler may count only that handler; an
+ // external publisher must see zero. Include requests still awaiting
+ // authentication/Redis and terminal saves, not just local turn markers.
+ function canReserveDeployment(expectedActive:0|1=0):boolean{
+  return !closing&&active.size===expectedActive;
+ }
+ return Object.freeze({start,stop,drain,closing:()=>closing,activeCount:()=>active.size,canReserveDeployment});
 }
