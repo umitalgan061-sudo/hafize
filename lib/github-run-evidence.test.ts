@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
+import {pullDeliveryInstruction,namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
 const repository='umitalgan061-sudo/retake', commit='a'.repeat(40), blob='b'.repeat(40);
 describe('GitHub run evidence',()=>{
  it('rejects imagined operations in arbitrary prose and failed tool results',()=>{
@@ -180,4 +180,13 @@ it('repairs the exact image animation continuation after malformed inspection an
  const file=githubReceipt('github_develop',{ok:true,value:{repository,action:'file',branch,path:'public/typed/image-generation-dither.ts',commitSha:commit,blobSha:blob,verified:true}});
  expect(shouldRecoverMissingPull(request,[...receipts,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(true);
  expect(shouldRecoverMissingPull(request,[...receipts,...file],[...calls,{name:'github_develop',operation:'pull',ok:false}])).toBe(false);
+});
+
+it('selects ready PR guidance only for an advertised, explicitly authorized release scope',()=>{
+ const repository='umitalgan061-sudo/hafize';
+ const auth={repositories:[repository],actions:['open','merge','publish']};
+ expect(pullDeliveryInstruction(auth,['github_develop','github_release'],repository)).toContain('github_release action=open');
+ for(const [scope,tools,repo] of [[undefined,['github_release'],repository],[{...auth,actions:['open']},['github_release'],repository],[auth,['github_develop'],repository],[auth,['github_release'],'other/repo']] as const){
+  expect(pullDeliveryInstruction(scope,tools,repo)).not.toContain('github_release action=open');
+ }
 });
