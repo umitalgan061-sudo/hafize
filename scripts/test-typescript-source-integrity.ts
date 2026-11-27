@@ -51,8 +51,8 @@ const publicJsStandalone = new Set([
   'public/original-hero-bootstrap.js',
   'public/original-hero.js',
   'public/original-hero-pixels.js',
-  // Home voice-card particle visualization (#1097): original, self-contained
-  // canvas animation; no audio capture, imports or network access.
+  // Home voice-card visualization (#1097; WebGL aurora glass core with a 2D
+  // fallback): original, self-contained; no audio capture, imports or network.
   'public/home-voice-luminous-core.js',
   'public/vendor/piper-phonemize/PhonemizeWebWorker.js'
 ]);
