@@ -117,12 +117,12 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
 }
 /** Exact-file proposal may retry a failed exploratory read, but must fetch
  * the owner-named file from the verified target branch again before writing.
- * This does not waive a 404 for normal model-driven writes, or any mutation,
+ * This does not waive a 404 or directory read for normal model-driven writes, or any mutation,
  * authorization or transport failure. */
 export function explicitPatchRecoveryTarget(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string;error?:string|null;reason?:string|null;status?:number|null}[]):{repository:string;branch:string}|null{
  const target=verifiedCreatedFeatureBranch(receipts)??namedReadTarget(request,receipts);
  if(!target)return null;
- const safeReceipts=receipts.filter(r=>!(r.tool==='github_read_file'&&r.kind==='error'&&r.line==='github_read_file: GITHUB_READ_FAILED (HTTP 404)'));
+ const safeReceipts=receipts.filter(r=>!(r.tool==='github_read_file'&&r.kind==='error'&&['github_read_file: GITHUB_READ_FAILED (HTTP 404)','github_read_file: GITHUB_PATH_NOT_FILE (HTTP 400)'].includes(r.line)));
  // A successful read is still required. The normal write recovery policy
  // supplies the affirmative commit intent and all mutation vetoes.
  return shouldRecoverReadOnlyWrite(request,safeReceipts,calls)?target:null;
