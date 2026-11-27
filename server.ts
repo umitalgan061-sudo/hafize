@@ -971,10 +971,10 @@ async function handleAgentRun(req, res) {
   // Recovery is a read-only transaction, not a new agent development run.
   // For an explicitly named branch, reconcile directly before model/context
   // calls. Preserve unresolved journal entries and never advertise writes.
-  const recoveryBranch=requestedExistingFeatureBranch(lastUserText);
-  if(recoveryReadOnly&&durableId&&GITHUB_APP_AUTH&&prior&&recoveryBranch){
+  const inspectionBranch=requestedExistingFeatureBranch(lastUserText);
+  if(recoveryReadOnly&&durableId&&GITHUB_APP_AUTH&&prior&&inspectionBranch){
     const allowedRepositories=GITHUB_AGENT_REPOS.filter(repo=>GITHUB_ALLOWED_REPOS.some(read=>read.toLowerCase()===repo.toLowerCase()));
-    const probe=recoveryBranchProbe({branch:recoveryBranch,receipts:prior.receipts,pending:inheritedPending,allowedRepositories});
+    const probe=recoveryBranchProbe({branch:inspectionBranch,receipts:prior.receipts,pending:inheritedPending,allowedRepositories});
     const checked=await reconcilePendingGitHubMutations({pending:inheritedPending,allowedRepositories,fetchImpl:GITHUB_FETCH,signal:requestAbort.signal});
     if(checked.settled.length)PLATFORM.agentTurns.checkpoint(ownerId,durableId,checked.receipts,checked.settled);
     const observed=probe?await reconcilePendingGitHubMutations({pending:[probe],allowedRepositories,fetchImpl:GITHUB_FETCH,signal:requestAbort.signal}):{receipts:[],settled:[]};
