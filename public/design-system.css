@@ -387,10 +387,11 @@ html[data-reduced-motion="true"] .main .voice-card :is(.voice-orb,.voice-orb::af
   .hz-frame,.edge-beam,#composer>.hz-composer-pulse{display:none!important}
 }
 
-/* Luminous Core: isolated compact home-rail renderer, with legacy no-canvas fallback. */
+/* Hafize Core: isolated compact home-rail renderer (WebGL glass core, 2D dot
+   fallback), with the legacy CSS orb when scripts or canvas are unavailable. */
 @media not all and (forced-colors: active) {
   .main .utility-rail .voice-card .voice-orb[data-luminous-core="ready"] {
-    width: min(154px, 100%); height: 116px; border-radius: 0;
+    width: min(184px, 100%); height: 150px; border-radius: 0;
     background: none !important; box-shadow: none !important;
     animation: none !important; transform: none !important; opacity: 1;
     border: 0; overflow: visible;
@@ -403,7 +404,7 @@ html[data-reduced-motion="true"] .main .voice-card :is(.voice-orb,.voice-orb::af
     display: none !important; animation: none !important;
   }
   .main .utility-rail .voice-card .voice-orb > .hz-luminous-core {
-    display: block; width: 154px; max-width: 100%; height: 144px;
+    display: block; width: 184px; max-width: 100%; height: 150px;
     position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
     pointer-events: none; z-index: 1;
   }
