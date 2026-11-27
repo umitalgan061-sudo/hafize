@@ -193,10 +193,11 @@ describe('self-portrait publisher', () => {
       commitFile: async (_t: unknown, input: any) => { steps.push('file:' + input.path + ':' + (input.existingSha ?? 'new')); expect(validatePortraitDocument(JSON.parse(input.content)).ok).toBe(true); return {}; }
     };
     let mergeAttempts = 0;
+    let busy = false;
     const release = {
       execute: async (args: any, ctx: any) => {
         expect(ctx.ownerAuthorized).toBe(true);
-        expect(ctx.reserveRender()).toBe(true);
+        expect(typeof ctx.reserveRender).toBe('function');
         steps.push('release:' + args.action);
         if (args.action === 'open') return { number: 42, htmlUrl: 'https://github.com/' + repo + '/pull/42' };
         if (args.action === 'merge') {
@@ -204,7 +205,7 @@ describe('self-portrait publisher', () => {
           if (mergeAttempts === 1) throw Object.assign(new Error('moved'), { code: 'RELEASE_BASE_MOVED' });
           return { mergeCommitSha: 'b'.repeat(40) };
         }
-        throw Object.assign(new Error('hook'), { code: 'RENDER_DEPLOY_HOOK_NOT_CONFIGURED' });
+        throw Object.assign(new Error('hook'), { code: busy ? 'RENDER_ACTIVE_TASKS' : 'RENDER_DEPLOY_HOOK_NOT_CONFIGURED' });
       }
     };
     let prPolls = 0;
@@ -230,7 +231,7 @@ describe('self-portrait publisher', () => {
       return json(404, {});
     }) as unknown as typeof fetch;
     const phases: string[] = [];
-    const publisher = createSelfPortraitPublisher({ writer, release, fetchImpl, sleep: async () => {}, pollMs: 0 });
+    const publisher = createSelfPortraitPublisher({ writer, release, fetchImpl, sleep: async () => {}, pollMs: 0, reserveRender: () => true });
     const out = await publisher.publish(doc, (p) => phases.push(p), new AbortController().signal);
     expect(out).toEqual({ number: 42, url: 'https://github.com/' + repo + '/pull/42', mergeSha: 'b'.repeat(40), deploy: 'workflow' });
     expect(phases).toEqual(['branch', 'commit', 'pull', 'ci', 'updating-branch', 'merged', 'deploying', 'deploy-requested']);
@@ -239,6 +240,11 @@ describe('self-portrait publisher', () => {
     expect(steps).toContain('PUT /pulls/42/update-branch');
     expect(steps).toContain('POST /actions/workflows/hafize-render-release.yml/dispatches');
     expect(steps.filter((s) => s === 'release:merge')).toHaveLength(2);
+    busy = true;
+    const beforeDispatch = steps.filter(s => s === 'POST /actions/workflows/hafize-render-release.yml/dispatches').length;
+    const deferred = await publisher.publish(doc, () => {}, new AbortController().signal);
+    expect(deferred.deploy).toBe('scheduled');
+    expect(steps.filter(s => s === 'POST /actions/workflows/hafize-render-release.yml/dispatches')).toHaveLength(beforeDispatch);
   });
 
   it('re-runs a flaky CI job once before judging the portrait', async () => {

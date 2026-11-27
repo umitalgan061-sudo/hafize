@@ -42,6 +42,12 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
   deployUntil=now()+15*60*1000;
   return true;
  }
+ // Mirror/other non-agent publication may reserve only when no agent turn is active.
+ function reserveIdleDeployment(){
+  if(active.size!==0||deploymentPending())return false;
+  deployUntil=now()+15*60*1000;
+  return true;
+ }
  const key=(owner:string,id:string)=>owner+'\0'+id;
  const row=(owner:string,id:string)=>db.prepare('SELECT * FROM agent_turn_checkpoints WHERE owner_id=? AND id=?').get(owner,id) as Row|undefined;
  function read(r:Row):Body{
@@ -156,6 +162,6 @@ export function createAgentTurnCheckpoints({db,cipherFor,now=Date.now,recoveryKe
   controller.abort(new Error('AGENT_TURN_CANCELLED'));return true;
  }
  function cancelAll(){for(const controller of active.values())controller.abort(new Error('AGENT_TURN_SERVER_SHUTDOWN'));}
- return Object.freeze({begin,get,previous,before,preparedBranch,preparedFile,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
+ return Object.freeze({begin,get,previous,before,preparedBranch,preparedFile,checkpoint,finish,cancel,cancelAll,hasActive:()=>active.size>0,activeCount:()=>active.size,reserveDeployment,reserveIdleDeployment,deploymentPending,exportRecovery,importRecovery,recoveryPreview,recoveryAvailable:()=>Boolean(capsuleKey)});
 }
 export type AgentTurnCheckpoints=ReturnType<typeof createAgentTurnCheckpoints>;

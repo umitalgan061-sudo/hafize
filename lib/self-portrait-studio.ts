@@ -337,8 +337,8 @@ type Writer = {
 export function createSelfPortraitPublisher({
   writer, release, fetchImpl, repository = 'umitalgan061-sudo/hafize', sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((resolve, reject) => {
     const t = setTimeout(resolve, ms); signal?.addEventListener('abort', () => { clearTimeout(t); reject(signal.reason); }, { once: true });
-  }), now = Date.now, pollMs = 20_000
-}: { writer: Writer; release: Release | null; fetchImpl: typeof fetch; repository?: string; sleep?: (ms: number, signal?: AbortSignal) => Promise<void>; now?: () => number; pollMs?: number }): SelfPortraitPublisher {
+  }), now = Date.now, pollMs = 20_000, reserveRender = () => false
+}: { writer: Writer; release: Release | null; fetchImpl: typeof fetch; repository?: string; sleep?: (ms: number, signal?: AbortSignal) => Promise<void>; now?: () => number; pollMs?: number; reserveRender?: () => boolean }): SelfPortraitPublisher {
   async function api(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<{ status: number; data: Json | null }> {
     const response = await fetchImpl(new URL('https://api.github.com/repos/' + repository + path), {
       method, redirect: 'error',
@@ -378,7 +378,7 @@ export function createSelfPortraitPublisher({
     available: () => Boolean(release) && writer.configured(),
     async publish(doc: PortraitDocument, phase: Phase, signal: AbortSignal) {
       if (!release) return fail('SELF_PORTRAIT_PUBLISH_UNAVAILABLE', 503);
-      const ctx = { ownerAuthorized: true, authorization: { repositories: [repository], actions: ['open', 'merge', 'publish'], hafizePublishTarget: 'render' }, signal, reserveRender: () => true };
+      const ctx = { ownerAuthorized: true, authorization: { repositories: [repository], actions: ['open', 'merge', 'publish'], hafizePublishTarget: 'render' }, signal, reserveRender };
       const branch = 'hafize/auto-self-portrait-' + doc.id;
       const content = JSON.stringify(doc, null, 2) + '\n';
       phase('branch', { branch });
@@ -458,9 +458,17 @@ export function createSelfPortraitPublisher({
         if (out.published === true) deploy = 'already-live';
       } catch (error) {
         const c = code(error);
-        if (!['RELEASE_BASE_MOVED', 'RENDER_DEPLOY_HOOK_NOT_CONFIGURED', 'RENDER_DEPLOY_HOOK_INVALID', 'RENDER_ACTIVE_TASKS', 'RENDER_DEPLOY_HTTP_FAILED'].includes(c)) throw error;
-        const dispatched = await api('/actions/workflows/hafize-render-release.yml/dispatches', 'POST', { ref: 'main' }, signal);
-        deploy = dispatched.status === 204 ? 'workflow' : 'scheduled';
+        // A busy or reserved server is not a reason to bypass the deployment fence.
+        // Let the normal gated schedule pick up the already merged portrait.
+        if (c === 'RENDER_ACTIVE_TASKS' || c === 'RENDER_DEPLOYMENT_PENDING') deploy = 'scheduled';
+        else if (['RELEASE_BASE_MOVED', 'RENDER_DEPLOY_HOOK_NOT_CONFIGURED', 'RENDER_DEPLOY_HOOK_INVALID'].includes(c)) {
+          // Even the fallback dispatch must reserve an idle server first.
+          if (!reserveRender()) deploy = 'scheduled';
+          else {
+            const dispatched = await api('/actions/workflows/hafize-render-release.yml/dispatches', 'POST', { ref: 'main' }, signal);
+            deploy = dispatched.status === 204 ? 'workflow' : 'scheduled';
+          }
+        } else throw error;
       }
       phase('deploy-requested', { deploy, mergeSha });
       return { number, url: 'https://github.com/' + repository + '/pull/' + number, mergeSha, deploy };

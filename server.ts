@@ -265,7 +265,7 @@ const SELF_PORTRAIT = createSelfPortraitStudio({
   vision: (payload, signal) => nvidiaJsonCompletion(payload, signal, undefined, true),
   visionModels: SELF_PORTRAIT_VISION_MODELS,
   model: NVIDIA_DEFAULT_MODEL,
-  publisher: GITHUB_AGENT_RELEASE ? createSelfPortraitPublisher({ writer: GITHUB_AGENT_WRITER, release: GITHUB_AGENT_RELEASE, fetchImpl: GITHUB_FETCH }) : null
+  publisher: GITHUB_AGENT_RELEASE ? createSelfPortraitPublisher({ writer: GITHUB_AGENT_WRITER, release: GITHUB_AGENT_RELEASE, fetchImpl: GITHUB_FETCH, reserveRender: () => PLATFORM.agentTurns.reserveIdleDeployment() }) : null
 });
 // Standing consent requires explicit server opt-in and owner session authentication.
 const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
