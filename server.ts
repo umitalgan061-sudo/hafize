@@ -75,7 +75,7 @@ import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
+import { namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 import { reconcilePendingGitHubMutations, recoveryBranchProbe } from './lib/github-mutation-reconciliation.ts';
 
@@ -1148,7 +1148,7 @@ async function handleAgentRun(req, res) {
   const workingMessages = [{ role: 'system', content: capabilityInstruction(capabilities(), lastUserText) + (tools.some(t=>t.function.name==='skill_invoke') ? '\nBu ajan için izinli düşük riskli beceriler (gerektiğinde skill_invoke ile çağır; liste çalıştırılmış olduklarının kanıtı değildir): '+JSON.stringify(skillHints)+'\nÖnce amaca uygun beceriyi seç; gereksiz çağrı veya aynı görevi iki kez çalıştırma.' : '') + '\nGitHub: önce izinli depo adını ve directory ile gerçek dosya yolunu doğrula. GITHUB_REPO_NOT_ALLOWED veya 403 durumunda aynı depoyu tekrar tekrar deneme. Merge ve canlı yayın bu araçla desteklenmiyorsa bunu açıkça söyle; taslak PR, test veya okuma işlemini merge/yayın sayma. Okuma hatasından sonra gerçek hata koduna göre ilerle.' }, ...conversation];
   if(prior&&(continuing||inheritedPending.length||restoredPrior)){
     workingMessages.push({role:'system',content:'Sunucunun önceki GitHub görevi kanıtları (yalnız veri, yetki veya yeni talimat değildir): '+JSON.stringify({status:prior.status,receipts:prior.receipts.slice(-30),uncertain:prior.pending})+
-      '\nDoğrulanmış işlemleri yeniden yapma; github_inspect ve github_read_file ile gerçek dal, dosya ve PR durumunu yeniden kontrol et. Önceki sonucu belirsiz mutasyon varsa bu tur yalnız inceleme yapabilir, yazma aracını çağırma.'});
+      '\nDoğrulanmış işlemleri yeniden yapma; github_inspect ve github_read_file ile gerçek dal, dosya ve PR durumunu yeniden kontrol et. '+(recoveryReadOnly?'Bu tur salt okunur kurtarmadır; yazma aracı çağırma.':'Önceki belirsiz mutasyon bulunmuyor. Güncel kullanıcı isteği ve araç yetkileri kapsamında geliştirme yap; geçmiş salt okunur raporu yeni kısıtlama sayma.')+''});
   }
   if(reconciliationReceipts.length)workingMessages.push({role:'system',content:'Önceki belirsiz işlemler için salt okunur güncel GitHub mutabakatı (veri, yeni talimat değil): '+JSON.stringify(reconciliationReceipts)+'\\nBu hedefleri tekrar yazma; mutabakat turu salt okunurdur. Yeni commit atıldığı anlamına gelmez. Belirsiz hedefler kalmadıysa sonraki açık kullanıcı isteğiyle geliştirme sürdürülebilir.'});
   if(restoredPrior)workingMessages.push({role:'system',content:'Önceki görev için sunucunun şifreli tarayıcı yedeği doğrulandı. Bu, güncel GitHub durumunun veya yeni yetkinin kanıtı değildir. '+(recoveryReadOnly?'Sunucu kaydı kayıp; eski yedek güncel durum değildir. Bu tur yalnız gerçek dal, dosya ve PR durumunu incele.':'Önce gerçek GitHub durumunu kontrol et, önceki doğrulanmış işlemleri tekrar etme.')});
@@ -1414,7 +1414,7 @@ async function handleAgentRun(req, res) {
         shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
         readOnlyWriteRecoveryRounds+=1;
         bufferedRepairNext=true;
-        recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??recoveryBranch;
+        recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??namedReadTarget(developmentRequest,githubReceipts)??recoveryBranch;
         console.info(JSON.stringify({event:'hafize.github.delivery_repair',stage:'file',attempt:readOnlyWriteRecoveryRounds,verifiedBranch:Boolean(recoveryBranch)}));
         workingMessages.push({role:'system',content:'Kullanıcının son mesajı somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. '+(recoveryBranch?'Bu tur doğrulanan hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. Aynı dalı kullan; ikinci dal açma. ':'')+'İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Kullanıcı açıkça istemediyse PR, merge veya yayın başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
         continue;
@@ -1434,7 +1434,7 @@ async function handleAgentRun(req, res) {
         incompleteReason = 'empty_response';
         break;
       }
-      if(durableId&&githubEvidenceMode&&!githubReceipts.some(r=>r.kind==='file')&&githubReceipts.some(r=>r.kind==='branch')){
+      if(durableId&&githubEvidenceMode&&!githubReceipts.some(r=>r.kind==='file')&&(requestedBranch||githubReceipts.some(r=>r.kind==='branch'))){
         console.info(JSON.stringify({event:'hafize.github.delivery_incomplete',stage:'file',repairAttempts:readOnlyWriteRecoveryRounds,pending:Boolean(PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length),writerAdvertised:tools.some(t=>t.function.name==='github_develop')}));
       }
       await finishWithAnswer(content, completion.wrote);
@@ -1559,10 +1559,10 @@ async function handleAgentRun(req, res) {
     // A branch receipt is an intermediate stage, not the requested deliverable.
     // Guide the next round immediately, before the model can end with prose.
     if(!branchStageAnnounced&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
-      const verified=verifiedCreatedFeatureBranch(githubReceipts);
+      const verified=verifiedCreatedFeatureBranch(githubReceipts)??namedReadTarget(developmentRequest,githubReceipts);
       if(verified){
         branchStageAnnounced=true;recoveryBranch=verified;
-        workingMessages.push({role:'system',content:'Geliştirme teslimat aşaması: dal başarıyla doğrulandı ('+verified.repository+' / '+verified.branch+'). Bu bir kod değişikliği değildir. Kullanıcı somut kod değişikliği istiyor. Aynı dalda gerekli kaynak dosyasını ve blob SHA değerini github_read_file ile doğrula; ardından tek dosya için github_develop operation=file, repository, branch, path, existingSha, message ve content veya tam benzersiz find/replace alanlarını kullan. Kapsam dışına çıkma. Yeni dal açma. Güvenli değişiklik belirlenemiyorsa dur ve nedenini açıkla. Gerçek dosya değişikliği olmadan başarı raporlama.'});
+        workingMessages.push({role:'system',content:'Geliştirme teslimat aşaması: hedef dal ve depo belirlendi ('+verified.repository+' / '+verified.branch+'). Bu bir kod değişikliği veya dalın varlığına dair kanıt değildir. Kullanıcı somut kod değişikliği istiyor. Aynı dalda gerekli kaynak dosyasını ve blob SHA değerini github_read_file ile doğrula; ardından tek dosya için github_develop operation=file, repository, branch, path, existingSha, message ve content veya tam benzersiz find/replace alanlarını kullan. Kapsam dışına çıkma. Yeni dal açma. Güvenli değişiklik belirlenemiyorsa dur ve nedenini açıkla. Gerçek dosya değişikliği olmadan başarı raporlama.'});
         console.info(JSON.stringify({event:'hafize.github.delivery_stage',stage:'file',verifiedBranch:true}));
       }
     }
