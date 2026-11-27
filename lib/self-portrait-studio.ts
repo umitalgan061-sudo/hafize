@@ -24,7 +24,7 @@ import { completionOrigin } from './model-response-origin.ts';
 
 type Json = Record<string, any>;
 type Complete = (payload: Json, signal: AbortSignal, expertId?: string) => Promise<unknown>;
-type StreamText = (payload: Json, signal: AbortSignal, expertId?: string) => Promise<{ readonly text: string; readonly model: string }>;
+type StreamText = (payload: Json, signal: AbortSignal, expertId?: string) => Promise<{ readonly text: string; readonly model: string; readonly finishReason?: string }>;
 type Phase = (phase: string, detail?: Json) => void;
 export type SelfPortraitPublisher = {
   readonly available: () => boolean;
@@ -97,11 +97,24 @@ export function createSelfPortraitStudio({
   const publicCandidate = (c: Candidate) => ({ id: c.id, glsl: c.glsl, note: c.note, model: c.model, round: c.round, critique: c.critique });
   const publicConcept = (s: Session) => ({ ...s.concept, model: s.conceptModel });
 
-  async function imagine(previous: PortraitConcept | null, signal: AbortSignal) {
+  // Streamed when possible: reasoning models think longer than a whole-reply timeout allows.
+  async function imagine(previous: PortraitConcept | null, signal: AbortSignal, note: Phase) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const result = await complete({ model, messages: conceptMessages(previous), temperature: 0.95, max_tokens: 1800 }, signal, 'team-ux');
-      const concept = parseConcept(modelReplyText(result));
-      if (concept) return { concept, model: modelOf(result, model) };
+      const payload = { model, messages: conceptMessages(previous), temperature: 0.9, max_tokens: 4096 };
+      let text = '';
+      let used = model;
+      let finish = '';
+      try {
+        if (streamText) { const out = await streamText(payload, signal, 'team-ux'); text = out.text; used = out.model || model; finish = String((out as Json).finishReason ?? ''); }
+        else { const result = await complete(payload, signal, 'team-ux'); text = modelReplyText(result); used = modelOf(result, model); }
+      } catch (error) {
+        signal.throwIfAborted();
+        note('imagining-retry', { model: used, error: Number((error as Json)?.status) || String((error as Json)?.code || 'error') });
+        continue;
+      }
+      const concept = parseConcept(text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*<\/think>/i, ''));
+      if (concept) return { concept, model: used };
+      note('imagining-retry', { model: used, chars: text.length, ...(finish ? { finish } : {}) });
     }
     return fail('SELF_PORTRAIT_CONCEPT_UNREADABLE', 502);
   }
@@ -174,7 +187,7 @@ export function createSelfPortraitStudio({
     if (job.action === 'imagine') {
       const previous = input.session ? session(job.ownerId, input.session).concept : null;
       phase('imagining');
-      const idea = await imagine(previous, signal);
+      const idea = await imagine(previous, signal, phase);
       const s: Session = { id: randomUUID(), ownerId: job.ownerId, createdAt: now(), concept: idea.concept, conceptModel: idea.model, candidates: new Map(), repairs: 0, reflections: 0, published: false };
       sessions.set(s.id, s);
       phase('imagined', { name: idea.concept.name });

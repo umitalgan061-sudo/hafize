@@ -158,7 +158,7 @@ export function parseConcept(text: unknown): PortraitConcept | null {
     palette: Object.freeze(palette),
     states: Object.freeze({ idle: clean(states.idle, 280), listening: clean(states.listening, 280), thinking: clean(states.thinking, 280), speaking: clean(states.speaking, 280) })
   };
-  if (!concept.name || !concept.essence || !concept.form || !concept.states.idle || !concept.states.speaking) return null;
+  if (!concept.name || !concept.essence || !concept.form) return null;
   return Object.freeze(concept);
 }
 

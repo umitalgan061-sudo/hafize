@@ -22,7 +22,8 @@ const until = async (studio: ReturnType<typeof createSelfPortraitStudio>, owner:
   throw new Error('job did not finish');
 };
 
-function studioWith({ codes = [code()], critiques = ['{"score":9,"verdict":"bu benim","fixes":[]}'], publisher = null as any } = {}) {
+function studioWith({ codes = [code()], critiques = ['{"score":9,"verdict":"bu benim","fixes":[]}'], publisher = null as any, concepts = [] as string[] } = {}) {
+  const conceptReplies = [...concepts];
   const calls: { expert?: string; messages: any[] }[] = [];
   const queue = [...codes];
   const critiqueQueue = [...critiques];
@@ -30,7 +31,11 @@ function studioWith({ codes = [code()], critiques = ['{"score":9,"verdict":"bu b
     model: 'router/top',
     visionModels: ['v/one', 'v/two'],
     complete: async (payload, _signal, expert) => { calls.push({ ...(expert ? { expert } : {}), messages: payload.messages }); return reply(JSON.stringify(CONCEPT), 'c/idea'); },
-    streamText: async (payload, _signal, expert) => { calls.push({ ...(expert ? { expert } : {}), messages: payload.messages }); return { text: queue.shift() ?? code(), model: 'c/coder' }; },
+    streamText: async (payload, _signal, expert) => {
+      calls.push({ ...(expert ? { expert } : {}), messages: payload.messages });
+      if (expert === 'team-ux') return conceptReplies.length ? { text: conceptReplies.shift()!, model: 'c/idea' } : { text: '<think>hmm</think>' + JSON.stringify(CONCEPT), model: 'c/idea' };
+      return { text: queue.shift() ?? code(), model: 'c/coder' };
+    },
     vision: async (payload) => {
       if (payload.model === 'v/one' && critiqueQueue[0] === 'down') { critiqueQueue.shift(); throw Object.assign(new Error('x'), { status: 503 }); }
       return reply(critiqueQueue.shift() ?? '{"score":9,"verdict":"ok","fixes":[]}');
@@ -53,6 +58,13 @@ describe('self-portrait studio', () => {
     expect(done.result?.candidate.model).toBe('c/coder');
     expect(calls.map((c) => c.expert)).toEqual(['team-ux', 'team-ui']);
     expect(done.log.map((l: { phase: string }) => l.phase)).toEqual(['imagining', 'imagined', 'coding', 'coded']);
+  });
+
+  it('retries an unreadable concept and logs why', async () => {
+    const { studio } = studioWith({ concepts: ['yarım {"name":'] });
+    const done = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    expect(done.status).toBe('done');
+    expect(done.log.find((l: { phase: string }) => l.phase === 'imagining-retry')).toMatchObject({ detail: { model: 'c/idea', chars: 14 } });
   });
 
   it('feeds static rule violations back before the browser ever sees the code', async () => {
