@@ -102,3 +102,13 @@ export function agentInterruptionDiagnostic(error:unknown,signal?:AbortSignal,st
  const code=known??(signal?.aborted?'AGENT_ABORTED':e.name==='TimeoutError'?'REQUEST_TIMEOUT':stage==='model_round'?'MODEL_ROUND_FAILED':stage==='setup'?'AGENT_SETUP_FAILED':'AGENT_EXECUTION_FAILED');
  return stage+': '+code+(status?' (HTTP '+status+')':'');
 }
+
+/** Prefer a different configured, ready chat model only during bounded
+ * delivery repair. The tried set is request-local: do not penalize a model
+ * globally merely for failing to produce a write in one conversation. */
+export function deliveryRepairModel(chain:readonly {model:string;ready:boolean}[],tried:ReadonlySet<string>):string|null{
+ return chain.find(row=>row.ready===true&&typeof row.model==='string'&&row.model.length<=260&&row.model.trim()===row.model&&row.model.length>0&&!tried.has(row.model)&&!/safety|guard|(?:^|[-/])vl(?:[-/]|$)|vision|embed|rerank|transcrib|parakeet|whisper|(?:^|[-/])tts(?:[-/]|$)|(?:^|[-/])ocr(?:[-/]|$)/i.test(row.model))?.model??null;
+}
+export function deliveryRepairTokenBudget(requested:number):number{
+ return Math.min(8192,Math.max(6144,Number.isFinite(requested)?Math.floor(requested):6144));
+}
