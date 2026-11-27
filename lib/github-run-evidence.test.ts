@@ -230,3 +230,21 @@ it('starts exact scoped editing after a verified read even if exploratory file r
  expect(explicitPatchRecoveryTarget(request,[...read,...notFound],[...calls,{name:'github_release',ok:false}])).toBeNull();
  expect(explicitPatchRecoveryTarget(request,[...read,...githubReceipt('github_read_file',{ok:true,value:{repository:'other/repo',path:'app.js',sha:blob}})],calls)).toBeNull();
 });
+
+it('preserves the explicit existing branch across compound Turkish follow-ups',()=>{
+ const prior='Hafize mevcut hafize/auto-example dalında public/app.js dosyasını geliştir ve commit et.';
+ const follow="Artık Claude'dan daha iyi geliştirme yapmanı istiyorum. Devam et, gerekli geliştirmeleri kapsamlı şekilde yap lütfen";
+ for(const value of [follow,follow.replace("'","’"),'Devam et, gerekli geliştirmeleri kapsamlı şekilde yap lütfen','Kaldığın yerden devam et. Tüm geliştirmeleri yap lütfen']){
+  expect(bareDevelopmentContinuation(value)).toBe(true);
+  expect(githubWorkRequested(value,[prior])).toBe(true);
+  expect(continuationDevelopmentRequest(value,[prior])).toBe(prior);
+  expect(githubWorkRequested(value,[])).toBe(false);
+ }
+ expect(continuationDevelopmentRequest(follow,[prior,...Array(24).fill(follow)])).toBe(prior);
+ expect(continuationDevelopmentRequest(follow,[prior,'Bugün hava nasıl?',follow])).toBe(follow);
+ expect(githubWorkRequested(follow,[prior,'Bugün hava nasıl?',follow])).toBe(false);
+ for(const value of [follow+' Yeni dal oluştur.',follow+' Sadece oku.',follow+' Render üzerinden yayınla.','Claude’dan daha iyi bir tarif yap. Devam et','Yeni proje oluştur, devam et','Artık Claude’dan daha iyi geliştirme yapmanı istiyorum.']){
+  expect(bareDevelopmentContinuation(value)).toBe(false);
+  expect(continuationDevelopmentRequest(value,[prior])).toBe(value);
+ }
+});

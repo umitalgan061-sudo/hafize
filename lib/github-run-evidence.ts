@@ -14,11 +14,15 @@ const normal=(value:unknown)=>typeof value==='string'?value.toLocaleLowerCase('t
 /** Match only short, scope-free follow-ups. Do not treat arbitrary mentions
  * of "continue" in unrelated questions as continuation of an old repo task. */
 export function bareDevelopmentContinuation(value:unknown):boolean{
- const s=normal(value).trim().replace(/[.!\s]+$/g,'').replace(/\s+/g,' ');
- return /^(?:kaldigin yerden devam et|devam et|tamamla|continue|resume|gelistirmeye devam et|(?:gerekli |tum |butun )?gelistirmeleri (?:kapsamli sekilde )?yap)(?: lutfen)?$/.test(s);
+ let s=normal(value).trim().replace(/[.!\s]+$/g,'').replace(/\s+/g,' ');
+ // A quality preference is not a new project or release authorization.
+ // Strip only this exact scope-free prefix, never arbitrary comparative text.
+ s=s.replace(/^artik claude['’]dan daha iyi gelistirme yapmani istiyorum[.!]\s+/, '');
+ if(/^(?:kaldigin yerden devam et|devam et|tamamla|continue|resume|gelistirmeye devam et|(?:gerekli |tum |butun )?gelistirmeleri (?:kapsamli sekilde )?yap)(?: lutfen)?$/.test(s))return true;
+ return /^(?:kaldigin yerden devam et|devam et|gelistirmeye devam et)[,.!]\s*(?:gerekli |tum |butun )?gelistirmeleri (?:kapsamli sekilde )?yap(?: lutfen)?$/.test(s);
 }
 function substantivePrior(previous:readonly unknown[]):unknown{
- for(const prior of previous.slice(-12).reverse()){
+ for(const prior of previous.slice(-32).reverse()){
   if(bareDevelopmentContinuation(prior))continue;
   return prior;
  }
