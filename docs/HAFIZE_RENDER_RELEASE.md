@@ -28,3 +28,7 @@ Aynı adres Render ortamında `HAFIZE_RENDER_DEPLOY_HOOK` olarak da tanımlanır
 - `RETAKE_RELEASE_SHA` değiştiğinde (ya da **Run workflow → pinned**) eskisi gibi o commit yayınlanır.
 - Dosyadaki ilgisiz bir değişiklik canlı siteyi daha eski sabit commit'e **geri döndürmez**. Bilerek geri almak için `RETAKE_AUTO_FOLLOW: "off"` yapıp SHA'yı sabitleyin ya da **Run workflow → pinned** kullanın.
 - **Run workflow → follow** zamanlamayı beklemeden aynı takip kontrolünü yapar.
+
+## Uygulama içi yayın ve görev kabulü
+
+Hafize'nin kendi Render yayın isteği, yalnız yayınlayan HTTP ajan isteği kalmışsa yerel görev rezervasyonu alır. Ayna/harici uygulama içi yayın için hiçbir ajan isteği kalmamış olmalıdır. Redis kabul işlemi veya son kayıt yazımı devam eden istekler de sayılır. Yerel rezervasyon varken yeni ajan istekleri (kalıcı olmayanlar dahil) reddedilir; kapanan sunucu sağlık yanıtında dağıtım bekliyor olarak işaretlenir. Bu koruma aynı süreçteki uygulama içi yayınlar içindir. Render panelinden veya doğrudan API'den yapılan dağıtımları durduramaz; zamanlanmış dış yayın kontrolü de atomik değildir. Elle yayın için önce etkin görev olmadığını ve kesin main CI sonucunu kontrol edin, mümkünse kapılı GitHub iş akışını kullanın.
