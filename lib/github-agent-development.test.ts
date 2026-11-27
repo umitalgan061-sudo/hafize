@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
-import { createGitHubAgentDevelopment } from './github-agent-development.ts';
+import { createGitHubAgentDevelopment, GitHubDevelopmentInputError } from './github-agent-development.ts';
 import { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
 
 type Writer = ReturnType<typeof createGitHubWorkspaceWriter>;
@@ -229,3 +229,14 @@ it('keeps a completed write with failed verification uncertain even for a read-s
 it('journals the normalized file hash before writing, including prepared patches',async()=>{const {tool,writer}=fixture();const onPreparedFile=vi.fn(()=>{expect(writer.commitFile).not.toHaveBeenCalled();});await tool.execute({operation:'file',repository:REPOSITORY,branch:BRANCH,path:'docs/test.md',message:'test',find:'old',replace:'new',existingSha:'a'.repeat(40)},{safeAutonomy:true,onPreparedFile});const bytes=Buffer.from('complete preserved content');expect(onPreparedFile).toHaveBeenCalledWith({repository:REPOSITORY,branch:BRANCH,path:'docs/test.md',expectedBlob:createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex')});});
 
 it('journals the actual generated branch before the first mutation',async()=>{const {tool,writer}=fixture();const onPreparedBranch=vi.fn(()=>{expect(writer.createBranch).not.toHaveBeenCalled();});await tool.execute({operation:'branch',repository:REPOSITORY},{safeAutonomy:true,onPreparedBranch});expect(onPreparedBranch).toHaveBeenCalledWith({repository:REPOSITORY,branch:expect.stringMatching(/^hafize\/auto-[a-f0-9]{32}$/)});});
+
+it('normalizes an empty full-content placeholder only for a complete patch',async()=>{
+ const {tool,writer}=fixture();
+ const input={operation:'file',repository:REPOSITORY,branch:BRANCH,path:'app.js',existingSha:'a'.repeat(40),find:'old block',replace:'new block',content:'',message:'edit'};
+ await tool.execute(input,{safeAutonomy:true});
+ expect(writer.prepareFilePatch).toHaveBeenCalledWith(expect.objectContaining({find:'old block',replace:'new block'}));
+ expect(writer.commitFile).toHaveBeenCalledTimes(1);
+ await expect(tool.execute({...input,content:'real other source'},{safeAutonomy:true})).rejects.toBeInstanceOf(GitHubDevelopmentInputError);
+ await expect(tool.execute({...input,existingSha:undefined},{safeAutonomy:true})).rejects.toBeInstanceOf(GitHubDevelopmentInputError);
+ expect(writer.commitFile).toHaveBeenCalledTimes(1);
+});
