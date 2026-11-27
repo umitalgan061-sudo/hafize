@@ -15,7 +15,7 @@ type Options = {
 };
 
 const fields: Record<string, readonly string[]> = {
-  project: ['path'], repo: [], branches: ['limit'], commits: ['ref', 'limit'], pulls: ['state', 'limit'],
+  project: ['path','ref'], repo: [], branches: ['limit'], commits: ['ref', 'limit'], pulls: ['state', 'limit'],
   directory: ['path', 'ref'], commit: ['sha'], pull: ['number'],
   compare: ['base', 'head'], checks: ['sha'], wait_checks:['sha','waitSeconds','workflowPath'], jobs: ['runId']
 };
@@ -23,6 +23,20 @@ const fields: Record<string, readonly string[]> = {
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
   return value as Record<string, unknown>;
+}
+const knownFields=new Set(Object.values(fields).flat());
+/** Providers sometimes emit unused optional fields as empty placeholders.
+ * Remove only known empty optional fields. Non-empty extra values, unknown
+ * keys, unsupported actions and repository access are still rejected. */
+function inspectionArgs(raw:unknown){
+ const args={...record(raw)};
+ const action=typeof args.action==='string'?args.action:'';
+ if(!Object.hasOwn(fields,action))throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
+ for(const key of Object.keys(args)){
+  if(knownFields.has(key)&&(args[key]===null||args[key]===''))delete args[key];
+ }
+ if(Object.keys(args).some(key=>!['action','repository',...fields[action]!].includes(key)))throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
+ return {args,action};
 }
 function string(value: unknown, max = 200) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -34,9 +48,7 @@ export function createGitHubAgentInspection(options: Options) {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   return async (raw: unknown,signal?:AbortSignal) => {
     signal?.throwIfAborted();
-    const args = record(raw);
-    const action = typeof args.action === 'string' ? args.action : '';
-    if (!Object.hasOwn(fields, action) || Object.keys(args).some(key => !['action', 'repository', ...fields[action]].includes(key))) throw new GitHubReadError('INVALID_GITHUB_ARGUMENTS');
+    const {args,action}=inspectionArgs(raw);
     const repository = typeof args.repository === 'string' ? args.repository.trim() : '';
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !allowed.has(repository.toLowerCase())) throw new GitHubReadError('GITHUB_REPO_NOT_ALLOWED', 403);
     if (!options.token && !options.allowPublicRead) throw new GitHubReadError('GITHUB_NOT_CONFIGURED', 503);
@@ -57,14 +69,15 @@ export function createGitHubAgentInspection(options: Options) {
         }
       };
       const meta = await options.reader.inspect({ repository, action: 'repo' });
-      const ref = typeof meta.defaultBranch === 'string' ? meta.defaultBranch : 'main';
+      const ref = args.ref===undefined?(typeof meta.defaultBranch === 'string' ? meta.defaultBranch : 'main'):args.ref;
+      if(typeof ref!=='string'||!ref.trim()||ref.length>200||/[\u0000-\u001f\u007f]/.test(ref))throw new GitHubReadError('INVALID_GITHUB_REF');
       const [directory, root, commits, pulls] = await Promise.all([
         capture(() => options.extra.directory({ repository, path: safeDirectoryPath, ref })),
         typeof safeDirectoryPath === 'string' && safeDirectoryPath ? capture(() => options.extra.directory({ repository, ref })) : Promise.resolve(null),
         capture(() => options.reader.inspect({ repository, action: 'commits', ref, limit: 1 })),
         capture(() => options.reader.inspect({ repository, action: 'pulls', state: 'open', limit: 10 }))
       ]);
-      return { repository, ref, meta, directory, root, commits, pulls, partial: [directory,root,commits,pulls].some(x=>x?.ok===false), note: 'Read-only project preflight; no code modification, CI run, merge or deployment. Root hosting configuration can differ from source directory. Verify checks for exact SHA separately.' };
+      return { repository, ref, meta, directory, root, commits, pulls, partial: [directory,root,commits,pulls].some(x=>x?.ok===false), note: 'Read-only project preflight; no code modification, CI run, merge or deployment. Root hosting configuration can differ from source directory. Pulls are repository-wide; verify the exact branch/PR and SHA separately.' };
     }
     if (action === 'compare') return options.extra.compare({ repository, base: args.base, head: args.head });
     if (action === 'commit') return options.details.commit({ repository, sha: args.sha });

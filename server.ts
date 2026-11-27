@@ -77,6 +77,7 @@ import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQu
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
 import { namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
+import {AGENT_JOURNAL_HEARTBEAT_MS} from './lib/upstash-agent-journal.ts';
 import { reconcilePendingGitHubMutations, recoveryBranchProbe } from './lib/github-mutation-reconciliation.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
@@ -961,11 +962,25 @@ async function handleAgentRun(req, res) {
   const remoteSession=journal&&remoteLoaded&&checkpoint?.accepted?journal.session(ownerId,conversationId,remoteLoaded):null;
   const persistAgentTurn=()=>remoteSession?remoteSession.save(()=>PLATFORM.agentTurns.get(ownerId,requestedTurnId)):Promise.resolve();
   if(remoteSession){
-    try{await persistAgentTurn();}
+    try{await persistAgentTurn();console.info(JSON.stringify({event:'hafize.agent.journal',stage:'admitted',remotePrior:Boolean(remotePrior),recoveryReadOnly,pending:inheritedPending.length}));}
     catch(error){PLATFORM.agentTurns.finish(ownerId,requestedTurnId,'interrupted','Kalıcı görev kaydı oluşturulamadı.');sendJson(res,503,{error:error?.code||'AGENT_JOURNAL_UNAVAILABLE'});return;}
   }
   const connectionAbort=attachDisconnectAbort(req,AGENT_TIMEOUT_MS,res,{continueOnDisconnect:Boolean(checkpoint?.accepted)});
-  const requestAbort={signal:checkpoint?.accepted?AbortSignal.any([connectionAbort.signal,checkpoint.signal]):connectionAbort.signal,cancel:connectionAbort.cancel};
+  const journalAbort=new AbortController();
+  const requestAbort={signal:checkpoint?.accepted?AbortSignal.any([connectionAbort.signal,checkpoint.signal,journalAbort.signal]):connectionAbort.signal,cancel:connectionAbort.cancel};
+  // Independent of SSE peer lifetime: model thinking and CI waits can exceed
+  // the lease window, even after the browser closes. Never overlap renewals.
+  let journalRenewing=false;
+  const journalHeartbeat=remoteSession?setInterval(()=>{
+    if(journalRenewing||requestAbort.signal.aborted)return;
+    journalRenewing=true;
+    remoteSession.renew().catch(error=>{
+      const code=typeof error?.code==='string'&&/^AGENT_JOURNAL_[A-Z_]+$/.test(error.code)?error.code:'AGENT_JOURNAL_UNAVAILABLE';
+      console.warn(JSON.stringify({event:'hafize.agent.journal',stage:'heartbeat_failed',code}));
+      journalAbort.abort(new Error(code));
+    }).finally(()=>{journalRenewing=false;});
+  },AGENT_JOURNAL_HEARTBEAT_MS):null;
+  journalHeartbeat?.unref?.();
   const durableId=checkpoint?.accepted&&isAgentTurnId(requestedTurnId)?requestedTurnId:'';
   let turnFinished=false;
   let interruptionStage: 'setup'|'model_round'|'execution' = 'setup';
@@ -1154,7 +1169,7 @@ async function handleAgentRun(req, res) {
   if(restoredPrior)workingMessages.push({role:'system',content:'Önceki görev için sunucunun şifreli tarayıcı yedeği doğrulandı. Bu, güncel GitHub durumunun veya yeni yetkinin kanıtı değildir. '+(recoveryReadOnly?'Sunucu kaydı kayıp; eski yedek güncel durum değildir. Bu tur yalnız gerçek dal, dosya ve PR durumunu incele.':'Önce gerçek GitHub durumunu kontrol et, önceki doğrulanmış işlemleri tekrar etme.')});
   const developmentRequest=continuationDevelopmentRequest(lastUserText,messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
   const requestedBranch=requestedExistingFeatureBranch(developmentRequest);
-  if(requestedBranch)workingMessages.push({role:'system',content:'Kullanıcının mevcut geliştirme dalı: '+requestedBranch+'. Bu dalı doğrula ve yalnız bu dalı kullan. Yeni dal oluşturma; main değişmişse dalı sessizce değiştirme. Gerekli güncel blob SHA bilgisiyle çalış.'});
+  if(requestedBranch)workingMessages.push({role:'system',content:'Kullanıcının mevcut geliştirme dalı: '+requestedBranch+'. github_inspect action=project, repository ve ref olarak bu dalı kullan; kaynak dosyalarını da aynı ref ile oku. Bu dalı doğrula ve yalnız bu dalı kullan. Yeni dal oluşturma; main değişmişse dalı sessizce değiştirme. Gerekli güncel blob SHA bilgisiyle çalış.'});
   const toolSummary = [];
   const githubReceipts: GitHubReceipt[] = [...reconciliationReceipts];
   let githubEvidenceMode = githubWorkRequested(lastUserText, messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
@@ -1255,6 +1270,7 @@ async function handleAgentRun(req, res) {
       if(pending.length){content+='\n\nSonucu belirsiz yazma işlemleri var. GitHub üzerinden mutabakat yapılmadan tekrar yazılmayacak.\n'+pending.slice(0,20).map(p=>'- '+[p.repository,p.operation,p.preparedBranch||p.branch,p.path,p.target||'',p.number?'PR #'+p.number:'',p.expectedBlob||p.sha].filter(Boolean).join(' · ')).join('\n');unresolved=true;}
       PLATFORM.agentTurns.finish(ownerId,durableId,status,content);
       await persistAgentTurn();
+      if(remoteSession)console.info(JSON.stringify({event:'hafize.agent.journal',stage:'finished',status,pending:pending.length,receipts:githubReceipts.length}));
       turnFinished=true;
       emitCheckpointProgress();
     }
@@ -1416,7 +1432,7 @@ async function handleAgentRun(req, res) {
         bufferedRepairNext=true;
         recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??namedReadTarget(developmentRequest,githubReceipts)??recoveryBranch;
         console.info(JSON.stringify({event:'hafize.github.delivery_repair',stage:'file',attempt:readOnlyWriteRecoveryRounds,verifiedBranch:Boolean(recoveryBranch)}));
-        workingMessages.push({role:'system',content:'Kullanıcının son mesajı somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. '+(recoveryBranch?'Bu tur doğrulanan hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. Aynı dalı kullan; ikinci dal açma. ':'')+'İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Kullanıcı açıkça istemediyse PR, merge veya yayın başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
+        workingMessages.push({role:'system',content:'Kullanıcının son mesajı somut kod değişikliği istiyor. Okuma veya dal açma teslimat değildir; doğrulanmış dosya değişikliği yok. '+(recoveryBranch?'Bu tur belirlenen hedef: '+recoveryBranch.repository+' / '+recoveryBranch.branch+'. Aynı dalı kullan; ikinci dal açma. ':'')+'İlgili dosyanın doğrulanmış dal ve blob SHA bilgisini kullanarak, yeterli veri varsa github_develop file işlemiyle istenen değişikliği uygula. Eksik bilgi varsa sadece gerekli okumayı yap. Kullanıcı açıkça istemediyse PR, merge veya yayın başlatma. Mevcut izinleri ve kullanıcı kapsamını değiştirme; güvenli bir değişiklik belirleyemiyorsan açıkça dur.'});
         continue;
       }
       if(!missingPullRecoveryUsed&&round+1<MAX_AGENT_TOOL_ROUNDS&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverMissingPull(developmentRequest,githubReceipts,toolSummary)){
@@ -1656,6 +1672,7 @@ async function handleAgentRun(req, res) {
     }
     throw error;
   } finally {
+    if(journalHeartbeat)clearInterval(journalHeartbeat);
     stopHeartbeat();
     res.off('close',stopHeartbeat);res.off('finish',stopHeartbeat);
     requestAbort.cancel();

@@ -61,3 +61,24 @@ it('waits only for exact SHA evidence and does not treat partial run lists as co
  expect(fetchImpl).toHaveBeenCalledTimes(2);
  const abort=new AbortController();abort.abort();await expect(inspect({action:'wait_checks',repository,sha},abort.signal)).rejects.toBeDefined();
 });
+
+it('accepts known empty optional placeholders, but never unknown fields or meaningful extras',async()=>{
+ const {inspect,fetchImpl}=fixture();
+ expect(await inspect({action:'repo',repository,path:null,sha:'',ref:null,number:null,waitSeconds:null})).toMatchObject({defaultBranch:'main'});
+ expect(await inspect({action:'checks',repository,sha,workflowPath:null,base:'',head:null})).toMatchObject({sha});
+ const before=vi.mocked(fetchImpl).mock.calls.length;
+ for(const args of [{action:'repo',repository,url:null},{action:'repo',repository,sha},{action:'merge',repository,ref:null},{action:'checks',repository,sha:null},{action:'repo',repository:'other/repo',path:null}]){
+  await expect(inspect(args)).rejects.toBeDefined();
+ }
+ expect(fetchImpl).toHaveBeenCalledTimes(before);
+});
+it('preflights the exact named feature ref without silently falling back to main',async()=>{
+ const {inspect,fetchImpl}=fixture();
+ const ref='hafize/auto-example';
+ const out=await inspect({action:'project',repository,ref,path:'borsa-gunlugu/'});
+ expect(out).toMatchObject({ref,commits:{ok:true},directory:{ok:true}});
+ const urls=vi.mocked(fetchImpl).mock.calls.map(([url])=>new URL(String(url)));
+ expect(urls.filter(u=>u.pathname.includes('/contents')).every(u=>u.searchParams.get('ref')===ref)).toBe(true);
+ expect(urls.find(u=>u.pathname.endsWith('/commits'))?.searchParams.get('sha')).toBe(ref);
+ await expect(inspect({action:'project',repository,ref:42})).rejects.toMatchObject({code:'INVALID_GITHUB_REF'});
+});

@@ -5,6 +5,7 @@ type Snapshot=NonNullable<ReturnType<AgentTurnCheckpoints['get']>>;
 type RecordValue={snapshot:Snapshot;leaseUntil:number};
 type Loaded={raw:string|null;record:RecordValue|null};
 const ACTIVE_MS=5*60*1000;
+export const AGENT_JOURNAL_HEARTBEAT_MS=60_000;
 const RETAIN_SECONDS=30*24*60*60;
 const MAX_RAW=800_000;
 const ID=/^[a-zA-Z0-9_-]{1,120}$/;
@@ -71,6 +72,7 @@ export function createUpstashAgentJournal({env,recoveryKey,fetchImpl=globalThis.
   const name=storageKey(owner,conversation);
   let expected=loaded.raw;
   let tail:Promise<void>=Promise.resolve();
+  let lastSaved:RecordValue|null=null;
   // Serialize concurrent tool receipts. A failed CAS poisons the session:
   // no fallback to SQLite-only writes and no speculative retry.
   function save(read:()=>Snapshot|null){
@@ -78,16 +80,32 @@ export function createUpstashAgentJournal({env,recoveryKey,fetchImpl=globalThis.
     const snapshot=read();
     if(!snapshot||snapshot.conversationId!==conversation)return fail('AGENT_JOURNAL_STATE_INVALID');
     const running=snapshot.status==='running';
-    const next=seal(name,{snapshot,leaseUntil:running?now()+ACTIVE_MS:0});
+    const record={snapshot,leaseUntil:running?now()+ACTIVE_MS:0};
+    const next=seal(name,record);
     const ttl=running||snapshot.pending.length?0:RETAIN_SECONDS;
     const ok=await command(['EVAL',CAS,1,name,expected||'',next,ttl]);
     if(ok!==1)return fail('AGENT_JOURNAL_CONFLICT');
     expected=next;
+    lastSaved=record;
    });
    tail=work;
    return work;
   }
-  return {save};
+  // Heartbeat uses the last acknowledged snapshot, never uncommitted local
+  // data. Serialize behind saves; no-op if a terminal record was committed.
+  function renew(){
+   const work=tail.then(async()=>{
+    if(!lastSaved||lastSaved.snapshot.status!=='running')return;
+    if(lastSaved.leaseUntil-now()>ACTIVE_MS-AGENT_JOURNAL_HEARTBEAT_MS)return;
+    const record={...lastSaved,leaseUntil:now()+ACTIVE_MS};
+    const next=seal(name,record);
+    const ok=await command(['EVAL',CAS,1,name,expected||'',next,0]);
+    if(ok!==1)return fail('AGENT_JOURNAL_CONFLICT');
+    expected=next;lastSaved=record;
+   });
+   tail=work;return work;
+  }
+  return {save,renew};
  }
  return {configured,load,session,isBusy:(loaded:Loaded)=>loaded.record?.snapshot.status==='running'&&loaded.record.leaseUntil>now()};
 }
