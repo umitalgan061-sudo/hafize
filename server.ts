@@ -946,6 +946,9 @@ async function handleAgentRun(req, res) {
     }
   }catch(error){sendJson(res,503,{error:error?.code||'AGENT_JOURNAL_UNAVAILABLE'});return;}
   const remotePrior=remoteLoaded?.record?.snapshot;
+  // SQLite can disappear after a Render replacement. Reject replay of the
+  // exact remote latest turn even if its local row is gone.
+  if(remotePrior?.id===requestedTurnId){sendJson(res,409,{error:'AGENT_TURN_ALREADY_RECORDED'});return;}
   const remoteInterrupted=remotePrior?.status==='running';
   const serverPrior = durable ? (remotePrior??PLATFORM.agentTurns.previous(ownerId,conversationId)) : null;
   const continuing = durable && continuationRequested(lastUserText);
@@ -1019,6 +1022,7 @@ async function handleAgentRun(req, res) {
       '\nBu, geliştirme, PR veya yayın tamamlandı anlamına gelmez.';
     PLATFORM.agentTurns.finish(ownerId,durableId,requestAbort.signal.aborted?'interrupted':'incomplete',content);
     await persistAgentTurn();
+    if(remoteSession)console.info(JSON.stringify({event:'hafize.agent.journal',stage:'finished',status:requestAbort.signal.aborted?'interrupted':'incomplete',pending:pending.length,receipts:saved?.receipts.length??0,recoveryReadOnly:true}));
     turnFinished=true;
     runLedger.finish({ok:false,detail:'github_recovery_read_only'});
     if(res.destroyed||res.writableEnded||!res.writable)return;
