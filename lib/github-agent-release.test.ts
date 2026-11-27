@@ -187,3 +187,28 @@ describe('canonical Render publication',()=>{
 it('parses only exact standalone Render release commands',()=>{const repo='umitalgan061-sudo/hafize',sha='a'.repeat(40),request=repo+' deposunu canlıya al.\n\ngithub_release aracını şu parametrelerle çalıştır:\n\n'+JSON.stringify({action:'publish',repository:repo,sha,target:'render'});expect(parseExplicitReleaseCommand(request)).toEqual({action:'publish',repository:repo,sha,target:'render'});expect(parseExplicitReleaseCommand(request+'\nYalnızca incele.')).toBeNull();});
 
 it('defaults Hafize publication authority to Render and requires explicit Firebase alias intent',()=>{expect(releaseAuthorizationForRequest('Hafize deposunu canlıya al',true)?.hafizePublishTarget).toBe('render');expect(releaseAuthorizationForRequest('Hafize Firebase yönlendirme ayarını canlıya al',true)?.hafizePublishTarget).toBe('firebase');});
+
+it('enforces the trusted named branch for merge and already-merged reconciliation',async()=>{
+ for(const alreadyMerged of [false,true]){
+  const {release,authorization,fetchImpl}=fixture({alreadyMerged});
+  await expect(release.execute({action:'merge',repository:repo,number:3,sha},{ownerAuthorized:true,authorization,expectedBranch:'hafize/auto-other'})).rejects.toMatchObject({code:'RELEASE_BRANCH_MISMATCH'});
+  expect(vi.mocked(fetchImpl).mock.calls.some(([,init])=>init?.method==='PUT')).toBe(false);
+ }
+ const {release,authorization}=fixture();
+ await expect(release.execute({action:'merge',repository:repo,number:3,sha,branch:null,body:'',target:null},{ownerAuthorized:true,authorization,expectedBranch:'hafize/auto-borsa'})).resolves.toMatchObject({merged:true});
+});
+it('rejects meaningful extra release arguments and never creates a duplicate existing draft',async()=>{
+ const normalizeInput=vi.fn((_kind:string,input:unknown)=>input);
+ const createPullRequest=vi.fn(async()=>({action:'pull',repository:repo,number:3,draft:true,existing:true}));
+ const writer={configured:()=>true,normalizeInput,issueApproval:()=>({ticket:'bound'}),createPullRequest} as unknown as ReturnType<typeof createGitHubWorkspaceWriter>;
+ const fetchImpl=vi.fn() as unknown as typeof fetch;
+ const release=createGitHubAgentRelease({writer,allowedRepositories:[repo],fetchImpl});
+ const authorization={repositories:[repo],actions:['open','merge']};
+ const args={action:'open',repository:repo,branch:'hafize/auto-borsa',title:'Scoped change',body:''};
+ await expect(release.execute({...args,sha:null,number:'',target:null},{ownerAuthorized:true,authorization,expectedBranch:'hafize/auto-borsa'})).resolves.toMatchObject({number:3,draft:true,existing:true,readyForReviewRequired:true});
+ expect(normalizeInput).toHaveBeenCalledWith('pull',expect.objectContaining({draft:false,head:args.branch}));
+ for(const invalid of [{...args,sha},{...args,url:null},{...args,branch:'hafize/auto-other'}]){
+  await expect(release.execute(invalid,{ownerAuthorized:true,authorization,expectedBranch:'hafize/auto-borsa'})).rejects.toBeDefined();
+ }
+ expect(createPullRequest).toHaveBeenCalledTimes(1);
+});
