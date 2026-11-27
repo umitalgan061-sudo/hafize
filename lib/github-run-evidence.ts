@@ -144,6 +144,8 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
    GITHUB_PR_PREFLIGHT_FAILED:'Mevcut PR durumu doğrulanamadı; yeni PR isteği gönderilmedi.',
    GITHUB_PR_VERIFICATION_FAILED:'PR yazma sonucu doğrulanamadı; aynı isteği tekrar göndermeden mevcut dalı kontrol et.',
    GITHUB_HEAD_MOVED:'Dalın son durumunu ve blob SHA değerini yeniden oku; önceki yazmayı kontrol et.',
+   RELEASE_BRANCH_MISMATCH:'PR, kullanıcının belirttiği geliştirme dalına ait değil; birleştirme yapılmadı.',
+   RELEASE_PR_NOT_READY:'PR durumunu doğrula; taslak PR birleştirilemez. Yeni bir kopya açma.',
    RELEASE_BASE_MOVED:'Güncel main SHA değerini yeniden doğrula.',
    RELEASE_WORKFLOW_DISPATCH_FORBIDDEN:'GitHub Actions yayın izni reddedildi.',
    RENDER_ACTIVE_TASKS:'Başka bir GitHub görevi devam ederken Render yayını başlatılmadı.',
@@ -165,7 +167,7 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
  if(tool==='github_develop'||tool==='github_release'){
   if(v.action==='branch'&&branch&&sha(v.fromSha))return [item('branch',repo+' — '+link(branch,root+'/tree/'+encodeURIComponent(branch))+' oluşturuldu; kaynak '+sha(v.fromSha)+'. Dal açmak kod değişikliği değildir.',{repository:repo,branch})];
   if(v.action==='file'&&v.verified===true&&branch&&path&&sha(v.commitSha)&&sha(v.blobSha))return [item('file',repo+' — '+path+'; '+link('commit '+sha(v.commitSha),root+'/commit/'+sha(v.commitSha))+'; blob '+sha(v.blobSha)+' (GitHub üzerinden tekrar okundu).',{repository:repo,branch})];
-  if((v.action==='pull'||v.action==='open')&&positive(v.number))return [item('pull',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.draft===true?' taslak':'')+(v.existing===true?' mevcut PR doğrulandı; yeni PR açılmadı.':' açıldı.'))];
+  if((v.action==='pull'||v.action==='open')&&positive(v.number))return [item('pull',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.draft===true?' taslak (birleştirilemez; incelemeye hazır olmalı)':'')+(v.existing===true?' mevcut PR doğrulandı; yeni PR açılmadı.':' açıldı.'))];
   if(v.action==='merge'&&v.merged===true&&positive(v.number)&&sha(v.mergeCommitSha))return [item('merge',repo+' — '+link('PR #'+v.number,root+'/pull/'+v.number)+(v.existing===true?' daha önce birleştirilmiş; GitHub üzerinden doğrulandı; ':' birleştirildi; ')+link(sha(v.mergeCommitSha),root+'/commit/'+sha(v.mergeCommitSha))+'.')];
   if(v.action==='publish'&&v.target==='render'&&v.published===true&&v.existing===true&&sha(v.requestedSha))return [item('read',repo+' — Render uygulaması zaten bu SHA ile canlı: '+sha(v.requestedSha)+'. Yeni yayın isteği gönderilmedi.')];
   if(v.action==='publish'&&v.dispatchAccepted===true&&sha(v.requestedSha))return [item('dispatch',repo+' — '+sha(v.requestedSha)+(v.target==='render'?' için Render':' için')+' yayın isteği kabul edildi.'+(v.target==='render'&&typeof v.deployId==='string'&&/^dep-[a-z0-9]{8,80}$/.test(v.deployId)?' Dağıtım '+v.deployId+'.':'')+' Canlı yayın doğrulanmadı.')];
@@ -190,4 +192,12 @@ export function formatGitHubRunEvidence(receipts:readonly GitHubReceipt[]):strin
  if(!distinct.length)lines.push('Bu turda GitHub aracından doğrulanmış sonuç alınmadı.');
  lines.push('Rapor yalnız gözlenen işlemleri kapsar. İstenen tüm özelliklerin tamamlandığı, tüm testlerin geçtiği veya canlı sürümün güncellendiği ayrıca doğrulanmadan söylenemez.');
  return lines.join('\n\n');
+}
+
+/** A ready PR route is guidance only. It cannot add tools or authority.
+ * Preserve draft-only behavior if release/open/merge is not authorized. */
+export function pullDeliveryInstruction(authorization:{repositories:readonly string[];actions:readonly string[]}|undefined,advertisedTools:readonly string[],repository?:string):string{
+ const ready=advertisedTools.includes('github_release')&&authorization?.actions.includes('open')&&authorization.actions.includes('merge')&&authorization.repositories.length===1&&(!repository||authorization.repositories[0]===repository.toLowerCase());
+ if(ready)return 'Birleştirme açıkça yetkili: gerekli tüm kod değişiklikleri ve testler tamamlandıktan sonra github_release action=open ile aynı dalda incelemeye hazır PR aç veya mevcut PR durumunu doğrula. github_develop operation=pull yalnız taslak oluşturur ve merge edilemez. Mevcut taslak PR varsa tekrar PR açma; incelemeye hazır duruma geçmesi gerektiğini açıkça bildir. Kesin PR head SHA ve gerçek CI ile ilerle.';
+ return 'Yalnız izinli PR işlemini kullan. github_develop operation=pull taslak PR oluşturur; merge/yayın yetkisi yoksa bunları başlatma. Mevcut PR varsa tekrar oluşturma.';
 }
