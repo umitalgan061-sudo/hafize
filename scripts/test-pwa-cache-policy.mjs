@@ -10,6 +10,9 @@ assert.equal(SHELL_ASSETS.some(p=>p.startsWith('/api/')||p.startsWith('/media/ha
 for(const p of ['/','/index.html','/offline.html','/premium.css','/typed-build/app-shell.js','/original-hero-bootstrap.js','/original-hero.js','/original-hero-pixels.js','/hero-donus.bin']) assert.ok(SHELL_ASSETS.includes(p),p);
 const html=readFileSync(new URL('../public/index.html',import.meta.url),'utf8');
 for(const match of html.matchAll(/(?:href|src)="(\/[^"?#]+\.(?:css|js))(?=[?"#])/g))assert.ok(SHELL_ASSETS.includes(match[1]),'missing shell asset '+match[1]);
+for(const p of ['/image-generation-visual.css','/typed-build/image-generation-visual.js'])assert.ok(SHELL_ASSETS.includes(p),'missing image-generation shell asset '+p);
+assert.equal(classifyRequest(request('/image-generation-visual.css?v=20261127-1'),origin),'shell');
+assert.equal(shouldDeleteCache('hafize-shell-v218'),true);
 for(const p of SHELL_ASSETS)assert.equal(classifyRequest(request(p),origin),'shell');
 assert.equal(classifyRequest(request('/premium.css?release=test'),origin),'shell');
 assert.equal(classifyRequest(request('/chat',{mode:'navigate'}),origin),'navigation');
