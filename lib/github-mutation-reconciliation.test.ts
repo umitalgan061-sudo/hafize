@@ -1,5 +1,5 @@
 import {it,expect,vi} from 'vitest';
-import {reconcilePendingGitHubMutations} from './github-mutation-reconciliation.ts';
+import {reconcilePendingGitHubMutations,recoveryBranchProbe} from './github-mutation-reconciliation.ts';
 import type {Pending} from './agent-turn-checkpoints.ts';
 const repo='owner/repo',branch='hafize/auto-test',sha='a'.repeat(40),blob='b'.repeat(40);
 const file:Pending={tool:'github_develop',operation:'file',repository:repo,branch,path:'src/app.py',sha,number:null,expectedBlob:blob};
@@ -24,3 +24,14 @@ it('accepts only exact same-repository open PR and merged head evidence',async()
 
 it('reconciles only the journaled named branch, not an arbitrary branch or missing ref',async()=>{const p:Pending={...file,operation:'branch',branch:'',preparedBranch:branch,path:''};const fetchImpl=vi.fn(async()=>Response.json({ref:'refs/heads/'+branch,object:{type:'commit',sha}}));const result=await reconcilePendingGitHubMutations({pending:[p,{...p,preparedBranch:undefined},{...p,branch:'hafize/auto-other'}],allowedRepositories:[repo],fetchImpl});expect(result.settled).toEqual([p]);expect(fetchImpl).toHaveBeenCalledTimes(1);});
 it('verifies exact Render release only via credential-free fixed public endpoints',async()=>{const p:Pending={...file,tool:'github_release',repository:'umitalgan061-sudo/hafize',operation:'publish',target:'render',branch:'',path:''};const fetchImpl=vi.fn();const publicFetch=vi.fn(async(u:RequestInfo|URL)=>Response.json(String(u).endsWith('/release.json')?{commit:sha}:{revision:sha,status:'ok'}));const result=await reconcilePendingGitHubMutations({pending:[p,{...p,target:'firebase'},{...p,sha:blob}],allowedRepositories:[p.repository],fetchImpl,publicFetch});expect(result.settled).toEqual([p]);expect(fetchImpl).not.toHaveBeenCalled();expect(publicFetch).toHaveBeenCalledTimes(4);});
+
+it('limits a recovery inspection probe to one trusted allowlisted repository and explicit safe branch',()=>{
+ const receipts=[{tool:'github_read_file',kind:'read' as const,line:'verified read',repository:repo}];
+ expect(recoveryBranchProbe({branch,receipts,pending:[],allowedRepositories:[repo]})).toMatchObject({repository:repo,operation:'branch',branch});
+ expect(recoveryBranchProbe({branch:null,receipts,pending:[],allowedRepositories:[repo]})).toBeNull();
+ expect(recoveryBranchProbe({branch:'main',receipts,pending:[],allowedRepositories:[repo]})).toBeNull();
+ expect(recoveryBranchProbe({branch,receipts,pending:[],allowedRepositories:[]})).toBeNull();
+ expect(recoveryBranchProbe({branch,receipts:[],pending:[],allowedRepositories:[repo]})).toBeNull();
+ expect(recoveryBranchProbe({branch,receipts:[...receipts,{...receipts[0]!,repository:'other/repo'}],pending:[],allowedRepositories:[repo,'other/repo']})).toBeNull();
+ expect(recoveryBranchProbe({branch,receipts,pending:[{...file,repository:'other/repo'}],allowedRepositories:[repo,'other/repo']})).toBeNull();
+});

@@ -77,7 +77,7 @@ import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQu
 import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
 import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
-import { reconcilePendingGitHubMutations } from './lib/github-mutation-reconciliation.ts';
+import { reconcilePendingGitHubMutations, recoveryBranchProbe } from './lib/github-mutation-reconciliation.ts';
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
@@ -967,6 +967,37 @@ async function handleAgentRun(req, res) {
     heartbeat=setInterval(()=>{if(res.headersSent&&!res.destroyed&&!res.writableEnded&&res.writable)res.write(': heartbeat\n\n');},15_000);
     heartbeat.unref?.();
     res.once('close',stopHeartbeat);res.once('finish',stopHeartbeat);
+  }
+  // Recovery is a read-only transaction, not a new agent development run.
+  // For an explicitly named branch, reconcile directly before model/context
+  // calls. Preserve unresolved journal entries and never advertise writes.
+  const inspectionBranch=requestedExistingFeatureBranch(lastUserText);
+  if(recoveryReadOnly&&durableId&&GITHUB_APP_AUTH&&prior&&inspectionBranch){
+    const allowedRepositories=GITHUB_AGENT_REPOS.filter(repo=>GITHUB_ALLOWED_REPOS.some(read=>read.toLowerCase()===repo.toLowerCase()));
+    const probe=recoveryBranchProbe({branch:inspectionBranch,receipts:prior.receipts,pending:inheritedPending,allowedRepositories});
+    const checked=await reconcilePendingGitHubMutations({pending:inheritedPending,allowedRepositories,fetchImpl:GITHUB_FETCH,signal:requestAbort.signal});
+    if(checked.settled.length)PLATFORM.agentTurns.checkpoint(ownerId,durableId,checked.receipts,checked.settled);
+    const observed=probe?await reconcilePendingGitHubMutations({pending:[probe],allowedRepositories,fetchImpl:GITHUB_FETCH,signal:requestAbort.signal}):{receipts:[],settled:[]};
+    if(observed.receipts.length)PLATFORM.agentTurns.checkpoint(ownerId,durableId,observed.receipts,[]);
+    const saved=PLATFORM.agentTurns.get(ownerId,durableId);
+    const pending=saved?.pending??inheritedPending;
+    const content=formatGitHubRunEvidence(saved?.receipts??[])+'\n\nGörev kurtarma — bu tur yalnız doğrulama yapıldı, yazma araçları sunulmadı (GITHUB_RECOVERY_READ_ONLY).'+
+      (restoredPrior?' Sunucu kaydı kayıp; şifreli tarayıcı yedeği geçmiş kanıttır.':'')+
+      (observed.receipts.length?' Mevcut dal GitHub üzerinden doğrulandı.':' Mevcut dal bu tur doğrulanamadı; yeni yazma başlatılmadı.')+
+      (pending.length?'\n\nSonucu belirsiz '+pending.length+' işlem korunuyor; mutabakat tamamlanmadan yazma yapılamaz.':'\n\nKayıtlı belirsiz yazma işlemi kalmadı. Aynı sohbette mevcut dalı açıkça belirten yeni geliştirme isteği gönder; sunucu kaydı korunuyorsa normal yetki kontrolleriyle devam edilebilir.')+
+      '\nBu, geliştirme, PR veya yayın tamamlandı anlamına gelmez.';
+    PLATFORM.agentTurns.finish(ownerId,durableId,requestAbort.signal.aborted?'interrupted':'incomplete',content);
+    turnFinished=true;
+    runLedger.finish({ok:false,detail:'github_recovery_read_only'});
+    if(res.destroyed||res.writableEnded||!res.writable)return;
+    if(streamResponse){
+      startSse(res);
+      writeSseEvent(res,'hafize-agent-progress',{id:durableId,evidence:content,recoveryToken:PLATFORM.agentTurns.exportRecovery(ownerId,durableId)});
+      writeSseEvent(res,'hafize-run-outcome',{traceId,status:'incomplete',toolCallsCompleted:0,roundsStarted:0,taskLedger:runLedger.streamSnapshot()});
+      res.write('data: '+JSON.stringify({choices:[{delta:{content}}]})+'\n\n');
+      res.end('data: [DONE]\n\n');
+    }else sendJson(res,200,{traceId,agent:{id:agent.id,name:agent.name},content,tools:[],outcome:'incomplete',taskLedger:runLedger.snapshot()});
+    return;
   }
   const runContext = PLATFORM.createRunContext({ principal, traceId, conversationId, emit: emitEvent, signal: requestAbort.signal });
   const agentSpan = PLATFORM.telemetry.startSpan('agent.run', { traceId, attributes: { 'agent.id': agent.id, model, streaming: Boolean(streamResponse) } });

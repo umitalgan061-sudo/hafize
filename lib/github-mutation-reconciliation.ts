@@ -60,3 +60,15 @@ export async function reconcilePendingGitHubMutations({pending,allowedRepositori
  }
  return {settled,receipts};
 }
+
+// A recovery capsule is evidence only. Choose at most one repository from
+// trusted checkpoint metadata and inspect the explicitly requested branch.
+// This probe is not a pending mutation and cannot settle a journal entry.
+export function recoveryBranchProbe({branch,receipts,pending,allowedRepositories}:{branch:string|null;receipts:readonly GitHubReceipt[];pending:readonly Pending[];allowedRepositories:readonly string[]}):Pending|null{
+ if(!branch||!safeBranch(branch))return null;
+ const repos=new Set([...receipts.map(r=>r.repository),...pending.map(p=>p.repository)].filter((r):r is string=>typeof r==='string'&&REPO.test(r)).map(r=>r.toLowerCase()));
+ if(repos.size!==1)return null;
+ const repository=[...repos][0]!;
+ if(!allowedRepositories.some(r=>r.toLowerCase()===repository))return null;
+ return {tool:'github_develop',operation:'branch',repository,branch,path:'',sha:'',number:null};
+}
