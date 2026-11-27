@@ -677,7 +677,17 @@ export function createHafizePlatform(deps: PlatformDeps) {
         if(ownerId.startsWith('connector:')||!isAgentTurnId(segments[2])){sendJson(res,404,{error:'NOT_FOUND'});return true;}
         if(method==='POST'&&segments.length===4&&segments[3]==='recover'){
           const body=await readJson(req,72*1024);
-          const preview=agentTurns.recoveryPreview(ownerId,typeof body.conversationId==='string'?body.conversationId:'',segments[2],body.recoveryToken);
+          const conversation=typeof body.conversationId==='string'?body.conversationId:'';
+          if(!isAgentTurnId(conversation)){sendJson(res,404,{error:'AGENT_TURN_RECOVERY_NOT_FOUND'});return true;}
+          // Redis is authoritative for the exact latest turn when configured.
+          // An outage must not be disguised as an older browser snapshot.
+          if(agentJournal){
+            try{
+              const remote=await agentJournal.preview(ownerId,conversation,segments[2]);
+              if(remote){sendJson(res,200,remote);return true;}
+            }catch{sendJson(res,503,{error:'AGENT_JOURNAL_UNAVAILABLE'});return true;}
+          }
+          const preview=agentTurns.recoveryPreview(ownerId,conversation,segments[2],body.recoveryToken);
           if(!preview){sendJson(res,404,{error:'AGENT_TURN_RECOVERY_NOT_FOUND'});return true;}
           sendJson(res,200,preview);return true;
         }
