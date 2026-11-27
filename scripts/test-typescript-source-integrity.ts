@@ -51,8 +51,9 @@ const publicJsStandalone = new Set([
   'public/original-hero-bootstrap.js',
   'public/original-hero.js',
   'public/original-hero-pixels.js',
-  // Home voice-card visualization (#1097; WebGL aurora glass core with a 2D
-  // fallback): original, self-contained; no audio capture, imports or network.
+  // Home voice-card portrait stage (#1097): renders the self-portrait Hafize
+  // designs in its mirror (WebGL, 2D dot fallback); no audio capture or imports;
+  // its only request is the same-origin portrait data file.
   'public/home-voice-luminous-core.js',
   'public/vendor/piper-phonemize/PhonemizeWebWorker.js'
 ]);

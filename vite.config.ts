@@ -50,7 +50,8 @@ const typedDevEntryPlugin = (): Plugin => ({
       .replaceAll('/typed-build/hands-free-background-guard.js', '/typed/hands-free-background-guard.ts')
       .replaceAll('/typed-build/workspace-navigation.js', '/typed/workspace-navigation.ts')
       .replaceAll('/typed-build/rich-content.js', '/typed/rich-content.ts')
-      .replaceAll('/typed-build/platform-panel.js', '/typed/platform-panel.ts');
+      .replaceAll('/typed-build/platform-panel.js', '/typed/platform-panel.ts')
+      .replaceAll('/typed-build/hafize-mirror.js', '/typed/hafize-mirror.ts');
   }
 });
 
@@ -137,7 +138,8 @@ export default defineConfig({
         'prompt-library': resolve(ROOT, 'public/typed/prompt-library.ts'),
         'scheduled-tasks': resolve(ROOT, 'public/typed/scheduled-tasks.ts'),
         'rich-content': resolve(ROOT, 'public/typed/rich-content.ts'),
-        'platform-panel': resolve(ROOT, 'public/typed/platform-panel.ts')
+        'platform-panel': resolve(ROOT, 'public/typed/platform-panel.ts'),
+        'hafize-mirror': resolve(ROOT, 'public/typed/hafize-mirror.ts')
       },
       formats: ['es'],
       fileName: (_format, entryName) => `${entryName}.js`

@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'hafize-shell-';
-export const CURRENT_CACHE = `${CACHE_PREFIX}v217`;
+export const CURRENT_CACHE = `${CACHE_PREFIX}v218`;
 export const SHELL_ASSETS = Object.freeze([
   "/",
   "/index.html",
@@ -73,6 +73,7 @@ export const SHELL_ASSETS = Object.freeze([
   "/typed-build/prompt-library-command-palette.js",
   "/typed-build/github-workspace.js",
   "/typed-build/github-app-ci-panel.js",
+  "/typed-build/hafize-mirror.js",
   "/typed-build/github-workspace-extra.js",
   "/typed-build/github-workspace-actions.js",
   "/typed-build/github-workspace-details.js",
