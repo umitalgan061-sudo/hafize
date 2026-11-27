@@ -2,7 +2,7 @@
 // The deploy hook comes only from the HAFIZE_RENDER_DEPLOY_HOOK secret and is never printed.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
-import { hookForCommit, planRelease, qualityVerdict, RENDER_ORIGIN, validateDeployHook } from './render-release-plan.mjs';
+import { deploymentActivityVerdict, hookForCommit, planRelease, qualityVerdict, RENDER_ORIGIN, validateDeployHook } from './render-release-plan.mjs';
 
 const repo = process.env.GITHUB_REPOSITORY || 'umitalgan061-sudo/hafize';
 const token = process.env.GH_TOKEN || '';
@@ -71,6 +71,23 @@ async function main() {
   if (plan.action === 'error') { process.exitCode = 1; return; }
   if (plan.action !== 'deploy') return;
 
+  // Recheck the exact main commit, then verify activity immediately before
+  // dispatch. Manual and force modes do not bypass active-task protection.
+  if (String((await github('/commits/main')).sha || '').toLowerCase() !== head) {
+    summary('::notice::Main değişti; yeni sürüm bir sonraki güvenli yayında değerlendirilecek.');
+    return;
+  }
+  let health = null;
+  try {
+    const response = await fetch(RENDER_ORIGIN + '/api/health/live', { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(90000) });
+    if (response.ok) health = await response.json();
+    else await response.body?.cancel().catch(() => {});
+  } catch { /* unreachable is not evidence of an idle server */ }
+  const activity = deploymentActivityVerdict(health, live);
+  if (activity !== 'IDLE') {
+    summary('::notice::Render yayını ertelendi: ' + activity + '.');
+    return;
+  }
   const response = await fetch(hookForCommit(hook, head), { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(30000) });
   if (response.status !== 200) {
     const why = response.status === 401 || response.status === 404 ? 'bağlantı anahtarı geçersiz ya da commit Render tarafından bulunamadı' : 'beklenmeyen yanıt';
@@ -84,7 +101,7 @@ async function main() {
     await sleep(30000);
     if ((await liveCommit(1)) === head) {
       const live = await fetch(RENDER_ORIGIN + '/api/health/live', { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(60000) }).catch(() => null);
-      if (live?.ok) { summary(`Doğrulandı: Hafize Render ${head} yayında ve /api/health/live yanıt veriyor.`); return; }
+      if (live?.ok && await live.json().then(body=>body?.status==='ok'&&body?.revision===head).catch(()=>false)) { summary(`Doğrulandı: Hafize Render ${head} yayında ve /api/health/live yanıt veriyor.`); return; }
     }
   }
   console.error(`::error::Render 30 dk içinde ${head.slice(0, 7)} sürümünü yayınlamadı; Render panelindeki Deploys sayfasına bakın.`);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { hookForCommit, isRuntimePath, planRelease, qualityVerdict, RENDER_SERVICE, validateDeployHook } from './render-release-plan.mjs';
+import { deploymentActivityVerdict, hookForCommit, isRuntimePath, planRelease, qualityVerdict, RENDER_SERVICE, validateDeployHook } from './render-release-plan.mjs';
 
 const HEAD = 'a'.repeat(40);
 const LIVE = 'b'.repeat(40);
@@ -72,4 +72,13 @@ test('the release command does nothing without the secret and never prints an in
   assert.equal(invalid.status, 1);
   assert.match(invalid.stderr, /RENDER_DEPLOY_HOOK_INVALID/);
   assert.doesNotMatch(invalid.stdout + invalid.stderr, /super-secret-value|evil\.example/);
+});
+
+test('scheduled deploy skips active, pending, stale and malformed health even when CI is green',()=>{
+ const idle={status:'ok',revision:LIVE,durableGitHubTaskActive:false,durableGitHubDeploymentPending:false};
+ assert.equal(deploymentActivityVerdict(idle,LIVE),'IDLE');
+ assert.equal(deploymentActivityVerdict({...idle,durableGitHubTaskActive:true},LIVE),'ACTIVE_AGENT_TASK');
+ assert.equal(deploymentActivityVerdict({...idle,durableGitHubDeploymentPending:true},LIVE),'DEPLOYMENT_PENDING');
+ for(const health of [null,{}, {...idle,revision:HEAD},{...idle,status:'error'},{...idle,durableGitHubTaskActive:'false'},{...idle,durableGitHubDeploymentPending:undefined}])assert.equal(deploymentActivityVerdict(health,LIVE),'HEALTH_UNVERIFIED');
+ assert.equal(deploymentActivityVerdict(idle,null),'HEALTH_UNVERIFIED');
 });

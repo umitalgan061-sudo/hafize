@@ -60,3 +60,13 @@ export function planRelease({ head, live, quality, changedPaths, liveKnown = tru
   if (!runtime.length) return { action: 'skip', reason: 'NO_RUNTIME_CHANGE' };
   return { action: 'deploy', reason: 'RUNTIME_CHANGED', runtimeFiles: runtime.length };
 }
+
+/** Last-moment external deployment guard. Missing/malformed health fails
+ * closed. This is a read-only check, not an atomic deployment reservation. */
+export function deploymentActivityVerdict(health, expectedLive) {
+  if (!health || health.status !== 'ok' || !SHA.test(expectedLive || '') || health.revision !== expectedLive) return 'HEALTH_UNVERIFIED';
+  if (health.durableGitHubTaskActive === true) return 'ACTIVE_AGENT_TASK';
+  if (health.durableGitHubDeploymentPending === true) return 'DEPLOYMENT_PENDING';
+  if (health.durableGitHubTaskActive !== false || health.durableGitHubDeploymentPending !== false) return 'HEALTH_UNVERIFIED';
+  return 'IDLE';
+}
