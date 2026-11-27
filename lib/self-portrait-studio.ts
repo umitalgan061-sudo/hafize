@@ -24,7 +24,7 @@ import { completionOrigin } from './model-response-origin.ts';
 
 type Json = Record<string, any>;
 type Complete = (payload: Json, signal: AbortSignal, expertId?: string) => Promise<unknown>;
-type StreamText = (payload: Json, signal: AbortSignal, expertId?: string) => Promise<{ readonly text: string; readonly model: string; readonly finishReason?: string }>;
+type StreamText = (payload: Json, signal: AbortSignal, expertId?: string, onChars?: (chars: number) => void) => Promise<{ readonly text: string; readonly model: string; readonly finishReason?: string }>;
 type Phase = (phase: string, detail?: Json) => void;
 export type SelfPortraitPublisher = {
   readonly available: () => boolean;
@@ -51,12 +51,14 @@ type Job = {
   readonly id: string; readonly ownerId: string; readonly action: string; readonly createdAt: number;
   status: 'running' | 'done' | 'failed'; phase: string; updatedAt: number;
   readonly log: { at: string; phase: string; detail?: Json }[];
-  result: Json | null; error: string | null; readonly abort: AbortController;
+  result: Json | null; error: string | null; readonly abort: AbortController; progress?: { chars: number };
 };
 
 const SESSION_TTL = 3 * 60 * 60 * 1000;
 const JOB_TTL = 2 * 60 * 60 * 1000;
-const STEP_TIMEOUT = 8 * 60 * 1000;
+// Free hosted models can stream a shader for many minutes.
+const STEP_TIMEOUT = 20 * 60 * 1000;
+const IMAGINE_TIMEOUT = 8 * 60 * 1000;
 const PUBLISH_TIMEOUT = 95 * 60 * 1000;
 
 export function modelReplyText(result: unknown): string {
@@ -119,18 +121,24 @@ export function createSelfPortraitStudio({
     return fail('SELF_PORTRAIT_CONCEPT_UNREADABLE', 502);
   }
 
-  async function write(concept: PortraitConcept, revision: Parameters<typeof codeMessages>[1], signal: AbortSignal, round: number) {
+  async function write(concept: PortraitConcept, revision: Parameters<typeof codeMessages>[1], signal: AbortSignal, round: number, note: Phase, progress: (chars: number) => void) {
     let current = revision;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       const payload = { model, messages: codeMessages(concept, current), temperature: 0.55, max_tokens: 9000 };
       let text = '';
       let used = model;
-      if (streamText) { const out = await streamText(payload, signal, 'team-ui'); text = out.text; used = out.model || model; }
+      progress(0);
+      if (streamText) { const out = await streamText(payload, signal, 'team-ui', progress); text = out.text; used = out.model || model; }
       else { const result = await complete(payload, signal, 'team-ui'); text = modelReplyText(result); used = modelOf(result, model); }
       const extracted = extractPortraitCode(text);
-      if (!extracted) { current = { glsl: current?.glsl ?? '', staticErrors: ['the reply had no ```glsl code block with hafizePortrait'] }; continue; }
+      if (!extracted) {
+        note('coding-retry', { model: used, chars: text.length, errors: ['no glsl block'] });
+        current = { glsl: current?.glsl ?? '', staticErrors: ['the reply had no ```glsl code block with hafizePortrait'] };
+        continue;
+      }
       const check = validatePortraitGlsl(extracted.glsl);
       if (check.ok) return { id: randomUUID().replace(/-/g, '').slice(0, 16), glsl: check.glsl, note: extracted.note, model: used, round, rendered: false, critique: null, critic: '' } satisfies Candidate;
+      note('coding-retry', { model: used, chars: text.length, errors: check.errors.slice(0, 3) });
       current = { glsl: check.glsl, staticErrors: check.errors };
     }
     return fail('SELF_PORTRAIT_CODE_INVALID', 502);
@@ -184,6 +192,7 @@ export function createSelfPortraitStudio({
       log({ event: 'phase', action: job.action, phase: name });
     };
     const signal = job.abort.signal;
+    const progress = (chars: number) => { job.progress = { chars }; job.updatedAt = now(); };
     if (job.action === 'imagine') {
       const previous = input.session ? session(job.ownerId, input.session).concept : null;
       phase('imagining');
@@ -191,13 +200,16 @@ export function createSelfPortraitStudio({
       const s: Session = { id: randomUUID(), ownerId: job.ownerId, createdAt: now(), concept: idea.concept, conceptModel: idea.model, candidates: new Map(), repairs: 0, reflections: 0, published: false };
       sessions.set(s.id, s);
       phase('imagined', { name: idea.concept.name });
-      phase('coding');
-      const c = await write(s.concept, undefined, signal, 0);
-      s.candidates.set(c.id, c);
-      phase('coded', { candidate: c.id });
-      return { session: s.id, concept: publicConcept(s), candidate: publicCandidate(c) };
+      return { session: s.id, concept: publicConcept(s) };
     }
     const s = session(job.ownerId, input.session);
+    if (job.action === 'code') {
+      phase('coding');
+      const c = await write(s.concept, undefined, signal, 0, phase, progress);
+      s.candidates.set(c.id, c);
+      phase('coded', { candidate: c.id });
+      return { session: s.id, candidate: publicCandidate(c) };
+    }
     if (job.action === 'repair') {
       const c = candidateOf(s, input.candidate);
       if (s.repairs >= SELF_PORTRAIT_LIMITS.maxRepairs * 2) fail('SELF_PORTRAIT_REPAIR_LIMIT', 409);
@@ -205,7 +217,7 @@ export function createSelfPortraitStudio({
       if (!compileLog.trim()) fail('SELF_PORTRAIT_COMPILE_LOG_REQUIRED');
       s.repairs += 1;
       phase('repairing');
-      const next = await write(s.concept, { glsl: c.glsl, compileLog }, signal, c.round);
+      const next = await write(s.concept, { glsl: c.glsl, compileLog }, signal, c.round, phase, progress);
       s.candidates.set(next.id, next);
       phase('coded', { candidate: next.id });
       return { session: s.id, candidate: publicCandidate(next) };
@@ -235,7 +247,7 @@ export function createSelfPortraitStudio({
       if (critique.score >= SELF_PORTRAIT_LIMITS.passScore) return { ...base, approved: true, best: c.id };
       if (s.reflections >= SELF_PORTRAIT_LIMITS.maxReflections) return { ...base, approved: false, exhausted: true, best: best(s)?.id ?? c.id };
       phase('revising');
-      const next = await write(s.concept, { glsl: c.glsl, critique }, signal, c.round + 1);
+      const next = await write(s.concept, { glsl: c.glsl, critique }, signal, c.round + 1, phase, progress);
       s.candidates.set(next.id, next);
       phase('coded', { candidate: next.id });
       return { ...base, approved: false, candidate: publicCandidate(next) };
@@ -261,19 +273,19 @@ export function createSelfPortraitStudio({
   }
 
   function snapshot(job: Job) {
-    return { id: job.id, action: job.action, status: job.status, phase: job.phase, log: job.log, result: job.result, error: job.error, createdAt: new Date(job.createdAt).toISOString(), updatedAt: new Date(job.updatedAt).toISOString() };
+    return { id: job.id, action: job.action, status: job.status, phase: job.phase, progress: job.progress ?? null, log: job.log, result: job.result, error: job.error, createdAt: new Date(job.createdAt).toISOString(), updatedAt: new Date(job.updatedAt).toISOString() };
   }
 
   function start(ownerId: string, body: Json) {
     prune();
     const action = typeof body?.action === 'string' ? body.action : '';
-    if (!['imagine', 'repair', 'reflect', 'publish'].includes(action)) fail('SELF_PORTRAIT_ACTION_INVALID');
+    if (!['imagine', 'code', 'repair', 'reflect', 'publish'].includes(action)) fail('SELF_PORTRAIT_ACTION_INVALID');
     if ([...jobs.values()].some((j) => j.ownerId === ownerId && j.status === 'running' && (action !== 'publish' || j.action === 'publish'))) fail('SELF_PORTRAIT_BUSY', 409);
     if (action === 'publish' && publishing) fail('SELF_PORTRAIT_PUBLISH_BUSY', 409);
     if (action !== 'imagine' || body.session !== undefined) session(ownerId, body.session);
     const job: Job = { id: randomUUID(), ownerId, action, createdAt: now(), updatedAt: now(), status: 'running', phase: 'queued', log: [], result: null, error: null, abort: new AbortController() };
     jobs.set(job.id, job);
-    const timer = setTimeout(() => job.abort.abort(new SelfPortraitError('SELF_PORTRAIT_TIMEOUT', 504)), action === 'publish' ? PUBLISH_TIMEOUT : STEP_TIMEOUT);
+    const timer = setTimeout(() => job.abort.abort(new SelfPortraitError('SELF_PORTRAIT_TIMEOUT', 504)), action === 'publish' ? PUBLISH_TIMEOUT : action === 'imagine' ? IMAGINE_TIMEOUT : STEP_TIMEOUT);
     timer.unref?.();
     if (action === 'publish') publishing = true;
     void run(job, body).then((result) => { job.result = result; job.status = 'done'; job.phase = 'done'; },

@@ -261,7 +261,7 @@ const SELF_PORTRAIT_VISION_MODELS = (process.env.HAFIZE_MIRROR_VISION_MODELS || 
   .split(',').map((id) => id.trim()).filter((id) => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id)).slice(0, 5);
 const SELF_PORTRAIT = createSelfPortraitStudio({
   complete: (payload, signal, expertId) => nvidiaJsonCompletion(payload, signal, expertId),
-  streamText: (payload, signal, expertId) => nvidiaStreamText(payload, signal, expertId),
+  streamText: (payload, signal, expertId, onChars) => nvidiaStreamText(payload, signal, expertId, onChars),
   vision: (payload, signal) => nvidiaJsonCompletion(payload, signal, undefined, true),
   visionModels: SELF_PORTRAIT_VISION_MODELS,
   model: NVIDIA_DEFAULT_MODEL,
@@ -463,7 +463,7 @@ async function nvidiaJsonCompletion(payload, signal, expertId, exactModel = fals
 }
 
 // Long single answers (the mirror's shader) stream, so the router's whole-reply timer does not cut them.
-async function nvidiaStreamText(payload, signal, expertId) {
+async function nvidiaStreamText(payload, signal, expertId, onChars) {
   const upstream = await nvidiaFetch('/chat/completions', {
     method: 'POST',
     signal,
@@ -477,7 +477,8 @@ async function nvidiaStreamText(payload, signal, expertId) {
     throw error;
   }
   let text = '';
-  const round = await readNvidiaStream(upstream.body, (delta) => { text += delta; });
+  let reported = 0;
+  const round = await readNvidiaStream(upstream.body, (delta) => { text += delta; if (onChars && text.length - reported >= 200) { reported = text.length; onChars(text.length); } });
   if (round?.error) {
     const error = new Error('NVIDIA_STREAM_ERROR');
     error.status = 502;

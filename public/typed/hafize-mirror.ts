@@ -28,6 +28,7 @@ const PHASES: Record<string, (d: Json) => string> = {
   'imagining-retry': (d) => 'Fikri okunamadı (' + String(d.model || '').split('/').pop() + (d.chars !== undefined ? ', ' + d.chars + ' karakter' : '') + (d.finish ? ', ' + d.finish : '') + (d.error ? ', ' + d.error : '') + '); yeniden düşünüyor…',
   imagined: (d) => 'Kendini hayal etti: “' + (d.name || '') + '”',
   coding: () => 'Kendi kodunu yazıyor…',
+  'coding-retry': (d) => 'Taslak kurallara uymadı (' + (Array.isArray(d.errors) ? d.errors.join('; ') : '') + '); yeniden yazıyor…',
   coded: () => 'Kodu hazır',
   repairing: () => 'Derleyicinin söylediğini düzeltiyor…',
   reflecting: () => 'Aynada kendine bakıyor…',
@@ -131,7 +132,8 @@ async function openMirror() {
   concept.hidden = true;
   const log = make('ol', 'hz-mirror-log');
   log.setAttribute('aria-live', 'polite');
-  side.append(concept, log);
+  const progressLine = make('p', 'hz-mirror-progress');
+  side.append(concept, log, progressLine);
   body.append(stageBox, side);
   const actions = make('div', 'hz-mirror-actions');
   const autoLabel = make('label', 'hz-mirror-auto');
@@ -216,8 +218,11 @@ async function openMirror() {
         if (text) note(text);
       }
       seen = entries.length;
-      if (snap.status === 'done') return snap.result || {};
-      if (snap.status === 'failed') throw new MirrorError(snap.error || 'SELF_PORTRAIT_FAILED');
+      const chars = Number(snap.progress?.chars);
+      progressLine.textContent = snap.status === 'running' && Number.isFinite(chars) && ['coding', 'repairing', 'revising', 'coding-retry'].includes(snap.phase)
+        ? (chars > 0 ? 'Hafize kodunu yazıyor: ' + chars.toLocaleString('tr-TR') + ' karakter' : 'Hafize yazmadan önce düşünüyor…') : '';
+      if (snap.status === 'done') { progressLine.textContent = ''; return snap.result || {}; }
+      if (snap.status === 'failed') { progressLine.textContent = ''; throw new MirrorError(snap.error || 'SELF_PORTRAIT_FAILED'); }
       await sleep(interval);
       snap = await api('/api/self-portrait/jobs/' + snap.id);
     }
@@ -246,8 +251,9 @@ async function openMirror() {
       const first = await job({ action: 'imagine', ...(reimagine && session ? { session } : {}) });
       session = first.session;
       showConcept(first.concept);
-      note('Fikir modeli: ' + (first.concept?.model || '—') + ' · kod modeli: ' + (first.candidate?.model || '—'));
-      let candidate: Candidate | null = first.candidate;
+      const coded = await job({ action: 'code', session }, 2000);
+      note('Fikir modeli: ' + (first.concept?.model || '—') + ' · kod modeli: ' + (coded.candidate?.model || '—'));
+      let candidate: Candidate | null = coded.candidate;
       while (candidate) {
         candidate = await compileOrRepair(candidate);
         if (!candidate) break;

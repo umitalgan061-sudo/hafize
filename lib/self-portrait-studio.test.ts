@@ -22,6 +22,13 @@ const until = async (studio: ReturnType<typeof createSelfPortraitStudio>, owner:
   throw new Error('job did not finish');
 };
 
+async function imagineAndCode(studio: ReturnType<typeof createSelfPortraitStudio>, owner = 'owner') {
+  const idea = await until(studio, owner, studio.start(owner, { action: 'imagine' }).id);
+  if (idea.status !== 'done') return idea;
+  const coded = await until(studio, owner, studio.start(owner, { action: 'code', session: idea.result?.session }).id);
+  return { ...coded, log: [...idea.log, ...coded.log], result: coded.result ? { ...coded.result, concept: idea.result?.concept } : coded.result };
+}
+
 function studioWith({ codes = [code()], critiques = ['{"score":9,"verdict":"bu benim","fixes":[]}'], publisher = null as any, concepts = [] as string[] } = {}) {
   const conceptReplies = [...concepts];
   const calls: { expert?: string; messages: any[] }[] = [];
@@ -49,41 +56,42 @@ function studioWith({ codes = [code()], critiques = ['{"score":9,"verdict":"bu b
 describe('self-portrait studio', () => {
   it('lets Hafize imagine itself and write a valid first portrait', async () => {
     const { studio, calls } = studioWith();
-    const job = studio.start('owner', { action: 'imagine' });
-    const done = await until(studio, 'owner', job.id);
+    const idea = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    expect(idea.result?.candidate).toBeUndefined();
+    const done = await imagineAndCode(studio);
     expect(done.status).toBe('done');
     expect(done.result?.concept.name).toBe('Hafıza İpliği');
     expect(done.result?.concept.model).toBe('c/idea');
     expect(done.result?.candidate.glsl).toContain('hafizePortrait');
     expect(done.result?.candidate.model).toBe('c/coder');
-    expect(calls.map((c) => c.expert)).toEqual(['team-ux', 'team-ui']);
+    expect(calls.map((c) => c.expert)).toEqual(['team-ux', 'team-ux', 'team-ui']);
     expect(done.log.map((l: { phase: string }) => l.phase)).toEqual(['imagining', 'imagined', 'coding', 'coded']);
   });
 
   it('retries an unreadable concept and logs why', async () => {
     const { studio } = studioWith({ concepts: ['yarım {"name":'] });
-    const done = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const done = await imagineAndCode(studio);
     expect(done.status).toBe('done');
     expect(done.log.find((l: { phase: string }) => l.phase === 'imagining-retry')).toMatchObject({ detail: { model: 'c/idea', chars: 14 } });
   });
 
   it('feeds static rule violations back before the browser ever sees the code', async () => {
     const { studio, calls } = studioWith({ codes: [code('uniform float x;\n' + SAMPLE_PORTRAIT), code()] });
-    const done = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const done = await imagineAndCode(studio);
     expect(done.status).toBe('done');
     expect(String(calls.at(-1)?.messages.at(-1)?.content)).toContain('do not declare uniforms');
   });
 
   it('keeps sessions and jobs private to their owner', async () => {
     const { studio } = studioWith();
-    const done = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const done = await imagineAndCode(studio);
     expect(() => studio.get('stranger', done.id)).toThrow('SELF_PORTRAIT_JOB_NOT_FOUND');
     expect(() => studio.start('stranger', { action: 'reflect', session: done.result?.session, candidate: done.result?.candidate.id, sheet: JPEG })).toThrow('SELF_PORTRAIT_SESSION_NOT_FOUND');
   });
 
   it('repairs with the browser compiler log', async () => {
     const { studio, calls } = studioWith();
-    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const first = await imagineAndCode(studio);
     const repaired = await until(studio, 'owner', studio.start('owner', { action: 'repair', session: first.result?.session, candidate: first.result?.candidate.id, compileLog: "ERROR: 0:4: 'x' : undeclared identifier" }).id);
     expect(repaired.status).toBe('done');
     expect(repaired.result?.candidate.id).not.toBe(first.result?.candidate.id);
@@ -92,7 +100,7 @@ describe('self-portrait studio', () => {
 
   it('approves itself in the mirror at 8/10 or more', async () => {
     const { studio } = studioWith();
-    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const first = await imagineAndCode(studio);
     const seen = await until(studio, 'owner', studio.start('owner', { action: 'reflect', session: first.result?.session, candidate: first.result?.candidate.id, sheet: JPEG }).id);
     expect(seen.result).toMatchObject({ approved: true, critic: 'v/one', critique: { score: 9 } });
   });
@@ -100,7 +108,7 @@ describe('self-portrait studio', () => {
   it('revises from its own critique, then picks its best after three looks', async () => {
     const low = (s: number) => JSON.stringify({ score: s, verdict: 'olmamış', fixes: ['daha ince çizgi'] });
     const { studio, calls } = studioWith({ codes: [code(), code(), code(), code(), code()], critiques: [low(5), low(7), low(6), low(4)] });
-    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const first = await imagineAndCode(studio);
     let candidate = first.result?.candidate.id;
     const results = [];
     for (let i = 0; i < 4; i += 1) {
@@ -116,7 +124,7 @@ describe('self-portrait studio', () => {
 
   it('lets the browser measurements overrule a flattering vision verdict', async () => {
     const { studio, calls } = studioWith({ codes: [code(), code()], critiques: ['{"score":9,"verdict":"harika","fixes":[]}'] });
-    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const first = await imagineAndCode(studio);
     const seen = await until(studio, 'owner', studio.start('owner', { action: 'reflect', session: first.result?.session, candidate: first.result?.candidate.id, sheet: JPEG, metrics: METRICS({ coverage: 0.02, width: 0.2 }) }).id);
     expect(seen.result).toMatchObject({ approved: false, critique: { score: 7 } });
     expect(seen.result?.candidate).toBeTruthy();
@@ -125,7 +133,7 @@ describe('self-portrait studio', () => {
 
   it('judges itself by the measurements when no vision model can see', async () => {
     const blind = studioWith({ codes: [code(), code()], critiques: ['nope', 'nope', 'nope', 'nope'] });
-    const one = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'imagine' }).id);
+    const one = await imagineAndCode(blind.studio);
     const seen = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'reflect', session: one.result?.session, candidate: one.result?.candidate.id, sheet: JPEG, metrics: METRICS({ contrast: 0.05 }) }).id);
     expect(seen.result).toMatchObject({ approved: false, visionUnavailable: true, critic: 'browser-metrics', critique: { score: 5 } });
     expect(seen.result?.visionAttempts).toEqual([expect.objectContaining({ model: 'v/one', outcome: 'unreadable' }), expect.objectContaining({ model: 'v/two', outcome: 'unreadable' })]);
@@ -134,11 +142,11 @@ describe('self-portrait studio', () => {
 
   it('falls back to the next vision model and reports when none can see', async () => {
     const { studio } = studioWith({ critiques: ['down', '{"score":8.5,"verdict":"iyi","fixes":[]}'] });
-    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const first = await imagineAndCode(studio);
     const seen = await until(studio, 'owner', studio.start('owner', { action: 'reflect', session: first.result?.session, candidate: first.result?.candidate.id, sheet: JPEG }).id);
     expect(seen.result).toMatchObject({ approved: true, critic: 'v/two' });
     const blind = studioWith({ critiques: ['not json', 'still not json'] });
-    const one = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'imagine' }).id);
+    const one = await imagineAndCode(blind.studio);
     const none = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'reflect', session: one.result?.session, candidate: one.result?.candidate.id, sheet: JPEG }).id);
     expect(none.result).toMatchObject({ critique: null, visionUnavailable: true, approved: true });
   });
@@ -147,7 +155,7 @@ describe('self-portrait studio', () => {
     const shipped: PortraitDocument[] = [];
     const publisher = { available: () => true, publish: async (doc: PortraitDocument, phase: (p: string) => void) => { shipped.push(doc); phase('merged'); return { number: 7, mergeSha: 'a'.repeat(40), deploy: 'hook' }; } };
     const { studio } = studioWith({ publisher });
-    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const first = await imagineAndCode(studio);
     const unseen = await until(studio, 'owner', studio.start('owner', { action: 'publish', session: first.result?.session, candidate: first.result?.candidate.id }).id);
     expect(unseen.error).toBe('SELF_PORTRAIT_NOT_SEEN_IN_MIRROR');
     await until(studio, 'owner', studio.start('owner', { action: 'reflect', session: first.result?.session, candidate: first.result?.candidate.id, sheet: JPEG }).id);
