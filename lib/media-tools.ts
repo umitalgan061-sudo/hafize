@@ -16,10 +16,8 @@ const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url))
 const EXTENSIONS: Readonly<Record<string, string>> = Object.freeze({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' });
 export const MEDIA_LIMITS = Object.freeze({ maxUploadBytes: 8 * 1024 * 1024, maxPrompt: 1_500, maxDiagram: 20_000, maxVisionImages: 4 });
 const IMAGE_ID = /^img_[a-f0-9]{20}$/;
-/** The hosted FLUX endpoint rejects 512px even when an upstream caller asks for it. */
-export function normalizeImageDimension(value: unknown): 768 | 1024 | 1280 {
-  const requested = Number(value);
-  if (requested === 768 || requested === 1280) return requested;
+/** The hosted FLUX endpoint currently accepts its premium 1024px canvas only. */
+export function normalizeImageDimension(_value: unknown): 1024 {
   return 1024;
 }
 

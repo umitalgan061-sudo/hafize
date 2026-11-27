@@ -503,7 +503,7 @@ const CATALOG = new Map<string, ToolEntry>([
     kind: 'media',
     timeoutMs: timeout(100000, 100000),
     activity: {"running":"Görsel oluşturuluyor","success":"Görsel oluşturuldu","failure":"Görsel oluşturulamadı"},
-    definition: strictDefinition('image_generate', "Metin açıklamasından görsel üretir (güvenlik denetimli). Dönen markdown satırını yanıtına ekle. Açıklamayı ayrıntılı ve İngilizce yazarsan sonuç daha iyi olur.", {"prompt":{"type":"string","maxLength":1500},"width":{"type":"integer","enum":[768,1024,1280]},"height":{"type":"integer","enum":[768,1024,1280]},"seed":{"type":"integer"}}, ["prompt"]),
+    definition: strictDefinition('image_generate', "Metin açıklamasından görsel üretir (güvenlik denetimli). Dönen markdown satırını yanıtına ekle. Açıklamayı ayrıntılı ve İngilizce yazarsan sonuç daha iyi olur.", {"prompt":{"type":"string","maxLength":1500},"width":{"type":"integer","enum":[1024]},"height":{"type":"integer","enum":[1024]},"seed":{"type":"integer"}}, ["prompt"]),
     available: (context) => typeof context.services?.imageGenerate === 'function',
     execute: async (args, context) => context.services!.imageGenerate!(args, context)
   }],

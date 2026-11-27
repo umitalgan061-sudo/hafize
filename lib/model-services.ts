@@ -27,7 +27,8 @@ export interface ModelServicesConfig {
 export class ModelServiceError extends Error {
   readonly code: string;
   readonly status: number;
-  constructor(code: string, status = 502) { super(code); this.name = 'ModelServiceError'; this.code = code; this.status = status; }
+  readonly providerDetail: string;
+  constructor(code: string, status = 502, providerDetail = '') { super(code); this.name = 'ModelServiceError'; this.code = code; this.status = status; this.providerDetail = providerDetail.slice(0, 480); }
 }
 
 export const MODEL_SERVICE_DEFAULTS = Object.freeze({
@@ -84,6 +85,16 @@ function isUnavailable(error: unknown): boolean {
   const name = String((error as { name?: unknown })?.name || '');
   const code = String((error as { code?: unknown })?.code || (error as Error)?.message || '');
   return name === 'UpstreamCircuitOpenError' || status === 429 || status >= 500 || /NOT_CONFIGURED|fetch failed|ECONN|ENOTFOUND|ETIMEDOUT|UND_ERR/i.test(code) || (name === 'TypeError' && /fetch/i.test(code));
+}
+
+function imageProviderDetail(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return '';
+  const source = payload as { detail?: unknown; message?: unknown; error?: unknown };
+  const detail = source.detail ?? source.message ?? source.error;
+  const message = Array.isArray(detail)
+    ? detail.map((row) => row && typeof row === 'object' ? `${Array.isArray((row as { loc?: unknown }).loc) ? `${(row as { loc: unknown[] }).loc.join('.')}: ` : ''}${String((row as { msg?: unknown }).msg ?? '')}` : String(row)).join('; ')
+    : typeof detail === 'object' && detail ? String((detail as { message?: unknown }).message ?? '') : String(detail ?? '');
+  return message.replace(/[\r\n\t]+/g, ' ').replace(/Bearer\s+\S+/gi, 'Bearer [redacted]').trim().slice(0, 480);
 }
 
 export function createModelServices(config: ModelServicesConfig) {
@@ -282,7 +293,15 @@ export function createModelServices(config: ModelServicesConfig) {
       // unsupported dimension payloads.
       body: JSON.stringify({ mode: 'Image Generation', prompt, width, height, cfg_scale: 0, image: null, samples: 1, seed: usedSeed, steps })
     });
-    if (!response.ok) throw new ModelServiceError(response.status === 422 || response.status === 400 ? 'IMAGE_PROMPT_REJECTED' : 'IMAGE_GENERATION_FAILED', response.status);
+    if (!response.ok) {
+      const raw = await response.text().catch(() => '');
+      let payload: unknown = raw;
+      try { payload = raw ? JSON.parse(raw) : null; } catch {}
+      const detail = imageProviderDetail(payload);
+      const filtered = /safety|content.?filter|policy|moderation/i.test(detail);
+      // A 400/422 is usually a provider contract error, not a rejected prompt.
+      throw new ModelServiceError(filtered ? 'IMAGE_CONTENT_FILTERED' : response.status === 422 || response.status === 400 ? 'IMAGE_REQUEST_INVALID' : 'IMAGE_GENERATION_FAILED', response.status, detail);
+    }
     const data = await response.json() as { artifacts?: Array<{ base64?: string; finishReason?: string; seed?: number }> };
     const artifact = data.artifacts?.[0];
     if (!artifact?.base64) throw new ModelServiceError('IMAGE_GENERATION_FAILED');
