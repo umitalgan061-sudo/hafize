@@ -387,8 +387,9 @@ html[data-reduced-motion="true"] .main .voice-card :is(.voice-orb,.voice-orb::af
   .hz-frame,.edge-beam,#composer>.hz-composer-pulse{display:none!important}
 }
 
-/* Hafize Core: isolated compact home-rail renderer (WebGL glass core, 2D dot
-   fallback), with the legacy CSS orb when scripts or canvas are unavailable. */
+/* Hafize portrait stage: the home-rail image Hafize designs itself in its
+   mirror (WebGL portrait, 2D dot fallback), with the legacy CSS orb when
+   scripts or canvas are unavailable. */
 @media not all and (forced-colors: active) {
   .main .utility-rail .voice-card .voice-orb[data-luminous-core="ready"] {
     width: min(184px, 100%); height: 150px; border-radius: 0;
@@ -411,4 +412,60 @@ html[data-reduced-motion="true"] .main .voice-card :is(.voice-orb,.voice-orb::af
 }
 @media (forced-colors: active) {
   .main .utility-rail .voice-card .hz-luminous-core { display: none; }
+}
+
+/* Hafize'nin Aynası: where Hafize designs, sees and ships its own look. */
+.main .utility-rail .voice-card .utility-head { position: relative; }
+.hz-mirror-open {
+  margin-left: auto; padding: 3px 10px; border-radius: 999px; font-size: 12px; line-height: 1.4;
+  border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer;
+}
+.hz-mirror-open::before { content: "✦ "; color: var(--premium-orange, #d9773f); }
+.hz-mirror-open:hover, .hz-mirror-open:focus-visible { color: var(--ink); border-color: var(--premium-orange, #d9773f); }
+.hz-mirror {
+  width: min(960px, 94vw); max-height: 92vh; padding: 0; border: 1px solid var(--line); border-radius: 22px;
+  background: var(--card); color: var(--ink); box-shadow: var(--hz-float-shadow, 0 24px 60px rgb(0 0 0 / .35));
+  display: none; overflow: hidden;
+}
+.hz-mirror[open] { display: flex; flex-direction: column; }
+.hz-mirror::backdrop { background: rgb(0 0 0 / .55); backdrop-filter: blur(4px); }
+.hz-mirror-top { display: flex; align-items: center; gap: 12px; padding: 18px 22px 0; }
+.hz-mirror-title { margin: 0; font-size: 19px; letter-spacing: .01em; }
+.hz-mirror-close { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 20px; cursor: pointer; }
+.hz-mirror-intro { margin: 8px 22px 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.hz-mirror-live { margin: 6px 22px 0; font-size: 12.5px; color: var(--muted); }
+.hz-mirror-body { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; padding: 16px 22px; overflow: auto; min-height: 0; }
+.hz-mirror-stage { display: flex; flex-direction: column; gap: 10px; }
+.hz-mirror-canvas {
+  position: relative; aspect-ratio: 184 / 150; width: 100%; border-radius: 16px; overflow: hidden;
+  background: radial-gradient(120% 120% at 50% 40%, rgb(255 255 255 / .03), transparent 60%), var(--bg);
+  border: 1px solid var(--line); display: grid; place-items: center;
+}
+.hz-mirror-canvas > canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hz-mirror-placeholder { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+.hz-mirror-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.hz-mirror-chip { padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.hz-mirror-chip[aria-pressed="true"] { color: var(--ink); border-color: var(--premium-orange, #d9773f); background: rgb(217 119 63 / .12); }
+.hz-mirror-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hz-mirror-name { margin: 0; font-size: 17px; }
+.hz-mirror-essence { margin: 6px 0 0; padding-left: 12px; border-left: 2px solid var(--premium-orange, #d9773f); font-style: italic; font-size: 14px; line-height: 1.55; }
+.hz-mirror-palette { display: flex; gap: 6px; margin-top: 10px; }
+.hz-mirror-swatch { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); }
+.hz-mirror-details { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.hz-mirror-details p { margin: 6px 0 0; line-height: 1.5; }
+.hz-mirror-log { margin: 0; padding: 10px 12px 10px 30px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 14px; font-size: 12.5px; line-height: 1.55; }
+.hz-mirror-log:empty { display: none; }
+.hz-mirror-log li { margin: 2px 0; overflow-wrap: anywhere; }
+.hz-mirror-log time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.hz-mirror-log li.is-ok { color: var(--hz-success, #3f9b62); }
+.hz-mirror-log li.is-warn { color: #c98a1d; }
+.hz-mirror-log li.is-error { color: var(--hz-danger, #c4473a); }
+.hz-mirror-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 22px 20px; border-top: 1px solid var(--line); }
+.hz-mirror-auto { margin-right: auto; font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.hz-mirror-btn { padding: 9px 16px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 14px; cursor: pointer; }
+.hz-mirror-btn.is-main { background: var(--premium-orange, #d9773f); border-color: transparent; color: #1f1408; font-weight: 600; }
+.hz-mirror-btn:disabled { opacity: .55; cursor: progress; }
+@media (max-width: 720px) {
+  .hz-mirror-body { grid-template-columns: 1fr; }
+  .hz-mirror-log { max-height: 180px; }
 }

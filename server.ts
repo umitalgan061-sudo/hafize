@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createGitHubAgentRelease, releaseAuthorizationForRequest, parseExplicitReleaseCommand } from './lib/github-agent-release.ts';
+import { createSelfPortraitStudio, createSelfPortraitPublisher, SelfPortraitError } from './lib/self-portrait-studio.ts';
 import {KIMI_K31_PRO,GEMMA_4,OMNI,productionLabCandidates} from './lib/model-lab-provider-profile.ts';
 import {deploymentKimiProbe} from './lib/deployment-kimi-probe.ts';
 import {deploymentFreeModelProbe} from './lib/deployment-free-model-probe.ts';
@@ -254,6 +255,18 @@ const GITHUB_AGENT_DEVELOPMENT = GITHUB_APP_AUTH
   ? createGitHubAgentDevelopment({ writer: GITHUB_AGENT_WRITER, allowedRepositories: GITHUB_AGENT_REPOS,
       sourcePathRestrictions: GITHUB_BORSA_AGENT_ENABLED ? { [GITHUB_BORSA_AGENT_REPO]: ['borsa-gunlugu/', 'borsa-worker/'] } : {} })
   : null;
+// Hafize's mirror: Hafize imagines, codes, looks at and ships its own home-card portrait.
+// Owner-only HTTP routes below; publishing commits only server-generated, validated GLSL.
+const SELF_PORTRAIT_VISION_MODELS = (process.env.HAFIZE_MIRROR_VISION_MODELS || 'mistralai/mistral-large-4-1t-a52b,nvidia/nemotron-3.5-super-vl-120b-a12b,stepfun-ai/step-5-preview,meta/llama-3.2-11b-vision-instruct')
+  .split(',').map((id) => id.trim()).filter((id) => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,100}\/[a-zA-Z0-9][a-zA-Z0-9._-]{0,150}$/.test(id)).slice(0, 5);
+const SELF_PORTRAIT = createSelfPortraitStudio({
+  complete: (payload, signal, expertId) => nvidiaJsonCompletion(payload, signal, expertId),
+  streamText: (payload, signal, expertId) => nvidiaStreamText(payload, signal, expertId),
+  vision: (payload, signal) => nvidiaJsonCompletion(payload, signal, undefined, true),
+  visionModels: SELF_PORTRAIT_VISION_MODELS,
+  model: NVIDIA_DEFAULT_MODEL,
+  publisher: GITHUB_AGENT_RELEASE ? createSelfPortraitPublisher({ writer: GITHUB_AGENT_WRITER, release: GITHUB_AGENT_RELEASE, fetchImpl: GITHUB_FETCH }) : null
+});
 // Standing consent requires explicit server opt-in and owner session authentication.
 const GITHUB_AUTONOMY_RUNTIME_CONFIG = parseRuntimeConfig(process.env);
 const GITHUB_SAFE_AUTONOMY_OPT_IN = /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_SAFE_AUTONOMY || '').trim());
@@ -447,6 +460,30 @@ async function nvidiaJsonCompletion(payload, signal, expertId, exactModel = fals
     error.status = 502;
     throw error;
   }
+}
+
+// Long single answers (the mirror's shader) stream, so the router's whole-reply timer does not cut them.
+async function nvidiaStreamText(payload, signal, expertId) {
+  const upstream = await nvidiaFetch('/chat/completions', {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    body: JSON.stringify({ ...payload, stream: true })
+  }, expertId);
+  if (!upstream.ok || !upstream.body) {
+    await upstream.body?.cancel().catch(() => {});
+    const error = new Error('NVIDIA_CHAT_ERROR');
+    error.status = upstream.status || 502;
+    throw error;
+  }
+  let text = '';
+  const round = await readNvidiaStream(upstream.body, (delta) => { text += delta; });
+  if (round?.error) {
+    const error = new Error('NVIDIA_STREAM_ERROR');
+    error.status = 502;
+    throw error;
+  }
+  return { text: text || String(round?.content || ''), model: MODEL_ROUTER.modelFor(upstream) || payload?.model || '' };
 }
 
 function normalizeRootCompletion(response) {
@@ -1984,6 +2021,30 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (url.pathname.startsWith('/api/') && await PLATFORM.handle(req, res, url)) return;
+    if (url.pathname === '/api/self-portrait' || url.pathname.startsWith('/api/self-portrait/')) {
+      const principal = req.__hafizePrincipal || null;
+      const owner = allowSafeGitHubAutonomy({ optedIn: true, authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal, configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId: AGENT_REGISTRY.defaultAgent, primaryAgentId: AGENT_REGISTRY.defaultAgent });
+      res.setHeader('Cache-Control', 'no-store');
+      if (!owner) { sendJson(res, 403, { error: 'SELF_PORTRAIT_OWNER_REQUIRED' }); return; }
+      if (!NVIDIA_API_KEY) { sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' }); return; }
+      try {
+        if (req.method === 'GET' && url.pathname === '/api/self-portrait/status') { sendJson(res, 200, SELF_PORTRAIT.status()); return; }
+        if (req.method === 'POST' && url.pathname === '/api/self-portrait/jobs') {
+          const body = await readJson(req, 1_400_000);
+          sendJson(res, 202, SELF_PORTRAIT.start(principal.ownerId, body));
+          return;
+        }
+        const jobMatch = url.pathname.match(/^\/api\/self-portrait\/jobs\/([0-9a-f-]{36})$/);
+        if (req.method === 'GET' && jobMatch) { sendJson(res, 200, SELF_PORTRAIT.get(principal.ownerId, jobMatch[1])); return; }
+        sendJson(res, 404, { error: 'NOT_FOUND' });
+      } catch (error) {
+        if (res.destroyed || res.writableEnded) return;
+        if (error instanceof SelfPortraitError) { sendJson(res, error.status, { error: error.code }); return; }
+        if (error instanceof HttpRuntimeError) { sendJson(res, error.status, { error: error.code || error.message }); return; }
+        sendJson(res, 500, { error: 'SELF_PORTRAIT_FAILED' });
+      }
+      return;
+    }
     // This path is covered by production-guard's /api/models/status prefix (session + CSRF).
     if (req.method==='GET'&&url.pathname==='/api/models/status/daily') {
       const authorized=allowSafeGitHubAutonomy({optedIn:true,authenticatedRuntime:GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired,principal:req.__hafizePrincipal||null,configuredOwnerId:GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject,agentId:AGENT_REGISTRY.defaultAgent,primaryAgentId:AGENT_REGISTRY.defaultAgent});

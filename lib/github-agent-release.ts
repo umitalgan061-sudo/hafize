@@ -17,6 +17,8 @@ const text=(v:unknown,n:number)=>typeof v==='string'&&v.trim()&&v.length<=n?v.tr
 /** Production merge intentionally starts with bounded source scopes; no policy, secret, CI, dependency or infra editing. */
 export function releasePathAllowed(repo:string,path:string){
  if(path.split('/').some(x=>!x||x==='.'||x==='..'||x.startsWith('.'))||path.includes('\\')||/(?:secret|credential|private[-_]?key|token|auth|permission|policy|security)/i.test(path))return false;
+ // Hafize's self-portrait (mirror studio) is a single, schema-checked data file.
+ if(repo===HAFIZE&&path==='public/hafize-self-portrait.json')return true;
  if(repo===HAFIZE)return /^public\/(?:typed\/)?[a-zA-Z0-9_/-][a-zA-Z0-9_./-]*\.(?:css|html|ts|js|svg)$/.test(path)&&!/(?:sw|service-worker|theme-init|composer-focus-guard)\.(?:ts|js)$/.test(path);
  if(repo===SITES)return /^(?:borsa-gunlugu|borsa-worker)\/src\/[a-zA-Z0-9_/-][a-zA-Z0-9_./-]*\.(?:js|ts|css|html)$/.test(path);
  return false;
