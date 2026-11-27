@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { CANVA_READ_TOOL_DEFINITION } from './canva-read-tool-boundary.ts';
 import { GMAIL_READ_TOOL_DEFINITION } from './gmail-read-tool-boundary.ts';
 import { normalizeToolCall, parseToolArguments, sanitizeToolError } from './tool-call-boundary.ts';
+import {GitHubDevelopmentInputError} from './github-agent-development.ts';
 import { projectSafeToolExecutionResult } from './tool-execution-result-policy.ts';
 import { WEATHER_TOOL_DEFINITION } from './weather-tool.ts';
 import { WEB_TOOL_DEFINITIONS } from './web-tools.ts';
@@ -848,7 +849,7 @@ export async function executeNvidiaToolCall(
         : {}),
       ...(safe.status !== null ? { status: safe.status } : {}),
       ...(normalized.function.name==='github_develop'&&safe.code==='INVALID_GITHUB_ARGUMENTS'?
-        {reason:args.operation==='branch'?'GITHUB_ARGS_BRANCH':args.operation==='file'?'GITHUB_ARGS_FILE':args.operation==='pull'?'GITHUB_ARGS_PULL':'GITHUB_ARGS_OPERATION'}:{}),
+        {reason:args.operation==='branch'?'GITHUB_ARGS_BRANCH':args.operation==='file'?(error instanceof GitHubDevelopmentInputError&&!abortError?'GITHUB_ARGS_FILE_PRE_WRITE':'GITHUB_ARGS_FILE'):args.operation==='pull'?'GITHUB_ARGS_PULL':'GITHUB_ARGS_OPERATION'}:{}),
       ...(normalized.function.name==='github_inspect'&&safe.code==='INVALID_GITHUB_ARGUMENTS'?
         {reason:'Use only fields for the selected action: project:path; repo:none; directory:path/ref; branches:limit; commits:ref/limit; pulls:state/limit; commit:sha; pull:number; compare:base/head; checks:sha; wait_checks:sha/waitSeconds/workflowPath; jobs:runId. Always include action and repository; omit other fields.'}:{}),
       durationMs: Date.now() - startedAt
