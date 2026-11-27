@@ -20,8 +20,8 @@ type RequestContext = {
   readonly requestApproval?: Approval;
   /** Trusted SERVER context only: cannot be supplied as model tool arguments. */
   readonly safeAutonomy?: boolean;
-  readonly onPreparedBranch?: (target:{repository:string;branch:string})=>void;
-  readonly onPreparedFile?: (target:{repository:string;branch:string;path:string;expectedBlob:string})=>void;
+  readonly onPreparedBranch?: (target:{repository:string;branch:string})=>void|Promise<void>;
+  readonly onPreparedFile?: (target:{repository:string;branch:string;path:string;expectedBlob:string})=>void|Promise<void>;
 };
 type Options = {
   readonly writer: Writer;
@@ -165,12 +165,12 @@ export function createGitHubAgentDevelopment(options: Options) {
     // normalized repository, operation and entire content fingerprint.
     const ticket = writer.issueApproval(operation, normalized, true);
     const token = ticket.ticket;
-    if (operation === 'branch') {context.onPreparedBranch?.({repository,branch});return writer.createBranch(token, normalized);}
+    if (operation === 'branch') {await context.onPreparedBranch?.({repository,branch});return writer.createBranch(token, normalized);}
     if (operation === 'file') {
       if(context.onPreparedFile){
         const bytes=Buffer.from(String(normalized.content),'utf8');
         const expectedBlob=createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
-        context.onPreparedFile({repository,branch,path:String(normalized.path),expectedBlob});
+        await context.onPreparedFile({repository,branch,path:String(normalized.path),expectedBlob});
       }
       const committed = await writer.commitFile(token, normalized);
       // The mutation has already returned a commit. A transient read-back
