@@ -106,7 +106,7 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
  const named=requestedExistingFeatureBranch(request),created=verifiedCreatedFeatureBranch(receipts);
  if((!named&&!created)||!githubWorkRequested(request))return false;
  if(named&&created&&named!==created.branch)return false;
- const explicitEdit=/\b(?:dosya\w*|file|[a-z0-9_-]+\.(?:ts|js|css|html|md|py))\b/.test(s)&&/\b(?:duzenle|guncelle|degistir|duzelt|edit|update|patch)\b/.test(s)&&/\b(?:commit et|commit yap|commit olustur|commit the change)\b/.test(s);
+ const explicitEdit=/\b(?:dosya\w*|file|[a-z0-9_-]+\.(?:ts|js|css|html|md|py))\b/.test(s)&&/\b(?:duzenle|guncelle|degistir|duzelt|gelistir|iyilestir|edit|update|patch|improve)\b/.test(s)&&/\b(?:commit et|commit yap|commit olustur|commit the change)\b/.test(s);
  const development=/\b(?:gelistir|iyilestir|algoritma iyilestirmeleri yap|gelistirmeleri tamamla|kod degisikligi yap)\b/.test(s)&&/\b(?:pr olustur|pr ac|test\w* ekle|regresyon test\w*|kod degisikligi|algoritma)\b/.test(s);
  const newBranchDevelopment=Boolean(created)&&/\b(?:tasarla|gelistir|iyilestir|duzenle|guncelle|degistir|uygula|kod degisiklik\w*|implement|update|patch)\w*/.test(s)&&/\b(?:commit|pr ac|pr olustur|merge|canliya al|kod degisiklik\w*)\b/.test(s);
  if(!explicitEdit&&!development&&!newBranchDevelopment)return false;
@@ -114,6 +114,18 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
  return receipts.some(r=>r.tool==='github_read_file'&&r.kind==='read')&&
    !receipts.some(r=>(r.kind==='error'&&!recoverableReadReceipt(r)&&!r.line.includes('GITHUB_REQUESTED_BRANCH_MISMATCH')&&!(r.tool==='github_develop'&&r.preWriteRejected===true))||['file','pull','merge','dispatch'].includes(r.kind))&&
    !calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&!(c.operation==='branch'&&c.ok===true)&&c.error!=='GITHUB_REQUESTED_BRANCH_MISMATCH'&&!(c.operation==='file'&&c.ok===false&&c.error==='INVALID_GITHUB_ARGUMENTS'&&c.status===400&&c.reason==='GITHUB_ARGS_FILE_PRE_WRITE')));
+}
+/** Exact-file proposal may retry a failed exploratory read, but must fetch
+ * the owner-named file from the verified target branch again before writing.
+ * This does not waive a 404 for normal model-driven writes, or any mutation,
+ * authorization or transport failure. */
+export function explicitPatchRecoveryTarget(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string;error?:string|null;reason?:string|null;status?:number|null}[]):{repository:string;branch:string}|null{
+ const target=verifiedCreatedFeatureBranch(receipts)??namedReadTarget(request,receipts);
+ if(!target)return null;
+ const safeReceipts=receipts.filter(r=>!(r.tool==='github_read_file'&&r.kind==='error'&&r.line==='github_read_file: GITHUB_READ_FAILED (HTTP 404)'));
+ // A successful read is still required. The normal write recovery policy
+ // supplies the affirmative commit intent and all mutation vetoes.
+ return shouldRecoverReadOnlyWrite(request,safeReceipts,calls)?target:null;
 }
 /** Only explicit affirmative PR requests on a named existing feature
  * branch. A verified file write is progress, not delivery of the PR.
