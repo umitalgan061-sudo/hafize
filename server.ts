@@ -74,7 +74,7 @@ import { createDailyImprovement } from './lib/daily-improvement.ts';
 import { auditExpertContracts } from './lib/expert-readiness.ts';
 import { expertModelTask, diversifyExpertModels } from './lib/expert-model-policy.ts';
 import { capabilityInstruction, formatCapabilityAnswer, isStandaloneCapabilityQuestion, MAX_ROOT_CALLS_PER_ROUND, LONG_RUN_LEDGER_ENTRIES, MAX_EXPERT_ROUNDS } from './lib/runtime-capabilities.ts';
-import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic } from './lib/agent-continuation-recovery.ts';
+import { buildFinalToolInstruction, buildProgressRepairInstruction, incompleteAgentRunAnswer, isEmptyOrProgressOnlyAnswer, agentInterruptionDiagnostic, deliveryRepairModel, deliveryRepairTokenBudget } from './lib/agent-continuation-recovery.ts';
 import { pullDeliveryInstruction, namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, type GitHubReceipt } from './lib/github-run-evidence.ts';
 import { isAgentTurnId, durableGitHubTools, mutationTools, mutationIntent, continuationRequested } from './lib/agent-turn-checkpoints.ts';
 import {AGENT_JOURNAL_HEARTBEAT_MS} from './lib/upstash-agent-journal.ts';
@@ -90,7 +90,7 @@ import { createModelProviderRuntime } from './lib/model-provider-runtime.ts';
 import { createHafizePlatform } from './lib/hafize-platform.ts';
 import { startLocalHttps } from './lib/local-tls.ts';
 import { freeLlmGateway } from './lib/freellm-gateway.ts';
-import { markCompletionOrigin } from './lib/model-response-origin.ts';
+import { markCompletionOrigin, completionOrigin } from './lib/model-response-origin.ts';
 import { createRuntimeEvidence } from './lib/model-runtime-evidence.ts';
 import {createGitHubAppCiReader,GitHubAppCiError} from './lib/github-app-ci.ts';
 import { createModelRouter, parseModelChain } from './lib/model-router.ts';
@@ -1199,12 +1199,31 @@ async function handleAgentRun(req, res) {
     answerText += delta;
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: delta } }] })}\n\n`);
   };
+  // Request-local list of actual model identities that returned no tool
+  // during a verified delivery repair. Never override tool authorization.
+  const stalledDeliveryModels=new Set<string>();
   async function runRound(payload, bufferedRepair = false) {
     if (!streamResponse || bufferedRepair) {
-      const raw = await nvidiaJsonCompletion(payload, requestAbort.signal);
+      const alternate=bufferedRepair?deliveryRepairModel(MODEL_ROUTER.status().chain,stalledDeliveryModels):null;
+      const repairPayload=bufferedRepair?{...payload,max_tokens:deliveryRepairTokenBudget(payload.max_tokens)}:payload;
+      let raw;
+      if(alternate&&stalledDeliveryModels.size){
+        console.info(JSON.stringify({event:'hafize.github.delivery_model',model:alternate,stage:'alternate'}));
+        try{
+          // Only a configured chat model and a bounded, model-only request.
+          // No GitHub mutation has been attempted by this call.
+          const signal=AbortSignal.any([requestAbort.signal,AbortSignal.timeout(90_000)]);
+          raw=await nvidiaJsonCompletion({...repairPayload,model:alternate},signal,undefined,true);
+        }catch{
+          requestAbort.signal.throwIfAborted();
+          stalledDeliveryModels.add(alternate);
+          console.info(JSON.stringify({event:'hafize.github.delivery_model',model:alternate,stage:'fallback'}));
+          raw=await nvidiaJsonCompletion(repairPayload,requestAbort.signal);
+        }
+      }else raw=await nvidiaJsonCompletion(repairPayload,requestAbort.signal);
       PLATFORM.telemetry.recordCompletionUsage(traceId, 'agent.round', model, raw);
       const completion = normalizeRootCompletion(raw);
-      return { content: completion.content, toolCalls: completion.toolCalls, wrote: false };
+      return { content: completion.content, toolCalls: completion.toolCalls, wrote: false, routedModel:completionOrigin(raw) };
     }
     const upstream = await nvidiaFetch('/chat/completions', {
       method: 'POST',
@@ -1240,7 +1259,7 @@ async function handleAgentRun(req, res) {
       error.routedModel = MODEL_ROUTER.modelFor(upstream);
       throw error;
     }
-    return { content: round.content, toolCalls: round.toolCalls, wrote };
+    return { content: round.content, toolCalls: round.toolCalls, wrote, routedModel:MODEL_ROUTER.modelFor(upstream)||model };
   }
   const failRound = async (error) => {
     interruptionDiagnostic=agentInterruptionDiagnostic(error,requestAbort.signal,'model_round');
@@ -1436,6 +1455,7 @@ async function handleAgentRun(req, res) {
         tools.some(t=>t.function.name==='github_develop') &&
         shouldRecoverReadOnlyWrite(developmentRequest,githubReceipts,toolSummary)){
         readOnlyWriteRecoveryRounds+=1;
+        if(completion.routedModel)stalledDeliveryModels.add(completion.routedModel);
         bufferedRepairNext=true;
         recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??namedReadTarget(developmentRequest,githubReceipts)??recoveryBranch;
         console.info(JSON.stringify({event:'hafize.github.delivery_repair',stage:'file',attempt:readOnlyWriteRecoveryRounds,verifiedBranch:Boolean(recoveryBranch)}));
@@ -1444,6 +1464,7 @@ async function handleAgentRun(req, res) {
       }
       if(!missingPullRecoveryUsed&&round+1<MAX_AGENT_TOOL_ROUNDS&&durableId&&!requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&tools.some(t=>t.function.name==='github_develop')&&shouldRecoverMissingPull(developmentRequest,githubReceipts,toolSummary)){
         missingPullRecoveryUsed=true;
+        if(completion.routedModel)stalledDeliveryModels.add(completion.routedModel);
         bufferedRepairNext=true;
         console.info(JSON.stringify({event:'hafize.github.delivery_repair',stage:'pull',attempt:1}));
         recoveryBranch=verifiedCreatedFeatureBranch(githubReceipts)??namedReadTarget(developmentRequest,githubReceipts)??recoveryBranch;
@@ -1458,7 +1479,7 @@ async function handleAgentRun(req, res) {
         break;
       }
       if(durableId&&githubEvidenceMode&&!githubReceipts.some(r=>r.kind==='file')&&(requestedBranch||githubReceipts.some(r=>r.kind==='branch'))){
-        console.info(JSON.stringify({event:'hafize.github.delivery_incomplete',stage:'file',repairAttempts:readOnlyWriteRecoveryRounds,pending:Boolean(PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length),writerAdvertised:tools.some(t=>t.function.name==='github_develop')}));
+        console.info(JSON.stringify({event:'hafize.github.delivery_incomplete',stage:'file',repairAttempts:readOnlyWriteRecoveryRounds,pending:Boolean(PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length),writerAdvertised:tools.some(t=>t.function.name==='github_develop'),modelsTried:stalledDeliveryModels.size}));
       }
       await finishWithAnswer(content, completion.wrote);
       return;
