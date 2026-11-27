@@ -16,6 +16,12 @@ const NODE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.url))
 const EXTENSIONS: Readonly<Record<string, string>> = Object.freeze({ 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg' });
 export const MEDIA_LIMITS = Object.freeze({ maxUploadBytes: 8 * 1024 * 1024, maxPrompt: 1_500, maxDiagram: 20_000, maxVisionImages: 4 });
 const IMAGE_ID = /^img_[a-f0-9]{20}$/;
+/** The hosted FLUX endpoint rejects 512px even when an upstream caller asks for it. */
+export function normalizeImageDimension(value: unknown): 768 | 1024 | 1280 {
+  const requested = Number(value);
+  if (requested === 768 || requested === 1280) return requested;
+  return 1024;
+}
 
 export class MediaToolError extends Error {
   readonly code: string;
@@ -91,13 +97,9 @@ export function createMediaTools({ models, images, browser }: { readonly models:
   async function generateImage({ ownerId, prompt, width = 1024, height = 1024, seed, traceId = '', signal }: { readonly ownerId: string; readonly prompt: unknown; readonly width?: unknown; readonly height?: unknown; readonly seed?: unknown; readonly traceId?: string; readonly signal?: AbortSignal | undefined }) {
     const text = typeof prompt === 'string' ? prompt.replace(/\s+/g, ' ').trim() : '';
     if (!text || text.length > MEDIA_LIMITS.maxPrompt) throw new MediaToolError('INVALID_IMAGE_PROMPT');
-    const size = (value: unknown) => {
-      const number = Number(value);
-      return [512, 768, 1024, 1280].includes(number) ? number : 1024;
-    };
     const verdict = await models.safetyCheck(`Bu açıklamaya göre bir görsel üret: ${text}`, { traceId, signal });
     if (!verdict.safe) throw Object.assign(new MediaToolError('IMAGE_PROMPT_UNSAFE', 422), { detail: verdict.categories });
-    const result = await models.generateImage({ prompt: text, width: size(width), height: size(height), seed: Number.isInteger(seed) ? Number(seed) : undefined, signal });
+    const result = await models.generateImage({ prompt: text, width: normalizeImageDimension(width), height: normalizeImageDimension(height), seed: Number.isInteger(seed) ? Number(seed) : undefined, signal });
     const stored = images.save({ ownerId, bytes: result.bytes, mime: result.mime, model: result.model, prompt: text, seed: result.seed });
     return { id: stored.id, url: stored.url, markdown: `![${text.slice(0, 80).replace(/[[\]]/g, '')}](${stored.url})`, revisedPrompt: text, seed: result.seed, model: result.model, safetyChecked: verdict.checked, note: 'Görseli kullanıcıya göstermek için yanıtına markdown satırını aynen ekle.' };
   }

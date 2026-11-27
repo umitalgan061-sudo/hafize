@@ -277,7 +277,10 @@ export function createModelServices(config: ModelServicesConfig) {
       method: 'POST',
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000),
       headers: authHeaders(),
-      body: JSON.stringify({ prompt, width, height, seed: usedSeed, steps })
+      // Keep the full, documented FLUX contract. The hosted endpoint validates
+      // its image-generation mode strictly and returns HTTP 422 for partial or
+      // unsupported dimension payloads.
+      body: JSON.stringify({ mode: 'Image Generation', prompt, width, height, cfg_scale: 0, image: null, samples: 1, seed: usedSeed, steps })
     });
     if (!response.ok) throw new ModelServiceError(response.status === 422 || response.status === 400 ? 'IMAGE_PROMPT_REJECTED' : 'IMAGE_GENERATION_FAILED', response.status);
     const data = await response.json() as { artifacts?: Array<{ base64?: string; finishReason?: string; seed?: number }> };

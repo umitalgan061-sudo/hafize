@@ -1,6 +1,7 @@
 
 import {describe,it,expect,vi} from 'vitest';
 import {createModelServices} from './model-services.ts';
+import {normalizeImageDimension} from './media-tools.ts';
 describe('embedding provider isolation',()=>{
   it('does not mix cached NVIDIA vectors and local vectors during failover',async()=>{
     let fail=false;
@@ -29,6 +30,7 @@ describe('embedding provider isolation',()=>{
 });
 
 describe('specialist service validation',()=>{
+  it('uses the strict hosted FLUX request contract',async()=>{const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({artifacts:[{base64:Buffer.from([255,216,255,0]).toString('base64'),finishReason:'SUCCESS'}]})));const models=createModelServices({apiKey:'test',chat:async()=>({}),fetchImpl:fetchImpl as typeof fetch});await models.generateImage({prompt:'a calm office',width:1024,height:1024,seed:7});expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toMatchObject({mode:'Image Generation',cfg_scale:0,image:null,samples:1,steps:4});expect(normalizeImageDimension(512)).toBe(1024);});
   it('makes no rerank request unless enabled and validates all result indices',async()=>{
     let bad=false;const fetchImpl=vi.fn(async()=>new Response(JSON.stringify({rankings:bad?[{index:1,logit:3},{index:1,logit:2}]:[{index:0,logit:1},{index:1,logit:3}]})));
     const base={apiKey:'test',chat:async()=>({}),fetchImpl:fetchImpl as typeof fetch};
