@@ -83,6 +83,7 @@ import { reconcilePendingGitHubMutations, recoveryBranchProbe } from './lib/gith
 
 import { HttpRuntimeError, attachDisconnectAbort, readJson, requestJsonAcceptsSse, sendJson, sendSseContent, setSecurityHeaders, startSse, writeSseEvent } from './lib/http-runtime.ts';
 import { createShutdownCoordinator } from './lib/graceful-shutdown.ts';
+import { createAgentRequestDrain } from './lib/agent-request-drain.ts';
 import { buildSystemReadiness } from './lib/system-readiness.ts';
 import { createRuntimeMetrics } from './lib/runtime-metrics.ts';
 import { createRateLimiter } from './lib/rate-limit.ts';
@@ -901,6 +902,7 @@ async function handleGitHubWorkspace(url, res) {
   }
 }
 
+const AGENT_REQUEST_DRAIN=createAgentRequestDrain();
 async function handleAgentRun(req, res) {
   const body = await readJson(req, CHAT_BODY_BYTES);
   const streamResponse = requestJsonAcceptsSse(req);
@@ -959,6 +961,9 @@ async function handleAgentRun(req, res) {
   // inspection-only; retain uncertain writes even if the next request is reworded.
   const recoveryReadOnly=Boolean(restoredPrior||remoteInterrupted||prior?.pending.length);
   let inheritedPending = durable ? prior?.pending ?? [] : [];
+  // Admission may have awaited Redis while shutdown began. Do not create a
+  // new checkpoint after the shutdown cancellation sweep.
+  if(AGENT_REQUEST_DRAIN.closing()){sendJson(res,503,{error:'AGENT_TURN_SERVER_SHUTDOWN'});return;}
   const checkpoint = durable ? PLATFORM.agentTurns.begin(ownerId,conversationId,requestedTurnId,inheritedPending) : null;
   if(checkpoint && !checkpoint.accepted){
     sendJson(res,409,{error:checkpoint.reason});return;
@@ -2040,7 +2045,7 @@ const server = createServer(async (req, res) => {
       sendJson(res, 200, {
         status: 'ok',
         revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT||'')?process.env.RENDER_GIT_COMMIT:null,
-        durableGitHubTaskActive: PLATFORM.agentTurns.hasActive(),
+        durableGitHubTaskActive: PLATFORM.agentTurns.hasActive()||AGENT_REQUEST_DRAIN.activeCount()>0,
         durableGitHubJournalConfigured: Boolean(PLATFORM.agentJournal?.configured),
         durableGitHubDeploymentPending: PLATFORM.agentTurns.deploymentPending(),
         uptimeSeconds: Number(process.uptime().toFixed(3)),
@@ -2253,7 +2258,9 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'POST' && url.pathname === '/api/agent/run') {
       if (!acquireRateLimit(AGENT_RATE_LIMITER, req, res)) return;
-      await handleAgentRun(req, res);
+      const task=AGENT_REQUEST_DRAIN.start(()=>handleAgentRun(req,res));
+      if(!task){sendJson(res,503,{error:'AGENT_TURN_SERVER_SHUTDOWN'});return;}
+      await task;
       return;
     }
     if (req.method === 'POST' && url.pathname === '/api/chat') {
@@ -2292,10 +2299,12 @@ function closeHttpServer() {
 }
 
 const SHUTDOWN = createShutdownCoordinator({
-  stopWorker: () => { stopScheduleWorkerLoop(); stopRuleEngineLoop(); clearInterval(dailyTimer); },
+  stopWorker: () => { AGENT_REQUEST_DRAIN.stop(); PLATFORM.agentTurns.cancelAll(); stopScheduleWorkerLoop(); stopRuleEngineLoop(); clearInterval(dailyTimer); },
   waitForTick: () => scheduleTickPromise ?? Promise.resolve(),
   closeLease: async () => {
     await DAILY_IMPROVEMENT.stop().catch(() => {});
+    const drained=await AGENT_REQUEST_DRAIN.drain(12_000);
+    console.info(JSON.stringify({event:'hafize.agent.shutdown_drain',drained,remaining:AGENT_REQUEST_DRAIN.activeCount()}));
     await PLATFORM.shutdown().catch(() => {});
     return SCHEDULE_LEASE_RUNTIME.close();
   },
