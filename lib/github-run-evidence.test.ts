@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
+import {namedReadTarget, githubWorkRequested, githubReceipt, formatGitHubRunEvidence, shouldRecoverReadOnlyWrite, requestedExistingFeatureBranch, violatesExistingFeatureBranch, continuationDevelopmentRequest, explicitPullRequested, shouldRecoverMissingPull, verifiedCreatedFeatureBranch, bareDevelopmentContinuation } from './github-run-evidence.ts';
 const repository='umitalgan061-sudo/retake', commit='a'.repeat(40), blob='b'.repeat(40);
 describe('GitHub run evidence',()=>{
  it('rejects imagined operations in arbitrary prose and failed tool results',()=>{
@@ -158,4 +158,26 @@ it('recovers from duplicate read rejection after verified branch creation in the
  const file=githubReceipt('github_develop',{ok:true,value:{repository,action:'file',branch,path:'public/design-system.css',commitSha:commit,blobSha:blob,verified:true}});
  expect(shouldRecoverMissingPull(request,[...rows,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(true);
  expect(shouldRecoverMissingPull(request,[...rows,...file,...githubReceipt('github_release',{ok:false,error:'REPEATED_TOOL_CALL'})],[...calls,{name:'github_release',ok:false}])).toBe(false);
+});
+
+it('repairs the exact image animation continuation after malformed inspection and duplicate read, without relaxing mutation fences',()=>{
+ const repository='umitalgan061-sudo/hafize',branch='hafize/auto-bebc5db5712e40bb8842665af169ad62';
+ const request='umitalgan061-sudo/hafize deposunda '+branch+' dalında geliştirmeye devam et. Mevcut dalı kullan. public/typed/image-generation-dither.ts dosyasını düzenle ve animasyonu gerçek görsel oluşturma sürecine entegre et. Görsel kaliteyi, performansı, mobil uyumluluğu ve hata yönetimini geliştir. Gerekli regresyon testlerini ekle. github_develop aracını kullanarak kod değişikliklerini gerçekleştir ve commit et. PR oluştur, CI testlerini doğrula, merge et ve Render üzerinden canlıya al.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/typed/image-generation-dither.ts',sha:blob}});
+ const malformed=githubReceipt('github_inspect',{ok:false,error:'INVALID_GITHUB_ARGUMENTS',status:400});
+ const duplicate=githubReceipt('github_inspect',{ok:false,error:'REPEATED_TOOL_CALL'});
+ const receipts=[...read,...malformed,...duplicate];
+ const calls=[{name:'github_read_file',ok:true},{name:'github_inspect',ok:false,error:'INVALID_GITHUB_ARGUMENTS'},{name:'github_inspect',ok:false,error:'REPEATED_TOOL_CALL'}];
+ expect(namedReadTarget(request,receipts)).toEqual({repository,branch});
+ expect(shouldRecoverReadOnlyWrite(request,receipts,calls)).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request+' Sadece incele.',receipts,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,malformed,calls)).toBe(false);
+ for(const status of [401,403,404,500]){
+  expect(shouldRecoverReadOnlyWrite(request,[...read,...githubReceipt('github_inspect',{ok:false,error:'INVALID_GITHUB_ARGUMENTS',status})],calls)).toBe(false);
+ }
+ expect(shouldRecoverReadOnlyWrite(request,[...receipts,...githubReceipt('github_develop',{ok:false,error:'INVALID_GITHUB_ARGUMENTS',status:400})],[...calls,{name:'github_develop',operation:'file',ok:false}])).toBe(false);
+ expect(namedReadTarget(request,[...read,...githubReceipt('github_read_file',{ok:true,value:{repository:'other/repo',path:'app.js',sha:blob}})])).toBeNull();
+ const file=githubReceipt('github_develop',{ok:true,value:{repository,action:'file',branch,path:'public/typed/image-generation-dither.ts',commitSha:commit,blobSha:blob,verified:true}});
+ expect(shouldRecoverMissingPull(request,[...receipts,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(true);
+ expect(shouldRecoverMissingPull(request,[...receipts,...file],[...calls,{name:'github_develop',operation:'pull',ok:false}])).toBe(false);
 });
