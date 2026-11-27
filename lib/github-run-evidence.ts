@@ -30,7 +30,7 @@ export function githubWorkRequested(request:unknown,previous:readonly unknown[]=
  return /\b(?:github|retake|hafize|depo|repo|pull request|commit|pr|firebase|nvidia)\b/.test(text)&&
  /\b(?:gelistir|duzelt|guncelle|uygula|olustur|entegre et|kodla|kod degisikligi|degistir|yayinla|canliya al|birlestir|merge|deploy|commit|pr ac|pull request ac|tamamla|devam et|fix|implement|update|patch|write|create)\w*/.test(text);
 }
-export type GitHubReceipt={readonly tool:string;readonly line:string;readonly kind:'read'|'branch'|'file'|'pull'|'merge'|'dispatch'|'checks'|'error';readonly repository?:string;readonly branch?:string};
+export type GitHubReceipt={readonly tool:string;readonly line:string;readonly kind:'read'|'branch'|'file'|'pull'|'merge'|'dispatch'|'checks'|'error';readonly repository?:string;readonly branch?:string;readonly preWriteRejected?:true};
 /** Only a single explicit feature branch named in the latest user request.
  * It is a restriction, never an authorization. Ambiguous branch requests
  * keep the existing tool constraints. */
@@ -101,7 +101,7 @@ function recoverableReadReceipt(row:GitHubReceipt):boolean{
 /** Bounded model recovery after inspection, with no attempted file, PR,
  * merge or publish mutation. A verified branch creation is not delivery.
  * Never replay a mutation, override permission, or choose code automatically. */
-export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string;error?:string|null}[]):boolean{
+export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly GitHubReceipt[],calls:readonly {name:string;ok?:boolean;operation?:string;error?:string|null;reason?:string|null;status?:number|null}[]):boolean{
  const s=normal(request);
  const named=requestedExistingFeatureBranch(request),created=verifiedCreatedFeatureBranch(receipts);
  if((!named&&!created)||!githubWorkRequested(request))return false;
@@ -112,8 +112,8 @@ export function shouldRecoverReadOnlyWrite(request:unknown,receipts:readonly Git
  if(!explicitEdit&&!development&&!newBranchDevelopment)return false;
  if(/\b(?:commit etme|commit yapma|commit olusturma|dosya\w* (?:degistirme|duzenleme|guncelleme)|sadece oku|yalnizca oku|sadece incele|yalnizca incele|salt okunur|read only|do not commit|degisiklik yapma|kod yazma)\b/.test(currentDirectiveForRestrictions(s)))return false;
  return receipts.some(r=>r.tool==='github_read_file'&&r.kind==='read')&&
-   !receipts.some(r=>(r.kind==='error'&&!recoverableReadReceipt(r)&&!r.line.includes('GITHUB_REQUESTED_BRANCH_MISMATCH'))||['file','pull','merge','dispatch'].includes(r.kind))&&
-   !calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&!(c.operation==='branch'&&c.ok===true)&&c.error!=='GITHUB_REQUESTED_BRANCH_MISMATCH'));
+   !receipts.some(r=>(r.kind==='error'&&!recoverableReadReceipt(r)&&!r.line.includes('GITHUB_REQUESTED_BRANCH_MISMATCH')&&!(r.tool==='github_develop'&&r.preWriteRejected===true))||['file','pull','merge','dispatch'].includes(r.kind))&&
+   !calls.some(c=>c.name==='github_release'||(c.name==='github_develop'&&!(c.operation==='branch'&&c.ok===true)&&c.error!=='GITHUB_REQUESTED_BRANCH_MISMATCH'&&!(c.operation==='file'&&c.ok===false&&c.error==='INVALID_GITHUB_ARGUMENTS'&&c.status===400&&c.reason==='GITHUB_ARGS_FILE_PRE_WRITE')));
 }
 /** Only explicit affirmative PR requests on a named existing feature
  * branch. A verified file write is progress, not delivery of the PR.
@@ -136,6 +136,7 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
   const hints:Record<string,string>={
    GITHUB_ARGS_BRANCH:'Dal parametreleri: operation, repository ve isteğe bağlı branch.',
    GITHUB_ARGS_FILE:'Dosya parametreleri: branch/path/message ve content veya find/replace/existingSha.',
+   GITHUB_ARGS_FILE_PRE_WRITE:'Yerel dosya parametre doğrulaması yazma başlamadan reddetti. Düzeltilmiş çağrı için yalnız bir yazma biçimi kullan.' ,
    GITHUB_ARGS_PULL:'PR parametreleri: branch/title ve isteğe bağlı body.',
    GITHUB_ARGS_OPERATION:'operation: branch, file veya pull.'
   };
@@ -155,7 +156,8 @@ export function githubReceipt(tool:string,result:unknown):GitHubReceipt[]{
   };
   const code=token(outer.error,CODE)||'TOOL_FAILED';
   const hint=tool==='github_develop'&&code==='INVALID_GITHUB_ARGUMENTS'?hints[token(outer.reason,CODE)]:errors[code];
-  return [item('error',tool+': '+code+(typeof outer.status==='number'?' (HTTP '+outer.status+')':'')+(hint?' — '+hint:''))];
+  const errorReceipt=item('error',tool+': '+code+(typeof outer.status==='number'?' (HTTP '+outer.status+')':'')+(hint?' — '+hint:''));
+  return [tool==='github_develop'&&code==='INVALID_GITHUB_ARGUMENTS'&&outer.status===400&&outer.reason==='GITHUB_ARGS_FILE_PRE_WRITE'?{...errorReceipt,preWriteRejected:true}:errorReceipt];
  }
  const repo=token(v.repository,REPO);
  if(!repo)return [item('error',tool+': doğrulanabilir depo bilgisi yok')];

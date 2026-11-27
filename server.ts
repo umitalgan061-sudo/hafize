@@ -1644,7 +1644,7 @@ async function handleAgentRun(req, res) {
         // Only safe tool names/codes/status, never arguments, file contents or secrets.
         if (['github_inspect','github_read_file','github_develop','github_release'].includes(call.function.name)) {
           const code = typeof result.error === 'string' && /^[A-Z0-9_]{1,80}$/.test(result.error) ? result.error : 'UNKNOWN';
-          console.warn(JSON.stringify({event:'hafize.github.tool_failure',tool:call.function.name,code,status:'status' in result && typeof result.status==='number'?result.status:null}));
+          console.warn(JSON.stringify({event:'hafize.github.tool_failure',tool:call.function.name,code,status:'status' in result && typeof result.status==='number'?result.status:null,...('reason' in result&&typeof result.reason==='string'&&/^GITHUB_ARGS_[A-Z_]+$/.test(result.reason)?{reason:result.reason}:{})}));
         }
       }
       toolSummary.push({
@@ -1652,6 +1652,7 @@ async function handleAgentRun(req, res) {
         ...(call.function.name==='github_develop'?{operation:mutationIntent(call.function.name,call.function.arguments)?.operation}:{}),
         ok: result.ok,
         error: result.error || null,
+        reason:'reason' in result&&typeof result.reason==='string'&&/^GITHUB_ARGS_[A-Z_]+$/.test(result.reason)?result.reason:null,
         status: 'status' in result && typeof result.status === 'number' ? result.status : null,
         durationMs: Number.isFinite(result.durationMs) ? result.durationMs : null
       });

@@ -36,8 +36,14 @@ const FIELD_SETS: Readonly<Record<Operation, ReadonlySet<string>>> = {
   pull: new Set(['operation', 'repository', 'branch', 'title', 'body'])
 };
 
+/** This error is issued exclusively by local argument validation, before
+ * issuing a writer ticket or sending a mutation. Do not use it for provider
+ * errors, approval errors or post-write verification failures. */
+export class GitHubDevelopmentInputError extends GitHubWorkspaceWriteError {
+  constructor(){super('INVALID_GITHUB_ARGUMENTS',400);}
+}
 function invalid(): never {
-  throw new GitHubWorkspaceWriteError('INVALID_GITHUB_ARGUMENTS', 400);
+  throw new GitHubDevelopmentInputError();
 }
 function asRecord(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return invalid();
@@ -79,6 +85,9 @@ export function createGitHubAgentDevelopment(options: Options) {
         if(args.existingSha===null||args.existingSha==='')delete args.existingSha;
         for(const key of ['content','find','replace'])if(args[key]===null)delete args[key];
         if(typeof args.content==='string'&&args.content.length>0&&args.find===''&&args.replace===''){delete args.find;delete args.replace;}
+        // An empty full-content placeholder accompanying a real patch is
+        // not a second write mode. Preserve empty replacement text (delete).
+        if(args.content===''&&typeof args.find==='string'&&args.find.length>0&&typeof args.replace==='string'&&typeof args.existingSha==='string')delete args.content;
       }
     }
     if (operation !== 'branch' && operation !== 'file' && operation !== 'pull') return invalid();

@@ -190,3 +190,18 @@ it('selects ready PR guidance only for an advertised, explicitly authorized rele
   expect(pullDeliveryInstruction(scope,tools,repo)).not.toContain('github_release action=open');
  }
 });
+
+it('recovers a locally rejected file argument only with pre-write proof, never generic mutation errors',()=>{
+ const request='Retake hafize/auto-example dalında app.js dosyasını düzenle ve commit et.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'app.js',sha:blob}});
+ const failure={ok:false,error:'INVALID_GITHUB_ARGUMENTS',status:400,reason:'GITHUB_ARGS_FILE_PRE_WRITE'};
+ const call={name:'github_develop',operation:'file',...failure};
+ const rejected=githubReceipt('github_develop',failure);
+ expect(rejected[0]?.preWriteRejected).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request,[...read,...rejected],[call])).toBe(true);
+ expect(shouldRecoverReadOnlyWrite(request+' Commit etme.',[...read,...rejected],[call])).toBe(false);
+ for(const other of [{...failure,reason:'GITHUB_ARGS_FILE'},{...failure,status:502},{...failure,error:'GITHUB_WRITE_FAILED'}]){
+  expect(shouldRecoverReadOnlyWrite(request,[...read,...githubReceipt('github_develop',other)],[{name:'github_develop',operation:'file',...other}])).toBe(false);
+ }
+ expect(shouldRecoverReadOnlyWrite(request,[...read,...rejected],[{...call,reason:undefined}])).toBe(false);
+});
