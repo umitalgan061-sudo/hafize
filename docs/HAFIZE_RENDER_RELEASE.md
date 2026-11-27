@@ -5,6 +5,7 @@
 - günde iki kez (08:17 ve 20:17, İstanbul) ve **Actions → "Hafize Render — gated release" → Run workflow** ile elle çalışır;
 - yalnız **ana dalın en yeni commit'ini** ele alır; o commit'in `Hafize quality` push çalışması **başarılı** değilse yüklemez (sürmekteyse 25 dk bekler);
 - canlı `/release.json` commit'i ile karşılaştırır: zaten canlıysa ya da arada yalnız belge, iş akışı veya test değiştiyse **yüklemez** (`force` girdisiyle zorlanabilir, testler yine şarttır);
+- yayından hemen önce main SHA değerini ve canlı sunucunun sağlık yanıtını tekrar doğrular; aktif ajan görevi, bekleyen dağıtım veya doğrulanamayan sağlık varsa yayını erteler (`force` da bunu aşmaz). Bu dış kontrol atomik görev kilidi değildir; kontrol ile dağıtım arasında çok kısa bir yarış penceresi kalır. Kalıcı görev günlüğü bu durumda kayıtları korur;
 - Render deploy hook adresine `ref=<tam SHA>` ekleyerek tam olarak o commit'i yükletir;
 - 30 dk içinde `/release.json` o commit'i ve `/api/health/live` yanıtı göstermezse başarısız olur.
 
