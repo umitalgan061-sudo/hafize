@@ -242,34 +242,67 @@
     };
   }
 
-  // The mirror: one picture of every state on both themes for Hafize to look at.
+  // The mirror: one picture of every state on both themes for Hafize to look at,
+  // plus plain measurements of each frame (how much of the card the figure fills,
+  // how far it reaches, how well it stands out, how different the states are).
   async function sheet(glsl, { time = 7.2 } = {}) {
-    const tileW = 368, tileH = 300, pad = 8;
+    const tileW = 276, tileH = 225, pad = 6;
     const out = document.createElement('canvas');
     out.width = tileW * 4 + pad * 5; out.height = tileH * 2 + pad * 3;
-    const ctx = out.getContext('2d');
+    const ctx = out.getContext('2d', { willReadFrequently: true });
     const gl = document.createElement('canvas');
     gl.width = tileW; gl.height = tileH;
     const renderer = glPortrait(gl, glsl, true);
     if (!renderer.ok) return { ok: false, log: renderer.log };
     const names = { idle: 'Boşta', listening: 'Dinliyor', thinking: 'Düşünüyor', speaking: 'Konuşuyor' };
+    const BG = { dark: [31, 31, 34], light: [247, 243, 238] };
+    const luma = (r, g, b) => (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    const tiles = [];
+    const samples = {};
     ctx.fillStyle = '#2b2b30'; ctx.fillRect(0, 0, out.width, out.height);
     [false, true].forEach((light, row) => {
+      const theme = light ? 'light' : 'dark';
       STATES.forEach((state, col) => {
         const x = pad + col * (tileW + pad), y = pad + row * (tileH + pad);
         ctx.fillStyle = light ? '#f7f3ee' : '#1f1f22';
         ctx.fillRect(x, y, tileW, tileH);
         const mix = settled(state);
         mix.flow = 3.2 + time * (0.42 + 0.9 * mix.energy + 0.9 * mix.thinking);
-        renderer.draw(time, mix, tileW, tileH, light, 2);
+        renderer.draw(time, mix, tileW, tileH, light, 1.5);
         ctx.drawImage(gl, x, y);
-        ctx.font = '600 15px system-ui, sans-serif';
-        ctx.fillStyle = light ? 'rgba(40,40,44,.62)' : 'rgba(255,255,255,.62)';
-        ctx.fillText(names[state], x + 10, y + 22);
+        const data = ctx.getImageData(x, y, tileW, tileH).data;
+        const bg = BG[theme], bgL = luma(bg[0], bg[1], bg[2]);
+        let covered = 0, total = 0, contrast = 0, minX = tileW, maxX = -1, minY = tileH, maxY = -1;
+        const sample = [];
+        for (let py = 0; py < tileH; py += 2) for (let px = 0; px < tileW; px += 2) {
+          const i = (py * tileW + px) * 4;
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          total += 1;
+          sample.push(r, g, b);
+          if (Math.max(Math.abs(r - bg[0]), Math.abs(g - bg[1]), Math.abs(b - bg[2])) > 16) {
+            covered += 1; contrast += Math.abs(luma(r, g, b) - bgL);
+            if (px < minX) minX = px; if (px > maxX) maxX = px; if (py < minY) minY = py; if (py > maxY) maxY = py;
+          }
+        }
+        samples[theme + state] = sample;
+        tiles.push({ state, theme, coverage: covered / total, width: maxX < 0 ? 0 : (maxX - minX + 2) / tileW, height: maxY < 0 ? 0 : (maxY - minY + 2) / tileH, contrast: covered ? Math.min(1, contrast / covered) : 0 });
+        ctx.font = '600 13px system-ui, sans-serif';
+        ctx.fillStyle = light ? 'rgba(40,40,44,.6)' : 'rgba(255,255,255,.6)';
+        ctx.fillText(names[state], x + 8, y + 18);
       });
     });
     renderer.dispose();
-    return { ok: true, dataUrl: out.toDataURL('image/jpeg', 0.9), width: out.width, height: out.height };
+    const base = samples.darkidle;
+    let diff = 0, count = 0;
+    for (const state of ['listening', 'thinking', 'speaking']) {
+      const other = samples['dark' + state];
+      for (let i = 0; i < base.length; i += 1) { diff += Math.abs(base[i] - other[i]) / 255; count += 1; }
+    }
+    const metrics = { tiles: tiles.map((t) => ({ ...t, coverage: Math.round(t.coverage * 1000) / 1000, width: Math.min(1, Math.round(t.width * 1000) / 1000), height: Math.min(1, Math.round(t.height * 1000) / 1000), contrast: Math.round(t.contrast * 1000) / 1000 })), distinct: Math.round((count ? diff / count : 0) * 1000) / 1000 };
+    // Hosted vision endpoints reject large inline images.
+    let dataUrl = out.toDataURL('image/jpeg', 0.86);
+    if (dataUrl.length > 220000) dataUrl = out.toDataURL('image/jpeg', 0.7);
+    return { ok: true, dataUrl, width: out.width, height: out.height, metrics };
   }
 
   function test(glsl) {

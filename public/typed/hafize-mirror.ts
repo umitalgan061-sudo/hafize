@@ -15,7 +15,7 @@ type Stage = {
   ready: Promise<unknown>;
   current: () => { id: string; name: string; essence: string; renderer: string } | null;
   test: (glsl: string) => { ok: boolean; log: string };
-  sheet: (glsl: string) => Promise<{ ok: boolean; dataUrl?: string; log?: string }>;
+  sheet: (glsl: string) => Promise<{ ok: boolean; dataUrl?: string; log?: string; metrics?: Json }>;
   mount: (host: HTMLElement, glsl: string, options?: Json) => { ok: boolean; log: string; setState: (s: string | null) => void; dispose: () => void };
   preview: (glsl: string) => { ok: boolean; log: string };
   reset: () => void;
@@ -30,7 +30,7 @@ const PHASES: Record<string, (d: Json) => string> = {
   coded: () => 'Kodu hazır',
   repairing: () => 'Derleyicinin söylediğini düzeltiyor…',
   reflecting: () => 'Aynada kendine bakıyor…',
-  reflected: (d) => d.unavailable ? 'Görsel modeller şu an yanıt vermedi' : 'Aynada kendine ' + d.score + '/10 verdi',
+  reflected: (d) => d.unavailable ? 'Ölçümler iyi; görsel model yanıt vermedi' : d.measured ? 'Ölçümlere göre kendine ' + d.score + '/10 verdi' : 'Aynada kendine ' + d.score + '/10 verdi',
   revising: () => 'Gördüğüne göre kendini düzeltiyor…',
   branch: () => 'GitHub’da kendi dalını açıyor…',
   commit: () => 'Portresini commit’liyor…',
@@ -255,16 +255,20 @@ async function openMirror() {
         note('Derlendi; aynada canlı.', 'ok');
         const photo = await portrait.sheet(candidate.glsl);
         if (!photo.ok || !photo.dataUrl) { note('Ayna fotoğrafı çekilemedi: ' + (photo.log || ''), 'error'); break; }
-        const seen = await job({ action: 'reflect', session, candidate: candidate.id, sheet: photo.dataUrl }, 2000);
+        const seen = await job({ action: 'reflect', session, candidate: candidate.id, sheet: photo.dataUrl, metrics: photo.metrics }, 2000);
+        if (seen.visionUnavailable) {
+          const tried = Array.isArray(seen.visionAttempts) ? seen.visionAttempts.map((a: Json) => String(a.model).split('/').pop() + ' → ' + a.outcome).join(', ') : '';
+          note('Görsel modeller yanıt vermedi' + (tried ? ' (' + tried + ')' : '') + '; Hafize tarayıcının ölçümleriyle kendine bakıyor.', 'warn');
+        }
         if (seen.critique) {
           note('“' + seen.critique.verdict + '”', seen.approved ? 'ok' : '');
           for (const fix of seen.critique.fixes || []) note('→ ' + fix);
         }
-        if (seen.approved || seen.visionUnavailable) { chosen = candidate; break; }
+        if (seen.approved) { chosen = candidate; break; }
         if (seen.exhausted) {
           chosen = known.get(seen.best) ?? candidate;
           show(chosen);
-          note('Üç turdan sonra en iyi hâlini seçti.');
+          note('Dört bakıştan sonra en iyi hâlini seçti.');
           break;
         }
         candidate = seen.candidate ?? null;

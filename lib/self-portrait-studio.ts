@@ -17,8 +17,8 @@
 import { randomUUID } from 'node:crypto';
 import {
   SELF_PORTRAIT_LIMITS, SELF_PORTRAIT_PATH, buildPortraitDocument, codeMessages, conceptMessages, extractPortraitCode,
-  parseConcept, parseCritique, parseSheetDataUrl, reflectionPrompt, validatePortraitGlsl,
-  type PortraitConcept, type PortraitCritique, type PortraitDocument
+  objectiveIssues, parseConcept, parseCritique, parseMirrorMetrics, parseSheetDataUrl, reflectionPrompt, validatePortraitGlsl,
+  type MirrorMetrics, type PortraitConcept, type PortraitCritique, type PortraitDocument
 } from './self-portrait.ts';
 import { completionOrigin } from './model-response-origin.ts';
 
@@ -123,25 +123,35 @@ export function createSelfPortraitStudio({
     return fail('SELF_PORTRAIT_CODE_INVALID', 502);
   }
 
-  async function reflect(concept: PortraitConcept, sheet: { mime: string; base64: string }, signal: AbortSignal) {
+  async function reflect(concept: PortraitConcept, sheet: { mime: string; base64: string }, metrics: MirrorMetrics | null, signal: AbortSignal) {
+    const attempts: { model: string; outcome: string; ms: number }[] = [];
+    if (Math.floor(sheet.base64.length * 3 / 4) > SELF_PORTRAIT_LIMITS.maxVisionImageBytes) {
+      attempts.push({ model: '*', outcome: 'image-too-large', ms: 0 });
+      return { seen: null, attempts };
+    }
     for (const visionModel of visionModels) {
-      const callSignal = AbortSignal.any([signal, AbortSignal.timeout(150_000)]);
+      const callSignal = AbortSignal.any([signal, AbortSignal.timeout(100_000)]);
+      const started = now();
       try {
         const nemotron = /nemotron/i.test(visionModel);
         const result = await vision({
           model: visionModel, stream: false, temperature: 0.2, max_tokens: nemotron ? 900 : 1600,
           ...(nemotron ? { chat_template_kwargs: { enable_thinking: false } } : {}),
-          messages: [{ role: 'user', content: [{ type: 'text', text: reflectionPrompt(concept) }, { type: 'image_url', image_url: { url: 'data:' + sheet.mime + ';base64,' + sheet.base64 } }] }]
+          messages: [{ role: 'user', content: [{ type: 'text', text: reflectionPrompt(concept, metrics) }, { type: 'image_url', image_url: { url: 'data:' + sheet.mime + ';base64,' + sheet.base64 } }] }]
         }, callSignal);
-        const critique = parseCritique(modelReplyText(result));
-        if (critique) return { critique, model: visionModel };
-        log({ event: 'reflect.unreadable', model: visionModel });
+        const text = modelReplyText(result);
+        const critique = parseCritique(text);
+        attempts.push({ model: visionModel, outcome: critique ? 'ok' : text.trim() ? 'unreadable' : 'empty', ms: now() - started });
+        if (critique) return { seen: { critique, model: visionModel }, attempts };
       } catch (error) {
         signal.throwIfAborted();
-        log({ event: 'reflect.failed', model: visionModel, status: Number((error as Json)?.status) || null });
+        const status = Number((error as Json)?.status);
+        const name = String((error as Json)?.name || '');
+        attempts.push({ model: visionModel, outcome: callSignal.aborted || name === 'TimeoutError' ? 'timeout' : Number.isInteger(status) && status > 0 ? 'http-' + status : 'error', ms: now() - started });
       }
     }
-    return null;
+    log({ event: 'reflect.unavailable', attempts });
+    return { seen: null, attempts };
   }
 
   function best(s: Session): Candidate | null {
@@ -190,23 +200,32 @@ export function createSelfPortraitStudio({
     if (job.action === 'reflect') {
       const c = candidateOf(s, input.candidate);
       const sheet = parseSheetDataUrl(input.sheet) ?? fail('SELF_PORTRAIT_SHEET_INVALID');
+      const metrics = parseMirrorMetrics(input.metrics);
+      const issues = objectiveIssues(metrics);
       c.rendered = true;
       s.reflections += 1;
-      phase('reflecting');
-      const seen = await reflect(s.concept, sheet, signal);
-      if (!seen) {
-        phase('reflected', { unavailable: true });
-        return { session: s.id, critique: null, visionUnavailable: true, approved: false, best: best(s)?.id ?? c.id };
-      }
-      c.critique = seen.critique; c.critic = seen.model;
-      phase('reflected', { score: seen.critique.score });
-      if (seen.critique.score >= SELF_PORTRAIT_LIMITS.passScore) return { session: s.id, critique: seen.critique, critic: seen.model, approved: true, best: c.id };
-      if (s.reflections >= SELF_PORTRAIT_LIMITS.maxReflections) return { session: s.id, critique: seen.critique, critic: seen.model, approved: false, exhausted: true, best: best(s)?.id ?? c.id };
+      phase('reflecting', { issues: issues.length });
+      const { seen, attempts } = await reflect(s.concept, sheet, metrics, signal);
+      // The browser's measurements are facts; a vision verdict never overrides them.
+      const merged = (critique: PortraitCritique): PortraitCritique => Object.freeze({
+        score: issues.length ? Math.min(critique.score, SELF_PORTRAIT_LIMITS.passScore - 1) : critique.score,
+        verdict: critique.verdict,
+        fixes: Object.freeze([...new Set([...issues, ...critique.fixes])].slice(0, 6))
+      });
+      const critique: PortraitCritique | null = seen ? merged(seen.critique)
+        : issues.length ? Object.freeze({ score: 5, verdict: 'Görsel modeller yanıt vermedi; tarayıcının ölçümleri sorun gösteriyor.', fixes: Object.freeze(issues.slice(0, 6)) })
+        : null;
+      c.critique = critique; c.critic = seen?.model ?? (critique ? 'browser-metrics' : '');
+      phase('reflected', critique ? { score: critique.score, ...(seen ? {} : { measured: true }) } : { unavailable: true });
+      const base = { session: s.id, critique, critic: c.critic, visionAttempts: attempts, issues, ...(seen ? {} : { visionUnavailable: true }) };
+      if (!critique) return { ...base, approved: true, best: c.id };
+      if (critique.score >= SELF_PORTRAIT_LIMITS.passScore) return { ...base, approved: true, best: c.id };
+      if (s.reflections >= SELF_PORTRAIT_LIMITS.maxReflections) return { ...base, approved: false, exhausted: true, best: best(s)?.id ?? c.id };
       phase('revising');
-      const next = await write(s.concept, { glsl: c.glsl, critique: seen.critique }, signal, c.round + 1);
+      const next = await write(s.concept, { glsl: c.glsl, critique }, signal, c.round + 1);
       s.candidates.set(next.id, next);
       phase('coded', { candidate: next.id });
-      return { session: s.id, critique: seen.critique, critic: seen.model, approved: false, candidate: publicCandidate(next) };
+      return { ...base, approved: false, candidate: publicCandidate(next) };
     }
     if (job.action === 'publish') {
       const shipper = publisher && publisher.available() ? publisher : fail('SELF_PORTRAIT_PUBLISH_UNAVAILABLE', 503);
@@ -299,6 +318,20 @@ export function createSelfPortraitPublisher({
     return (data!.workflow_runs as Json[]).filter((r) => r.head_sha === sha);
   };
   const cell = (text: string) => text.replace(/\|/g, '/');
+  // A test that times out once is not a broken portrait: re-run failed jobs once per run.
+  const retried = new Set<number>();
+  async function retryFlaky(runs: Json[], signal: AbortSignal, code = 'SELF_PORTRAIT_CI_FAILED'): Promise<boolean> {
+    const failed = runs.filter((r) => r.status === 'completed' && BAD.has(r.conclusion));
+    if (!failed.length) return false;
+    const fresh = failed.filter((r) => Number.isSafeInteger(r.id) && !retried.has(r.id));
+    if (fresh.length !== failed.length || retried.size + fresh.length > 4) return fail(code, 409);
+    for (const run of fresh) {
+      const out = await api('/actions/runs/' + run.id + '/rerun-failed-jobs', 'POST', {}, signal);
+      if (out.status !== 201) return fail(code, 409);
+      retried.add(run.id);
+    }
+    return true;
+  }
   const BAD = new Set(['failure', 'cancelled', 'timed_out', 'action_required', 'startup_failure', 'stale']);
   const code = (error: unknown) => typeof (error as Json)?.code === 'string' ? (error as Json).code as string : '';
 
@@ -310,8 +343,12 @@ export function createSelfPortraitPublisher({
       const branch = 'hafize/auto-self-portrait-' + doc.id;
       const content = JSON.stringify(doc, null, 2) + '\n';
       phase('branch', { branch });
-      const branchPayload = writer.normalizeInput('branch', { repository, branch, fromRef: 'main' });
-      await writer.createBranch(writer.issueApproval('branch', branchPayload, true).ticket, branchPayload);
+      // A retried publish of the same portrait continues on its existing branch.
+      const branchRef = await api('/git/ref/heads/' + branch.split('/').map(encodeURIComponent).join('/'), 'GET', undefined, signal);
+      if (branchRef.status !== 200) {
+        const branchPayload = writer.normalizeInput('branch', { repository, branch, fromRef: 'main' });
+        await writer.createBranch(writer.issueApproval('branch', branchPayload, true).ticket, branchPayload);
+      }
       phase('commit', { path: SELF_PORTRAIT_PATH });
       const existing = await api('/contents/' + SELF_PORTRAIT_PATH.split('/').map(encodeURIComponent).join('/') + '?ref=' + encodeURIComponent(branch), 'GET', undefined, signal);
       const existingSha = existing.status === 200 && typeof existing.data?.sha === 'string' ? existing.data.sha : undefined;
@@ -344,7 +381,7 @@ export function createSelfPortraitPublisher({
         if (pr.data?.merged === true) { merged = { mergeCommitSha: pr.data.merge_commit_sha }; break; }
         if (pr.data?.state === 'closed') fail('SELF_PORTRAIT_PULL_CLOSED', 409);
         const runs = head ? await runsFor(head, signal) : [];
-        if (runs.some((r) => r.status === 'completed' && BAD.has(r.conclusion))) fail('SELF_PORTRAIT_CI_FAILED', 409);
+        if (await retryFlaky(runs, signal)) { await sleep(pollMs, signal); continue; }
         const quality = runs.some((r) => String(r.path).split('@')[0] === '.github/workflows/quality.yml' && r.status === 'completed' && r.conclusion === 'success');
         if (head && quality && runs.every((r) => r.status === 'completed')) {
           try {
@@ -369,7 +406,10 @@ export function createSelfPortraitPublisher({
         if (now() > mainDeadline) fail('SELF_PORTRAIT_MAIN_CI_TIMEOUT', 504);
         const runs = (await runsFor(mergeSha, signal)).filter((r) => String(r.path).split('@')[0] === '.github/workflows/quality.yml' && r.head_branch === 'main');
         if (runs.some((r) => r.status === 'completed' && r.conclusion === 'success')) break;
-        if (runs.length && runs.every((r) => r.status === 'completed')) fail('SELF_PORTRAIT_MAIN_CI_FAILED', 409);
+        if (runs.length && runs.every((r) => r.status === 'completed')) {
+          if (await retryFlaky(runs, signal, 'SELF_PORTRAIT_MAIN_CI_FAILED')) { await sleep(pollMs, signal); continue; }
+          fail('SELF_PORTRAIT_MAIN_CI_FAILED', 409);
+        }
         await sleep(pollMs, signal);
       }
       phase('deploying', { mergeSha });

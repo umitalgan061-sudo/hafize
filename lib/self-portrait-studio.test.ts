@@ -12,6 +12,7 @@ const CONCEPT = { name: 'Hafıza İpliği', essence: 'Ben bir iplikim.', why: 's
 const reply = (content: string, model = 'm/x') => ({ model, choices: [{ message: { content } }] });
 const code = (glsl = SAMPLE_PORTRAIT) => '```glsl\n' + glsl + '\n```\nNot: tamam';
 const JPEG = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(200)]).toString('base64');
+const METRICS = (over: object = {}) => ({ distinct: 0.05, tiles: ['dark', 'light'].flatMap((theme) => ['idle', 'listening', 'thinking', 'speaking'].map((state) => ({ state, theme, coverage: 0.3, width: 0.7, height: 0.6, contrast: 0.4, ...over }))) });
 const until = async (studio: ReturnType<typeof createSelfPortraitStudio>, owner: string, id: string) => {
   for (let i = 0; i < 200; i += 1) {
     const snap = studio.get(owner, id);
@@ -86,19 +87,37 @@ describe('self-portrait studio', () => {
 
   it('revises from its own critique, then picks its best after three looks', async () => {
     const low = (s: number) => JSON.stringify({ score: s, verdict: 'olmamış', fixes: ['daha ince çizgi'] });
-    const { studio, calls } = studioWith({ codes: [code(), code(), code(), code()], critiques: [low(5), low(7), low(6)] });
+    const { studio, calls } = studioWith({ codes: [code(), code(), code(), code(), code()], critiques: [low(5), low(7), low(6), low(4)] });
     const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
     let candidate = first.result?.candidate.id;
     const results = [];
-    for (let i = 0; i < 3; i += 1) {
+    for (let i = 0; i < 4; i += 1) {
       const seen = await until(studio, 'owner', studio.start('owner', { action: 'reflect', session: first.result?.session, candidate, sheet: JPEG }).id);
       results.push(seen.result);
       candidate = seen.result?.candidate?.id ?? candidate;
     }
     expect(results[0]?.candidate).toBeTruthy();
     expect(String(calls.at(-1)?.messages.at(-1)?.content)).toContain('daha ince çizgi');
-    // Scores 5, 7, 6: the second look (the first revision) was its best.
-    expect(results[2]).toMatchObject({ approved: false, exhausted: true, best: results[0]?.candidate.id });
+    // Scores 5, 7, 6, 4: the second look (the first revision) was its best.
+    expect(results[3]).toMatchObject({ approved: false, exhausted: true, best: results[0]?.candidate.id });
+  });
+
+  it('lets the browser measurements overrule a flattering vision verdict', async () => {
+    const { studio, calls } = studioWith({ codes: [code(), code()], critiques: ['{"score":9,"verdict":"harika","fixes":[]}'] });
+    const first = await until(studio, 'owner', studio.start('owner', { action: 'imagine' }).id);
+    const seen = await until(studio, 'owner', studio.start('owner', { action: 'reflect', session: first.result?.session, candidate: first.result?.candidate.id, sheet: JPEG, metrics: METRICS({ coverage: 0.02, width: 0.2 }) }).id);
+    expect(seen.result).toMatchObject({ approved: false, critique: { score: 7 } });
+    expect(seen.result?.candidate).toBeTruthy();
+    expect(String(calls.at(-1)?.messages.at(-1)?.content)).toContain('figür çok küçük');
+  });
+
+  it('judges itself by the measurements when no vision model can see', async () => {
+    const blind = studioWith({ codes: [code(), code()], critiques: ['nope', 'nope', 'nope', 'nope'] });
+    const one = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'imagine' }).id);
+    const seen = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'reflect', session: one.result?.session, candidate: one.result?.candidate.id, sheet: JPEG, metrics: METRICS({ contrast: 0.05 }) }).id);
+    expect(seen.result).toMatchObject({ approved: false, visionUnavailable: true, critic: 'browser-metrics', critique: { score: 5 } });
+    expect(seen.result?.visionAttempts).toEqual([expect.objectContaining({ model: 'v/one', outcome: 'unreadable' }), expect.objectContaining({ model: 'v/two', outcome: 'unreadable' })]);
+    expect(seen.result?.candidate).toBeTruthy();
   });
 
   it('falls back to the next vision model and reports when none can see', async () => {
@@ -109,7 +128,7 @@ describe('self-portrait studio', () => {
     const blind = studioWith({ critiques: ['not json', 'still not json'] });
     const one = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'imagine' }).id);
     const none = await until(blind.studio, 'owner', blind.studio.start('owner', { action: 'reflect', session: one.result?.session, candidate: one.result?.candidate.id, sheet: JPEG }).id);
-    expect(none.result).toMatchObject({ critique: null, visionUnavailable: true });
+    expect(none.result).toMatchObject({ critique: null, visionUnavailable: true, approved: true });
   });
 
   it('publishes only a candidate it has seen in the mirror, as a valid document', async () => {
@@ -163,6 +182,7 @@ describe('self-portrait publisher', () => {
     const fetchImpl = (async (url: URL, init: RequestInit = {}) => {
       const path = url.pathname.replace('/repos/' + repo, '') + url.search;
       steps.push((init.method || 'GET') + ' ' + path.replace(/\?.*$/, ''));
+      if (path.startsWith('/git/ref/heads/')) return json(404, {});
       if (path.startsWith('/contents/')) return json(200, { sha: 'c'.repeat(40) });
       if (path === '/pulls/42') return json(200, { state: 'open', merged: false, head: { sha: prPolls < 3 ? 'd'.repeat(40) : 'e'.repeat(40) } });
       if (path.startsWith('/actions/runs?head_sha=' + 'd'.repeat(40)) || path.startsWith('/actions/runs?head_sha=' + 'e'.repeat(40))) {
@@ -188,6 +208,29 @@ describe('self-portrait publisher', () => {
     expect(steps).toContain('PUT /pulls/42/update-branch');
     expect(steps).toContain('POST /actions/workflows/hafize-render-release.yml/dispatches');
     expect(steps.filter((s) => s === 'release:merge')).toHaveLength(2);
+  });
+
+  it('re-runs a flaky CI job once before judging the portrait', async () => {
+    const writer = { configured: () => true, normalizeInput: (_k: string, raw: any) => raw, issueApproval: (_k: string, raw: any) => ({ ticket: raw }), createBranch: async () => ({}), commitFile: async () => ({}) };
+    const actions: string[] = [];
+    const release = { execute: async (args: any) => { actions.push(args.action); return args.action === 'open' ? { number: 6 } : args.action === 'merge' ? { mergeCommitSha: '9'.repeat(40) } : { dispatchAccepted: true }; } };
+    let rerun = false;
+    const fetchImpl = (async (url: URL, init: RequestInit = {}) => {
+      const path = url.pathname.replace('/repos/' + repo, '');
+      if (path.startsWith('/git/ref/heads/')) return new Response('{}', { status: 200 });
+      if (path.startsWith('/contents/')) return new Response('{}', { status: 404 });
+      if (path === '/pulls/6') return new Response(JSON.stringify({ state: 'open', head: { sha: '2'.repeat(40) } }), { status: 200 });
+      if (path === '/actions/runs/77/rerun-failed-jobs' && init.method === 'POST') { rerun = true; return new Response('{}', { status: 201 }); }
+      const sha = url.search.includes('9'.repeat(40)) ? '9'.repeat(40) : '2'.repeat(40);
+      return new Response(JSON.stringify({ workflow_runs: [{ id: 77, head_sha: sha, head_branch: 'main', path: '.github/workflows/quality.yml', status: 'completed', conclusion: rerun || sha === '9'.repeat(40) ? 'success' : 'failure' }] }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const created: string[] = [];
+    const publisher = createSelfPortraitPublisher({ writer: { ...writer, createBranch: async () => { created.push('branch'); return {}; } }, release, fetchImpl, sleep: async () => {}, pollMs: 0 });
+    const out = await publisher.publish(doc, () => {}, new AbortController().signal);
+    expect(rerun).toBe(true);
+    expect(created).toEqual([]);
+    expect(actions).toEqual(['open', 'merge', 'publish']);
+    expect(out.deploy).toBe('hook');
   });
 
   it('stops when the pull request CI fails', async () => {

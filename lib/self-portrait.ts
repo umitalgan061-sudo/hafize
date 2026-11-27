@@ -20,8 +20,10 @@ export const SELF_PORTRAIT_LIMITS = Object.freeze({
   maxLoopBound: 48,
   maxDocumentBytes: 48 * 1024,
   maxSheetBytes: 900 * 1024,
+  // Hosted NVIDIA vision endpoints reject large inline images.
+  maxVisionImageBytes: 170 * 1024,
   passScore: 8,
-  maxReflections: 3,
+  maxReflections: 4,
   maxRepairs: 3
 });
 
@@ -139,10 +141,12 @@ export type PortraitConcept = {
   readonly states: { readonly idle: string; readonly listening: string; readonly thinking: string; readonly speaking: string };
 };
 
+// Model replies are untrusted text; an unreadable one is simply null.
+const modelJson = (text: unknown): unknown => { try { return parseModelJson(String(text ?? '')); } catch { return null; } };
 const clean = (value: unknown, max: number) => typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, max) : '';
 
 export function parseConcept(text: unknown): PortraitConcept | null {
-  const raw = parseModelJson(String(text ?? '')) as Record<string, unknown> | null;
+  const raw = modelJson(text) as Record<string, unknown> | null;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const states = (raw.states && typeof raw.states === 'object' ? raw.states : {}) as Record<string, unknown>;
   const palette = Array.isArray(raw.palette) ? raw.palette.map((c) => clean(c, 9).toLowerCase()).filter((c) => /^#[0-9a-f]{6}$/.test(c)).slice(0, 8) : [];
@@ -161,9 +165,10 @@ export function parseConcept(text: unknown): PortraitConcept | null {
 export type PortraitCritique = { readonly score: number; readonly verdict: string; readonly fixes: readonly string[] };
 
 export function parseCritique(text: unknown): PortraitCritique | null {
-  const raw = parseModelJson(String(text ?? '')) as Record<string, unknown> | null;
+  const raw = modelJson(text) as Record<string, unknown> | null;
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const score = Number(raw.score);
+  // Models write 7, "7", "7,5" or "7/10".
+  const score = typeof raw.score === 'number' ? raw.score : Number(String(raw.score ?? '').trim().replace(',', '.').replace(/\s*\/\s*10$/, ''));
   if (!Number.isFinite(score) || score < 0 || score > 10) return null;
   const fixes = Array.isArray(raw.fixes) ? raw.fixes.map((f) => clean(f, 240)).filter(Boolean).slice(0, 5) : [];
   return Object.freeze({ score: Math.round(score * 10) / 10, verdict: clean(raw.verdict, 600), fixes: Object.freeze(fixes) });
@@ -209,19 +214,21 @@ const CONTRACT = [
   'Write the self-portrait as WebGL1 GLSL ES 1.00 code that defines helper functions and exactly one entry point:',
   '  vec4 hafizePortrait(vec2 p)',
   'Contract:',
-  '- p: centred coordinates. The shorter side (height) spans -1..1 with +y up; x spans about -1.23..1.23. Keep the figure within |p.y|<0.92 and |p.x|<1.15.',
+  '- p is ALREADY aspect-correct and centred: the shorter side (height) spans -1..1 with +y up; x spans about -1.23..1.23. Never rescale p by uRes or an aspect ratio.',
   '- The host has ALREADY declared these uniforms; use them, never declare them:',
   '  vec2 uRes (canvas pixels), float uTime (seconds), float uFlow (smooth phase clock that runs faster with energy; use it for drifting motion),',
   '  float uEnergy (0.14 idle .. 0.62 listening .. 0.48 thinking .. 0.9 speaking), float uListen, uThink, uSpeak (smooth 0..1 state weights; idle weight = 1.0-uListen-uThink-uSpeak),',
   '  float uVoice (0.35..1.0 syllable envelope while speaking), float uLight (1.0 on the light theme, 0.0 on dark), float uPx (one pixel in p units; use it for anti-aliasing).',
-  '- Return straight (non-premultiplied) colour: vec4(rgb in 0..1, alpha in 0..1). Alpha 0.0 is the transparent background; the host premultiplies.',
+  '- Return straight (non-premultiplied) colour: vec4(rgb in 0..1, alpha in 0..1). Alpha 0.0 is the transparent background (do not paint the background); the host premultiplies.',
   '- GLSL ES 1.00 only: no # lines, no precision, no uniform/varying/attribute, no textures, no dFdx/dFdy/fwidth, no while/do, no recursion, no main(), no gl_FragColor.',
   '- Loops: for(int i=0;i<N;i++) with a literal int N <= 48, at most 8 loops. Use float literals with a decimal point (1.0, not 1). Define helpers before using them. Do not use arrays indexed by non-constant expressions.',
-  '- Budget: it must stay smooth on phones (about 300 arithmetic operations per pixel). No raymarching over 32 steps.',
-  'Craft:',
-  '- Anti-alias every edge with smoothstep(..., uPx*1.5). Build glow with exp(-d*k). Compose layers back to front. Tone-map bright sums with 1.0-exp(-x).',
-  '- Dark background is #1f1f22, light background #f7f3ee. On the light theme (uLight=1.0) use deeper, more saturated colours and less additive glow so it reads on cream.',
-  '- Make the four states clearly different yet smoothly blended by their weights; idle must be calm but alive; speaking should pulse with uVoice.',
+  '- Budget: it must stay smooth on phones (about 300 arithmetic operations per pixel).',
+  'Make it read at 184x150 px:',
+  '- The figure is the hero: it must span roughly 55-80% of the card width and be clearly visible at a glance. Small, thin or dim figures fail.',
+  '- Build it in 2D: signed-distance shapes, analytic curves, ribbons, rings, petals, waves, gradients and layered glow. Fake depth analytically (shading, overlap, parallax). Do NOT raymarch or sphere-trace; it breaks at this size.',
+  '- Strong value contrast: on dark (uLight=0.0, background #1f1f22) use luminous colours; on light (uLight=1.0, background #f7f3ee) use deeper, saturated colours and less additive glow.',
+  '- Anti-alias every edge with smoothstep(..., uPx*1.5). Build glow with exp(-d*k) and keep its alpha soft. Compose layers back to front. Tone-map bright sums with 1.0-exp(-x).',
+  '- Make the four states clearly different at a glance yet smoothly blended by their weights; idle must be calm but alive; speaking should pulse with uVoice.',
   '- Be original and premium. It is a living emblem, not a UI widget.',
   'Answer with exactly one ```glsl code block, then one short line in Turkish that starts with "Not:".'
 ].join('\n');
@@ -257,13 +264,54 @@ export function codeMessages(concept: PortraitConcept, revision?: { readonly gls
   return messages;
 }
 
-export function reflectionPrompt(concept: PortraitConcept): string {
+/** What the owner's browser measured on each mirror tile (pixels that differ from the card background). */
+export type MirrorTile = { readonly state: 'idle' | 'listening' | 'thinking' | 'speaking'; readonly theme: 'dark' | 'light'; readonly coverage: number; readonly width: number; readonly height: number; readonly contrast: number };
+export type MirrorMetrics = { readonly tiles: readonly MirrorTile[]; readonly distinct: number };
+
+export function parseMirrorMetrics(raw: unknown): MirrorMetrics | null {
+  const value = raw as Record<string, unknown> | null;
+  if (!value || typeof value !== 'object' || !Array.isArray(value.tiles) || value.tiles.length !== 8) return null;
+  const unit = (n: unknown) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1 ? Math.round(n * 1000) / 1000 : null;
+  const tiles: MirrorTile[] = [];
+  for (const item of value.tiles as Record<string, unknown>[]) {
+    const state = item?.state, theme = item?.theme;
+    const fields = [unit(item?.coverage), unit(item?.width), unit(item?.height), unit(item?.contrast)];
+    if (!['idle', 'listening', 'thinking', 'speaking'].includes(String(state)) || !['dark', 'light'].includes(String(theme)) || fields.some((f) => f === null)) return null;
+    tiles.push(Object.freeze({ state: state as MirrorTile['state'], theme: theme as MirrorTile['theme'], coverage: fields[0]!, width: fields[1]!, height: fields[2]!, contrast: fields[3]! }));
+  }
+  const distinct = unit(value.distinct);
+  return distinct === null ? null : Object.freeze({ tiles: Object.freeze(tiles), distinct });
+}
+
+const STATE_TR: Readonly<Record<MirrorTile['state'], string>> = { idle: 'boşta', listening: 'dinlerken', thinking: 'düşünürken', speaking: 'konuşurken' };
+
+/** Plain, objective problems in the rendered frames; the code model gets them as fixes. */
+export function objectiveIssues(metrics: MirrorMetrics | null): string[] {
+  if (!metrics) return [];
+  const issues: string[] = [];
+  for (const theme of ['dark', 'light'] as const) {
+    const row = metrics.tiles.filter((t) => t.theme === theme);
+    const label = theme === 'dark' ? 'koyu temada' : 'açık temada';
+    const thin = row.filter((t) => t.coverage < 0.07 || t.width < 0.4 || t.height < 0.3);
+    if (thin.length) issues.push(label + ' figür çok küçük veya silik (' + thin.map((t) => STATE_TR[t.state]).join(', ') + '): kart genişliğinin %55-80\'ini kaplayacak kadar büyüt, çizgileri kalınlaştır, gövdeyi doldur');
+    const faint = row.filter((t) => t.coverage >= 0.07 && t.contrast < 0.16);
+    if (faint.length) issues.push(label + ' kontrast düşük (' + faint.map((t) => STATE_TR[t.state]).join(', ') + '): ' + (theme === 'dark' ? 'daha parlak, ışıklı renkler kullan' : 'daha koyu, doygun renkler kullan ve parlamayı azalt'));
+    const flooded = row.filter((t) => t.coverage > 0.85);
+    if (flooded.length) issues.push(label + ' görüntü bütün kartı kaplıyor: arka planı boyama, figürün dışında alpha 0.0 döndür');
+  }
+  if (metrics.distinct < 0.012) issues.push('dört hâl birbirine çok benziyor: dinleme, düşünme ve konuşmayı bir bakışta ayırt edilecek kadar farklı yap (biçim, hareket, renk)');
+  return issues;
+}
+
+export function reflectionPrompt(concept: PortraitConcept, metrics?: MirrorMetrics | null): string {
+  const measured = metrics ? metrics.tiles.filter((t) => t.theme === 'dark').map((t) => STATE_TR[t.state] + ': alan %' + Math.round(t.coverage * 100) + ', genişlik %' + Math.round(t.width * 100) + ', kontrast ' + t.contrast.toFixed(2)).join('; ') : '';
   return [
-    'Bu görüntü, senin (Hafize) kendin için tasarladığın görünüşün tarayıcıda gerçekten çizilmiş hâli.',
+    'Bu görüntü, senin (Hafize) kendin için tasarladığın görünüşün tarayıcıda gerçekten çizilmiş hâli; gerçek kartta her kare 184×150 pikseldir.',
     'Üst satır koyu tema, alt satır açık tema. Soldan sağa: boşta, dinliyor, düşünüyor, konuşuyor.',
     'Hayal ettiğin: "' + concept.name + '" — ' + concept.essence,
     'Tarif: ' + concept.form,
-    'Aynaya dürüstçe bak: 1) Hayal ettiğine benziyor mu? 2) Bu küçük boyutta net, güzel ve premium mu? 3) Dört hâl birbirinden ayırt ediliyor mu? 4) Kesik, bozuk, boş ya da taşan bir şey var mı?',
+    ...(measured ? ['Tarayıcının ölçümü (koyu tema): ' + measured + '.'] : []),
+    'Aynaya dürüstçe bak: 1) Hayal ettiğine benziyor mu? 2) Bu küçük boyutta net, büyük, güzel ve premium mu? 3) Dört hâl birbirinden ayırt ediliyor mu? 4) Kesik, bozuk, boş, karanlık ya da taşan bir şey var mı?',
     'Yalnız JSON yanıt ver: {"score": 0-10 arası sayı, "verdict": "kısa Türkçe değerlendirme", "fixes": ["en fazla 4 somut görsel düzeltme"]}'
   ].join('\n');
 }

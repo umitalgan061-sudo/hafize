@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  SELF_PORTRAIT_PATH, buildPortraitDocument, codeMessages, conceptMessages, extractPortraitCode, parseConcept, parseCritique,
+  SELF_PORTRAIT_PATH, buildPortraitDocument, objectiveIssues, parseMirrorMetrics, codeMessages, conceptMessages, extractPortraitCode, parseConcept, parseCritique,
   parseSheetDataUrl, portraitShaderSource, sanitizePortraitGlsl, validatePortraitDocument, validatePortraitGlsl
 } from './self-portrait.ts';
 import { releasePathAllowed } from './github-agent-release.ts';
@@ -97,6 +97,8 @@ describe('self-portrait model replies', () => {
   it('parses a critique within 0..10', () => {
     expect(parseCritique('{"score": 7.5, "verdict": "iyi", "fixes": ["a", "b"]}')).toEqual({ score: 7.5, verdict: 'iyi', fixes: ['a', 'b'] });
     expect(parseCritique('{"score": 12}')).toBeNull();
+    expect(parseCritique('{"score": "7/10", "verdict": "x"}')?.score).toBe(7);
+    expect(parseCritique('{"score": "7,5", "verdict": "x"}')?.score).toBe(7.5);
   });
 
   it('briefs Hafize with the earlier looks to avoid and the code contract', () => {
@@ -106,6 +108,27 @@ describe('self-portrait model replies', () => {
     const code = codeMessages(parseConcept(JSON.stringify(concept))!, { glsl: 'x', compileLog: 'ERROR: 0:3: syntax error' });
     expect(code[0]?.content).toContain('vec4 hafizePortrait(vec2 p)');
     expect(code.at(-1)?.content).toContain('ERROR: 0:3');
+  });
+});
+
+describe('mirror measurements', () => {
+  const tile = (state: string, theme: string, coverage = 0.3, width = 0.7, height = 0.6, contrast = 0.4) => ({ state, theme, coverage, width, height, contrast });
+  const all = (over: (s: string, t: string) => object = () => ({})) => ['dark', 'light'].flatMap((t) => ['idle', 'listening', 'thinking', 'speaking'].map((s) => ({ ...tile(s, t), ...over(s, t) })));
+
+  it('accepts eight measured tiles and rejects anything else', () => {
+    expect(parseMirrorMetrics({ tiles: all(), distinct: 0.05 })?.tiles).toHaveLength(8);
+    expect(parseMirrorMetrics({ tiles: all().slice(1), distinct: 0.05 })).toBeNull();
+    expect(parseMirrorMetrics({ tiles: all(() => ({ coverage: 3 })), distinct: 0.05 })).toBeNull();
+  });
+
+  it('turns small, faint, flooding or identical frames into concrete fixes', () => {
+    expect(objectiveIssues(parseMirrorMetrics({ tiles: all(), distinct: 0.05 }))).toEqual([]);
+    const tiny = objectiveIssues(parseMirrorMetrics({ tiles: all((s) => s === 'idle' ? { coverage: 0.02, width: 0.2 } : {}), distinct: 0.05 }));
+    expect(tiny.join()).toContain('koyu temada figür çok küçük');
+    expect(tiny.join()).toContain('boşta');
+    expect(objectiveIssues(parseMirrorMetrics({ tiles: all((_s, t) => t === 'light' ? { contrast: 0.05 } : {}), distinct: 0.05 })).join()).toContain('daha koyu, doygun');
+    expect(objectiveIssues(parseMirrorMetrics({ tiles: all(() => ({ coverage: 0.95 })), distinct: 0.05 })).join()).toContain('arka planı boyama');
+    expect(objectiveIssues(parseMirrorMetrics({ tiles: all(), distinct: 0.001 })).join()).toContain('dört hâl');
   });
 });
 
