@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {createHash} from 'node:crypto';
-import {explicitFileEditPath,exactFileSnapshot,validatedFilePatch,patchCompletionAccepted} from './agent-file-patch-proposal.ts';
+import {explicitFileEditPath,exactFileSnapshot,validatedFilePatch,inspectFilePatch,patchRepairInstruction,patchCompletionAccepted} from './agent-file-patch-proposal.ts';
 const target={repository:'umitalgan061-sudo/hafize',branch:'hafize/auto-example',path:'public/home-voice-luminous-core.js'};
 const source='const glow = 0.3;\nconst radius = 20;\n';
 const sha=createHash('sha1').update('blob '+Buffer.byteLength(source)+'\0').update(source).digest('hex');
@@ -30,4 +30,30 @@ it('rejects incomplete model generations and binary edit candidates',()=>{
  for(const reason of ['length','content_filter','tool_calls','error',null,undefined])expect(patchCompletionAccepted(reason)).toBe(false);
  for(const reason of ['','stop','end_turn'])expect(patchCompletionAccepted(reason)).toBe(true);
  expect(validatedFilePatch(target,{sha,content:source},JSON.stringify({find:'0.3',replace:'0.4\0'}))).toBeNull();
+});
+
+it('resolves explicit root files and rejects mixed root/nested or unsafe paths',()=>{
+ expect(explicitFileEditPath('app.js dosyasını düzenle ve commit et')).toBe('app.js');
+ expect(explicitFileEditPath('app.js ve public/a.js dosyalarını düzenle')).toBeNull();
+ expect(explicitFileEditPath('C:\\public\\app.js dosyasını düzenle')).toBeNull();
+ expect(explicitFileEditPath('https://example.org/app.js dosyasını düzenle')).toBeNull();
+ expect(explicitFileEditPath('../app.js dosyasını düzenle')).toBeNull();
+ expect(explicitFileEditPath('public/a.js, public/a.js dosyasını düzenle')).toBe('public/a.js');
+});
+it('diagnoses model output without exposing source or running generated code',()=>{
+ const snapshot={sha,content:source};
+ const result=(find:string,replace:string)=>inspectFilePatch(target,snapshot,JSON.stringify({find,replace}));
+ expect(inspectFilePatch(target,snapshot,'null').reason).toBe('no_proposal');
+ expect(inspectFilePatch(target,snapshot,'broken JSON').reason).toBe('invalid_json');
+ expect(inspectFilePatch(target,snapshot,'{"find":"0.3","replace":1}').reason).toBe('invalid_shape');
+ expect(result('0.3','0.3').reason).toBe('invalid_block');
+ expect(result('not in source','new').reason).toBe('missing_anchor');
+ expect(result('const','let').reason).toBe('ambiguous_anchor');
+ expect(result('0.3','(').reason).toBe('invalid_syntax');
+ expect(result('0.3','0.7').reason).toBeNull();
+ expect(result('const glow = 0.3;','throw new Error("not executed");').patch).not.toBeNull();
+ const moduleSource='export const glow = 0.3;';
+ expect(inspectFilePatch(target,{sha,content:moduleSource},JSON.stringify({find:'0.3',replace:'0.7'})).patch).not.toBeNull();
+ expect(patchRepairInstruction('missing_anchor')).toContain('verbatim');
+ expect(patchRepairInstruction('invalid_syntax')).not.toContain(source);
 });
