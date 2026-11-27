@@ -431,6 +431,9 @@ interface JsonPayload { readonly [key: string]: unknown; }
     if (content && content !== MESSAGE_PLACEHOLDER) node?.closest('.message')?.classList.remove('is-waiting');
     // Deltas paint on the next frame; the final, persisted update paints now.
     if (node) paintContent(node, content, { role: message.role, streaming: !persist });
+    const imageActivity = message.role === 'assistant' ? getMessageToolActivities(message).find((item) => item.tool === 'image_generate') : undefined;
+    const imageStage = node?.closest('.message')?.querySelector('.image-generation-stage') as HTMLElement | null;
+    if (imageActivity && imageStage) mountImageGenerationVisual(imageStage, imageActivity, content);
       // Re-decorate so an edited user message keeps its attachment chips.
       if (message.role === 'user') decorateUserAttachments(node, content);
     // Every new line of the answer pulls the view down while the user is still at the bottom.

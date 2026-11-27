@@ -10,6 +10,8 @@ const labels: Record<ImageGenerationState, string> = {
   error: 'Görsel üretilemedi'
 };
 
+const progress: Record<ImageGenerationState, number> = { queued: 8, generating: 54, refining: 82, complete: 100, error: 100 };
+
 function stateFor(activity: any, content = ''): ImageGenerationState {
   if (activity?.state === 'failure') return 'error';
   if (activity?.state === 'success') return 'complete';
@@ -89,15 +91,17 @@ export function mountImageGenerationVisual(host: HTMLElement, activity: any, con
     card = document.createElement('section');
     card.className = 'image-generation-visual';
     card.setAttribute('aria-live', 'polite');
-    card.innerHTML = '<div class="image-generation-ambient" aria-hidden="true"></div><canvas class="image-generation-canvas" aria-hidden="true"></canvas><div class="image-generation-scan" aria-hidden="true"></div><div class="image-generation-copy"><div class="image-generation-kicker"><span class="image-generation-icon"></span><span class="image-generation-eyebrow">HAFİZE · IMAGE STUDIO</span><span class="image-generation-percent">CANLI</span></div><strong class="image-generation-label"></strong><span class="image-generation-detail">Noktalardan ışığa, ışıklardan görsele.</span></div><div class="image-generation-result" aria-hidden="true"></div>';
+    card.innerHTML = '<div class="image-generation-ambient" aria-hidden="true"></div><div class="image-generation-orbits" aria-hidden="true"><i></i><i></i><i></i></div><canvas class="image-generation-canvas" aria-hidden="true"></canvas><div class="image-generation-scan" aria-hidden="true"></div><div class="image-generation-copy"><div class="image-generation-kicker"><span class="image-generation-icon"></span><span class="image-generation-eyebrow">HAFİZE · IMAGE STUDIO</span><span class="image-generation-percent">CANLI</span></div><strong class="image-generation-label"></strong><span class="image-generation-detail">Noktalardan ışığa, ışıklardan görsele.</span><div class="image-generation-meter" aria-hidden="true"><span></span></div><div class="image-generation-steps" aria-hidden="true"><span>FİKİR</span><span>FORM</span><span>DETAY</span><span>ÇIKTI</span></div></div><div class="image-generation-result" aria-hidden="true"></div>';
     host.replaceChildren(card);
     (card as any)._disposeImageVisual = createCanvasAnimator(card.querySelector('canvas')!);
   }
   card.dataset.state = state;
+  card.style.setProperty('--image-generation-progress', `${progress[state]}%`);
+  card.setAttribute('aria-busy', String(state === 'queued' || state === 'generating' || state === 'refining'));
   card.querySelector('.image-generation-icon')!.textContent = iconFor(state);
   card.querySelector('.image-generation-label')!.textContent = labels[state];
   const detail = card.querySelector('.image-generation-detail')!;
-  detail.textContent = state === 'complete' ? 'Üretim tamamlandı · görselin ayrıntıları korunuyor.' : state === 'error' ? 'Bağlantıyı kontrol edip yeniden deneyebilirsin.' : 'Noktalardan ışığa, ışıklardan görsele.';
+  detail.textContent = state === 'complete' ? 'Üretim tamamlandı · görselin ayrıntıları korunuyor.' : state === 'refining' ? 'Kompozisyon sabitleniyor · son dokunuşlar uygulanıyor.' : state === 'error' ? 'Bağlantıyı kontrol edip yeniden deneyebilirsin.' : 'Noktalardan ışığa, ışıklardan görsele.';
   const result = card.querySelector<HTMLElement>('.image-generation-result')!;
   const url = imageUrlFrom(content);
   if (url) {
