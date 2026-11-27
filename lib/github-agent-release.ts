@@ -4,7 +4,7 @@ import type { createGitHubWorkspaceWriter } from './github-workspace-write.ts';
 type Writer=ReturnType<typeof createGitHubWorkspaceWriter>;
 import { matchOwnerProjects } from './owner-project-catalog.ts';
 export type ReleaseAuthorization={readonly repositories:readonly string[];readonly actions:readonly string[];readonly hafizePublishTarget?:'render'|'firebase'};
-type Context={ownerAuthorized:boolean;authorization?:ReleaseAuthorization;signal?:AbortSignal;reserveRender?:()=>boolean};
+type Context={ownerAuthorized:boolean;authorization?:ReleaseAuthorization;signal?:AbortSignal;reserveRender?:()=>boolean;expectedBranch?:string};
 const HAFIZE='umitalgan061-sudo/hafize', SITES='umitalgan061-sudo/hafize-siteler';
 const SHA=/^[a-f0-9]{40}$/i;
 const BRANCH=/^hafize\/auto-[a-z0-9][a-z0-9._-]{0,100}$/;
@@ -38,16 +38,18 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
  }
  // Read-only reconciliation for an exact PR and exact requested head. This
  // can recover a successful merge after a lost response without another PUT.
- async function observedMerge(repo:string,number:number,sha:string,signal?:AbortSignal){
+ async function observedMerge(repo:string,number:number,sha:string,signal?:AbortSignal,expectedBranch?:string){
   const pr=obj(await api(repo,'/pulls/'+number,'GET',undefined,signal));
   if(pr.merged!==true)return null;
   if(pr.number!==number||pr.state!=='closed'||pr.base?.ref!=='main'||pr.base?.repo?.full_name?.toLowerCase()!==repo||pr.head?.repo?.full_name?.toLowerCase()!==repo||exact(pr.head?.sha)!==sha)fail('RELEASE_MERGED_PR_MISMATCH',409);
+  if(expectedBranch&&safeBranch(pr.head.ref)!==expectedBranch)fail('RELEASE_BRANCH_MISMATCH',409);
   safeBranch(pr.head.ref);
   return {action:'merge',repository:repo,number,headSha:sha,mergeCommitSha:exact(pr.merge_commit_sha),merged:true,published:false,existing:true};
  }
- async function preflight(repo:string,number:number,sha:string,signal?:AbortSignal){
+ async function preflight(repo:string,number:number,sha:string,signal?:AbortSignal,expectedBranch?:string){
   const pr=obj(await api(repo,'/pulls/'+number,'GET',undefined,signal));
   if(pr.state!=='open'||pr.draft!==false||pr.merged!==false||pr.base?.ref!=='main'||pr.base?.repo?.full_name?.toLowerCase()!==repo||pr.head?.repo?.full_name?.toLowerCase()!==repo||exact(pr.head?.sha)!==sha)fail('RELEASE_PR_NOT_READY',409);
+  if(expectedBranch&&safeBranch(pr.head.ref)!==expectedBranch)fail('RELEASE_BRANCH_MISMATCH',409);
   safeBranch(pr.head.ref);
   if(pr.mergeable!==true||pr.mergeable_state!=='clean')fail('RELEASE_BRANCH_PROTECTION_OR_CONFLICT',409);
   const main=await current(repo,signal);
@@ -91,19 +93,29 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
   return {parent,files};
  }
  async function execute(raw:unknown,ctx:Context){
-  const args=obj(raw),action=args.action,repo=typeof args.repository==='string'?args.repository.toLowerCase():'';
+  const args={...obj(raw)},action=args.action,repo=typeof args.repository==='string'?args.repository.toLowerCase():'';
   if(!ctx.ownerAuthorized||!ctx.authorization?.repositories.includes(repo)||typeof action!=='string'||!ctx.authorization.actions.includes(action))fail('RELEASE_NOT_AUTHORIZED_FOR_TASK',403);
   if(!allowed.has(repo))fail('GITHUB_REPO_NOT_ALLOWED',403);
   const fields=action==='open'?['action','repository','branch','title','body']:action==='merge'?['action','repository','number','sha']:action==='publish'?['action','repository','sha','target']:action==='rollback_pr'?['action','repository','sha']:[];
+  // Normalize only recognized, empty, irrelevant optional fields emitted by
+  // some model providers. Unknown fields, meaningful extras, and all required
+  // action arguments remain strictly validated.
+  const knownOptional=new Set(['branch','title','body','number','sha','target']);
+  for(const key of Object.keys(args))if(!fields.includes(key)&&knownOptional.has(key)&&(args[key]===null||args[key]===''))delete args[key];
   if(!fields.length||Object.keys(args).some(k=>!fields.includes(k)))fail('INVALID_GITHUB_ARGUMENTS');
+  const expectedBranch=ctx.expectedBranch===undefined?undefined:safeBranch(ctx.expectedBranch);
   const assertActive=()=>{if(ctx.signal?.aborted)fail('RELEASE_CANCELLED',409);};
   assertActive();
   if(action==='open'){
    const branch=safeBranch(args.branch);
+   if(expectedBranch&&branch!==expectedBranch)fail('RELEASE_BRANCH_MISMATCH',409);
    const payload=writer.normalizeInput('pull',{repository:repo,head:branch,base:'main',title:text(args.title,240),body:typeof args.body==='string'?args.body:'',draft:false});
    assertActive();
    const ticket=writer.issueApproval('pull',payload,true);
-   return writer.createPullRequest(ticket.ticket,payload);
+   const result=await writer.createPullRequest(ticket.ticket,payload);
+   // An existing draft remains a draft. Do not create a duplicate PR or
+   // silently mark it ready; expose the explicit blocker to the model.
+   return result.draft===true?{...result,readyForReviewRequired:true,note:'Existing draft PR; cannot merge until marked ready for review. No duplicate PR was created.'}:result;
   }
   const sha=exact(args.sha);
   if(action==='rollback_pr'){
@@ -129,11 +141,11 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
   }
   if(action==='merge'){
    const number=id(args.number);
-   const existing=await observedMerge(repo,number,sha,ctx.signal);
+   const existing=await observedMerge(repo,number,sha,ctx.signal,expectedBranch);
    if(existing)return existing;
-   const before=await preflight(repo,number,sha,ctx.signal);
+   const before=await preflight(repo,number,sha,ctx.signal,expectedBranch);
    assertActive();
-   const after=await preflight(repo,number,sha,ctx.signal);
+   const after=await preflight(repo,number,sha,ctx.signal,expectedBranch);
    if(after.main!==before.main||JSON.stringify(after.paths)!==JSON.stringify(before.paths))fail('RELEASE_BASE_MOVED',409);
    assertActive();
    try{
@@ -144,7 +156,7 @@ export function createGitHubAgentRelease({writer,allowedRepositories,fetchImpl,r
     // A cancelled task cannot launch additional work. Otherwise only inspect,
     // never send a second merge request, even after a transport failure.
     if(!ctx.signal?.aborted){
-     try{const verified=await observedMerge(repo,number,sha,ctx.signal);if(verified)return {...verified,reconciled:true};}catch{/* preserve the original failure */}
+     try{const verified=await observedMerge(repo,number,sha,ctx.signal,expectedBranch);if(verified)return {...verified,reconciled:true};}catch{/* preserve the original failure */}
     }
     throw error;
    }
