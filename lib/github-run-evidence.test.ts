@@ -140,3 +140,22 @@ it('does not confuse a completed read-only recovery with a new read-only restric
  expect(shouldRecoverMissingPull(history+instruction+' PR oluştur.',[...read,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(true);
  expect(shouldRecoverMissingPull(history+instruction+' PR oluştur. PR açma.',[...read,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(false);
 });
+
+it('recovers from duplicate read rejection after verified branch creation in the image animation task',()=>{
+ const repository='umitalgan061-sudo/hafize',branch='hafize/auto-bebc5db5712e40bb8842665af169ad62';
+ const request='Hafize, kendi GitHub depondaki #1114 numaralı görevi baştan sona kendin gerçekleştir. Kendi kaynak kodunu incele, görsel oluşturma animasyonunu geliştir, gerekli dosyaları değiştir, testlerini yaz ve çalıştır, PR oluştur, başarılı CI kontrollerinden sonra birleştir ve canlıya yayınla.';
+ const read=githubReceipt('github_read_file',{ok:true,value:{repository,path:'public/design-system.css',sha:blob}});
+ const duplicate=githubReceipt('github_inspect',{ok:false,error:'REPEATED_TOOL_CALL'});
+ const created=githubReceipt('github_develop',{ok:true,value:{repository,action:'branch',branch,fromSha:commit}});
+ const rows=[...read,...duplicate,...created];
+ const calls=[{name:'github_read_file',ok:true},{name:'github_inspect',ok:false,error:'REPEATED_TOOL_CALL'},{name:'github_develop',operation:'branch',ok:true}];
+ expect(shouldRecoverReadOnlyWrite(request,rows,calls)).toBe(true);
+ expect(formatGitHubRunEvidence(rows)).toContain('REPEATED_TOOL_CALL');
+ expect(shouldRecoverReadOnlyWrite(request+' Sadece oku.',rows,calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,[...rows,...githubReceipt('github_inspect',{ok:false,error:'GITHUB_READ_FORBIDDEN',status:403})],calls)).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request,[...rows,...githubReceipt('github_develop',{ok:false,error:'REPEATED_TOOL_CALL'})],[...calls,{name:'github_develop',operation:'file',ok:false,error:'REPEATED_TOOL_CALL'}])).toBe(false);
+ expect(shouldRecoverReadOnlyWrite(request, [...duplicate,...created],calls)).toBe(false);
+ const file=githubReceipt('github_develop',{ok:true,value:{repository,action:'file',branch,path:'public/design-system.css',commitSha:commit,blobSha:blob,verified:true}});
+ expect(shouldRecoverMissingPull(request,[...rows,...file],[...calls,{name:'github_develop',operation:'file',ok:true}])).toBe(true);
+ expect(shouldRecoverMissingPull(request,[...rows,...file,...githubReceipt('github_release',{ok:false,error:'REPEATED_TOOL_CALL'})],[...calls,{name:'github_release',ok:false}])).toBe(false);
+});
