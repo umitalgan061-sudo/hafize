@@ -936,17 +936,33 @@ async function handleAgentRun(req, res) {
   const requestedTurnId = body.agentTurnId;
   const durable = safeGitHubAutonomy && !ownerId.startsWith('connector:') && isAgentTurnId(conversationId) && isAgentTurnId(requestedTurnId) &&
     githubWorkRequested(lastUserText,messages.slice(0,lastUserIndex).filter(m=>m.role==='user').map(m=>m.content));
-  const serverPrior = durable ? PLATFORM.agentTurns.previous(ownerId,conversationId) : null;
+  const journal=durable?PLATFORM.agentJournal:null;
+  let remoteLoaded=null;
+  try{
+    if(journal){
+      remoteLoaded=await journal.load(ownerId,conversationId);
+      if(journal.isBusy(remoteLoaded)){sendJson(res,409,{error:'AGENT_TURN_ALREADY_RUNNING'});return;}
+    }
+  }catch(error){sendJson(res,503,{error:error?.code||'AGENT_JOURNAL_UNAVAILABLE'});return;}
+  const remotePrior=remoteLoaded?.record?.snapshot;
+  const remoteInterrupted=remotePrior?.status==='running';
+  const serverPrior = durable ? (remotePrior??PLATFORM.agentTurns.previous(ownerId,conversationId)) : null;
   const continuing = durable && continuationRequested(lastUserText);
   const restoredPrior=durable&&!serverPrior?PLATFORM.agentTurns.importRecovery(ownerId,conversationId,body.agentRecoveryToken):null;
   const prior=serverPrior??restoredPrior;
   // A terminal capsule can be stale as well. First recovered turn is always
   // inspection-only; retain uncertain writes even if the next request is reworded.
-  const recoveryReadOnly=Boolean(restoredPrior||prior?.pending.length);
+  const recoveryReadOnly=Boolean(restoredPrior||remoteInterrupted||prior?.pending.length);
   let inheritedPending = durable ? prior?.pending ?? [] : [];
   const checkpoint = durable ? PLATFORM.agentTurns.begin(ownerId,conversationId,requestedTurnId,inheritedPending) : null;
   if(checkpoint && !checkpoint.accepted){
     sendJson(res,409,{error:checkpoint.reason});return;
+  }
+  const remoteSession=journal&&remoteLoaded&&checkpoint?.accepted?journal.session(ownerId,conversationId,remoteLoaded):null;
+  const persistAgentTurn=()=>remoteSession?remoteSession.save(()=>PLATFORM.agentTurns.get(ownerId,requestedTurnId)):Promise.resolve();
+  if(remoteSession){
+    try{await persistAgentTurn();}
+    catch(error){PLATFORM.agentTurns.finish(ownerId,requestedTurnId,'interrupted','Kalıcı görev kaydı oluşturulamadı.');sendJson(res,503,{error:error?.code||'AGENT_JOURNAL_UNAVAILABLE'});return;}
   }
   const connectionAbort=attachDisconnectAbort(req,AGENT_TIMEOUT_MS,res,{continueOnDisconnect:Boolean(checkpoint?.accepted)});
   const requestAbort={signal:checkpoint?.accepted?AbortSignal.any([connectionAbort.signal,checkpoint.signal]):connectionAbort.signal,cancel:connectionAbort.cancel};
@@ -976,9 +992,9 @@ async function handleAgentRun(req, res) {
     const allowedRepositories=GITHUB_AGENT_REPOS.filter(repo=>GITHUB_ALLOWED_REPOS.some(read=>read.toLowerCase()===repo.toLowerCase()));
     const probe=recoveryBranchProbe({branch:inspectionBranch,receipts:prior.receipts,pending:inheritedPending,allowedRepositories});
     const checked=await reconcilePendingGitHubMutations({pending:inheritedPending,allowedRepositories,fetchImpl:GITHUB_FETCH,signal:requestAbort.signal});
-    if(checked.settled.length)PLATFORM.agentTurns.checkpoint(ownerId,durableId,checked.receipts,checked.settled);
+    if(checked.settled.length){PLATFORM.agentTurns.checkpoint(ownerId,durableId,checked.receipts,checked.settled);await persistAgentTurn();}
     const observed=probe?await reconcilePendingGitHubMutations({pending:[probe],allowedRepositories,fetchImpl:GITHUB_FETCH,signal:requestAbort.signal}):{receipts:[],settled:[]};
-    if(observed.receipts.length)PLATFORM.agentTurns.checkpoint(ownerId,durableId,observed.receipts,[]);
+    if(observed.receipts.length){PLATFORM.agentTurns.checkpoint(ownerId,durableId,observed.receipts,[]);await persistAgentTurn();}
     const saved=PLATFORM.agentTurns.get(ownerId,durableId);
     const pending=saved?.pending??inheritedPending;
     const content=formatGitHubRunEvidence(saved?.receipts??[])+'\n\nGörev kurtarma — bu tur yalnız doğrulama yapıldı, yazma araçları sunulmadı (GITHUB_RECOVERY_READ_ONLY).'+
@@ -987,6 +1003,7 @@ async function handleAgentRun(req, res) {
       (pending.length?'\n\nSonucu belirsiz '+pending.length+' işlem korunuyor; mutabakat tamamlanmadan yazma yapılamaz.':'\n\nKayıtlı belirsiz yazma işlemi kalmadı. Aynı sohbette mevcut dalı açıkça belirten yeni geliştirme isteği gönder; sunucu kaydı korunuyorsa normal yetki kontrolleriyle devam edilebilir.')+
       '\nBu, geliştirme, PR veya yayın tamamlandı anlamına gelmez.';
     PLATFORM.agentTurns.finish(ownerId,durableId,requestAbort.signal.aborted?'interrupted':'incomplete',content);
+    await persistAgentTurn();
     turnFinished=true;
     runLedger.finish({ok:false,detail:'github_recovery_read_only'});
     if(res.destroyed||res.writableEnded||!res.writable)return;
@@ -1085,6 +1102,7 @@ async function handleAgentRun(req, res) {
     const checked=await reconcilePendingGitHubMutations({pending:inheritedPending,allowedRepositories:GITHUB_AGENT_REPOS.filter(repo=>GITHUB_ALLOWED_REPOS.some(read=>read.toLowerCase()===repo.toLowerCase())),fetchImpl:GITHUB_FETCH,signal:requestAbort.signal});
     if(checked.settled.length){
       PLATFORM.agentTurns.checkpoint(ownerId,durableId,checked.receipts,checked.settled);
+      await persistAgentTurn();
       inheritedPending=PLATFORM.agentTurns.get(ownerId,durableId)?.pending??[];
       reconciliationReceipts.push(...checked.receipts);emitCheckpointProgress();
     }
@@ -1097,7 +1115,7 @@ async function handleAgentRun(req, res) {
     nvidiaConfigured: Boolean(NVIDIA_API_KEY),
     githubReadConfigured: GITHUB_READ_CONFIGURED,
     githubReadFile: GITHUB_READ_FILE,
-    githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedBranch:(target)=>{PLATFORM.agentTurns.preparedBranch(ownerId,durableId,target);emitCheckpointProgress();},onPreparedFile:(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);emitCheckpointProgress();}}:{})})}:undefined,
+    githubDevelopment: GITHUB_AGENT_DEVELOPMENT?{enabled:GITHUB_AGENT_DEVELOPMENT.enabled,execute:(args,context)=>GITHUB_AGENT_DEVELOPMENT.execute(args,{...context,...(durableId?{onPreparedBranch:async(target)=>{PLATFORM.agentTurns.preparedBranch(ownerId,durableId,target);await persistAgentTurn();requestAbort.signal.throwIfAborted();emitCheckpointProgress();},onPreparedFile:async(target)=>{PLATFORM.agentTurns.preparedFile(ownerId,durableId,target);await persistAgentTurn();requestAbort.signal.throwIfAborted();emitCheckpointProgress();}}:{})})}:undefined,
     githubRelease: GITHUB_AGENT_RELEASE?{enabled:GITHUB_AGENT_RELEASE.enabled,execute:(args,context)=>GITHUB_AGENT_RELEASE.execute(args,{...context,reserveRender:()=>Boolean(durableId&&PLATFORM.agentTurns.reserveDeployment(ownerId,durableId))})}:undefined,
     githubReleaseAuthorization: safeGitHubAutonomy ? releaseAuthorizationForRequest(lastUserText, /^(1|true|yes|on)$/i.test(String(process.env.HAFIZE_GITHUB_RELEASE_AUTONOMY || '').trim())) : undefined,
     githubInspect: GITHUB_INSPECT,
@@ -1202,11 +1220,11 @@ async function handleAgentRun(req, res) {
     }
     return { content: round.content, toolCalls: round.toolCalls, wrote };
   }
-  const failRound = (error) => {
+  const failRound = async (error) => {
     interruptionDiagnostic=agentInterruptionDiagnostic(error,requestAbort.signal,'model_round');
     console.warn('hafize.agent.interrupted',traceId,interruptionDiagnostic);
     if ((durableId || (!res.destroyed && !res.writableEnded)) && (githubEvidenceMode || toolSummary.length || requestAbort.signal.aborted)) {
-      finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+      await finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
       return;
     }
     agentSpan.end('error', { 'error.code': String(error?.code || error?.message || 'AGENT_RUN_FAILED').slice(0, 80) });
@@ -1214,7 +1232,7 @@ async function handleAgentRun(req, res) {
     requestAbort.cancel();
     deliverRequestFailure(res, error);
   };
-  const finishWithAnswer = (content, alreadyWritten, unresolved = false) => {
+  const finishWithAnswer = async (content, alreadyWritten, unresolved = false) => {
     if (githubEvidenceMode) {
       // The checkpoint journal may already hold a completed tool result
       // before a later stream or telemetry step fails. Include its trusted
@@ -1236,6 +1254,7 @@ async function handleAgentRun(req, res) {
       const pending=PLATFORM.agentTurns.get(ownerId,durableId)?.pending??[];
       if(pending.length){content+='\n\nSonucu belirsiz yazma işlemleri var. GitHub üzerinden mutabakat yapılmadan tekrar yazılmayacak.\n'+pending.slice(0,20).map(p=>'- '+[p.repository,p.operation,p.preparedBranch||p.branch,p.path,p.target||'',p.number?'PR #'+p.number:'',p.expectedBlob||p.sha].filter(Boolean).join(' · ')).join('\n');unresolved=true;}
       PLATFORM.agentTurns.finish(ownerId,durableId,status,content);
+      await persistAgentTurn();
       turnFinished=true;
       emitCheckpointProgress();
     }
@@ -1270,20 +1289,20 @@ async function handleAgentRun(req, res) {
   const labCommand = !attachmentText ? modelLabCommand(lastUserText) : null;
   if (labCommand) {
     const authorized = allowSafeGitHubAutonomy({ optedIn: true, authenticatedRuntime: GITHUB_AUTONOMY_RUNTIME_CONFIG.authRequired, principal, configuredOwnerId: GITHUB_AUTONOMY_RUNTIME_CONFIG.authSubject, agentId: agent.id, primaryAgentId: AGENT_REGISTRY.defaultAgent });
-    if (!authorized) { finishWithAnswer('Model Laboratuvarı: doğrulanmış hesap sahibi olarak Hafize ana ajanında oturum açmalısın (MODEL_LAB_OWNER_REQUIRED). Anahtarı sohbete yazma.', false, true); return; }
-    if (!MODEL_LAB) { const reason=LAB_CONNECTION.reason==='NVIDIA_KEY_MISSING'?'Sunucuda ayrı NVIDIA_API_KEY yapılandırılmamış. Gateway anahtarı laboratuvar için kullanılmaz.':'Doğrudan resmi NVIDIA API uç noktası yapılandırılmamış.';finishWithAnswer('Model Laboratuvarı kullanılamıyor: '+reason+' (MODEL_LAB_UNAVAILABLE). Anahtar veya gizli bilgileri sohbete yazma.',false,true);return; }
+    if (!authorized) { await finishWithAnswer('Model Laboratuvarı: doğrulanmış hesap sahibi olarak Hafize ana ajanında oturum açmalısın (MODEL_LAB_OWNER_REQUIRED). Anahtarı sohbete yazma.', false, true); return; }
+    if (!MODEL_LAB) { const reason=LAB_CONNECTION.reason==='NVIDIA_KEY_MISSING'?'Sunucuda ayrı NVIDIA_API_KEY yapılandırılmamış. Gateway anahtarı laboratuvar için kullanılmaz.':'Doğrudan resmi NVIDIA API uç noktası yapılandırılmamış.';await finishWithAnswer('Model Laboratuvarı kullanılamıyor: '+reason+' (MODEL_LAB_UNAVAILABLE). Anahtar veya gizli bilgileri sohbete yazma.',false,true);return; }
     try {
-      if (labCommand.action === 'council') { finishWithAnswer(formatCouncil(await MODEL_LAB.council(labCommand.question, requestAbort.signal)), false); return; }
-      if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
-      if(labCommand.action==='translation'){const row=await MODEL_LAB.translationProbe(requestAbort.signal);finishWithAnswer('**Riva Translate 4B — gerçek sentetik çeviri testi**\n'+row.model+' · '+row.status+' · '+row.latencyMs+' ms · '+row.testedAt+'\nİngilizce→Türkçe kısa örnek; genel çeviri kalitesi veya ücretsiz erişim garantisi değildir.',false,row.status!=='passed');return;}
+      if (labCommand.action === 'council') { await finishWithAnswer(formatCouncil(await MODEL_LAB.council(labCommand.question, requestAbort.signal)), false); return; }
+      if (labCommand.action === 'inventory') { await MODEL_LAB.discover(requestAbort.signal); await finishWithAnswer(formatModelInventory(MODEL_LAB.status()), false); return; }
+      if(labCommand.action==='translation'){const row=await MODEL_LAB.translationProbe(requestAbort.signal);await finishWithAnswer('**Riva Translate 4B — gerçek sentetik çeviri testi**\n'+row.model+' · '+row.status+' · '+row.latencyMs+' ms · '+row.testedAt+'\nİngilizce→Türkçe kısa örnek; genel çeviri kalitesi veya ücretsiz erişim garantisi değildir.',false,row.status!=='passed');return;}
       if (labCommand.action === 'discover') await MODEL_LAB.discover(requestAbort.signal);
-      if (labCommand.action === 'probe') {const row=await MODEL_LAB.probe(labCommand.model,requestAbort.signal);finishWithAnswer(formatSingleModelProbe(row),false,!row.chat);return;}
+      if (labCommand.action === 'probe') {const row=await MODEL_LAB.probe(labCommand.model,requestAbort.signal);await finishWithAnswer(formatSingleModelProbe(row),false,!row.chat);return;}
       if (labCommand.action === 'deep') await MODEL_LAB.deepProbe(labCommand.model, requestAbort.signal);
       if (labCommand.action === 'specialist') await MODEL_LAB.specialistProbe(labCommand.model, requestAbort.signal);
       if(labCommand.action==='comprehensive'){
         if(streamResponse){startSse(res);writeSseEvent(res,'hafize-model-lab',{status:'started'});}
         const result=await MODEL_LAB.comprehensive(AbortSignal.any([requestAbort.signal,AbortSignal.timeout(180000)]),(testedModel,row)=>{if(streamResponse)writeSseEvent(res,'hafize-model-lab',{status:'tested',model:testedModel,result:row});});
-        finishWithAnswer(formatComprehensiveLabResult(result)+'\n\n'+formatModelLabStatus(MODEL_LAB.status()),false,result.paused||result.smoke.some(row=>row.status!=='passed'||row.toolProbeStatus!=='passed')||Boolean(result.deep&&(!result.deep.language||!result.deep.reasoning||!result.deep.coding||!result.deep.toolFollowup))||Boolean(result.embedding&&result.embedding.status!=='passed'));return;
+        await finishWithAnswer(formatComprehensiveLabResult(result)+'\n\n'+formatModelLabStatus(MODEL_LAB.status()),false,result.paused||result.smoke.some(row=>row.status!=='passed'||row.toolProbeStatus!=='passed')||Boolean(result.deep&&(!result.deep.language||!result.deep.reasoning||!result.deep.coding||!result.deep.toolFollowup))||Boolean(result.embedding&&result.embedding.status!=='passed'));return;
       }
       if (labCommand.action === 'batch') {
         if (streamResponse) { startSse(res); writeSseEvent(res, 'hafize-model-lab', { status: 'started' }); }
@@ -1291,16 +1310,16 @@ async function handleAgentRun(req, res) {
           if (streamResponse) writeSseEvent(res, 'hafize-model-lab', { status: 'tested', model: testedModel, result });
         });
       }
-      finishWithAnswer(formatModelLabStatus(MODEL_LAB.status()), false);
+      await finishWithAnswer(formatModelLabStatus(MODEL_LAB.status()), false);
     } catch (error) {
       const code = typeof error?.message === 'string' && /^MODEL_LAB_[A-Z0-9_]+$/.test(error.message) ? error.message : 'MODEL_LAB_FAILED';
-      finishWithAnswer('Model testi tamamlanamadı: ' + code + '\n\n' + formatModelLabStatus(MODEL_LAB.status()), false, true);
+      await finishWithAnswer('Model testi tamamlanamadı: ' + code + '\n\n' + formatModelLabStatus(MODEL_LAB.status()), false, true);
     }
     return;
   }
   // A plain capacity question needs no model guess or tool call. Mixed task requests still run normally.
   if (!attachmentText && isStandaloneCapabilityQuestion(lastUserText)) {
-    finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
+    await finishWithAnswer(formatCapabilityAnswer(capabilities()), false);
     return;
   }
   const explicitMerge=parseExplicitReleaseCommand(lastUserText);
@@ -1309,7 +1328,7 @@ async function handleAgentRun(req, res) {
     const authorization=toolContext.githubReleaseAuthorization;
     if(!durableId||!authorization?.actions.includes(explicitMerge.action)||!authorization.repositories.includes(explicitMerge.repository)||!toolContext.advertisedToolNames.includes('github_release')||PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length){
       githubReceipts.push(...githubReceipt('github_release',{ok:false,error:'RELEASE_NOT_AUTHORIZED_OR_AVAILABLE'}));
-      finishWithAnswer('',false,true);return;
+      await finishWithAnswer('',false,true);return;
     }
   }
   let incompleteReason = 'tool_budget';
@@ -1357,12 +1376,12 @@ async function handleAgentRun(req, res) {
         ? {toolCalls:[{id:'explicit-user-release',name:'github_release',arguments:JSON.stringify(explicitMerge)}],content:'',wrote:false}
         : await runRound(roundPayload,bufferedRepair);
     } catch (error) {
-      if (!error?.retryRound) { failRound(error); return; }
+      if (!error?.retryRound) { await failRound(error); return; }
       MODEL_ROUTER.penalizeModel(error.routedModel);
       try {
         completion = await runRound(roundPayload,bufferedRepair);
       } catch (retryError) {
-        failRound(retryError);
+        await failRound(retryError);
         return;
       }
     }
@@ -1418,7 +1437,7 @@ async function handleAgentRun(req, res) {
       if(durableId&&githubEvidenceMode&&!githubReceipts.some(r=>r.kind==='file')&&githubReceipts.some(r=>r.kind==='branch')){
         console.info(JSON.stringify({event:'hafize.github.delivery_incomplete',stage:'file',repairAttempts:readOnlyWriteRecoveryRounds,pending:Boolean(PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length),writerAdvertised:tools.some(t=>t.function.name==='github_develop')}));
       }
-      finishWithAnswer(content, completion.wrote);
+      await finishWithAnswer(content, completion.wrote);
       return;
     }
 
@@ -1467,6 +1486,7 @@ async function handleAgentRun(req, res) {
           return result;
         }
         PLATFORM.agentTurns.before(ownerId,durableId,[intent]);
+        await persistAgentTurn();requestAbort.signal.throwIfAborted();
         emitCheckpointProgress();
       }
       const result = await executeNvidiaToolCall(agent, call, toolContext);
@@ -1478,6 +1498,7 @@ async function handleAgentRun(req, res) {
         const refused=!result.ok&&typeof status==='number'&&[400,401,403,404,409,422,428].includes(status);
         const settled=intent&&(result.ok&&receipts.some(r=>r.kind!=='error')||refused)?[intent]:[];
         PLATFORM.agentTurns.checkpoint(ownerId,durableId,receipts,settled);
+        await persistAgentTurn();
         if(receipts.length||intent)emitCheckpointProgress();
       }
       completedCalls += 1;
@@ -1552,7 +1573,7 @@ async function handleAgentRun(req, res) {
     if(noProgressRounds===2 || noProgressRounds===4){
       workingMessages.push({role:'system',content:buildProgressRepairInstruction(toolSummary.slice(-12),noProgressRounds)});
     }
-    if(explicitMerge){finishWithAnswer('',false,!results.every(result=>result.ok));return;}
+    if(explicitMerge){await finishWithAnswer('',false,!results.every(result=>result.ok));return;}
     if(noProgressRounds>=6){incompleteReason='no_progress';break;}
   }
 
@@ -1561,11 +1582,11 @@ async function handleAgentRun(req, res) {
   // Ask for a concrete evidence-based status, never a fresh promise to start.
   if (requestAbort.signal.aborted) {
     interruptionDiagnostic=agentInterruptionDiagnostic(undefined,requestAbort.signal,interruptionStage);
-    finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
+    await finishWithAnswer(incompleteAgentRunAnswer(toolSummary, 'interrupted'), false, true);
     return;
   }
   if (githubEvidenceMode) {
-    finishWithAnswer('', false, true);
+    await finishWithAnswer('', false, true);
     return;
   }
   const finalInstruction = buildFinalToolInstruction(toolSummary);
@@ -1582,12 +1603,12 @@ async function handleAgentRun(req, res) {
       max_tokens: boundedMaxTokens(body)
     });
   } catch (error) {
-    failRound(error);
+    await failRound(error);
     return;
   }
   const finalText = stripToolMarkup(final.content);
   if (!final.toolCalls.length && !isEmptyOrProgressOnlyAnswer(finalText)) {
-    finishWithAnswer(finalText, final.wrote, (incompleteReason === 'tool_budget' || incompleteReason === 'no_progress'));
+    await finishWithAnswer(finalText, final.wrote, (incompleteReason === 'tool_budget' || incompleteReason === 'no_progress'));
     return;
   }
   // One bounded JSON recovery is useful when streamed tool markup consumes
@@ -1610,10 +1631,10 @@ async function handleAgentRun(req, res) {
     // tool-status evidence rather than another invented or empty model reply.
   }
   if (!isEmptyOrProgressOnlyAnswer(recovered)) {
-    finishWithAnswer(recovered, false, (incompleteReason === 'tool_budget' || incompleteReason === 'no_progress'));
+    await finishWithAnswer(recovered, false, (incompleteReason === 'tool_budget' || incompleteReason === 'no_progress'));
     return;
   }
-  finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
+  await finishWithAnswer(incompleteAgentRunAnswer(toolSummary, incompleteReason), false, true);
   } catch(error) {
     if(!durableId||turnFinished)throw error;
     const diagnostic=agentInterruptionDiagnostic(error,requestAbort.signal,interruptionStage);
@@ -1622,6 +1643,7 @@ async function handleAgentRun(req, res) {
     const answer=formatGitHubRunEvidence(saved?.receipts??[])+'\n\nKesinti nedeni: '+diagnostic+'.'+
       (saved?.pending?.length?'\n\nSonucu belirsiz yazma işlemleri var; GitHub üzerinden doğrulamadan tekrar yürütülmeyecek.':'');
     PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',answer);
+    await persistAgentTurn().catch(()=>{});
     turnFinished=true;
     // Deliver the verified terminal record when the SSE peer is still present.
     // A disconnected peer can recover the same record via the authenticated API.
@@ -1637,8 +1659,8 @@ async function handleAgentRun(req, res) {
     stopHeartbeat();
     res.off('close',stopHeartbeat);res.off('finish',stopHeartbeat);
     requestAbort.cancel();
-    if(durableId&&!turnFinished)PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',
-      'Görev kesildi; doğrulanmış kayıtları kontrol et. Kesinti nedeni: AGENT_EXECUTION_FAILED.');
+    if(durableId&&!turnFinished){PLATFORM.agentTurns.finish(ownerId,durableId,'interrupted',
+      'Görev kesildi; doğrulanmış kayıtları kontrol et. Kesinti nedeni: AGENT_EXECUTION_FAILED.');await persistAgentTurn().catch(()=>{});}
   }
 }
 
@@ -1911,6 +1933,7 @@ const server = createServer(async (req, res) => {
         status: 'ok',
         revision: /^[a-f0-9]{40}$/i.test(process.env.RENDER_GIT_COMMIT||'')?process.env.RENDER_GIT_COMMIT:null,
         durableGitHubTaskActive: PLATFORM.agentTurns.hasActive(),
+        durableGitHubJournalConfigured: Boolean(PLATFORM.agentJournal?.configured),
         durableGitHubDeploymentPending: PLATFORM.agentTurns.deploymentPending(),
         uptimeSeconds: Number(process.uptime().toFixed(3)),
         time: new Date().toISOString()
