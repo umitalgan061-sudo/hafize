@@ -2030,6 +2030,7 @@ const server = createServer(async (req, res) => {
       if (!NVIDIA_API_KEY) { sendJson(res, 503, { error: 'NVIDIA_NOT_CONFIGURED' }); return; }
       try {
         if (req.method === 'GET' && url.pathname === '/api/self-portrait/status') { sendJson(res, 200, SELF_PORTRAIT.status()); return; }
+        if (req.method === 'GET' && url.pathname === '/api/self-portrait/active') { sendJson(res, 200, SELF_PORTRAIT.active(principal.ownerId)); return; }
         if (req.method === 'POST' && url.pathname === '/api/self-portrait/jobs') {
           const body = await readJson(req, 1_400_000);
           sendJson(res, 202, SELF_PORTRAIT.start(principal.ownerId, body));

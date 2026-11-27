@@ -15,6 +15,10 @@ Hafize designs the living image on the home "Sesli asistan" card itself.
    - The job result lists each vision model's outcome (`visionAttempts`).
 5. **Ship**: the server commits `public/hafize-self-portrait.json` on a `hafize/auto-self-portrait-*` branch and opens a PR. It waits for green CI, then merges through the existing `github_release` tool. It waits for the main `quality.yml` run and asks for a Render release, using the deploy hook first and the `hafize-render-release.yml` dispatch as a fallback. A failed CI run is re-run once, since a single timeout is not a broken portrait. A retried publish continues on the same branch and PR. Firebase Hosting follows the push to main on its own.
 
+## Resuming
+
+Jobs run on the server whether or not a window watches them. `GET /api/self-portrait/active` returns the owner's latest job and its session. A reopened or reloaded mirror attaches to a running job, or continues from the last finished step, so a reload never strands Hafize's work. A server restart (a deploy) still ends in-memory sessions.
+
 ## Boundaries
 
 - The routes under `/api/self-portrait/*` are owner-only. They need an authenticated owner session, the same check the Model Lab uses.

@@ -208,8 +208,9 @@ async function openMirror() {
     concept.append(details);
   };
 
-  async function job(bodyJson: Json, interval = 1500): Promise<Json> {
-    let snap = await api('/api/self-portrait/jobs', bodyJson);
+  // Follows a server job until it ends; the job keeps running if this window goes away.
+  async function follow(first: Json, interval = 1500): Promise<Json> {
+    let snap = first;
     let seen = 0;
     for (;;) {
       const entries = Array.isArray(snap.log) ? snap.log : [];
@@ -227,6 +228,7 @@ async function openMirror() {
       snap = await api('/api/self-portrait/jobs/' + snap.id);
     }
   }
+  const job = async (bodyJson: Json, interval = 1500) => follow(await api('/api/self-portrait/jobs', bodyJson), interval);
 
   async function compileOrRepair(candidate: Candidate): Promise<Candidate | null> {
     let current = candidate;
@@ -243,59 +245,100 @@ async function openMirror() {
     return null;
   }
 
-  async function design(reimagine: boolean) {
+  // What Hafize decided after looking in the mirror: chosen, or the next candidate to look at.
+  function afterReflect(seen: Json, looked: Candidate | undefined): Candidate | null {
+    if (seen.visionUnavailable) {
+      const tried = Array.isArray(seen.visionAttempts) ? seen.visionAttempts.map((a: Json) => String(a.model).split('/').pop() + ' → ' + a.outcome).join(', ') : '';
+      note('Görsel modeller yanıt vermedi' + (tried ? ' (' + tried + ')' : '') + '; Hafize tarayıcının ölçümleriyle kendine bakıyor.', 'warn');
+    }
+    if (seen.critique) {
+      note('“' + seen.critique.verdict + '”', seen.approved ? 'ok' : '');
+      for (const fix of seen.critique.fixes || []) note('→ ' + fix);
+    }
+    if (seen.approved || seen.exhausted) {
+      chosen = known.get(seen.best) ?? looked ?? null;
+      if (seen.exhausted) note('Dört bakıştan sonra en iyi hâlini seçti.');
+      if (chosen) show(chosen);
+      return null;
+    }
+    const next: Candidate | null = seen.candidate ?? null;
+    if (next) note('Yeni hâli hazır; tekrar bakıyor.');
+    return next;
+  }
+
+  async function lookAndDecide(first: Candidate | null) {
+    let candidate = first;
+    while (candidate) {
+      candidate = await compileOrRepair(candidate);
+      if (!candidate || !portrait) break;
+      known.set(candidate.id, candidate);
+      show(candidate);
+      note('Derlendi; aynada canlı.', 'ok');
+      const photo = await portrait.sheet(candidate.glsl);
+      if (!photo.ok || !photo.dataUrl) { note('Ayna fotoğrafı çekilemedi: ' + (photo.log || ''), 'error'); break; }
+      const seen = await job({ action: 'reflect', session, candidate: candidate.id, sheet: photo.dataUrl, metrics: photo.metrics }, 2000);
+      candidate = afterReflect(seen, candidate);
+    }
+    if (chosen) {
+      ship.hidden = false;
+      note('Hafize bu görünüşü seçti.', 'ok');
+      if (auto.checked) await publish();
+    }
+  }
+
+  async function guarded(work: () => Promise<void>) {
     if (busy || !portrait) return;
     busy = true;
-    start.disabled = true; again.disabled = true; ship.hidden = true; chosen = null;
-    try {
-      const first = await job({ action: 'imagine', ...(reimagine && session ? { session } : {}) });
-      session = first.session;
-      showConcept(first.concept);
-      const coded = await job({ action: 'code', session }, 2000);
-      note('Fikir modeli: ' + (first.concept?.model || '—') + ' · kod modeli: ' + (coded.candidate?.model || '—'));
-      let candidate: Candidate | null = coded.candidate;
-      while (candidate) {
-        candidate = await compileOrRepair(candidate);
-        if (!candidate) break;
-        known.set(candidate.id, candidate);
-        show(candidate);
-        note('Derlendi; aynada canlı.', 'ok');
-        const photo = await portrait.sheet(candidate.glsl);
-        if (!photo.ok || !photo.dataUrl) { note('Ayna fotoğrafı çekilemedi: ' + (photo.log || ''), 'error'); break; }
-        const seen = await job({ action: 'reflect', session, candidate: candidate.id, sheet: photo.dataUrl, metrics: photo.metrics }, 2000);
-        if (seen.visionUnavailable) {
-          const tried = Array.isArray(seen.visionAttempts) ? seen.visionAttempts.map((a: Json) => String(a.model).split('/').pop() + ' → ' + a.outcome).join(', ') : '';
-          note('Görsel modeller yanıt vermedi' + (tried ? ' (' + tried + ')' : '') + '; Hafize tarayıcının ölçümleriyle kendine bakıyor.', 'warn');
-        }
-        if (seen.critique) {
-          note('“' + seen.critique.verdict + '”', seen.approved ? 'ok' : '');
-          for (const fix of seen.critique.fixes || []) note('→ ' + fix);
-        }
-        if (seen.approved) { chosen = candidate; break; }
-        if (seen.exhausted) {
-          chosen = known.get(seen.best) ?? candidate;
-          show(chosen);
-          note('Dört bakıştan sonra en iyi hâlini seçti.');
-          break;
-        }
-        candidate = seen.candidate ?? null;
-        if (candidate) note('Yeni hâli hazır; tekrar bakıyor.');
-      }
-      if (chosen) {
-        ship.hidden = false;
-        note('Hafize bu görünüşü seçti.', 'ok');
-        if (auto.checked) await publish();
-      }
-    } catch (error) {
+    start.disabled = true; again.disabled = true; ship.hidden = true;
+    try { await work(); }
+    catch (error) {
       const code = error instanceof MirrorError ? error.code : 'SELF_PORTRAIT_FAILED';
       note(ERRORS[code] ?? 'Bir şey ters gitti (' + code + ').', 'error');
     } finally {
       busy = false;
       start.disabled = false; again.disabled = false;
       again.hidden = !session;
+      ship.hidden = !chosen;
       start.textContent = session ? 'Baştan başlat' : 'Hafize kendini tasarlasın';
     }
   }
+
+  async function codeAndLook() {
+    const coded = await job({ action: 'code', session }, 2000);
+    note('Kod modeli: ' + (coded.candidate?.model || '—'));
+    await lookAndDecide(coded.candidate ?? null);
+  }
+
+  const design = (reimagine: boolean) => guarded(async () => {
+    chosen = null;
+    const first = await job({ action: 'imagine', ...(reimagine && session ? { session } : {}) });
+    session = first.session;
+    showConcept(first.concept);
+    note('Fikir modeli: ' + (first.concept?.model || '—'));
+    await codeAndLook();
+  });
+
+  // Picks up Hafize's latest work after a reload or a closed window.
+  const resume = (active: Json) => guarded(async () => {
+    const latest: Json | null = active.job ?? null;
+    if (!latest) return;
+    note('Hafize’nin süren işine bağlanıyorum…');
+    if (latest.action === 'publish') {
+      const out = latest.status === 'running' ? await follow(latest, 5000) : latest.status === 'done' ? latest.result || {} : null;
+      if (!out) { note(ERRORS[latest.error] ?? 'Son yayın durmuştu (' + latest.error + ').', 'warn'); return; }
+      if (out.url) note('PR: ' + out.url, 'ok');
+      if (out.deploy !== 'scheduled' && out.portrait) await watchLive(String(out.portrait));
+      return;
+    }
+    if (latest.status === 'failed') { note(ERRORS[latest.error] ?? 'Son adım durmuştu (' + latest.error + ').', 'warn'); return; }
+    const result = latest.status === 'running' ? await follow(latest, 2000) : latest.result || {};
+    if (latest.action === 'imagine') { if (result.concept) showConcept(result.concept); await codeAndLook(); return; }
+    if (latest.action === 'code' || latest.action === 'repair') { await lookAndDecide(result.candidate ?? null); return; }
+    if (latest.action === 'reflect') {
+      const looked = known.get(String(result.best || ''));
+      await lookAndDecide(afterReflect(result, looked));
+    }
+  });
 
   async function watchLive(portraitId: string) {
     const until = Date.now() + 25 * 60 * 1000;
@@ -358,6 +401,19 @@ async function openMirror() {
     note(ERRORS[code] ?? 'Ayna şu an kullanılamıyor (' + code + ').', 'error');
     start.disabled = true;
   }
+  try {
+    const active = await api('/api/self-portrait/active');
+    if (active.session) {
+      session = active.session.id;
+      showConcept(active.session.concept);
+      for (const c of active.session.candidates || []) known.set(c.id, c);
+      again.hidden = false;
+      start.textContent = 'Baştan başlat';
+    }
+    const latest = active.job;
+    const fresh = latest && (latest.status === 'running' || Date.now() - Date.parse(latest.updatedAt) < 30 * 60 * 1000);
+    if (fresh && !(latest.action === 'reflect' && latest.status === 'done' && latest.result?.approved && active.session?.published)) void resume(active);
+  } catch { /* older server or no owner session: start fresh */ }
   try {
     const pending = JSON.parse(localStorage.getItem(PUBLISH_KEY) || 'null');
     if (pending?.portrait && Date.now() - Number(pending.at) < 60 * 60 * 1000 && portrait?.current()?.id !== pending.portrait) void watchLive(String(pending.portrait));
