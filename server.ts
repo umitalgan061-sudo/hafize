@@ -2299,11 +2299,10 @@ function closeHttpServer() {
 }
 
 const SHUTDOWN = createShutdownCoordinator({
-  stopWorker: () => { AGENT_REQUEST_DRAIN.stop(); stopScheduleWorkerLoop(); stopRuleEngineLoop(); clearInterval(dailyTimer); },
+  stopWorker: () => { AGENT_REQUEST_DRAIN.stop(); PLATFORM.agentTurns.cancelAll(); stopScheduleWorkerLoop(); stopRuleEngineLoop(); clearInterval(dailyTimer); },
   waitForTick: () => scheduleTickPromise ?? Promise.resolve(),
   closeLease: async () => {
     await DAILY_IMPROVEMENT.stop().catch(() => {});
-    PLATFORM.agentTurns.cancelAll();
     const drained=await AGENT_REQUEST_DRAIN.drain(12_000);
     console.info(JSON.stringify({event:'hafize.agent.shutdown_drain',drained,remaining:AGENT_REQUEST_DRAIN.activeCount()}));
     await PLATFORM.shutdown().catch(() => {});
