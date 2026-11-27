@@ -1416,7 +1416,7 @@ async function handleAgentRun(req, res) {
 
     // Prefer the scoped editor as soon as trusted target evidence exists.
     // Do not let exploratory reads consume the entire development budget.
-    if(!explicitPatchAttempted&&explicitPath&&durableId&&!recoveryReadOnly&&
+    if(!explicitMerge&&!explicitPatchAttempted&&explicitPath&&durableId&&!recoveryReadOnly&&
       !requestAbort.signal.aborted&&!PLATFORM.agentTurns.get(ownerId,durableId)?.pending.length&&
       tools.some(t=>t.function.name==='github_develop')&&tools.some(t=>t.function.name==='github_read_file')){
       const target=explicitPatchRecoveryTarget(developmentRequest,githubReceipts,toolSummary);
